@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects
+from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status
 from maestro_api.websocket import register_ws_routes
 from maestro_api.state import AppState
 
@@ -96,6 +96,8 @@ def create_app(
     app.include_router(costs.router, prefix="/api/costs", tags=["costs"])
     app.include_router(meta.router, prefix="/api/meta", tags=["meta"])
     app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
+    # Status dashboard (HTML at /status — NOT part of /api).
+    app.include_router(status.router, tags=["status"])
 
     # WebSocket for live event streaming.
     register_ws_routes(app)
@@ -119,7 +121,8 @@ def create_app(
 
         @app.get("/{full_path:path}")
         async def spa_fallback(full_path: str):
-            if full_path.startswith("api/") or full_path.startswith("ws/"):
+            # Don't intercept API, WS, or status paths.
+            if full_path.startswith("api/") or full_path.startswith("ws/") or full_path == "status":
                 return {"detail": "Not Found"}
             candidate = static_files_dir / full_path
             if candidate.is_file():

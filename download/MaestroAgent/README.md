@@ -60,7 +60,19 @@ See [`docs/VS_BRIDGEMIND.md`](docs/VS_BRIDGEMIND.md) for the full comparison.
 
 ## Quick start
 
-### Option A — Docker (2 minutes)
+### 🚀 Try it in Browser — 30 seconds (dev mode, fastest)
+
+```bash
+git clone https://github.com/your-org/maestroagent.git
+cd maestroagent
+./dev.sh
+```
+
+Then open **http://localhost:1420** in Chrome/Firefox/Brave. Click the install icon in the address bar to install as a PWA.
+
+> `./dev.sh` auto-creates the Python venv, installs deps, starts the backend on :8765 + frontend on :1420 with hot reload. No Docker build wait.
+
+### Option A — Docker (production self-host, 2 minutes)
 
 ```bash
 git clone https://github.com/your-org/maestroagent.git
@@ -71,7 +83,7 @@ cp .env.example .env
 
 Open **http://localhost:8765** → click **Install** in your browser's address bar.
 
-### Option B — Dev mode
+### Option B — Dev mode (manual)
 
 ```bash
 # Terminal 1: backend
@@ -99,6 +111,21 @@ cp .env.example .env
 cp docker/Caddyfile /etc/caddy/Caddyfile  # edit domain
 sudo systemctl restart caddy
 ```
+
+### Verify it works
+
+```bash
+# Quick health check
+curl -s http://localhost:8765/api/health | head -c 100
+
+# Visual status dashboard
+open http://localhost:8765/status
+
+# Full smoke test (11 checks)
+./test_e2e.sh
+```
+
+See **[REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md)** for a detailed 18-feature browser test guide.
 
 Full setup: [`docs/BROWSER_SETUP.md`](docs/BROWSER_SETUP.md).
 
@@ -152,6 +179,7 @@ MaestroAgent/
 | Doc | What's inside |
 |---|---|
 | [README.md](README.md) | This file |
+| [REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md) | **18-feature browser test guide** — how to verify every feature works |
 | [docs/RELEASE_NOTES_v1.0.md](docs/RELEASE_NOTES_v1.0.md) | v1.0 changelog + migration guide |
 | [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md) | Browser install + self-host (Docker + dev) |
 | [docs/VS_BRIDGEMIND.md](docs/VS_BRIDGEMIND.md) | Feature-by-feature comparison vs Bridgemind |
