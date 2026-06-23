@@ -1,0 +1,60 @@
+# MaestroAgent — Docker Compose for self-hosting.
+#
+# One command to run the full browser-first stack:
+#   docker compose up -d
+#
+# Then open http://localhost:8765 and click "Install" in your browser
+# to install MaestroAgent as a PWA.
+#
+# Data persists in the `maestro-data` volume. To reset, run:
+#   docker compose down -v
+
+services:
+  maestro:
+    build: .
+    image: maestroagent/app:latest
+    container_name: maestroagent
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - maestro-data:/data
+      - maestro-workspace:/workspace
+    environment:
+      # Local LLMs (host networking makes Ollama reachable)
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # Cloud providers (set in .env or inline)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      # Logging
+      - MAESTRO_LOG=${MAESTRO_LOG:-info}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Optional: sandbox container for isolated tool execution.
+  # The MaestroAgent engine will `docker exec` into this container
+  # to run shell commands, tests, and lint.
+  sandbox:
+    build: ./backend/sandbox
+    image: maestroagent/sandbox:latest
+    container_name: maestro-sandbox
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    volumes:
+      - maestro-workspace:/workspace
+    network_mode: none
+    user: nobody
+
+volumes:
+  maestro-data:
+  maestro-workspace:
