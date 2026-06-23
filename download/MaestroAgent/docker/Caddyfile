@@ -1,0 +1,40 @@
+# Caddyfile — automatic HTTPS reverse proxy for MaestroAgent.
+#
+# Usage:
+#   1. Install Caddy: https://caddyserver.com/docs/install
+#   2. Point your domain's DNS A record at this server's IP.
+#   3. Copy this file to /etc/caddy/Caddyfile and edit the domain.
+#   4. sudo systemctl restart caddy
+#
+# Caddy automatically provisions and renews Let's Encrypt certificates.
+# WebSocket (/ws) is supported out of the box — no special config needed.
+
+maestro.yourdomain.com {
+    # Reverse proxy to the MaestroAgent container (or localhost:8765).
+    reverse_proxy localhost:8765
+
+    # Compression
+    encode gzip zstd
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(self), geolocation=()"
+    }
+
+    # Cache static assets aggressively.
+    @static path /assets/* /icons/* /manifest.webmanifest /favicon.ico
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # Never cache API responses.
+    @api path /api/*
+    header @api Cache-Control "no-store"
+
+    log {
+        output file /var/log/caddy/maestro.log
+        format json
+    }
+}

@@ -90,6 +90,99 @@ class LLMRouter:
             providers["grok"] = GrokProvider(api_key=grok_api_key)
         return cls(providers=providers, ledger=ledger)
 
+    @classmethod
+    async def auto_detect(cls, ledger: CostLedger | None = None) -> "LLMRouter":
+        """Auto-detect available local LLM providers (Ollama, LM Studio).
+
+        Probes common local endpoints and cloud env vars, then returns
+        a router pre-configured with whatever it found. The default
+        provider is set to the first available local provider (cost $0),
+        falling back to the first cloud provider if no local one is up.
+
+        This is the recommended factory for self-hosted deployments —
+        it "just works" with whatever the user has running.
+        """
+        import os
+        providers: dict[str, Provider] = {}
+
+        # 1. Probe Ollama at the standard port.
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama = OllamaProvider(base_url=ollama_url)
+        try:
+            if await ollama.health():
+                providers["ollama"] = ollama
+                # Auto-pick a default model if one is available.
+                models = await ollama.list_models()
+                if models:
+                    # Prefer a medium-sized instruct model if present.
+                    preferred = next(
+                        (m for m in models if any(k in m.lower() for k in ("llama3.1", "llama3", "qwen2.5", "mistral"))),
+                        models[0],
+                    )
+                    # We can't set default_models here (it's a class attr); we
+                    # set it on the instance after construction.
+                    providers["_ollama_default_model"] = preferred  # type: ignore[assignment]
+        except Exception:
+            pass
+
+        # 2. Probe LM Studio at the standard port.
+        lmstudio = LMStudioProvider()
+        try:
+            if await lmstudio.health():
+                providers["lmstudio"] = lmstudio
+        except Exception:
+            pass
+
+        # 3. Cloud providers from env vars.
+        if os.environ.get("OPENAI_API_KEY"):
+            providers["openai"] = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            providers["anthropic"] = AnthropicProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
+        if os.environ.get("OPENROUTER_API_KEY"):
+            providers["openrouter"] = OpenRouterProvider(api_key=os.environ["OPENROUTER_API_KEY"])
+        if os.environ.get("XAI_API_KEY"):
+            providers["grok"] = GrokProvider(api_key=os.environ["XAI_API_KEY"])
+
+        # Pick default provider: prefer local (free), then cloud.
+        ollama_default = providers.pop("_ollama_default_model", None)  # type: ignore[arg-type]
+        default_provider = "ollama" if "ollama" in providers else (
+            "lmstudio" if "lmstudio" in providers else (
+                next(iter(providers)) if providers else "ollama"
+            )
+        )
+
+        router = cls(providers=providers, ledger=ledger, default_provider=default_provider)
+        if ollama_default and default_provider == "ollama":
+            router.default_model = ollama_default
+            router.default_models["ollama"] = ollama_default
+        return router
+
+    async def health_check_all(self) -> dict[str, bool]:
+        """Check the health of every configured provider.
+
+        Returns a map of provider name → reachable. Used by the
+        `/api/doctor` endpoint and the installable PWA's health check.
+        """
+        results: dict[str, bool] = {}
+        for name, prov in self.providers.items():
+            try:
+                results[name] = await prov.health()
+            except Exception:
+                results[name] = False
+        return results
+
+    async def list_all_models(self) -> dict[str, list[str]]:
+        """List models for every provider that supports it."""
+        results: dict[str, list[str]] = {}
+        for name, prov in self.providers.items():
+            try:
+                models = await prov.list_models()
+                if models:
+                    results[name] = models
+            except Exception:
+                pass
+        return results
+
     async def complete(
         self,
         system: str,

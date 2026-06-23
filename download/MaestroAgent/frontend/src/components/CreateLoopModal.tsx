@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useAppStore } from "../store/appStore";
-import { X, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
+import { X, RefreshCw, CheckCircle2, AlertTriangle, GitBranch, Layers, Sparkles } from "lucide-react";
+
+type LoopKind = "simple" | "nested" | "parallel" | "meta";
+
+const LOOP_KIND_META: Record<LoopKind, { label: string; description: string; icon: typeof RefreshCw }> = {
+  simple: { label: "Simple Loop", description: "Run body until exit condition met.", icon: RefreshCw },
+  nested: { label: "Nested Loop", description: "Loop whose body is another loop. Outer → inner.", icon: GitBranch },
+  parallel: { label: "Parallel Loop", description: "Run N independent loops concurrently, merge results.", icon: Layers },
+  meta: { label: "Meta Loop", description: "Supervisor picks which child loop to run each iteration.", icon: Sparkles },
+};
 
 export default function CreateLoopModal() {
   const isOpen = useAppStore((s) => s.createLoopModalOpen);
@@ -8,8 +17,11 @@ export default function CreateLoopModal() {
   const createLoop = useAppStore((s) => s.createLoop);
   const liveState = useAppStore((s) => s.liveState);
 
+  const [loopKind, setLoopKind] = useState<LoopKind>("simple");
   const [loopId, setLoopId] = useState("");
   const [bodyAgentId, setBodyAgentId] = useState("");
+  // For parallel/meta: comma-separated child loop ids or agent ids.
+  const [childAgents, setChildAgents] = useState("");
   const [exitKind, setExitKind] = useState<"tests" | "metric" | "critic" | "callable">("tests");
   const [testCommand, setTestCommand] = useState("pytest -x --tb=short");
   const [metricKey, setMetricKey] = useState("test_pass_rate");
@@ -29,7 +41,12 @@ export default function CreateLoopModal() {
 
   const handleSubmit = async () => {
     if (!loopId.trim()) { setError("Loop ID is required."); return; }
-    if (!bodyAgentId) { setError("Body agent is required."); return; }
+    if ((loopKind === "simple" || loopKind === "nested") && !bodyAgentId) {
+      setError("Body agent is required for this loop kind."); return;
+    }
+    if ((loopKind === "parallel" || loopKind === "meta") && !childAgents.trim()) {
+      setError("Child agents/loops are required for this loop kind."); return;
+    }
     const exitConfig: Record<string, unknown> = {};
     if (exitKind === "tests") exitConfig.command = testCommand;
     else if (exitKind === "metric") {
@@ -40,10 +57,17 @@ export default function CreateLoopModal() {
       exitConfig.rubric = criticRubric;
       exitConfig.threshold = criticThreshold;
     }
+    // Embed loop kind + child agents (for parallel/meta/nested).
+    exitConfig.loop_kind = loopKind;
+    if (loopKind === "parallel" || loopKind === "meta") {
+      exitConfig.child_agents = childAgents.split(",").map((s) => s.trim()).filter(Boolean);
+    }
     setLaunching(true); setError(null);
     try {
       await createLoop({
-        loop_id: loopId.trim(), body_agent_id: bodyAgentId, exit_kind: exitKind,
+        loop_id: loopId.trim(),
+        body_agent_id: bodyAgentId || childAgents.split(",")[0]?.trim() || "",
+        exit_kind: exitKind,
         exit_config: exitConfig, max_iterations: maxIters, max_cost_usd: maxCost, on_exceed: onExceed,
       });
       setLoopId("");
@@ -63,19 +87,60 @@ export default function CreateLoopModal() {
           <button onClick={close} className="btn-ghost p-1"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-6 space-y-4">
+          {/* Loop kind selector */}
+          <div>
+            <label className="block text-xs text-ink-low uppercase tracking-wide mb-1.5">Loop kind</label>
+            <div className="grid grid-cols-4 gap-2">
+              {(Object.keys(LOOP_KIND_META) as LoopKind[]).map((k) => {
+                const meta = LOOP_KIND_META[k];
+                const Icon = meta.icon;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setLoopKind(k)}
+                    className={`px-2 py-2 text-xs rounded-md border transition-colors text-left ${
+                      loopKind === k
+                        ? "border-maestro-500 bg-maestro-600/20 text-maestro-300"
+                        : "border-surface-3 bg-surface-2 text-ink-mid hover:border-surface-4"
+                    }`}
+                  >
+                    <Icon className="w-3 h-3 mb-1" />
+                    <div className="font-semibold">{meta.label}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-ink-low mt-1">{LOOP_KIND_META[loopKind].description}</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-ink-low uppercase tracking-wide mb-1.5">Loop ID</label>
               <input type="text" value={loopId} onChange={(e) => setLoopId(e.target.value)}
                 placeholder="e.g. fix_until_tests_pass" className="input w-full font-mono text-xs" />
             </div>
-            <div>
-              <label className="block text-xs text-ink-low uppercase tracking-wide mb-1.5">Body agent</label>
-              <select value={bodyAgentId} onChange={(e) => setBodyAgentId(e.target.value)} className="input w-full">
-                <option value="">— select agent —</option>
-                {agentIds.map((id) => <option key={id} value={id}>{id}</option>)}
-              </select>
-            </div>
+            {(loopKind === "simple" || loopKind === "nested") ? (
+              <div>
+                <label className="block text-xs text-ink-low uppercase tracking-wide mb-1.5">Body agent</label>
+                <select value={bodyAgentId} onChange={(e) => setBodyAgentId(e.target.value)} className="input w-full">
+                  <option value="">— select agent —</option>
+                  {agentIds.map((id) => <option key={id} value={id}>{id}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs text-ink-low uppercase tracking-wide mb-1.5">
+                  {loopKind === "parallel" ? "Child agents (comma-separated)" : "Candidate agents (comma-separated)"}
+                </label>
+                <input type="text" value={childAgents} onChange={(e) => setChildAgents(e.target.value)}
+                  placeholder="agent_a, agent_b, agent_c" className="input w-full font-mono text-xs" />
+                <p className="text-[10px] text-ink-low mt-1">
+                  {loopKind === "parallel"
+                    ? "Each agent runs as an independent loop; results merged."
+                    : "Supervisor picks one to run each iteration based on state."}
+                </p>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs text-ink-low uppercase tracking-wide mb-1.5">Exit condition</label>

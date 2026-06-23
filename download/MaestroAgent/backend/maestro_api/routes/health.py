@@ -1,4 +1,4 @@
-"""Health & diagnostics endpoint."""
+"""Health & diagnostics endpoints."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ async def health(request: Request) -> dict:
         "status": "ok",
         "version": "0.1.0",
         "providers": state.llm.available_providers() if state.llm else [],
+        "default_provider": state.llm.default_provider if state.llm else None,
+        "default_model": state.llm.default_model if state.llm else None,
         "verifiers": state.verifiers.names() if state.verifiers else [],
         "plugins": state.plugins.list() if state.plugins else [],
     }
@@ -24,17 +26,44 @@ async def doctor(request: Request) -> dict:
     """Deeper diagnostics — provider connectivity, DB writability, etc."""
     state = request.app.state.maestro
     results: dict[str, bool] = {}
-    # Check each provider.
+    # Check each provider via the router's health_check_all.
     if state.llm:
-        for name, prov in state.llm.providers.items():
-            try:
-                results[name] = await prov.health()
-            except Exception:
-                results[name] = False
+        try:
+            results.update(await state.llm.health_check_all())
+        except Exception as exc:
+            results["llm_router"] = False
     # Check DB.
     try:
         await state.checkpoints.audit("__doctor__", "ping", {"ts": "now"})
         results["db"] = True
     except Exception:
         results["db"] = False
+    # Check Chroma (vector memory).
+    try:
+        if state.memory and state.memory.semantic:
+            # A no-op add+query to verify the vector store is alive.
+            await state.memory.semantic.add("__doctor__", None, "doctor", "ping", {})
+            results["chroma"] = True
+        else:
+            results["chroma"] = False
+    except Exception:
+        results["chroma"] = False
     return results
+
+
+@router.get("/models")
+async def list_models(request: Request) -> dict:
+    """List available models per provider.
+
+    Used by the StartRunModal to populate the model picker with real
+    models from the user's Ollama / LM Studio / cloud providers.
+    """
+    state = request.app.state.maestro
+    if not state.llm:
+        return {"models": {}}
+    models = await state.llm.list_all_models()
+    return {
+        "models": models,
+        "default_provider": state.llm.default_provider,
+        "default_model": state.llm.default_model,
+    }

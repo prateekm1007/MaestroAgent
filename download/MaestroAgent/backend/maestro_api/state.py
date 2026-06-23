@@ -76,12 +76,25 @@ class AppState:
         self.plugins = PluginRegistry()
         self.plugins.discover()
 
-        # Build the router with defaults from env.
-        import os
-        self.llm = LLMRouter.with_defaults(
-            ollama_base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
-            openai_api_key=os.environ.get("OPENAI_API_KEY"),
-            anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        # Build the router with auto-detection of local + cloud providers.
+        # auto_detect probes Ollama + LM Studio, picks the first available
+        # local provider as default (cost $0), then adds cloud providers
+        # from env vars.
+        try:
+            self.llm = await LLMRouter.auto_detect(ledger=self.ledger)
+            logger.info(
+                "LLM router auto-detected: providers=%s, default=%s/%s",
+                list(self.llm.providers.keys()),
+                self.llm.default_provider,
+                self.llm.default_model,
+            )
+        except Exception as exc:
+            logger.warning("auto_detect failed (%s); falling back to with_defaults", exc)
+            import os
+            self.llm = LLMRouter.with_defaults(
+                ollama_base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+                openai_api_key=os.environ.get("OPENAI_API_KEY"),
+                anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY"),
             grok_api_key=os.environ.get("XAI_API_KEY"),
             ledger=self.ledger,
