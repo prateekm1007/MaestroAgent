@@ -76,3 +76,29 @@
 .react-flow__controls {
   @apply rounded-md overflow-hidden border border-surface-3;
 }
+.react-flow__controls button {
+  @apply bg-surface-2 border-surface-3 text-ink-mid;
+}
+.react-flow__controls button:hover {
+  @apply bg-surface-3 text-ink-high;
+}
+.react-flow__minimap {
+  @apply rounded-md overflow-hidden;
+}
+
+/* Slow spin for active loops */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Line clamp utility (Tailwind plugin not installed) */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

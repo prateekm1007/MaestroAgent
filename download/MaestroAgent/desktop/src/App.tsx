@@ -10,6 +10,10 @@ import Terminal from "./components/Terminal";
 import FileBrowser from "./components/FileBrowser";
 import Metrics from "./components/Metrics";
 import TemplatesGallery from "./components/TemplatesGallery";
+import StartRunModal from "./components/StartRunModal";
+import SpawnSubagentModal from "./components/SpawnSubagentModal";
+import DebateModal from "./components/DebateModal";
+import CreateLoopModal from "./components/CreateLoopModal";
 
 /**
  * App — the MaestroAgent desktop shell.
@@ -58,6 +62,12 @@ export default function App() {
         </main>
       </div>
       <StatusBar sidecarUrl={sidecarUrl} />
+
+      {/* Modals */}
+      <StartRunModal />
+      <SpawnSubagentModal />
+      <DebateModal />
+      <CreateLoopModal />
     </div>
   );
 }

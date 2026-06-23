@@ -50,6 +50,19 @@ export interface RunEvent {
   payload: Record<string, unknown>;
 }
 
+interface LiveState {
+  agents: Array<{ id: string; kind: string; role?: string; status?: string; parent_id?: string }>;
+  agent_edges: Array<{ parent: string; child: string }>;
+  cost_breakdown: Array<{
+    provider: string;
+    model: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    cost_usd: number;
+    calls: number;
+  }>;
+}
+
 interface AppState {
   activeView: ViewId;
   sidecarUrl: string;
@@ -59,6 +72,11 @@ interface AppState {
   events: RunEvent[];
   templates: TemplateEntry[];
   ws: WebSocket | null;
+  liveState: LiveState | null;
+  startRunModalOpen: boolean;
+  spawnModalParent: string | null;
+  debateModalParticipants: string[] | null;
+  createLoopModalOpen: boolean;
 
   setActiveView: (v: ViewId) => void;
   setSidecarUrl: (url: string) => void;
@@ -74,9 +92,37 @@ interface AppState {
   resumeRun: (runId: string, humanInput?: unknown) => Promise<void>;
   cancelRun: (runId: string) => Promise<void>;
   refreshRun: (runId: string) => Promise<void>;
+  refreshLiveState: (runId: string) => Promise<void>;
   subscribe: (runId: string) => void;
   unsubscribe: () => void;
   clearEvents: () => void;
+  spawnSubagent: (parentId: string, req: {
+    sub_goal: string;
+    role: string;
+    backstory: string;
+    tools: string[];
+    llm_hint: Record<string, string>;
+    memory_scope: string;
+    max_iterations: number;
+  }) => Promise<void>;
+  triggerDebate: (topic: string, participants: string[], seekConsensus: boolean) => Promise<void>;
+  createLoop: (req: {
+    loop_id: string;
+    body_agent_id: string;
+    exit_kind: string;
+    exit_config: Record<string, unknown>;
+    max_iterations: number;
+    max_cost_usd?: number;
+    on_exceed: string;
+  }) => Promise<void>;
+  openStartRunModal: () => void;
+  closeStartRunModal: () => void;
+  openSpawnModal: (parentId: string) => void;
+  closeSpawnModal: () => void;
+  openDebateModal: (participants: string[]) => void;
+  closeDebateModal: () => void;
+  openCreateLoopModal: () => void;
+  closeCreateLoopModal: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -88,6 +134,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   events: [],
   templates: [],
   ws: null,
+  liveState: null,
+  startRunModalOpen: false,
+  spawnModalParent: null,
+  debateModalParticipants: null,
+  createLoopModalOpen: false,
 
   setActiveView: (v) => set({ activeView: v }),
   setSidecarUrl: (url) => set({ sidecarUrl: url }),
@@ -193,4 +244,62 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   clearEvents: () => set({ events: [] }),
+
+  refreshLiveState: async (runId) => {
+    try {
+      const live = await invoke<LiveState>("get_live_state", { runId });
+      set({ liveState: live });
+    } catch (e) {
+      console.warn("failed to refresh live state:", e);
+    }
+  },
+
+  spawnSubagent: async (parentId, req) => {
+    const currentRun = get().currentRun;
+    if (!currentRun) return;
+    try {
+      await invoke("spawn_subagent", { runId: currentRun.run_id, req: { parent_id: parentId, ...req } });
+      set({ spawnModalParent: null });
+      get().refreshLiveState(currentRun.run_id);
+    } catch (e) {
+      console.error("failed to spawn subagent:", e);
+      throw e;
+    }
+  },
+
+  triggerDebate: async (topic, participants, seekConsensus) => {
+    const currentRun = get().currentRun;
+    if (!currentRun) return;
+    try {
+      await invoke("trigger_debate", {
+        runId: currentRun.run_id,
+        req: { topic, participants, seek_consensus: seekConsensus, max_rounds: 3 },
+      });
+      set({ debateModalParticipants: null });
+    } catch (e) {
+      console.error("failed to trigger debate:", e);
+      throw e;
+    }
+  },
+
+  createLoop: async (req) => {
+    const currentRun = get().currentRun;
+    if (!currentRun) return;
+    try {
+      await invoke("create_loop", { runId: currentRun.run_id, req });
+      set({ createLoopModalOpen: false });
+    } catch (e) {
+      console.error("failed to create loop:", e);
+      throw e;
+    }
+  },
+
+  openStartRunModal: () => set({ startRunModalOpen: true }),
+  closeStartRunModal: () => set({ startRunModalOpen: false }),
+  openSpawnModal: (parentId) => set({ spawnModalParent: parentId }),
+  closeSpawnModal: () => set({ spawnModalParent: null }),
+  openDebateModal: (participants) => set({ debateModalParticipants: participants }),
+  closeDebateModal: () => set({ debateModalParticipants: null }),
+  openCreateLoopModal: () => set({ createLoopModalOpen: true }),
+  closeCreateLoopModal: () => set({ createLoopModalOpen: false }),
 }));

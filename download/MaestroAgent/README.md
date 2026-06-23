@@ -17,14 +17,16 @@ Existing orchestrators force a trade-off: **CrewAI** is fast to prototype but br
 
 | Dimension | MaestroAgent | CrewAI | LangGraph | Bridgemind / RunMaestro |
 |---|---|---|---|---|
-| Local-first desktop app | ✅ Tauri + Rust | ❌ Lib only | ❌ Lib only | ⚠️ Partial |
+| Local-first desktop app | ✅ Tauri + Rust + React | ❌ Lib only | ❌ Lib only | ⚠️ Partial |
 | Hybrid graphs + crews | ✅ Crews inside graphs | ❌ Crews only | ❌ Graphs only | ⚠️ |
 | Advanced loops (until-verifiable, cron, webhook, file, nested/parallel/meta) | ✅ Native | ❌ Manual | ⚠️ Basic | ⚠️ |
 | Dynamic hierarchical sub-agents | ✅ Supervisor + debate/vote/critic | ⚠️ Static | ⚠️ Manual | ⚠️ |
 | Model-agnostic routing + cost optimization | ✅ First-class | ⚠️ | ⚠️ | ❌ |
 | Multi-tier memory (short/semantic/graph/long-term) | ✅ | ⚠️ | ⚠️ | ⚠️ |
 | Verification (critic, evaluator-optimizer, sandbox) | ✅ | ❌ | ⚠️ | ⚠️ |
-| Visual graph builder + code view + terminal | ✅ | ❌ | ❌ | ⚠️ |
+| Visual graph builder + drag-drop + export | ✅ | ❌ | ❌ | ⚠️ |
+| Live control (spawn sub-agents, trigger debates, create loops mid-run) | ✅ | ❌ | ❌ | ❌ |
+| Voice input | ✅ Web Speech API | ❌ | ❌ | ❌ |
 | Open source (MIT) | ✅ | ✅ | ✅ (MIT) | ❌ |
 
 See [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) for the full breakdown.
@@ -36,50 +38,34 @@ See [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) for the full breakdown.
 ```mermaid
 flowchart TB
     subgraph Desktop["Tauri Desktop (Rust + React)"]
-        UI[Dashboard / Graph Builder / Terminal / File Browser]
+        UI[Dashboard / GraphBuilder / AgentTree / LoopsPanel / Metrics]
         Sidecar[Rust Sidecar Host]
     end
-
     subgraph Core["Python Orchestration Core"]
-        Engine[Orchestration Engine]
-        Graph[Stateful Graph Runtime]
-        Loops[Loop Handler Engine]
-        Sup[Supervisor / Sub-agents]
-        Verify[Verification & Governance]
-        Mem[Multi-tier Memory]
-        LLM[LLM Router + Cost]
+        Engine[Engine → Graph → Loops → Supervisor → Verify → Memory → LLM]
+        Bus[Event Bus → WebSocket]
     end
-
     subgraph Storage["Storage"]
-        SQLite[(SQLite)]
-        Chroma[(Chroma / PGVector)]
-        GraphDB[(Graph DB)]
+        SQLite[(SQLite)] 
+        Chroma[(Chroma)]
+        GraphDB[(NetworkX)]
     end
-
     subgraph External["External"]
-        Ollama[Ollama / LM Studio]
-        Cloud[OpenRouter / Claude / GPT / Grok]
-        Tools[Git / Docker / Browser / Cloud / DBs]
+        LLMs[Ollama / Claude / GPT / Grok / OpenRouter]
+        Sandbox[Docker Sandbox]
     end
-
     UI <--> Sidecar
     Sidecar <--> Engine
-    Engine --> Graph
-    Engine --> Loops
-    Engine --> Sup
-    Engine --> Verify
-    Engine --> Mem
-    Engine --> LLM
-    Graph --> SQLite
-    Mem --> SQLite
-    Mem --> Chroma
-    Mem --> GraphDB
-    LLM --> Ollama
-    LLM --> Cloud
-    Sup --> Tools
+    Engine <--> Bus
+    Bus -.->|WS stream| UI
+    Engine --> SQLite
+    Engine --> Chroma
+    Engine --> GraphDB
+    Engine --> LLMs
+    Engine --> Sandbox
 ```
 
-Full diagram: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Full diagrams (component, sequence, React tree, security zones): [`docs/ARCHITECTURE_FULLSTACK.md`](docs/ARCHITECTURE_FULLSTACK.md). Layered design: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
@@ -87,10 +73,8 @@ Full diagram: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ### Prerequisites
 
-- **Python 3.11+**
-- **Node.js 20+** and **pnpm** (or npm)
-- **Rust** (stable, via `rustup`)
-- **Tauri 2 prerequisites** — see [Tauri setup guide](https://v2.tauri.app/start/prerequisites/)
+- **Python 3.11+**, **Node.js 20+**, **pnpm 9+**, **Rust stable**
+- **Tauri 2 system deps** — see [Tauri prereqs](https://v2.tauri.app/start/prerequisites/)
 - *(optional)* **Ollama** or **LM Studio** for local models
 - *(optional)* **Docker** for sandboxed tools
 
@@ -101,12 +85,13 @@ cd backend
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 maestro --version
+maestro doctor    # checks Python, deps, Ollama, Docker, API keys
 ```
 
 Run the API server standalone:
 
 ```bash
-maestro serve --host 0.0.0.0 --port 8765
+maestro serve --host 127.0.0.1 --port 8765
 ```
 
 ### 2. Desktop app
@@ -117,15 +102,16 @@ pnpm install
 pnpm tauri dev
 ```
 
-The Tauri app launches the Python backend as a managed sidecar on first run.
+The Tauri app auto-spawns the Python sidecar on first run. Open the desktop window → **Templates** → pick a workflow → **Launch Run**.
 
 ### 3. Run an example workflow
 
+From the CLI:
 ```bash
-maestro run examples/build_saas_mvp.py --goal "Build a notes SaaS with auth + Stripe"
+maestro run examples/templates/build_saas_mvp.py --goal "Build a notes SaaS with auth + Stripe"
 ```
 
-Or open the desktop app → **Templates** → **Build SaaS MVP** → Run.
+Or from the desktop UI: **Templates** → **build_saas_mvp** → set goal (or 🎤 voice) → **Launch**.
 
 ---
 
@@ -133,49 +119,84 @@ Or open the desktop app → **Templates** → **Build SaaS MVP** → Run.
 
 ```
 MaestroAgent/
-├── backend/
-│   ├── maestro_core/        # Stateful graph engine, checkpoints, streaming
-│   ├── maestro_agents/      # Base agent, supervisor, sub-agents, crews, debate
-│   ├── maestro_loops/       # Native loops: recursive, cron, webhook, file, nested
-│   ├── maestro_memory/      # Multi-tier memory (short / vector / graph / long-term)
-│   ├── maestro_verify/      # Critic, evaluator-optimizer, sandbox, recovery
-│   ├── maestro_llm/         # Model-agnostic router, providers, cost tracking
-│   ├── maestro_api/         # FastAPI server + WebSocket streaming
-│   ├── maestro_plugins/     # Plugin loader & registry
-│   ├── maestro_cli/         # `maestro` CLI
-│   ├── examples/            # Example workflows (SaaS MVP, research crew, ops)
-│   └── tests/
-├── desktop/
-│   ├── src-tauri/           # Rust Tauri shell + Python sidecar host
-│   └── src/                 # React UI (dashboard, graph builder, terminal, etc.)
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── SETUP.md
-    ├── ROADMAP.md
-    ├── DIFFERENTIATION.md
-    └── CHALLENGES.md
+├── backend/                # Python core (FastAPI sidecar)
+│   ├── maestro_core/       # Stateful graph engine, checkpoints, streaming
+│   ├── maestro_agents/     # Agent, Supervisor, SubAgent, CrewAdapter, Debate
+│   ├── maestro_loops/      # Native loops: recursive, cron, webhook, nested, parallel, meta
+│   ├── maestro_memory/     # Short-term, vector, graph, long-term + manager
+│   ├── maestro_verify/     # Critic, evaluator-optimizer, sandbox, recovery
+│   ├── maestro_llm/        # Router + 6 providers + cost ledger
+│   ├── maestro_api/        # FastAPI + WebSocket + 8 route groups
+│   ├── maestro_plugins/    # Discovery + builtin tools
+│   ├── maestro_cli/        # `maestro` command
+│   ├── examples/templates/ # build_saas_mvp, research_crew, ops_autopilot
+│   ├── sandbox/            # Docker sandbox image
+│   └── tests/              # pytest suite
+├── desktop/                # Tauri 2 + React 18 + TypeScript
+│   ├── src/                # 17 React components + store + hooks
+│   └── src-tauri/          # Rust shell + 17 Tauri commands
+└── docs/                   # 7 docs (architecture, setup, roadmap, etc.)
 ```
+
+**~94 files, ~8,250 LOC.** Full tree: [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
+
+---
+
+## What you can do in the desktop app
+
+| Panel | What it does |
+|---|---|
+| **Dashboard** | Live run summary + event stream + quick stats |
+| **Graph Builder** | Drag-and-drop workflow editor (ReactFlow) with custom nodes for agents, supervisors, loops, gates, HITL. Export/import JSON. |
+| **Agents** | Live hierarchy tree. Click **+** on a supervisor to spawn a sub-agent. Select 2+ agents to trigger a debate. |
+| **Loops** | Monitor active loops with progress bars, scores, and outcomes. Click **New Loop** to attach a verifiable loop mid-run (tests / metric / critic exit conditions). |
+| **Terminal** | Console-style live event log |
+| **Files** | Browse the workspace produced by the run |
+| **Metrics** | Cost breakdown by provider, token usage, loop iteration histograms |
+| **Templates** | One-click workflows + marketplace stub |
+
+**Modals:**
+- **Start Run** — goal textarea with 🎤 voice input, budget slider, provider picker
+- **Spawn Sub-agent** — role, goal, backstory, tools, LLM hint, memory scope
+- **Trigger Debate** — topic, participants, seek-consensus toggle
+- **Create Loop** — body agent, exit condition (tests/metric/critic), budget, on-exceed policy
 
 ---
 
 ## What makes it production-ready
 
 - **Persistent checkpoints** — every graph step is persisted; resume after crash or reboot.
-- **Model fallback** — if a provider fails, automatically degrade to a configured backup.
+- **Model fallback** — if a provider fails, automatically degrade to a configured backup (circuit breaker).
 - **Cost guardrails** — per-run budget caps, real-time spend tracking, provider-aware routing.
-- **Audit logs** — every agent decision, tool call, and state transition is recorded.
-- **Sandboxed tools** — Git/Docker/browser/cloud actions run inside containers by default.
-- **Human-in-the-loop** — pause any loop, request approval, inject corrections.
+- **Audit logs** — every agent decision, tool call, and state transition is recorded in a tamper-evident hash-chained log.
+- **Sandboxed tools** — Git/Docker/browser/cloud actions run inside a read-only Docker container with no network by default.
+- **Human-in-the-loop** — pause any loop, request approval, inject corrections. HITL gates for high-stakes tools.
 - **Streaming everything** — events flow over WebSocket for live UIs and external hooks.
+- **Voice input** — Web Speech API for speech-to-agent goal entry.
 
 ---
 
 ## Roadmap (condensed)
 
 - **v0.1 (alpha)** — core graph engine, sub-agents, native loops, basic UI, SQLite + Chroma memory. ✅ (this release)
-- **v0.2** — visual graph builder, evaluator-optimizer loops, plugin marketplace scaffolding.
-- **v0.3** — multi-user collaboration, Git-like workflow versioning, voice/multimodal input.
-- **v1.0** — cloud burst, self-improving meta-agent, full marketplace, one-click deploy. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- **v0.2** — visual graph builder polish, evaluator-optimizer UI, plugin marketplace scaffolding.
+- **v0.3** — multi-user collaboration, Git-like workflow versioning, cloud burst, voice + multimodal input.
+- **v1.0** — self-improving meta-agent, full marketplace, one-click deploy, analytics dashboard. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+---
+
+## Documentation
+
+| Doc | What's inside |
+|---|---|
+| [README.md](README.md) | This file — overview + quick start |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layered architecture, design principles, data model |
+| [docs/ARCHITECTURE_FULLSTACK.md](docs/ARCHITECTURE_FULLSTACK.md) | Refreshed full-stack diagrams (backend + Tauri + React) |
+| [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) | Complete file tree with descriptions |
+| [docs/SETUP.md](docs/SETUP.md) | Full local + dev + packaging setup |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | v0.1 → v1.0+ milestones |
+| [docs/DIFFERENTIATION.md](docs/DIFFERENTIATION.md) | vs CrewAI / LangGraph / Bridgemind |
+| [docs/CHALLENGES.md](docs/CHALLENGES.md) | Hard problems + solutions |
 
 ---
 

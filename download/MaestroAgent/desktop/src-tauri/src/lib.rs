@@ -61,9 +61,19 @@ pub fn run() {
             commands::resume_run,
             commands::cancel_run,
             commands::get_run,
+            commands::get_live_state,
             commands::list_templates,
             commands::sidecar_health,
             commands::open_external,
+            commands::spawn_subagent,
+            commands::trigger_debate,
+            commands::create_loop,
+            commands::get_cost_breakdown,
+            commands::get_audit_log,
+            commands::recall_memory,
+            commands::promote_memory,
+            commands::list_plugins,
+            commands::list_providers,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MaestroAgent");

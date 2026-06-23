@@ -56,6 +56,7 @@ def create_app(
     # Register routes.
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(runs.router, prefix="/api/runs", tags=["runs"])
+    app.include_router(live.router, prefix="/api/runs", tags=["live"])
     app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
     app.include_router(loops.router, prefix="/api/loops", tags=["loops"])
     app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
