@@ -30,14 +30,36 @@ services:
       - XAI_API_KEY=${XAI_API_KEY:-}
       # Logging
       - MAESTRO_LOG=${MAESTRO_LOG:-info}
+      # Auth (v1.0) — set MAESTRO_AUTH_ENABLED=true in .env for production
+      - MAESTRO_AUTH_ENABLED=${MAESTRO_AUTH_ENABLED:-false}
+      - MAESTRO_API_KEY=${MAESTRO_API_KEY:-}
+      - MAESTRO_RATE_LIMIT_RPM=${MAESTRO_RATE_LIMIT_RPM:-100}
+      - MAESTRO_CORS_ORIGINS=${MAESTRO_CORS_ORIGINS:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Resource limits (v1.0 security hardening).
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    # Read-only root filesystem (only /data, /workspace, /tmp writable).
+    read_only: false  # set true for max security (breaks some SQLite temp files)
+    tmpfs:
+      - /tmp:size=128M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8765/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
   # Optional: sandbox container for isolated tool execution.
   # The MaestroAgent engine will `docker exec` into this container

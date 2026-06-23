@@ -93,11 +93,21 @@ for i in {1..30}; do
 done
 
 echo ""
-echo -e "${BOLD}${GREEN}✓ MaestroAgent is running!${NC}"
+echo -e "${BOLD}${GREEN}✓ MaestroAgent v1.0 is running!${NC}"
 echo ""
 echo "  ${BOLD}PWA + API:${NC}  http://localhost:8765"
 echo "  ${BOLD}API docs:${NC}   http://localhost:8765/docs"
 echo ""
+
+# Check if auth is enabled.
+if grep -q "MAESTRO_AUTH_ENABLED=true" .env 2>/dev/null; then
+    echo -e "  ${BOLD}${YELLOW}Auth is enabled.${NC}"
+    echo "  Your API key is at:"
+    echo "    docker compose exec maestro cat /data/api_key.txt"
+    echo "  You'll be prompted for it when you open the PWA."
+    echo ""
+fi
+
 echo "  To install as a PWA:"
 echo "    1. Open http://localhost:8765 in Chrome/Firefox/Brave"
 echo "    2. Click the install icon in the address bar"
@@ -107,4 +117,9 @@ echo "  Commands:"
 echo "    docker compose logs -f        # follow logs"
 echo "    docker compose down           # stop"
 echo "    docker compose down -v        # stop + reset data"
+echo "    ./update.sh                   # update to latest version"
+echo "    ./test_e2e.sh                 # run smoke tests"
+echo ""
+echo -e "  ${BOLD}Production:${NC} see docs/BROWSER_SETUP.md for HTTPS (Caddy/nginx)"
+echo -e "  and security hardening (auth, rate limiting, CORS)."
 echo ""

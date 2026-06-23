@@ -43,6 +43,9 @@ async function request<T>(
   body?: unknown
 ): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // Attach API key if configured (via localStorage, set by the auth flow).
+  const apiKey = getApiKey();
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
   const init: RequestInit = { method, headers };
   if (body !== undefined) init.body = JSON.stringify(body);
 
@@ -53,6 +56,59 @@ async function request<T>(
   }
   if (resp.status === 204) return undefined as T;
   return resp.json() as Promise<T>;
+}
+
+// --- API key management (localStorage-backed) ---
+
+const API_KEY_STORAGE = "maestro_api_key";
+
+export function getApiKey(): string | null {
+  try {
+    return localStorage.getItem(API_KEY_STORAGE);
+  } catch {
+    return null;
+  }
+}
+
+export function setApiKey(key: string | null): void {
+  try {
+    if (key) localStorage.setItem(API_KEY_STORAGE, key);
+    else localStorage.removeItem(API_KEY_STORAGE);
+  } catch { /* ignore */ }
+}
+
+export async function checkAuthStatus(): Promise<{
+  enabled: boolean;
+  authenticated: boolean;
+  oauth_provider?: string;
+}> {
+  try {
+    const resp = await fetch(apiUrl("/api/auth/status"));
+    if (!resp.ok) return { enabled: false, authenticated: true };
+    const data = await resp.json();
+    return {
+      enabled: data.enabled,
+      authenticated: data.authenticated,
+      oauth_provider: data.oauth_provider,
+    };
+  } catch {
+    return { enabled: false, authenticated: true };
+  }
+}
+
+export async function loginWithApiKey(apiKey: string): Promise<boolean> {
+  const resp = await fetch(apiUrl("/api/auth/login"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  if (!resp.ok) return false;
+  const data = await resp.json();
+  if (data.authenticated) {
+    setApiKey(apiKey);
+    return true;
+  }
+  return false;
 }
 
 // --- Typed API surface ---
@@ -224,8 +280,27 @@ export const api = {
       `/api/agents/${runId}/tree`
     ),
 
-  // WebSocket URL helper
-  wsUrl: (runId: string) => wsUrl(`/ws/${runId}`),
+  // WebSocket URL helper (includes API key as query param if set,
+  // because browsers can't set custom headers on WS connections).
+  wsUrl: (runId: string) => {
+    const base = wsUrl(`/ws/${runId}`);
+    const key = getApiKey();
+    return key ? `${base}?token=${encodeURIComponent(key)}` : base;
+  },
+
+  // Meta-agent (v1.0)
+  getMetaRecommendations: (limit = 20) =>
+    request<{ recommendations: Array<Record<string, unknown>>; count: number }>(
+      "GET", `/api/meta/recommendations?limit=${limit}`
+    ),
+
+  // Projects (v1.0)
+  exportProject: (runId: string) =>
+    request<Record<string, unknown>>("GET", `/api/projects/${runId}/export`),
+  exportGraph: (runId: string) =>
+    request<{ run_id: string; nodes: unknown[]; edges: unknown[] }>(
+      "GET", `/api/projects/${runId}/graph`
+    ),
 
   // Base URL (for displaying in the status bar)
   baseUrl: () => apiUrl("").replace(/\/$/, ""),

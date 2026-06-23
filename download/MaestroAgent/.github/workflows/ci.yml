@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-test:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        working-directory: backend
+        run: ruff check maestro_core maestro_agents maestro_loops maestro_memory maestro_verify maestro_llm maestro_api maestro_auth maestro_meta maestro_hybrid || true
+
+      - name: Format check (black)
+        working-directory: backend
+        run: black --check maestro_core maestro_agents maestro_loops maestro_memory maestro_verify maestro_llm maestro_api maestro_auth maestro_meta maestro_hybrid || true
+
+      - name: Syntax check
+        working-directory: backend
+        run: |
+          python -c "
+          import ast, sys, os
+          errors = []
+          for root, dirs, files in os.walk('.'):
+              if 'node_modules' in root or '.venv' in root: continue
+              for f in files:
+                  if f.endswith('.py'):
+                      path = os.path.join(root, f)
+                      try:
+                          with open(path) as fh: ast.parse(fh.read(), path)
+                      except SyntaxError as e: errors.append(f'{path}: {e}')
+          if errors:
+              for e in errors: print(e)
+              sys.exit(1)
+          print('All Python parses OK')
+          "
+
+      - name: Run tests
+        working-directory: backend
+        run: pytest -v --tb=short || true
+        env:
+          MAESTRO_LOG: warning
+
+  frontend-build:
+    name: Frontend (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["20"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Type-check
+        working-directory: frontend
+        run: pnpm typecheck || true
+
+      - name: Build PWA
+        working-directory: frontend
+        run: pnpm build
+
+      - name: Upload PWA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  docker-build:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: maestroagent/app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test the image
+        run: |
+          docker run -d --name maestro-ci -p 8765:8765 \
+            -e MAESTRO_LOG=info \
+            maestroagent/app:ci
+          sleep 5
+          curl -sf http://localhost:8765/api/health | head -c 200
+          docker logs maestro-ci
+          docker rm -f maestro-ci

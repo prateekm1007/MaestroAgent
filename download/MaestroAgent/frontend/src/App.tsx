@@ -17,6 +17,7 @@ import SpawnSubagentModal from "./components/SpawnSubagentModal";
 import DebateModal from "./components/DebateModal";
 import CreateLoopModal from "./components/CreateLoopModal";
 import CommandPalette from "./components/CommandPalette";
+import LoginModal from "./components/LoginModal";
 import { Download, WifiOff, Wifi, Loader2, AlertCircle } from "lucide-react";
 
 export default function App() {
@@ -68,6 +69,7 @@ export default function App() {
       <DebateModal />
       <CreateLoopModal />
       <CommandPalette open={paletteOpen} commands={commands} onClose={closePalette} />
+      <LoginModal />
     </div>
   );
 }

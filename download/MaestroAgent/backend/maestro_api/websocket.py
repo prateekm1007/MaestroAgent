@@ -30,8 +30,23 @@ ws_router = APIRouter()
 def register_ws_routes(app: FastAPI) -> None:
     @app.websocket("/ws/{run_id}")
     async def stream_events(websocket: WebSocket, run_id: str) -> None:
-        await websocket.accept()
+        # Auth: if enabled, check the token query param (browsers can't
+        # set custom headers on WS connections).
         state: Any = app.state.maestro
+        auth_config = getattr(state, "auth_config", None)
+        if auth_config and auth_config.enabled:
+            token = websocket.query_params.get("token", "")
+            if not token:
+                await websocket.close(code=4401, reason="Unauthorized: missing token")
+                return
+            # Verify via the key store.
+            if state.api_key_store:
+                ok, _ = await state.api_key_store.verify(token)
+                if not ok:
+                    await websocket.close(code=4401, reason="Unauthorized: invalid token")
+                    return
+
+        await websocket.accept()
         bus = state.get_or_create_bus(run_id)
 
         # Queue to push events to this client.

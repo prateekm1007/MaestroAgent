@@ -3,6 +3,7 @@ import { useAppStore } from "../store/appStore";
 import { api, type CostResponse } from "../lib/api";
 import {
   DollarSign, Cpu, TrendingUp, AlertTriangle, Activity, Zap,
+  Sparkles, RefreshCw, Download,
 } from "lucide-react";
 
 export default function Metrics() {
@@ -123,6 +124,105 @@ export default function Metrics() {
       <div className="panel">
         <div className="panel-header">Loop Iterations Over Time</div>
         <div className="p-4"><IterationHistogram events={events} /></div>
+      </div>
+
+      <MetaRecommendations />
+
+      <div className="panel">
+        <div className="panel-header">Export Project</div>
+        <div className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-ink-mid">Download this run as a portable JSON project.</p>
+            <p className="text-xs text-ink-low mt-1">
+              Includes graph, state history, cost breakdown, and audit log.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              if (!currentRun) return;
+              try {
+                const project = await api.exportProject(currentRun.run_id);
+                const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `maestro-project-${currentRun.run_id.slice(0, 8)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch (e) {
+                console.warn("export failed:", e);
+              }
+            }}
+            className="btn-primary"
+          >
+            <Download className="w-3.5 h-3.5" /> Export JSON
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetaRecommendations() {
+  const [recs, setRecs] = useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = await api.getMetaRecommendations(20);
+      setRecs(data.recommendations || []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="panel">
+      <div className="panel-header flex items-center justify-between">
+        <span className="flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-maestro-400" />
+          Meta-Agent Recommendations
+        </span>
+        <button onClick={load} disabled={loading} className="btn-ghost text-xs">
+          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+          {loading ? "Analyzing..." : "Refresh"}
+        </button>
+      </div>
+      <div className="p-4">
+        {error && (
+          <div className="text-xs text-accent-err p-2 bg-accent-err/10 rounded font-mono mb-2">{error}</div>
+        )}
+        {recs.length === 0 && !loading ? (
+          <div className="text-sm text-ink-low">
+            No recommendations yet. Run a few workflows first to give the meta-agent data to analyze.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {recs.map((rec, i) => (
+              <div key={i} className="bg-surface-2 border border-surface-3 rounded-md p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`badge text-[10px] ${
+                    rec.severity === "critical" ? "badge-err"
+                      : rec.severity === "warn" ? "badge-warn" : "badge-info"
+                  }`}>{rec.severity as string}</span>
+                  <span className="text-sm font-semibold text-ink-high">{rec.title as string}</span>
+                </div>
+                <p className="text-xs text-ink-mid mb-1">{rec.description as string}</p>
+                <div className="flex items-center gap-3 text-[10px] text-ink-low">
+                  <span>target: <code className="text-maestro-300">{rec.target as string}</code></span>
+                  {rec.expected_savings_usd ? (
+                    <span className="text-accent-ok">save ~${(rec.expected_savings_usd as number).toFixed(2)}</span>
+                  ) : null}
+                  <span>confidence: {((rec.confidence as number) * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -50,6 +50,10 @@ class AppState:
     live_buses: dict[str, EventBus] = field(default_factory=dict)
     # run_id -> asyncio.Task (so we can cancel).
     run_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
+    # Auth (v1.0) — None when auth is disabled.
+    auth_config: Any = None
+    api_key_store: Any = None
+    oauth_provider: Any = None
 
     async def start(self) -> None:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
