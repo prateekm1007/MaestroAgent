@@ -1,0 +1,59 @@
+{
+  "theories": [
+    {
+      "name": "Temporal Scale Separation (TSS)",
+      "version": "v1",
+      "status": "partially_confirmed",
+      "maturity": "Supported",
+      "file": "research/findings/TSS/theory_v1.py",
+      "predictions": [
+        {"id": "TSS-P1", "statement": "Regret is monotonic in update frequency", "status": "partially_confirmed"},
+        {"id": "TSS-P2", "statement": "Effect holds out-of-distribution", "status": "confirmed"},
+        {"id": "TSS-P3", "statement": "Effect holds under cold-start", "status": "confirmed"},
+        {"id": "TSS-P4", "statement": "Any same-scale operational ASS interferes", "status": "partially_confirmed"}
+      ],
+      "alternative_explanations_rejected": [
+        "SAT (shared adaptive target)",
+        "Only in-distribution",
+        "Only warm-start"
+      ],
+      "evidence_summary": "95.5% training corpus, 70% held-out. P2/P3 confirmed. SAT rejected.",
+      "successor": "Dual-Component v1",
+      "created_at": "v3.3",
+      "last_updated": "v3.5"
+    },
+    {
+      "name": "Dual-Component Interference",
+      "version": "v1",
+      "status": "partially_confirmed",
+      "maturity": "Predictive",
+      "file": "research/findings/DualComponent/theory_v1.py",
+      "predictions": [
+        {"id": "DC-P1", "statement": "Predicts held-out better than TSS", "status": "confirmed"},
+        {"id": "DC-P2", "statement": "Components independently manipulable", "status": "untested"},
+        {"id": "DC-P3", "statement": "Complexity justified under AIC/BIC/MDL", "status": "untested"}
+      ],
+      "evidence_summary": "90% held-out vs TSS 70%. WM operates in belief space.",
+      "predecessor": "TSS v1",
+      "created_at": "v3.7",
+      "last_updated": "v3.8"
+    }
+  ],
+  "constructs": [
+    {
+      "name": "Adaptive State System (ASS)",
+      "definition": "(1) stores persistent parameters, (2) updates from outcomes, (3) uses in future decisions",
+      "file": "research/findings/TSS/theory_v1.py",
+      "note": "Operational, not ontological",
+      "created_at": "v3.5"
+    }
+  ],
+  "evidence_levels": [
+    {"level": "prediction", "description": "Derived from theory"},
+    {"level": "experiment", "description": "Single experiment"},
+    {"level": "replication", "description": "Multiple seeds"},
+    {"level": "stress_test", "description": "Adversarial test"},
+    {"level": "held_out", "description": "Unseen experiment"},
+    {"level": "external", "description": "External runtime"}
+  ]
+}

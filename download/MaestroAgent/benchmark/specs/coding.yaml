@@ -1,0 +1,48 @@
+# Benchmark Specification: Coding Domain
+# Declarative — engines execute the spec, not the other way around.
+
+domain: coding
+version: 2
+description: "Software engineering tasks: write functions, fix bugs, add features."
+
+approaches:
+  - build
+  - simplify
+  - no_build
+  - api
+
+difficulty_weights:
+  easy: 0.30
+  medium: 0.50
+  hard: 0.20
+
+ground_truth:
+  build:    {easy: 0.93, medium: 0.80, hard: 0.58}
+  api:      {easy: 0.90, medium: 0.76, hard: 0.52}
+  simplify: {easy: 0.87, medium: 0.79, hard: 0.68}
+  no_build: {easy: 0.35, medium: 0.18, hard: 0.08}
+
+costs:
+  build: 2.5
+  api: 2.8
+  simplify: 1.2
+  no_build: 0.6
+
+task_templates:
+  - "Write a function to {action}"
+  - "Fix the bug in {action}"
+  - "Add a feature for {action}"
+  - "Refactor the module for {action}"
+  - "Write tests for {action}"
+
+task_actions:
+  - "user authentication"
+  - "payment processing"
+  - "data export"
+  - "search indexing"
+  - "API rate limiting"
+
+identifiability:
+  cost_dominant_ce: true
+  p_success_affects_decision: false
+  note: "Cost-dominant CE prevents clean isolation of belief vs decision interference"

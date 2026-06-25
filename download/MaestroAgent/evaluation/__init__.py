@@ -6,6 +6,7 @@ Modules:
   - statistics: bootstrap CIs, effect sizes, significance tests, power analysis,
     stability analysis, regret, transfer efficiency, comparison reports
   - uncertainty: three-dimensional influence with bootstrap CIs
+  - reporting: standard experiment result schema (one JSON structure, forever)
 """
 
 from evaluation.statistics import (
@@ -16,4 +17,8 @@ from evaluation.statistics import (
 )
 from evaluation.uncertainty import (
     InfluenceWithUncertainty, compute_influence_with_uncertainty, is_significant,
+)
+from evaluation.reporting import (
+    ExperimentResult, Configuration, Metrics, ConfidenceIntervals,
+    Environment, RuntimeInfo, TheoryPrediction,
 )
