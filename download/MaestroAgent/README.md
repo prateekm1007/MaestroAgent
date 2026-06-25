@@ -1,10 +1,10 @@
 # MaestroAgent
 
-**The open-source, browser-first conductor for AI agents — orchestrate fleets of autonomous agents with advanced looping, dynamic hierarchical sub-agents, persistent memory, verifiable autonomy, and a self-improving meta-agent. A massive, accessible improvement over Bridgemind.**
+**An experimental platform for studying adaptive multi-agent systems using reproducible benchmarks, pre-registered experiments, causal ablations, and predictive theory evaluation.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![v1.0](https://img.shields.io/badge/version-1.0.0-maestro)](docs/RELEASE_NOTES_v1.0.md)
+[![Research Platform](https://img.shields.io/badge/type-research_platform-purple.svg)](docs/HISTORY.md)
 [![PWA](https://img.shields.io/badge/PWA-installable-purple.svg)](https://web.dev/progressive-web-apps/)
 [![Docker](https://img.shields.io/badge/Docker-self--host-blue.svg)](docker-compose.yml)
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](.github/workflows/ci.yml)
