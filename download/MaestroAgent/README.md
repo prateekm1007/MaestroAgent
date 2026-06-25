@@ -1,14 +1,71 @@
-# MaestroAgent
+# Maestro Research Platform
 
-**An experimental platform for studying adaptive multi-agent systems using reproducible benchmarks, pre-registered experiments, causal ablations, and predictive theory evaluation.**
+**An open framework for designing, benchmarking, statistically evaluating, and scientifically improving adaptive agent systems.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Research Platform](https://img.shields.io/badge/type-research_platform-purple.svg)](docs/HISTORY.md)
-[![PWA](https://img.shields.io/badge/PWA-installable-purple.svg)](https://web.dev/progressive-web-apps/)
-[![Docker](https://img.shields.io/badge/Docker-self--host-blue.svg)](docker-compose.yml)
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](.github/workflows/ci.yml)
-[![Status: Stable](https://img.shields.io/badge/status-stable-brightgreen.svg)](#roadmap)
+
+## What This Is
+
+Maestro Research Platform is a scientific operating system for adaptive agent research. It provides the infrastructure to measure, compare, falsify, and improve adaptive agent systems — whether they are built with Maestro itself or with entirely different runtimes.
+
+The platform does not compete on orchestration features. It provides what no commercial framework offers: **statistically rigorous evaluation, pre-registered experiments, causal ablation, predictive theory testing, and formal model selection for adaptive multi-agent systems.**
+
+## Architecture
+
+```
+evaluation/              Pure statistical infrastructure (no theory deps)
+    statistics/           Bootstrap CIs, Cohen's d, Mann-Whitney U, permutation tests,
+                           power analysis, stability, regret, transfer efficiency
+    uncertainty/          Three-dimensional influence with bootstrap CIs
+                           (Policy, Belief, Outcome)
+
+research/                Scientific methodology + findings
+    methodology/          Pre-registration, model selection (AIC/BIC/MDL), validity regions
+    findings/             Versioned, immutable theory snapshots
+        TSS/              Temporal Scale Separation v1 (Supported)
+        DualComponent/    Dual-Component Interference v1 (Predictive)
+
+benchmark/               First-class benchmark package (coming: v2 with identifiability)
+    environments/         Task domains with ground truth
+    execution/            Configurable execution engines
+    metrics/              Success rate, regret, calibration, cost
+    datasets/             Reproducible task streams
+
+runtimes/                Replaceable execution substrates
+    maestro/              The original v2.2 runtime
+    (crewai/              Future: CrewAI adapter)
+    (langgraph/           Future: LangGraph adapter)
+
+experiments/             Experiment runners (planner, transfer, causal, etc.)
+reports/                 Generated evaluation reports
+docs/                    HISTORY.md, release notes
+```
+
+## Key Principles
+
+1. **Framework ≠ Findings.** The evaluation framework survives if every theory is falsified.
+2. **Theories are versioned.** `theory_v1.py` is immutable; revisions are `theory_v2.py`.
+3. **Benchmarks are first-class.** The benchmark package is independent of both evaluation and runtime.
+4. **Runtimes are replaceable.** The same experiments can run against Maestro, CrewAI, LangGraph, or any future runtime.
+5. **Every claim has provenance.** Theory → Prediction → Experiment → Seed → Benchmark → Result.
+
+## Research Milestones
+
+- **Milestone 1 — Foundation** ✅ Statistical inference, pre-registration, model comparison, theory representation
+- **Milestone 2 — Benchmark Science** Benchmark v2 with partial observability, delayed rewards, non-stationarity, identifiability
+- **Milestone 3 — Runtime Independence** Adapters for CrewAI, LangGraph, AutoGen, OpenAI Agents
+- **Milestone 4 — Reproducibility** Experiment provenance, immutable datasets, benchmark versioning
+- **Milestone 5 — Scientific Validation** Held-out prediction, formal model selection, external runtime validation
+
+## Scientific History
+
+See [docs/HISTORY.md](docs/HISTORY.md) for the full progression from v2.1 (integrated runtime) through v3.8 (three-dimensional measurement science).
+
+## License
+
+MIT. Free forever. No credit caps.
 
 > **Bridgemind charges $16–80/mo with credit caps and is desktop-only.**
 > **MaestroAgent is free forever, browser-first, self-hostable, and has superior loops + sub-agents + a self-improving meta-agent. No credit walls. Ever.**
