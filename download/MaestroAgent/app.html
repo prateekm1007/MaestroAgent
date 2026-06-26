@@ -263,6 +263,32 @@ select.input { cursor: pointer; }
 .toggle-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: #8888a0; }
 .toggle-chip:hover { background: rgba(255,255,255,0.05); color: #e8e8f0; }
 .toggle-chip.on { background: rgba(124,92,255,0.12); border-color: rgba(124,92,255,0.25); color: #a594ff; }
+
+/* Drag-to-reparent */
+.dragging-node { opacity: 0.4; cursor: grabbing !important; }
+.drop-target { border-color: #00d4aa !important; box-shadow: 0 0 0 2px rgba(0,212,170,0.3) !important; background: rgba(0,212,170,0.05) !important; }
+.drop-target-invalid { border-color: #ff5577 !important; box-shadow: 0 0 0 2px rgba(255,85,119,0.2) !important; }
+
+/* Optimize modal suggestion cards */
+.opt-suggestion { background: #161624; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; transition: all .15s; }
+.opt-suggestion:hover { border-color: rgba(124,92,255,0.3); }
+.opt-suggestion .savings { color: #00d4aa; font-weight: 700; }
+
+/* Inheritance preview in spawn modal */
+.inherit-preview { background: rgba(92,200,255,0.06); border: 1px solid rgba(92,200,255,0.15); border-radius: 8px; padding: 10px; }
+
+/* Agent card draggable */
+.agent-card[draggable="true"] { cursor: grab; }
+.agent-card[draggable="true"]:active { cursor: grabbing; }
+
+/* Tree picker for spawn modal */
+.tree-picker { background: #0e0e1a; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px; max-height: 200px; overflow-y: auto; }
+.tree-picker-item { padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all .12s; display: flex; align-items: center; gap: 8px; }
+.tree-picker-item:hover { background: rgba(124,92,255,0.08); }
+.tree-picker-item.selected { background: rgba(124,92,255,0.12); color: #a594ff; }
+
+/* Focus ring for keyboard nav */
+.hier-node:focus, .agent-card:focus { outline: 2px solid rgba(124,92,255,0.4); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -661,10 +687,18 @@ select.input { cursor: pointer; }
     <div class="grid grid-cols-12 gap-3">
       <!-- Agent tree (main) -->
       <div class="col-span-12 lg:col-span-8 panel">
-        <div class="panel-header"><span>Agent Tree · 7 agents · CEO + Workers + Sub-Workers</span><div class="flex gap-1"><span class="tag tag-gray">$0.0421 total</span><button class="btn btn-primary text-[10px] py-0.5 px-2" onclick="simulateSpawn()">⚡ Simulate Spawn</button><button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="toggleModal('spawnModal')">+ Spawn Sub-Agent</button></div></div>
+        <div class="panel-header"><span>Agent Tree · 7 agents · CEO + Workers + Sub-Workers</span><div class="flex gap-1"><span class="tag tag-gray">$0.0421 total</span><button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="toggleOptimizeModal()">⚡ Optimize</button><button class="btn btn-primary text-[10px] py-0.5 px-2" onclick="simulateSpawn()">⚡ Simulate Spawn</button><button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="toggleModal('spawnModal')">+ Spawn Sub-Agent</button></div></div>
         <div class="p-4 space-y-2">
+          <!-- Cost savings callout -->
+          <div class="savings-callout mb-2">
+            <svg class="w-4 h-4 text-brand-cyan flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8"/></svg>
+            <div class="flex-1">
+              <div class="text-[11px] font-semibold text-brand-cyan">Used Tier 2 local models → saved $1.24</div>
+              <div class="text-[10px] text-fg-500">4 sub-workers ran on llama3.1:8b instead of cloud models · drag nodes to re-parent</div>
+            </div>
+          </div>
           <!-- CEO -->
-          <div class="agent-card agent-tier-0 flex items-center gap-3">
+          <div class="agent-card agent-tier-0 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'CEO Agent')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'CEO Agent', 'tier-0'); return false;" tabindex="0">
             <div class="w-9 h-9 rounded-md bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple">C</div>
             <div class="flex-1">
               <div class="flex items-center gap-2">
@@ -683,7 +717,7 @@ select.input { cursor: pointer; }
           <!-- Workers -->
           <div class="pl-6 space-y-2 border-l-2 border-brand-purple/20 ml-5">
             <!-- Architect -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'architect')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'architect', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-cyan/15 flex items-center justify-center font-bold text-brand-cyan">A</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -701,7 +735,7 @@ select.input { cursor: pointer; }
 
             <!-- Sub-workers under architect -->
             <div class="pl-6 space-y-2 border-l-2 border-brand-cyan/20 ml-5">
-              <div class="agent-card agent-tier-2 flex items-center gap-3">
+              <div class="agent-card agent-tier-2 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'sub_frontend')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'sub_frontend', 'tier-2'); return false;" tabindex="0">
                 <div class="w-9 h-9 rounded-md bg-brand-amber/15 flex items-center justify-center font-bold text-brand-amber">F</div>
                 <div class="flex-1">
                   <div class="flex items-center gap-2">
@@ -716,7 +750,7 @@ select.input { cursor: pointer; }
                   <div class="text-[9px] text-fg-600">12s</div>
                 </div>
               </div>
-              <div class="agent-card agent-tier-2 flex items-center gap-3">
+              <div class="agent-card agent-tier-2 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'sub_backend')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'sub_backend', 'tier-2'); return false;" tabindex="0">
                 <div class="w-9 h-9 rounded-md bg-brand-amber/15 flex items-center justify-center font-bold text-brand-amber">B</div>
                 <div class="flex-1">
                   <div class="flex items-center gap-2">
@@ -734,7 +768,7 @@ select.input { cursor: pointer; }
             </div>
 
             <!-- Builder -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'builder')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'builder', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-cyan/15 flex items-center justify-center font-bold text-brand-cyan">B</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -751,7 +785,7 @@ select.input { cursor: pointer; }
             </div>
 
             <!-- QA -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'qa')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'qa', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-cyan/15 flex items-center justify-center font-bold text-brand-cyan">Q</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -768,7 +802,7 @@ select.input { cursor: pointer; }
             </div>
 
             <!-- Critic -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3" style="border-color: rgba(255,85,119,0.3); background: rgba(255,85,119,0.04);">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" style="border-color: rgba(255,85,119,0.3); background: rgba(255,85,119,0.04);" draggable="true" ondragstart="onDragStart(event, 'critic')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'critic', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-rose/15 flex items-center justify-center font-bold text-brand-rose">Cr</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -2163,12 +2197,13 @@ select.input { cursor: pointer; }
       </div>
       <div class="px-4 pb-4">
         <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Recommendations</div>
+        <div class="flex justify-end mb-2"><button class="btn btn-primary text-[10px] py-1 px-2" onclick="toggleOptimizeModal()">⚡ Optimize Hierarchy</button></div>
         <div class="space-y-2">
           <div class="p-2.5 bg-brand-amber/[0.06] border border-brand-amber/15 rounded flex items-start gap-2">
             <span class="text-brand-amber text-sm">⚠</span>
             <div class="flex-1">
               <div class="text-[11px] font-semibold text-brand-amber">CEO spawning too many cheap workers</div>
-              <div class="text-[10px] text-fg-500">12 Tier 2 sub-agents spawned directly by CEO. Suggest routing through Tier 1 specialists for better task decomposition. <button class="text-brand-purple underline">Optimize hierarchy</button></div>
+              <div class="text-[10px] text-fg-500">12 Tier 2 sub-agents spawned directly by CEO. Suggest routing through Tier 1 specialists for better task decomposition. <button class="text-brand-purple underline" onclick="toggleOptimizeModal()">Optimize hierarchy</button></div>
             </div>
           </div>
           <div class="p-2.5 bg-brand-cyan/[0.06] border border-brand-cyan/15 rounded flex items-start gap-2">
@@ -2701,6 +2736,8 @@ select.input { cursor: pointer; }
             <div class="flex justify-between"><span class="text-fg-400">Toggle sidebar</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>B</kbd></span></div>
             <div class="flex justify-between"><span class="text-fg-400">Approve HITL</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>↵</kbd></span></div>
             <div class="flex justify-between"><span class="text-fg-400">Reject HITL</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>⌫</kbd></span></div>
+            <div class="flex justify-between"><span class="text-fg-400">Spawn sub-agent</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd></span></div>
+            <div class="flex justify-between"><span class="text-fg-400">Optimize hierarchy</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>O</kbd></span></div>
           </div>
         </div>
       </div>
@@ -2783,17 +2820,46 @@ select.input { cursor: pointer; }
       <button class="btn btn-icon btn-ghost" onclick="toggleModal('spawnModal')"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body space-y-3">
-      <!-- Parent selector -->
+      <!-- Parent selector with tree picker -->
       <div>
-        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Parent Agent</label>
-        <select class="input" id="spawn-parent">
-          <option value="ceo">CEO Agent (supervisor) · Tier 0 · claude-3-5-sonnet</option>
-          <option value="architect">architect · Tier 1 · claude-3-5-sonnet</option>
-          <option value="builder">builder · Tier 1 · llama3.1:8b (local)</option>
-          <option value="qa">qa · Tier 1 · gpt-4o-mini</option>
-          <option value="critic">critic · Tier 1 · claude-3-5-sonnet</option>
-          <option value="ops">ops · Tier 1 · gpt-4o-mini</option>
-        </select>
+        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Parent Agent · Tree Picker</label>
+        <div class="tree-picker" id="parent-tree-picker">
+          <div class="tree-picker-item selected" onclick="selectParent(this, 'CEO Agent')">
+            <div class="w-5 h-5 rounded bg-brand-purple/20 flex items-center justify-center text-[9px] font-bold text-brand-purple">C</div>
+            <span class="flex-1">CEO Agent (supervisor)</span>
+            <span class="tag tag-purple">T0</span>
+          </div>
+          <div class="tree-picker-item ml-4" onclick="selectParent(this, 'architect')">
+            <div class="w-5 h-5 rounded bg-brand-cyan/15 flex items-center justify-center text-[9px] font-bold text-brand-cyan">A</div>
+            <span class="flex-1">architect</span>
+            <span class="tag tag-cyan">T1</span>
+          </div>
+          <div class="tree-picker-item ml-8" onclick="selectParent(this, 'sub_frontend')">
+            <div class="w-4 h-4 rounded bg-brand-amber/15 flex items-center justify-center text-[8px] font-bold text-brand-amber">F</div>
+            <span class="flex-1">sub_frontend</span>
+            <span class="tag tag-amber">T2</span>
+          </div>
+          <div class="tree-picker-item ml-8" onclick="selectParent(this, 'sub_backend')">
+            <div class="w-4 h-4 rounded bg-brand-amber/15 flex items-center justify-center text-[8px] font-bold text-brand-amber">B</div>
+            <span class="flex-1">sub_backend</span>
+            <span class="tag tag-amber">T2</span>
+          </div>
+          <div class="tree-picker-item ml-4" onclick="selectParent(this, 'builder')">
+            <div class="w-5 h-5 rounded bg-brand-cyan/15 flex items-center justify-center text-[9px] font-bold text-brand-cyan">B</div>
+            <span class="flex-1">builder</span>
+            <span class="tag tag-cyan">T1</span>
+          </div>
+          <div class="tree-picker-item ml-4" onclick="selectParent(this, 'qa')">
+            <div class="w-5 h-5 rounded bg-brand-cyan/15 flex items-center justify-center text-[9px] font-bold text-brand-cyan">Q</div>
+            <span class="flex-1">qa</span>
+            <span class="tag tag-cyan">T1</span>
+          </div>
+          <div class="tree-picker-item ml-4" onclick="selectParent(this, 'critic')">
+            <div class="w-5 h-5 rounded bg-brand-cyan/15 flex items-center justify-center text-[9px] font-bold text-brand-cyan">Cr</div>
+            <span class="flex-1">critic</span>
+            <span class="tag tag-cyan">T1</span>
+          </div>
+        </div>
       </div>
       <!-- Role + auto-suggested tier -->
       <div class="grid grid-cols-2 gap-3">
@@ -2865,6 +2931,14 @@ select.input { cursor: pointer; }
           <option>gpt-4o-mini ($0.15/$0.60 per 1M)</option>
           <option>llama3.1:8b (local, $0)</option>
         </select>
+      </div>
+      <!-- Inheritance preview -->
+      <div class="inherit-preview" id="inherit-preview">
+        <div class="flex items-center gap-2 mb-1.5">
+          <svg class="w-3.5 h-3.5 text-brand-sky" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+          <span class="text-[10px] font-semibold text-brand-sky uppercase tracking-wider">Inheritance Preview</span>
+        </div>
+        <div class="text-[11px] text-fg-300" id="inherit-text">New sub-agent will inherit <strong class="text-brand-sky">decomposition</strong> specialty (0.94) from <strong class="text-brand-purple">CEO Agent</strong>. Reputation starts at parent_score × 0.85 = <strong class="text-brand-cyan">0.80</strong>.</div>
       </div>
       <!-- Estimate summary -->
       <div class="flex items-center gap-2 p-2.5 bg-brand-cyan/[0.06] border border-brand-cyan/15 rounded">
@@ -2970,9 +3044,9 @@ select.input { cursor: pointer; }
     <div class="cmdp-item" data-search="command center god mode" onclick="navTo('command'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><span>Open Command Center</span></div>
     <div class="cmdp-item" data-search="reproduce law l-0001 science" onclick="navTo('command'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Reproduce Law L-0001</span></div>
     <div class="cmdp-cat">Hierarchy</div>
-    <div class="cmdp-item" data-search="spawn sub-agent under architect hierarchy" onclick="toggleModal('spawnModal'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg><span>Spawn sub-agent under architect</span></div>
+    <div class="cmdp-item" data-search="spawn sub-agent under architect hierarchy" onclick="toggleModal('spawnModal'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg><span>Spawn sub-agent under architect</span><kbd class="ml-auto">⌘⇧S</kbd></div>
     <div class="cmdp-item" data-search="view hierarchy run agent tree" onclick="navTo('run-detail'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857"/></svg><span>View hierarchy for run_8f3a92e1</span></div>
-    <div class="cmdp-item" data-search="optimize hierarchy cost routing model" onclick="navTo('routing'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg><span>Optimize hierarchy cost</span></div>
+    <div class="cmdp-item" data-search="optimize hierarchy cost routing model" onclick="toggleOptimizeModal(); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg><span>Optimize hierarchy cost</span><kbd class="ml-auto">⌘⇧O</kbd></div>
     <div class="cmdp-item" data-search="simulate spawn mock agent hierarchy" onclick="simulateSpawn(); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg><span>Simulate spawn (demo)</span></div>
   </div>
 </div>
@@ -2999,6 +3073,95 @@ select.input { cursor: pointer; }
   <div class="ctx-menu-item danger" onclick="hideCtxMenu();">
     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
     Kill branch
+  </div>
+</div>
+
+<!-- ============ OPTIMIZE HIERARCHY MODAL ============ -->
+<div class="modal-bg" id="optimizeModal">
+  <div class="modal" style="max-width: 600px;">
+    <div class="modal-header">
+      <div><div class="font-bold text-base">⚡ Optimize Hierarchy</div><div class="text-xs text-fg-500">AI-powered re-spawn suggestions for cost + quality</div></div>
+      <button class="btn btn-icon btn-ghost" onclick="toggleOptimizeModal()"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body space-y-3">
+      <div class="flex items-center gap-2 p-2.5 bg-brand-amber/[0.06] border border-brand-amber/15 rounded">
+        <svg class="w-4 h-4 text-brand-amber flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <span class="text-[11px] text-fg-300">3 optimization opportunities detected. Estimated total savings: <strong class="text-brand-cyan">$2.84/run</strong></span>
+      </div>
+      <!-- Suggestion 1 -->
+      <div class="opt-suggestion">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[10px] font-bold text-brand-amber">1</span>
+            <div>
+              <div class="text-[12px] font-semibold">Route sub_frontend → llama3.1:8b (local)</div>
+              <div class="text-[10px] text-fg-500">sub_frontend does simple UI component generation. Local model can handle this.</div>
+            </div>
+          </div>
+          <span class="savings text-[11px]">Save $0.71/run</span>
+        </div>
+        <div class="flex gap-1.5 text-[10px] mb-2">
+          <span class="tag tag-gray">current: gpt-4o-mini</span>
+          <span class="text-fg-600">→</span>
+          <span class="tag tag-cyan">suggested: llama3.1:8b</span>
+          <span class="tag tag-amber">quality risk: low</span>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-cyan text-[10px] py-1 px-2 flex-1 justify-center" onclick="this.closest('.opt-suggestion').style.opacity='0.4'; this.textContent='Applied ✓';">Apply</button>
+          <button class="btn btn-ghost text-[10px] py-1 px-2">Dismiss</button>
+        </div>
+      </div>
+      <!-- Suggestion 2 -->
+      <div class="opt-suggestion">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[10px] font-bold text-brand-amber">2</span>
+            <div>
+              <div class="text-[12px] font-semibold">Promote sub_backend to Tier 1 specialist</div>
+              <div class="text-[10px] text-fg-500">5 successful runs with 0.81 reputation. Ready for promotion — avoids parent bottleneck.</div>
+            </div>
+          </div>
+          <span class="savings text-[11px]">Save $1.13/run</span>
+        </div>
+        <div class="flex gap-1.5 text-[10px] mb-2">
+          <span class="tag tag-gray">current: Tier 2 sub-worker</span>
+          <span class="text-fg-600">→</span>
+          <span class="tag tag-cyan">suggested: Tier 1 specialist</span>
+          <span class="tag tag-cyan">quality boost: +8%</span>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-cyan text-[10px] py-1 px-2 flex-1 justify-center" onclick="this.closest('.opt-suggestion').style.opacity='0.4'; this.textContent='Applied ✓';">Apply</button>
+          <button class="btn btn-ghost text-[10px] py-1 px-2">Dismiss</button>
+        </div>
+      </div>
+      <!-- Suggestion 3 -->
+      <div class="opt-suggestion">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[10px] font-bold text-brand-amber">3</span>
+            <div>
+              <div class="text-[12px] font-semibold">Cache critic calls at temp=0</div>
+              <div class="text-[10px] text-fg-500">42% of critic calls are identical. Enable temp=0 cache to avoid re-computation.</div>
+            </div>
+          </div>
+          <span class="savings text-[11px]">Save $1.00/run</span>
+        </div>
+        <div class="flex gap-1.5 text-[10px] mb-2">
+          <span class="tag tag-gray">current: no cache</span>
+          <span class="text-fg-600">→</span>
+          <span class="tag tag-cyan">suggested: temp=0 cache</span>
+          <span class="tag tag-cyan">no quality impact</span>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-cyan text-[10px] py-1 px-2 flex-1 justify-center" onclick="this.closest('.opt-suggestion').style.opacity='0.4'; this.textContent='Applied ✓';">Apply</button>
+          <button class="btn btn-ghost text-[10px] py-1 px-2">Dismiss</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="toggleOptimizeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="toggleOptimizeModal()">Apply All Suggestions →</button>
+    </div>
   </div>
 </div>
 
@@ -3330,6 +3493,153 @@ function updateBudget(val) {
     tokenEst.textContent = tokens >= 1000 ? (tokens / 1000).toFixed(0) + 'K' : tokens;
   }
 }
+
+// ===== DRAG-TO-REPARENT =====
+let draggedAgent = null;
+
+function onDragStart(event, agentName) {
+  draggedAgent = agentName;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', agentName);
+  event.target.classList.add('dragging-node');
+}
+
+function onDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  // Don't allow dropping on self
+  if (event.currentTarget === event.target) return;
+  const card = event.currentTarget;
+  // Don't allow dropping a parent onto its own child
+  const agentName = card.getAttribute('ondragstart');
+  if (agentName && agentName.includes(draggedAgent)) {
+    card.classList.add('drop-target-invalid');
+    return;
+  }
+  card.classList.add('drop-target');
+  card.classList.remove('drop-target-invalid');
+}
+
+function onDragLeave(event) {
+  event.currentTarget.classList.remove('drop-target', 'drop-target-invalid');
+}
+
+function onDrop(event, targetEl) {
+  event.preventDefault();
+  event.stopPropagation();
+  targetEl.classList.remove('drop-target', 'drop-target-invalid');
+  
+  if (!draggedAgent) return;
+  const targetName = (targetEl.querySelector('.font-bold') || {}).textContent || 'unknown';
+  
+  if (draggedAgent === targetName.trim()) return; // Can't drop on self
+  
+  // Visual feedback: flash the target
+  targetEl.style.transition = 'all .3s';
+  targetEl.style.borderColor = '#00d4aa';
+  targetEl.style.boxShadow = '0 0 20px rgba(0,212,170,0.3)';
+  setTimeout(() => {
+    targetEl.style.borderColor = '';
+    targetEl.style.boxShadow = '';
+  }, 1000);
+  
+  // In a real app, this would call the API to re-parent
+  console.log('Re-parented:', draggedAgent, '→ new parent:', targetName.trim());
+  draggedAgent = null;
+}
+
+// Clean up drag state
+document.addEventListener('dragend', e => {
+  e.target.classList.remove('dragging-node');
+  document.querySelectorAll('.drop-target, .drop-target-invalid').forEach(el => {
+    el.classList.remove('drop-target', 'drop-target-invalid');
+  });
+});
+
+// ===== SPAWN MODAL: TREE PICKER =====
+function selectParent(el, parentName) {
+  // Deselect all
+  document.querySelectorAll('#parent-tree-picker .tree-picker-item').forEach(item => {
+    item.classList.remove('selected');
+  });
+  el.classList.add('selected');
+  
+  // Update inheritance preview
+  const inheritText = document.getElementById('inherit-text');
+  if (!inheritText) return;
+  
+  const parentData = agentData[parentName] || agentData['architect'];
+  const inheritedScore = (parseFloat(parentData.specialty.match(/[\d.]+/)) || 0.85) * 0.85;
+  
+  inheritText.innerHTML = `New sub-agent will inherit <strong class="text-brand-sky">${parentData.specialty.split(' ')[0]}</strong> specialty from <strong class="text-brand-purple">${parentName}</strong>. Reputation starts at parent_score × 0.85 = <strong class="text-brand-cyan">${inheritedScore.toFixed(2)}</strong>.`;
+}
+
+// ===== OPTIMIZE HIERARCHY MODAL =====
+function toggleOptimizeModal() {
+  document.getElementById('optimizeModal').classList.toggle('active');
+}
+
+// Close optimize modal on backdrop click
+document.addEventListener('DOMContentLoaded', () => {
+  const optModal = document.getElementById('optimizeModal');
+  if (optModal) {
+    optModal.addEventListener('click', e => {
+      if (e.target === optModal) optModal.classList.remove('active');
+    });
+  }
+});
+
+// ===== KEYBOARD NAV FOR HIERARCHY =====
+// Arrow keys to navigate hierarchy nodes, Enter to select, Space to expand/collapse
+let hierFocusIndex = -1;
+document.addEventListener('keydown', e => {
+  // Only when not typing in an input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  // Only on pages with hierarchy
+  const activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  const hierNodes = activePage.querySelectorAll('.hier-node, .agent-card[draggable]');
+  if (hierNodes.length === 0) return;
+  
+  // Tab to enter hierarchy navigation mode
+  if (e.key === 'ArrowDown' && document.activeElement.classList.contains('hier-node') || document.activeElement.classList.contains('agent-card')) {
+    e.preventDefault();
+    hierFocusIndex = Math.min(hierFocusIndex + 1, hierNodes.length - 1);
+    hierNodes[hierFocusIndex].focus();
+  } else if (e.key === 'ArrowUp' && (document.activeElement.classList.contains('hier-node') || document.activeElement.classList.contains('agent-card'))) {
+    e.preventDefault();
+    hierFocusIndex = Math.max(hierFocusIndex - 1, 0);
+    hierNodes[hierFocusIndex].focus();
+  }
+  
+  // Enter to select/detail
+  if (e.key === 'Enter' && document.activeElement.classList.contains('hier-node')) {
+    e.preventDefault();
+    selectHierNode(document.activeElement);
+  }
+  
+  // Space to expand/collapse
+  if (e.key === ' ' && document.activeElement.classList.contains('hier-node')) {
+    e.preventDefault();
+    const expand = document.activeElement.querySelector('.hier-expand');
+    if (expand) toggleHierExpand({ stopPropagation: () => {} }, expand);
+  }
+  
+  // Cmd+Shift+S for spawn
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    toggleModal('spawnModal');
+  }
+  
+  // Cmd+Shift+O for optimize
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
+    e.preventDefault();
+    toggleOptimizeModal();
+  }
+});
+
+// Add command palette entries for optimize
+// (already added in HTML)
 </script>
 
 </body>
