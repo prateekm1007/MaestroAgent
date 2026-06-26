@@ -289,6 +289,85 @@ select.input { cursor: pointer; }
 
 /* Focus ring for keyboard nav */
 .hier-node:focus, .agent-card:focus { outline: 2px solid rgba(124,92,255,0.4); outline-offset: 2px; }
+
+/* ===== VOICE MODE ===== */
+.voice-btn { position: relative; width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, rgba(124,92,255,0.15), rgba(0,212,170,0.10)); border: 1px solid rgba(124,92,255,0.25); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; flex-shrink: 0; }
+.voice-btn:hover { background: linear-gradient(135deg, rgba(124,92,255,0.25), rgba(0,212,170,0.15)); transform: scale(1.05); }
+.voice-btn.listening { background: linear-gradient(135deg, #7c5cff, #00d4aa); border-color: transparent; animation: voicePulse 1.5s infinite; }
+.voice-btn.listening svg { color: white; }
+@keyframes voicePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,255,0.5); } 50% { box-shadow: 0 0 0 8px rgba(124,92,255,0); } }
+
+/* Voice waveform */
+.voice-waveform { display: flex; align-items: center; gap: 2px; height: 24px; }
+.voice-waveform span { width: 3px; background: #7c5cff; border-radius: 2px; animation: waveBar 0.8s infinite ease-in-out; }
+.voice-waveform span:nth-child(1) { animation-delay: 0s; height: 30%; }
+.voice-waveform span:nth-child(2) { animation-delay: 0.1s; height: 60%; }
+.voice-waveform span:nth-child(3) { animation-delay: 0.2s; height: 90%; }
+.voice-waveform span:nth-child(4) { animation-delay: 0.15s; height: 70%; }
+.voice-waveform span:nth-child(5) { animation-delay: 0.05s; height: 40%; }
+.voice-waveform span:nth-child(6) { animation-delay: 0.25s; height: 80%; }
+.voice-waveform span:nth-child(7) { animation-delay: 0.1s; height: 50%; }
+@keyframes waveBar { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1.2); } }
+
+/* Voice banner */
+.voice-banner { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 150; background: linear-gradient(135deg, rgba(124,92,255,0.15), rgba(0,212,170,0.10)); backdrop-filter: blur(20px); border: 1px solid rgba(124,92,255,0.25); border-radius: 12px; padding: 8px 20px; display: none; align-items: center; gap: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.voice-banner.active { display: flex; animation: voiceBannerIn .3s cubic-bezier(0.16,1,0.3,1); }
+@keyframes voiceBannerIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* Voice transcript display */
+.voice-transcript { font-size: 13px; color: #e8e8f0; font-weight: 500; min-width: 200px; }
+.voice-transcript .interim { color: #8888a0; font-style: italic; }
+
+/* Voice history log */
+.voice-history-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; transition: all .12s; cursor: pointer; }
+.voice-history-item:hover { background: rgba(124,92,255,0.06); }
+
+/* ===== SPAWN PARTICLES & EFFECTS ===== */
+.spawn-particle { position: absolute; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; z-index: 50; }
+
+/* Spawn rays animation */
+.spawn-rays { position: absolute; pointer-events: none; z-index: 40; }
+.spawn-ray { position: absolute; width: 2px; height: 40px; background: linear-gradient(180deg, transparent, rgba(0,212,170,0.6), transparent); transform-origin: bottom center; animation: rayExpand .6s cubic-bezier(0.16,1,0.3,1) forwards; }
+@keyframes rayExpand { from { transform: scaleY(0) rotate(var(--angle)); opacity: 1; } to { transform: scaleY(1) rotate(var(--angle)); opacity: 0; } }
+
+/* Spring expand/collapse */
+.hier-children { transition: max-height .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .2s ease; overflow: hidden; }
+.hier-children.collapsed { max-height: 0; opacity: 0; }
+.hier-children:not(.collapsed) { max-height: 2000px; opacity: 1; }
+
+/* Live hierarchy pulse — agents with active children gently pulse cyan */
+.agent-card.has-active-children { animation: livePulse 3s infinite; }
+@keyframes livePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,212,170,0); } 50% { box-shadow: 0 0 12px 0 rgba(0,212,170,0.15); } }
+
+/* Reputation flow line */
+.rep-flow-line { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(0,212,170,0.3), transparent); pointer-events: none; animation: flowLine 2s linear infinite; }
+@keyframes flowLine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* Confetti on successful re-parent */
+.confetti-piece { position: fixed; width: 8px; height: 8px; z-index: 999; pointer-events: none; animation: confettiFall 1s ease-out forwards; }
+@keyframes confettiFall { from { transform: translateY(0) rotate(0); opacity: 1; } to { transform: translateY(100px) rotate(360deg); opacity: 0; } }
+
+/* Savings micro-animation */
+.savings-pop { animation: savingsPop .5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes savingsPop { 0% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+
+/* Auto-suggestion shimmer */
+.auto-suggest { background: linear-gradient(90deg, rgba(124,92,255,0.06), rgba(0,212,170,0.06), rgba(124,92,255,0.06)); background-size: 200% 100%; animation: autoShimmer 3s linear infinite; border: 1px solid rgba(124,92,255,0.15); }
+@keyframes autoShimmer { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+
+/* Ghost drag image */
+.drag-ghost { position: fixed; pointer-events: none; z-index: 999; opacity: 0.8; transform: scale(1.05) rotate(-2deg); box-shadow: 0 8px 24px rgba(124,92,255,0.3); border-radius: 10px; }
+
+/* Glowing inheritance badge */
+.inherit-glow { animation: inheritGlow 2s infinite; }
+@keyframes inheritGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(92,200,255,0.3); } 50% { box-shadow: 0 0 8px 2px rgba(92,200,255,0.2); } }
+
+/* Voice suggestion in command palette */
+.cmdp-voice-suggest { padding: 6px 16px; display: flex; align-items: center; gap: 8px; font-size: 11px; color: #5cc8ff; border-top: 1px solid rgba(255,255,255,0.04); }
+
+/* Nested hierarchy group in graph builder */
+.hierarchy-group { position: absolute; border: 2px dashed rgba(124,92,255,0.2); border-radius: 14px; padding: 24px 16px 16px; pointer-events: none; }
+.hierarchy-group-label { position: absolute; top: -10px; left: 12px; background: #0a0a14; padding: 0 8px; font-size: 10px; font-weight: 700; color: #a594ff; text-transform: uppercase; letter-spacing: 0.05em; }
 </style>
 </head>
 <body>
@@ -380,6 +459,10 @@ select.input { cursor: pointer; }
           <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
           <span class="text-[10px] font-semibold text-brand-cyan">3 RUNS LIVE</span>
         </div>
+        <!-- Voice Mode button -->
+        <button class="voice-btn tip" id="voice-btn" onclick="toggleVoice()" title="Voice Mode (⌘⇧V)">
+          <svg class="w-4 h-4 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+        </button>
         <button class="btn btn-ghost" onclick="toggleModal('startRunModal')">
           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>
           <span class="hidden sm:inline">New Run</span>
@@ -390,6 +473,13 @@ select.input { cursor: pointer; }
         </button>
       </div>
     </header>
+
+    <!-- Voice Mode banner -->
+    <div class="voice-banner" id="voice-banner">
+      <div class="voice-waveform" id="voice-waveform"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="voice-transcript" id="voice-transcript"><span class="interim">Listening…</span></div>
+      <button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="toggleVoice()">Esc</button>
+    </div>
 
     <main class="flex-1 overflow-y-auto" id="main-scroll">
 
@@ -2268,6 +2358,37 @@ select.input { cursor: pointer; }
       </div>
     </div>
 
+    <!-- Voice Status + History -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div class="panel">
+        <div class="panel-header"><span>Voice Mode Status</span><span class="tag tag-gray" id="voice-status-tag">idle</span></div>
+        <div class="p-4 text-center">
+          <button class="voice-btn mx-auto mb-3" id="voice-btn-cc" onclick="toggleVoice()" style="width:48px;height:48px;">
+            <svg class="w-5 h-5 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          </button>
+          <div class="text-xs font-semibold mb-1" id="voice-status-text">Voice Mode Inactive</div>
+          <div class="text-[10px] text-fg-500 mb-3">Click mic or press ⌘⇧V</div>
+          <div class="text-[10px] text-fg-600 text-left space-y-0.5">
+            <div>Try: "spawn sub-agent under architect"</div>
+            <div>Try: "optimize hierarchy"</div>
+            <div>Try: "show me the CEO tree"</div>
+            <div>Try: "promote qa to Tier 1"</div>
+            <div>Try: "simulate 3 sub-workers"</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel lg:col-span-2">
+        <div class="panel-header"><span>Voice History</span><span class="tag tag-gray" id="voice-history-count">0 commands</span></div>
+        <div class="p-3 space-y-1 max-h-48 overflow-y-auto" id="voice-history-list">
+          <div class="text-center py-6 text-fg-500 text-[11px]">
+            <svg class="w-6 h-6 mx-auto mb-1.5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+            No voice commands yet. Start Voice Mode to see history here.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
       <div class="panel">
         <div class="panel-header"><span>Blackboard · shared facts</span><span class="tag tag-gray">42 facts</span></div>
@@ -2738,6 +2859,7 @@ select.input { cursor: pointer; }
             <div class="flex justify-between"><span class="text-fg-400">Reject HITL</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>⌫</kbd></span></div>
             <div class="flex justify-between"><span class="text-fg-400">Spawn sub-agent</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd></span></div>
             <div class="flex justify-between"><span class="text-fg-400">Optimize hierarchy</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>O</kbd></span></div>
+            <div class="flex justify-between"><span class="text-fg-400">Voice mode</span><span class="flex gap-1"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd></span></div>
           </div>
         </div>
       </div>
@@ -2940,6 +3062,15 @@ select.input { cursor: pointer; }
         </div>
         <div class="text-[11px] text-fg-300" id="inherit-text">New sub-agent will inherit <strong class="text-brand-sky">decomposition</strong> specialty (0.94) from <strong class="text-brand-purple">CEO Agent</strong>. Reputation starts at parent_score × 0.85 = <strong class="text-brand-cyan">0.80</strong>.</div>
       </div>
+      <!-- Auto-suggestion (magical) -->
+      <div class="auto-suggest rounded-lg p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <svg class="w-3.5 h-3.5 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+          <span class="text-[10px] font-semibold text-brand-purple uppercase tracking-wider">Magical Suggestion</span>
+        </div>
+        <div class="text-[11px] text-fg-300">Based on your past 12 runs, this task would love <strong class="text-brand-cyan">2 parallel sub-coders</strong> on llama3.1:8b (local, $0). Estimated 3x speedup, $0.00 additional cost.</div>
+        <button class="btn btn-cyan text-[10px] py-1 px-2 mt-1.5">Apply suggestion ✨</button>
+      </div>
       <!-- Estimate summary -->
       <div class="flex items-center gap-2 p-2.5 bg-brand-cyan/[0.06] border border-brand-cyan/15 rounded">
         <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
@@ -3048,6 +3179,11 @@ select.input { cursor: pointer; }
     <div class="cmdp-item" data-search="view hierarchy run agent tree" onclick="navTo('run-detail'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857"/></svg><span>View hierarchy for run_8f3a92e1</span></div>
     <div class="cmdp-item" data-search="optimize hierarchy cost routing model" onclick="toggleOptimizeModal(); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg><span>Optimize hierarchy cost</span><kbd class="ml-auto">⌘⇧O</kbd></div>
     <div class="cmdp-item" data-search="simulate spawn mock agent hierarchy" onclick="simulateSpawn(); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg><span>Simulate spawn (demo)</span></div>
+    <div class="cmdp-voice-suggest">
+      <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+      <span>Or say: "spawn sub-agent", "optimize hierarchy", "show CEO tree"</span>
+      <button class="ml-auto text-brand-purple underline text-[10px]" onclick="toggleVoice(); toggleCmd()">Start Voice</button>
+    </div>
   </div>
 </div>
 
@@ -3543,6 +3679,12 @@ function onDrop(event, targetEl) {
     targetEl.style.boxShadow = '';
   }, 1000);
   
+  // Confetti at drop position
+  createConfetti(event.clientX, event.clientY);
+  
+  // Savings pop
+  showSavingsPop('✓ Re-parented', event.clientX - 40, event.clientY - 10);
+  
   // In a real app, this would call the API to re-parent
   console.log('Re-parented:', draggedAgent, '→ new parent:', targetName.trim());
   draggedAgent = null;
@@ -3636,10 +3778,328 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     toggleOptimizeModal();
   }
+  
+  // Cmd+Shift+V for voice mode
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
+    e.preventDefault();
+    toggleVoice();
+  }
 });
 
-// Add command palette entries for optimize
-// (already added in HTML)
+// ===== VOICE MODE (Web Speech API) =====
+let voiceRecognition = null;
+let voiceActive = false;
+let voiceHistory = [];
+
+function toggleVoice() {
+  if (voiceActive) {
+    stopVoice();
+  } else {
+    startVoice();
+  }
+}
+
+function startVoice() {
+  // Check if Web Speech API is available
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    // Fallback: simulate voice mode with text input
+    simulateVoiceMode();
+    return;
+  }
+  
+  voiceRecognition = new SpeechRecognition();
+  voiceRecognition.continuous = true;
+  voiceRecognition.interimResults = true;
+  voiceRecognition.lang = 'en-US';
+  
+  voiceRecognition.onstart = () => {
+    voiceActive = true;
+    document.getElementById('voice-btn').classList.add('listening');
+    document.getElementById('voice-banner').classList.add('active');
+    const ccBtn = document.getElementById('voice-btn-cc');
+    if (ccBtn) ccBtn.classList.add('listening');
+    updateVoiceStatus('listening', 'Voice Mode Active');
+    speakResponse('Voice mode active. I\'m listening.');
+  };
+  
+  voiceRecognition.onresult = (event) => {
+    let interim = '';
+    let final = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        final += transcript;
+      } else {
+        interim += transcript;
+      }
+    }
+    
+    // Update transcript display
+    const transcriptEl = document.getElementById('voice-transcript');
+    if (transcriptEl) {
+      transcriptEl.innerHTML = (final ? '<span class="text-fg-100">' + final + '</span>' : '') + (interim ? '<span class="interim">' + interim + '</span>' : '');
+    }
+    
+    // Process final commands
+    if (final.trim()) {
+      processVoiceCommand(final.trim().toLowerCase());
+    }
+  };
+  
+  voiceRecognition.onerror = (event) => {
+    console.log('Voice error:', event.error);
+    if (event.error === 'not-allowed') {
+      simulateVoiceMode();
+    }
+  };
+  
+  voiceRecognition.onend = () => {
+    if (voiceActive) {
+      // Restart if still active (keeps listening)
+      try { voiceRecognition.start(); } catch(e) {}
+    }
+  };
+  
+  try {
+    voiceRecognition.start();
+  } catch(e) {
+    simulateVoiceMode();
+  }
+}
+
+function stopVoice() {
+  voiceActive = false;
+  if (voiceRecognition) {
+    voiceRecognition.stop();
+    voiceRecognition = null;
+  }
+  document.getElementById('voice-btn').classList.remove('listening');
+  document.getElementById('voice-banner').classList.remove('active');
+  const ccBtn = document.getElementById('voice-btn-cc');
+  if (ccBtn) ccBtn.classList.remove('listening');
+  updateVoiceStatus('idle', 'Voice Mode Inactive');
+  const transcriptEl = document.getElementById('voice-transcript');
+  if (transcriptEl) transcriptEl.innerHTML = '<span class="interim">Listening…</span>';
+}
+
+function simulateVoiceMode() {
+  // Fallback when Web Speech API is not available
+  voiceActive = true;
+  document.getElementById('voice-btn').classList.add('listening');
+  document.getElementById('voice-banner').classList.add('active');
+  const ccBtn = document.getElementById('voice-btn-cc');
+  if (ccBtn) ccBtn.classList.add('listening');
+  updateVoiceStatus('simulated', 'Voice Mode (simulated)');
+  
+  const transcriptEl = document.getElementById('voice-transcript');
+  if (transcriptEl) {
+    transcriptEl.innerHTML = '<span class="interim">Voice API unavailable — type commands in ⌘K instead. Try: "spawn sub-agent", "optimize hierarchy"</span>';
+  }
+  
+  // Simulate a voice command after 3 seconds
+  setTimeout(() => {
+    if (voiceActive) {
+      const commands = ['spawn sub-agent under architect', 'optimize hierarchy', 'show me the CEO tree'];
+      const cmd = commands[Math.floor(Math.random() * commands.length)];
+      if (transcriptEl) transcriptEl.innerHTML = '<span class="text-fg-100">' + cmd + '</span>';
+      processVoiceCommand(cmd);
+    }
+  }, 3000);
+}
+
+function processVoiceCommand(cmd) {
+  // Add to history
+  const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  voiceHistory.unshift({ command: cmd, time: time, status: 'executed' });
+  updateVoiceHistory();
+  
+  // Match and execute commands
+  if (cmd.includes('spawn') && cmd.includes('sub-agent') || cmd.includes('spawn') && cmd.includes('subagent')) {
+    if (cmd.includes('architect')) {
+      speakResponse('Spawning frontend specialist under architect now...');
+      toggleModal('spawnModal');
+    } else {
+      speakResponse('Opening spawn dialog...');
+      toggleModal('spawnModal');
+    }
+  } else if (cmd.includes('optimize') && cmd.includes('hierarchy')) {
+    speakResponse('Optimizing hierarchy. I found 3 savings opportunities.');
+    toggleOptimizeModal();
+  } else if (cmd.includes('show') && (cmd.includes('ceo') || cmd.includes('tree'))) {
+    speakResponse('Showing the CEO agent tree.');
+    navTo('run-detail');
+  } else if (cmd.includes('promote') && cmd.includes('qa')) {
+    speakResponse('Promoting QA to Tier 1 specialist.');
+    navTo('agents');
+  } else if (cmd.includes('simulate') && (cmd.includes('spawn') || cmd.includes('sub-worker'))) {
+    const count = parseInt(cmd.match(/\d+/) || 1);
+    speakResponse('Simulating ' + count + ' sub-workers. Watch them appear!');
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => simulateSpawn(), i * 400);
+    }
+  } else if (cmd.includes('budget') && cmd.includes('sub_frontend')) {
+    speakResponse('Sub frontend has a budget of $0.30, which is 6% of the total run budget.');
+  } else if (cmd.includes('tell') && cmd.includes('sub_backend')) {
+    speakResponse('Sending message to sub_backend: implement auth endpoints.');
+    navTo('run-detail');
+  } else if (cmd.includes('fix') && cmd.includes('voice')) {
+    speakResponse('Running hierarchy optimization with voice.');
+    toggleOptimizeModal();
+  } else {
+    speakResponse('I heard: ' + cmd + '. Try saying "spawn sub-agent", "optimize hierarchy", or "show CEO tree".');
+  }
+}
+
+function speakResponse(text) {
+  if (!('speechSynthesis' in window)) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1.1;
+  utterance.pitch = 1.0;
+  utterance.volume = 0.3;
+  speechSynthesis.speak(utterance);
+}
+
+function updateVoiceStatus(status, text) {
+  const tag = document.getElementById('voice-status-tag');
+  const textEl = document.getElementById('voice-status-text');
+  if (tag) {
+    tag.textContent = status;
+    tag.className = 'tag tag-' + (status === 'listening' ? 'cyan' : status === 'simulated' ? 'amber' : 'gray');
+  }
+  if (textEl) textEl.textContent = text;
+}
+
+function updateVoiceHistory() {
+  const list = document.getElementById('voice-history-list');
+  const count = document.getElementById('voice-history-count');
+  if (count) count.textContent = voiceHistory.length + ' commands';
+  if (!list) return;
+  
+  if (voiceHistory.length === 0) {
+    list.innerHTML = '<div class="text-center py-6 text-fg-500 text-[11px]"><svg class="w-6 h-6 mx-auto mb-1.5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>No voice commands yet. Start Voice Mode to see history here.</div>';
+    return;
+  }
+  
+  list.innerHTML = voiceHistory.map(h => 
+    '<div class="voice-history-item">' +
+      '<svg class="w-3.5 h-3.5 text-brand-purple flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>' +
+      '<div class="flex-1 min-w-0">' +
+        '<div class="text-[11px] text-fg-200 truncate">' + h.command + '</div>' +
+        '<div class="text-[9px] text-fg-600 mono">' + h.time + ' · ' + h.status + '</div>' +
+      '</div>' +
+      '<span class="tag tag-cyan flex-shrink-0">✓</span>' +
+    '</div>'
+  ).join('');
+}
+
+// ===== SPAWN PARTICLES & EFFECTS =====
+function createSpawnParticles(el) {
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const colors = ['#7c5cff', '#00d4aa', '#5cc8ff', '#ffb84d'];
+  
+  for (let i = 0; i < 8; i++) {
+    const p = document.createElement('div');
+    p.className = 'spawn-particle';
+    p.style.left = cx + 'px';
+    p.style.top = cy + 'px';
+    p.style.background = colors[i % colors.length];
+    p.style.boxShadow = '0 0 6px ' + colors[i % colors.length];
+    document.body.appendChild(p);
+    
+    const angle = (i / 8) * Math.PI * 2;
+    const dist = 40 + Math.random() * 20;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+    
+    p.animate([
+      { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0)', opacity: 0 }
+    ], { duration: 600, easing: 'cubic-bezier(0.16,1,0.3,1)' }).onfinish = () => p.remove();
+  }
+  
+  // Spawn rays
+  const rays = document.createElement('div');
+  rays.className = 'spawn-rays';
+  rays.style.left = cx + 'px';
+  rays.style.top = cy + 'px';
+  rays.style.width = '0';
+  rays.style.height = '0';
+  document.body.appendChild(rays);
+  
+  for (let i = 0; i < 6; i++) {
+    const ray = document.createElement('div');
+    ray.className = 'spawn-ray';
+    ray.style.setProperty('--angle', (i * 60) + 'deg');
+    ray.style.left = '0';
+    ray.style.top = '0';
+    rays.appendChild(ray);
+  }
+  setTimeout(() => rays.remove(), 700);
+}
+
+// ===== CONFETTI ON RE-PARENT =====
+function createConfetti(x, y) {
+  const colors = ['#7c5cff', '#00d4aa', '#5cc8ff', '#ffb84d', '#ff5577'];
+  for (let i = 0; i < 12; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti-piece';
+    c.style.left = (x + (Math.random() - 0.5) * 40) + 'px';
+    c.style.top = y + 'px';
+    c.style.background = colors[i % colors.length];
+    c.style.animationDelay = (i * 30) + 'ms';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 1100);
+  }
+}
+
+// ===== SAVINGS POP ANIMATION =====
+function showSavingsPop(text, x, y) {
+  const el = document.createElement('div');
+  el.className = 'savings-pop';
+  el.style.cssText = 'position:fixed; left:' + x + 'px; top:' + y + 'px; z-index:999; pointer-events:none; font-size:12px; font-weight:700; color:#00d4aa; text-shadow: 0 0 8px rgba(0,212,170,0.4);';
+  el.textContent = text;
+  document.body.appendChild(el);
+  el.animate([
+    { transform: 'translateY(0) scale(0.8)', opacity: 0 },
+    { transform: 'translateY(-20px) scale(1.1)', opacity: 1, offset: 0.5 },
+    { transform: 'translateY(-40px) scale(1)', opacity: 0 }
+  ], { duration: 1500, easing: 'cubic-bezier(0.34,1.56,0.64,1)' }).onfinish = () => el.remove();
+}
+
+// ===== ENHANCED SIMULATE SPAWN WITH PARTICLES =====
+const originalSimulateSpawn = simulateSpawn;
+simulateSpawn = function() {
+  originalSimulateSpawn();
+  // Add particles to the new agent
+  setTimeout(() => {
+    const agents = document.querySelectorAll('#page-run-detail .agent-card.spawn-anim');
+    if (agents.length > 0) {
+      const last = agents[agents.length - 1];
+      createSpawnParticles(last);
+      // Show savings pop
+      const rect = last.getBoundingClientRect();
+      showSavingsPop('💰 Saved $0.87', rect.right - 100, rect.top);
+    }
+  }, 100);
+};
+
+// ===== MARK AGENTS WITH ACTIVE CHILDREN =====
+document.addEventListener('DOMContentLoaded', () => {
+  // Add has-active-children to agents that have running children
+  document.querySelectorAll('.agent-card.agent-tier-0, .agent-card.agent-tier-1').forEach(card => {
+    const sibling = card.nextElementSibling;
+    if (sibling && sibling.querySelector('.pulse-dot-amber')) {
+      card.classList.add('has-active-children');
+    }
+  });
+  
+  // Add glow to inherit badges
+  document.querySelectorAll('.inherit-badge').forEach(b => b.classList.add('inherit-glow'));
+});
 </script>
 
 </body>
