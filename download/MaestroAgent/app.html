@@ -195,6 +195,74 @@ select.input { cursor: pointer; }
 /* Stat tile */
 .stat-tile { background: linear-gradient(135deg, rgba(22,22,36,0.6), rgba(18,18,30,0.6)); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px; transition: all .2s; }
 .stat-tile:hover { border-color: rgba(124,92,255,0.2); transform: translateY(-1px); }
+
+/* ===== Hierarchy Explorer ===== */
+.hier-node { position: relative; padding: 10px 12px; border-radius: 9px; background: #161624; border: 1px solid rgba(255,255,255,0.06); transition: all .15s; cursor: pointer; }
+.hier-node:hover { border-color: rgba(124,92,255,0.3); background: #1a1a2e; }
+.hier-node.selected { border-color: #7c5cff; background: rgba(124,92,255,0.08); box-shadow: 0 0 0 1px rgba(124,92,255,0.2); }
+.hier-node.tier-0 { border-left: 3px solid #7c5cff; background: rgba(124,92,255,0.05); }
+.hier-node.tier-1 { border-left: 3px solid #00d4aa; }
+.hier-node.tier-2 { border-left: 3px solid #ffb84d; }
+.hier-children { padding-left: 20px; margin-left: 18px; border-left: 1px solid rgba(255,255,255,0.08); }
+.hier-expand { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s; flex-shrink: 0; }
+.hier-expand.collapsed { transform: rotate(-90deg); }
+.hier-children.collapsed { display: none; }
+
+/* Hierarchy diagram (routing page) */
+.hier-diagram { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px; }
+.hier-tier { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.hier-tier-label { font-size: 9px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: #5a5a72; margin-bottom: 6px; text-align: center; }
+.hier-box { padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; text-align: center; min-width: 90px; border: 1px solid; }
+.hier-box.t0 { background: rgba(124,92,255,0.12); border-color: rgba(124,92,255,0.3); color: #a594ff; }
+.hier-box.t1 { background: rgba(0,212,170,0.10); border-color: rgba(0,212,170,0.25); color: #00d4aa; }
+.hier-box.t2 { background: rgba(255,184,77,0.10); border-color: rgba(255,184,77,0.25); color: #ffb84d; }
+.hier-connector { width: 1px; height: 16px; background: rgba(255,255,255,0.12); }
+
+/* Context menu */
+.ctx-menu { position: fixed; z-index: 300; background: #1c1c2c; border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 4px; min-width: 180px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); display: none; }
+.ctx-menu.active { display: block; }
+.ctx-menu-item { padding: 7px 10px; border-radius: 5px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #c8c8d8; }
+.ctx-menu-item:hover { background: rgba(124,92,255,0.12); color: #e8e8f0; }
+.ctx-menu-item.danger:hover { background: rgba(255,85,119,0.12); color: #ff5577; }
+.ctx-menu-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 0; }
+
+/* Spawn modal enhancements */
+.spawn-parent-picker { max-height: 160px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px; }
+.spawn-parent-item { padding: 6px 8px; border-radius: 5px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.spawn-parent-item:hover { background: rgba(124,92,255,0.10); }
+.spawn-parent-item.selected { background: rgba(124,92,255,0.14); color: #a594ff; }
+.slider { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.10); outline: none; }
+.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; box-shadow: 0 0 0 3px rgba(124,92,255,0.2); }
+.slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; border: none; }
+
+/* Spawn animation */
+@keyframes spawnPulse { 0% { opacity: 0; transform: scale(0.8) translateY(-4px); } 50% { opacity: 1; transform: scale(1.05); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+.spawn-anim { animation: spawnPulse .4s cubic-bezier(0.16,1,0.3,1); }
+
+/* Inheritance badge */
+.inherit-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 600; background: rgba(92,200,255,0.10); color: #5cc8ff; border: 1px solid rgba(92,200,255,0.15); }
+
+/* Cost savings callout */
+.savings-callout { background: linear-gradient(135deg, rgba(0,212,170,0.08), rgba(92,200,255,0.06)); border: 1px solid rgba(0,212,170,0.20); border-radius: 9px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+
+/* Hierarchy diagram (Model Routing page) */
+.hier-diagram-node { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: #161624; min-width: 120px; transition: all .2s; cursor: pointer; }
+.hier-diagram-node:hover { border-color: rgba(124,92,255,0.3); transform: translateY(-2px); }
+.hier-diagram-node.tier-0 { border-color: rgba(124,92,255,0.3); background: rgba(124,92,255,0.06); }
+.hier-diagram-node.tier-1 { border-color: rgba(0,212,170,0.3); }
+.hier-diagram-node.tier-2 { border-color: rgba(255,184,77,0.3); }
+.hier-diagram-connector { width: 1px; height: 20px; background: rgba(255,255,255,0.10); }
+.hier-diagram-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+/* Budget slider */
+.budget-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); outline: none; }
+.budget-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; box-shadow: 0 0 0 3px rgba(124,92,255,0.15); }
+.budget-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; border: none; box-shadow: 0 0 0 3px rgba(124,92,255,0.15); }
+
+/* Toggle chip */
+.toggle-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: #8888a0; }
+.toggle-chip:hover { background: rgba(255,255,255,0.05); color: #e8e8f0; }
+.toggle-chip.on { background: rgba(124,92,255,0.12); border-color: rgba(124,92,255,0.25); color: #a594ff; }
 </style>
 </head>
 <body>
@@ -593,7 +661,7 @@ select.input { cursor: pointer; }
     <div class="grid grid-cols-12 gap-3">
       <!-- Agent tree (main) -->
       <div class="col-span-12 lg:col-span-8 panel">
-        <div class="panel-header"><span>Agent Tree · 7 agents · CEO + Workers + Sub-Workers</span><span class="tag tag-gray">$0.0421 total</span></div>
+        <div class="panel-header"><span>Agent Tree · 7 agents · CEO + Workers + Sub-Workers</span><div class="flex gap-1"><span class="tag tag-gray">$0.0421 total</span><button class="btn btn-primary text-[10px] py-0.5 px-2" onclick="simulateSpawn()">⚡ Simulate Spawn</button><button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="toggleModal('spawnModal')">+ Spawn Sub-Agent</button></div></div>
         <div class="p-4 space-y-2">
           <!-- CEO -->
           <div class="agent-card agent-tier-0 flex items-center gap-3">
@@ -780,6 +848,17 @@ select.input { cursor: pointer; }
         </div>
       </div>
 
+      <!-- Agent Spawn Details (appears when node clicked) -->
+      <div class="col-span-12 lg:col-span-4 ctx-panel" id="agent-detail-panel">
+        <div class="panel-header"><span>Agent Details</span><span class="tag tag-gray">click a node</span></div>
+        <div class="p-3 space-y-2.5 text-[11px]" id="agent-detail-content">
+          <div class="text-center py-6 text-fg-500 text-[11px]">
+            <svg class="w-8 h-8 mx-auto mb-2 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            Click an agent node to see spawn details, budget allocation, and inheritance.
+          </div>
+        </div>
+      </div>
+
       <!-- Transcript -->
       <div class="col-span-12 panel">
         <div class="panel-header"><span>Message Transcript · 14 messages</span><button class="btn btn-ghost text-[10px] py-1 px-2">Export</button></div>
@@ -876,6 +955,7 @@ select.input { cursor: pointer; }
         <div class="p-2 space-y-1 flex-1 overflow-y-auto">
           <div class="p-2 rounded bg-white/[0.02] hover:bg-white/[0.05] cursor-grab text-[11px] font-medium flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-cyan"></span> Entry Node</div>
           <div class="p-2 rounded bg-white/[0.02] hover:bg-white/[0.05] cursor-grab text-[11px] font-medium flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-purple"></span> Agent Node</div>
+          <div class="p-2 rounded bg-white/[0.02] hover:bg-white/[0.05] cursor-grab text-[11px] font-medium flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-purple/50"></span> Spawn Sub-Agent</div>
           <div class="p-2 rounded bg-white/[0.02] hover:bg-white/[0.05] cursor-grab text-[11px] font-medium flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-amber"></span> Loop Node</div>
           <div class="p-2 rounded bg-white/[0.02] hover:bg-white/[0.05] cursor-grab text-[11px] font-medium flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-sky"></span> Conditional</div>
           <div class="p-2 rounded bg-white/[0.02] hover:bg-white/[0.05] cursor-grab text-[11px] font-medium flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-rose"></span> Verifier</div>
@@ -1045,68 +1125,151 @@ select.input { cursor: pointer; }
         </div>
       </div>
 
-      <!-- Right context: Live hierarchy -->
+      <!-- Right context: Hierarchy Explorer -->
       <div class="col-span-12 lg:col-span-4 panel">
-        <div class="panel-header"><span>Live Hierarchy</span><span class="tag tag-cyan">live</span></div>
-        <div class="p-3 text-xs space-y-2">
-          <div class="flex items-center gap-2 p-2 rounded-md bg-brand-purple/[0.08] border border-brand-purple/15">
-            <div class="w-7 h-7 rounded-md bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple">C</div>
-            <div class="flex-1 min-w-0">
-              <div class="font-semibold text-brand-purple truncate">CEO Agent</div>
-              <div class="text-[10px] text-fg-500 truncate">claude-3-5-sonnet</div>
+        <div class="panel-header"><span>Hierarchy Explorer</span><div class="flex gap-1"><span class="tag tag-cyan">live</span><button class="btn btn-ghost text-[10px] py-0.5 px-1.5" onclick="toggleModal('spawnModal')">+ Spawn</button></div></div>
+        <div class="p-3 text-xs space-y-1.5 max-h-[520px] overflow-y-auto">
+          <!-- Tier 0: CEO -->
+          <div class="hier-node tier-0" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'CEO Agent', 'tier-0'); return false;">
+            <div class="flex items-center gap-2">
+              <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
+              <div class="w-7 h-7 rounded-md bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple flex-shrink-0">C</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5"><span class="font-semibold text-brand-purple truncate">CEO Agent</span><span class="tag tag-purple">T0</span></div>
+                <div class="text-[10px] text-fg-500 truncate">claude-3-5-sonnet &#183; $0.024/call</div>
+              </div>
             </div>
-            <span class="tag tag-purple">T0</span>
+            <div class="flex items-center gap-1.5 mt-1.5 ml-6">
+              <div class="rep-bar flex-1"><div class="rep-fill" style="width: 94%; background: #7c5cff;"></div></div>
+              <span class="mono text-[9px] text-fg-500">0.94</span>
+              <span class="text-[9px] text-fg-600">&#183;</span>
+              <span class="mono text-[9px] text-brand-cyan">$0.024</span>
+              <button class="btn btn-ghost text-[9px] py-0 px-1.5" onclick="event.stopPropagation(); toggleModal('spawnModal')" title="Spawn child">+</button>
+            </div>
           </div>
-          <div class="pl-4 space-y-2 border-l-2 border-brand-purple/20 ml-4">
-            <div class="flex items-center gap-2 p-2 rounded-md bg-white/[0.02]">
-              <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px]">A</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-semibold truncate">Architect</div>
-                <div class="text-[10px] text-fg-500 truncate">claude-3-5-sonnet</div>
-              </div>
-              <span class="tag tag-cyan">done</span>
-            </div>
-            <div class="pl-4 space-y-2 border-l-2 border-white/[0.10] ml-3">
-              <div class="flex items-center gap-2 p-2 rounded-md bg-white/[0.02]">
-                <div class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[10px]">F</div>
+          <div class="hier-children">
+            <!-- Tier 1: Architect -->
+            <div class="hier-node tier-1" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'architect', 'tier-1'); return false;">
+              <div class="flex items-center gap-2">
+                <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
+                <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] flex-shrink-0">A</div>
                 <div class="flex-1 min-w-0">
-                  <div class="font-semibold truncate">Frontend</div>
-                  <div class="text-[10px] text-fg-500 truncate">gpt-4o-mini</div>
+                  <div class="flex items-center gap-1.5"><span class="font-semibold truncate">architect</span><span class="tag tag-cyan">T1</span><span class="inherit-badge">&#8627; inherits CEO</span></div>
+                  <div class="text-[10px] text-fg-500 truncate">claude-3-5-sonnet &#183; decomp 0.92</div>
                 </div>
-                <span class="tag tag-amber">run</span>
               </div>
-              <div class="flex items-center gap-2 p-2 rounded-md bg-white/[0.02]">
-                <div class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[10px]">B</div>
+              <div class="flex items-center gap-1.5 mt-1.5 ml-6">
+                <div class="rep-bar flex-1"><div class="rep-fill" style="width: 92%; background: #00d4aa;"></div></div>
+                <span class="mono text-[9px] text-fg-500">0.92</span>
+                <span class="text-[9px] text-fg-600">&#183;</span>
+                <span class="mono text-[9px] text-brand-cyan">$0.018</span>
+                <button class="btn btn-ghost text-[9px] py-0 px-1.5" onclick="event.stopPropagation(); toggleModal('spawnModal')" title="Spawn child">+</button>
+              </div>
+            </div>
+            <div class="hier-children">
+              <!-- Tier 2: sub_frontend -->
+              <div class="hier-node tier-2" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'sub_frontend', 'tier-2'); return false;">
+                <div class="flex items-center gap-2">
+                  <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
+                  <div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_frontend</span><span class="tag tag-amber">T2</span><span class="inherit-badge">&#8627; ui from architect</span></div>
+                    <div class="text-[10px] text-fg-500 truncate">gpt-4o-mini &#183; ui 0.78</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 mt-1.5 ml-6">
+                  <div class="rep-bar flex-1"><div class="rep-fill" style="width: 78%; background: #7c5cff;"></div></div>
+                  <span class="mono text-[9px] text-fg-500">0.78</span>
+                  <span class="text-[9px] text-fg-600">&#183;</span>
+                  <span class="mono text-[9px] text-brand-cyan">$0.009</span>
+                </div>
+              </div>
+              <div class="hier-children">
+                <div class="hier-node tier-2" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F2</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_form_helper</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
+                <div class="hier-node tier-2" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F3</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_form_test</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
+              </div>
+              <!-- Tier 2: sub_backend -->
+              <div class="hier-node tier-2" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'sub_backend', 'tier-2'); return false;">
+                <div class="flex items-center gap-2">
+                  <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
+                  <div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">B</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_backend</span><span class="tag tag-amber">T2</span><span class="inherit-badge">&#8627; api from architect</span></div>
+                    <div class="text-[10px] text-fg-500 truncate">gpt-4o-mini &#183; api 0.81</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 mt-1.5 ml-6">
+                  <div class="rep-bar flex-1"><div class="rep-fill" style="width: 81%; background: #7c5cff;"></div></div>
+                  <span class="mono text-[9px] text-fg-500">0.81</span>
+                  <span class="text-[9px] text-fg-600">&#183;</span>
+                  <span class="mono text-[9px] text-brand-cyan">$0.008</span>
+                </div>
+              </div>
+              <div class="hier-children">
+                <div class="hier-node tier-2" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">B2</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_db_helper</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
+              </div>
+            </div>
+            <!-- Tier 1: Builder -->
+            <div class="hier-node tier-1" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'builder', 'tier-1'); return false;">
+              <div class="flex items-center gap-2">
+                <span class="hier-expand collapsed" onclick="toggleHierExpand(event, this)">&#9660;</span>
+                <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] flex-shrink-0">B</div>
                 <div class="flex-1 min-w-0">
-                  <div class="font-semibold truncate">Backend</div>
-                  <div class="text-[10px] text-fg-500 truncate">gpt-4o-mini</div>
+                  <div class="flex items-center gap-1.5"><span class="font-semibold truncate">builder</span><span class="tag tag-cyan">T1</span></div>
+                  <div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; coding 0.88</div>
                 </div>
-                <span class="tag tag-amber">run</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-1.5 ml-6">
+                <div class="rep-bar flex-1"><div class="rep-fill" style="width: 88%; background: #00d4aa;"></div></div>
+                <span class="mono text-[9px] text-fg-500">0.88</span>
+                <span class="text-[9px] text-fg-600">&#183;</span>
+                <span class="mono text-[9px] text-brand-cyan">$0.004</span>
+                <button class="btn btn-ghost text-[9px] py-0 px-1.5" onclick="event.stopPropagation(); toggleModal('spawnModal')" title="Spawn child">+</button>
               </div>
             </div>
-            <div class="flex items-center gap-2 p-2 rounded-md bg-white/[0.02]">
-              <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px]">B</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-semibold truncate">Builder</div>
-                <div class="text-[10px] text-fg-500 truncate">llama3.1:8b</div>
+            <!-- Tier 1: QA -->
+            <div class="hier-node tier-1" onclick="selectHierNode(this)">
+              <div class="flex items-center gap-2">
+                <span class="hier-expand collapsed" onclick="toggleHierExpand(event, this)">&#9660;</span>
+                <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] flex-shrink-0">Q</div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5"><span class="font-semibold truncate">qa</span><span class="tag tag-cyan">T1</span></div>
+                  <div class="text-[10px] text-fg-500 truncate">gpt-4o-mini &#183; testing 0.95</div>
+                </div>
               </div>
-              <span class="tag tag-cyan">done</span>
+              <div class="flex items-center gap-1.5 mt-1.5 ml-6">
+                <div class="rep-bar flex-1"><div class="rep-fill" style="width: 95%; background: #00d4aa;"></div></div>
+                <span class="mono text-[9px] text-fg-500">0.95</span>
+                <span class="text-[9px] text-fg-600">&#183;</span>
+                <span class="mono text-[9px] text-brand-cyan">$0.002</span>
+              </div>
             </div>
-            <div class="flex items-center gap-2 p-2 rounded-md bg-white/[0.02]">
-              <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px]">Q</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-semibold truncate">QA</div>
-                <div class="text-[10px] text-fg-500 truncate">gpt-4o-mini</div>
+            <!-- Tier 1: Critic -->
+            <div class="hier-node tier-1" onclick="selectHierNode(this)">
+              <div class="flex items-center gap-2">
+                <span class="w-4 h-4 flex-shrink-0"></span>
+                <div class="w-6 h-6 rounded-md bg-brand-rose/15 flex items-center justify-center text-[10px] flex-shrink-0">Cr</div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5"><span class="font-semibold truncate">critic</span><span class="tag tag-cyan">T1</span><span class="tag tag-rose">await</span></div>
+                  <div class="text-[10px] text-fg-500 truncate">claude-3-5-sonnet &#183; review 0.88</div>
+                </div>
               </div>
-              <span class="tag tag-cyan">done</span>
+              <div class="flex items-center gap-1.5 mt-1.5 ml-6">
+                <div class="rep-bar flex-1"><div class="rep-fill" style="width: 88%; background: #00d4aa;"></div></div>
+                <span class="mono text-[9px] text-fg-500">0.88</span>
+                <span class="text-[9px] text-fg-600">&#183;</span>
+                <span class="mono text-[9px] text-brand-cyan">$0.0003</span>
+              </div>
             </div>
-            <div class="flex items-center gap-2 p-2 rounded-md bg-brand-rose/[0.06] border border-brand-rose/15">
-              <div class="w-6 h-6 rounded-md bg-brand-rose/15 flex items-center justify-center text-[10px]">Cr</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-semibold truncate">Critic</div>
-                <div class="text-[10px] text-fg-500 truncate">claude-3-5-sonnet</div>
-              </div>
-              <span class="tag tag-rose">await</span>
+          </div>
+        </div>
+        <!-- Cost savings callout -->
+        <div class="p-3 border-t border-white/[0.05]">
+          <div class="savings-callout">
+            <svg class="w-4 h-4 text-brand-cyan flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8"/></svg>
+            <div class="flex-1">
+              <div class="text-[11px] font-semibold text-brand-cyan">Saved $1.24 this run</div>
+              <div class="text-[10px] text-fg-500">4 sub-workers used local llama3.1:8b instead of cloud models</div>
             </div>
           </div>
         </div>
@@ -1968,6 +2131,64 @@ select.input { cursor: pointer; }
       </div>
     </div>
 
+    <!-- Hierarchy Health card -->
+    <div class="panel">
+      <div class="panel-header"><span>Hierarchy Health</span><span class="tag tag-cyan">live</span></div>
+      <div class="p-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Max Depth</div>
+          <div class="text-2xl font-black text-white">3</div>
+          <div class="text-[10px] text-fg-500 mt-0.5">CEO → Worker → Sub</div>
+        </div>
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Total Spawned</div>
+          <div class="text-2xl font-black text-white">47</div>
+          <div class="text-[10px] text-fg-500 mt-0.5">across 8 runs</div>
+        </div>
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Avg Reputation</div>
+          <div class="text-2xl font-black text-brand-cyan">0.85</div>
+          <div class="text-[10px] text-fg-500 mt-0.5">all tiers weighted</div>
+        </div>
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Cost Efficiency</div>
+          <div class="text-2xl font-black text-brand-cyan">92%</div>
+          <div class="text-[10px] text-fg-500 mt-0.5">utility per dollar</div>
+        </div>
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Local Model Usage</div>
+          <div class="text-2xl font-black text-brand-amber">68%</div>
+          <div class="text-[10px] text-fg-500 mt-0.5">of sub-worker calls</div>
+        </div>
+      </div>
+      <div class="px-4 pb-4">
+        <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Recommendations</div>
+        <div class="space-y-2">
+          <div class="p-2.5 bg-brand-amber/[0.06] border border-brand-amber/15 rounded flex items-start gap-2">
+            <span class="text-brand-amber text-sm">⚠</span>
+            <div class="flex-1">
+              <div class="text-[11px] font-semibold text-brand-amber">CEO spawning too many cheap workers</div>
+              <div class="text-[10px] text-fg-500">12 Tier 2 sub-agents spawned directly by CEO. Suggest routing through Tier 1 specialists for better task decomposition. <button class="text-brand-purple underline">Optimize hierarchy</button></div>
+            </div>
+          </div>
+          <div class="p-2.5 bg-brand-cyan/[0.06] border border-brand-cyan/15 rounded flex items-start gap-2">
+            <span class="text-brand-cyan text-sm">✓</span>
+            <div class="flex-1">
+              <div class="text-[11px] font-semibold text-brand-cyan">Local model routing optimal</div>
+              <div class="text-[10px] text-fg-500">68% of sub-worker calls use llama3.1:8b — saved $1.24 this run. No action needed.</div>
+            </div>
+          </div>
+          <div class="p-2.5 bg-brand-purple/[0.06] border border-brand-purple/15 rounded flex items-start gap-2">
+            <span class="text-brand-purple text-sm">↗</span>
+            <div class="flex-1">
+              <div class="text-[11px] font-semibold text-brand-purple">Reputation inheritance detected</div>
+              <div class="text-[10px] text-fg-500">sub_frontend inherited UI specialty (0.78) from architect. Consider promoting to Tier 1 after 5 successful runs.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
       <div class="panel">
         <div class="panel-header">Routing Health</div>
@@ -2078,8 +2299,94 @@ select.input { cursor: pointer; }
 
     <div class="grid grid-cols-12 gap-3">
       <div class="col-span-12 lg:col-span-7 panel">
-        <div class="panel-header"><span>Tier Configuration</span><span class="tag tag-purple">CEO + Worker</span></div>
+        <div class="panel-header"><span>Tier Configuration</span><div class="flex gap-1"><span class="tag tag-purple">CEO + Worker</span><span class="tag tag-cyan">visual hierarchy</span></div></div>
         <div class="p-4 space-y-3">
+          <!-- Visual hierarchy diagram -->
+          <div class="hier-diagram bg-ink-850 rounded-lg border border-white/[0.04]">
+            <!-- Tier 0 -->
+            <div class="hier-diagram-row">
+              <div class="hier-diagram-node tier-0" onclick="toggleModal('spawnModal')">
+                <div class="w-8 h-8 rounded-md bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple">C</div>
+                <div class="text-[11px] font-bold text-brand-purple">CEO Agent</div>
+                <div class="text-[9px] text-fg-500">claude-3-5-sonnet · $0.024</div>
+                <span class="tag tag-purple">Tier 0</span>
+              </div>
+            </div>
+            <div class="hier-diagram-connector"></div>
+            <!-- Tier 1 row -->
+            <div class="hier-diagram-row">
+              <div class="hier-diagram-node tier-1" onclick="toggleModal('spawnModal')">
+                <div class="w-7 h-7 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] font-bold text-brand-cyan">A</div>
+                <div class="text-[10px] font-semibold">architect</div>
+                <div class="text-[9px] text-fg-500">claude-3-5 · $0.018</div>
+                <span class="tag tag-cyan">T1</span>
+              </div>
+              <div class="hier-diagram-node tier-1" onclick="toggleModal('spawnModal')">
+                <div class="w-7 h-7 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] font-bold text-brand-cyan">B</div>
+                <div class="text-[10px] font-semibold">builder</div>
+                <div class="text-[9px] text-fg-500">llama3.1:8b · $0</div>
+                <span class="tag tag-cyan">T1</span>
+              </div>
+              <div class="hier-diagram-node tier-1" onclick="toggleModal('spawnModal')">
+                <div class="w-7 h-7 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] font-bold text-brand-cyan">Q</div>
+                <div class="text-[10px] font-semibold">qa</div>
+                <div class="text-[9px] text-fg-500">gpt-4o-mini · $0.002</div>
+                <span class="tag tag-cyan">T1</span>
+              </div>
+              <div class="hier-diagram-node tier-1" onclick="toggleModal('spawnModal')">
+                <div class="w-7 h-7 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] font-bold text-brand-cyan">Cr</div>
+                <div class="text-[10px] font-semibold">critic</div>
+                <div class="text-[9px] text-fg-500">claude-3-5 · $0.018</div>
+                <span class="tag tag-cyan">T1</span>
+              </div>
+            </div>
+            <div class="hier-diagram-connector"></div>
+            <!-- Tier 2 row -->
+            <div class="hier-diagram-row">
+              <div class="hier-diagram-node tier-2">
+                <div class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] font-bold text-brand-amber">F</div>
+                <div class="text-[9px] font-semibold">sub_frontend</div>
+                <div class="text-[8px] text-fg-500">gpt-4o-mini</div>
+                <span class="tag tag-amber">T2</span>
+              </div>
+              <div class="hier-diagram-node tier-2">
+                <div class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] font-bold text-brand-amber">B</div>
+                <div class="text-[9px] font-semibold">sub_backend</div>
+                <div class="text-[8px] text-fg-500">gpt-4o-mini</div>
+                <span class="tag tag-amber">T2</span>
+              </div>
+              <div class="hier-diagram-node tier-2">
+                <div class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] font-bold text-brand-amber">F2</div>
+                <div class="text-[9px] font-semibold">sub_form_helper</div>
+                <div class="text-[8px] text-fg-500">llama3.1:8b</div>
+                <span class="tag tag-amber">T2</span>
+              </div>
+              <div class="hier-diagram-node tier-2">
+                <div class="w-6 h-6 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] font-bold text-brand-amber">B2</div>
+                <div class="text-[9px] font-semibold">sub_db_helper</div>
+                <div class="text-[8px] text-fg-500">llama3.1:8b</div>
+                <span class="tag tag-amber">T2</span>
+              </div>
+            </div>
+          </div>
+          <!-- Cost forecast per hierarchy level -->
+          <div class="grid grid-cols-3 gap-2">
+            <div class="p-2.5 bg-brand-purple/[0.06] border border-brand-purple/15 rounded-lg">
+              <div class="text-[9px] text-fg-500 uppercase tracking-wider font-semibold mb-1">Tier 0 cost</div>
+              <div class="mono text-sm font-bold text-brand-purple">$0.024</div>
+              <div class="text-[9px] text-fg-600">1 call · 100% cloud</div>
+            </div>
+            <div class="p-2.5 bg-brand-cyan/[0.06] border border-brand-cyan/15 rounded-lg">
+              <div class="text-[9px] text-fg-500 uppercase tracking-wider font-semibold mb-1">Tier 1 cost</div>
+              <div class="mono text-sm font-bold text-brand-cyan">$0.047</div>
+              <div class="text-[9px] text-fg-600">7 calls · 43% local</div>
+            </div>
+            <div class="p-2.5 bg-brand-amber/[0.06] border border-brand-amber/15 rounded-lg">
+              <div class="text-[9px] text-fg-500 uppercase tracking-wider font-semibold mb-1">Tier 2 cost</div>
+              <div class="mono text-sm font-bold text-brand-amber">$0.017</div>
+              <div class="text-[9px] text-fg-600">11 calls · 64% local</div>
+            </div>
+          </div>
           <div class="p-3 bg-brand-purple/[0.06] border border-brand-purple/15 rounded-lg">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
@@ -2470,23 +2777,104 @@ select.input { cursor: pointer; }
 </div>
 
 <div class="modal-bg" id="spawnModal">
-  <div class="modal">
+  <div class="modal" style="max-width: 620px;">
     <div class="modal-header">
-      <div><div class="font-bold text-base">Spawn Agent</div><div class="text-xs text-fg-500">Create a new sub-agent</div></div>
+      <div><div class="font-bold text-base">Spawn Sub-Agent</div><div class="text-xs text-fg-500">Hierarchical spawning · auto-tier · model routing</div></div>
       <button class="btn btn-icon btn-ghost" onclick="toggleModal('spawnModal')"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body space-y-3">
-      <div><label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Role</label><select class="input"><option>Architect — decomposes, designs</option><option>Frontend — UI components</option><option>Backend — API + DB</option><option>QA — tests</option><option>Critic — reviews</option><option>Ops — deployment</option></select></div>
-      <div><label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Goal</label><input type="text" class="input" placeholder="Specific goal for this agent"></div>
-      <div><label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Model</label><select class="input"><option>auto (routing decides)</option><option>claude-3-5-sonnet ($3/$15)</option><option>gpt-4o-mini ($0.15/$0.60)</option><option>llama3.1:8b (local, $0)</option></select></div>
+      <!-- Parent selector -->
+      <div>
+        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Parent Agent</label>
+        <select class="input" id="spawn-parent">
+          <option value="ceo">CEO Agent (supervisor) · Tier 0 · claude-3-5-sonnet</option>
+          <option value="architect">architect · Tier 1 · claude-3-5-sonnet</option>
+          <option value="builder">builder · Tier 1 · llama3.1:8b (local)</option>
+          <option value="qa">qa · Tier 1 · gpt-4o-mini</option>
+          <option value="critic">critic · Tier 1 · claude-3-5-sonnet</option>
+          <option value="ops">ops · Tier 1 · gpt-4o-mini</option>
+        </select>
+      </div>
+      <!-- Role + auto-suggested tier -->
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Budget (USD)</label><input type="text" class="input" value="1.00"></div>
-        <div><label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">TTL (seconds)</label><input type="text" class="input" value="300"></div>
+        <div>
+          <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Role</label>
+          <select class="input" id="spawn-role" onchange="autoSuggestTier()">
+            <option value="architect">Architect — decomposes, designs</option>
+            <option value="frontend">Frontend — UI components</option>
+            <option value="backend">Backend — API + DB</option>
+            <option value="qa">QA — tests</option>
+            <option value="critic">Critic — reviews</option>
+            <option value="ops">Ops — deployment</option>
+            <option value="custom">Custom sub-worker</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Auto-Suggested Tier + Model</label>
+          <div class="input flex items-center justify-between" id="tier-suggest">
+            <span class="tag tag-amber">Tier 2 · Sub-Worker</span>
+            <span class="mono text-[11px] text-fg-400">gpt-4o-mini</span>
+          </div>
+        </div>
+      </div>
+      <!-- Goal -->
+      <div>
+        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Goal</label>
+        <textarea class="input" rows="2" placeholder="Specific goal for this sub-agent…"></textarea>
+      </div>
+      <!-- Budget slider + token estimate -->
+      <div>
+        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 flex items-center justify-between">
+          <span>Budget Allocation</span>
+          <span class="mono text-brand-cyan" id="budget-display">$0.50</span>
+        </label>
+        <input type="range" min="0" max="500" value="50" class="budget-slider" id="budget-slider" oninput="updateBudget(this.value)">
+        <div class="flex justify-between text-[9px] text-fg-600 mt-1">
+          <span>$0.00</span>
+          <span>~<span id="token-estimate">12K</span> tokens</span>
+          <span>$5.00</span>
+        </div>
+      </div>
+      <!-- Max depth + children limit -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Max Depth</label>
+          <input type="text" class="input" value="3" placeholder="Max hierarchy depth from this node">
+        </div>
+        <div>
+          <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Max Children</label>
+          <input type="text" class="input" value="5" placeholder="Max direct children">
+        </div>
+      </div>
+      <!-- Auto-spawn rules -->
+      <div>
+        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1.5 block">Auto-Spawn Rules</label>
+        <div class="flex flex-wrap gap-1.5">
+          <div class="toggle-chip on" onclick="this.classList.toggle('on')">if complexity > threshold</div>
+          <div class="toggle-chip" onclick="this.classList.toggle('on')">if tests fail</div>
+          <div class="toggle-chip on" onclick="this.classList.toggle('on')">if critic score < 0.7</div>
+          <div class="toggle-chip" onclick="this.classList.toggle('on')">if budget remaining > 50%</div>
+        </div>
+      </div>
+      <!-- Model override -->
+      <div>
+        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">Model Override (optional)</label>
+        <select class="input">
+          <option value="auto">auto — routing decides based on tier</option>
+          <option>claude-3-5-sonnet ($3/$15 per 1M)</option>
+          <option>gpt-4o-mini ($0.15/$0.60 per 1M)</option>
+          <option>llama3.1:8b (local, $0)</option>
+        </select>
+      </div>
+      <!-- Estimate summary -->
+      <div class="flex items-center gap-2 p-2.5 bg-brand-cyan/[0.06] border border-brand-cyan/15 rounded">
+        <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
+        <span class="text-[11px] text-fg-300">Est: Tier 2 sub-worker · gpt-4o-mini · ~12K tokens · $0.50 budget · inherits specialty from parent</span>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="toggleModal('spawnModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="toggleModal('spawnModal')">Spawn →</button>
+      <button class="btn btn-primary" onclick="toggleModal('spawnModal'); simulateSpawn();">⚡ Spawn →</button>
     </div>
   </div>
 </div>
@@ -2581,6 +2969,36 @@ select.input { cursor: pointer; }
     <div class="cmdp-item" data-search="fork run step time-travel" onclick="toggleModal('forkModal'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg><span>Fork run from step</span></div>
     <div class="cmdp-item" data-search="command center god mode" onclick="navTo('command'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><span>Open Command Center</span></div>
     <div class="cmdp-item" data-search="reproduce law l-0001 science" onclick="navTo('command'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Reproduce Law L-0001</span></div>
+    <div class="cmdp-cat">Hierarchy</div>
+    <div class="cmdp-item" data-search="spawn sub-agent under architect hierarchy" onclick="toggleModal('spawnModal'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg><span>Spawn sub-agent under architect</span></div>
+    <div class="cmdp-item" data-search="view hierarchy run agent tree" onclick="navTo('run-detail'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857"/></svg><span>View hierarchy for run_8f3a92e1</span></div>
+    <div class="cmdp-item" data-search="optimize hierarchy cost routing model" onclick="navTo('routing'); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg><span>Optimize hierarchy cost</span></div>
+    <div class="cmdp-item" data-search="simulate spawn mock agent hierarchy" onclick="simulateSpawn(); toggleCmd()"><svg class="w-3.5 h-3.5 text-fg-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg><span>Simulate spawn (demo)</span></div>
+  </div>
+</div>
+
+<!-- ============ CONTEXT MENU ============ -->
+<div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-menu-item" onclick="toggleModal('spawnModal'); hideCtxMenu();">
+    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Spawn child
+  </div>
+  <div class="ctx-menu-item" onclick="hideCtxMenu();">
+    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+    Promote to Tier 1
+  </div>
+  <div class="ctx-menu-item" onclick="hideCtxMenu();">
+    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+    View details
+  </div>
+  <div class="ctx-menu-item" onclick="hideCtxMenu();">
+    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+    Re-parent…
+  </div>
+  <div class="ctx-menu-sep"></div>
+  <div class="ctx-menu-item danger" onclick="hideCtxMenu();">
+    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+    Kill branch
   </div>
 </div>
 
@@ -2742,13 +3160,176 @@ document.querySelectorAll('[data-filter]').forEach(tab => {
 
 // Tab switching within pages
 document.querySelectorAll('.tab').forEach(tab => {
-  if (tab.hasAttribute('data-filter')) return; // skip filter tabs
+  if (tab.hasAttribute('data-filter')) return;
   tab.addEventListener('click', () => {
     const parent = tab.parentElement;
     parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
   });
 });
+
+// ===== HIERARCHY INTERACTIONS =====
+
+// Agent data for detail panel
+const agentData = {
+  'CEO Agent': { tier: 'Tier 0 · CEO', model: 'claude-3-5-sonnet', parent: '— (root)', budget: '$5.00 (full run)', children: 4, specialty: 'decomposition 0.94', inheritance: '—', calls: 1, cost: '$0.0005', status: 'Done' },
+  'architect': { tier: 'Tier 1 · Worker', model: 'claude-3-5-sonnet', parent: 'CEO Agent', budget: '$1.20 (24% of run)', children: 2, specialty: 'decomposition 0.92', inheritance: 'inherits decomposition from CEO', calls: 3, cost: '$0.0184', status: 'Done' },
+  'sub_frontend': { tier: 'Tier 2 · Sub-Worker', model: 'gpt-4o-mini', parent: 'architect', budget: '$0.30 (6% of run)', children: 2, specialty: 'ui 0.78', inheritance: 'inherits UI specialty from architect', calls: 5, cost: '$0.0091', status: 'Running' },
+  'sub_backend': { tier: 'Tier 2 · Sub-Worker', model: 'gpt-4o-mini', parent: 'architect', budget: '$0.30 (6% of run)', children: 1, specialty: 'api 0.81', inheritance: 'inherits API specialty from architect', calls: 4, cost: '$0.0077', status: 'Running' },
+  'builder': { tier: 'Tier 1 · Worker', model: 'llama3.1:8b (local)', parent: 'CEO Agent', budget: '$0.50 (10% of run)', children: 0, specialty: 'coding 0.88', inheritance: 'inherits coding from CEO', calls: 2, cost: '$0.0042', status: 'Done' },
+  'qa': { tier: 'Tier 1 · Worker', model: 'gpt-4o-mini', parent: 'CEO Agent', budget: '$0.20 (4% of run)', children: 0, specialty: 'testing 0.95', inheritance: 'inherits testing from CEO', calls: 1, cost: '$0.0024', status: 'Done' },
+  'critic': { tier: 'Tier 1 · Worker', model: 'claude-3-5-sonnet', parent: 'CEO Agent', budget: '$0.10 (2% of run)', children: 0, specialty: 'review 0.88', inheritance: 'inherits review from CEO', calls: 1, cost: '$0.0003', status: 'Awaiting' },
+};
+
+function selectHierNode(el) {
+  // Deselect all
+  document.querySelectorAll('.hier-node').forEach(n => n.classList.remove('selected'));
+  // Select clicked
+  el.classList.add('selected');
+  
+  // Extract agent name from the node
+  const nameEl = el.querySelector('.font-semibold');
+  if (!nameEl) return;
+  const name = nameEl.textContent.trim();
+  
+  // Update detail panel
+  const panel = document.getElementById('agent-detail-content');
+  if (!panel) return;
+  const data = agentData[name] || agentData['architect'];
+  
+  panel.innerHTML = `
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center font-bold text-brand-purple">${name.charAt(0).toUpperCase()}</div>
+      <div class="flex-1">
+        <div class="font-bold text-sm text-white">${name}</div>
+        <div class="text-[9px] text-fg-500">${data.tier}</div>
+      </div>
+      <span class="tag tag-${data.status === 'Running' ? 'amber' : data.status === 'Awaiting' ? 'rose' : 'cyan'}">${data.status}</span>
+    </div>
+    <div class="space-y-1.5">
+      <div class="flex justify-between"><span class="text-fg-500">Model</span><span class="mono text-fg-300">${data.model}</span></div>
+      <div class="flex justify-between"><span class="text-fg-500">Parent</span><span class="text-fg-300">${data.parent}</span></div>
+      <div class="flex justify-between"><span class="text-fg-500">Budget slice</span><span class="mono text-brand-cyan">${data.budget}</span></div>
+      <div class="flex justify-between"><span class="text-fg-500">Children spawned</span><span class="mono">${data.children}</span></div>
+      <div class="flex justify-between"><span class="text-fg-500">LLM calls</span><span class="mono">${data.calls}</span></div>
+      <div class="flex justify-between"><span class="text-fg-500">Cost to date</span><span class="mono text-brand-cyan">${data.cost}</span></div>
+      <div class="flex justify-between"><span class="text-fg-500">Specialty</span><span class="text-fg-300">${data.specialty}</span></div>
+    </div>
+    <div class="p-2 bg-brand-sky/[0.06] border border-brand-sky/15 rounded mt-2">
+      <div class="text-[9px] text-brand-sky font-semibold mb-0.5">⇄ Inheritance</div>
+      <div class="text-[10px] text-fg-400">${data.inheritance}</div>
+    </div>
+    <div class="flex gap-1 mt-2">
+      <button class="btn btn-primary text-[10px] py-1 px-2 flex-1 justify-center" onclick="toggleModal('spawnModal')">+ Spawn Child</button>
+      <button class="btn btn-ghost text-[10px] py-1 px-2">Promote</button>
+    </div>
+  `;
+}
+
+function toggleHierExpand(event, el) {
+  event.stopPropagation();
+  el.classList.toggle('collapsed');
+  // Toggle visibility of next sibling .hier-children
+  const parent = el.closest('.hier-node');
+  if (!parent) return;
+  const next = parent.nextElementSibling;
+  if (next && next.classList.contains('hier-children')) {
+    next.classList.toggle('collapsed');
+  }
+}
+
+function showCtxMenu(event, name, tier) {
+  event.preventDefault();
+  const menu = document.getElementById('ctx-menu');
+  menu.style.left = event.clientX + 'px';
+  menu.style.top = event.clientY + 'px';
+  menu.classList.add('active');
+  menu.dataset.agentName = name;
+  menu.dataset.agentTier = tier;
+}
+
+function hideCtxMenu() {
+  document.getElementById('ctx-menu').classList.remove('active');
+}
+
+// Close context menu on click elsewhere
+document.addEventListener('click', e => {
+  const menu = document.getElementById('ctx-menu');
+  if (menu && !menu.contains(e.target)) hideCtxMenu();
+});
+
+let spawnCount = 0;
+function simulateSpawn() {
+  const tree = document.querySelector('#page-run-detail .agent-card.agent-tier-0');
+  if (!tree) return;
+  
+  // Find the workers container
+  const workersContainer = tree.parentElement.querySelector('.border-l-2.border-brand-purple\\/20');
+  if (!workersContainer) return;
+  
+  spawnCount++;
+  const names = ['sub_research_' + spawnCount, 'sub_optimizer_' + spawnCount, 'sub_helper_' + spawnCount];
+  const name = names[Math.floor(Math.random() * names.length)];
+  const models = ['gpt-4o-mini', 'llama3.1:8b (local)', 'gpt-4o-mini'];
+  const model = models[Math.floor(Math.random() * models.length)];
+  const cost = model.includes('llama') ? '$0.0000' : '$0.00' + Math.floor(Math.random() * 90 + 10);
+  
+  const newAgent = document.createElement('div');
+  newAgent.className = 'agent-card agent-tier-2 flex items-center gap-3 spawn-anim';
+  newAgent.style.borderColor = 'rgba(0,212,170,0.3)';
+  newAgent.innerHTML = `
+    <div class="w-9 h-9 rounded-md bg-brand-amber/15 flex items-center justify-center font-bold text-brand-amber">S${spawnCount}</div>
+    <div class="flex-1">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-sm">${name}</span>
+        <span class="tag tag-amber">Tier 2 · Sub-Worker</span>
+        <span class="tag tag-cyan"><span class="w-1 h-1 rounded-full bg-brand-cyan pulse-dot"></span> just spawned</span>
+      </div>
+      <div class="text-[10px] text-fg-500 mt-0.5">model=${model} · 0 LLM calls · ${cost} · specialty: inherited</div>
+    </div>
+    <div class="text-right">
+      <div class="mono text-[10px] text-fg-400">${cost}</div>
+      <div class="text-[9px] text-fg-600">0s</div>
+    </div>
+  `;
+  workersContainer.appendChild(newAgent);
+  
+  // Scroll into view
+  newAgent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Spawn modal: auto-suggest tier based on role
+function autoSuggestTier() {
+  const role = document.getElementById('spawn-role');
+  if (!role) return;
+  const suggest = document.getElementById('tier-suggest');
+  if (!suggest) return;
+  
+  const suggestions = {
+    'architect': { tier: 'Tier 1 · Worker', model: 'claude-3-5-sonnet', tag: 'tag-cyan' },
+    'frontend': { tier: 'Tier 2 · Sub-Worker', model: 'gpt-4o-mini', tag: 'tag-amber' },
+    'backend': { tier: 'Tier 2 · Sub-Worker', model: 'gpt-4o-mini', tag: 'tag-amber' },
+    'qa': { tier: 'Tier 1 · Worker', model: 'gpt-4o-mini', tag: 'tag-cyan' },
+    'critic': { tier: 'Tier 1 · Worker', model: 'claude-3-5-sonnet', tag: 'tag-cyan' },
+    'ops': { tier: 'Tier 1 · Worker', model: 'gpt-4o-mini', tag: 'tag-cyan' },
+    'custom': { tier: 'Tier 2 · Sub-Worker', model: 'gpt-4o-mini', tag: 'tag-amber' },
+  };
+  
+  const s = suggestions[role.value] || suggestions['custom'];
+  suggest.innerHTML = `<span class="tag ${s.tag}">${s.tier}</span><span class="mono text-[11px] text-fg-400">${s.model}</span>`;
+}
+
+// Budget slider update
+function updateBudget(val) {
+  const dollars = (parseInt(val) / 100).toFixed(2);
+  const display = document.getElementById('budget-display');
+  const tokenEst = document.getElementById('token-estimate');
+  if (display) display.textContent = '$' + dollars;
+  if (tokenEst) {
+    const tokens = Math.round(parseInt(val) * 240);
+    tokenEst.textContent = tokens >= 1000 ? (tokens / 1000).toFixed(0) + 'K' : tokens;
+  }
+}
 </script>
 
 </body>
