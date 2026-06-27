@@ -604,3 +604,57 @@ Stage Summary:
   5. Publish the first industry benchmark report
 - The architecture is complete. The next milestone is customer validation.
 - Live URL: http://localhost:8765/
+
+---
+Task ID: design-partner-playbook-observatory-oed
+Agent: main (Super Z)
+Task: Build the customer validation framework — Design Partner Playbook, Execution Observatory, OED, Merge-Gate Rule
+
+Work Log:
+- Wrote DESIGN_PARTNER_PLAYBOOK.md — the most important document now:
+  * Partner selection criteria (5 companies, 20-3000 engineers)
+  * 90-day onboarding flow with weekly milestones
+  * Metrics collected (baseline + auto-collected)
+  * Success criteria at 30/60/90 days
+  * PMF declaration: 3 independent partners with OED > 0, cycle time reduction ≥ 15%, satisfaction ≥ 7/10
+  * Case study template
+  * Weekly check-in agenda
+
+- Built src/observatory.js — Execution Observatory:
+  * Anonymous metrics contribution (no company names, only size buckets)
+  * One-way data flow: raw data in, only aggregates out
+  * Peer comparison: "Your cycle time is in the top 10% compared to peers"
+  * After 500+ partners, becomes the proprietary dataset that makes Maestro impossible to compete with
+
+- Built Organizational Execution Delta (OED) — the North Star Metric:
+  * OED = Execution Quality After 90 Days − Before Maestro
+  * Weighted composite (same as EII)
+  * If OED > 0, Maestro is helping. If not, nothing else matters.
+  * Verified: OED = 21.5 (excellent) for test org vs hypothetical baseline
+
+- Wrote CONTRIBUTING.md with the Merge-Gate Rule:
+  * No engineer can merge a feature unless:
+    1. A design partner explicitly requested it
+    2. It removes friction from onboarding
+    3. It improves a measured business outcome
+    4. It fixes a reliability or security issue
+  * If a feature doesn't satisfy one of those, it waits
+
+- Verified:
+  * Observatory contribution works (anonymous, size-bucketed)
+  * Peer comparison correctly requires 3+ peers
+  * OED computed successfully with deltas per metric
+
+Committed to git and pushed to GitHub (commit 7a7d82c).
+
+Stage Summary:
+- The company has shifted: "We are no longer a platform engineering company. We are a customer learning company."
+- The architecture is complete. The next 6 months are about producing evidence.
+- The one hypothesis: "Organizations using Maestro's Product Delivery Operating Model improve execution quality faster than organizations that don't."
+- Company OKRs (none mention AI):
+  1. Ten design partners
+  2. Reduce software delivery cycle time by 20%
+  3. Increase knowledge reuse above 50%
+  4. Zero critical governance violations
+  5. Publish the first industry benchmark report
+- Live URL: http://localhost:8765/
