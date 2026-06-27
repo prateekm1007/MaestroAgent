@@ -46,12 +46,16 @@ import { runSimulation, listSimulationTypes } from './src/simulation.js';
 import { computeBenchmarks, getBenchmarkStats } from './src/benchmarks.js';
 import { getProductDeliveryTemplate, getTemplateSummary } from './src/product-delivery-template.js';
 import { explainRecommendation, computeEII } from './src/explanation.js';
+import { contributeObservation, getObservatoryStats, compare_toPeers, computeOED, initObservatoryStore } from './src/observatory.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..'); // /home/z/my-project/download/MaestroAgent
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
+// Initialize observatory on startup.
+initObservatoryStore().catch(err => console.warn('[server] observatory init failed:', err.message));
+
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -492,6 +496,46 @@ app.get('/api/eii', (req, res) => {
 
 app.get('/api/eii/:orgId', (req, res) => {
   res.json(computeEII(req.params.orgId));
+});
+
+// === EXECUTION OBSERVATORY (anonymous cross-company intelligence) ===
+// POST /api/observatory/contribute — contribute anonymous metrics
+// GET /api/observatory — get aggregate stats
+// GET /api/observatory/compare — compare your org against peers
+// GET /api/oed/:orgId — Organizational Execution Delta (North Star)
+app.post('/api/observatory/contribute', async (req, res) => {
+  try {
+    const scope = getCurrentScope();
+    const orgId = scope.organization || req.body.orgId;
+    if (!orgId) return res.status(400).json({ error: 'orgId required (set scope or pass in body)' });
+    const result = await contributeObservation(orgId, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/observatory', (req, res) => {
+  res.json(getObservatoryStats());
+});
+
+app.get('/api/observatory/compare', (req, res) => {
+  const scope = getCurrentScope();
+  const orgId = scope.organization;
+  if (!orgId) return res.status(400).json({ error: 'set scope first (POST /api/scope)' });
+  const result = compare_toPeers(orgId, { engineerCount: parseInt(req.query.engineers) || 50 });
+  res.json(result);
+});
+
+// Organizational Execution Delta — the North Star Metric
+app.get('/api/oed/:orgId', (req, res) => {
+  // Baseline metrics can be passed as query params or body.
+  const baseline = req.query.baseline ? JSON.parse(req.query.baseline) : null;
+  res.json(computeOED(req.params.orgId, baseline));
+});
+
+app.post('/api/oed/:orgId', (req, res) => {
+  res.json(computeOED(req.params.orgId, req.body.baseline));
 });
 
 // === SCOPE API (hierarchical execution context) ===
