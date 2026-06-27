@@ -42,6 +42,9 @@ import { computeMetrics, computeROIReport } from './src/metrics.js';
 import { registerOperatingModel, getOperatingModel, listOperatingModels, validateOperatingModel, findWorkflowTemplate, getApprovalChain } from './src/sdk.js';
 import { startOnboarding, advanceStage, getOnboardingStatus, getOnboardingGuide, listDesignPartners } from './src/design-partner.js';
 import { connectIntegration, listIntegrations, disconnectIntegration, handleWebhookEvent, getIntegrationStats, listProviders, PROVIDERS } from './src/integrations.js';
+import { runSimulation, listSimulationTypes } from './src/simulation.js';
+import { computeBenchmarks, getBenchmarkStats } from './src/benchmarks.js';
+import { getProductDeliveryTemplate, getTemplateSummary } from './src/product-delivery-template.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -404,6 +407,69 @@ app.get('/api/integrations/stats', (req, res) => {
   const scope = getCurrentScope();
   const orgId = scope.organization || 'default';
   res.json(getIntegrationStats(orgId));
+});
+
+// === PRODUCT DELIVERY TEMPLATE (the wedge) ===
+// The pre-configured operating model for software product teams.
+// "Reduce software delivery cycle time while maintaining governance."
+app.get('/api/templates/product-delivery', (req, res) => {
+  res.json(getProductDeliveryTemplate());
+});
+
+app.get('/api/templates/product-delivery/summary', (req, res) => {
+  res.json(getTemplateSummary());
+});
+
+// Adopt the Product Delivery template for an organization.
+// This is the one-call onboarding for software teams.
+app.post('/api/templates/product-delivery/adopt', async (req, res) => {
+  try {
+    const { orgId, name, industry } = req.body;
+    if (!orgId) return res.status(400).json({ error: 'orgId is required' });
+
+    const template = getProductDeliveryTemplate();
+    const model = {
+      ...template,
+      orgId,
+      name: name || `${orgId} (Product Delivery)`,
+      industry: industry || 'technology',
+    };
+
+    const result = await registerOperatingModel(model);
+    res.json({
+      ...result,
+      template: 'product-delivery',
+      message: `Product Delivery Operating Model adopted. ${result.registeredPolicies} governance controls are now executable. Your team can start executing immediately.`,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// === SIMULATION ENGINE ===
+// "What if we remove security review?"
+// POST /api/simulate — run a simulation
+// GET /api/simulate/types — list available simulation types
+app.get('/api/simulate/types', (req, res) => {
+  res.json(listSimulationTypes());
+});
+
+app.post('/api/simulate', (req, res) => {
+  const scope = getCurrentScope();
+  const result = runSimulation(req.body, scope);
+  res.json(result);
+});
+
+// === BENCHMARK NETWORK ===
+// Anonymous cross-company intelligence.
+// "Top 10% of organizations complete executions in X hours."
+app.get('/api/benchmarks', (req, res) => {
+  const scope = getCurrentScope();
+  res.json(computeBenchmarks(scope));
+});
+
+app.get('/api/benchmarks/stats', (req, res) => {
+  res.json(getBenchmarkStats());
 });
 
 // === SCOPE API (hierarchical execution context) ===
