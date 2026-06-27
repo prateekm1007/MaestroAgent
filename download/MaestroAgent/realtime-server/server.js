@@ -48,14 +48,16 @@ import { getProductDeliveryTemplate, getTemplateSummary } from './src/product-de
 import { explainRecommendation, computeEII } from './src/explanation.js';
 import { contributeObservation, getObservatoryStats, compare_toPeers, computeOED, initObservatoryStore } from './src/observatory.js';
 import { computeTTV, computeCOI, computeCustomerHealth } from './src/customer-metrics.js';
+import { initEvidenceLedger, getLedger, getHypothesis, addHypothesis, updateHypothesis, getLedgerStats, getFridayDashboard, saveFridayDashboard, listFridayDashboards } from './src/evidence-ledger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..'); // /home/z/my-project/download/MaestroAgent
 
 const PORT = parseInt(process.env.PORT || '8765', 10);
-// Initialize observatory on startup.
+// Initialize observatory + evidence ledger on startup.
 initObservatoryStore().catch(err => console.warn('[server] observatory init failed:', err.message));
+initEvidenceLedger().catch(err => console.warn('[server] evidence ledger init failed:', err.message));
 
 const app = express();
 app.use(cors());
@@ -568,6 +570,61 @@ app.get('/api/customer-health', (req, res) => {
 
 app.get('/api/customer-health/:orgId', (req, res) => {
   res.json(computeCustomerHealth(req.params.orgId));
+});
+
+// === EVIDENCE LEDGER (the company's learning system) ===
+// Every hypothesis gets a page. Evidence for/against. Confidence. Decision.
+// The company learns the same way the product learns.
+app.get('/api/evidence-ledger', (req, res) => {
+  res.json(getLedger());
+});
+
+app.get('/api/evidence-ledger/stats', (req, res) => {
+  res.json(getLedgerStats());
+});
+
+app.get('/api/evidence-ledger/:id', (req, res) => {
+  const h = getHypothesis(req.params.id);
+  if (!h) return res.status(404).json({ error: 'hypothesis not found' });
+  res.json(h);
+});
+
+app.post('/api/evidence-ledger', async (req, res) => {
+  try {
+    const h = await addHypothesis(req.body);
+    res.json(h);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/evidence-ledger/:id/update', async (req, res) => {
+  try {
+    const h = await updateHypothesis(req.params.id, req.body);
+    if (!h) return res.status(404).json({ error: 'hypothesis not found' });
+    res.json(h);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// === CEO FRIDAY DASHBOARD ===
+// Weekly self-assessment. Every Friday, the founder answers honestly.
+app.get('/api/friday-dashboard', (req, res) => {
+  res.json(getFridayDashboard());
+});
+
+app.post('/api/friday-dashboard', async (req, res) => {
+  try {
+    const dashboard = await saveFridayDashboard(req.body.responses || req.body);
+    res.json(dashboard);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/friday-dashboard/history', (req, res) => {
+  res.json(listFridayDashboards());
 });
 
 // === SCOPE API (hierarchical execution context) ===
