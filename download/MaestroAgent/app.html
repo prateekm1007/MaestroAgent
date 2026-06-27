@@ -3078,7 +3078,7 @@ select.input { cursor: pointer; }
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="toggleModal('spawnModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="toggleModal('spawnModal'); simulateSpawn();">⚡ Spawn →</button>
+      <button class="btn btn-primary" onclick="toggleModal('spawnModal')">⚡ Spawn →</button>
     </div>
   </div>
 </div>
@@ -4034,18 +4034,49 @@ function updateVoiceHistory() {
     return;
   }
   
-  list.innerHTML = voiceHistory.map(h => {
+  list.textContent = '';
+  voiceHistory.forEach(h => {
     const tagClass = h.status === 'executed' ? 'tag-cyan' : h.status === 'failed' ? 'tag-rose' : 'tag-gray';
-    const tagIcon = h.status === 'executed' ? '✓' : h.status === 'failed' ? '✗' : '?';
-    return '<div class="voice-history-item">' +
-      '<svg class="w-3.5 h-3.5 text-brand-purple flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>' +
-      '<div class="flex-1 min-w-0">' +
-        '<div class="text-[11px] text-fg-200 truncate">' + h.command + '</div>' +
-        '<div class="text-[9px] text-fg-600 mono">' + h.time + ' · ' + h.status + '</div>' +
-      '</div>' +
-      '<span class="tag ' + tagClass + ' flex-shrink-0">' + tagIcon + '</span>' +
-    '</div>';
-  }).join('');
+    const tagIcon = h.status === 'executed' ? '\u2713' : h.status === 'failed' ? '\u2717' : '?';
+
+    const item = document.createElement('div');
+    item.className = 'voice-history-item';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'w-3.5 h-3.5 text-brand-purple flex-shrink-0 mt-0.5');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('stroke', 'currentColor');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('d', 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z');
+    svg.appendChild(path);
+    item.appendChild(svg);
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'flex-1 min-w-0';
+
+    const cmdDiv = document.createElement('div');
+    cmdDiv.className = 'text-[11px] text-fg-200 truncate';
+    cmdDiv.textContent = h.command;  // safe: textContent escapes HTML
+    textDiv.appendChild(cmdDiv);
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'text-[9px] text-fg-600 mono';
+    metaDiv.textContent = h.time + ' \u00b7 ' + h.status;  // safe
+    textDiv.appendChild(metaDiv);
+
+    item.appendChild(textDiv);
+
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + tagClass + ' flex-shrink-0';
+    tag.textContent = tagIcon;  // safe
+    item.appendChild(tag);
+
+    list.appendChild(item);
+  });
 }
 
 // ===== SPAWN PARTICLES & EFFECTS =====
