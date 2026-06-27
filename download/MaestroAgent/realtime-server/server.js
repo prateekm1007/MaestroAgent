@@ -45,6 +45,7 @@ import { connectIntegration, listIntegrations, disconnectIntegration, handleWebh
 import { runSimulation, listSimulationTypes } from './src/simulation.js';
 import { computeBenchmarks, getBenchmarkStats } from './src/benchmarks.js';
 import { getProductDeliveryTemplate, getTemplateSummary } from './src/product-delivery-template.js';
+import { explainRecommendation, computeEII } from './src/explanation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -470,6 +471,27 @@ app.get('/api/benchmarks', (req, res) => {
 
 app.get('/api/benchmarks/stats', (req, res) => {
   res.json(getBenchmarkStats());
+});
+
+// === EXPLANATION ENGINE (the trust layer) ===
+// Every recommendation answers "Why?"
+// POST /api/explain — explain a recommendation with evidence + confidence
+// GET /api/eii — Execution Improvement Index (the one metric to obsess over)
+// GET /api/eii/:orgId — EII for a specific org
+app.post('/api/explain', (req, res) => {
+  const scope = getCurrentScope();
+  const result = explainRecommendation(req.body, scope);
+  res.json(result);
+});
+
+app.get('/api/eii', (req, res) => {
+  const scope = getCurrentScope();
+  const orgId = scope.organization || null;
+  res.json(computeEII(orgId));
+});
+
+app.get('/api/eii/:orgId', (req, res) => {
+  res.json(computeEII(req.params.orgId));
 });
 
 // === SCOPE API (hierarchical execution context) ===
