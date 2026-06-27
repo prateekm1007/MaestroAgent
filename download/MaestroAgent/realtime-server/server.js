@@ -47,6 +47,7 @@ import { computeBenchmarks, getBenchmarkStats } from './src/benchmarks.js';
 import { getProductDeliveryTemplate, getTemplateSummary } from './src/product-delivery-template.js';
 import { explainRecommendation, computeEII } from './src/explanation.js';
 import { contributeObservation, getObservatoryStats, compare_toPeers, computeOED, initObservatoryStore } from './src/observatory.js';
+import { computeTTV, computeCOI, computeCustomerHealth } from './src/customer-metrics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -536,6 +537,37 @@ app.get('/api/oed/:orgId', (req, res) => {
 
 app.post('/api/oed/:orgId', (req, res) => {
   res.json(computeOED(req.params.orgId, req.body.baseline));
+});
+
+// === CUSTOMER METRICS (TTV + COI + Health) ===
+// Time-to-Value: days until first measurable improvement
+// Cognitive Overhead Index: the anti-metric (lower is better)
+// Customer Health: combined TTV + COI + OED score
+app.get('/api/ttv', (req, res) => {
+  const scope = getCurrentScope();
+  res.json(computeTTV(scope.organization));
+});
+
+app.get('/api/ttv/:orgId', (req, res) => {
+  res.json(computeTTV(req.params.orgId));
+});
+
+app.get('/api/coi', (req, res) => {
+  const scope = getCurrentScope();
+  res.json(computeCOI(scope.organization));
+});
+
+app.get('/api/coi/:orgId', (req, res) => {
+  res.json(computeCOI(req.params.orgId));
+});
+
+app.get('/api/customer-health', (req, res) => {
+  const scope = getCurrentScope();
+  res.json(computeCustomerHealth(scope.organization));
+});
+
+app.get('/api/customer-health/:orgId', (req, res) => {
+  res.json(computeCustomerHealth(req.params.orgId));
 });
 
 // === SCOPE API (hierarchical execution context) ===
