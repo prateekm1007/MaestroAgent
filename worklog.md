@@ -312,3 +312,73 @@ Stage Summary:
 - This is the enterprise moat: Maestro learns how YOUR company governs itself, not just how to execute tasks
 - Live URL: http://localhost:8765/
 - Demo screenshot: policy-indicator-demo.png
+
+---
+Task ID: governance-receipts-frozen-arch
+Agent: main (Super Z)
+Task: Build Governance Controls + Execution Receipts — the enterprise audit layer. Freeze the cognitive architecture.
+
+Work Log:
+- Built src/governance.js — Governance Controls (the layer above Policies):
+  * Policies say WHAT is required. Controls say HOW it's enforced.
+  * Each control: evidence required, reviewer, approval required, audit trail,
+    exception policy, violation action (block/warn)
+  * Constitutional controls BLOCK execution if violated
+  * validatePlanAgainstGovernance() — the planner refuses to violate rules
+  * Auto-created when policies promote to mandatory/constitutional
+
+- Built src/receipts.js — Execution Receipts (immutable audit trail):
+  * Every execution produces a receipt
+  * Records: goal, plan, policies applied, patterns used, evidence collected,
+    approvals, exceptions, confidence predicted vs actual, outcome, corrections,
+    cost, duration, artifacts, lessons
+  * Tamper-evident: SHA-256 hash of receipt content
+  * verifyReceipt() detects any tampering after the fact
+
+- Wired into engine.js:
+  * Phase 0 retrieves governance controls + policies + patterns + learning
+  * After conductor examine: governance validation — if constitutional rules
+    violated, execution is BLOCKED (status='blocked', run.failed emitted)
+  * Phase 8: receipt generation (even for blocked runs — audit trail required)
+  * New events: governance.retrieved, governance.validated, governance.violation,
+    governance.warning, receipt.created
+
+- Wired into learning.js:
+  * When a policy promotes to mandatory/constitutional, a governance control
+    is automatically created — making the policy EXECUTABLE, not just documented
+
+- API endpoints:
+  * GET /api/governance/stats, GET /api/governance/controls
+  * POST /api/governance/seed (create controls for existing policies)
+  * GET /api/receipts, GET /api/receipts/stats
+  * GET /api/runs/:id/receipt, GET /api/receipts/:id, GET /api/receipts/:id/verify
+
+- Verified end-to-end:
+  * Seeded governance controls for 2 policies (1 constitutional blocking, 1 mandatory)
+  * Ran a project → governance.retrieved fired (2 controls, 1 blocking)
+  * Plan didn't address accessibility review → governance.violation fired
+  * Execution BLOCKED — run status set to 'blocked'
+  * Receipt still generated (for audit) with hash e41cf8e7...
+  * Receipt hash verified (tamper-evident)
+
+- Updated CONSTITUTION.md:
+  * 5-layer → 7-layer hierarchy (added Governance Controls + Execution Receipts)
+  * Added "Frozen Architecture" section — no new conceptual layers
+  * Engineering rule: every sprint must answer "Does this make Maestro a better
+    operating system for how an organization executes work?"
+
+Committed to git and pushed to GitHub (commits 06bedd8, a1ffcd2).
+
+Stage Summary:
+- The 7-layer Enterprise Cognition Hierarchy is complete and FROZEN:
+  1. Learning Object (one execution)
+  2. Execution Pattern (repeated workflow)
+  3. Organizational Playbook (company-scoped patterns)
+  4. Operating Policy (mandatory, law-promoted)
+  5. Governance Control (executable enforcement — blocks violations)
+  6. Execution Receipt (immutable, tamper-evident audit trail)
+  7. Operational Knowledge (the company's living operating model)
+- The planner REFUSES to violate governance — this is constitutional execution
+- Every execution produces an audit trail that answers "why was this allowed?"
+- This is enterprise operational infrastructure, not consumer AI
+- Live URL: http://localhost:8765/
