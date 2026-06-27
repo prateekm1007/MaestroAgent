@@ -323,17 +323,16 @@ select.input { cursor: pointer; }
 .voice-history-item:hover { background: rgba(124,92,255,0.06); }
 
 /* ===== SPAWN PARTICLES & EFFECTS ===== */
-.spawn-particle { position: absolute; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; z-index: 50; }
+.spawn-particle { position: fixed; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; z-index: 50; }
 
 /* Spawn rays animation */
-.spawn-rays { position: absolute; pointer-events: none; z-index: 40; }
+.spawn-rays { position: fixed; pointer-events: none; z-index: 40; }
 .spawn-ray { position: absolute; width: 2px; height: 40px; background: linear-gradient(180deg, transparent, rgba(0,212,170,0.6), transparent); transform-origin: bottom center; animation: rayExpand .6s cubic-bezier(0.16,1,0.3,1) forwards; }
 @keyframes rayExpand { from { transform: scaleY(0) rotate(var(--angle)); opacity: 1; } to { transform: scaleY(1) rotate(var(--angle)); opacity: 0; } }
 
-/* Spring expand/collapse */
+/* Spring expand/collapse — uses JS scrollHeight for accurate height */
 .hier-children { transition: max-height .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .2s ease; overflow: hidden; }
-.hier-children.collapsed { max-height: 0; opacity: 0; }
-.hier-children:not(.collapsed) { max-height: 2000px; opacity: 1; }
+.hier-children.collapsed { max-height: 0 !important; opacity: 0; }
 
 /* Live hierarchy pulse — agents with active children gently pulse cyan */
 .agent-card.has-active-children { animation: livePulse 3s infinite; }
@@ -788,7 +787,7 @@ select.input { cursor: pointer; }
             </div>
           </div>
           <!-- CEO -->
-          <div class="agent-card agent-tier-0 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'CEO Agent')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'CEO Agent', 'tier-0'); return false;" tabindex="0">
+          <div class="agent-card agent-tier-0 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'CEO Agent')" data-agent-name="CEO Agent" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'CEO Agent', 'tier-0'); return false;" tabindex="0">
             <div class="w-9 h-9 rounded-md bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple">C</div>
             <div class="flex-1">
               <div class="flex items-center gap-2">
@@ -807,7 +806,7 @@ select.input { cursor: pointer; }
           <!-- Workers -->
           <div class="pl-6 space-y-2 border-l-2 border-brand-purple/20 ml-5">
             <!-- Architect -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'architect')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'architect', 'tier-1'); return false;" tabindex="0">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'architect')" data-agent-name="architect" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'architect', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-cyan/15 flex items-center justify-center font-bold text-brand-cyan">A</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -825,7 +824,7 @@ select.input { cursor: pointer; }
 
             <!-- Sub-workers under architect -->
             <div class="pl-6 space-y-2 border-l-2 border-brand-cyan/20 ml-5">
-              <div class="agent-card agent-tier-2 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'sub_frontend')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'sub_frontend', 'tier-2'); return false;" tabindex="0">
+              <div class="agent-card agent-tier-2 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'sub_frontend')" data-agent-name="sub_frontend" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'sub_frontend', 'tier-2'); return false;" tabindex="0">
                 <div class="w-9 h-9 rounded-md bg-brand-amber/15 flex items-center justify-center font-bold text-brand-amber">F</div>
                 <div class="flex-1">
                   <div class="flex items-center gap-2">
@@ -840,7 +839,7 @@ select.input { cursor: pointer; }
                   <div class="text-[9px] text-fg-600">12s</div>
                 </div>
               </div>
-              <div class="agent-card agent-tier-2 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'sub_backend')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'sub_backend', 'tier-2'); return false;" tabindex="0">
+              <div class="agent-card agent-tier-2 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'sub_backend')" data-agent-name="sub_backend" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'sub_backend', 'tier-2'); return false;" tabindex="0">
                 <div class="w-9 h-9 rounded-md bg-brand-amber/15 flex items-center justify-center font-bold text-brand-amber">B</div>
                 <div class="flex-1">
                   <div class="flex items-center gap-2">
@@ -858,7 +857,7 @@ select.input { cursor: pointer; }
             </div>
 
             <!-- Builder -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'builder')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'builder', 'tier-1'); return false;" tabindex="0">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'builder')" data-agent-name="builder" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'builder', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-cyan/15 flex items-center justify-center font-bold text-brand-cyan">B</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -875,7 +874,7 @@ select.input { cursor: pointer; }
             </div>
 
             <!-- QA -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'qa')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'qa', 'tier-1'); return false;" tabindex="0">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" draggable="true" ondragstart="onDragStart(event, 'qa')" data-agent-name="qa" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'qa', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-cyan/15 flex items-center justify-center font-bold text-brand-cyan">Q</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -892,7 +891,7 @@ select.input { cursor: pointer; }
             </div>
 
             <!-- Critic -->
-            <div class="agent-card agent-tier-1 flex items-center gap-3" style="border-color: rgba(255,85,119,0.3); background: rgba(255,85,119,0.04);" draggable="true" ondragstart="onDragStart(event, 'critic')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'critic', 'tier-1'); return false;" tabindex="0">
+            <div class="agent-card agent-tier-1 flex items-center gap-3" style="border-color: rgba(255,85,119,0.3); background: rgba(255,85,119,0.04);" draggable="true" ondragstart="onDragStart(event, 'critic')" data-agent-name="critic" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, this)" oncontextmenu="showCtxMenu(event, 'critic', 'tier-1'); return false;" tabindex="0">
               <div class="w-9 h-9 rounded-md bg-brand-rose/15 flex items-center justify-center font-bold text-brand-rose">Cr</div>
               <div class="flex-1">
                 <div class="flex items-center gap-2">
@@ -1254,7 +1253,7 @@ select.input { cursor: pointer; }
         <div class="panel-header"><span>Hierarchy Explorer</span><div class="flex gap-1"><span class="tag tag-cyan">live</span><button class="btn btn-ghost text-[10px] py-0.5 px-1.5" onclick="toggleModal('spawnModal')">+ Spawn</button></div></div>
         <div class="p-3 text-xs space-y-1.5 max-h-[520px] overflow-y-auto">
           <!-- Tier 0: CEO -->
-          <div class="hier-node tier-0" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'CEO Agent', 'tier-0'); return false;">
+          <div class="hier-node tier-0" tabindex="0" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'CEO Agent', 'tier-0'); return false;">
             <div class="flex items-center gap-2">
               <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
               <div class="w-7 h-7 rounded-md bg-brand-purple/20 flex items-center justify-center font-bold text-brand-purple flex-shrink-0">C</div>
@@ -1273,7 +1272,7 @@ select.input { cursor: pointer; }
           </div>
           <div class="hier-children">
             <!-- Tier 1: Architect -->
-            <div class="hier-node tier-1" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'architect', 'tier-1'); return false;">
+            <div class="hier-node tier-1" tabindex="0" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'architect', 'tier-1'); return false;">
               <div class="flex items-center gap-2">
                 <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
                 <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] flex-shrink-0">A</div>
@@ -1292,7 +1291,7 @@ select.input { cursor: pointer; }
             </div>
             <div class="hier-children">
               <!-- Tier 2: sub_frontend -->
-              <div class="hier-node tier-2" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'sub_frontend', 'tier-2'); return false;">
+              <div class="hier-node tier-2" tabindex="0" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'sub_frontend', 'tier-2'); return false;">
                 <div class="flex items-center gap-2">
                   <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
                   <div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F</div>
@@ -1309,11 +1308,11 @@ select.input { cursor: pointer; }
                 </div>
               </div>
               <div class="hier-children">
-                <div class="hier-node tier-2" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F2</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_form_helper</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
-                <div class="hier-node tier-2" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F3</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_form_test</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
+                <div class="hier-node tier-2" tabindex="0" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F2</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_form_helper</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
+                <div class="hier-node tier-2" tabindex="0" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">F3</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_form_test</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
               </div>
               <!-- Tier 2: sub_backend -->
-              <div class="hier-node tier-2" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'sub_backend', 'tier-2'); return false;">
+              <div class="hier-node tier-2" tabindex="0" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'sub_backend', 'tier-2'); return false;">
                 <div class="flex items-center gap-2">
                   <span class="hier-expand" onclick="toggleHierExpand(event, this)">&#9660;</span>
                   <div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">B</div>
@@ -1330,11 +1329,11 @@ select.input { cursor: pointer; }
                 </div>
               </div>
               <div class="hier-children">
-                <div class="hier-node tier-2" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">B2</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_db_helper</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
+                <div class="hier-node tier-2" tabindex="0" onclick="selectHierNode(this)"><div class="flex items-center gap-2"><div class="w-5 h-5 rounded-md bg-brand-amber/15 flex items-center justify-center text-[9px] flex-shrink-0">B2</div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="font-semibold truncate">sub_db_helper</span><span class="tag tag-amber">T2</span></div><div class="text-[10px] text-fg-500 truncate">llama3.1:8b &#183; local $0</div></div></div></div>
               </div>
             </div>
             <!-- Tier 1: Builder -->
-            <div class="hier-node tier-1" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'builder', 'tier-1'); return false;">
+            <div class="hier-node tier-1" tabindex="0" onclick="selectHierNode(this)" oncontextmenu="showCtxMenu(event, 'builder', 'tier-1'); return false;">
               <div class="flex items-center gap-2">
                 <span class="hier-expand collapsed" onclick="toggleHierExpand(event, this)">&#9660;</span>
                 <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] flex-shrink-0">B</div>
@@ -1352,7 +1351,7 @@ select.input { cursor: pointer; }
               </div>
             </div>
             <!-- Tier 1: QA -->
-            <div class="hier-node tier-1" onclick="selectHierNode(this)">
+            <div class="hier-node tier-1" tabindex="0" onclick="selectHierNode(this)">
               <div class="flex items-center gap-2">
                 <span class="hier-expand collapsed" onclick="toggleHierExpand(event, this)">&#9660;</span>
                 <div class="w-6 h-6 rounded-md bg-brand-cyan/15 flex items-center justify-center text-[10px] flex-shrink-0">Q</div>
@@ -1369,7 +1368,7 @@ select.input { cursor: pointer; }
               </div>
             </div>
             <!-- Tier 1: Critic -->
-            <div class="hier-node tier-1" onclick="selectHierNode(this)">
+            <div class="hier-node tier-1" tabindex="0" onclick="selectHierNode(this)">
               <div class="flex items-center gap-2">
                 <span class="w-4 h-4 flex-shrink-0"></span>
                 <div class="w-6 h-6 rounded-md bg-brand-rose/15 flex items-center justify-center text-[10px] flex-shrink-0">Cr</div>
@@ -3150,6 +3149,7 @@ select.input { cursor: pointer; }
 </div>
 
 <!-- ============ COMMAND PALETTE ============ -->
+<div class="cmdp-backdrop" id="cmdp-backdrop" onclick="toggleCmd()" style="position:fixed;inset:0;z-index:199;display:none;"></div>
 <div class="cmdp" id="cmdp">
   <div class="p-3 border-b border-white/[0.06]">
     <div class="flex items-center gap-2">
@@ -3342,7 +3342,9 @@ function toggleModal(id) {
 
 function toggleCmd() {
   const cmd = document.getElementById('cmdp');
+  const backdrop = document.getElementById('cmdp-backdrop');
   cmd.classList.toggle('active');
+  if (backdrop) backdrop.style.display = cmd.classList.contains('active') ? 'block' : 'none';
   if (cmd.classList.contains('active')) {
     setTimeout(() => {
       const input = document.getElementById('cmdp-input');
@@ -3387,10 +3389,7 @@ document.querySelectorAll('.modal-bg').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
 });
 
-// Close command palette on backdrop click
-document.getElementById('cmdp').addEventListener('click', e => {
-  if (e.target.id === 'cmdp') toggleCmd();
-});
+// Command palette backdrop dismiss is handled by cmdp-backdrop div onclick
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
@@ -3405,6 +3404,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-bg.active').forEach(m => m.classList.remove('active'));
     document.getElementById('cmdp').classList.remove('active');
+    const backdrop = document.getElementById('cmdp-backdrop');
+    if (backdrop) backdrop.style.display = 'none';
   }
   // Number keys for nav (⌘1-9)
   if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
@@ -3528,12 +3529,17 @@ function selectHierNode(el) {
 function toggleHierExpand(event, el) {
   event.stopPropagation();
   el.classList.toggle('collapsed');
-  // Toggle visibility of next sibling .hier-children
   const parent = el.closest('.hier-node');
   if (!parent) return;
   const next = parent.nextElementSibling;
   if (next && next.classList.contains('hier-children')) {
     next.classList.toggle('collapsed');
+    // Set max-height to scrollHeight for accurate animation (no 2000px guess)
+    if (next.classList.contains('collapsed')) {
+      next.style.maxHeight = '0';
+    } else {
+      next.style.maxHeight = next.scrollHeight + 'px';
+    }
   }
 }
 
@@ -3571,7 +3577,8 @@ function simulateSpawn() {
   const name = names[Math.floor(Math.random() * names.length)];
   const models = ['gpt-4o-mini', 'llama3.1:8b (local)', 'gpt-4o-mini'];
   const model = models[Math.floor(Math.random() * models.length)];
-  const cost = model.includes('llama') ? '$0.0000' : '$0.00' + Math.floor(Math.random() * 90 + 10);
+  const isLocal = model.includes('llama');
+  const cost = isLocal ? '$0.0000' : '$' + (Math.random() * 0.009 + 0.001).toFixed(4);
   
   const newAgent = document.createElement('div');
   newAgent.className = 'agent-card agent-tier-2 flex items-center gap-3 spawn-anim';
@@ -3595,6 +3602,12 @@ function simulateSpawn() {
   
   // Scroll into view
   newAgent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  
+  // Spawn particles + savings pop directly (no monkey-patch)
+  createSpawnParticles(newAgent);
+  const rect = newAgent.getBoundingClientRect();
+  const savingsText = isLocal ? '💰 Saved $0.87 (local model)' : '💰 Routed to cloud';
+  showSavingsPop(savingsText, rect.right - 120, rect.top);
 }
 
 // Spawn modal: auto-suggest tier based on role
@@ -3643,12 +3656,10 @@ function onDragStart(event, agentName) {
 function onDragOver(event) {
   event.preventDefault();
   event.dataTransfer.dropEffect = 'move';
-  // Don't allow dropping on self
-  if (event.currentTarget === event.target) return;
   const card = event.currentTarget;
-  // Don't allow dropping a parent onto its own child
-  const agentName = card.getAttribute('ondragstart');
-  if (agentName && agentName.includes(draggedAgent)) {
+  // Don't allow dropping a node onto itself or its descendant
+  const targetName = card.dataset.agentName;
+  if (targetName && targetName === draggedAgent) {
     card.classList.add('drop-target-invalid');
     return;
   }
@@ -3666,9 +3677,9 @@ function onDrop(event, targetEl) {
   targetEl.classList.remove('drop-target', 'drop-target-invalid');
   
   if (!draggedAgent) return;
-  const targetName = (targetEl.querySelector('.font-bold') || {}).textContent || 'unknown';
+  const targetName = targetEl.dataset.agentName || 'unknown';
   
-  if (draggedAgent === targetName.trim()) return; // Can't drop on self
+  if (draggedAgent === targetName) return; // Can't drop on self
   
   // Visual feedback: flash the target
   targetEl.style.transition = 'all .3s';
@@ -3721,14 +3732,28 @@ function toggleOptimizeModal() {
   document.getElementById('optimizeModal').classList.toggle('active');
 }
 
-// Close optimize modal on backdrop click
+// Close optimize modal on backdrop click + mark agents with active children
 document.addEventListener('DOMContentLoaded', () => {
+  // Optimize modal backdrop
   const optModal = document.getElementById('optimizeModal');
   if (optModal) {
     optModal.addEventListener('click', e => {
       if (e.target === optModal) optModal.classList.remove('active');
     });
   }
+  // Add has-active-children to agents that have running children
+  document.querySelectorAll('.agent-card.agent-tier-0, .agent-card.agent-tier-1').forEach(card => {
+    const sibling = card.nextElementSibling;
+    if (sibling && sibling.querySelector('.pulse-dot-amber')) {
+      card.classList.add('has-active-children');
+    }
+  });
+  // Add glow to inherit badges
+  document.querySelectorAll('.inherit-badge').forEach(b => b.classList.add('inherit-glow'));
+  // Initialize hier-children max-height for visible (non-collapsed) ones
+  document.querySelectorAll('.hier-children:not(.collapsed)').forEach(el => {
+    el.style.maxHeight = el.scrollHeight + 'px';
+  });
 });
 
 // ===== KEYBOARD NAV FOR HIERARCHY =====
@@ -3743,8 +3768,8 @@ document.addEventListener('keydown', e => {
   const hierNodes = activePage.querySelectorAll('.hier-node, .agent-card[draggable]');
   if (hierNodes.length === 0) return;
   
-  // Tab to enter hierarchy navigation mode
-  if (e.key === 'ArrowDown' && document.activeElement.classList.contains('hier-node') || document.activeElement.classList.contains('agent-card')) {
+  // Arrow Down/Up to navigate hierarchy nodes
+  if (e.key === 'ArrowDown' && (document.activeElement.classList.contains('hier-node') || document.activeElement.classList.contains('agent-card'))) {
     e.preventDefault();
     hierFocusIndex = Math.min(hierFocusIndex + 1, hierNodes.length - 1);
     hierNodes[hierFocusIndex].focus();
@@ -3835,10 +3860,22 @@ function startVoice() {
       }
     }
     
-    // Update transcript display
+    // Update transcript display (safe from XSS — uses createElement, not innerHTML)
     const transcriptEl = document.getElementById('voice-transcript');
     if (transcriptEl) {
-      transcriptEl.innerHTML = (final ? '<span class="text-fg-100">' + final + '</span>' : '') + (interim ? '<span class="interim">' + interim + '</span>' : '');
+      transcriptEl.textContent = '';
+      if (final) {
+        const span = document.createElement('span');
+        span.className = 'text-fg-100';
+        span.textContent = final;  // safe: textContent escapes HTML
+        transcriptEl.appendChild(span);
+      }
+      if (interim) {
+        const span = document.createElement('span');
+        span.className = 'interim';
+        span.textContent = interim;
+        transcriptEl.appendChild(span);
+      }
     }
     
     // Process final commands
@@ -3880,7 +3917,13 @@ function stopVoice() {
   if (ccBtn) ccBtn.classList.remove('listening');
   updateVoiceStatus('idle', 'Voice Mode Inactive');
   const transcriptEl = document.getElementById('voice-transcript');
-  if (transcriptEl) transcriptEl.innerHTML = '<span class="interim">Listening…</span>';
+  if (transcriptEl) {
+    transcriptEl.textContent = '';
+    const span = document.createElement('span');
+    span.className = 'interim';
+    span.textContent = 'Listening…';
+    transcriptEl.appendChild(span);
+  }
 }
 
 function simulateVoiceMode() {
@@ -3894,7 +3937,11 @@ function simulateVoiceMode() {
   
   const transcriptEl = document.getElementById('voice-transcript');
   if (transcriptEl) {
-    transcriptEl.innerHTML = '<span class="interim">Voice API unavailable — type commands in ⌘K instead. Try: "spawn sub-agent", "optimize hierarchy"</span>';
+    transcriptEl.textContent = '';
+    const span = document.createElement('span');
+    span.className = 'interim';
+    span.textContent = 'Voice API unavailable — type commands in ⌘K instead. Try: "spawn sub-agent", "optimize hierarchy"';
+    transcriptEl.appendChild(span);
   }
   
   // Simulate a voice command after 3 seconds
@@ -3902,7 +3949,13 @@ function simulateVoiceMode() {
     if (voiceActive) {
       const commands = ['spawn sub-agent under architect', 'optimize hierarchy', 'show me the CEO tree'];
       const cmd = commands[Math.floor(Math.random() * commands.length)];
-      if (transcriptEl) transcriptEl.innerHTML = '<span class="text-fg-100">' + cmd + '</span>';
+      if (transcriptEl) {
+        transcriptEl.textContent = '';
+        const span = document.createElement('span');
+        span.className = 'text-fg-100';
+        span.textContent = cmd;
+        transcriptEl.appendChild(span);
+      }
       processVoiceCommand(cmd);
     }
   }, 3000);
@@ -3981,16 +4034,18 @@ function updateVoiceHistory() {
     return;
   }
   
-  list.innerHTML = voiceHistory.map(h => 
-    '<div class="voice-history-item">' +
+  list.innerHTML = voiceHistory.map(h => {
+    const tagClass = h.status === 'executed' ? 'tag-cyan' : h.status === 'failed' ? 'tag-rose' : 'tag-gray';
+    const tagIcon = h.status === 'executed' ? '✓' : h.status === 'failed' ? '✗' : '?';
+    return '<div class="voice-history-item">' +
       '<svg class="w-3.5 h-3.5 text-brand-purple flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>' +
       '<div class="flex-1 min-w-0">' +
         '<div class="text-[11px] text-fg-200 truncate">' + h.command + '</div>' +
         '<div class="text-[9px] text-fg-600 mono">' + h.time + ' · ' + h.status + '</div>' +
       '</div>' +
-      '<span class="tag tag-cyan flex-shrink-0">✓</span>' +
-    '</div>'
-  ).join('');
+      '<span class="tag ' + tagClass + ' flex-shrink-0">' + tagIcon + '</span>' +
+    '</div>';
+  }).join('');
 }
 
 // ===== SPAWN PARTICLES & EFFECTS =====
@@ -4070,36 +4125,7 @@ function showSavingsPop(text, x, y) {
   ], { duration: 1500, easing: 'cubic-bezier(0.34,1.56,0.64,1)' }).onfinish = () => el.remove();
 }
 
-// ===== ENHANCED SIMULATE SPAWN WITH PARTICLES =====
-const originalSimulateSpawn = simulateSpawn;
-simulateSpawn = function() {
-  originalSimulateSpawn();
-  // Add particles to the new agent
-  setTimeout(() => {
-    const agents = document.querySelectorAll('#page-run-detail .agent-card.spawn-anim');
-    if (agents.length > 0) {
-      const last = agents[agents.length - 1];
-      createSpawnParticles(last);
-      // Show savings pop
-      const rect = last.getBoundingClientRect();
-      showSavingsPop('💰 Saved $0.87', rect.right - 100, rect.top);
-    }
-  }, 100);
-};
-
-// ===== MARK AGENTS WITH ACTIVE CHILDREN =====
-document.addEventListener('DOMContentLoaded', () => {
-  // Add has-active-children to agents that have running children
-  document.querySelectorAll('.agent-card.agent-tier-0, .agent-card.agent-tier-1').forEach(card => {
-    const sibling = card.nextElementSibling;
-    if (sibling && sibling.querySelector('.pulse-dot-amber')) {
-      card.classList.add('has-active-children');
-    }
-  });
-  
-  // Add glow to inherit badges
-  document.querySelectorAll('.inherit-badge').forEach(b => b.classList.add('inherit-glow'));
-});
+// ===== PARTICLES ARE CALLED DIRECTLY FROM simulateSpawn =====
 </script>
 
 </body>
