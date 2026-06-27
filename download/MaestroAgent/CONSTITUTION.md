@@ -16,43 +16,61 @@ If no — we are building complexity instead of compounding advantage.
 Not AI. Not intelligence. Not agents. Not conversations.
 Finished outcomes.
 
+For enterprises: **Maestro learns how your company works — and helps every team execute that way.**
+
 ---
 
 ## The Moat
 
-Not execution data. Not even execution intelligence.
+Not execution data. Not execution intelligence. Not even execution patterns.
 
-**Execution Patterns.**
+**Operational DNA.**
 
-Data is raw. Intelligence is transformed. Patterns are the scalable abstraction.
+Every company has it. Nobody has digitized it. Maestro digitizes it, learns from it, and makes it compound.
+
+---
+
+## The 5-Layer Enterprise Cognition Hierarchy
 
 ```
-Completed Projects
-  ↓
-Outcome Measurement
-  ↓
-Human Corrections
-  ↓
-Learning Objects (per-project)
-  ↓
-Pattern Extraction (aggregates across projects of same class)
-  ↓
-Execution Pattern Registry
-  ↓
-Planner searches patterns, not projects
-  ↓
-Better execution
-  ↓
-More projects
-  ↓
-Richer patterns
+1. Learning Object         — one execution (what happened)
+        ↓
+2. Execution Pattern       — a repeated workflow (what works)
+        ↓
+3. Organizational Playbook — how Acme launches products (company-scoped patterns)
+        ↓
+4. Operating Policy        — what is mandatory (law-promoted from patterns)
+        ↓
+5. Execution Constitution  — the company's immutable rules (constitutional policies)
 ```
 
-A Learning Object remembers WHAT HAPPENED in one project.
-An Execution Pattern remembers HOW TO DO a class of work.
+Each layer is scoped hierarchically:
 
-The planner doesn't search projects. It searches proven execution patterns.
-That's the scalable flywheel — 1 pattern serves 1000 projects of the same class.
+```
+Global Knowledge
+        ↓
+Industry Laws
+        ↓
+Company Constitution
+        ↓
+Department Playbooks
+        ↓
+Team Patterns
+        ↓
+Individual Preferences
+        ↓
+Execution
+        ↓
+Learning Objects
+        ↓
+Pattern Extraction
+        ↓
+Law Promotion
+        ↓
+Constitution Evolution
+```
+
+This hierarchy scales from 1 freelancer to a 50,000-person enterprise without changing the core architecture.
 
 ---
 
@@ -65,6 +83,13 @@ Measurably.
 
 If project #10,001 isn't better because project #10,000 happened,
 the flywheel isn't working.
+
+### Law Promotion
+
+When a correction is seen 3+ times → it becomes an Operating Policy.
+When a Policy is reinforced 10+ times → it becomes a Constitutional Rule.
+
+This is how Maestro learns not just WHAT WORKS, but HOW THE COMPANY GOVERNS ITSELF.
 
 ---
 
@@ -84,7 +109,11 @@ the flywheel isn't working.
 
 7. **Cut ruthlessly.** If a feature doesn't increase completion rate, increase trust, or generate execution intelligence — remove it.
 
-8. **Even if incumbents ship our features, they don't have our learning history.** The race is to accumulate execution intelligence before anyone else realizes that's the asset.
+8. **Even if incumbents ship our features, they don't have our Operational DNA.** The race is to accumulate enterprise execution intelligence before anyone else realizes that's the asset.
+
+9. **Learning is hierarchical.** Individual → Team → Department → Company → Industry → Global. More specific scopes override more general ones. This is what makes Maestro work for both a solo founder and a Fortune 500.
+
+10. **Policies evolve from patterns.** Rules are not hardcoded — they emerge from observed execution. When a correction is reinforced enough, it becomes mandatory. When a policy is reinforced enough, it becomes constitutional.
 
 ---
 
@@ -95,8 +124,9 @@ the flywheel isn't working.
 - Not a multi-agent platform.
 - Not an AI workspace.
 - Not a feature of a foundation model.
+- Not enterprise AI (that's too broad — every AI company sells to enterprises).
 
-We are the layer that turns goals into finished outcomes, using whatever model is best at the moment, learning from every completion.
+We are **Enterprise Execution Intelligence** — the layer that turns goals into finished outcomes using whatever model is best, while learning how YOUR organization governs itself.
 
 ---
 
@@ -107,3 +137,12 @@ Before writing any line of code, ask:
 > Does this increase Maestro's ability to turn future goals into finished outcomes better than it could yesterday?
 
 If you can't answer yes with a specific, measurable reason — don't build it.
+
+---
+
+## Naming Convention
+
+- **Internal engineering term:** "Execution Constitution" / "Constitutional Rule"
+- **External/customer-facing term:** "Operating Model" / "Company Standards" / "Execution Policy"
+
+The architecture is constitutional. The product language is familiar. Enterprises adopt what feels familiar, even when the underlying system is sophisticated.

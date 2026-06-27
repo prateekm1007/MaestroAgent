@@ -654,6 +654,25 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 .pattern-stat-value.green { color: #00d4aa; }
 .pattern-stat-value.amber { color: #ffb84d; }
 .pattern-indicator-note { font-size: 11px; color: #8888a0; margin-top: 8px; font-style: italic; }
+
+/* Operating Policy indicator — the governance layer */
+.policy-indicator { background: linear-gradient(135deg, rgba(255,85,119,0.06), rgba(255,184,77,0.04)); border: 1px solid rgba(255,85,119,0.20); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; animation: spaPageIn .3s ease; }
+.policy-indicator-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.policy-indicator-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #ff5577, #ffb84d); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.policy-indicator-icon svg { width: 16px; height: 16px; color: white; }
+.policy-indicator-title { font-size: 12px; font-weight: 700; color: #ff5577; text-transform: uppercase; letter-spacing: 0.06em; }
+.policy-indicator-stats { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+.policy-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.policy-item { font-size: 11.5px; padding: 6px 10px; border-radius: 6px; display: flex; align-items: flex-start; gap: 8px; }
+.policy-item.constitutional { background: rgba(255,85,119,0.10); border-left: 2px solid #ff5577; }
+.policy-item.mandatory { background: rgba(255,184,77,0.08); border-left: 2px solid #ffb84d; }
+.policy-item.recommended { background: rgba(124,92,255,0.06); border-left: 2px solid #7c5cff; }
+.policy-item-scope { font-size: 9px; color: #8888a0; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; min-width: 70px; }
+.policy-item-rule { color: #e8e8f0; flex: 1; }
+.policy-item-badge { font-size: 9px; padding: 1px 6px; border-radius: 999px; font-weight: 700; text-transform: uppercase; flex-shrink: 0; }
+.policy-item-badge.constitutional { background: rgba(255,85,119,0.20); color: #ff5577; }
+.policy-item-badge.mandatory { background: rgba(255,184,77,0.20); color: #ffb84d; }
+.policy-item-badge.recommended { background: rgba(124,92,255,0.15); color: #a594ff; }
 .learning-retrieved-icon { width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .learning-retrieved-icon svg { width: 14px; height: 14px; color: white; }
 .learning-retrieved-text { font-size: 12px; color: #a594ff; line-height: 1.4; }
@@ -4978,6 +4997,12 @@ function handleRunEvent(ev) {
       addPatternIndicator(p);
       break;
 
+    case 'policies.retrieved':
+      // Operating policies / constitutional rules apply to this execution.
+      // This is the governance layer — what is mandatory.
+      addPolicyIndicator(p);
+      break;
+
     case 'learning.retrieved':
       // Past projects were found that are similar to this goal.
       // Show a "remembered from past work" indicator (but only if no
@@ -5582,6 +5607,47 @@ function addPatternIndicator(p) {
     '<div class="pattern-indicator-note">Maestro has executed this class of work ' + p.projectCount + ' time' + (p.projectCount > 1 ? 's' : '') + ' before. The conductor is using the proven workflow and known failure modes to plan better.</div>';
 
   // Insert at the top of the work stream (after the user's message).
+  const userMsg = ws.querySelector('.user-msg');
+  if (userMsg && userMsg.nextSibling) {
+    ws.insertBefore(el, userMsg.nextSibling);
+  } else {
+    ws.appendChild(el);
+  }
+}
+
+// Operating Policy indicator — shown when policies.retrieved fires.
+// This is the governance layer: constitutional rules, mandatory policies,
+// and recommended practices that apply to this execution.
+function addPolicyIndicator(p) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  if (document.getElementById('policy-indicator')) return;
+
+  const policyItemsHtml = (p.policies || []).map(pol => {
+    const cls = pol.status === 'constitutional' ? 'constitutional' : pol.enforcement;
+    return '<div class="policy-item ' + cls + '">' +
+      '<span class="policy-item-scope">' + escapeHtml(pol.scopeLevel) + '</span>' +
+      '<span class="policy-item-rule">' + escapeHtml(pol.rule) + '</span>' +
+      '<span class="policy-item-badge ' + cls + '">' + escapeHtml(pol.enforcement) + '</span>' +
+    '</div>';
+  }).join('');
+
+  const el = document.createElement('div');
+  el.className = 'policy-indicator';
+  el.id = 'policy-indicator';
+  el.innerHTML =
+    '<div class="policy-indicator-header">' +
+      '<div class="policy-indicator-icon">' +
+        '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+      '</div>' +
+      '<span class="policy-indicator-title">Operating Policies</span>' +
+    '</div>' +
+    '<div class="policy-indicator-stats">' +
+      '<div class="pattern-stat"><span class="pattern-stat-label">Constitutional</span><span class="pattern-stat-value" style="color:#ff5577;">' + p.constitutional + '</span></div>' +
+      '<div class="pattern-stat"><span class="pattern-stat-label">Mandatory</span><span class="pattern-stat-value" style="color:#ffb84d;">' + p.mandatory + '</span></div>' +
+      '<div class="pattern-stat"><span class="pattern-stat-label">Recommended</span><span class="pattern-stat-value" style="color:#a594ff;">' + p.recommended + '</span></div>' +
+    '</div>' +
+    '<div class="policy-list">' + policyItemsHtml + '</div>';
   const userMsg = ws.querySelector('.user-msg');
   if (userMsg && userMsg.nextSibling) {
     ws.insertBefore(el, userMsg.nextSibling);
