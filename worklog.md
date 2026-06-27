@@ -268,3 +268,47 @@ Stage Summary:
 - The flywheel now spins at the pattern level, not just the project level
 - Demo screenshot: pattern-indicator-working.png
 - Live URL: http://localhost:8765/
+
+---
+Task ID: enterprise-cognition-hierarchy
+Agent: main (Super Z)
+Task: Build the 5-layer Enterprise Cognition Hierarchy — Learning Objects → Patterns → Playbooks → Policies → Constitution
+
+Work Log:
+- Built src/scope.js — hierarchical execution context (individual → team → department → company → industry → global). Every Learning Object and Pattern is now scoped.
+- Updated src/patterns.js — patterns are scope-aware. retrievePattern() cascades through the hierarchy. Pattern Promotion: when 2+ individual patterns exist for the same team, they aggregate into a team pattern automatically.
+- Built src/policies.js — the GOVERNANCE LAYER above patterns:
+  * Operating Policies (mandatory rules at company/department/team scope)
+  * Execution Constitution (immutable company-level rules)
+  * Law Promotion: when a pattern's correction is seen 3+ times → promotes to Policy. When reinforced 10+ times → promotes to Constitutional Rule.
+  * retrievePolicies() cascades through scope hierarchy
+  * validatePlan() checks plans against active policies
+  * Categories: security, legal, quality, accessibility, process, documentation
+  * Evidence required per policy (e.g. "Threat model + security review sign-off")
+- Wired into engine.js Phase 0: retrieves patterns + policies + past learning. Conductor receives all three as context. Phase label shows: "Examining the goal · individual pattern: Content Writing (1 projects) · 3 policies (1 constitutional)"
+- Wired Law Promotion into recordOutcome → updatePatternFromLearning → checkForPolicyPromotion. When user accepts a project, the pattern updates, and if any corrections have been seen 3+ times, they automatically become policies.
+- API endpoints: GET /api/policies, GET /api/policies/stats, GET/POST /api/scope, GET /api/patterns/stats
+- Frontend: policy indicator card (red/amber gradient) showing constitutional/mandatory/recommended policies with scope levels and enforcement badges
+- Updated CONSTITUTION.md with the full 5-layer hierarchy and naming convention (internal="Constitution", external="Operating Model"/"Company Standards")
+
+Verified end-to-end:
+- Set Acme Corp scope (organization=acme-corp, department=engineering, team=platform, user=sarah)
+- Seeded 3 policies at different scopes: company constitutional (accessibility review), department mandatory (security review), team recommended (design docs)
+- Ran a content writing project → policies.retrieved event fired with all 3 policies
+- Conductor phase label: "Examining the goal · 2 past projects referenced · 3 policies (1 constitutional)"
+- Policy indicator visible in UI showing all policies with scope and enforcement badges
+
+Committed to git and pushed to GitHub (commit 4593149).
+
+Stage Summary:
+- The 5-layer Enterprise Cognition Hierarchy is complete:
+  1. Learning Object (one execution)
+  2. Execution Pattern (repeated workflow)
+  3. Organizational Playbook (company-scoped patterns)
+  4. Operating Policy (mandatory, law-promoted)
+  5. Execution Constitution (immutable company rules)
+- The hierarchy scales from 1 freelancer (global patterns only) to a 50,000-person enterprise (all 6 scope levels populated)
+- Law Promotion makes the system self-governing — rules emerge from observed execution, not from hardcoded configuration
+- This is the enterprise moat: Maestro learns how YOUR company governs itself, not just how to execute tasks
+- Live URL: http://localhost:8765/
+- Demo screenshot: policy-indicator-demo.png
