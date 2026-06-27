@@ -152,39 +152,51 @@ If you can't answer yes with a specific, measurable reason — don't build it.
 
 ## The Frozen Architecture
 
-The cognitive architecture is frozen. No new conceptual layers unless a genuinely new kind of knowledge is discovered.
+**The cognition architecture is FROZEN until Maestro is running inside at least 10 enterprise organizations AND we have evidence that an entirely new kind of organizational knowledge cannot be represented by the existing layers.**
+
+No new cognitive layers. No Rule Layer. No Wisdom Layer. No Experience Layer. No Meta Pattern Layer. No Reflection Layer. Stop.
+
+The architecture is sophisticated enough to support a category-defining product. The next question is not whether we can invent a better abstraction — it's whether we can make a VP of Engineering, a Chief Product Officer, or a Head of Compliance say:
+
+> **"This system measurably improved how our organization executes work."**
 
 ```
 Human Goal
-        │
+      │
    Planning
-        │
+      │
   Execution
-        │
+      │
    Review
-        │
+      │
 Learning Object
-        │
+      │
 Execution Pattern
-        │
+      │
 Organizational Playbook
-        │
+      │
   Operating Policy
-        │
+      │
  Governance Control
-        │
+      │
+   Evidence
+      │
+    Case
+      │
+  Precedent
+      │
  Execution Receipt
-        │
-Operational Knowledge Graph
-        │
+      │
+Operational Knowledge
+      │
     Planner
 ```
 
 **What this means for engineering:**
-- No more generic AI features (new agents, more models, voice experiments, flashy orchestration)
+- No more cognitive layers. The architecture is frozen.
 - Every sprint must answer: "Does this make Maestro a better operating system for how an organization executes work?"
 - If the answer is no — don't build it.
-- The differentiation is no longer "we orchestrate multiple AI agents." It's that Maestro captures, governs, and continuously improves how an organization executes work, while leaving an auditable trail of why decisions were made.
+- The next work is COMMERCIAL, not cognitive: Execution Metrics, Design Partner Mode, Enterprise Operating Model SDK, integrations, and proving ROI with real customers.
 
 ---
 

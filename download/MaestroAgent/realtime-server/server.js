@@ -38,6 +38,7 @@ import { getPolicyStats, listPolicies } from './src/policies.js';
 import { getGovernanceStats, listControls, createControlForPolicy } from './src/governance.js';
 import { getReceiptByRunId, getReceipt, listReceipts, getReceiptStats, verifyReceipt } from './src/receipts.js';
 import { getEvidenceStats, listEvidence, listCases, listPrecedents } from './src/evidence.js';
+import { computeMetrics, computeROIReport } from './src/metrics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -266,6 +267,21 @@ app.get('/api/cases', (req, res) => {
 
 app.get('/api/precedents', (req, res) => {
   res.json(listPrecedents());
+});
+
+// === EXECUTION METRICS API (the dashboard a CIO buys) ===
+// This is NOT a cognitive layer. This is the COMMERCIAL layer.
+// Turns receipts into the metrics executives buy: cycle time, rework %,
+// knowledge reuse, compliance score, hours saved, violations prevented.
+app.get('/api/metrics', (req, res) => {
+  const scope = getCurrentScope();
+  res.json(computeMetrics(scope));
+});
+
+// Before/After ROI report — the pitch deck slide.
+app.get('/api/roi-report', (req, res) => {
+  const scope = getCurrentScope();
+  res.json(computeROIReport(scope));
 });
 
 // === SCOPE API (hierarchical execution context) ===
