@@ -697,3 +697,48 @@ Stage Summary:
 - The one question: "What evidence would convince us this company deserves to exist?"
 - The company has shifted definitively from building to validating.
 - Live URL: http://localhost:8765/
+
+---
+Task ID: evidence-ledger-friday-dashboard
+Agent: main (Super Z)
+Task: Build the Evidence Ledger + CEO Friday Dashboard — the company's learning system
+
+Work Log:
+- Built src/evidence-ledger.js — the company's learning system:
+  * Every company assumption gets a page: hypothesis, confidence, evidence for/against, decision, next experiment
+  * 12 default hypotheses seeded from "Reasons We Might Be Wrong":
+    H001: Organizations reduce cycle time 15%+ in 90 days
+    H002: Customers pay for governance
+    H003: Product Delivery is the right wedge
+    H004: OED correlates with perceived business value
+    H005: Benchmarks drive purchases
+    H006: Integrations > cognitive depth
+    H007: Merge-gate holds for 12 months
+    H008: Enterprises buy from startups
+    H009: TTV <14d predicts retention
+    H010: Observatory becomes moat at 50+ orgs
+    H011: Retention > adoption as PMF signal
+    H012: Founder can shift from builder to seller
+  * Evidence is timestamped and attributed
+  * Confidence: low/medium/high. Status: testing/confirmed/invalidated. Decision: continue/pivot/stop.
+
+- Built CEO Friday Dashboard:
+  * 7 weekly self-assessment questions with targets
+  * Reminder: "One customer conversation should outweigh ten internal ideas"
+  * History tracked over time
+  * Forces weekly intellectual honesty
+
+- Verified:
+  * 12 hypotheses seeded (1 high, 3 medium, 8 low — all 'testing')
+  * H001 updated with Partner A evidence ("Cycle time 5.2h → 3.1h after 45 days") → confidence upgraded low→medium
+  * Friday Dashboard saved with honest weekly responses
+
+Committed to git and pushed to GitHub (commit a544780).
+
+Stage Summary:
+- The company now has the same learning loop as the product:
+  Hypothesis → Evidence → Decision → Next Experiment → Repeat
+- 12 core assumptions are being tracked, tested, and updated
+- The Friday Dashboard forces weekly honesty about customer conversations vs. coding
+- The transition is complete: from "can we build it?" to "can we prove it matters?"
+- Live URL: http://localhost:8765/
