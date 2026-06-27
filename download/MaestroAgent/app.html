@@ -431,6 +431,72 @@ select.input { cursor: pointer; }
 /* Scrollbar fade */
 #main-scroll::-webkit-scrollbar-thumb { transition: background .2s; }
 #main-scroll:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); }
+
+/* ===== CONSUMER-FIRST LAYER ===== */
+
+/* Mode toggle */
+.mode-toggle { display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); cursor: pointer; transition: all .2s; }
+.mode-toggle:hover { background: rgba(255,255,255,0.06); }
+.mode-toggle .mode-label { font-size: 11px; font-weight: 600; color: #8888a0; transition: color .2s; }
+.mode-toggle .mode-label.active { color: #a594ff; }
+.mode-toggle .switch-mini { width: 28px; height: 16px; border-radius: 999px; background: rgba(255,255,255,0.10); position: relative; transition: background .2s; }
+.mode-toggle .switch-mini::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: white; transition: all .2s; }
+.mode-toggle.pro .switch-mini { background: #7c5cff; }
+.mode-toggle.pro .switch-mini::after { left: 14px; }
+
+/* Pro mode sections — hidden in beginner mode */
+.pro-only { display: none; }
+body.pro-mode .pro-only { display: block; }
+body.pro-mode .beginner-only { display: none; }
+
+/* Mission Control home */
+.mission-control { max-width: 720px; margin: 0 auto; padding: 48px 24px; }
+.mission-prompt { background: linear-gradient(180deg, rgba(22,22,36,0.6), rgba(18,18,30,0.6)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; backdrop-filter: blur(20px); transition: all .3s; }
+.mission-prompt:focus-within { border-color: rgba(124,92,255,0.4); box-shadow: 0 0 40px -8px rgba(124,92,255,0.2); }
+.mission-prompt-input { width: 100%; background: transparent; border: none; outline: none; color: #e8e8f0; font-size: 18px; font-family: inherit; resize: none; min-height: 56px; }
+.mission-prompt-input::placeholder { color: #5a5a72; }
+.mission-prompt-bar { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.04); }
+.mission-prompt-hint { font-size: 11px; color: #5a5a72; display: flex; align-items: center; gap: 6px; }
+
+/* Task cards grid */
+.task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 32px; }
+.task-card { background: linear-gradient(180deg, rgba(22,22,36,0.4), rgba(18,18,30,0.4)); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; cursor: pointer; transition: all .25s cubic-bezier(0.16,1,0.3,1); position: relative; overflow: hidden; }
+.task-card:hover { border-color: rgba(124,92,255,0.3); transform: translateY(-3px); box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5), 0 0 24px -8px rgba(124,92,255,0.15); }
+.task-card:active { transform: scale(0.98); }
+.task-card-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 12px; }
+.task-card-title { font-size: 15px; font-weight: 700; color: #e8e8f0; margin-bottom: 4px; }
+.task-card-desc { font-size: 12px; color: #8888a0; line-height: 1.4; }
+.task-card-glow { position: absolute; top: -40px; right: -40px; width: 80px; height: 80px; border-radius: 50%; opacity: 0.06; pointer-events: none; transition: opacity .3s; }
+.task-card:hover .task-card-glow { opacity: 0.12; }
+
+/* Task flow modal */
+.task-flow-modal { max-width: 560px; }
+.task-flow-step { display: none; }
+.task-flow-step.active { display: block; animation: spaPageIn .25s ease; }
+.task-flow-option { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); cursor: pointer; transition: all .15s; margin-bottom: 8px; }
+.task-flow-option:hover { background: rgba(124,92,255,0.08); border-color: rgba(124,92,255,0.2); }
+.task-flow-option.selected { background: rgba(124,92,255,0.12); border-color: rgba(124,92,255,0.3); }
+.task-flow-option-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.task-flow-option-text { flex: 1; }
+.task-flow-option-title { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+.task-flow-option-desc { font-size: 11px; color: #8888a0; }
+
+/* Auto-team creation reveal */
+.auto-team-reveal { background: linear-gradient(135deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.15); border-radius: 14px; padding: 20px; animation: spaPageIn .4s ease; }
+.auto-team-agent { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 10px; margin-bottom: 6px; animation: spaPageIn .3s ease; }
+.auto-team-agent:last-child { margin-bottom: 0; }
+
+/* Recent work (beginner mode) */
+.recent-work-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); cursor: pointer; transition: all .15s; margin-bottom: 8px; }
+.recent-work-item:hover { background: rgba(255,255,255,0.04); border-color: rgba(124,92,255,0.15); }
+.recent-work-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.recent-work-title { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+.recent-work-meta { font-size: 10px; color: #8888a0; }
+
+/* Consumer sidebar — simplified */
+body:not(.pro-mode) .sidebar-section { display: none; }
+body:not(.pro-mode) .sidebar-link.pro-only { display: none; }
+body.pro-mode .sidebar-link.beginner-only { display: none; }
 </style>
 </head>
 <body>
@@ -458,30 +524,38 @@ select.input { cursor: pointer; }
     </div>
 
     <nav class="flex-1 overflow-y-auto px-3 py-2">
-      <div class="sidebar-section" onclick="toggleSection(this)">Operate <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
+      <!-- Beginner mode: simplified nav -->
+      <div class="sidebar-link active beginner-only" data-page="dashboard"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Home</div>
+      <div class="sidebar-link beginner-only" data-page="runs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>My Work<span class="tag tag-cyan badge">3</span></div>
+      <div class="sidebar-link beginner-only" data-page="tasks"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Tasks<span class="tag tag-amber badge">2</span></div>
+      <div class="sidebar-link beginner-only" data-page="templates"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>Templates</div>
+      <div class="sidebar-link beginner-only" data-page="settings"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</div>
+
+      <!-- Pro mode: full nav (same links, renamed) -->
+      <div class="sidebar-section" onclick="toggleSection(this)">Workspace <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
       <div class="sidebar-group">
-        <div class="sidebar-link active" data-page="dashboard"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Dashboard</div>
-        <div class="sidebar-link" data-page="runs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Runs<span class="tag tag-cyan badge">3</span></div>
-        <div class="sidebar-link" data-page="graph-builder"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>Graph Builder</div>
-        <div class="sidebar-link" data-page="agents"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Agents<span class="tag tag-gray badge">47</span></div>
-        <div class="sidebar-link" data-page="loops"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Loops<span class="tag tag-amber badge">3</span></div>
-        <div class="sidebar-link" data-page="tasks"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Task Board<span class="tag tag-amber badge">2</span></div>
+        <div class="sidebar-link active pro-only" data-page="dashboard"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Dashboard</div>
+        <div class="sidebar-link pro-only" data-page="runs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Runs<span class="tag tag-cyan badge">3</span></div>
+        <div class="sidebar-link pro-only" data-page="graph-builder"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>Workflow Builder</div>
+        <div class="sidebar-link pro-only" data-page="agents"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>AI Team<span class="tag tag-gray badge">47</span></div>
+        <div class="sidebar-link pro-only" data-page="loops"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Review Until Complete<span class="tag tag-amber badge">3</span></div>
+        <div class="sidebar-link pro-only" data-page="tasks"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Task Board<span class="tag tag-amber badge">2</span></div>
       </div>
 
       <div class="sidebar-section" onclick="toggleSection(this)">Data <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
       <div class="sidebar-group">
-        <div class="sidebar-link" data-page="memory"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 4 3 8 3s8-1 8-3V7M4 7c0 2 4 3 8 3s8-1 8-3M4 7c0-2 4-3 8-3s8 1 8 3"/></svg>Memory</div>
-        <div class="sidebar-link" data-page="templates"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>Templates</div>
-        <div class="sidebar-link" data-page="costs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>Costs</div>
-        <div class="sidebar-link" data-page="audit"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Audit Log</div>
+        <div class="sidebar-link pro-only" data-page="memory"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 4 3 8 3s8-1 8-3V7M4 7c0 2 4 3 8 3s8-1 8-3M4 7c0-2 4-3 8-3s8 1 8 3"/></svg>Knowledge</div>
+        <div class="sidebar-link pro-only" data-page="templates"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>Templates</div>
+        <div class="sidebar-link pro-only" data-page="costs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>Costs</div>
+        <div class="sidebar-link pro-only" data-page="audit"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Activity History</div>
       </div>
 
-      <div class="sidebar-section" onclick="toggleSection(this)">Configure <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
+      <div class="sidebar-section" onclick="toggleSection(this)">Advanced <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
       <div class="sidebar-group">
-        <div class="sidebar-link" data-page="command"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Command Center</div>
-        <div class="sidebar-link" data-page="routing"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Model Routing</div>
-        <div class="sidebar-link" data-page="marketplace"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Marketplace</div>
-        <div class="sidebar-link" data-page="settings"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</div>
+        <div class="sidebar-link pro-only" data-page="command"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Workspace Overview</div>
+        <div class="sidebar-link pro-only" data-page="routing"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>AI Performance</div>
+        <div class="sidebar-link pro-only" data-page="marketplace"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Templates</div>
+        <div class="sidebar-link pro-only" data-page="settings"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</div>
       </div>
     </nav>
 
@@ -523,6 +597,12 @@ select.input { cursor: pointer; }
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- Beginner / Pro mode toggle -->
+        <div class="mode-toggle" id="mode-toggle" onclick="toggleMode()">
+          <span class="mode-label active" id="mode-beginner">Simple</span>
+          <div class="switch-mini"></div>
+          <span class="mode-label" id="mode-pro">Pro</span>
+        </div>
         <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-brand-cyan/10 border border-brand-cyan/20">
           <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
           <span class="text-[10px] font-semibold text-brand-cyan">3 RUNS LIVE</span>
@@ -552,10 +632,114 @@ select.input { cursor: pointer; }
     <main class="flex-1 overflow-y-auto" id="main-scroll">
 
 <!-- ============================================================ -->
-<!-- PAGE 01: DASHBOARD                                            -->
+<!-- PAGE 01: MISSION CONTROL (formerly Dashboard)                  -->
 <!-- ============================================================ -->
 <section class="page active" id="page-dashboard">
-  <div class="p-5 space-y-5">
+  <!-- Beginner Mode: Mission Control -->
+  <div class="beginner-only">
+    <div class="mission-control">
+      <h1 class="text-3xl font-black text-white mb-2">What do you want to do today?</h1>
+      <p class="text-sm text-fg-500 mb-8">Describe your goal — Maestro builds the team, chooses the models, and gets it done.</p>
+
+      <!-- Big prompt box -->
+      <div class="mission-prompt">
+        <textarea class="mission-prompt-input" placeholder="Research Nvidia's Q3 earnings, build a landing page, write a blog post about AI agents..." rows="3" id="mission-input"></textarea>
+        <div class="mission-prompt-bar">
+          <div class="mission-prompt-hint">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+            <span>Or use voice — say "research", "build", "write"</span>
+          </div>
+          <button class="btn btn-primary" onclick="startTaskFlow()">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>
+            Start
+          </button>
+        </div>
+      </div>
+
+      <!-- Task cards -->
+      <div class="task-grid">
+        <div class="task-card" onclick="openTaskFlow('build')">
+          <div class="task-card-glow" style="background: #7c5cff;"></div>
+          <div class="task-card-icon" style="background: rgba(124,92,255,0.12);">🚀</div>
+          <div class="task-card-title">Build an App</div>
+          <div class="task-card-desc">Full-stack web app from spec to deployment</div>
+        </div>
+        <div class="task-card" onclick="openTaskFlow('research')">
+          <div class="task-card-glow" style="background: #5cc8ff;"></div>
+          <div class="task-card-icon" style="background: rgba(92,200,255,0.12);">📄</div>
+          <div class="task-card-title">Research Something</div>
+          <div class="task-card-desc">Deep research with cited sources and analysis</div>
+        </div>
+        <div class="task-card" onclick="openTaskFlow('content')">
+          <div class="task-card-glow" style="background: #00d4aa;"></div>
+          <div class="task-card-icon" style="background: rgba(0,212,170,0.12);">🎬</div>
+          <div class="task-card-title">Create Content</div>
+          <div class="task-card-desc">Blog posts, docs, marketing copy with fact-checking</div>
+        </div>
+        <div class="task-card" onclick="openTaskFlow('code')">
+          <div class="task-card-glow" style="background: #ffb84d;"></div>
+          <div class="task-card-icon" style="background: rgba(255,184,77,0.12);">💻</div>
+          <div class="task-card-title">Write Code</div>
+          <div class="task-card-desc">APIs, components, tests, refactors with review</div>
+        </div>
+        <div class="task-card" onclick="openTaskFlow('analyze')">
+          <div class="task-card-glow" style="background: #ff5577;"></div>
+          <div class="task-card-icon" style="background: rgba(255,85,119,0.12);">📊</div>
+          <div class="task-card-title">Analyze Data</div>
+          <div class="task-card-desc">CSV/DB analysis with visualizations and insights</div>
+        </div>
+        <div class="task-card" onclick="openTaskFlow('automate')">
+          <div class="task-card-glow" style="background: #7c5cff;"></div>
+          <div class="task-card-icon" style="background: rgba(124,92,255,0.12);">🤖</div>
+          <div class="task-card-title">Automate a Workflow</div>
+          <div class="task-card-desc">Recurring tasks, monitoring, incident response</div>
+        </div>
+        <div class="task-card" onclick="openTaskFlow('team')">
+          <div class="task-card-glow" style="background: #5cc8ff;"></div>
+          <div class="task-card-icon" style="background: rgba(92,200,255,0.12);">🧠</div>
+          <div class="task-card-title">Design an AI Team</div>
+          <div class="task-card-desc">Custom agent team for your specific domain</div>
+        </div>
+        <div class="task-card" onclick="toggleMode(); navTo('dashboard');" style="border-style: dashed; opacity: 0.6;">
+          <div class="task-card-icon" style="background: rgba(255,255,255,0.04);">⚙️</div>
+          <div class="task-card-title">Advanced Mode</div>
+          <div class="task-card-desc">Full control — routing, hierarchy, memory, audit</div>
+        </div>
+      </div>
+
+      <!-- Recent work -->
+      <div class="mt-8">
+        <h3 class="text-sm font-bold text-fg-300 mb-3">Recent Work</h3>
+        <div class="recent-work-item" onclick="navTo('run-detail')">
+          <div class="recent-work-icon" style="background: rgba(124,92,255,0.12);">🚀</div>
+          <div class="flex-1">
+            <div class="recent-work-title">Build SaaS MVP</div>
+            <div class="recent-work-meta">3 agents working · $0.0421 · 2m ago</div>
+          </div>
+          <span class="tag tag-amber">Review needed</span>
+        </div>
+        <div class="recent-work-item" onclick="navTo('runs')">
+          <div class="recent-work-icon" style="background: rgba(92,200,255,0.12);">📄</div>
+          <div class="flex-1">
+            <div class="recent-work-title">Research agent frameworks</div>
+            <div class="recent-work-meta">4 agents · $0.0118 · 5m ago</div>
+          </div>
+          <span class="tag tag-cyan">Running</span>
+        </div>
+        <div class="recent-work-item" onclick="navTo('runs')">
+          <div class="recent-work-icon" style="background: rgba(0,212,170,0.12);">📊</div>
+          <div class="flex-1">
+            <div class="recent-work-title">Q3 churn analysis</div>
+            <div class="recent-work-meta">5 agents · $0.0344 · 1h ago</div>
+          </div>
+          <span class="tag tag-sky">Completed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pro Mode: Original Dashboard (preserved) -->
+  <div class="pro-only p-5 space-y-5">
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div>
         <div class="page-label mb-1">Page 01 · Dashboard</div>
@@ -749,11 +933,8 @@ select.input { cursor: pointer; }
         </div>
       </div>
     </div>
-  </div>
+  </div><!-- /pro-only -->
 </section>
-
-<!-- ============================================================ -->
-<!-- PAGE 02: RUNS                                                 -->
 <!-- ============================================================ -->
 <section class="page" id="page-runs">
   <div class="p-5 space-y-4">
@@ -3289,6 +3470,45 @@ select.input { cursor: pointer; }
   </div>
 </div>
 
+<!-- ============ TASK FLOW MODAL ============ -->
+<div class="modal-bg" id="taskFlowModal">
+  <div class="modal task-flow-modal">
+    <div class="modal-header">
+      <div><div class="font-bold text-base" id="task-flow-title">Let's get started</div><div class="text-xs text-fg-500" id="task-flow-subtitle">Tell me what you need</div></div>
+      <button class="btn btn-icon btn-ghost" onclick="toggleModal('taskFlowModal')"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <!-- Step 1: Goal -->
+      <div class="task-flow-step active" id="tf-step-goal">
+        <label class="text-[10px] text-fg-500 uppercase tracking-wider font-semibold mb-1 block">What would you like to accomplish?</label>
+        <textarea class="input mb-4" rows="3" placeholder="Describe your goal in plain English..." id="tf-goal-input"></textarea>
+        <div class="flex justify-end gap-2">
+          <button class="btn btn-primary" onclick="nextTaskFlowStep('team')">Next →</button>
+        </div>
+      </div>
+      <!-- Step 2: Auto-team creation -->
+      <div class="task-flow-step" id="tf-step-team">
+        <div class="auto-team-reveal mb-4">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-2 h-2 rounded-full bg-brand-cyan pulse-dot"></span>
+            <span class="text-[11px] font-semibold text-brand-cyan">AI is designing your team...</span>
+          </div>
+          <div class="text-sm text-fg-300 mb-3" id="tf-team-description">Based on your goal, I've created the perfect team:</div>
+          <div id="tf-team-list"></div>
+        </div>
+        <div class="text-[11px] text-fg-500 mb-3">Maestro automatically chose the models, routing, and review loops. You can adjust these in Advanced Mode later.</div>
+        <div class="flex justify-between">
+          <button class="btn btn-ghost" onclick="prevTaskFlowStep('goal')">← Back</button>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost" onclick="toggleModal('taskFlowModal'); navTo('run-detail');">Edit team</button>
+            <button class="btn btn-primary" onclick="toggleModal('taskFlowModal'); navTo('run-detail');">Start work →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============ CONTEXT MENU ============ -->
 <div class="ctx-menu" id="ctx-menu">
   <div class="ctx-menu-item" onclick="toggleModal('spawnModal'); hideCtxMenu();">
@@ -4306,6 +4526,138 @@ function showSavingsPop(text, x, y) {
 }
 
 // ===== PARTICLES ARE CALLED DIRECTLY FROM simulateSpawn =====
+
+// ===== BEGINNER / PRO MODE TOGGLE =====
+function toggleMode() {
+  const body = document.body;
+  const toggle = document.getElementById('mode-toggle');
+  const beginnerLabel = document.getElementById('mode-beginner');
+  const proLabel = document.getElementById('mode-pro');
+
+  body.classList.toggle('pro-mode');
+  if (body.classList.contains('pro-mode')) {
+    toggle.classList.add('pro');
+    beginnerLabel.classList.remove('active');
+    proLabel.classList.add('active');
+  } else {
+    toggle.classList.remove('pro');
+    beginnerLabel.classList.add('active');
+    proLabel.classList.remove('active');
+  }
+}
+
+// ===== TASK FLOW (consumer onboarding) =====
+const taskFlowConfig = {
+  'build': { title: 'Build an App', subtitle: 'From spec to deployment', team: [
+    { icon: '📐', name: 'Architect', role: 'Designs the system', model: 'Claude' },
+    { icon: '🎨', name: 'Frontend Dev', role: 'Builds the UI', model: 'GPT-4o-mini' },
+    { icon: '⚙️', name: 'Backend Dev', role: 'Builds the API', model: 'GPT-4o-mini' },
+    { icon: '🧪', name: 'QA Tester', role: 'Writes tests', model: 'GPT-4o-mini' },
+    { icon: '🔍', name: 'Reviewer', role: 'Reviews everything', model: 'Claude' },
+  ]},
+  'research': { title: 'Research Something', subtitle: 'Deep research with sources', team: [
+    { icon: '🔬', name: 'Researcher 1', role: 'Gathers sources', model: 'Claude' },
+    { icon: '🔬', name: 'Researcher 2', role: 'Analyzes data', model: 'Claude' },
+    { icon: '🤝', name: 'Synthesizer', role: 'Combines findings', model: 'Claude' },
+    { icon: '🔍', name: 'Fact Checker', role: 'Verifies claims', model: 'GPT-4o-mini' },
+  ]},
+  'content': { title: 'Create Content', subtitle: 'Blog posts, docs, copy', team: [
+    { icon: '✍️', name: 'Writer', role: 'Drafts content', model: 'Claude' },
+    { icon: '📝', name: 'Editor', role: 'Refines and polishes', model: 'Claude' },
+    { icon: '🔍', name: 'Fact Checker', role: 'Verifies facts', model: 'GPT-4o-mini' },
+  ]},
+  'code': { title: 'Write Code', subtitle: 'APIs, components, tests', team: [
+    { icon: '💻', name: 'Coder', role: 'Writes the code', model: 'GPT-4o-mini' },
+    { icon: '🧪', name: 'Tester', role: 'Writes tests', model: 'GPT-4o-mini' },
+    { icon: '🔍', name: 'Reviewer', role: 'Reviews code', model: 'Claude' },
+  ]},
+  'analyze': { title: 'Analyze Data', subtitle: 'CSV/DB with visualizations', team: [
+    { icon: '📊', name: 'Analyst', role: 'Analyzes data', model: 'Claude' },
+    { icon: '📈', name: 'Visualizer', role: 'Creates charts', model: 'GPT-4o-mini' },
+    { icon: '🔍', name: 'Verifier', role: 'Checks conclusions', model: 'GPT-4o-mini' },
+  ]},
+  'automate': { title: 'Automate a Workflow', subtitle: 'Recurring tasks, monitoring', team: [
+    { icon: '🤖', name: 'Monitor', role: 'Watches for triggers', model: 'GPT-4o-mini' },
+    { icon: '⚡', name: 'Responder', role: 'Takes action', model: 'Claude' },
+    { icon: '📊', name: 'Reporter', role: 'Summarizes results', model: 'GPT-4o-mini' },
+  ]},
+  'team': { title: 'Design an AI Team', subtitle: 'Custom team for your domain', team: [
+    { icon: '🧠', name: 'Architect', role: 'Designs your team', model: 'Claude' },
+  ]},
+};
+
+function startTaskFlow() {
+  const input = document.getElementById('mission-input');
+  const goal = input ? input.value.trim() : '';
+  if (goal) {
+    openTaskFlow('build', goal);
+  } else {
+    openTaskFlow('build');
+  }
+}
+
+function openTaskFlow(type, presetGoal) {
+  const config = taskFlowConfig[type] || taskFlowConfig['build'];
+  document.getElementById('task-flow-title').textContent = config.title;
+  document.getElementById('task-flow-subtitle').textContent = config.subtitle;
+  if (presetGoal) {
+    const goalInput = document.getElementById('tf-goal-input');
+    if (goalInput) goalInput.value = presetGoal;
+  }
+  // Reset to step 1
+  document.querySelectorAll('.task-flow-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('tf-step-goal').classList.add('active');
+  toggleModal('taskFlowModal');
+}
+
+function nextTaskFlowStep(step) {
+  document.querySelectorAll('.task-flow-step').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById('tf-step-' + step);
+  if (target) target.classList.add('active');
+
+  // If going to team step, auto-generate the team
+  if (step === 'team') {
+    autoGenerateTeam();
+  }
+}
+
+function prevTaskFlowStep(step) {
+  document.querySelectorAll('.task-flow-step').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById('tf-step-' + step);
+  if (target) target.classList.add('active');
+}
+
+function autoGenerateTeam() {
+  const goal = (document.getElementById('tf-goal-input') || {}).value || 'your task';
+  // Detect task type from goal text
+  let type = 'build';
+  const lower = goal.toLowerCase();
+  if (lower.includes('research') || lower.includes('analyz') || lower.includes('investigat')) type = 'research';
+  else if (lower.includes('write') || lower.includes('blog') || lower.includes('content') || lower.includes('article')) type = 'content';
+  else if (lower.includes('code') || lower.includes('api') || lower.includes('component') || lower.includes('function')) type = 'code';
+  else if (lower.includes('data') || lower.includes('csv') || lower.includes('chart') || lower.includes('visuali')) type = 'analyze';
+  else if (lower.includes('automat') || lower.includes('monitor') || lower.includes('schedule')) type = 'automate';
+
+  const config = taskFlowConfig[type];
+  const desc = document.getElementById('tf-team-description');
+  if (desc) desc.textContent = 'Based on "' + goal.substring(0, 60) + (goal.length > 60 ? '...' : '') + '", I\'ve created the perfect team:';
+
+  const list = document.getElementById('tf-team-list');
+  if (list) {
+    list.textContent = '';
+    config.team.forEach((agent, i) => {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'auto-team-agent';
+        el.innerHTML = '<div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center text-sm">' + agent.icon + '</div>' +
+          '<div class="flex-1"><div class="text-[12px] font-semibold text-fg-100">' + agent.name + '</div>' +
+          '<div class="text-[10px] text-fg-500">' + agent.role + ' · ' + agent.model + '</div></div>' +
+          '<span class="tag tag-cyan">ready</span>';
+        list.appendChild(el);
+      }, i * 300);
+    });
+  }
+}
 </script>
 
 </body>
