@@ -29,6 +29,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { updatePatternFromLearning } from './patterns.js';
 import { checkForPolicyPromotion } from './policies.js';
+import { createControlForPolicy } from './governance.js';
 
 // In-memory store. Persisted to disk as JSONL.
 const STORE_PATH = path.resolve('./learning-objects.jsonl');
@@ -131,6 +132,22 @@ export async function recordOutcome(runId, outcome, notes = '') {
         const promotedPolicies = await checkForPolicyPromotion(pattern);
         if (promotedPolicies.length > 0) {
           console.log(`[policies] ${promotedPolicies.length} policy(ies) created/reinforced from pattern "${pattern.goalClass}"`);
+
+          // GOVERNANCE: create governance controls for any new mandatory
+          // or constitutional policies. This makes them EXECUTABLE —
+          // the planner will refuse to violate them.
+          for (const policy of promotedPolicies) {
+            if (policy.enforcement === 'mandatory' || policy.enforcement === 'constitutional') {
+              if (!policy._controlCreated) {
+                try {
+                  await createControlForPolicy(policy);
+                  policy._controlCreated = true;
+                } catch (err) {
+                  console.warn(`[governance] failed to create control for policy: ${err.message}`);
+                }
+              }
+            }
+          }
         }
       } catch (err) {
         console.warn(`[patterns] failed to update pattern: ${err.message}`);

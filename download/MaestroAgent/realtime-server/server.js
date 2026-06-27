@@ -35,6 +35,8 @@ import { recordOutcome, getStats as getLearningStats } from './src/learning.js';
 import { getPatternStats } from './src/patterns.js';
 import { getCurrentScope, setCurrentScope, getScopeHierarchy, formatScopeContext } from './src/scope.js';
 import { getPolicyStats, listPolicies } from './src/policies.js';
+import { getGovernanceStats, listControls, createControlForPolicy } from './src/governance.js';
+import { getReceiptByRunId, getReceipt, listReceipts, getReceiptStats, verifyReceipt } from './src/receipts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -190,6 +192,60 @@ app.get('/api/policies/stats', (req, res) => {
 
 app.get('/api/policies', (req, res) => {
   res.json(listPolicies());
+});
+
+// === GOVERNANCE CONTROLS API ===
+app.get('/api/governance/stats', (req, res) => {
+  res.json(getGovernanceStats());
+});
+
+app.get('/api/governance/controls', (req, res) => {
+  res.json(listControls());
+});
+
+// Create governance controls for all mandatory/constitutional policies
+// that don't have one yet. This is the "make policies executable" endpoint.
+app.post('/api/governance/seed', async (req, res) => {
+  const policies = listPolicies();
+  const created = [];
+  for (const p of policies) {
+    if (p.enforcement === 'mandatory' || p.enforcement === 'constitutional') {
+      try {
+        const control = await createControlForPolicy(p);
+        created.push({ policyRule: p.rule, enforcement: p.enforcement, controlId: control.id });
+      } catch (err) {
+        // Control may already exist — that's fine.
+      }
+    }
+  }
+  res.json({ ok: true, created: created.length, controls: created });
+});
+
+// === EXECUTION RECEIPTS API (the audit trail) ===
+app.get('/api/receipts', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  res.json(listReceipts(limit));
+});
+
+app.get('/api/receipts/stats', (req, res) => {
+  res.json(getReceiptStats());
+});
+
+app.get('/api/runs/:id/receipt', (req, res) => {
+  const receipt = getReceiptByRunId(req.params.id);
+  if (!receipt) return res.status(404).json({ error: 'receipt not found for this run' });
+  res.json(receipt);
+});
+
+app.get('/api/receipts/:receiptId', (req, res) => {
+  const receipt = getReceipt(req.params.receiptId);
+  if (!receipt) return res.status(404).json({ error: 'receipt not found' });
+  res.json(receipt);
+});
+
+app.get('/api/receipts/:receiptId/verify', (req, res) => {
+  const result = verifyReceipt(req.params.receiptId);
+  res.json(result);
 });
 
 // === SCOPE API (hierarchical execution context) ===

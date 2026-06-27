@@ -51,11 +51,20 @@ import {
   validatePlan,
   initPolicyStore,
 } from './policies.js';
+import {
+  retrieveControls,
+  validatePlanAgainstGovernance,
+  createControlForPolicy,
+  initGovernanceStore,
+} from './governance.js';
+import { createReceipt, initReceiptStore } from './receipts.js';
 
 // Initialize stores on module load.
 initLearningStore().catch(err => console.warn('[engine] learning store init failed:', err.message));
 initPatternStore().catch(err => console.warn('[engine] pattern store init failed:', err.message));
 initPolicyStore().catch(err => console.warn('[engine] policy store init failed:', err.message));
+initGovernanceStore().catch(err => console.warn('[engine] governance store init failed:', err.message));
+initReceiptStore().catch(err => console.warn('[engine] receipt store init failed:', err.message));
 
 // In-memory run registry. Keyed by run_id.
 export const runs = new Map();
@@ -227,14 +236,15 @@ export async function runGoal(runId, goal) {
   });
 
   try {
-    // === PHASE 0: Retrieve execution patterns + policies + past learning ===
+    // === PHASE 0: Retrieve execution patterns + policies + governance + past learning ===
     // The planner searches PROVEN EXECUTION PATTERNS (hierarchical),
-    // validates against OPERATING POLICIES (the governance layer),
+    // validates against OPERATING POLICIES + GOVERNANCE CONTROLS,
     // and references past learning objects.
     const patternsArr = retrievePattern(goal);
     const patternContext = formatPatternContext(patternsArr);
     const applicablePolicies = retrievePolicies();
     const policyContext = formatPolicyContext(applicablePolicies);
+    const governanceControls = retrieveControls();
     const similar = retrieveSimilar(goal, 3);
     const pastContext = formatRetrievedContext(similar);
 
@@ -270,6 +280,22 @@ export async function runGoal(runId, goal) {
         })),
       });
     }
+    if (governanceControls.length > 0) {
+      const blocking = governanceControls.filter(c => c.blockExecution).length;
+      await emit(run, 'governance.retrieved', {
+        total: governanceControls.length,
+        blocking,
+        approvalRequired: governanceControls.filter(c => c.approvalRequired).length,
+        controls: governanceControls.map(c => ({
+          rule: c.policyRule,
+          scopeLevel: c.scopeLevel,
+          enforcement: c.enforcement,
+          blockExecution: c.blockExecution,
+          reviewer: c.reviewer,
+          evidenceRequired: c.evidenceRequired,
+        })),
+      });
+    }
     if (similar.length > 0) {
       await emit(run, 'learning.retrieved', {
         count: similar.length,
@@ -281,17 +307,32 @@ export async function runGoal(runId, goal) {
     // Combine all context for the conductor.
     const fullPastContext = [policyContext, patternContext, pastContext].filter(Boolean).join('\n\n');
 
+    // Store governance controls for validation after planning.
+    run._governanceControls = governanceControls;
+    run._patternsUsed = patternsArr.map(p => ({
+      goalClass: p.goalClass,
+      scopeLevel: p.scopeLevel,
+      version: p.version,
+      projectCount: p.projectCount,
+    }));
+    run._policiesApplied = applicablePolicies.map(p => ({
+      policyId: p.id,
+      rule: p.rule,
+      enforcement: p.enforcement,
+      status: p.status,
+      scopeLevel: p.scopeLevel,
+    }));
+
     // === PHASE 1: Conductor examines the goal ===
     const topPattern = patternsArr[0];
-    const policyNote = applicablePolicies.length > 0
-      ? ` · ${applicablePolicies.length} policies (${applicablePolicies.filter(p => p.status === 'constitutional').length} constitutional)`
-      : '';
+    const govNote = governanceControls.length > 0 ? ` · ${governanceControls.length} governance controls (${governanceControls.filter(c => c.blockExecution).length} blocking)` : '';
+    const policyNote = applicablePolicies.length > 0 ? ` · ${applicablePolicies.length} policies` : '';
     const phaseLabel = topPattern
-      ? `Examining the goal · ${topPattern.scopeLevel} pattern: ${topPattern.goalClass} (${topPattern.projectCount} projects)${policyNote}${patternsArr.length > 1 ? ' + ' + (patternsArr.length - 1) + ' more levels' : ''}`
+      ? `Examining the goal · ${topPattern.scopeLevel} pattern: ${topPattern.goalClass} (${topPattern.projectCount} projects)${policyNote}${govNote}${patternsArr.length > 1 ? ' + ' + (patternsArr.length - 1) + ' more' : ''}`
       : similar.length > 0
-        ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced${policyNote}`
-        : applicablePolicies.length > 0
-          ? `Examining the goal · ${applicablePolicies.length} policies active${policyNote}`
+        ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced${policyNote}${govNote}`
+        : applicablePolicies.length > 0 || governanceControls.length > 0
+          ? `Examining the goal · ${policyNote.slice(3)}${govNote}`
           : 'Examining the goal';
     await emit(run, 'conductor.phase', { phase: 'examine', label: phaseLabel });
     let conductorBuffer = '';
@@ -309,6 +350,54 @@ export async function runGoal(runId, goal) {
     }
     await emit(run, 'conductor.phase_done', { phase: 'examine' });
     await sleep(1500); // pause to avoid rate limiting
+
+    // === GOVERNANCE VALIDATION ===
+    // The conductor's examine phase produced an implicit plan (the narration).
+    // Validate that plan against governance controls.
+    // If any CONSTITUTIONAL rule is violated, BLOCK execution.
+    // This is constitutional execution — the planner refuses to violate governance.
+    if (run._governanceControls && run._governanceControls.length > 0) {
+      const planText = goal + ' ' + (conductorBuffer || ''); // simple plan proxy
+      const validation = validatePlanAgainstGovernance(planText);
+
+      if (validation.violations.length > 0) {
+        // CONSTITUTIONAL VIOLATION — block execution.
+        await emit(run, 'governance.violation', {
+          violations: validation.violations,
+          blocked: true,
+          message: 'Execution blocked: constitutional rules would be violated.',
+        });
+        run.status = 'blocked';
+        run.endedAt = new Date().toISOString();
+        run.error = 'Execution blocked by governance controls: ' + validation.violations.map(v => v.control).join('; ');
+        await emit(run, 'run.failed', {
+          error: run.error,
+          reason: 'governance_violation',
+          violations: validation.violations,
+        });
+        // Still generate a receipt for audit purposes.
+        await generateReceipt(run, validation);
+        return;
+      }
+
+      if (validation.warnings.length > 0) {
+        await emit(run, 'governance.warning', {
+          warnings: validation.warnings,
+          message: 'Mandatory policies not addressed — proceeding with warnings.',
+        });
+      }
+
+      await emit(run, 'governance.validated', {
+        allowed: validation.allowed,
+        controlCount: validation.controlCount,
+        evidenceRequired: validation.evidenceRequired,
+        approvalsRequired: validation.approvalsRequired,
+        message: `Plan validated against ${validation.controlCount} governance controls.`,
+      });
+
+      // Store validation results for the receipt.
+      run._governanceValidation = validation;
+    }
 
     // === PHASE 2: Conductor assembles the team ===
     await emit(run, 'conductor.phase', { phase: 'assemble', label: 'Assembling the team' });
@@ -591,12 +680,91 @@ export async function runGoal(runId, goal) {
       // Learning failure must NOT fail the run — the deliverable is already done.
       console.warn(`[learning] failed to extract lessons for run ${run.id}:`, learnErr.message);
     }
+
+    // === PHASE 8: Generate Execution Receipt ===
+    // Every execution produces an immutable receipt — the audit trail.
+    // This is what enterprises pay millions for: governance + auditability.
+    try {
+      await generateReceipt(run, run._governanceValidation);
+    } catch (receiptErr) {
+      console.warn(`[receipts] failed to generate receipt for run ${run.id}:`, receiptErr.message);
+    }
   } catch (err) {
     run.status = 'failed';
     run.endedAt = new Date().toISOString();
     run.error = err.message;
     await emit(run, 'run.failed', { error: err.message, stack: err.stack });
   }
+}
+
+// Generate an Execution Receipt for a run.
+// This is the audit trail — it records WHAT was done, WHY, under which
+// policies, with what evidence, and whether governance was satisfied.
+async function generateReceipt(run, governanceValidation) {
+  const evidence = [];
+  const approvals = [];
+
+  // Collect evidence from governance validation.
+  if (governanceValidation?.evidenceRequired) {
+    for (const req of governanceValidation.evidenceRequired) {
+      evidence.push({
+        type: 'policy_evidence',
+        description: req.evidence,
+        control: req.control,
+        scope: req.scope,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Collect approvals.
+  if (governanceValidation?.approvalsRequired) {
+    for (const appr of governanceValidation.approvalsRequired) {
+      approvals.push({
+        required: true,
+        granted: false, // In production, this would be a real approval flow
+        reviewer: appr.reviewer,
+        control: appr.control,
+        scope: appr.scope,
+        timestamp: null,
+      });
+    }
+  }
+
+  // Collect evidence from artifacts (each artifact is evidence of work done).
+  for (const artifact of run.artifacts || []) {
+    evidence.push({
+      type: 'deliverable',
+      description: artifact.agent_name + ' produced ' + artifact.filename,
+      artifact: artifact.filename,
+      bytes: artifact.bytes,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  const receipt = await createReceipt(run, {
+    policiesApplied: run._policiesApplied || [],
+    patternsUsed: run._patternsUsed || [],
+    evidence,
+    approvals,
+    exceptions: governanceValidation?.violations?.map(v => ({
+      policyId: v.control,
+      reason: v.severity,
+      approvedBy: null,
+    })) || [],
+  });
+
+  await emit(run, 'receipt.created', {
+    receiptId: receipt.receiptId,
+    receiptHash: receipt.receiptHash,
+    policyCount: receipt.policiesApplied.length,
+    patternCount: receipt.patternsUsed.length,
+    evidenceCount: receipt.evidence.length,
+    approvalCount: receipt.approvals.length,
+    message: 'Execution receipt generated — audit trail available.',
+  });
+
+  return receipt;
 }
 
 function buildFinalDeliverable(run, goal, context, confidences, disagreements) {
