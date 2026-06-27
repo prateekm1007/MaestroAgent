@@ -44,6 +44,7 @@ import {
   retrievePattern,
   formatPatternContext,
   initPatternStore,
+  classifyGoal,
 } from './patterns.js';
 import {
   retrievePolicies,
@@ -58,6 +59,7 @@ import {
   initGovernanceStore,
 } from './governance.js';
 import { createReceipt, initReceiptStore } from './receipts.js';
+import { extractEvidenceFromReceipt, createCase, retrievePrecedents, formatPrecedentContext, initEvidenceStore } from './evidence.js';
 
 // Initialize stores on module load.
 initLearningStore().catch(err => console.warn('[engine] learning store init failed:', err.message));
@@ -65,6 +67,7 @@ initPatternStore().catch(err => console.warn('[engine] pattern store init failed
 initPolicyStore().catch(err => console.warn('[engine] policy store init failed:', err.message));
 initGovernanceStore().catch(err => console.warn('[engine] governance store init failed:', err.message));
 initReceiptStore().catch(err => console.warn('[engine] receipt store init failed:', err.message));
+initEvidenceStore().catch(err => console.warn('[engine] evidence store init failed:', err.message));
 
 // In-memory run registry. Keyed by run_id.
 export const runs = new Map();
@@ -305,7 +308,23 @@ export async function runGoal(runId, goal) {
     }
 
     // Combine all context for the conductor.
-    const fullPastContext = [policyContext, patternContext, pastContext].filter(Boolean).join('\n\n');
+    const goalClass = classifyGoal(goal);
+    const precedentsArr = retrievePrecedents(goal, goalClass);
+    const precedentContext = formatPrecedentContext(precedentsArr);
+    const fullPastContext = [policyContext, precedentContext, patternContext, pastContext].filter(Boolean).join('\n\n');
+
+    if (precedentsArr.length > 0) {
+      await emit(run, 'precedents.retrieved', {
+        count: precedentsArr.length,
+        precedents: precedentsArr.map(p => ({
+          goalClass: p.goalClass,
+          scopeLevel: p.scopeLevel,
+          caseCount: p.caseCount,
+          successRate: p.successRate,
+          typicalEvidence: p.typicalEvidence,
+        })),
+      });
+    }
 
     // Store governance controls for validation after planning.
     run._governanceControls = governanceControls;
@@ -763,6 +782,23 @@ async function generateReceipt(run, governanceValidation) {
     approvalCount: receipt.approvals.length,
     message: 'Execution receipt generated — audit trail available.',
   });
+
+  // Extract evidence from the receipt and create a Case.
+  // This is what makes governance ACTIVE — future runs will reason
+  // about this case as a precedent.
+  try {
+    const evidenceItems = await extractEvidenceFromReceipt(receipt);
+    const caseObj = await createCase(receipt, evidenceItems);
+    await emit(run, 'evidence.extracted', {
+      evidenceCount: evidenceItems.length,
+      caseId: caseObj.id,
+      caseOutcome: caseObj.outcome,
+      message: `Evidence extracted — ${evidenceItems.length} items. Case created for precedent reasoning.`,
+    });
+    console.log(`[evidence] ${evidenceItems.length} evidence items + case ${caseObj.id.slice(0, 8)} created for run ${run.id.slice(0, 8)}`);
+  } catch (evErr) {
+    console.warn(`[evidence] failed to extract evidence: ${evErr.message}`);
+  }
 
   return receipt;
 }

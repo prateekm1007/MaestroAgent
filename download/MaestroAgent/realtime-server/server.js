@@ -37,6 +37,7 @@ import { getCurrentScope, setCurrentScope, getScopeHierarchy, formatScopeContext
 import { getPolicyStats, listPolicies } from './src/policies.js';
 import { getGovernanceStats, listControls, createControlForPolicy } from './src/governance.js';
 import { getReceiptByRunId, getReceipt, listReceipts, getReceiptStats, verifyReceipt } from './src/receipts.js';
+import { getEvidenceStats, listEvidence, listCases, listPrecedents } from './src/evidence.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -246,6 +247,25 @@ app.get('/api/receipts/:receiptId', (req, res) => {
 app.get('/api/receipts/:receiptId/verify', (req, res) => {
   const result = verifyReceipt(req.params.receiptId);
   res.json(result);
+});
+
+// === EVIDENCE, CASES & PRECEDENTS API (active governance) ===
+app.get('/api/evidence/stats', (req, res) => {
+  res.json(getEvidenceStats());
+});
+
+app.get('/api/evidence', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  res.json(listEvidence(limit));
+});
+
+app.get('/api/cases', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  res.json(listCases(limit));
+});
+
+app.get('/api/precedents', (req, res) => {
+  res.json(listPrecedents());
 });
 
 // === SCOPE API (hierarchical execution context) ===
