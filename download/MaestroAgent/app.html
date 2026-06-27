@@ -497,6 +497,46 @@ body.pro-mode .beginner-only { display: none; }
 body:not(.pro-mode) .sidebar-section { display: none; }
 body:not(.pro-mode) .sidebar-link.pro-only { display: none; }
 body.pro-mode .sidebar-link.beginner-only { display: none; }
+
+/* ===== PHASE 3: CONVERSATIONAL WORKSPACE ===== */
+
+/* Work stream — replaces modal, work happens in-page */
+.work-stream { max-width: 720px; margin: 0 auto; padding: 24px; display: none; }
+.work-stream.active { display: block; animation: spaPageIn .3s ease; }
+
+/* Maestro's message bubble */
+.maestro-msg { background: linear-gradient(180deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.12); border-radius: 16px; padding: 16px 20px; margin-bottom: 16px; animation: spaPageIn .3s ease; }
+.maestro-msg-avatar { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: white; margin-right: 8px; vertical-align: middle; }
+.maestro-msg-text { font-size: 14px; color: #e8e8f0; line-height: 1.6; display: inline; }
+
+/* User's message */
+.user-msg { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px 16px 4px 16px; padding: 14px 18px; margin-bottom: 16px; margin-left: 48px; animation: spaPageIn .25s ease; }
+.user-msg-text { font-size: 14px; color: #c8c8d8; }
+
+/* Specialist joining — feels alive */
+.specialist-join { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(0,212,170,0.04); border: 1px solid rgba(0,212,170,0.10); border-radius: 10px; margin-bottom: 6px; animation: spaPageIn .3s ease; }
+.specialist-join-avatar { width: 28px; height: 28px; border-radius: 8px; background: rgba(124,92,255,0.12); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.specialist-join-name { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+.specialist-join-role { font-size: 11px; color: #8888a0; }
+.specialist-join-badge { margin-left: auto; font-size: 10px; color: #00d4aa; font-weight: 600; }
+
+/* Progress shimmer */
+.work-progress { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+.work-progress-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+.work-progress-fill { height: 100%; background: linear-gradient(90deg, #7c5cff, #00d4aa); border-radius: 2px; width: 0%; transition: width 1s ease; }
+
+/* Typing indicator */
+.typing-dots { display: inline-flex; gap: 3px; margin-left: 4px; }
+.typing-dots span { width: 5px; height: 5px; border-radius: 50%; background: #7c5cff; animation: typingBounce 1s infinite; }
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typingBounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+/* Project-centric sidebar items */
+.project-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; font-size: 12px; color: #8888a0; cursor: pointer; transition: all .12s; }
+.project-item:hover { background: rgba(255,255,255,0.04); color: #e8e8f0; }
+.project-item-icon { width: 18px; height: 18px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+.project-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -524,12 +564,18 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
     </div>
 
     <nav class="flex-1 overflow-y-auto px-3 py-2">
-      <!-- Beginner mode: simplified nav -->
+      <!-- Beginner mode: Projects-centric nav -->
       <div class="sidebar-link active beginner-only" data-page="dashboard"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Home</div>
-      <div class="sidebar-link beginner-only" data-page="runs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>My Work<span class="tag tag-cyan badge">3</span></div>
-      <div class="sidebar-link beginner-only" data-page="tasks"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Tasks<span class="tag tag-amber badge">2</span></div>
+      <div class="sidebar-link beginner-only" data-page="runs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Projects<span class="tag tag-cyan badge">3</span></div>
       <div class="sidebar-link beginner-only" data-page="templates"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>Templates</div>
-      <div class="sidebar-link beginner-only" data-page="settings"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</div>
+      <!-- Recent projects -->
+      <div class="sidebar-section beginner-only" style="display:block; padding-top:10px;">Recent Projects</div>
+      <div class="beginner-only">
+        <div class="project-item" onclick="navTo('run-detail')"><div class="project-item-icon" style="background:rgba(124,92,255,0.12);">🚀</div><span class="project-item-name">SaaS MVP</span><span class="tag tag-amber badge">●</span></div>
+        <div class="project-item" onclick="navTo('runs')"><div class="project-item-icon" style="background:rgba(92,200,255,0.12);">📄</div><span class="project-item-name">Nvidia Research</span></div>
+        <div class="project-item" onclick="navTo('runs')"><div class="project-item-icon" style="background:rgba(0,212,170,0.12);">📊</div><span class="project-item-name">Q3 Churn Analysis</span></div>
+      </div>
+      <div class="sidebar-link beginner-only" data-page="settings" style="margin-top:auto;"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</div>
 
       <!-- Pro mode: full nav (same links, renamed) -->
       <div class="sidebar-section" onclick="toggleSection(this)">Workspace <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
@@ -711,6 +757,11 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
           Need more control? Open Studio →
         </button>
       </div>
+    </div>
+
+    <!-- Work Stream — conversation appears here when user starts -->
+    <div class="work-stream" id="work-stream">
+      <!-- Messages get dynamically inserted here -->
     </div>
   </div>
 
@@ -4574,11 +4625,144 @@ const taskFlowConfig = {
 function startTaskFlow() {
   const input = document.getElementById('mission-input');
   const goal = input ? input.value.trim() : '';
-  if (goal) {
-    openTaskFlow('build', goal);
-  } else {
-    openTaskFlow('build');
+  if (!goal) {
+    // Focus the input if empty
+    if (input) input.focus();
+    return;
   }
+
+  // Hide the mission control home, show work stream
+  const mc = document.querySelector('.mission-control');
+  const ws = document.getElementById('work-stream');
+  if (mc) mc.style.display = 'none';
+  if (ws) {
+    ws.classList.add('active');
+    ws.textContent = ''; // clear
+  }
+
+  // User's message
+  addWorkStreamMessage('user', goal);
+
+  // Maestro responds — with typing indicator
+  setTimeout(() => {
+    addMaestroMessage("I noticed you want to " + detectType(goal) + ". Let me put together the right specialists.", true);
+  }, 600);
+
+  // Detect type and get team
+  const type = detectType(goal);
+  const config = taskFlowConfig[type] || taskFlowConfig['build'];
+
+  // Progress bar
+  setTimeout(() => {
+    addWorkProgress('Assembling team...');
+  }, 1400);
+
+  // Specialists join one by one
+  config.team.forEach((agent, i) => {
+    setTimeout(() => {
+      addSpecialistJoin(agent);
+      updateWorkProgress(((i + 1) / config.team.length) * 100, 'Team assembling');
+    }, 2000 + i * 700);
+  });
+
+  // Final message + navigate
+  setTimeout(() => {
+    updateWorkProgress(100, 'Team ready');
+    addMaestroMessage("Team ready. I'll start working on this now — you can watch the progress or check back later.", false);
+  }, 2000 + config.team.length * 700 + 500);
+
+  setTimeout(() => {
+    addMaestroMessage('<a href="#" onclick="navTo(\'run-detail\'); return false;" style="color:#a594ff;text-decoration:underline;">View live progress →</a> &nbsp; or &nbsp; <a href="#" onclick="resetHome(); return false;" style="color:#8888a0;text-decoration:underline;">Start something new</a>', false);
+  }, 2000 + config.team.length * 700 + 1500);
+}
+
+function detectType(goal) {
+  const lower = goal.toLowerCase();
+  if (lower.includes('research') || lower.includes('analyz') || lower.includes('investigat')) return 'research';
+  if (lower.includes('write') || lower.includes('blog') || lower.includes('content') || lower.includes('article')) return 'content';
+  if (lower.includes('code') || lower.includes('api') || lower.includes('component') || lower.includes('function')) return 'code';
+  if (lower.includes('data') || lower.includes('csv') || lower.includes('chart') || lower.includes('visuali')) return 'analyze';
+  if (lower.includes('automat') || lower.includes('monitor') || lower.includes('schedule')) return 'automate';
+  return 'build';
+}
+
+function addWorkStreamMessage(type, text) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const el = document.createElement('div');
+  el.className = type === 'user' ? 'user-msg' : 'maestro-msg';
+  if (type === 'user') {
+    el.innerHTML = '<div class="user-msg-text"></div>';
+    el.querySelector('.user-msg-text').textContent = text;
+  } else {
+    el.innerHTML = '<span class="maestro-msg-avatar">M</span><span class="maestro-msg-text"></span>';
+    el.querySelector('.maestro-msg-text').innerHTML = text;
+  }
+  ws.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function addMaestroMessage(text, withTyping) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  if (withTyping) {
+    // Show typing indicator first
+    const typing = document.createElement('div');
+    typing.className = 'maestro-msg';
+    typing.innerHTML = '<span class="maestro-msg-avatar">M</span><span class="typing-dots"><span></span><span></span><span></span></span>';
+    ws.appendChild(typing);
+    typing.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Replace with actual message after delay
+    setTimeout(() => {
+      typing.innerHTML = '<span class="maestro-msg-avatar">M</span><span class="maestro-msg-text"></span>';
+      typing.querySelector('.maestro-msg-text').innerHTML = text;
+    }, 800);
+  } else {
+    addWorkStreamMessage('maestro', text);
+  }
+}
+
+function addWorkProgress(label) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const el = document.createElement('div');
+  el.className = 'work-progress';
+  el.id = 'work-progress-bar';
+  el.innerHTML = '<div style="font-size:12px;color:#8888a0;">' + label + '</div><div class="work-progress-bar"><div class="work-progress-fill" style="width:0%"></div></div>';
+  ws.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updateWorkProgress(percent, label) {
+  const prog = document.getElementById('work-progress-bar');
+  if (!prog) return;
+  const fill = prog.querySelector('.work-progress-fill');
+  const labelEl = prog.querySelector('div');
+  if (fill) fill.style.width = percent + '%';
+  if (labelEl && label) labelEl.textContent = label;
+}
+
+function addSpecialistJoin(agent) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const el = document.createElement('div');
+  el.className = 'specialist-join';
+  el.innerHTML = '<div class="specialist-join-avatar">' + agent.icon + '</div>' +
+    '<div><div class="specialist-join-name"></div><div class="specialist-join-role"></div></div>' +
+    '<div class="specialist-join-badge">✓ joined</div>';
+  el.querySelector('.specialist-join-name').textContent = agent.name;
+  el.querySelector('.specialist-join-role').textContent = agent.role;
+  ws.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function resetHome() {
+  const mc = document.querySelector('.mission-control');
+  const ws = document.getElementById('work-stream');
+  if (mc) mc.style.display = '';
+  if (ws) { ws.classList.remove('active'); ws.textContent = ''; }
+  const input = document.getElementById('mission-input');
+  if (input) { input.value = ''; input.focus(); }
 }
 
 function openTaskFlow(type, presetGoal) {
