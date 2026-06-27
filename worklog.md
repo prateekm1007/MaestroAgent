@@ -214,3 +214,57 @@ Stage Summary:
 - Learning persists across restarts (JSONL append-only).
 - Live URL: http://localhost:8765/
 - Demo screenshots: learning-flywheel-demo.png, learning-retrieved-demo.png
+
+---
+Task ID: execution-patterns
+Agent: main (Super Z)
+Task: Build the Execution Pattern Registry — the scalable abstraction above Learning Objects
+
+Work Log:
+- Built src/patterns.js — Execution Pattern registry:
+  * classifyGoal(goal) — groups goals into classes (Content Writing, Code Implementation, Research Brief, etc.)
+  * updatePatternFromLearning(learningObj) — called when user records feedback; aggregates the learning object into the pattern for its goal class
+  * retrievePattern(goal) — finds the pattern for a new goal's class
+  * formatPatternContext(pattern) — formats the pattern as context for the conductor
+  * Patterns aggregate: winning workflows, observed failures (with occurrence counts), successful corrections, confidence calibration, acceptance rate
+  * Persistence: append-only JSONL
+
+- Architecture change:
+  * OLD: Run → Learning Object → Retrieve projects → Planner
+  * NEW: Run → Learning Object → Pattern Extraction → Pattern Registry → Planner → Run
+  * The planner searches PROVEN EXECUTION PATTERNS, not individual projects
+  * Patterns scale: 1 pattern serves 1000 projects of the same class
+
+- Wired into engine.js Phase 0:
+  * Retrieves both pattern AND past learning objects
+  * Passes combined context to conductor examine
+  * Emits pattern.retrieved event with full pattern stats
+  * Phase label shows: "Examining the goal · pattern: Content Writing (2 projects, 100% accepted)"
+
+- Wired into learning.js recordOutcome:
+  * When user records feedback (accepted/rejected/edited), the pattern for that goal class is updated
+  * Pattern version bumps on each update
+  * Failures and corrections are deduped and occurrence-counted
+
+- Fixed goal classifier — "pair programming" was matching "program" as Code Implementation. Now requires explicit code-writing intent (write/create/build/implement + language/function/class/etc.)
+
+- Frontend:
+  * Pattern indicator card (green gradient) — shows goal class, project count, acceptance rate, avg confidence, known failures, proven corrections, pattern version
+  * Replaces the simpler "remembered from past work" indicator when a pattern exists
+  * New event handler: pattern.retrieved
+
+- Added GET /api/patterns/stats endpoint — returns all patterns with their stats
+
+Verified end-to-end:
+- Ran 2 content-writing projects, accepted both
+- Pattern "Content Writing" emerged: v2, 2 projects, 100% acceptance, 92% avg confidence, 5 known failures, 6 proven corrections
+- Ran a 3rd content-writing project ("Write a short article about the benefits of pair programming")
+- Pattern indicator appeared in UI showing all stats
+- Conductor examine label: "pattern: Content Writing (2 projects, 100% accepted)"
+- Conductor narration referenced the proven workflow and known failure modes
+
+Stage Summary:
+- Files: src/patterns.js (new), src/learning.js (updated to trigger pattern extraction), src/engine.js (Phase 0 retrieves patterns), server.js (patterns stats endpoint), app.html (pattern indicator UI)
+- The flywheel now spins at the pattern level, not just the project level
+- Demo screenshot: pattern-indicator-working.png
+- Live URL: http://localhost:8765/

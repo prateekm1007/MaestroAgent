@@ -639,6 +639,21 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 
 /* "Remembered from past work" indicator — shown when learning.retrieved fires */
 .learning-retrieved { background: linear-gradient(135deg, rgba(124,92,255,0.08), rgba(0,212,170,0.06)); border: 1px solid rgba(124,92,255,0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; animation: spaPageIn .3s ease; }
+
+/* Execution Pattern indicator — the scalable abstraction */
+.pattern-indicator { background: linear-gradient(135deg, rgba(0,212,170,0.08), rgba(124,92,255,0.06)); border: 1px solid rgba(0,212,170,0.30); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; animation: spaPageIn .3s ease; }
+.pattern-indicator-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pattern-indicator-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #00d4aa, #7c5cff); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pattern-indicator-icon svg { width: 16px; height: 16px; color: white; }
+.pattern-indicator-title { font-size: 12px; font-weight: 700; color: #00d4aa; text-transform: uppercase; letter-spacing: 0.06em; }
+.pattern-indicator-class { font-size: 14px; font-weight: 700; color: #e8e8f0; margin-left: 4px; }
+.pattern-indicator-stats { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+.pattern-stat { display: flex; flex-direction: column; gap: 2px; }
+.pattern-stat-label { font-size: 9.5px; color: #5a5a72; text-transform: uppercase; letter-spacing: 0.06em; }
+.pattern-stat-value { font-size: 14px; font-weight: 700; color: #e8e8f0; font-family: 'JetBrains Mono', monospace; }
+.pattern-stat-value.green { color: #00d4aa; }
+.pattern-stat-value.amber { color: #ffb84d; }
+.pattern-indicator-note { font-size: 11px; color: #8888a0; margin-top: 8px; font-style: italic; }
 .learning-retrieved-icon { width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .learning-retrieved-icon svg { width: 14px; height: 14px; color: white; }
 .learning-retrieved-text { font-size: 12px; color: #a594ff; line-height: 1.4; }
@@ -4957,9 +4972,16 @@ function handleRunEvent(ev) {
       break;
 
     // === LEARNING EVENTS (Phase 4+) ===
+    case 'pattern.retrieved':
+      // An execution pattern was found for this goal class.
+      // This is the scalable abstraction — patterns aggregate across projects.
+      addPatternIndicator(p);
+      break;
+
     case 'learning.retrieved':
       // Past projects were found that are similar to this goal.
-      // Show a "remembered from past work" indicator.
+      // Show a "remembered from past work" indicator (but only if no
+      // pattern indicator was shown — patterns are the higher abstraction).
       addLearningRetrievedIndicator(p.count, p.past_goals, p.past_outcomes);
       break;
 
@@ -5522,6 +5544,51 @@ function addUserInterjection(message) {
 }
 
 // === LEARNING LAYER UI HELPERS ===
+
+// Execution Pattern indicator — shown when pattern.retrieved fires.
+// This is the visible proof that Maestro has developed reusable
+// execution knowledge for this class of work.
+function addPatternIndicator(p) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  // Don't add twice (replay safety).
+  if (document.getElementById('pattern-indicator')) return;
+
+  const acceptancePct = p.acceptanceRate !== null && p.acceptanceRate !== undefined
+    ? Math.round(p.acceptanceRate * 100) : null;
+  const acceptanceClass = acceptancePct !== null
+    ? (acceptancePct >= 80 ? 'green' : acceptancePct >= 50 ? 'amber' : '')
+    : '';
+
+  const el = document.createElement('div');
+  el.className = 'pattern-indicator';
+  el.id = 'pattern-indicator';
+  el.innerHTML =
+    '<div class="pattern-indicator-header">' +
+      '<div class="pattern-indicator-icon">' +
+        '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+      '</div>' +
+      '<span class="pattern-indicator-title">Execution Pattern</span>' +
+      '<span class="pattern-indicator-class">' + escapeHtml(p.goalClass) + '</span>' +
+    '</div>' +
+    '<div class="pattern-indicator-stats">' +
+      '<div class="pattern-stat"><span class="pattern-stat-label">Projects</span><span class="pattern-stat-value">' + p.projectCount + '</span></div>' +
+      (acceptancePct !== null ? '<div class="pattern-stat"><span class="pattern-stat-label">Acceptance</span><span class="pattern-stat-value ' + acceptanceClass + '">' + acceptancePct + '%</span></div>' : '') +
+      (p.predictedAvg !== null ? '<div class="pattern-stat"><span class="pattern-stat-label">Avg Confidence</span><span class="pattern-stat-value">' + p.predictedAvg + '%</span></div>' : '') +
+      '<div class="pattern-stat"><span class="pattern-stat-label">Known Failures</span><span class="pattern-stat-value amber">' + p.knownFailures + '</span></div>' +
+      '<div class="pattern-stat"><span class="pattern-stat-label">Proven Corrections</span><span class="pattern-stat-value green">' + p.knownCorrections + '</span></div>' +
+      '<div class="pattern-stat"><span class="pattern-stat-label">Pattern v</span><span class="pattern-stat-value">' + p.version + '</span></div>' +
+    '</div>' +
+    '<div class="pattern-indicator-note">Maestro has executed this class of work ' + p.projectCount + ' time' + (p.projectCount > 1 ? 's' : '') + ' before. The conductor is using the proven workflow and known failure modes to plan better.</div>';
+
+  // Insert at the top of the work stream (after the user's message).
+  const userMsg = ws.querySelector('.user-msg');
+  if (userMsg && userMsg.nextSibling) {
+    ws.insertBefore(el, userMsg.nextSibling);
+  } else {
+    ws.appendChild(el);
+  }
+}
 
 // "Remembered from past work" indicator — shown when learning.retrieved fires.
 // This is the visible proof that the flywheel is spinning.

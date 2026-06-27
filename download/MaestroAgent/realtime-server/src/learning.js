@@ -27,6 +27,7 @@
 
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { updatePatternFromLearning } from './patterns.js';
 
 // In-memory store. Persisted to disk as JSONL.
 const STORE_PATH = path.resolve('./learning-objects.jsonl');
@@ -102,6 +103,9 @@ export async function setLessons(runId, lessons) {
 
 // Record the user's outcome feedback. This closes the learning loop.
 // Without outcome measurement, there is no learning — only data.
+// When outcome is recorded, we ALSO update the Execution Pattern for
+// this goal class. Patterns are the scalable abstraction — they
+// aggregate across all Learning Objects of the same class.
 export async function recordOutcome(runId, outcome, notes = '') {
   if (!['accepted', 'rejected', 'edited'].includes(outcome)) {
     throw new Error('outcome must be accepted | rejected | edited');
@@ -110,10 +114,19 @@ export async function recordOutcome(runId, outcome, notes = '') {
     if (obj.runId === runId) {
       obj.outcome = outcome;
       obj.outcomeNotes = notes;
-      // Workflow score: positive reinforcement for accepted, negative for rejected.
-      // Edited is neutral — the workflow was close but not perfect.
       obj.workflowScoreDelta = outcome === 'accepted' ? 1 : outcome === 'rejected' ? -1 : 0;
       await persist(obj);
+
+      // Update the Execution Pattern for this goal class.
+      // This is the key architectural step: individual project learning
+      // becomes reusable execution knowledge.
+      try {
+        const pattern = await updatePatternFromLearning(obj);
+        console.log(`[patterns] updated pattern for "${pattern.goalClass}" (v${pattern.version}, ${pattern.projectCount} projects)`);
+      } catch (err) {
+        console.warn(`[patterns] failed to update pattern: ${err.message}`);
+      }
+
       return obj;
     }
   }

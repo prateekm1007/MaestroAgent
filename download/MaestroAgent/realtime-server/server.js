@@ -32,6 +32,7 @@ import {
   interruptRun,
 } from './src/engine.js';
 import { recordOutcome, getStats as getLearningStats } from './src/learning.js';
+import { getPatternStats } from './src/patterns.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -173,6 +174,11 @@ app.post('/api/runs/:id/feedback', async (req, res) => {
 // Learning stats — shows the flywheel state.
 app.get('/api/learning/stats', (req, res) => {
   res.json(getLearningStats());
+});
+
+// Execution Pattern stats — shows the pattern registry.
+app.get('/api/patterns/stats', (req, res) => {
+  res.json(getPatternStats());
 });
 
 app.get('/api/runs/:id/artifacts/:filename', async (req, res) => {

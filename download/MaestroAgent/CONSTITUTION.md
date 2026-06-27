@@ -20,9 +20,11 @@ Finished outcomes.
 
 ## The Moat
 
-Not execution data. Execution intelligence.
+Not execution data. Not even execution intelligence.
 
-Data is raw. Intelligence is transformed.
+**Execution Patterns.**
+
+Data is raw. Intelligence is transformed. Patterns are the scalable abstraction.
 
 ```
 Completed Projects
@@ -31,16 +33,26 @@ Outcome Measurement
   ↓
 Human Corrections
   ↓
-Workflow Optimization
+Learning Objects (per-project)
   ↓
-Confidence Calibration
+Pattern Extraction (aggregates across projects of same class)
   ↓
-Predictive Planning
+Execution Pattern Registry
   ↓
-Reusable Organizational Knowledge
+Planner searches patterns, not projects
+  ↓
+Better execution
+  ↓
+More projects
+  ↓
+Richer patterns
 ```
 
-The moat compounds only if every project measurably improves the next.
+A Learning Object remembers WHAT HAPPENED in one project.
+An Execution Pattern remembers HOW TO DO a class of work.
+
+The planner doesn't search projects. It searches proven execution patterns.
+That's the scalable flywheel — 1 pattern serves 1000 projects of the same class.
 
 ---
 

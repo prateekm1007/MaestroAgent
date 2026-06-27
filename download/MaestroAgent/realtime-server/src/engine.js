@@ -40,9 +40,15 @@ import {
   formatRetrievedContext,
   initLearningStore,
 } from './learning.js';
+import {
+  retrievePattern,
+  formatPatternContext,
+  initPatternStore,
+} from './patterns.js';
 
-// Initialize the learning store on module load.
+// Initialize stores on module load.
 initLearningStore().catch(err => console.warn('[engine] learning store init failed:', err.message));
+initPatternStore().catch(err => console.warn('[engine] pattern store init failed:', err.message));
 
 // In-memory run registry. Keyed by run_id.
 export const runs = new Map();
@@ -214,10 +220,26 @@ export async function runGoal(runId, goal) {
   });
 
   try {
-    // === PHASE 0: Retrieve past learning objects for this goal ===
-    // This is the flywheel in action. Past projects make this project better.
+    // === PHASE 0: Retrieve execution pattern + past learning objects ===
+    // The planner searches PROVEN EXECUTION PATTERNS, not individual projects.
+    // Patterns aggregate across all projects of the same goal class — this
+    // is the scalable abstraction.
+    const pattern = retrievePattern(goal);
+    const patternContext = formatPatternContext(pattern);
     const similar = retrieveSimilar(goal, 3);
     const pastContext = formatRetrievedContext(similar);
+
+    if (pattern) {
+      await emit(run, 'pattern.retrieved', {
+        goalClass: pattern.goalClass,
+        projectCount: pattern.projectCount,
+        acceptanceRate: pattern.acceptanceRate,
+        predictedAvg: pattern.confidenceCalibration?.predictedAvg ?? null,
+        version: pattern.version,
+        knownFailures: pattern.observedFailures?.length || 0,
+        knownCorrections: pattern.successfulCorrections?.length || 0,
+      });
+    }
     if (similar.length > 0) {
       await emit(run, 'learning.retrieved', {
         count: similar.length,
@@ -226,8 +248,16 @@ export async function runGoal(runId, goal) {
       });
     }
 
+    // Combine pattern + past projects into one context block for the conductor.
+    const fullPastContext = [patternContext, pastContext].filter(Boolean).join('\n\n');
+
     // === PHASE 1: Conductor examines the goal ===
-    await emit(run, 'conductor.phase', { phase: 'examine', label: similar.length > 0 ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced` : 'Examining the goal' });
+    const phaseLabel = pattern
+      ? `Examining the goal · pattern: ${pattern.goalClass} (${pattern.projectCount} projects, ${pattern.acceptanceRate !== null ? Math.round(pattern.acceptanceRate * 100) + '%' : '?'} accepted)`
+      : similar.length > 0
+        ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced`
+        : 'Examining the goal';
+    await emit(run, 'conductor.phase', { phase: 'examine', label: phaseLabel });
     let conductorBuffer = '';
     await conductorExamine(goal, {
       onToken: (delta) => {
@@ -237,7 +267,7 @@ export async function runGoal(runId, goal) {
           conductorBuffer = '';
         }
       },
-    }, pastContext);
+    }, fullPastContext);
     if (conductorBuffer) {
       await emit(run, 'conductor.token', { phase: 'examine', delta: conductorBuffer });
     }
