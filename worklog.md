@@ -382,3 +382,43 @@ Stage Summary:
 - Every execution produces an audit trail that answers "why was this allowed?"
 - This is enterprise operational infrastructure, not consumer AI
 - Live URL: http://localhost:8765/
+
+---
+Task ID: evidence-cases-precedents
+Agent: main (Super Z)
+Task: Build the Evidence, Cases & Precedents layer — makes governance ACTIVE, not passive
+
+Work Log:
+- Built src/evidence.js — three connected concepts:
+  * Evidence: extracted from receipts (artifacts, policy reviews, approvals, exceptions). Each item links back to the receipt hash (tamper-evident).
+  * Cases: collect evidence around a governance decision. Track outcome (approved/blocked/exception_granted). Scoped hierarchically.
+  * Precedents: emerge when similar cases recur. The planner retrieves precedents BEFORE executing and reasons about them.
+
+- ACTIVE GOVERNANCE (the key architectural change):
+  * OLD: Policy says X → planner reads X → hopefully follows X
+  * NEW: Planner asks "what evidence do similar past cases have?" → reasons about whether this execution will satisfy governance → executes with evidence-aware confidence
+  * This is institutional reasoning — like how legal systems work (Receipt → Evidence → Case → Precedent)
+
+- Wired into engine.js:
+  * Phase 0 now retrieves precedents + policies + governance + patterns + learning
+  * After receipt creation: extractEvidenceFromReceipt() + createCase()
+  * New events: precedents.retrieved, evidence.extracted
+  * Conductor receives precedent context: "For [goal class], typical evidence includes X. Success rate: Y% across N cases."
+
+- API endpoints: GET /api/evidence, /api/cases, /api/precedents, /api/evidence/stats
+
+- Verified end-to-end:
+  * Ran a project → receipt created (hash a2e7b4ea...)
+  * 6 evidence items extracted: 3 reviews (policy evidence), 2 pending approvals, 1 exception
+  * Case created linking receipt to evidence
+  * 6 precedents emerged (one per scope level: individual/team/department/company/industry/global)
+  * Precedent pattern: "For Write Code at company scope, typical evidence includes: review, pending_approval, exception. Success rate: 0% across 1 case."
+
+Committed to git and pushed to GitHub (commit 6d9a9e5).
+
+Stage Summary:
+- The full flow is now: Goal → Planner → Governance Engine → Evidence Engine → Execution → Receipt → Evidence → Case → Precedent → Knowledge Graph → Planner
+- Governance is now ACTIVE — the planner reasons about past cases before executing
+- This is the enterprise wedge: Product Development Execution
+- The architecture remains frozen — no new conceptual layers, just making each layer world-class
+- Live URL: http://localhost:8765/
