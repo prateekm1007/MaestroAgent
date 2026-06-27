@@ -635,6 +635,39 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 .user-interjection-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #ffb84d; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
 .user-interjection-text { font-size: 13px; color: #e8e8f0; }
 
+/* ===== LEARNING LAYER UI ===== */
+
+/* "Remembered from past work" indicator — shown when learning.retrieved fires */
+.learning-retrieved { background: linear-gradient(135deg, rgba(124,92,255,0.08), rgba(0,212,170,0.06)); border: 1px solid rgba(124,92,255,0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; animation: spaPageIn .3s ease; }
+.learning-retrieved-icon { width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.learning-retrieved-icon svg { width: 14px; height: 14px; color: white; }
+.learning-retrieved-text { font-size: 12px; color: #a594ff; line-height: 1.4; }
+.learning-retrieved-text strong { color: #e8e8f0; }
+
+/* Feedback bar — shown after run completes */
+.feedback-bar { background: linear-gradient(180deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.20); border-radius: 14px; padding: 16px 20px; margin-top: 16px; animation: spaPageIn .4s ease; }
+.feedback-bar-header { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #a594ff; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.feedback-bar-question { font-size: 14px; color: #e8e8f0; margin-bottom: 12px; font-weight: 500; }
+.feedback-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.feedback-btn { padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all .15s; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.feedback-btn-accept { background: rgba(0,212,170,0.12); color: #00d4aa; border-color: rgba(0,212,170,0.25); }
+.feedback-btn-accept:hover { background: rgba(0,212,170,0.20); transform: translateY(-1px); }
+.feedback-btn-edit { background: rgba(255,184,77,0.12); color: #ffb84d; border-color: rgba(255,184,77,0.25); }
+.feedback-btn-edit:hover { background: rgba(255,184,77,0.20); transform: translateY(-1px); }
+.feedback-btn-reject { background: rgba(255,85,119,0.12); color: #ff5577; border-color: rgba(255,85,119,0.25); }
+.feedback-btn-reject:hover { background: rgba(255,85,119,0.20); transform: translateY(-1px); }
+.feedback-btn.selected { transform: scale(0.97); opacity: 0.7; }
+.feedback-btn-accept.selected { background: rgba(0,212,170,0.25); }
+.feedback-btn-edit.selected { background: rgba(255,184,77,0.25); }
+.feedback-btn-reject.selected { background: rgba(255,85,119,0.25); }
+.feedback-result { font-size: 12px; color: #8888a0; margin-top: 10px; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: none; }
+.feedback-result.visible { display: block; animation: spaPageIn .25s ease; }
+
+/* Learning stats badge — shown in the home sidebar */
+.learning-stats-mini { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(124,92,255,0.06); border: 1px solid rgba(124,92,255,0.15); border-radius: 8px; margin: 8px 10px; font-size: 11px; color: #a594ff; }
+.learning-stats-mini svg { width: 12px; height: 12px; }
+.learning-stats-mini .stat-num { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #e8e8f0; }
+
 </style>
 </head>
 <body>
@@ -4923,6 +4956,24 @@ function handleRunEvent(ev) {
       if (input) input.value = '';
       break;
 
+    // === LEARNING EVENTS (Phase 4+) ===
+    case 'learning.retrieved':
+      // Past projects were found that are similar to this goal.
+      // Show a "remembered from past work" indicator.
+      addLearningRetrievedIndicator(p.count, p.past_goals, p.past_outcomes);
+      break;
+
+    case 'learning.created':
+      // A learning object was created for this run. Don't show to user yet —
+      // wait for the feedback bar (shown on run.completed).
+      break;
+
+    case 'learning.lesson_extracted':
+      // Lessons were extracted in the background. Could show a subtle toast
+      // but for now just log it.
+      console.log('[maestro] lessons extracted:', p.lessons_preview?.slice(0, 100));
+      break;
+
     // === RUN LIFECYCLE ===
     case 'run.completed':
       // Update evidence panel header with final count.
@@ -4931,15 +4982,18 @@ function handleRunEvent(ev) {
       if (p.final_artifact) {
         markFinalDeliverable(p.final_artifact);
       }
-      // Maestro's closing remark — only if there was no conductor summarize
-      // phase (defensive; normally conductor.phase_done summarize fires first).
+      // Maestro's closing remark.
       addMaestroMessage("All done. " + (p.artifacts?.length || 0) + " artifacts produced" +
         (p.avg_confidence ? " · avg confidence " + p.avg_confidence + "%" : "") +
         (p.disagreement_count > 0 ? " · " + p.disagreement_count + " disagreements resolved" : "") +
         ".", false);
+      // Show the feedback bar — this closes the learning loop.
+      addFeedbackBar();
       addStartNewCTA();
       // Disable the interrupt bar (run is over).
       setInterruptBarEnabled(false);
+      // Refresh the learning stats in the sidebar.
+      refreshLearningStats();
       break;
 
     case 'run.failed':
@@ -5467,6 +5521,139 @@ function addUserInterjection(message) {
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// === LEARNING LAYER UI HELPERS ===
+
+// "Remembered from past work" indicator — shown when learning.retrieved fires.
+// This is the visible proof that the flywheel is spinning.
+function addLearningRetrievedIndicator(count, pastGoals, pastOutcomes) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const el = document.createElement('div');
+  el.className = 'learning-retrieved';
+  const goalsHtml = (pastGoals || []).map((g, i) => {
+    const outcome = (pastOutcomes || [])[i] || 'pending';
+    const icon = outcome === 'accepted' ? '✓' : outcome === 'rejected' ? '✗' : outcome === 'edited' ? '~' : '○';
+    return '<div style="font-size:11px;color:#8888a0;margin-top:2px;">' + icon + ' ' + escapeHtml(g.slice(0, 60)) + (g.length > 60 ? '...' : '') + '</div>';
+  }).join('');
+  el.innerHTML =
+    '<div class="learning-retrieved-icon">' +
+      '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' +
+    '</div>' +
+    '<div class="learning-retrieved-text">' +
+      '<strong>Remembered from ' + count + ' past project' + (count > 1 ? 's' : '') + '</strong>' +
+      goalsHtml +
+    '</div>';
+  // Insert at the top of the work stream (after the user's message).
+  const userMsg = ws.querySelector('.user-msg');
+  if (userMsg && userMsg.nextSibling) {
+    ws.insertBefore(el, userMsg.nextSibling);
+  } else {
+    ws.appendChild(el);
+  }
+}
+
+// Feedback bar — shown after run completes. This is how the learning loop closes.
+function addFeedbackBar() {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  // Don't add twice (replay safety).
+  if (document.getElementById('feedback-bar')) return;
+  const el = document.createElement('div');
+  el.className = 'feedback-bar';
+  el.id = 'feedback-bar';
+  el.innerHTML =
+    '<div class="feedback-bar-header">' +
+      '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+      '<span>Did this meet your need?</span>' +
+    '</div>' +
+    '<div class="feedback-bar-question">Your feedback makes Maestro better for your next project.</div>' +
+    '<div class="feedback-buttons">' +
+      '<button class="feedback-btn feedback-btn-accept" onclick="sendFeedback(\'accepted\')" id="fb-accept">' +
+        '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>' +
+        'Yes, this works' +
+      '</button>' +
+      '<button class="feedback-btn feedback-btn-edit" onclick="sendFeedback(\'edited\')" id="fb-edit">' +
+        '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>' +
+        'I\'d edit it' +
+      '</button>' +
+      '<button class="feedback-btn feedback-btn-reject" onclick="sendFeedback(\'rejected\')" id="fb-reject">' +
+        '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' +
+        'Not what I needed' +
+      '</button>' +
+    '</div>' +
+    '<div class="feedback-result" id="feedback-result"></div>';
+  // Insert before the start-new CTA if it exists, otherwise append.
+  const cta = ws.querySelector('.start-new-cta');
+  if (cta) {
+    ws.insertBefore(el, cta);
+  } else {
+    ws.appendChild(el);
+  }
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Send feedback to the backend. This closes the learning loop.
+async function sendFeedback(outcome) {
+  if (!activeRun.id) return;
+  // Mark the selected button.
+  document.querySelectorAll('.feedback-btn').forEach(b => b.classList.remove('selected'));
+  const btn = document.getElementById('fb-' + outcome);
+  if (btn) btn.classList.add('selected');
+
+  try {
+    const resp = await fetch(MAESTRO_API + '/api/runs/' + activeRun.id + '/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    // Show the result message.
+    const result = document.getElementById('feedback-result');
+    if (result) {
+      result.textContent = data.message;
+      result.classList.add('visible');
+    }
+    // Disable all feedback buttons after submission.
+    document.querySelectorAll('.feedback-btn').forEach(b => {
+      b.style.pointerEvents = 'none';
+      b.style.opacity = '0.6';
+    });
+    // Refresh learning stats.
+    refreshLearningStats();
+  } catch (err) {
+    const result = document.getElementById('feedback-result');
+    if (result) {
+      result.textContent = '⚠️ Failed to record feedback: ' + err.message;
+      result.classList.add('visible');
+    }
+  }
+}
+
+// Fetch learning stats and update the sidebar badge.
+async function refreshLearningStats() {
+  try {
+    const resp = await fetch(MAESTRO_API + '/api/learning/stats');
+    if (!resp.ok) return;
+    const stats = await resp.json();
+    let badge = document.getElementById('learning-stats-badge');
+    if (!badge) {
+      // Create it in the sidebar.
+      const sidebar = document.querySelector('aside.sidebar nav');
+      if (!sidebar) return;
+      badge = document.createElement('div');
+      badge.id = 'learning-stats-badge';
+      badge.className = 'learning-stats-mini';
+      sidebar.appendChild(badge);
+    }
+    badge.innerHTML =
+      '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' +
+      '<span><span class="stat-num">' + stats.total + '</span> projects learned</span>';
+  } catch (err) {
+    console.warn('[maestro] learning stats fetch failed:', err.message);
+  }
+}
+
 function resetHome() {
   // Close any active WS.
   if (activeRun.ws) { try { activeRun.ws.close(); } catch {} }
@@ -5614,6 +5801,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
         const runs = await runsResp.json();
         if (runs.length > 0) updateRecentWork(runs);
       }
+      // Show learning stats in the sidebar on page load.
+      refreshLearningStats();
     }
   } catch (err) {
     console.warn('[maestro] backend not reachable:', err.message);

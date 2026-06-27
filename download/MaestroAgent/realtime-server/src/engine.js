@@ -185,10 +185,14 @@ async function saveArtifact(run, agentId, content, ext = 'md') {
 }
 
 // Drain the interrupt queue. Returns the concatenated message or null.
+// Records consumed interrupts on the run for the learning object.
 async function drainInterrupts(run) {
   if (run.interruptQueue.length === 0) return null;
   const messages = run.interruptQueue.splice(0);
   const combined = messages.join(' / ');
+  // Track consumed interrupts for the learning object.
+  if (!run.consumedInterrupts) run.consumedInterrupts = [];
+  run.consumedInterrupts.push({ message: combined, beforeAgent: run.currentAgentId || null });
   await emit(run, 'user.interrupted', { message: combined });
   return combined;
 }
@@ -210,24 +214,35 @@ export async function runGoal(runId, goal) {
   });
 
   try {
+    // === PHASE 0: Retrieve past learning objects for this goal ===
+    // This is the flywheel in action. Past projects make this project better.
+    const similar = retrieveSimilar(goal, 3);
+    const pastContext = formatRetrievedContext(similar);
+    if (similar.length > 0) {
+      await emit(run, 'learning.retrieved', {
+        count: similar.length,
+        past_goals: similar.map(o => o.goal),
+        past_outcomes: similar.map(o => o.outcome),
+      });
+    }
+
     // === PHASE 1: Conductor examines the goal ===
-    await emit(run, 'conductor.phase', { phase: 'examine', label: 'Examining the goal' });
+    await emit(run, 'conductor.phase', { phase: 'examine', label: similar.length > 0 ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced` : 'Examining the goal' });
     let conductorBuffer = '';
     await conductorExamine(goal, {
       onToken: (delta) => {
         conductorBuffer += delta;
-        // Emit batches to avoid flooding.
         if (conductorBuffer.length >= 12) {
           emit(run, 'conductor.token', { phase: 'examine', delta: conductorBuffer });
           conductorBuffer = '';
         }
       },
-    });
+    }, pastContext);
     if (conductorBuffer) {
       await emit(run, 'conductor.token', { phase: 'examine', delta: conductorBuffer });
     }
     await emit(run, 'conductor.phase_done', { phase: 'examine' });
-    await sleep(500); // brief pause to avoid rate limiting
+    await sleep(1500); // pause to avoid rate limiting
 
     // === PHASE 2: Conductor assembles the team ===
     await emit(run, 'conductor.phase', { phase: 'assemble', label: 'Assembling the team' });
@@ -251,7 +266,7 @@ export async function runGoal(runId, goal) {
       await emit(run, 'conductor.token', { phase: 'assemble', delta: conductorBuffer });
     }
     await emit(run, 'conductor.phase_done', { phase: 'assemble' });
-    await sleep(500); // brief pause to avoid rate limiting
+    await sleep(1500); // pause to avoid rate limiting
 
     // === PHASE 3: Run each specialist ===
     let context = '';
@@ -261,6 +276,7 @@ export async function runGoal(runId, goal) {
     for (let i = 0; i < team.agents.length; i++) {
       const agentId = team.agents[i];
       const agent = AGENTS[agentId];
+      run.currentAgentId = agentId; // for interrupt tracking
 
       // Check for user interrupts before this specialist runs.
       const interrupt = await drainInterrupts(run);
@@ -287,7 +303,7 @@ export async function runGoal(runId, goal) {
         await emit(run, 'conductor.token', { phase: 'handoff', agent_id: agentId, delta: conductorBuffer });
       }
       await emit(run, 'conductor.phase_done', { phase: 'handoff', agent_id: agentId });
-      await sleep(500); // brief pause to avoid rate limiting
+      await sleep(1500); // pause to avoid rate limiting
 
       // Specialist thinking indicator.
       await emit(run, 'agent.thinking', {
@@ -476,6 +492,39 @@ export async function runGoal(runId, goal) {
       avg_confidence: avgConfidence,
       disagreement_count: disagreements.length,
     });
+
+    // === PHASE 7: LEARN — extract lessons and create Learning Object ===
+    // This is the constitutional principle in action:
+    //   "Every completed project must make Maestro measurably better."
+    // The learn phase runs AFTER the user-facing run.completed event,
+    // so the user sees completion immediately. Lessons are extracted
+    // in the background and stored for future runs.
+    try {
+      // Snapshot the interrupts that were consumed during the run.
+      run.interruptQueueSnapshot = run.consumedInterrupts || [];
+      // Create the learning object (outcome = pending until user feedback).
+      const learningObj = createLearningObject(run);
+      await emit(run, 'learning.created', {
+        learning_id: learningObj.id,
+        outcome: 'pending',
+        message: 'Learning object created — awaiting user feedback',
+      });
+
+      // Run the conductor learn phase (not streamed to user — internal).
+      await sleep(1500); // pause to avoid rate limiting
+      const lessons = await conductorLearn(
+        goal, team, context, disagreements, avgConfidence, { onToken: () => {} }
+      );
+      await setLessons(run.id, lessons);
+      await emit(run, 'learning.lesson_extracted', {
+        learning_id: learningObj.id,
+        lessons_preview: lessons.slice(0, 300),
+      });
+      console.log(`[learning] run ${run.id} → learning object ${learningObj.id} (${lessons.length} chars of lessons)`);
+    } catch (learnErr) {
+      // Learning failure must NOT fail the run — the deliverable is already done.
+      console.warn(`[learning] failed to extract lessons for run ${run.id}:`, learnErr.message);
+    }
   } catch (err) {
     run.status = 'failed';
     run.endedAt = new Date().toISOString();

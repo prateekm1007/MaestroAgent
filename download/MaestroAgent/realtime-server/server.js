@@ -31,6 +31,7 @@ import {
   subscribe,
   interruptRun,
 } from './src/engine.js';
+import { recordOutcome, getStats as getLearningStats } from './src/learning.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -136,6 +137,42 @@ app.post('/api/runs/:id/interrupt', (req, res) => {
     queued: message,
     note: 'Message will be incorporated before the next specialist runs.',
   });
+});
+
+// Phase 4 + Learning: Record user outcome feedback for a completed run.
+// This closes the learning loop. Without outcome measurement, there is no
+// learning — only data. The user must accept, reject, or edit the deliverable.
+// Outcome: 'accepted' | 'rejected' | 'edited'
+app.post('/api/runs/:id/feedback', async (req, res) => {
+  const run = getRun(req.params.id);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+  const outcome = (req.body?.outcome || '').trim();
+  const notes = (req.body?.notes || '').trim();
+  if (!['accepted', 'rejected', 'edited'].includes(outcome)) {
+    return res.status(400).json({ error: 'outcome must be accepted | rejected | edited' });
+  }
+  try {
+    const obj = await recordOutcome(req.params.id, outcome, notes);
+    if (!obj) return res.status(404).json({ error: 'learning object not found for this run' });
+    res.json({
+      ok: true,
+      run_id: req.params.id,
+      outcome: obj.outcome,
+      workflow_score_delta: obj.workflowScoreDelta,
+      message: outcome === 'accepted'
+        ? 'Recorded as accepted. This workflow will be preferred for similar future goals.'
+        : outcome === 'rejected'
+        ? 'Recorded as rejected. This workflow will be deprioritized for similar future goals.'
+        : 'Recorded as edited. Maestro will incorporate your corrections for similar future goals.',
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'failed to record feedback', detail: err.message });
+  }
+});
+
+// Learning stats — shows the flywheel state.
+app.get('/api/learning/stats', (req, res) => {
+  res.json(getLearningStats());
 });
 
 app.get('/api/runs/:id/artifacts/:filename', async (req, res) => {

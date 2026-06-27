@@ -171,3 +171,46 @@ Stage Summary:
 - Every debate resolution is a real LLM adjudication reading all specialist work
 - Every interrupt is really injected into the next specialist's prompt
 - The conversation IS the progress — no separate "run detail" page needed
+
+---
+Task ID: learning-flywheel
+Agent: main (Super Z)
+Task: Build the Learning Object system — the embodiment of the constitutional principle "every completed project must make Maestro measurably better"
+
+Work Log:
+- Wrote CONSTITUTION.md — the north star document. Single governing question: "Does this increase Maestro's ability to turn future goals into finished outcomes better than it could yesterday?"
+- Built src/learning.js — LearningObject store with:
+  * createLearningObject(run) — captures goal, team, specialists, confidence, interrupts
+  * setLessons(runId, lessons) — stores conductor-extracted lessons
+  * recordOutcome(runId, outcome, notes) — closes the loop: accepted/rejected/edited
+  * retrieveSimilar(goal, k) — keyword-overlap retrieval weighted by outcome
+  * formatRetrievedContext(objects) — formats past projects as conductor context
+  * Persistence: append-only JSONL (survives restarts)
+- Added conductor 'learn' phase (conductorLearn) — runs AFTER user-facing summarize, extracts structured lessons: WHAT WORKED, WHAT TO DO DIFFERENTLY, WORKFLOW PATTERN, CONFIDENCE CALIBRATION NOTE. Output stored as Learning Object, not shown to user.
+- Updated conductorExamine to accept past learning context — conductor now references past projects when relevant.
+- Wired engine.js:
+  * Phase 0: retrieveSimilar(goal) at run start
+  * Phase 1: pass past context to conductorExamine
+  * Phase 7 (NEW): after run.completed, create Learning Object + run conductorLearn
+  * Snapshots consumed interrupts for the learning object
+  * learning.created + learning.lesson_extracted events emitted
+- Added POST /api/runs/:id/feedback endpoint — accepts {outcome: accepted|rejected|edited, notes}. Updates learning object, sets workflow_score_delta (+1/-1/0).
+- Added GET /api/learning/stats endpoint — returns total/withLessons/accepted/rejected/edited/pending counts.
+- Frontend (app.html):
+  * "Remembered from past work" indicator — purple gradient card shown when learning.retrieved fires. Lists past goals with outcome icons (✓/✗/~).
+  * Feedback bar — shown after run.completed. Three buttons: "Yes this works" / "I'd edit it" / "Not what I needed". Sends POST /feedback, shows result message.
+  * Sidebar learning badge — "N projects learned" in the sidebar, refreshed on page load and after feedback.
+  * New event handlers: learning.retrieved, learning.created, learning.lesson_extracted.
+- Increased inter-phase delays to 1500ms to avoid 429 rate limiting.
+
+Verified end-to-end:
+- Run 1: "Write a short blog post about the benefits of remote work" → completed, 5 artifacts, 93% confidence → learning object created → lessons extracted → user clicked "Yes, this works" → outcome recorded as accepted.
+- Run 2: "Write a short blog post about the benefits of working from home" → learning.retrieved event fired (1 past project found) → "Remembered from 1 past project ✓ Write a short blog post about the benefits of remote work" indicator visible in UI → conductor examine phase: "This is a straightforward content creation task similar to our successful past project on remote work benefits... The Researcher should focus on gathering new statistics and perspectives since our last project noted the need for more quantifiable data." — the conductor explicitly referenced the LESSON from Run 1, not just the goal.
+
+Stage Summary:
+- Files: CONSTITUTION.md (new), src/learning.js (new), src/conductor.js (added learn phase), src/engine.js (added Phase 0 + Phase 7), server.js (added feedback + stats endpoints), app.html (learning UI)
+- The flywheel spins: Run 2 is measurably better than Run 1 because Run 1 happened. The conductor references past lessons, not just past goals.
+- The learning loop closes: user feedback (accepted/rejected/edited) updates the learning object's workflow score, which affects future retrieval ranking.
+- Learning persists across restarts (JSONL append-only).
+- Live URL: http://localhost:8765/
+- Demo screenshots: learning-flywheel-demo.png, learning-retrieved-demo.png
