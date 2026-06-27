@@ -658,3 +658,42 @@ Stage Summary:
   4. Zero critical governance violations
   5. Publish the first industry benchmark report
 - Live URL: http://localhost:8765/
+
+---
+Task ID: reasons-wrong-ttv-coi-customers-dir
+Agent: main (Super Z)
+Task: Write 'Reasons We Might Be Wrong' + build TTV/COI metrics + create /customers directory
+
+Work Log:
+- Wrote REASONS_WE_MIGHT_BE_WRONG.md — the intellectual honesty document:
+  * 10 assumptions that, if wrong, would change the company's direction
+  * Each includes: the assumption, why we might be wrong, what would confirm we're wrong, what changes if we are
+  * Key assumptions questioned: governance value, OED correlation with business value, Product Delivery wedge, benchmarks, integrations vs intelligence, merge-gate discipline, cognitive stack depth, enterprise startup trust, founder-to-seller transition, $10B potential
+  * Quarterly review discipline
+  * "If we can't articulate why we might be wrong, we don't understand the problem well enough to be confident we're right."
+
+- Built src/customer-metrics.js — two critical customer metrics:
+  * Time-to-Value (TTV): days from first execution to first measurable improvement. Target < 14 days. Rating: excellent/good/acceptable/slow/too slow.
+  * Cognitive Overhead Index (COI): the anti-metric. Measures manual policies, controls, approvals, clicks, config time. Target: DECREASE every release. Lower is better.
+  * Customer Health Score: combined TTV (30%) + COI (30%) + OED (40%). Rating: healthy/at risk/critical.
+
+- Created /customers directory structure:
+  * Every design partner becomes an engineering artifact
+  * Structure: baseline/, roi/, weekly-notes/, findings/, requested-features/, metrics/
+  * Template created for onboarding new partners
+  * The repository starts learning from customers, not just code
+
+- Verified:
+  * TTV: pending (correct — no accepted execution with knowledge reuse yet)
+  * COI: 36/100 (good) — 3 policies, 10 controls, ~115min config
+  * Customer Health: 48/100 (critical) — honest assessment
+
+Committed to git and pushed to GitHub (commit 090a623).
+
+Stage Summary:
+- The intellectual honesty document is written. 10 assumptions questioned. Quarterly review scheduled.
+- TTV and COI metrics are built — the two metrics that matter for customer validation.
+- /customers directory created — design partners become engineering artifacts.
+- The one question: "What evidence would convince us this company deserves to exist?"
+- The company has shifted definitively from building to validating.
+- Live URL: http://localhost:8765/
