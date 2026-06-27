@@ -120,9 +120,14 @@ Rules:
 - Don't use markdown headings. Just plain conversational text.`;
 
 // Phase 1: Examine the goal and narrate initial thinking.
-export async function conductorExamine(goal, { onToken }) {
+// If past learning context is provided, the conductor references it —
+// this is how past projects make the next project better.
+export async function conductorExamine(goal, { onToken }, pastLearningContext = '') {
+  const pastBlock = pastLearningContext
+    ? `\n\n--- Past projects that are similar to this goal ---\n${pastLearningContext}\n---\n\nReference these past projects if they're relevant. If a past project succeeded, mention what worked. If one failed or was rejected, mention what to avoid. If none are truly relevant, ignore them. Be honest — don't force a connection that isn't there.`
+    : '';
   return streamConductor({
-    system: CONDUCTOR_SYSTEM + '\n\nRight now you are EXAMINING the user\'s goal for the first time. Read it carefully and think out loud about what kind of work this is, what the main challenges are, and what approach makes sense. 3-5 sentences.',
+    system: CONDUCTOR_SYSTEM + '\n\nRight now you are EXAMINING the user\'s goal for the first time. Read it carefully and think out loud about what kind of work this is, what the main challenges are, and what approach makes sense. 3-5 sentences.' + pastBlock,
     user: `User's goal: "${goal}"\n\nThink out loud about this goal.`,
     onToken,
   });
@@ -170,6 +175,49 @@ export async function conductorSummarize(goal, artifacts, avgConfidence, { onTok
   return streamConductor({
     system: CONDUCTOR_SYSTEM + '\n\nRight now you are WRAPPING UP. Summarize what was produced, call out the most important deliverable, and give an overall confidence assessment. 3-5 sentences.',
     user: `Goal: "${goal}"\n\nArtifacts produced:\n${artifactList}\n\nAverage specialist confidence: ${avgConfidence}%\n\nWrap up the run.`,
+    onToken,
+  });
+}
+
+// Phase 6: LEARN — extract lessons from the completed run.
+//
+// This is the most important conductor call. It runs AFTER the user-facing
+// summarize phase, and its output is NOT shown to the user. Instead, it's
+// stored as a Learning Object and used to improve future runs.
+//
+// The constitutional principle: "Every completed project must make Maestro
+// measurably better." This function is what makes that true.
+//
+// Returns structured lessons: what worked, what to do differently next time,
+// and any workflow-level patterns to remember.
+export async function conductorLearn(goal, team, context, disagreements, avgConfidence, { onToken }) {
+  const teamList = team.agents.map(id => {
+    const a = AGENT_LOOKUP[id];
+    return `- ${a.name}: ${a.role}`;
+  }).join('\n');
+  const disagreementSummary = disagreements.length > 0
+    ? `\nDisagreements raised: ${disagreements.length}\n${disagreements.map(d => `- ${d.agentName}: ${d.text.slice(0, 200)}`).join('\n')}`
+    : '\nNo disagreements were raised — team was aligned.';
+
+  return streamConductor({
+    system: `You are Maestro's learning system. A project just completed. Your job is to extract lessons that will make the NEXT similar project better.
+
+Output format (be concise — this is for machine storage, not human reading):
+
+WHAT WORKED:
+- 1-3 bullet points on what went well in this workflow.
+
+WHAT TO DO DIFFERENTLY NEXT TIME:
+- 1-3 bullet points on what could be improved. If nothing, write "Nothing notable."
+
+WORKFLOW PATTERN:
+- One sentence summarizing the workflow template that emerged (e.g. "For [goal type X], use [team Y] with focus on [Z].")
+
+CONFIDENCE CALIBRATION NOTE:
+- One sentence on whether the predicted confidence (${avgConfidence ?? 'unknown'}%) felt right, too high, or too low based on the output quality.
+
+Be honest. These lessons are stored and retrieved for future projects with similar goals. Vague lessons are useless; specific lessons compound.`,
+    user: `Goal: ${goal}\n\nTeam:\n${teamList}${disagreementSummary}\n\nFull work output (compressed):\n${context.slice(-4000)}\n\nExtract lessons for future similar projects.`,
     onToken,
   });
 }

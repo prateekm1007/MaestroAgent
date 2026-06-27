@@ -31,7 +31,18 @@ import {
   conductorHandoff,
   conductorResolve,
   conductorSummarize,
+  conductorLearn,
 } from './conductor.js';
+import {
+  createLearningObject,
+  setLessons,
+  retrieveSimilar,
+  formatRetrievedContext,
+  initLearningStore,
+} from './learning.js';
+
+// Initialize the learning store on module load.
+initLearningStore().catch(err => console.warn('[engine] learning store init failed:', err.message));
 
 // In-memory run registry. Keyed by run_id.
 export const runs = new Map();
