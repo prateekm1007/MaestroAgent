@@ -599,9 +599,9 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
       <div class="flex items-center gap-2">
         <!-- Beginner / Pro mode toggle -->
         <div class="mode-toggle" id="mode-toggle" onclick="toggleMode()">
-          <span class="mode-label active" id="mode-beginner">Simple</span>
+          <span class="mode-label active" id="mode-beginner">Create</span>
           <div class="switch-mini"></div>
-          <span class="mode-label" id="mode-pro">Pro</span>
+          <span class="mode-label" id="mode-pro">Studio</span>
         </div>
         <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-brand-cyan/10 border border-brand-cyan/20">
           <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
@@ -635,19 +635,22 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- PAGE 01: MISSION CONTROL (formerly Dashboard)                  -->
 <!-- ============================================================ -->
 <section class="page active" id="page-dashboard">
-  <!-- Beginner Mode: Mission Control -->
+  <!-- Beginner Mode: Conversational Home -->
   <div class="beginner-only">
     <div class="mission-control">
-      <h1 class="text-3xl font-black text-white mb-2">What do you want to do today?</h1>
-      <p class="text-sm text-fg-500 mb-8">Describe your goal — Maestro builds the team, chooses the models, and gets it done.</p>
+      <!-- Greeting + prompt — chat-first, not launcher-first -->
+      <div class="text-center mb-8">
+        <div class="text-sm text-fg-500 mb-1" id="greeting-time">Good evening</div>
+        <h1 class="text-3xl font-black text-white mb-1">What would you like to create?</h1>
+      </div>
 
-      <!-- Big prompt box -->
+      <!-- Big prompt box — the center of attention -->
       <div class="mission-prompt">
-        <textarea class="mission-prompt-input" placeholder="Research Nvidia's Q3 earnings, build a landing page, write a blog post about AI agents..." rows="3" id="mission-input"></textarea>
+        <textarea class="mission-prompt-input" placeholder="Research Nvidia's Q3 earnings..." rows="3" id="mission-input" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();startTaskFlow();}"></textarea>
         <div class="mission-prompt-bar">
           <div class="mission-prompt-hint">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
-            <span>Or use voice — say "research", "build", "write"</span>
+            <span>Press Enter to start · or use voice</span>
           </div>
           <button class="btn btn-primary" onclick="startTaskFlow()">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>
@@ -656,65 +659,23 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
         </div>
       </div>
 
-      <!-- Task cards -->
-      <div class="task-grid">
-        <div class="task-card" onclick="openTaskFlow('build')">
-          <div class="task-card-glow" style="background: #7c5cff;"></div>
-          <div class="task-card-icon" style="background: rgba(124,92,255,0.12);">🚀</div>
-          <div class="task-card-title">Build an App</div>
-          <div class="task-card-desc">Full-stack web app from spec to deployment</div>
-        </div>
-        <div class="task-card" onclick="openTaskFlow('research')">
-          <div class="task-card-glow" style="background: #5cc8ff;"></div>
-          <div class="task-card-icon" style="background: rgba(92,200,255,0.12);">📄</div>
-          <div class="task-card-title">Research Something</div>
-          <div class="task-card-desc">Deep research with cited sources and analysis</div>
-        </div>
-        <div class="task-card" onclick="openTaskFlow('content')">
-          <div class="task-card-glow" style="background: #00d4aa;"></div>
-          <div class="task-card-icon" style="background: rgba(0,212,170,0.12);">🎬</div>
-          <div class="task-card-title">Create Content</div>
-          <div class="task-card-desc">Blog posts, docs, marketing copy with fact-checking</div>
-        </div>
-        <div class="task-card" onclick="openTaskFlow('code')">
-          <div class="task-card-glow" style="background: #ffb84d;"></div>
-          <div class="task-card-icon" style="background: rgba(255,184,77,0.12);">💻</div>
-          <div class="task-card-title">Write Code</div>
-          <div class="task-card-desc">APIs, components, tests, refactors with review</div>
-        </div>
-        <div class="task-card" onclick="openTaskFlow('analyze')">
-          <div class="task-card-glow" style="background: #ff5577;"></div>
-          <div class="task-card-icon" style="background: rgba(255,85,119,0.12);">📊</div>
-          <div class="task-card-title">Analyze Data</div>
-          <div class="task-card-desc">CSV/DB analysis with visualizations and insights</div>
-        </div>
-        <div class="task-card" onclick="openTaskFlow('automate')">
-          <div class="task-card-glow" style="background: #7c5cff;"></div>
-          <div class="task-card-icon" style="background: rgba(124,92,255,0.12);">🤖</div>
-          <div class="task-card-title">Automate a Workflow</div>
-          <div class="task-card-desc">Recurring tasks, monitoring, incident response</div>
-        </div>
-        <div class="task-card" onclick="openTaskFlow('team')">
-          <div class="task-card-glow" style="background: #5cc8ff;"></div>
-          <div class="task-card-icon" style="background: rgba(92,200,255,0.12);">🧠</div>
-          <div class="task-card-title">Design an AI Team</div>
-          <div class="task-card-desc">Custom agent team for your specific domain</div>
-        </div>
-        <div class="task-card" onclick="toggleMode(); navTo('dashboard');" style="border-style: dashed; opacity: 0.6;">
-          <div class="task-card-icon" style="background: rgba(255,255,255,0.04);">⚙️</div>
-          <div class="task-card-title">Advanced Mode</div>
-          <div class="task-card-desc">Full control — routing, hierarchy, memory, audit</div>
-        </div>
+      <!-- Suggestions — subtle, below the prompt -->
+      <div class="mt-6 flex flex-wrap gap-2 justify-center">
+        <button class="tag tag-gray hover:tag-purple cursor-pointer transition" onclick="document.getElementById('mission-input').value='Research Nvidia Q3 earnings'; startTaskFlow();">Research Nvidia</button>
+        <button class="tag tag-gray hover:tag-purple cursor-pointer transition" onclick="document.getElementById('mission-input').value='Build a landing page for my startup'; startTaskFlow();">Build a landing page</button>
+        <button class="tag tag-gray hover:tag-purple cursor-pointer transition" onclick="document.getElementById('mission-input').value='Write a blog post about AI agents'; startTaskFlow();">Write a blog post</button>
+        <button class="tag tag-gray hover:tag-purple cursor-pointer transition" onclick="document.getElementById('mission-input').value='Analyze my Q3 sales CSV'; startTaskFlow();">Analyze data</button>
+        <button class="tag tag-gray hover:tag-purple cursor-pointer transition" onclick="document.getElementById('mission-input').value='Design an API for user auth'; startTaskFlow();">Design an API</button>
       </div>
 
-      <!-- Recent work -->
-      <div class="mt-8">
-        <h3 class="text-sm font-bold text-fg-300 mb-3">Recent Work</h3>
+      <!-- Recent conversations — chat paradigm -->
+      <div class="mt-10">
+        <h3 class="text-xs font-bold text-fg-500 uppercase tracking-wider mb-3">Recent</h3>
         <div class="recent-work-item" onclick="navTo('run-detail')">
           <div class="recent-work-icon" style="background: rgba(124,92,255,0.12);">🚀</div>
           <div class="flex-1">
             <div class="recent-work-title">Build SaaS MVP</div>
-            <div class="recent-work-meta">3 agents working · $0.0421 · 2m ago</div>
+            <div class="recent-work-meta">3 specialists working · 2m ago</div>
           </div>
           <span class="tag tag-amber">Review needed</span>
         </div>
@@ -722,18 +683,33 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
           <div class="recent-work-icon" style="background: rgba(92,200,255,0.12);">📄</div>
           <div class="flex-1">
             <div class="recent-work-title">Research agent frameworks</div>
-            <div class="recent-work-meta">4 agents · $0.0118 · 5m ago</div>
+            <div class="recent-work-meta">4 specialists · 5m ago</div>
           </div>
-          <span class="tag tag-cyan">Running</span>
+          <span class="tag tag-cyan">Working</span>
         </div>
         <div class="recent-work-item" onclick="navTo('runs')">
           <div class="recent-work-icon" style="background: rgba(0,212,170,0.12);">📊</div>
           <div class="flex-1">
             <div class="recent-work-title">Q3 churn analysis</div>
-            <div class="recent-work-meta">5 agents · $0.0344 · 1h ago</div>
+            <div class="recent-work-meta">5 specialists · 1h ago</div>
           </div>
-          <span class="tag tag-sky">Completed</span>
+          <span class="tag tag-sky">Done</span>
         </div>
+        <div class="recent-work-item" onclick="navTo('runs')">
+          <div class="recent-work-icon" style="background: rgba(255,184,77,0.12);">📝</div>
+          <div class="flex-1">
+            <div class="recent-work-title">API reference docs</div>
+            <div class="recent-work-meta">5 specialists · 3h ago</div>
+          </div>
+          <span class="tag tag-sky">Done</span>
+        </div>
+      </div>
+
+      <!-- Studio access — subtle, bottom -->
+      <div class="mt-8 text-center">
+        <button class="text-[11px] text-fg-600 hover:text-brand-purple transition" onclick="toggleMode(); navTo('dashboard');">
+          Need more control? Open Studio →
+        </button>
       </div>
     </div>
   </div>
@@ -3486,17 +3462,17 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
           <button class="btn btn-primary" onclick="nextTaskFlowStep('team')">Next →</button>
         </div>
       </div>
-      <!-- Step 2: Auto-team creation -->
+      <!-- Step 2: AI narrates thinking + team joins -->
       <div class="task-flow-step" id="tf-step-team">
         <div class="auto-team-reveal mb-4">
           <div class="flex items-center gap-2 mb-3">
             <span class="w-2 h-2 rounded-full bg-brand-cyan pulse-dot"></span>
-            <span class="text-[11px] font-semibold text-brand-cyan">AI is designing your team...</span>
+            <span class="text-[11px] font-semibold text-brand-cyan" id="tf-narration">Thinking...</span>
           </div>
-          <div class="text-sm text-fg-300 mb-3" id="tf-team-description">Based on your goal, I've created the perfect team:</div>
+          <div class="text-sm text-fg-300 mb-3" id="tf-team-description">I'm assembling the right specialists for this.</div>
           <div id="tf-team-list"></div>
         </div>
-        <div class="text-[11px] text-fg-500 mb-3">Maestro automatically chose the models, routing, and review loops. You can adjust these in Advanced Mode later.</div>
+        <div class="text-[11px] text-fg-500 mb-3">Maestro assembled the right AI specialists and started working. You can customize them in Studio later.</div>
         <div class="flex justify-between">
           <button class="btn btn-ghost" onclick="prevTaskFlowStep('goal')">← Back</button>
           <div class="flex gap-2">
@@ -4123,6 +4099,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.hier-children:not(.collapsed)').forEach(el => {
     el.style.maxHeight = el.scrollHeight + 'px';
   });
+  // Dynamic greeting based on time of day
+  const greetingEl = document.getElementById('greeting-time');
+  if (greetingEl) {
+    const hour = new Date().getHours();
+    let greeting = 'Good evening';
+    if (hour < 12) greeting = 'Good morning';
+    else if (hour < 18) greeting = 'Good afternoon';
+    greetingEl.textContent = greeting;
+  }
 });
 
 // ===== KEYBOARD NAV FOR HIERARCHY =====
@@ -4639,23 +4624,56 @@ function autoGenerateTeam() {
   else if (lower.includes('automat') || lower.includes('monitor') || lower.includes('schedule')) type = 'automate';
 
   const config = taskFlowConfig[type];
+  const narration = document.getElementById('tf-narration');
   const desc = document.getElementById('tf-team-description');
-  if (desc) desc.textContent = 'Based on "' + goal.substring(0, 60) + (goal.length > 60 ? '...' : '') + '", I\'ve created the perfect team:';
+  
+  // Phase 1: AI narrates what it noticed
+  const narrations = [
+    'I noticed you want to ' + type + '. Let me think...',
+    'This usually needs ' + config.team.length + ' specialists.',
+    'Assembling the team now...'
+  ];
+  let narrIdx = 0;
+  if (narration) narration.textContent = narrations[0];
+  const narrInterval = setInterval(() => {
+    narrIdx++;
+    if (narrIdx < narrations.length && narration) {
+      narration.textContent = narrations[narrIdx];
+    } else {
+      clearInterval(narrInterval);
+    }
+  }, 800);
 
+  // Phase 2: Description with goal
+  if (desc) desc.textContent = 'I\'ll use the right specialists for "' + goal.substring(0, 50) + (goal.length > 50 ? '...' : '') + '":';
+
+  // Phase 3: Agents join one by one — feels like hiring
   const list = document.getElementById('tf-team-list');
   if (list) {
     list.textContent = '';
     config.team.forEach((agent, i) => {
       setTimeout(() => {
+        // Update narration to show who joined
+        if (narration) narration.textContent = agent.name + ' joined the team';
+        
         const el = document.createElement('div');
         el.className = 'auto-team-agent';
         el.innerHTML = '<div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center text-sm">' + agent.icon + '</div>' +
           '<div class="flex-1"><div class="text-[12px] font-semibold text-fg-100">' + agent.name + '</div>' +
-          '<div class="text-[10px] text-fg-500">' + agent.role + ' · ' + agent.model + '</div></div>' +
-          '<span class="tag tag-cyan">ready</span>';
+          '<div class="text-[10px] text-fg-500">' + agent.role + '</div></div>' +
+          '<span class="tag tag-cyan">joined</span>';
         list.appendChild(el);
-      }, i * 300);
+      }, 1500 + i * 600); // Start after narration, 600ms per agent
     });
+    
+    // Final narration after all joined
+    setTimeout(() => {
+      if (narration) {
+        narration.textContent = 'Team ready. Starting work...';
+        narration.classList.remove('text-brand-cyan');
+        narration.classList.add('text-brand-purple');
+      }
+    }, 1500 + config.team.length * 600 + 400);
   }
 }
 </script>
