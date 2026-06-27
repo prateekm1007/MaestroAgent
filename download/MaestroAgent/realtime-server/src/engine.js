@@ -60,6 +60,9 @@ import {
 } from './governance.js';
 import { createReceipt, initReceiptStore } from './receipts.js';
 import { extractEvidenceFromReceipt, createCase, retrievePrecedents, formatPrecedentContext, initEvidenceStore } from './evidence.js';
+import { initSDKStore } from './sdk.js';
+import { initDesignPartnerStore } from './design-partner.js';
+import { initIntegrationStore } from './integrations.js';
 
 // Initialize stores on module load.
 initLearningStore().catch(err => console.warn('[engine] learning store init failed:', err.message));
@@ -68,6 +71,9 @@ initPolicyStore().catch(err => console.warn('[engine] policy store init failed:'
 initGovernanceStore().catch(err => console.warn('[engine] governance store init failed:', err.message));
 initReceiptStore().catch(err => console.warn('[engine] receipt store init failed:', err.message));
 initEvidenceStore().catch(err => console.warn('[engine] evidence store init failed:', err.message));
+initSDKStore().catch(err => console.warn('[engine] sdk store init failed:', err.message));
+initDesignPartnerStore().catch(err => console.warn('[engine] design-partner store init failed:', err.message));
+initIntegrationStore().catch(err => console.warn('[engine] integration store init failed:', err.message));
 
 // In-memory run registry. Keyed by run_id.
 export const runs = new Map();

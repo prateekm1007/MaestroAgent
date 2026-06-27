@@ -39,6 +39,9 @@ import { getGovernanceStats, listControls, createControlForPolicy } from './src/
 import { getReceiptByRunId, getReceipt, listReceipts, getReceiptStats, verifyReceipt } from './src/receipts.js';
 import { getEvidenceStats, listEvidence, listCases, listPrecedents } from './src/evidence.js';
 import { computeMetrics, computeROIReport } from './src/metrics.js';
+import { registerOperatingModel, getOperatingModel, listOperatingModels, validateOperatingModel, findWorkflowTemplate, getApprovalChain } from './src/sdk.js';
+import { startOnboarding, advanceStage, getOnboardingStatus, getOnboardingGuide, listDesignPartners } from './src/design-partner.js';
+import { connectIntegration, listIntegrations, disconnectIntegration, handleWebhookEvent, getIntegrationStats, listProviders, PROVIDERS } from './src/integrations.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -282,6 +285,125 @@ app.get('/api/metrics', (req, res) => {
 app.get('/api/roi-report', (req, res) => {
   const scope = getCurrentScope();
   res.json(computeROIReport(scope));
+});
+
+// === ENTERPRISE OPERATING MODEL SDK ===
+// POST /api/sdk/operating-model — register an enterprise's operating model
+// GET /api/sdk/operating-models — list all registered models
+// GET /api/sdk/operating-model/:orgId — get a specific model
+// POST /api/sdk/validate — validate an operating model before registering
+app.post('/api/sdk/operating-model', async (req, res) => {
+  try {
+    const result = await registerOperatingModel(req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/sdk/operating-models', (req, res) => {
+  res.json(listOperatingModels());
+});
+
+app.get('/api/sdk/operating-model/:orgId', (req, res) => {
+  const model = getOperatingModel(req.params.orgId);
+  if (!model) return res.status(404).json({ error: 'operating model not found' });
+  res.json(model);
+});
+
+app.post('/api/sdk/validate', (req, res) => {
+  res.json(validateOperatingModel(req.body));
+});
+
+// === DESIGN PARTNER MODE (enterprise onboarding framework) ===
+// POST /api/design-partner/start — start onboarding a new design partner
+// GET /api/design-partner/:orgId/status — get onboarding status
+// GET /api/design-partner/:orgId/guide — get the current stage guide
+// POST /api/design-partner/:orgId/advance — advance to the next stage
+// GET /api/design-partners — list all design partners
+app.post('/api/design-partner/start', async (req, res) => {
+  try {
+    const partner = await startOnboarding(req.body);
+    res.json(partner);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/design-partner/:orgId/status', (req, res) => {
+  const status = getOnboardingStatus(req.params.orgId);
+  if (!status) return res.status(404).json({ error: 'design partner not found' });
+  res.json(status);
+});
+
+app.get('/api/design-partner/:orgId/guide', (req, res) => {
+  const guide = getOnboardingGuide(req.params.orgId);
+  if (!guide) return res.status(404).json({ error: 'design partner not found' });
+  res.json(guide);
+});
+
+app.post('/api/design-partner/:orgId/advance', async (req, res) => {
+  try {
+    const partner = await advanceStage(req.params.orgId, req.body);
+    res.json(partner);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/design-partners', (req, res) => {
+  res.json(listDesignPartners());
+});
+
+// === INTEGRATIONS API ===
+// GET /api/integrations/providers — list available integration providers
+// GET /api/integrations — list connected integrations for current org
+// POST /api/integrations/:provider/connect — connect a provider
+// DELETE /api/integrations/:id — disconnect an integration
+// POST /api/integrations/:provider/webhook — receive a webhook from an external tool
+// GET /api/integrations/stats — integration stats for current org
+app.get('/api/integrations/providers', (req, res) => {
+  res.json(listProviders());
+});
+
+app.get('/api/integrations', (req, res) => {
+  const scope = getCurrentScope();
+  const orgId = scope.organization || 'default';
+  res.json(listIntegrations(orgId));
+});
+
+app.post('/api/integrations/:provider/connect', async (req, res) => {
+  try {
+    const scope = getCurrentScope();
+    const orgId = scope.organization || req.body.orgId || 'default';
+    const integration = await connectIntegration(orgId, req.params.provider, req.body.config || {});
+    res.json(integration);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/integrations/:id', async (req, res) => {
+  const ok = await disconnectIntegration(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'integration not found' });
+  res.json({ ok: true, disconnected: req.params.id });
+});
+
+app.post('/api/integrations/:provider/webhook', async (req, res) => {
+  try {
+    const scope = getCurrentScope();
+    const orgId = scope.organization || req.body.orgId || 'default';
+    const result = await handleWebhookEvent(req.params.provider, req.body, orgId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/integrations/stats', (req, res) => {
+  const scope = getCurrentScope();
+  const orgId = scope.organization || 'default';
+  res.json(getIntegrationStats(orgId));
 });
 
 // === SCOPE API (hierarchical execution context) ===
