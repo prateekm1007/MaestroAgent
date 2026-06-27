@@ -28,6 +28,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { updatePatternFromLearning } from './patterns.js';
+import { checkForPolicyPromotion } from './policies.js';
 
 // In-memory store. Persisted to disk as JSONL.
 const STORE_PATH = path.resolve('./learning-objects.jsonl');
@@ -123,6 +124,14 @@ export async function recordOutcome(runId, outcome, notes = '') {
       try {
         const pattern = await updatePatternFromLearning(obj);
         console.log(`[patterns] updated pattern for "${pattern.goalClass}" (v${pattern.version}, ${pattern.projectCount} projects)`);
+
+        // LAW PROMOTION: check if any corrections in the pattern should
+        // promote to Operating Policies. This is the governance layer —
+        // when a correction is seen N times, it becomes mandatory.
+        const promotedPolicies = await checkForPolicyPromotion(pattern);
+        if (promotedPolicies.length > 0) {
+          console.log(`[policies] ${promotedPolicies.length} policy(ies) created/reinforced from pattern "${pattern.goalClass}"`);
+        }
       } catch (err) {
         console.warn(`[patterns] failed to update pattern: ${err.message}`);
       }

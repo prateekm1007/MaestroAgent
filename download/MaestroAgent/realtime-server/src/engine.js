@@ -45,10 +45,17 @@ import {
   formatPatternContext,
   initPatternStore,
 } from './patterns.js';
+import {
+  retrievePolicies,
+  formatPolicyContext,
+  validatePlan,
+  initPolicyStore,
+} from './policies.js';
 
 // Initialize stores on module load.
 initLearningStore().catch(err => console.warn('[engine] learning store init failed:', err.message));
 initPatternStore().catch(err => console.warn('[engine] pattern store init failed:', err.message));
+initPolicyStore().catch(err => console.warn('[engine] policy store init failed:', err.message));
 
 // In-memory run registry. Keyed by run_id.
 export const runs = new Map();
@@ -220,17 +227,18 @@ export async function runGoal(runId, goal) {
   });
 
   try {
-    // === PHASE 0: Retrieve execution patterns (hierarchical) + past learning ===
-    // The planner searches PROVEN EXECUTION PATTERNS, cascading through
-    // the scope hierarchy: individual → team → department → company → industry → global.
-    // More specific scopes override more general ones.
+    // === PHASE 0: Retrieve execution patterns + policies + past learning ===
+    // The planner searches PROVEN EXECUTION PATTERNS (hierarchical),
+    // validates against OPERATING POLICIES (the governance layer),
+    // and references past learning objects.
     const patternsArr = retrievePattern(goal);
     const patternContext = formatPatternContext(patternsArr);
+    const applicablePolicies = retrievePolicies();
+    const policyContext = formatPolicyContext(applicablePolicies);
     const similar = retrieveSimilar(goal, 3);
     const pastContext = formatRetrievedContext(similar);
 
     if (patternsArr.length > 0) {
-      // Emit one event per scope level — the UI shows the hierarchy.
       for (const p of patternsArr) {
         await emit(run, 'pattern.retrieved', {
           goalClass: p.goalClass,
@@ -245,6 +253,23 @@ export async function runGoal(runId, goal) {
         });
       }
     }
+    if (applicablePolicies.length > 0) {
+      const constitutional = applicablePolicies.filter(p => p.status === 'constitutional').length;
+      const mandatory = applicablePolicies.filter(p => p.enforcement === 'mandatory' && p.status !== 'constitutional').length;
+      await emit(run, 'policies.retrieved', {
+        total: applicablePolicies.length,
+        constitutional,
+        mandatory,
+        recommended: applicablePolicies.filter(p => p.enforcement === 'recommended').length,
+        policies: applicablePolicies.map(p => ({
+          rule: p.rule,
+          scopeLevel: p.scopeLevel,
+          category: p.category,
+          enforcement: p.enforcement,
+          status: p.status,
+        })),
+      });
+    }
     if (similar.length > 0) {
       await emit(run, 'learning.retrieved', {
         count: similar.length,
@@ -253,16 +278,21 @@ export async function runGoal(runId, goal) {
       });
     }
 
-    // Combine pattern + past projects into one context block for the conductor.
-    const fullPastContext = [patternContext, pastContext].filter(Boolean).join('\n\n');
+    // Combine all context for the conductor.
+    const fullPastContext = [policyContext, patternContext, pastContext].filter(Boolean).join('\n\n');
 
     // === PHASE 1: Conductor examines the goal ===
     const topPattern = patternsArr[0];
+    const policyNote = applicablePolicies.length > 0
+      ? ` · ${applicablePolicies.length} policies (${applicablePolicies.filter(p => p.status === 'constitutional').length} constitutional)`
+      : '';
     const phaseLabel = topPattern
-      ? `Examining the goal · ${topPattern.scopeLevel} pattern: ${topPattern.goalClass} (${topPattern.projectCount} projects, ${topPattern.acceptanceRate !== null ? Math.round(topPattern.acceptanceRate * 100) + '%' : '?'} accepted)${patternsArr.length > 1 ? ' + ' + (patternsArr.length - 1) + ' more levels' : ''}`
+      ? `Examining the goal · ${topPattern.scopeLevel} pattern: ${topPattern.goalClass} (${topPattern.projectCount} projects)${policyNote}${patternsArr.length > 1 ? ' + ' + (patternsArr.length - 1) + ' more levels' : ''}`
       : similar.length > 0
-        ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced`
-        : 'Examining the goal';
+        ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced${policyNote}`
+        : applicablePolicies.length > 0
+          ? `Examining the goal · ${applicablePolicies.length} policies active${policyNote}`
+          : 'Examining the goal';
     await emit(run, 'conductor.phase', { phase: 'examine', label: phaseLabel });
     let conductorBuffer = '';
     await conductorExamine(goal, {

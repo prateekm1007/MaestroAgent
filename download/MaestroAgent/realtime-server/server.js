@@ -34,6 +34,7 @@ import {
 import { recordOutcome, getStats as getLearningStats } from './src/learning.js';
 import { getPatternStats } from './src/patterns.js';
 import { getCurrentScope, setCurrentScope, getScopeHierarchy, formatScopeContext } from './src/scope.js';
+import { getPolicyStats, listPolicies } from './src/policies.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -180,6 +181,15 @@ app.get('/api/learning/stats', (req, res) => {
 // Execution Pattern stats — shows the pattern registry.
 app.get('/api/patterns/stats', (req, res) => {
   res.json(getPatternStats());
+});
+
+// === OPERATING POLICIES API (the governance layer) ===
+app.get('/api/policies/stats', (req, res) => {
+  res.json(getPolicyStats());
+});
+
+app.get('/api/policies', (req, res) => {
+  res.json(listPolicies());
 });
 
 // === SCOPE API (hierarchical execution context) ===
