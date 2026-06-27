@@ -30,7 +30,7 @@ Every company has it. Nobody has digitized it. Maestro digitizes it, learns from
 
 ---
 
-## The 5-Layer Enterprise Cognition Hierarchy
+## The 7-Layer Enterprise Cognition Hierarchy
 
 ```
 1. Learning Object         — one execution (what happened)
@@ -41,7 +41,11 @@ Every company has it. Nobody has digitized it. Maestro digitizes it, learns from
         ↓
 4. Operating Policy        — what is mandatory (law-promoted from patterns)
         ↓
-5. Execution Constitution  — the company's immutable rules (constitutional policies)
+5. Governance Control      — how it's enforced (evidence, reviewer, approval, block)
+        ↓
+6. Execution Receipt       — immutable audit trail (why this was allowed)
+        ↓
+7. Operational Knowledge   — the company's living operating model
 ```
 
 Each layer is scoped hierarchically:
@@ -65,9 +69,15 @@ Learning Objects
         ↓
 Pattern Extraction
         ↓
-Law Promotion
+Law Promotion (3+ reinforcements → policy, 10+ → constitutional)
         ↓
-Constitution Evolution
+Governance Controls (auto-created for mandatory/constitutional policies)
+        ↓
+Constitutional Validation (planner REFUSES to violate governance)
+        ↓
+Execution Receipt (immutable, tamper-evident audit trail)
+        ↓
+Operational Knowledge Graph
 ```
 
 This hierarchy scales from 1 freelancer to a 50,000-person enterprise without changing the core architecture.
@@ -137,6 +147,44 @@ Before writing any line of code, ask:
 > Does this increase Maestro's ability to turn future goals into finished outcomes better than it could yesterday?
 
 If you can't answer yes with a specific, measurable reason — don't build it.
+
+---
+
+## The Frozen Architecture
+
+The cognitive architecture is frozen. No new conceptual layers unless a genuinely new kind of knowledge is discovered.
+
+```
+Human Goal
+        │
+   Planning
+        │
+  Execution
+        │
+   Review
+        │
+Learning Object
+        │
+Execution Pattern
+        │
+Organizational Playbook
+        │
+  Operating Policy
+        │
+ Governance Control
+        │
+ Execution Receipt
+        │
+Operational Knowledge Graph
+        │
+    Planner
+```
+
+**What this means for engineering:**
+- No more generic AI features (new agents, more models, voice experiments, flashy orchestration)
+- Every sprint must answer: "Does this make Maestro a better operating system for how an organization executes work?"
+- If the answer is no — don't build it.
+- The differentiation is no longer "we orchestrate multiple AI agents." It's that Maestro captures, governs, and continuously improves how an organization executes work, while leaving an auditable trail of why decisions were made.
 
 ---
 
