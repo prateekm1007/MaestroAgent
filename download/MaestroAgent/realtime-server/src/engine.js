@@ -220,25 +220,30 @@ export async function runGoal(runId, goal) {
   });
 
   try {
-    // === PHASE 0: Retrieve execution pattern + past learning objects ===
-    // The planner searches PROVEN EXECUTION PATTERNS, not individual projects.
-    // Patterns aggregate across all projects of the same goal class — this
-    // is the scalable abstraction.
-    const pattern = retrievePattern(goal);
-    const patternContext = formatPatternContext(pattern);
+    // === PHASE 0: Retrieve execution patterns (hierarchical) + past learning ===
+    // The planner searches PROVEN EXECUTION PATTERNS, cascading through
+    // the scope hierarchy: individual → team → department → company → industry → global.
+    // More specific scopes override more general ones.
+    const patternsArr = retrievePattern(goal);
+    const patternContext = formatPatternContext(patternsArr);
     const similar = retrieveSimilar(goal, 3);
     const pastContext = formatRetrievedContext(similar);
 
-    if (pattern) {
-      await emit(run, 'pattern.retrieved', {
-        goalClass: pattern.goalClass,
-        projectCount: pattern.projectCount,
-        acceptanceRate: pattern.acceptanceRate,
-        predictedAvg: pattern.confidenceCalibration?.predictedAvg ?? null,
-        version: pattern.version,
-        knownFailures: pattern.observedFailures?.length || 0,
-        knownCorrections: pattern.successfulCorrections?.length || 0,
-      });
+    if (patternsArr.length > 0) {
+      // Emit one event per scope level — the UI shows the hierarchy.
+      for (const p of patternsArr) {
+        await emit(run, 'pattern.retrieved', {
+          goalClass: p.goalClass,
+          scopeLevel: p.scopeLevel,
+          scopeKey: p.scopeKey,
+          projectCount: p.projectCount,
+          acceptanceRate: p.acceptanceRate,
+          predictedAvg: p.confidenceCalibration?.predictedAvg ?? null,
+          version: p.version,
+          knownFailures: p.observedFailures?.length || 0,
+          knownCorrections: p.successfulCorrections?.length || 0,
+        });
+      }
     }
     if (similar.length > 0) {
       await emit(run, 'learning.retrieved', {
@@ -252,8 +257,9 @@ export async function runGoal(runId, goal) {
     const fullPastContext = [patternContext, pastContext].filter(Boolean).join('\n\n');
 
     // === PHASE 1: Conductor examines the goal ===
-    const phaseLabel = pattern
-      ? `Examining the goal · pattern: ${pattern.goalClass} (${pattern.projectCount} projects, ${pattern.acceptanceRate !== null ? Math.round(pattern.acceptanceRate * 100) + '%' : '?'} accepted)`
+    const topPattern = patternsArr[0];
+    const phaseLabel = topPattern
+      ? `Examining the goal · ${topPattern.scopeLevel} pattern: ${topPattern.goalClass} (${topPattern.projectCount} projects, ${topPattern.acceptanceRate !== null ? Math.round(topPattern.acceptanceRate * 100) + '%' : '?'} accepted)${patternsArr.length > 1 ? ' + ' + (patternsArr.length - 1) + ' more levels' : ''}`
       : similar.length > 0
         ? `Examining the goal · ${similar.length} past project${similar.length > 1 ? 's' : ''} referenced`
         : 'Examining the goal';

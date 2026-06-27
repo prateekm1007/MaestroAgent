@@ -33,6 +33,7 @@ import {
 } from './src/engine.js';
 import { recordOutcome, getStats as getLearningStats } from './src/learning.js';
 import { getPatternStats } from './src/patterns.js';
+import { getCurrentScope, setCurrentScope, getScopeHierarchy, formatScopeContext } from './src/scope.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,6 +180,30 @@ app.get('/api/learning/stats', (req, res) => {
 // Execution Pattern stats — shows the pattern registry.
 app.get('/api/patterns/stats', (req, res) => {
   res.json(getPatternStats());
+});
+
+// === SCOPE API (hierarchical execution context) ===
+// GET /api/scope — returns current scope + hierarchy
+// POST /api/scope — set the current scope (organization, department, team, etc.)
+app.get('/api/scope', (req, res) => {
+  const scope = getCurrentScope();
+  const hierarchy = getScopeHierarchy(scope);
+  res.json({
+    current: scope,
+    hierarchy: hierarchy,
+    formatted: formatScopeContext(scope),
+  });
+});
+
+app.post('/api/scope', (req, res) => {
+  const { organization, industry, department, team, userId } = req.body || {};
+  const scope = setCurrentScope({ organization, industry, department, team, userId });
+  res.json({
+    ok: true,
+    scope,
+    hierarchy: getScopeHierarchy(scope),
+    message: `Execution context set: ${formatScopeContext(scope) || 'global'}`,
+  });
 });
 
 app.get('/api/runs/:id/artifacts/:filename', async (req, res) => {

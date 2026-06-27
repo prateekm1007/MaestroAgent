@@ -31,6 +31,7 @@
 
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { getCurrentScope, getScopeHierarchy, scopeKey } from './scope.js';
 
 const PATTERN_STORE_PATH = path.resolve('./execution-patterns.jsonl');
 const patterns = new Map(); // id -> ExecutionPattern
@@ -88,14 +89,21 @@ function extractKeywords(goal) {
     .filter(t => t.length > 2 && !STOPWORDS.has(t));
 }
 
-// Find or create a pattern for a goal class.
-function getOrCreatePattern(goalClass) {
+// Find or create a pattern for a goal class AT A SPECIFIC SCOPE LEVEL.
+// Patterns are scoped — a company's "Content Writing" pattern is different
+// from the global "Content Writing" pattern.
+function getOrCreatePattern(goalClass, scopeLvl) {
+  const sKey = scopeKey(scopeLvl);
+  // Look for existing pattern with same goalClass + scope.
   for (const p of patterns.values()) {
-    if (p.goalClass === goalClass) return p;
+    if (p.goalClass === goalClass && p.scopeKey === sKey) return p;
   }
   const newPattern = {
     id: crypto.randomUUID(),
     goalClass,
+    scopeKey: sKey,
+    scopeLevel: scopeLvl.level,
+    scope: scopeLvl,
     goalClassKeywords: [],
     winningWorkflow: [],
     observedFailures: [],
@@ -112,13 +120,18 @@ function getOrCreatePattern(goalClass) {
 }
 
 // Update a pattern with data from a completed Learning Object.
-// This is called after the learning loop closes (user feedback recorded).
-//
-// The pattern aggregates across all Learning Objects of its goal class.
-// Each new project refines the pattern.
+// The pattern is created/updated AT THE LEARNING OBJECT'S SCOPE.
+// If the learning object has no scope, it defaults to the current scope.
 export async function updatePatternFromLearning(learningObj) {
   const goalClass = classifyGoal(learningObj.goal);
-  const pattern = getOrCreatePattern(goalClass);
+  // Determine the scope level for this learning object.
+  // Individual user's work creates individual-scoped patterns.
+  // In production, the scope would come from the authenticated session.
+  const scope = learningObj.scope || getCurrentScope();
+  const hierarchy = getScopeHierarchy(scope);
+  // Write to the most specific level available (individual if userId, else team, etc.)
+  const writeLevel = hierarchy[0];
+  const pattern = getOrCreatePattern(goalClass, writeLevel);
 
   // Add this run's keywords to the pattern's keyword set.
   const newKeywords = extractKeywords(learningObj.goal);
@@ -140,18 +153,12 @@ export async function updatePatternFromLearning(learningObj) {
   }
 
   // Extract observed failures and corrections from the lessons text.
-  // The conductor's learn phase produces structured lessons:
-  //   WHAT WORKED: ...
-  //   WHAT TO DO DIFFERENTLY NEXT TIME: ...
-  //   WORKFLOW PATTERN: ...
-  //   CONFIDENCE CALIBRATION NOTE: ...
   if (learningObj.lessons) {
     const failures = extractSection(learningObj.lessons, 'WHAT TO DO DIFFERENTLY NEXT TIME');
     const corrections = extractSection(learningObj.lessons, 'WHAT WORKED');
     const calibrationNote = extractSection(learningObj.lessons, 'CONFIDENCE CALIBRATION NOTE');
 
     if (failures) {
-      // Add each failure bullet to the pattern (deduped by first 60 chars).
       for (const bullet of failures.split('\n').filter(l => l.trim().startsWith('-'))) {
         const text = bullet.replace(/^\s*-\s*/, '').trim();
         if (!text || text.toLowerCase().includes('nothing notable')) continue;
@@ -188,9 +195,6 @@ export async function updatePatternFromLearning(learningObj) {
   pattern.sourceRunIds.push(learningObj.runId);
   pattern.projectCount = pattern.sourceRunIds.length;
 
-  // Recalculate acceptance rate from all source runs.
-  // (We need to look up outcomes — but we don't have them here directly.
-  // For now, track from the learning object's outcome.)
   if (!pattern._outcomes) pattern._outcomes = [];
   pattern._outcomes.push(learningObj.outcome);
   const accepted = pattern._outcomes.filter(o => o === 'accepted').length;
@@ -199,13 +203,10 @@ export async function updatePatternFromLearning(learningObj) {
 
   // Update confidence calibration.
   if (learningObj.predictedConfidence !== null) {
-    const allPred = pattern.sourceRunIds.length;
-    // We'll store the latest predicted confidence as the running average.
+    const n = pattern.projectCount;
     if (!pattern.confidenceCalibration.predictedAvg) {
       pattern.confidenceCalibration.predictedAvg = learningObj.predictedConfidence;
     } else {
-      // Running average.
-      const n = pattern.projectCount;
       pattern.confidenceCalibration.predictedAvg =
         Math.round((pattern.confidenceCalibration.predictedAvg * (n - 1) + learningObj.predictedConfidence) / n);
     }
@@ -215,11 +216,149 @@ export async function updatePatternFromLearning(learningObj) {
   // Bump version and persist.
   pattern.version++;
   pattern.lastUpdated = new Date().toISOString();
-  // Don't persist the internal _outcomes field.
   const { _outcomes, ...persistable } = pattern;
   await persist(persistable);
 
+  // PROMOTION: after updating an individual pattern, check if we should
+  // promote insights up to the team/department/company level.
+  // This is how Organizational Playbooks emerge from individual work.
+  await promotePatternIfNeeded(goalClass, scope, hierarchy);
+
   return pattern;
+}
+
+// PATTERN PROMOTION — the mechanism that creates Organizational Playbooks.
+//
+// When multiple individuals in the same team/department/company complete
+// similar work, their individual patterns should aggregate into a
+// higher-level pattern. This is how Sarah's + John's individual
+// Content Writing patterns become a TEAM pattern that everyone on the
+// platform team benefits from.
+//
+// Promotion rules (intentionally simple for now):
+//   - When 2+ individual patterns exist for the same goal class in the
+//     same team, promote to team level.
+//   - When 2+ team patterns exist for the same department, promote to
+//     department level.
+//   - And so on up the hierarchy.
+//
+// The promoted pattern aggregates failures/corrections from all
+// contributing patterns, weighted by occurrence count.
+async function promotePatternIfNeeded(goalClass, scope, hierarchy) {
+  // Find all patterns at each level for this goal class.
+  for (let levelIdx = 1; levelIdx < hierarchy.length; levelIdx++) {
+    const targetLevel = hierarchy[levelIdx];
+    const targetKey = scopeKey(targetLevel);
+
+    // Count patterns at the level BELOW this one (more specific).
+    const childLevelIdx = levelIdx - 1;
+    const childLevel = hierarchy[childLevelIdx];
+    const childKey = scopeKey(childLevel);
+
+    // Find all patterns at the child level for this goal class.
+    // For individual → team promotion, children are all individual patterns
+    // in the same team. We match by scopeKey prefix.
+    const childPatterns = [];
+    for (const p of patterns.values()) {
+      if (p.goalClass !== goalClass) continue;
+      if (p.scopeLevel !== childLevel.level) continue;
+      // Check if the child pattern's scope is a child of the target level.
+      // A child's scopeKey should start with the target's scope components.
+      const targetParts = targetKey.split('|').filter(Boolean);
+      const childParts = p.scopeKey.split('|').filter(Boolean);
+      // All target parts must be present in child parts (child is more specific).
+      const isChild = targetParts.every(tp => childParts.includes(tp));
+      if (isChild && p.projectCount > 0) {
+        childPatterns.push(p);
+      }
+    }
+
+    // Promote if 2+ child patterns exist.
+    if (childPatterns.length >= 2) {
+      const promotedPattern = getOrCreatePattern(goalClass, targetLevel);
+
+      // Aggregate failures from all children.
+      const allFailures = new Map();
+      for (const child of childPatterns) {
+        for (const f of child.observedFailures) {
+          const key = f.text.slice(0, 60);
+          if (allFailures.has(key)) {
+            allFailures.get(key).occurrences += (f.occurrences || 1);
+          } else {
+            allFailures.set(key, { text: f.text, occurrences: f.occurrences || 1 });
+          }
+        }
+      }
+      promotedPattern.observedFailures = Array.from(allFailures.values())
+        .sort((a, b) => b.occurrences - a.occurrences)
+        .slice(0, 10);
+
+      // Aggregate corrections.
+      const allCorrections = new Map();
+      for (const child of childPatterns) {
+        for (const c of child.successfulCorrections) {
+          const key = c.text.slice(0, 60);
+          if (allCorrections.has(key)) {
+            allCorrections.get(key).occurrences += (c.occurrences || 1);
+          } else {
+            allCorrections.set(key, { text: c.text, occurrences: c.occurrences || 1 });
+          }
+        }
+      }
+      promotedPattern.successfulCorrections = Array.from(allCorrections.values())
+        .sort((a, b) => b.occurrences - a.occurrences)
+        .slice(0, 10);
+
+      // Aggregate workflows.
+      const workflowMap = new Map();
+      for (const child of childPatterns) {
+        for (const w of child.winningWorkflow) {
+          if (workflowMap.has(w.team)) {
+            const existing = workflowMap.get(w.team);
+            existing.count += w.count;
+            existing.acceptedCount += w.acceptedCount;
+          } else {
+            workflowMap.set(w.team, { ...w });
+          }
+        }
+      }
+      promotedPattern.winningWorkflow = Array.from(workflowMap.values())
+        .sort((a, b) => b.acceptedCount - a.acceptedCount);
+
+      // Aggregate project count and acceptance.
+      promotedPattern.projectCount = childPatterns.reduce((sum, p) => sum + p.projectCount, 0);
+      const totalAccepted = childPatterns.reduce((sum, p) => {
+        const accepted = p._outcomes?.filter(o => o === 'accepted').length || 0;
+        return sum + accepted;
+      }, 0);
+      const totalOutcomes = childPatterns.reduce((sum, p) => {
+        const outcomes = p._outcomes?.filter(o => o !== 'pending').length || 0;
+        return sum + outcomes;
+      }, 0);
+      promotedPattern.acceptanceRate = totalOutcomes > 0 ? totalAccepted / totalOutcomes : null;
+      promotedPattern._outcomes = childPatterns.flatMap(p => p._outcomes || []);
+
+      // Average confidence.
+      const confidences = childPatterns
+        .map(p => p.confidenceCalibration?.predictedAvg)
+        .filter(c => c !== null && c !== undefined);
+      if (confidences.length > 0) {
+        promotedPattern.confidenceCalibration.predictedAvg =
+          Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length);
+      }
+      promotedPattern.confidenceCalibration.realizedAcceptanceRate = promotedPattern.acceptanceRate;
+
+      promotedPattern.version++;
+      promotedPattern.lastUpdated = new Date().toISOString();
+      promotedPattern.isPromoted = true;
+      promotedPattern.sourcePatternIds = childPatterns.map(p => p.id);
+
+      const { _outcomes, ...persistable } = promotedPattern;
+      await persist(persistable);
+
+      console.log(`[patterns] PROMOTED "${goalClass}" from ${childLevel.level} → ${targetLevel.level} (${childPatterns.length} patterns, ${promotedPattern.projectCount} total projects)`);
+    }
+  }
 }
 
 // Extract a section from the conductor's structured lessons output.
@@ -230,70 +369,96 @@ function extractSection(text, sectionName) {
 }
 
 // Retrieve the best execution pattern for a new goal.
-// Returns the pattern for the goal's class, or null if none exists yet.
-export function retrievePattern(goal) {
+// CASCADES through the scope hierarchy:
+//   individual → team → department → company → industry → global
+//
+// Returns ALL matching patterns, ordered from most specific to least.
+// The conductor can then reference individual preferences that override
+// company playbooks that override global laws.
+//
+// This is what makes Maestro work for both a solo founder (only global
+// patterns) and a Fortune 500 company (all 6 levels populated).
+export function retrievePattern(goal, scope = null) {
   const goalClass = classifyGoal(goal);
-  for (const p of patterns.values()) {
-    if (p.goalClass === goalClass && p.projectCount > 0) {
-      return p;
+  const useScope = scope || getCurrentScope();
+  const hierarchy = getScopeHierarchy(useScope);
+
+  const results = [];
+  for (const scopeLvl of hierarchy) {
+    const sKey = scopeKey(scopeLvl);
+    for (const p of patterns.values()) {
+      if (p.goalClass === goalClass && p.scopeKey === sKey && p.projectCount > 0) {
+        results.push(p);
+        break; // one pattern per scope level
+      }
     }
   }
-  return null;
+  return results; // ordered: most specific first
 }
 
-// Format a pattern as context for the conductor's examine phase.
-// This is how the planner "searches proven execution patterns"
-// instead of searching individual projects.
-export function formatPatternContext(pattern) {
-  if (!pattern || pattern.projectCount === 0) return '';
+// Format retrieved patterns (at multiple scope levels) as conductor context.
+// Shows the conductor WHERE each piece of knowledge comes from.
+export function formatPatternContext(patternsArr) {
+  if (!patternsArr || patternsArr.length === 0) return '';
 
-  const workflowStr = pattern.winningWorkflow
-    .sort((a, b) => b.acceptedCount - a.acceptedCount)
-    .slice(0, 2)
-    .map(w => `  - ${w.specialists.join(' → ')} (${w.acceptedCount}/${w.count} accepted)`)
-    .join('\n');
+  const blocks = patternsArr.map((pattern, idx) => {
+    const scopeLabel = pattern.scopeLevel === 'global' ? 'Global'
+      : pattern.scopeLevel === 'industry' ? `Industry (${pattern.scope.industry})`
+      : pattern.scopeLevel === 'company' ? `Company (${pattern.scope.organization})`
+      : pattern.scopeLevel === 'department' ? `Department (${pattern.scope.department})`
+      : pattern.scopeLevel === 'team' ? `Team (${pattern.scope.team})`
+      : pattern.scopeLevel === 'individual' ? `Individual (${pattern.scope.userId})`
+      : pattern.scopeLevel;
 
-  const failuresStr = pattern.observedFailures
-    .slice(0, 3)
-    .sort((a, b) => (b.occurrences || 1) - (a.occurrences || 1))
-    .map(f => `  - ${f.text}${f.occurrences > 1 ? ` (seen ${f.occurrences}×)` : ''}`)
-    .join('\n');
+    const workflowStr = pattern.winningWorkflow
+      .sort((a, b) => b.acceptedCount - a.acceptedCount)
+      .slice(0, 2)
+      .map(w => `  - ${w.specialists.join(' → ')} (${w.acceptedCount}/${w.count} accepted)`)
+      .join('\n');
 
-  const correctionsStr = pattern.successfulCorrections
-    .slice(0, 3)
-    .sort((a, b) => (b.occurrences || 1) - (a.occurrences || 1))
-    .map(c => `  - ${c.text}${c.occurrences > 1 ? ` (confirmed ${c.occurrences}×)` : ''}`)
-    .join('\n');
+    const failuresStr = pattern.observedFailures
+      .slice(0, 3)
+      .sort((a, b) => (b.occurrences || 1) - (a.occurrences || 1))
+      .map(f => `  - ${f.text}${f.occurrences > 1 ? ` (seen ${f.occurrences}×)` : ''}`)
+      .join('\n');
 
-  const lines = [
-    `--- Execution Pattern for: ${pattern.goalClass} ---`,
-    `Projects observed: ${pattern.projectCount}`,
-    `Acceptance rate: ${pattern.acceptanceRate !== null ? Math.round(pattern.acceptanceRate * 100) + '%' : 'unknown'}`,
-    `Predicted confidence (avg): ${pattern.confidenceCalibration.predictedAvg ?? 'unknown'}%`,
-    `Realized acceptance rate: ${pattern.confidenceCalibration.realizedAcceptanceRate !== null ? Math.round(pattern.confidenceCalibration.realizedAcceptanceRate * 100) + '%' : 'unknown'}`,
-    '',
-    `Proven workflows:`,
-    workflowStr || '  (none yet)',
-    '',
-    `Known failure modes:`,
-    failuresStr || '  (none yet)',
-    '',
-    `Successful corrections:`,
-    correctionsStr || '  (none yet)',
-    '',
-  ];
-  if (pattern.confidenceCalibration.calibrationNote) {
-    lines.push(`Calibration note: ${pattern.confidenceCalibration.calibrationNote}`);
-  }
-  lines.push('---');
-  return lines.join('\n');
+    const correctionsStr = pattern.successfulCorrections
+      .slice(0, 3)
+      .sort((a, b) => (b.occurrences || 1) - (a.occurrences || 1))
+      .map(c => `  - ${c.text}${c.occurrences > 1 ? ` (confirmed ${c.occurrences}×)` : ''}`)
+      .join('\n');
+
+    const lines = [
+      `--- ${scopeLabel} Execution Pattern: ${pattern.goalClass} ---`,
+      `Projects observed: ${pattern.projectCount}`,
+      `Acceptance rate: ${pattern.acceptanceRate !== null ? Math.round(pattern.acceptanceRate * 100) + '%' : 'unknown'}`,
+      '',
+      `Proven workflows:`,
+      workflowStr || '  (none yet)',
+      '',
+      `Known failure modes:`,
+      failuresStr || '  (none yet)',
+      '',
+      `Successful corrections:`,
+      correctionsStr || '  (none yet)',
+    ];
+    if (pattern.confidenceCalibration?.calibrationNote) {
+      lines.push(`Calibration: ${pattern.confidenceCalibration.calibrationNote}`);
+    }
+    lines.push('---');
+    return lines.join('\n');
+  });
+
+  return blocks.join('\n\n');
 }
 
-// Get stats for all patterns.
+// Get stats for all patterns, grouped by scope level.
 export function getPatternStats() {
   const all = Array.from(patterns.values());
   return all.map(p => ({
     goalClass: p.goalClass,
+    scopeLevel: p.scopeLevel,
+    scopeKey: p.scopeKey,
     projectCount: p.projectCount,
     acceptanceRate: p.acceptanceRate,
     predictedAvg: p.confidenceCalibration?.predictedAvg ?? null,
