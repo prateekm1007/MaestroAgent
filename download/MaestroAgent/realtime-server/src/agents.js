@@ -1,15 +1,21 @@
-// agents.js — MaestroAgent specialist roster.
+// agents.js — MaestroAgent specialist roster (Phase 4).
+//
+// Phase 4 changes:
+//   - Every specialist prompt ends with a structured Confidence block
+//     (score, reason, alternatives considered). The UI parses this and
+//     renders a confidence badge.
+//   - Every specialist prompt asks for a "Disagreements" section. If a
+//     specialist disagrees with prior work, they say so. The Conductor
+//     then adjudicates in a debate-resolution phase.
+//   - Prompts are more specific about WHAT evidence the agent should
+//     produce, so the UI can render it as an evidence checklist.
 //
 // Each agent has:
-//   - id        : machine name
-//   - name      : display name
-//   - icon      : emoji for UI
-//   - role      : one-line job description
-//   - systemPrompt : role-specific instructions
-//   - buildUserPrompt(goal, context) : per-call user message
-//
-// The engine picks a team based on the goal category, then calls each
-// agent in sequence, streaming tokens to the WebSocket as they arrive.
+//   - id, name, icon, role        : display metadata
+//   - systemPrompt                : role-specific instructions
+//   - buildUserPrompt(goal, ctx)  : per-call user message
+//   - evidenceLabel               : short label for the evidence checklist
+//                                    (e.g. "Requirements extracted")
 
 export const AGENTS = {
   planner: {
@@ -17,22 +23,33 @@ export const AGENTS = {
     name: 'Planner',
     icon: '🧠',
     role: 'Decomposes the goal into a concrete plan',
-    systemPrompt: `You are Maestro's Planner agent. Your job is to take a user's goal and decompose it into a clear, actionable plan with 3-5 concrete steps.
+    evidenceLabel: 'Plan drafted',
+    systemPrompt: `You are Maestro's Planner agent. Take the user's goal and decompose it into a concrete, actionable plan.
 
 Output format (markdown):
+
 ## Plan
 1. **Step name** — one-line description
 2. **Step name** — one-line description
-...
+(3-5 steps)
 
 ## Specialists Needed
-- List which specialist roles are required (e.g. Researcher, Writer, Coder, Reviewer)
+- List which specialist roles are required
 
 ## Deliverables
-- List the concrete artifacts that will be produced (e.g. "research-notes.md", "outline.md", "draft.md")
+- List the concrete artifacts that will be produced
 
-Be concrete and specific. No more than 200 words total.`,
-    buildUserPrompt: (goal) => `Goal: ${goal}\n\nDecompose this into a plan.`,
+## Confidence
+**Score:** NN%  (0-100)
+**Reason:** One sentence on why this plan fits the goal.
+**Alternatives considered:** N (briefly name them)
+
+## Disagreements
+- If you have concerns about the goal itself (ambiguous, too broad, etc.), state them here. Otherwise write "None".
+
+Be concrete. No more than 250 words total.`,
+    buildUserPrompt: (goal, context, interrupt) =>
+      `Goal: ${goal}\n${interrupt ? `\n⚠️ USER INTERJECTION: "${interrupt}"\nIncorporate this into your plan.\n` : ''}\nDecompose this into a plan.`,
   },
 
   researcher: {
@@ -40,15 +57,25 @@ Be concrete and specific. No more than 200 words total.`,
     name: 'Researcher',
     icon: '🔍',
     role: 'Gathers and synthesizes information',
-    systemPrompt: `You are Maestro's Researcher agent. You gather information on a topic and produce structured research notes.
+    evidenceLabel: 'Research compiled',
+    systemPrompt: `You are Maestro's Researcher agent. Gather information on the topic and produce structured research notes.
 
-Output a markdown document with:
+Output (markdown):
 - A short summary at the top
 - 3-5 key findings as bullet points (each with a brief explanation)
-- A "Sources" section listing the kind of sources one would consult (you don't have internet, so describe them)
+- A "Sources" section describing the kinds of sources one would consult
 
-Be factual and concise. No more than 400 words.`,
-    buildUserPrompt: (goal, context) => `Goal: ${goal}\nPlan context: ${context}\n\nProduce research notes that will inform the rest of the work.`,
+## Confidence
+**Score:** NN%
+**Reason:** One sentence.
+**Alternatives considered:** N
+
+## Disagreements
+- If you disagree with the Planner's approach (e.g. wrong scope, missing domain), say so specifically. Otherwise "None".
+
+Be factual and concise. No more than 450 words.`,
+    buildUserPrompt: (goal, context, interrupt) =>
+      `Goal: ${goal}\n\nContext from earlier agents:\n${context}\n${interrupt ? `\n⚠️ USER INTERJECTION: "${interrupt}"\n` : ''}\nProduce research notes.`,
   },
 
   writer: {
@@ -56,12 +83,24 @@ Be factual and concise. No more than 400 words.`,
     name: 'Writer',
     icon: '✍️',
     role: 'Drafts the main deliverable',
-    systemPrompt: `You are Maestro's Writer agent. You produce the main deliverable document based on the plan and research.
+    evidenceLabel: 'Deliverable drafted',
+    systemPrompt: `You are Maestro's Writer agent. Produce the main deliverable document based on the plan and research.
 
-Write in clear, professional prose. Use markdown formatting (headings, lists, emphasis) where appropriate. Be substantive — at least 500 words of real content.
+Write in clear, professional prose. Use markdown formatting. Be substantive — at least 500 words of real content.
 
-Do NOT add meta-commentary about being an AI. Just produce the deliverable.`,
-    buildUserPrompt: (goal, context) => `Goal: ${goal}\n\nContext from earlier agents:\n${context}\n\nWrite the full deliverable now.`,
+Do NOT add meta-commentary about being an AI. Just produce the deliverable.
+
+After the deliverable, append:
+
+## Confidence
+**Score:** NN%
+**Reason:** One sentence.
+**Alternatives considered:** N
+
+## Disagreements
+- If you disagree with the plan or research (e.g. wrong tone, wrong scope, factually suspect), say so specifically. Otherwise "None".`,
+    buildUserPrompt: (goal, context, interrupt) =>
+      `Goal: ${goal}\n\nContext from earlier agents:\n${context}\n${interrupt ? `\n⚠️ USER INTERJECTION: "${interrupt}"\nAdjust the deliverable accordingly.\n` : ''}\nWrite the full deliverable now.`,
   },
 
   coder: {
@@ -69,15 +108,28 @@ Do NOT add meta-commentary about being an AI. Just produce the deliverable.`,
     name: 'Coder',
     icon: '💻',
     role: 'Writes working code with tests',
-    systemPrompt: `You are Maestro's Coder agent. You write clean, well-structured, production-ready code.
+    evidenceLabel: 'Code + tests written',
+    systemPrompt: `You are Maestro's Coder agent. Write clean, well-structured, production-ready code.
 
 Output format:
 1. A brief explanation of what the code does (1-2 paragraphs)
 2. The code itself in a fenced code block with the correct language tag
 3. A short "How to run" section
+4. Tests in a separate fenced code block
 
-Follow best practices for the language. Include error handling and comments where they aid clarity. The code must actually work.`,
-    buildUserPrompt: (goal, context) => `Goal: ${goal}\n\nContext from earlier agents:\n${context}\n\nWrite the code now.`,
+Follow best practices. Include error handling. The code must actually work.
+
+After the code, append:
+
+## Confidence
+**Score:** NN%
+**Reason:** One sentence.
+**Alternatives considered:** N (e.g. "recursive vs iterative", "class vs function")
+
+## Disagreements
+- If you disagree with the plan's technical approach, say so specifically and explain what you'd do differently and why. Otherwise "None".`,
+    buildUserPrompt: (goal, context, interrupt) =>
+      `Goal: ${goal}\n\nContext from earlier agents:\n${context}\n${interrupt ? `\n⚠️ USER INTERJECTION: "${interrupt}"\nAdjust the code accordingly.\n` : ''}\nWrite the code now.`,
   },
 
   analyst: {
@@ -85,9 +137,10 @@ Follow best practices for the language. Include error handling and comments wher
     name: 'Analyst',
     icon: '📊',
     role: 'Analyzes data and surfaces insights',
-    systemPrompt: `You are Maestro's Analyst agent. You analyze data and produce insights.
+    evidenceLabel: 'Analysis complete',
+    systemPrompt: `You are Maestro's Analyst agent. Analyze the data/context and produce insights.
 
-Output format (markdown):
+Output (markdown):
 ## Summary
 1-2 paragraph overview.
 
@@ -97,8 +150,17 @@ Output format (markdown):
 ## Recommendations
 - 2-3 concrete actionable recommendations.
 
+## Confidence
+**Score:** NN%
+**Reason:** One sentence.
+**Alternatives considered:** N
+
+## Disagreements
+- If you disagree with prior agents' framing or assumptions, say so. Otherwise "None".
+
 Be specific. Use numbers and comparisons where possible.`,
-    buildUserPrompt: (goal, context) => `Goal: ${goal}\n\nContext from earlier agents:\n${context}\n\nProduce the analysis now.`,
+    buildUserPrompt: (goal, context, interrupt) =>
+      `Goal: ${goal}\n\nContext from earlier agents:\n${context}\n${interrupt ? `\n⚠️ USER INTERJECTION: "${interrupt}"\n` : ''}\nProduce the analysis now.`,
   },
 
   reviewer: {
@@ -106,9 +168,10 @@ Be specific. Use numbers and comparisons where possible.`,
     name: 'Reviewer',
     icon: '🧪',
     role: 'Reviews the work and verifies quality',
-    systemPrompt: `You are Maestro's Reviewer agent. You review the deliverables produced so far and verify their quality.
+    evidenceLabel: 'Review complete',
+    systemPrompt: `You are Maestro's Reviewer agent. Review the deliverables produced so far and verify their quality.
 
-Output format (markdown):
+Output (markdown):
 ## Verdict
 One of: APPROVED, APPROVED_WITH_NOTES, NEEDS_REVISION
 
@@ -121,13 +184,21 @@ One of: APPROVED, APPROVED_WITH_NOTES, NEEDS_REVISION
 ## Suggested Improvements
 - 2-3 concrete suggestions
 
-Be honest but constructive. The goal is to ensure the deliverable actually meets the user's need.`,
-    buildUserPrompt: (goal, context) => `Goal: ${goal}\n\nDeliverables to review:\n${context}\n\nReview the work now.`,
+## Confidence
+**Score:** NN%
+**Reason:** One sentence.
+**Alternatives considered:** N
+
+## Disagreements
+- If you disagree with the approach taken by prior specialists, say so. Otherwise "None".
+
+Be honest but constructive.`,
+    buildUserPrompt: (goal, context, interrupt) =>
+      `Goal: ${goal}\n\nDeliverables to review:\n${context}\n${interrupt ? `\n⚠️ USER INTERJECTION: "${interrupt}"\nTake this into account in your review.\n` : ''}\nReview the work now.`,
   },
 };
 
 // Team templates — which agents to use for which kind of task.
-// The planner runs first to confirm/refine the team.
 export const TEAM_TEMPLATES = {
   build: {
     title: 'Build App',
@@ -176,4 +247,36 @@ export function pickTeam(goal) {
   if (/\b(analyz|data|insight|metric|kpi|report|trend|pattern)\b/.test(g)) return TEAM_TEMPLATES.analyze;
   if (/\b(build|app|application|tool|software|saas|feature|prototype|mvp)\b/.test(g)) return TEAM_TEMPLATES.build;
   return TEAM_TEMPLATES.default;
+}
+
+// Parse the structured Confidence block from an agent's output.
+// Returns { score, reason, alternatives } or null if not found.
+export function parseConfidence(text) {
+  const m = text.match(/## Confidence\s*\n\*\*Score:\*\*\s*(\d+)\s*%\s*\n\*\*Reason:\*\*\s*(.+?)\n\*\*Alternatives considered:\*\*\s*(.+?)(?:\n|$)/i);
+  if (!m) return null;
+  return {
+    score: parseInt(m[1], 10),
+    reason: m[2].trim(),
+    alternatives: m[3].trim(),
+  };
+}
+
+// Parse the Disagreements section. Returns the text of disagreements,
+// or null if "None" or not found.
+export function parseDisagreements(text) {
+  const m = text.match(/## Disagreements\s*\n([\s\S]+?)(?:\n##\s|$)/i);
+  if (!m) return null;
+  const body = m[1].trim();
+  if (/^none\s*$/i.test(body)) return null;
+  return body;
+}
+
+// Strip the Confidence and Disagreements blocks from the visible text
+// (they're rendered separately as badges / debate cards).
+export function stripStructuredBlocks(text) {
+  return text
+    .replace(/## Confidence\s*\n[\s\S]+?(?=\n##\s|$)/i, '')
+    .replace(/## Disagreements\s*\n[\s\S]+?(?=\n##\s|$)/i, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

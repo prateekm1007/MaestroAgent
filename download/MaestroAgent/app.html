@@ -574,6 +574,67 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 
 /* Start-new CTA */
 .start-new-cta { text-align: center; padding: 24px; margin-top: 24px; background: rgba(255,255,255,0.02); border-radius: 14px; }
+
+/* ===== PHASE 4: REAL COGNITION UI ===== */
+
+/* Conductor narration — distinct from specialist bubbles.
+   Purple gradient border, "thinking out loud" feel. */
+.conductor-bubble { background: linear-gradient(135deg, rgba(124,92,255,0.08), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.25); border-radius: 14px; padding: 14px 18px; margin-bottom: 14px; animation: spaPageIn .3s ease; position: relative; }
+.conductor-bubble::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; background: linear-gradient(180deg, #7c5cff, #00d4aa); border-radius: 0 2px 2px 0; }
+.conductor-bubble-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #a594ff; }
+.conductor-bubble-header .conductor-avatar { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: white; }
+.conductor-bubble-header .phase-label { color: #8888a0; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11px; margin-left: auto; }
+.conductor-bubble-text { font-size: 13.5px; color: #e8e8f0; line-height: 1.65; padding-left: 4px; }
+.conductor-bubble-text .typing-dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+
+/* Confidence badge — appears on agent completion */
+.confidence-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; margin-left: 8px; vertical-align: middle; }
+.confidence-badge.high { background: rgba(0,212,170,0.14); color: #00d4aa; border: 1px solid rgba(0,212,170,0.25); }
+.confidence-badge.medium { background: rgba(255,184,77,0.14); color: #ffb84d; border: 1px solid rgba(255,184,77,0.25); }
+.confidence-badge.low { background: rgba(255,85,119,0.14); color: #ff5577; border: 1px solid rgba(255,85,119,0.25); }
+.confidence-badge .conf-score { font-family: 'JetBrains Mono', monospace; }
+.confidence-detail { font-size: 11px; color: #8888a0; margin-top: 6px; padding: 8px 12px; background: rgba(255,255,255,0.02); border-radius: 8px; border-left: 2px solid rgba(124,92,255,0.3); }
+.confidence-detail .conf-reason { color: #c8c8d8; }
+.confidence-detail .conf-alternatives { color: #5a5a72; margin-top: 4px; font-size: 10.5px; }
+
+/* Debate thread — disagreements + resolution */
+.debate-card { background: linear-gradient(180deg, rgba(255,184,77,0.06), rgba(255,85,119,0.04)); border: 1px solid rgba(255,184,77,0.25); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; animation: spaPageIn .3s ease; }
+.debate-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #ffb84d; }
+.debate-card-header svg { width: 14px; height: 14px; }
+.debate-card .debater { font-size: 12px; color: #c8c8d8; margin-bottom: 6px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 2px solid rgba(255,184,77,0.4); }
+.debate-card .debater-name { font-weight: 700; color: #ffb84d; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+.resolution-card { background: linear-gradient(180deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.30); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; animation: spaPageIn .3s ease; }
+.resolution-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #a594ff; }
+.resolution-card-text { font-size: 13px; color: #e8e8f0; line-height: 1.6; }
+
+/* Evidence checklist — replaces progress bar */
+.evidence-panel { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+.evidence-panel-header { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8888a0; margin-bottom: 10px; }
+.evidence-panel-header .evidence-count { margin-left: auto; color: #00d4aa; font-family: 'JetBrains Mono', monospace; }
+.evidence-list { display: flex; flex-direction: column; gap: 6px; }
+.evidence-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #c8c8d8; padding: 6px 10px; background: rgba(0,212,170,0.04); border-radius: 6px; border-left: 2px solid rgba(0,212,170,0.4); animation: spaPageIn .25s ease; }
+.evidence-item .evidence-check { width: 16px; height: 16px; border-radius: 50%; background: rgba(0,212,170,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.evidence-item .evidence-check svg { width: 10px; height: 10px; color: #00d4aa; }
+.evidence-item .evidence-label { flex: 1; }
+.evidence-item .evidence-agent { font-size: 10px; color: #5a5a72; font-family: 'JetBrains Mono', monospace; }
+
+/* Interrupt input — always visible at bottom of work-stream */
+.interrupt-bar { position: sticky; bottom: 0; background: linear-gradient(180deg, rgba(7,7,16,0) 0%, rgba(7,7,16,0.95) 30%); padding: 16px 0 8px; margin-top: 8px; }
+.interrupt-input-wrap { background: linear-gradient(180deg, rgba(22,22,36,0.8), rgba(18,18,30,0.8)); border: 1px solid rgba(124,92,255,0.25); border-radius: 14px; padding: 12px 14px; backdrop-filter: blur(20px); transition: all .25s; }
+.interrupt-input-wrap:focus-within { border-color: rgba(124,92,255,0.5); box-shadow: 0 0 24px -6px rgba(124,92,255,0.3); }
+.interrupt-input { width: 100%; background: transparent; border: none; outline: none; color: #e8e8f0; font-size: 13px; font-family: inherit; resize: none; min-height: 22px; max-height: 100px; }
+.interrupt-input::placeholder { color: #5a5a72; }
+.interrupt-bar-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.04); }
+.interrupt-hint { font-size: 10.5px; color: #5a5a72; display: flex; align-items: center; gap: 6px; }
+.interrupt-send { background: linear-gradient(135deg, #7c5cff, #6b4df5); color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.interrupt-send:hover { box-shadow: 0 2px 12px rgba(124,92,255,0.4); transform: translateY(-1px); }
+.interrupt-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* User interjection bubble — when interrupt is consumed */
+.user-interjection { background: rgba(255,184,77,0.08); border: 1px solid rgba(255,184,77,0.25); border-radius: 12px 12px 4px 12px; padding: 10px 14px; margin: 8px 0 8px 48px; animation: spaPageIn .3s ease; }
+.user-interjection-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #ffb84d; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+.user-interjection-text { font-size: 13px; color: #e8e8f0; }
+
 </style>
 </head>
 <body>
@@ -4713,9 +4774,9 @@ async function startTaskFlow() {
   // User's message bubble.
   addWorkStreamMessage('user', goal);
 
-  // Maestro acknowledges — typing indicator first.
-  await sleep(300);
-  addMaestroMessage("On it. Let me assemble the right specialists and get to work.", true);
+  // No typing indicator here — the Conductor will start narrating within
+  // a second or two. The first thing the user sees after their prompt
+  // should be real conductor reasoning, not a canned "On it." message.
 
   // === REAL BACKEND CALL ===
   try {
@@ -4728,8 +4789,8 @@ async function startTaskFlow() {
     const data = await resp.json();
     activeRun.id = data.run_id;
 
-    // Progress bar — will be updated as agents complete.
-    addWorkProgress('Starting run...');
+    // No progress bar in Phase 4 — evidence checklist replaces it.
+    // The evidence panel + interrupt bar are created on run.started.
 
     // Connect WebSocket for live streaming.
     connectRunWebSocket(data.run_id);
@@ -4764,6 +4825,8 @@ function connectRunWebSocket(runId) {
 }
 
 // Dispatch a single event to the right UI handler.
+// Phase 4: now handles conductor narration, debate, confidence, evidence,
+// and user interrupts in addition to the original specialist events.
 function handleRunEvent(ev) {
   const p = ev.payload || {};
   switch (ev.type) {
@@ -4772,32 +4835,46 @@ function handleRunEvent(ev) {
       break;
 
     case 'run.started':
-      updateWorkProgress(5, 'Team assembled · starting work');
-      addMaestroMessage("I've put together a team of " + (p.team?.length || 0) + " specialists. They'll work in sequence — you'll see each one's output stream in real time.", false);
-      // Add the deliverables panel up front so it's ready to fill in.
-      ensureDeliverablesPanel();
+      // Don't add a progress bar — Phase 4 uses an evidence checklist instead.
+      // The Conductor will narrate the team assembly; we just ensure the
+      // evidence panel and interrupt bar are in place.
+      ensureEvidencePanel();
+      ensureInterruptBar();
       break;
 
+    // === CONDUCTOR EVENTS ===
+    case 'conductor.phase':
+      // Start (or transition) the conductor bubble for this phase.
+      startConductorBubble(p.phase, p.label, p.agent_id, p.step, p.total_steps);
+      break;
+
+    case 'conductor.token':
+      // Stream a token into the current conductor bubble.
+      appendTokenToConductor(p.phase, p.delta, p.agent_id);
+      break;
+
+    case 'conductor.phase_done':
+      // Finalize the conductor bubble for this phase (remove typing dots).
+      finalizeConductorBubble(p.phase, p.agent_id);
+      break;
+
+    // === SPECIALIST EVENTS ===
     case 'agent.joined':
       addSpecialistJoin({ icon: p.icon, name: p.name, role: p.role });
       break;
 
     case 'agent.thinking':
-      // Start a new agent message bubble that we'll stream tokens into.
+      // Start a specialist bubble that we'll stream tokens into.
       startAgentStream(p.agent_id, p.name, p.icon, p.step, p.total_steps);
-      // Update progress: each agent gets a proportional slice.
-      const pct = 10 + Math.floor(((p.step - 1) / p.total_steps) * 80);
-      updateWorkProgress(pct, p.name + ' is working (step ' + p.step + '/' + p.total_steps + ')');
       break;
 
     case 'agent.token':
-      // Stream the token into the current agent's bubble.
       appendTokenToAgentStream(p.agent_id, p.delta);
       break;
 
     case 'agent.completed':
-      // Finalize the agent's bubble with the full rendered text.
-      finalizeAgentStream(p.agent_id, p.text, p.artifact, p.bytes);
+      // Finalize the bubble with the visible text (structured blocks stripped).
+      finalizeAgentStream(p.agent_id, p.text, p.artifact, p.bytes, p.confidence);
       // Add to deliverables panel.
       addDeliverableCard({
         agent_id: p.agent_id,
@@ -4805,26 +4882,69 @@ function handleRunEvent(ev) {
         filename: p.artifact,
         bytes: p.bytes,
         preview: (p.text || '').slice(0, 240),
+        confidence: p.confidence,
       });
-      // Bump progress.
-      const done = p.step / p.total_steps;
-      updateWorkProgress(10 + Math.floor(done * 80), p.name + ' done · ' + Math.floor(done * 100) + '% complete');
       break;
 
+    // === CONFIDENCE EVENTS (Phase 4) ===
+    case 'confidence.reported':
+      renderConfidenceBadge(p.agent_id, p.agent_name, p.score, p.reason, p.alternatives);
+      break;
+
+    // === EVIDENCE EVENTS (Phase 4) ===
+    case 'evidence.added':
+      addEvidenceItem(p.label, p.agent_name, p.agent_id, p.artifact);
+      break;
+
+    // === DEBATE EVENTS (Phase 4) ===
+    case 'debate.disagreement':
+      addDisagreement(p.agent_name, p.text);
+      break;
+
+    case 'debate.resolution':
+      renderResolution(p.text, p.artifact, p.bytes, p.disagreement_count);
+      // Add the resolution as a deliverable too.
+      addDeliverableCard({
+        agent_id: 'conductor',
+        agent_name: 'Conductor (Debate Resolution)',
+        filename: p.artifact,
+        bytes: p.bytes,
+        preview: (p.text || '').slice(0, 240),
+      });
+      break;
+
+    // === INTERRUPT EVENTS (Phase 4) ===
+    case 'user.interrupted':
+      // The user's queued message has been consumed by the engine.
+      // Show it inline as an interjection bubble.
+      addUserInterjection(p.message);
+      // Clear the interrupt input.
+      const input = document.getElementById('interrupt-input');
+      if (input) input.value = '';
+      break;
+
+    // === RUN LIFECYCLE ===
     case 'run.completed':
-      updateWorkProgress(100, 'Done · ' + (p.duration_ms / 1000).toFixed(1) + 's');
+      // Update evidence panel header with final count.
+      finalizeEvidencePanel(p.avg_confidence, p.disagreement_count);
       // Highlight the final deliverable.
       if (p.final_artifact) {
         markFinalDeliverable(p.final_artifact);
       }
-      addMaestroMessage("All done. " + (p.artifacts?.length || 0) + " artifacts produced. Scroll down to download them, or start a new task.", false);
-      // Show "start new" CTA.
+      // Maestro's closing remark — only if there was no conductor summarize
+      // phase (defensive; normally conductor.phase_done summarize fires first).
+      addMaestroMessage("All done. " + (p.artifacts?.length || 0) + " artifacts produced" +
+        (p.avg_confidence ? " · avg confidence " + p.avg_confidence + "%" : "") +
+        (p.disagreement_count > 0 ? " · " + p.disagreement_count + " disagreements resolved" : "") +
+        ".", false);
       addStartNewCTA();
+      // Disable the interrupt bar (run is over).
+      setInterruptBarEnabled(false);
       break;
 
     case 'run.failed':
-      updateWorkProgress(100, 'Failed');
       addMaestroMessage("⚠️ Run failed: " + escapeHtml(p.error || 'unknown error'), false);
+      setInterruptBarEnabled(false);
       break;
   }
 }
@@ -4944,20 +5064,28 @@ function appendTokenToAgentStream(agentId, delta) {
 }
 
 // Finalize the agent's bubble: remove typing dots, add the artifact badge.
-function finalizeAgentStream(agentId, fullText, artifact, bytes) {
+function finalizeAgentStream(agentId, fullText, artifact, bytes, confidence) {
   const el = document.getElementById('agent-stream-' + agentId);
   if (!el) return;
   // Remove typing dots.
   el.querySelectorAll('.typing-dots').forEach(d => d.remove());
-  // Replace step badge with "done" + artifact link.
+  // Set the step badge to "done" + artifact link. PRESERVE any confidence
+  // badge that was already appended by renderConfidenceBadge().
   const step = el.querySelector('.agent-stream-step');
   if (step) {
+    // Save existing confidence badges.
+    const existingBadges = Array.from(step.querySelectorAll('.confidence-badge'));
     step.innerHTML = '✓ done · <a href="' + MAESTRO_API + '/api/runs/' + activeRun.id + '/artifacts/' + encodeURIComponent(artifact) + '" target="_blank" class="agent-artifact-link">' + escapeHtml(artifact) + '</a> (' + bytes + ' bytes)';
+    // Re-append the badges.
+    existingBadges.forEach(b => step.appendChild(b));
   }
-  // Final render with full text.
+  // Final render with full text (structured blocks already stripped server-side).
   const body = el.querySelector('.agent-stream-body');
   if (body && fullText) {
+    // Preserve any confidence-detail block that was appended.
+    const existingDetail = body.querySelector('.confidence-detail');
     body.innerHTML = renderMarkdown(fullText);
+    if (existingDetail) body.appendChild(existingDetail);
   }
 }
 
@@ -5022,6 +5150,321 @@ function addStartNewCTA() {
     ' &nbsp; ' +
     '<a href="' + MAESTRO_API + '/api/runs/' + (activeRun.id || '') + '" target="_blank" class="btn btn-ghost">View run JSON</a>';
   ws.appendChild(el);
+}
+
+// === PHASE 4 UI HELPERS ===
+// Conductor bubbles, confidence badges, debate thread, evidence checklist,
+// and the always-visible interrupt input.
+
+// Track the current conductor bubble so we can stream tokens into it.
+// Keyed by phase (+ optional agent_id for handoff phase).
+function conductorBubbleId(phase, agentId) {
+  return 'conductor-' + phase + (agentId ? '-' + agentId : '');
+}
+
+// Start a conductor narration bubble for a phase.
+function startConductorBubble(phase, label, agentId, step, totalSteps) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const id = conductorBubbleId(phase, agentId);
+  // If a bubble already exists for this phase (replay scenario), don't duplicate.
+  if (document.getElementById(id)) return;
+
+  const el = document.createElement('div');
+  el.className = 'conductor-bubble';
+  el.id = id;
+  let phaseLabel = label || phase;
+  if (phase === 'handoff' && step && totalSteps) {
+    phaseLabel = (label || 'Handoff') + ' · step ' + step + ' / ' + totalSteps;
+  }
+  el.innerHTML =
+    '<div class="conductor-bubble-header">' +
+      '<div class="conductor-avatar">M</div>' +
+      '<span>Maestro</span>' +
+      '<span class="phase-label">' + escapeHtml(phaseLabel) + '</span>' +
+    '</div>' +
+    '<div class="conductor-bubble-text">' +
+      '<span class="conductor-text-body"></span>' +
+      '<span class="typing-dots"><span></span><span></span><span></span></span>' +
+    '</div>';
+  ws.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Append a token to the conductor bubble for this phase.
+function appendTokenToConductor(phase, delta, agentId) {
+  const id = conductorBubbleId(phase, agentId);
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Store accumulated text on the element for re-render.
+  const body = el.querySelector('.conductor-text-body');
+  if (!body) return;
+  const current = body.dataset.text || '';
+  const next = current + delta;
+  body.dataset.text = next;
+  body.textContent = next;
+  // Auto-scroll if near bottom.
+  const ws = document.getElementById('work-stream');
+  if (ws) {
+    const nearBottom = ws.scrollHeight - ws.scrollTop - ws.clientHeight < 200;
+    if (nearBottom) ws.scrollTop = ws.scrollHeight;
+  }
+}
+
+// Finalize the conductor bubble — remove typing dots.
+function finalizeConductorBubble(phase, agentId) {
+  const id = conductorBubbleId(phase, agentId);
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelectorAll('.typing-dots').forEach(d => d.remove());
+}
+
+// Render a confidence badge on the agent's completed bubble.
+function renderConfidenceBadge(agentId, agentName, score, reason, alternatives) {
+  if (score === null || score === undefined) return;
+  const agentEl = document.getElementById('agent-stream-' + agentId);
+  if (!agentEl) return;
+  const stepEl = agentEl.querySelector('.agent-stream-step');
+  if (!stepEl) return;
+
+  const tier = score >= 85 ? 'high' : score >= 60 ? 'medium' : 'low';
+  const badge = document.createElement('span');
+  badge.className = 'confidence-badge ' + tier;
+  badge.innerHTML = '<span class="conf-score">' + score + '%</span> confidence';
+  stepEl.appendChild(badge);
+
+  // Add a detail line under the agent body.
+  const body = agentEl.querySelector('.agent-stream-body');
+  if (body && reason) {
+    const detail = document.createElement('div');
+    detail.className = 'confidence-detail';
+    detail.innerHTML = '<div class="conf-reason"><strong>Why ' + score + '%:</strong> ' + escapeHtml(reason) + '</div>' +
+      (alternatives ? '<div class="conf-alternatives">Alternatives considered: ' + escapeHtml(alternatives) + '</div>' : '');
+    body.appendChild(detail);
+  }
+}
+
+// === Evidence checklist ===
+function ensureEvidencePanel() {
+  if (document.getElementById('evidence-panel')) return;
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const panel = document.createElement('div');
+  panel.id = 'evidence-panel';
+  panel.className = 'evidence-panel';
+  panel.innerHTML =
+    '<div class="evidence-panel-header">' +
+      '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+      '<span>Work Completed</span>' +
+      '<span class="evidence-count" id="evidence-count">0</span>' +
+    '</div>' +
+    '<div class="evidence-list" id="evidence-list"></div>';
+  ws.appendChild(panel);
+}
+
+function addEvidenceItem(label, agentName, agentId, artifact) {
+  ensureEvidencePanel();
+  const list = document.getElementById('evidence-list');
+  if (!list) return;
+  const item = document.createElement('div');
+  item.className = 'evidence-item';
+  item.id = 'evidence-' + agentId;
+  item.innerHTML =
+    '<div class="evidence-check">' +
+      '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>' +
+    '</div>' +
+    '<span class="evidence-label">' + escapeHtml(label) + '</span>' +
+    '<span class="evidence-agent">' + escapeHtml(agentName) + '</span>';
+  list.appendChild(item);
+  // Update count.
+  const count = document.getElementById('evidence-count');
+  if (count) count.textContent = list.children.length;
+}
+
+function finalizeEvidencePanel(avgConfidence, disagreementCount) {
+  const header = document.querySelector('.evidence-panel-header');
+  if (!header) return;
+  const extras = [];
+  if (avgConfidence !== null && avgConfidence !== undefined) extras.push('avg ' + avgConfidence + '% conf');
+  if (disagreementCount > 0) extras.push(disagreementCount + ' resolved');
+  if (extras.length > 0) {
+    const extra = document.createElement('span');
+    extra.style.cssText = 'margin-left:8px;color:#a594ff;font-family:JetBrains Mono,monospace;font-size:10px;';
+    extra.textContent = '· ' + extras.join(' · ');
+    header.appendChild(extra);
+  }
+}
+
+// === Debate thread ===
+function addDisagreement(agentName, text) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  // Find or create the debate card.
+  let card = document.getElementById('debate-card');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'debate-card';
+    card.className = 'debate-card';
+    card.innerHTML =
+      '<div class="debate-card-header">' +
+        '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>' +
+        '<span>Debate</span>' +
+      '</div>' +
+      '<div class="debate-list"></div>';
+    ws.appendChild(card);
+  }
+  const list = card.querySelector('.debate-list');
+  const debater = document.createElement('div');
+  debater.className = 'debater';
+  debater.innerHTML = '<div class="debater-name">' + escapeHtml(agentName) + '</div>' + renderMarkdown(text);
+  list.appendChild(debater);
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderResolution(text, artifact, bytes, disagreementCount) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const card = document.createElement('div');
+  card.className = 'resolution-card';
+  card.innerHTML =
+    '<div class="resolution-card-header">' +
+      '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>' +
+      '<span>Resolution</span>' +
+      '<span style="margin-left:auto;font-size:10px;color:#8888a0;font-family:JetBrains Mono,monospace;">' +
+        (disagreementCount || 0) + ' resolved · <a href="' + MAESTRO_API + '/api/runs/' + activeRun.id + '/artifacts/' + encodeURIComponent(artifact) + '" target="_blank" style="color:#a594ff;text-decoration:none;">' + escapeHtml(artifact) + '</a>' +
+      '</span>' +
+    '</div>' +
+    '<div class="resolution-card-text">' + renderMarkdown(text) + '</div>';
+  ws.appendChild(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// === Interrupt input ===
+function ensureInterruptBar() {
+  if (document.getElementById('interrupt-bar')) return;
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  const bar = document.createElement('div');
+  bar.id = 'interrupt-bar';
+  bar.className = 'interrupt-bar';
+  bar.innerHTML =
+    '<div class="interrupt-input-wrap">' +
+      '<textarea id="interrupt-input" class="interrupt-input" placeholder="Add a note, change direction, or refine the work…" rows="1" ' +
+        'onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendInterrupt();}"></textarea>' +
+      '<div class="interrupt-bar-bottom">' +
+        '<div class="interrupt-hint">' +
+          '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>' +
+          '<span>Interrupts apply before the next specialist</span>' +
+        '</div>' +
+        '<button class="interrupt-send" onclick="sendInterrupt()">Send</button>' +
+      '</div>' +
+    '</div>';
+  ws.appendChild(bar);
+  // Auto-grow the textarea.
+  const ta = bar.querySelector('#interrupt-input');
+  if (ta) {
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 100) + 'px';
+    });
+  }
+}
+
+function setInterruptBarEnabled(enabled) {
+  const input = document.getElementById('interrupt-input');
+  const send = document.querySelector('.interrupt-send');
+  if (input) input.disabled = !enabled;
+  if (send) send.disabled = !enabled;
+  if (!enabled && input) {
+    input.placeholder = 'Run complete — start a new task to continue.';
+  }
+}
+
+// Send the interrupt message to the backend.
+async function sendInterrupt() {
+  const input = document.getElementById('interrupt-input');
+  if (!input) return;
+  const message = input.value.trim();
+  if (!message || !activeRun.id) return;
+  try {
+    const resp = await fetch(MAESTRO_API + '/api/runs/' + activeRun.id + '/interrupt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    // Show a "queued" indicator in the input area.
+    input.value = '';
+    input.style.height = 'auto';
+    input.placeholder = '✓ Queued — will apply before the next specialist.';
+    setTimeout(() => {
+      if (activeRun.status !== 'completed' && activeRun.status !== 'failed') {
+        input.placeholder = 'Add a note, change direction, or refine the work…';
+      }
+    }, 4000);
+    // Show an immediate inline confirmation bubble.
+    addUserInterjectionPreview(message);
+  } catch (err) {
+    addMaestroMessage("⚠️ Couldn't queue interrupt: " + escapeHtml(err.message), false);
+  }
+}
+
+// Show the user's interrupt as a "queued" bubble immediately.
+// When the backend consumes it (user.interrupted event), we show the
+// "consumed" version. This way the user gets instant feedback.
+function addUserInterjectionPreview(message) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  // Avoid duplicates — if there's already a queued bubble with this text, skip.
+  const existing = Array.from(ws.querySelectorAll('.user-interjection-text'))
+    .some(el => el.textContent === message);
+  if (existing) return;
+  const el = document.createElement('div');
+  el.className = 'user-interjection';
+  el.style.opacity = '0.6';
+  el.innerHTML =
+    '<div class="user-interjection-label">' +
+      '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+      '<span>Queued · awaiting next specialist</span>' +
+    '</div>' +
+    '<div class="user-interjection-text"></div>';
+  el.querySelector('.user-interjection-text').textContent = message;
+  ws.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// When the backend has actually consumed the interrupt (user.interrupted event),
+// replace the "queued" preview with a "consumed" version.
+function addUserInterjection(message) {
+  const ws = document.getElementById('work-stream');
+  if (!ws) return;
+  // Try to upgrade the existing queued preview.
+  const previews = ws.querySelectorAll('.user-interjection');
+  for (const p of previews) {
+    if (p.style.opacity === '0.6' && p.querySelector('.user-interjection-text')?.textContent === message) {
+      p.style.opacity = '1';
+      const label = p.querySelector('.user-interjection-label');
+      if (label) {
+        label.innerHTML =
+          '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>' +
+          '<span>Incorporated · next specialist will use this</span>';
+      }
+      return;
+    }
+  }
+  // No preview found — just render the consumed version.
+  const el = document.createElement('div');
+  el.className = 'user-interjection';
+  el.innerHTML =
+    '<div class="user-interjection-label">' +
+      '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>' +
+      '<span>Incorporated</span>' +
+    '</div>' +
+    '<div class="user-interjection-text"></div>';
+  el.querySelector('.user-interjection-text').textContent = message;
+  ws.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function resetHome() {

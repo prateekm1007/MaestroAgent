@@ -1,10 +1,11 @@
-// server.js — MaestroAgent realtime backend.
+// server.js — MaestroAgent realtime backend (Phase 4).
 //
 // Provides:
 //   POST /api/runs              { goal } -> { run_id, status }
 //   GET  /api/runs              -> [{ id, goal, status, ... }]
 //   GET  /api/runs/:id          -> { id, goal, status, artifacts, ... }
 //   GET  /api/runs/:id/events   -> [event, event, ...]   (replay)
+//   POST /api/runs/:id/interrupt { message } -> { ok }   (Phase 4)
 //   GET  /api/runs/:id/artifacts/:filename -> file download
 //   GET  /api/health            -> { ok, providers }
 //   WS   /ws/:run_id            -> live event stream
@@ -28,6 +29,7 @@ import {
   getRun,
   listRuns,
   subscribe,
+  interruptRun,
 } from './src/engine.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,13 +96,16 @@ app.get('/api/runs/:id', (req, res) => {
     endedAt: run.endedAt,
     durationMs: run.durationMs,
     team: run.team,
+    avgConfidence: run.avgConfidence,
     artifacts: run.artifacts.map(a => ({
       agent_id: a.agent_id,
       agent_name: a.agent_name,
       filename: a.filename,
       bytes: a.bytes,
       isFinal: !!a.isFinal,
+      isDebateResolution: !!a.isDebateResolution,
       preview: a.preview,
+      confidence: a.confidence ?? null,
     })),
     error: run.error,
   });
@@ -110,6 +115,27 @@ app.get('/api/runs/:id/events', (req, res) => {
   const run = getRun(req.params.id);
   if (!run) return res.status(404).json({ error: 'run not found' });
   res.json(run.events);
+});
+
+// Phase 4: Interrupt a running run with a user message.
+// The message is queued and injected before the NEXT specialist runs.
+// The currently-running specialist is not cancelled — its work is preserved.
+app.post('/api/runs/:id/interrupt', (req, res) => {
+  const run = getRun(req.params.id);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+  const message = (req.body?.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'message is required' });
+  if (message.length > 2000) return res.status(400).json({ error: 'message too long (max 2000 chars)' });
+
+  const ok = interruptRun(req.params.id, message);
+  if (!ok) return res.status(500).json({ error: 'failed to queue interrupt' });
+
+  res.json({
+    ok: true,
+    run_id: req.params.id,
+    queued: message,
+    note: 'Message will be incorporated before the next specialist runs.',
+  });
 });
 
 app.get('/api/runs/:id/artifacts/:filename', async (req, res) => {

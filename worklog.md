@@ -125,3 +125,49 @@ Stage Summary:
 - Real LLM streaming via z-ai-web-dev-sdk (GLM-4-plus model)
 - Real working code produced: palindrome function + 11 passing unit tests
 - Every character of "AI output" the user sees in the UI comes from a real model call — no mock data anywhere
+
+---
+Task ID: phase4-real-cognition
+Agent: main (Super Z)
+Task: Phase 4 — Replace scripted narration with real cognition, add debate, confidence, evidence, and first-class interrupts
+
+Work Log:
+- Backend (realtime-server/src/):
+  * agents.js — rewrote all 6 specialist prompts to include structured Confidence block (score + reason + alternatives) and Disagreements section. Added parseConfidence(), parseDisagreements(), stripStructuredBlocks() helpers.
+  * conductor.js (NEW) — Maestro's Conductor agent: 5 real LLM calls per run (examine → assemble → handoff ×N → resolve → summarize). Each call streams real tokens. System prompt forces conversational, specific, reason-giving narration.
+  * engine.js — rewired orchestration: Conductor examines goal → assembles team → hands off to each specialist (with narration) → specialist runs (streams tokens, parses confidence + disagreements) → Conductor resolves all disagreements in a debate phase → Conductor summarizes with overall confidence. Added 429 rate-limit retry with exponential backoff (4s/8s/16s). Added interrupt queue — drained before each specialist runs.
+  * server.js — added POST /api/runs/:id/interrupt endpoint. Exposed avgConfidence, per-artifact confidence, and isDebateResolution in run detail API.
+
+- New event types streamed over WebSocket:
+  * conductor.phase / conductor.token / conductor.phase_done — real narration streaming
+  * confidence.reported — score + reason + alternatives per specialist
+  * evidence.added — checklist item per completed specialist
+  * debate.disagreement — when a specialist disagrees with prior work
+  * debate.resolution — Conductor's adjudication (saved as artifact)
+  * user.interrupted — when a queued interrupt is consumed by the engine
+
+- Frontend (app.html):
+  * Conductor narration bubbles — distinct purple-gradient style, separate from specialist bubbles. Streams real LLM tokens per phase.
+  * Confidence badges — color-coded (green ≥85%, amber ≥60%, red <60%) with detail block showing reason + alternatives.
+  * Evidence checklist — replaces progress bar. Each completed specialist adds a checkmark item ("Plan drafted", "Code + tests written", etc.).
+  * Debate thread — amber card showing each disagreement, purple resolution card showing Conductor's adjudication.
+  * Always-visible interrupt input — sticky bar at bottom of work-stream. User can type mid-run, message is queued and injected before the next specialist. "Queued" preview bubble → "Incorporated" bubble when consumed.
+  * Removed the old progress bar entirely — evidence checklist is the new progress indicator.
+  * Removed "View live progress" link — conversation IS the progress.
+
+- Verified end-to-end via agent-browser:
+  * Conductor narration: real reasoning, not scripted. Example: "This is a classic architectural decision... The right choice depends on whether you need real-time sync, multi-device access, or just a simple way to remember tasks between browser sessions."
+  * Confidence: Planner 90%, Reviewer 95% on blog post run. Reviewer honestly reported 30% on a different run where the deliverable was incomplete.
+  * Debate: Planner raised disagreement on ambiguous todo-app goal → Conductor resolved it with reasoning: "I'm going with the Coder and Reviewer's approach. We'll start with localStorage and can always upgrade to a database later."
+  * Interrupt: User typed "Actually make it about LLM agents specifically" mid-run → Writer's output was entirely about LLM agents, not generic AI.
+  * All Phase 4 UI elements rendering: 8 conductor bubbles, 4 agent streams, 2 confidence badges, 4 evidence items, 4 deliverable cards, 1 interrupt bar.
+
+Stage Summary:
+- Files: app.html (5,681 lines), realtime-server/src/{agents.js, conductor.js (new), engine.js, server.js}
+- Live URL: http://localhost:8765/
+- Demo screenshots: phase4-complete.png, phase4-final-demo.png
+- Every conductor message is a real LLM call — zero scripted narration
+- Every confidence score is parsed from the specialist's own structured output
+- Every debate resolution is a real LLM adjudication reading all specialist work
+- Every interrupt is really injected into the next specialist's prompt
+- The conversation IS the progress — no separate "run detail" page needed
