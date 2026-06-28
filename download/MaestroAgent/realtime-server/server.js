@@ -61,8 +61,22 @@ initObservatoryStore().catch(err => console.warn('[server] observatory init fail
 initEvidenceLedger().catch(err => console.warn('[server] evidence ledger init failed:', err.message));
 
 const app = express();
+
+// --- Security Middleware ---
+import {
+  tlsRedirectMiddleware,
+  securityHeadersMiddleware,
+  rateLimitMiddleware,
+  requestAuditMiddleware,
+} from './src/security.js';
+
+// Order matters: TLS redirect → security headers → CORS → rate limit → body parser → audit → routes
+app.use(tlsRedirectMiddleware);
+app.use(securityHeadersMiddleware);
 app.use(cors({ origin: true, credentials: true }));
+app.use(rateLimitMiddleware);
 app.use(express.json({ limit: '1mb' }));
+app.use(requestAuditMiddleware);
 
 // --- Auth Routes ---
 import authRouter from './src/routes/auth.js';
@@ -88,6 +102,16 @@ app.get('/api/health', (req, res) => {
     providers: ['zai'],
     uptime: process.uptime(),
     runs: listRuns().length,
+  });
+});
+
+// Security status endpoint
+import { getSecurityStatus } from './src/security.js';
+import { getKMSStatus } from './src/kms.js';
+app.get('/api/security/status', (req, res) => {
+  res.json({
+    security: getSecurityStatus(),
+    kms: getKMSStatus(),
   });
 });
 
