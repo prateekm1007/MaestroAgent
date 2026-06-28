@@ -49,6 +49,7 @@ import { explainRecommendation, computeEII } from './src/explanation.js';
 import { contributeObservation, getObservatoryStats, compare_toPeers, computeOED, initObservatoryStore } from './src/observatory.js';
 import { computeTTV, computeCOI, computeCustomerHealth } from './src/customer-metrics.js';
 import { initEvidenceLedger, getLedger, getHypothesis, addHypothesis, updateHypothesis, getLedgerStats, getFridayDashboard, saveFridayDashboard, listFridayDashboards } from './src/evidence-ledger.js';
+import { setPartnerPromise, computeCPR, getPartnerProof, listPartnerPromises } from './src/cpr.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -625,6 +626,32 @@ app.post('/api/friday-dashboard', async (req, res) => {
 
 app.get('/api/friday-dashboard/history', (req, res) => {
   res.json(listFridayDashboards());
+});
+
+// === CUSTOMER PROOF RATE (CPR) — the one external metric ===
+// Percentage of design partners that achieve their promised outcome within 90 days.
+// This is the only metric that goes in the pitch deck, board update, and homepage.
+app.get('/api/cpr', (req, res) => {
+  res.json(computeCPR());
+});
+
+app.get('/api/cpr/:orgId', (req, res) => {
+  res.json(getPartnerProof(req.params.orgId));
+});
+
+app.get('/api/cpr/partners/list', (req, res) => {
+  res.json(listPartnerPromises());
+});
+
+app.post('/api/cpr/promise', (req, res) => {
+  try {
+    const { orgId, promisedOutcome, targetReduction, baseline, startDate, daysToProve } = req.body;
+    if (!orgId) return res.status(400).json({ error: 'orgId is required' });
+    const promise = setPartnerPromise(orgId, { promisedOutcome, targetReduction, baseline, startDate, daysToProve });
+    res.json({ ok: true, ...promise });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // === SCOPE API (hierarchical execution context) ===

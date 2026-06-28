@@ -194,9 +194,62 @@ Operational Knowledge
 
 **What this means for engineering:**
 - No more cognitive layers. The architecture is frozen.
+- No more management systems. The operating system is frozen.
 - Every sprint must answer: "Does this make Maestro a better operating system for how an organization executes work?"
 - If the answer is no — don't build it.
-- The next work is COMMERCIAL, not cognitive: Execution Metrics, Design Partner Mode, Enterprise Operating Model SDK, integrations, and proving ROI with real customers.
+- The next work is CUSTOMER EVIDENCE, not engineering: design partner conversations, deployment, measurement, and case studies.
+
+---
+
+## The Three Learning Systems (All Frozen)
+
+### 1. Product Learning (frozen)
+Maestro learns how to execute work better.
+Learning Objects → Patterns → Playbooks → Policies → Governance → Evidence → Cases → Precedents → Receipts → Operational Knowledge
+
+### 2. Customer Learning (frozen)
+The company learns from customers.
+Design Partner Playbook → Observatory → OED → TTV → COI → Customer Health → CPR
+
+### 3. Company Learning (frozen)
+The founders learn how to build the company.
+Evidence Ledger → Friday Dashboard → Reasons We Might Be Wrong
+
+**All three are frozen.** No new systems. No dashboards for dashboards. The next year is about USING these systems with real customers, not extending them.
+
+---
+
+## The One External Metric
+
+> **Customer Proof Rate (CPR)**
+> Percentage of design partners that achieve their promised outcome within 90 days.
+
+This is the only metric that goes in the pitch deck, the board update, and the homepage. Everything else (OED, TTV, COI, EII) feeds into CPR but is internal only.
+
+---
+
+## The 90-Day Operating Plan
+
+| Activity | Target |
+|----------|--------|
+| Customer interviews | 20 |
+| Design partners signed | 5 |
+| Live deployments | 3 |
+| Weekly product changes | Max 1 |
+| New architectural layers | **0** |
+| New management systems | **0** |
+
+---
+
+## The Weekly Question
+
+> **"What belief changed this week?"**
+
+If the answer is "none," then either:
+- you didn't talk to enough customers, or
+- you weren't listening carefully enough.
+
+A startup that isn't changing its beliefs isn't learning.
 
 ---
 
