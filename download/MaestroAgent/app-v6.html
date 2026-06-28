@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maestro — Executive Cognition Center</title>
+<meta name="description" content="Maestro — Organizational Judgment Infrastructure">
+<!-- Prototype v6 · Production uses compiled Tailwind, not the Play CDN. -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'ink': { 950:'#070710', 900:'#0a0a14', 850:'#0e0e1a', 800:'#12121e', 750:'#161624', 700:'#1c1c2c', 650:'#222234', 600:'#2a2a3c' },
+        'brand': { purple:'#7c5cff', cyan:'#00d4aa', amber:'#ffb84d', rose:'#ff5577', sky:'#5cc8ff' },
+        'fg': { 100:'#f4f4fc', 200:'#e8e8f0', 300:'#c8c8d8', 400:'#8888a0', 500:'#5a5a72', 600:'#3a3a4a' }
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        mono: ['JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
+      },
+    }
+  }
+}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: #070710; color: #e8e8f0; font-family: 'Inter', sans-serif; font-size: 13px; overflow: hidden; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+.panel { background: linear-gradient(180deg, rgba(22,22,36,0.55) 0%, rgba(18,18,30,0.55) 100%); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; backdrop-filter: blur(10px); }
+.panel-header { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #c8c8d8; display: flex; align-items: center; justify-content: space-between; }
+.stat-tile { background: rgba(18,18,30,0.55); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 14px; }
+
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 1.4; }
+.tag-purple { background: rgba(124,92,255,0.15); color: #a594ff; }
+.tag-cyan { background: rgba(0,212,170,0.12); color: #00d4aa; }
+.tag-amber { background: rgba(255,184,77,0.12); color: #ffb84d; }
+.tag-rose { background: rgba(255,85,119,0.12); color: #ff5577; }
+.tag-sky { background: rgba(92,200,255,0.12); color: #5cc8ff; }
+.tag-gray { background: rgba(255,255,255,0.05); color: #8888a0; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; transition: all 0.15s; border: 1px solid transparent; cursor: pointer; }
+.btn-primary { background: linear-gradient(135deg, #7c5cff, #6b4df5); color: white; }
+.btn-primary:hover { background: linear-gradient(135deg, #8a6dff, #7a5dff); }
+.btn-ghost { background: rgba(255,255,255,0.03); color: #c8c8d8; border-color: rgba(255,255,255,0.06); }
+.btn-ghost:hover { background: rgba(255,255,255,0.06); }
+.btn-cyan { background: rgba(0,212,170,0.12); color: #00d4aa; border-color: rgba(0,212,170,0.2); }
+.btn-cyan:hover { background: rgba(0,212,170,0.18); }
+.btn-rose { background: rgba(255,85,119,0.12); color: #ff5577; border-color: rgba(255,85,119,0.2); }
+.btn-amber { background: rgba(255,184,77,0.12); color: #ffb84d; border-color: rgba(255,184,77,0.2); }
+
+.sidebar-link { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #8888a0; cursor: pointer; transition: all 0.12s; font-weight: 500; }
+.sidebar-link:hover { background: rgba(255,255,255,0.03); color: #c8c8d8; }
+.sidebar-link.active { background: rgba(124,92,255,0.10); color: #a594ff; }
+.sidebar-link svg { width: 15px; height: 15px; flex-shrink: 0; }
+.sidebar-link .badge { margin-left: auto; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: rgba(255,85,119,0.15); color: #ff5577; }
+
+.dq-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #5a5a72; padding: 3px 9px; border: 1px solid rgba(124,92,255,0.15); border-radius: 4px; background: rgba(124,92,255,0.03); }
+.dq-badge::before { content: "DQ · "; color: #7c5cff; }
+
+.conf-bar { display: inline-flex; align-items: center; gap: 6px; }
+.conf-bar-track { width: 40px; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.conf-bar-fill { height: 100%; background: linear-gradient(90deg, #ffb84d, #00d4aa); }
+
+.law-card { background: rgba(18,18,30,0.55); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 14px; transition: all 0.15s; cursor: pointer; }
+.law-card:hover { border-color: rgba(124,92,255,0.3); background: rgba(124,92,255,0.03); }
+.law-card.unknown { border-color: rgba(255,184,77,0.18); }
+
+.prog { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, #7c5cff, #00d4aa); transition: width 0.4s; }
+
+.reveal-screen { display: none; }
+.reveal-screen.active { display: flex; flex-direction: column; }
+
+.surface { display: none; }
+.surface.active { display: block; }
+
+.shr-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+.shr-pill:hover { transform: translateY(-1px); }
+.shr-ok { background: rgba(0,212,170,0.10); color: #00d4aa; border: 1px solid rgba(0,212,170,0.2); }
+.shr-warn { background: rgba(255,184,77,0.10); color: #ffb84d; border: 1px solid rgba(255,184,77,0.2); }
+.shr-risk { background: rgba(255,85,119,0.10); color: #ff5577; border: 1px solid rgba(255,85,119,0.2); }
+
+.evidence-link { color: #5cc8ff; text-decoration: underline; text-decoration-color: rgba(92,200,255,0.3); cursor: pointer; }
+.evidence-link:hover { text-decoration-color: #5cc8ff; }
+
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.dot-pulse { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+.column-decision { background: rgba(18,18,30,0.55); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 16px; }
+.column-oem { background: rgba(124,92,255,0.03); border: 1px solid rgba(124,92,255,0.12); border-radius: 10px; padding: 16px; }
+.column-sim { background: rgba(0,212,170,0.03); border: 1px solid rgba(0,212,170,0.12); border-radius: 10px; padding: 16px; }
+
+.kbd { display: inline-block; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #c8c8d8; }
+
+.scan-progress { height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; overflow: hidden; position: relative; }
+.scan-progress::after { content: ''; position: absolute; top: 0; left: -30%; width: 30%; height: 100%; background: linear-gradient(90deg, transparent, #7c5cff, transparent); animation: scan 2s ease-in-out infinite; }
+@keyframes scan { 0%{left:-30%;} 100%{left:100%;} }
+
+.decision-card { background: rgba(18,18,30,0.55); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.15s; }
+.decision-card:hover { border-color: rgba(124,92,255,0.3); background: rgba(124,92,255,0.03); transform: translateY(-1px); }
+.decision-card.urgent { border-left: 3px solid #ff5577; }
+
+.risk-card { background: rgba(18,18,30,0.55); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 14px; }
+.risk-card.high { border-left: 3px solid #ff5577; }
+.risk-card.med { border-left: 3px solid #ffb84d; }
+
+.source-cite { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #5cc8ff; padding: 1px 5px; background: rgba(92,200,255,0.06); border-radius: 3px; border: 1px solid rgba(92,200,255,0.12); cursor: pointer; }
+.source-cite:hover { background: rgba(92,200,255,0.12); }
+
+.knowledge-card { background: rgba(124,92,255,0.03); border: 1px solid rgba(124,92,255,0.15); border-radius: 10px; padding: 14px; }
+
+.prediction-row { display: grid; grid-template-columns: 1fr 80px 100px 100px 80px; gap: 10px; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); align-items: center; font-size: 11px; }
+.prediction-row:last-child { border-bottom: none; }
+.prediction-row:hover { background: rgba(255,255,255,0.02); }
+
+.cal-cell { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.cal-hit { background: rgba(0,212,170,0.7); }
+.cal-miss { background: rgba(255,85,119,0.7); }
+.cal-empty { background: rgba(255,255,255,0.06); }
+
+.debate-card { background: rgba(18,18,30,0.55); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 16px; }
+.debate-thesis { border-left: 3px solid #00d4aa; padding-left: 12px; }
+.debate-antithesis { border-left: 3px solid #ff5577; padding-left: 12px; }
+
+.perturb-slider { width: 100%; -webkit-appearance: none; appearance: none; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; outline: none; }
+.perturb-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; box-shadow: 0 0 0 3px rgba(124,92,255,0.2); }
+.perturb-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; border: none; }
+
+.onboarding-progress { display: flex; gap: 4px; }
+.onboarding-progress span { width: 24px; height: 2px; background: rgba(255,255,255,0.08); border-radius: 1px; }
+.onboarding-progress span.done { background: #00d4aa; }
+.onboarding-progress span.current { background: #7c5cff; }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: center; justify-content: center; }
+.modal-bg.active { display: flex; }
+.modal { background: #0e0e1a; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; max-width: 900px; width: 90%; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; }
+.modal-header { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; }
+.modal-body { flex: 1; overflow-y-auto; padding: 16px 18px; }
+.modal-footer { padding: 12px 18px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; gap: 8px; }
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- ONBOARDING (Option B: multi-session, model-readiness honest) -->
+<!-- ============================================================ -->
+<div id="onboarding" class="fixed inset-0 z-50 bg-ink-950 flex items-center justify-center">
+  <div class="w-full max-w-2xl px-8">
+
+    <!-- progress dots -->
+    <div class="onboarding-progress mb-8" id="onb-progress">
+      <span class="current"></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- Reveal 0: Welcome -->
+    <div class="reveal-screen active" data-reveal="0">
+      <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-3">Maestro · Initialization</div>
+      <h1 class="text-3xl font-bold mb-3 text-white leading-tight">We are reconstructing how your company executes work.</h1>
+      <p class="text-sm text-fg-400 leading-relaxed mb-8">This takes time. Not because we are slow — because the model has to mature. We will surface insights as they become reliable. Not before.</p>
+
+      <div class="space-y-3 mb-8">
+        <div class="flex items-center justify-between p-3 rounded-lg border border-white/[0.05] bg-white/[0.02]">
+          <div>
+            <div class="text-xs font-semibold">Structural patterns</div>
+            <div class="text-[10px] text-fg-500">Duplicated work, bottleneck detection</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs font-semibold text-brand-cyan">48 hours</div>
+            <div class="text-[9px] text-fg-500">after signals connected</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between p-3 rounded-lg border border-white/[0.05] bg-white/[0.02]">
+          <div>
+            <div class="text-xs font-semibold">Influence patterns</div>
+            <div class="text-[10px] text-fg-500">Undocumented experts, hidden hierarchies</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs font-semibold text-brand-cyan">2 weeks</div>
+            <div class="text-[9px] text-fg-500">after signals connected</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between p-3 rounded-lg border border-white/[0.05] bg-white/[0.02]">
+          <div>
+            <div class="text-xs font-semibold">Execution laws &amp; predictions</div>
+            <div class="text-[10px] text-fg-500">Counterfactuals, organizational physics</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs font-semibold text-brand-cyan">1 month</div>
+            <div class="text-[9px] text-fg-500">after signals connected</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-xs text-fg-500 mb-3">Connect signals to begin.</div>
+      <div class="flex gap-2 mb-6" id="signal-connects">
+        <button class="btn btn-ghost flex-1 justify-center" onclick="connectSignal(this)">GitHub</button>
+        <button class="btn btn-ghost flex-1 justify-center" onclick="connectSignal(this)">Jira</button>
+        <button class="btn btn-ghost flex-1 justify-center" onclick="connectSignal(this)">Slack</button>
+        <button class="btn btn-ghost flex-1 justify-center" onclick="connectSignal(this)">Confluence</button>
+      </div>
+      <button class="btn btn-primary w-full justify-center" onclick="nextReveal()">Begin reconstruction →</button>
+      <div class="mt-6 text-center"><button class="text-[10px] text-fg-600 hover:text-fg-400" onclick="finishOnboarding()">Skip · enter Maestro</button></div>
+    </div>
+
+    <!-- Reveal 1: Hour 48 — Duplicated OAuth -->
+    <div class="reveal-screen" data-reveal="1">
+      <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-3">
+        <span class="dot dot-pulse bg-brand-cyan"></span>
+        Hour 48 · Structural pattern detected
+      </div>
+      <h1 class="text-3xl font-bold mb-4 text-white leading-tight">Three teams solved OAuth separately.</h1>
+
+      <div class="space-y-2 mb-6 text-sm">
+        <div class="flex items-center gap-3 p-3 rounded-md border border-white/[0.04] bg-white/[0.02]">
+          <span class="tag tag-gray mono">2022</span>
+          <span class="flex-1">payments-platform</span>
+          <span class="text-[10px] text-fg-500 mono">auth/oauth.py · 1,847 lines</span>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-md border border-white/[0.04] bg-white/[0.02]">
+          <span class="tag tag-gray mono">2023</span>
+          <span class="flex-1">identity-service</span>
+          <span class="text-[10px] text-fg-500 mono">oauth/provider.ts · 2,103 lines</span>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-md border border-white/[0.04] bg-white/[0.02]">
+          <span class="tag tag-gray mono">2024</span>
+          <span class="flex-1">billing-edge</span>
+          <span class="text-[10px] text-fg-500 mono">auth/oauth2.go · 1,612 lines</span>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-lg border border-brand-amber/20 bg-brand-amber/[0.04] mb-6">
+        <div class="text-[10px] uppercase tracking-wider text-brand-amber font-semibold mb-1">Estimated waste</div>
+        <div class="text-2xl font-bold text-white">480 engineering hours</div>
+        <div class="text-[11px] text-fg-400 mt-1.5">Each implementation has the same 3 bug patterns, in different code, in different languages.</div>
+      </div>
+
+      <div class="text-xs text-fg-500 italic mb-6">This is a structural pattern. More will follow as the model matures.</div>
+
+      <div class="flex gap-2">
+        <button class="btn btn-ghost flex-1 justify-center" onclick="nextReveal()">See the evidence</button>
+        <button class="btn btn-primary flex-1 justify-center" onclick="nextReveal()">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Reveal 2: Hour 52 — Legal bottleneck -->
+    <div class="reveal-screen" data-reveal="2">
+      <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-3">
+        <span class="dot dot-pulse bg-brand-cyan"></span>
+        Hour 52 · Causal pattern detected
+      </div>
+      <h1 class="text-3xl font-bold mb-4 text-white leading-tight">Platform is the bottleneck. Not because of engineers.</h1>
+      <p class="text-base text-fg-300 mb-6 leading-relaxed">Because Legal enters too late.</p>
+
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <div class="p-4 rounded-lg border border-brand-rose/20 bg-brand-rose/[0.04]">
+          <div class="text-[10px] uppercase tracking-wider text-brand-rose font-semibold mb-1">73% of platform projects</div>
+          <div class="text-xl font-bold text-white">Legal enters 11 days late</div>
+          <div class="text-[11px] text-fg-400 mt-1">After engineering design is locked.</div>
+        </div>
+        <div class="p-4 rounded-lg border border-brand-cyan/20 bg-brand-cyan/[0.04]">
+          <div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1">27% where Legal enters during design</div>
+          <div class="text-xl font-bold text-white">Ship 4.2× faster</div>
+          <div class="text-[11px] text-fg-400 mt-1">Same scope, same teams.</div>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-lg border border-brand-purple/15 bg-brand-purple/[0.03] mb-6">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-wider text-brand-purple font-semibold mb-2">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          Predictive capability
+        </div>
+        <div class="text-sm text-fg-200">We can identify which in-flight projects will hit this pattern <span class="text-brand-cyan font-semibold">2 weeks before they do</span>.</div>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="btn btn-ghost flex-1 justify-center" onclick="nextReveal()">See handoff graph</button>
+        <button class="btn btn-primary flex-1 justify-center" onclick="nextReveal()">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Reveal 3: Day 14 — Undocumented deploy expert -->
+    <div class="reveal-screen" data-reveal="3">
+      <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-3">
+        <span class="dot dot-pulse bg-brand-cyan"></span>
+        Day 14 · Influence pattern detected
+      </div>
+      <h1 class="text-3xl font-bold mb-4 text-white leading-tight">You have an undocumented deployment expert.</h1>
+
+      <div class="flex items-center gap-4 p-4 rounded-lg border border-white/[0.06] bg-white/[0.02] mb-6">
+        <div class="w-14 h-14 rounded-full bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-lg font-bold">PM</div>
+        <div class="flex-1">
+          <div class="text-base font-semibold text-white">Priya M.</div>
+          <div class="text-[11px] text-fg-500">Senior Engineer · Platform team · 4y tenure</div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold">Touches</div>
+          <div class="text-xl font-bold text-brand-cyan">73%</div>
+          <div class="text-[9px] text-fg-500">of successful releases</div>
+        </div>
+      </div>
+
+      <div class="space-y-2 mb-6">
+        <div class="flex items-center gap-3 text-xs"><span class="text-brand-rose">✗</span><span class="text-fg-300">Not on the release managers list</span></div>
+        <div class="flex items-center gap-3 text-xs"><span class="text-brand-rose">✗</span><span class="text-fg-300">Not in the deployment runbook</span></div>
+        <div class="flex items-center gap-3 text-xs"><span class="text-brand-rose">✗</span><span class="text-fg-300">No formal role in the release process</span></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <div class="p-3 rounded-md border border-brand-cyan/15 bg-brand-cyan/[0.04] text-center">
+          <div class="text-2xl font-bold text-brand-cyan">94%</div>
+          <div class="text-[10px] text-fg-500">success rate · releases she touches</div>
+        </div>
+        <div class="p-3 rounded-md border border-brand-amber/15 bg-brand-amber/[0.04] text-center">
+          <div class="text-2xl font-bold text-brand-amber">61%</div>
+          <div class="text-[10px] text-fg-500">success rate · releases she doesn't</div>
+        </div>
+      </div>
+
+      <div class="p-3 rounded-md border border-white/[0.05] bg-white/[0.02] mb-6">
+        <div class="text-[11px] text-fg-400 italic">This is an influence pattern, not an org-chart fact. The org chart does not contain it. The org cannot promote what it cannot see.</div>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="btn btn-ghost flex-1 justify-center" onclick="nextReveal()">See Priya's influence graph</button>
+        <button class="btn btn-primary flex-1 justify-center" onclick="nextReveal()">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Reveal 4: Week 3 — Platform hire prediction -->
+    <div class="reveal-screen" data-reveal="4">
+      <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-3">
+        <span class="dot dot-pulse bg-brand-cyan"></span>
+        Week 3 · Counterfactual prediction
+      </div>
+      <h1 class="text-3xl font-bold mb-4 text-white leading-tight">If Platform gains two engineers, release frequency increases 18%.</h1>
+
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold">Confidence</span>
+        <div class="conf-bar">
+          <div class="conf-bar-track"><div class="conf-bar-fill" style="width: 71%"></div></div>
+          <span class="text-xs font-bold text-brand-amber">0.71</span>
+        </div>
+        <span class="tag tag-amber">Medium</span>
+      </div>
+
+      <div class="p-4 rounded-lg border border-white/[0.06] bg-white/[0.02] mb-6">
+        <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Why this is not a headcount model</div>
+        <div class="text-sm text-fg-300 leading-relaxed">Platform is currently a queue, not a team. Two engineers break the queue without changing process. <span class="text-brand-amber">Three would not improve further</span> — the next bottleneck becomes QA, which is structural.</div>
+      </div>
+
+      <div class="p-4 rounded-lg border border-brand-cyan/15 bg-brand-cyan/[0.03] mb-6">
+        <div class="flex items-center gap-2 text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-2">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Logged to Prediction Ledger
+        </div>
+        <div class="text-[11px] text-fg-400">This prediction will be verified against actual release frequency in 90 days. The verification will adjust Maestro's confidence calibration for similar predictions.</div>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="btn btn-ghost flex-1 justify-center" onclick="nextReveal()">Run the 90-day simulation</button>
+        <button class="btn btn-primary flex-1 justify-center" onclick="nextReveal()">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Reveal 5: Day 31 — Execution laws -->
+    <div class="reveal-screen" data-reveal="5">
+      <div class="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-3">
+        <span class="dot dot-pulse bg-brand-cyan"></span>
+        Day 31 · Organizational physics inferred
+      </div>
+      <h1 class="text-3xl font-bold mb-4 text-white leading-tight">Your organization has 19 execution laws.</h1>
+      <p class="text-base text-fg-300 mb-2">4 of these were not known to leadership.</p>
+
+      <div class="space-y-2 mb-6 mt-5">
+        <div class="p-3 rounded-md border border-white/[0.06] bg-white/[0.02]">
+          <div class="flex items-start gap-3">
+            <span class="tag tag-purple mono">L-0007</span>
+            <div class="flex-1">
+              <div class="text-xs text-fg-200">Eng velocity drops 22% in weeks following &gt;3 P1 incidents.</div>
+              <div class="text-[10px] text-fg-500 mt-1">Known to leadership · Validated 6/6 runtimes</div>
+            </div>
+          </div>
+        </div>
+        <div class="p-3 rounded-md border border-brand-amber/20 bg-brand-amber/[0.03]">
+          <div class="flex items-start gap-3">
+            <span class="tag tag-amber mono">L-0018</span>
+            <div class="flex-1">
+              <div class="text-xs text-fg-200">Marketing → Engineering handoffs lose 6.4 days median at exactly one approval step (Sara K., VP Marketing).</div>
+              <div class="text-[10px] text-brand-amber mt-1">Unknown to leadership · Unknown to Sara · Confidence 0.84</div>
+            </div>
+          </div>
+        </div>
+        <div class="p-3 rounded-md border border-brand-amber/20 bg-brand-amber/[0.03]">
+          <div class="flex items-start gap-3">
+            <span class="tag tag-amber mono">L-0019</span>
+            <div class="flex-1">
+              <div class="text-xs text-fg-200">The org hires in bursts that correlate 0.84 with the previous quarter's incident count, not revenue.</div>
+              <div class="text-[10px] text-brand-amber mt-1">Unknown to leadership · Confidence 0.79</div>
+            </div>
+          </div>
+        </div>
+        <div class="p-3 rounded-md border border-white/[0.06] bg-white/[0.02]">
+          <div class="flex items-start gap-3">
+            <span class="tag tag-gray mono">+ 16</span>
+            <div class="flex-1">
+              <div class="text-xs text-fg-400">Additional laws visible in Organizational Physics surface.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary w-full justify-center mb-3" onclick="finishOnboarding()">Enter Maestro →</button>
+      <div class="text-center text-[10px] text-fg-600">You can replay this sequence from Settings at any time.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MAIN APP SHELL                                                -->
+<!-- ============================================================ -->
+<div id="app" class="hidden flex h-screen">
+
+  <!-- ===== LEFT SIDEBAR ===== -->
+  <aside class="w-56 flex-shrink-0 bg-ink-900 border-r border-white/[0.05] flex flex-col">
+    <div class="h-12 flex items-center gap-2 px-4 border-b border-white/[0.05]">
+      <div class="w-7 h-7 rounded-md bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-xs font-black text-white">M</div>
+      <div class="flex flex-col">
+        <span class="font-bold text-sm leading-none">Maestro</span>
+        <span class="text-[9px] text-fg-500 mt-0.5">Executive Cognition Center</span>
+      </div>
+    </div>
+
+    <div class="px-3 py-2.5 border-b border-white/[0.05]">
+      <div class="flex items-center gap-2 px-2 py-1.5">
+        <div class="w-6 h-6 rounded bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-[10px] font-bold">A</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs font-semibold truncate">Acme Corp</div>
+          <div class="text-[9px] text-fg-500">Day 47 · 19 laws inferred</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+      <div class="sidebar-link active" data-surface="home">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Home
+      </div>
+      <div class="sidebar-link" data-surface="inbox">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+        Inbox
+        <span class="badge">3</span>
+      </div>
+      <div class="sidebar-link" data-surface="decisions">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        Decisions
+      </div>
+      <div class="sidebar-link" data-surface="physics">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+        Physics
+      </div>
+      <div class="sidebar-link" data-surface="debate">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+        Debate
+        <span class="badge" style="background:rgba(255,184,77,0.15);color:#ffb84d;">2</span>
+      </div>
+    </nav>
+
+    <div class="p-3 border-t border-white/[0.05] space-y-2">
+      <div class="flex items-center gap-2 text-[10px]">
+        <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
+        <span class="text-fg-500">Model maturity:</span>
+        <span class="text-brand-cyan font-semibold">Week 7</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-[10px] font-bold">JD</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs font-semibold truncate">Jane Doe</div>
+          <div class="text-[9px] text-fg-500">CEO · acme.com</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN AREA ===== -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+
+    <header class="h-12 flex-shrink-0 bg-ink-900/80 backdrop-blur border-b border-white/[0.05] flex items-center px-4 gap-3">
+      <div class="flex items-center gap-2 text-xs text-fg-500 min-w-0">
+        <span id="bc-surface" class="text-fg-200 font-semibold">Home</span>
+      </div>
+
+      <div class="flex-1 max-w-md mx-auto">
+        <button class="w-full flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-xs text-fg-500 hover:bg-white/[0.06] transition">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <span class="truncate">Ask Maestro…</span>
+          <span class="ml-auto flex gap-1 flex-shrink-0"><kbd>⌘</kbd><kbd>K</kbd></span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button class="shr-pill shr-ok" onclick="toggleModal('ledgerModal')" title="Surprise Hit Rate (30d). Target band 80–88%.">
+          <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan"></span>
+          SHR 30d · 0.83
+        </button>
+        <button class="btn btn-ghost" onclick="toggleModal('ledgerModal')">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Ledger
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto" id="main-scroll">
+
+<!-- ============================================================ -->
+<!-- SURFACE: HOME                                                  -->
+<!-- ============================================================ -->
+<section class="surface active" id="surface-home">
+  <div class="p-5 space-y-5">
+
+    <div class="flex items-end justify-between flex-wrap gap-3">
+      <div>
+        <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Tuesday · November 12 · 07:14</div>
+        <h1 class="text-2xl font-bold text-white">Good morning, Jane.</h1>
+        <p class="text-xs text-fg-500 mt-1">3 decisions awaiting you · 2 prior decisions showing drift · 1 prediction verifying today.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="dq-badge">Every section answers a decision question</span>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 1: TODAY'S DECISIONS ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Today's Decisions</span>
+        <div class="flex items-center gap-2 normal-case font-sans">
+          <span class="dq-badge">DQ · What must I decide today?</span>
+        </div>
+      </div>
+      <div class="p-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
+
+        <div class="decision-card urgent" onclick="navTo('decisions')">
+          <div class="flex items-center justify-between mb-2">
+            <span class="tag tag-rose">Urgent · 2h</span>
+            <div class="conf-bar">
+              <div class="conf-bar-track"><div class="conf-bar-fill" style="width: 78%"></div></div>
+              <span class="text-[10px] font-bold text-brand-cyan">0.78</span>
+            </div>
+          </div>
+          <div class="text-sm font-semibold text-white mb-1.5 leading-snug">Approve Q3 hiring plan: 14 hires, $2.1M, EMEA-heavy</div>
+          <div class="text-[11px] text-fg-400 mb-3 leading-relaxed">Recommendation: approve with reduced EMEA headcount (−3). APAC remains undersupported per L-0014.</div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500">
+            <span>6 stakeholders · 1 dissent</span>
+            <span class="text-brand-rose">Decision expires 09:00</span>
+          </div>
+        </div>
+
+        <div class="decision-card" onclick="navTo('decisions')">
+          <div class="flex items-center justify-between mb-2">
+            <span class="tag tag-amber">Today</span>
+            <div class="conf-bar">
+              <div class="conf-bar-track"><div class="conf-bar-fill" style="width: 64%"></div></div>
+              <span class="text-[10px] font-bold text-brand-amber">0.64</span>
+            </div>
+          </div>
+          <div class="text-sm font-semibold text-white mb-1.5 leading-snug">Promote Priya M. to release manager (formalize influence)</div>
+          <div class="text-[11px] text-fg-400 mb-3 leading-relaxed">Recommendation: promote, but redesign role first. Current release manager role would reduce her effectiveness by an estimated 23%.</div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500">
+            <span>4 stakeholders · 0 dissent</span>
+            <span>Discovered Day 14</span>
+          </div>
+        </div>
+
+        <div class="decision-card" onclick="navTo('decisions')">
+          <div class="flex items-center justify-between mb-2">
+            <span class="tag tag-sky">This week</span>
+            <div class="conf-bar">
+              <div class="conf-bar-track"><div class="conf-bar-fill" style="width: 71%"></div></div>
+              <span class="text-[10px] font-bold text-brand-amber">0.71</span>
+            </div>
+          </div>
+          <div class="text-sm font-semibold text-white mb-1.5 leading-snug">Move Legal review upstream into design phase (platform projects)</div>
+          <div class="text-[11px] text-fg-400 mb-3 leading-relaxed">Recommendation: yes. Predicted 4.2× ship velocity on the 73% of projects currently bottlenecked.</div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500">
+            <span>3 stakeholders · 1 dissent (Legal)</span>
+            <span>Discovered Day 2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 2: ORGANIZATION HEALTH ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Organization Health</span>
+        <span class="dq-badge">DQ · Is execution getting better or worse?</span>
+      </div>
+      <div class="p-4 grid grid-cols-1 lg:grid-cols-4 gap-4">
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold">Decision velocity</span>
+            <span class="tag tag-cyan">↑ 12%</span>
+          </div>
+          <div class="text-2xl font-black text-white">4.2 days</div>
+          <div class="text-[10px] text-fg-500 mb-2">median decision-to-action · last 30d</div>
+          <div class="text-[10px] text-fg-400 leading-relaxed">Predicts Q4 delivery confidence. Threshold: &gt;7d = amber.</div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold">Influence concentration</span>
+            <span class="tag tag-amber">↑ risk</span>
+          </div>
+          <div class="text-2xl font-black text-white">0.71</div>
+          <div class="text-[10px] text-fg-500 mb-2">Herfindahl · top-3 influential nodes</div>
+          <div class="text-[10px] text-fg-400 leading-relaxed">Priya M. accounts for 0.31 alone. Bus-factor risk.</div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold">Knowledge loss rate</span>
+            <span class="tag tag-rose">↑ 8%</span>
+          </div>
+          <div class="text-2xl font-black text-white">3.1%/mo</div>
+          <div class="text-[10px] text-fg-500 mb-2">undocumented knowledge at risk</div>
+          <div class="text-[10px] text-fg-400 leading-relaxed">2 senior departures in last 60d drove the spike.</div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold">Law drift</span>
+            <span class="tag tag-cyan">stable</span>
+          </div>
+          <div class="text-2xl font-black text-white">0 / 19</div>
+          <div class="text-[10px] text-fg-500 mb-2">laws invalidated last 30d</div>
+          <div class="text-[10px] text-fg-400 leading-relaxed">L-0007 under stress (3 incidents in 7 days).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 3: EMERGING RISKS ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Emerging Risks</span>
+        <span class="dq-badge">DQ · What will go wrong if I do nothing?</span>
+      </div>
+      <div class="p-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
+
+        <div class="risk-card high">
+          <div class="flex items-center justify-between mb-2">
+            <span class="tag tag-rose">High · 14 days</span>
+            <span class="text-[10px] text-fg-500 mono">P 0.71 × I 0.85</span>
+          </div>
+          <div class="text-sm font-semibold text-white mb-1.5 leading-snug">Q4 launch slips because Platform queue saturates</div>
+          <div class="text-[11px] text-fg-400 mb-2 leading-relaxed">3 in-flight projects predicted to collide at Platform review step on Dec 3.</div>
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="source-cite" onclick="navTo('physics')">Law L-0007</span>
+            <button class="btn btn-ghost text-[10px] py-0.5 px-2">Simulate mitigation</button>
+          </div>
+        </div>
+
+        <div class="risk-card high">
+          <div class="flex items-center justify-between mb-2">
+            <span class="tag tag-rose">High · 30 days</span>
+            <span class="text-[10px] text-fg-500 mono">P 0.62 × I 0.78</span>
+          </div>
+          <div class="text-sm font-semibold text-white mb-1.5 leading-snug">Priya M. departure would degrade release success by ~32%</div>
+          <div class="text-[11px] text-fg-400 mb-2 leading-relaxed">No successor identified. She has not signed retention. Comp review pending since Aug.</div>
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="source-cite" onclick="navTo('physics')">Influence pattern</span>
+            <button class="btn btn-ghost text-[10px] py-0.5 px-2">Open decision</button>
+          </div>
+        </div>
+
+        <div class="risk-card med">
+          <div class="flex items-center justify-between mb-2">
+            <span class="tag tag-amber">Med · 60 days</span>
+            <span class="text-[10px] text-fg-500 mono">P 0.55 × I 0.62</span>
+          </div>
+          <div class="text-sm font-semibold text-white mb-1.5 leading-snug">Marketing–Eng handoff drift widens past 8 days median</div>
+          <div class="text-[11px] text-fg-400 mb-2 leading-relaxed">L-0018 trending from 6.4 → 7.1 days. Sara K. approval load up 40%.</div>
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="source-cite" onclick="navTo('physics')">Law L-0018</span>
+            <button class="btn btn-ghost text-[10px] py-0.5 px-2">Open decision</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 4: KNOWLEDGE YOU DON'T KNOW EXISTS ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Knowledge You Don't Know Exists</span>
+        <span class="dq-badge">DQ · What does the org know that I don't?</span>
+      </div>
+      <div class="p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+        <div class="knowledge-card">
+          <div class="flex items-start gap-3 mb-2">
+            <div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center font-bold text-brand-purple flex-shrink-0">?</div>
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Two engineers in different teams built the same cache invalidation library.</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">Carlos (infra) and Aisha (platform) shipped near-identical implementations 6 weeks apart. Carlos's is more robust. Aisha's is more widely used.</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500">
+            <span>Discovered Day 41 · 142 engineering hours redundant</span>
+            <button class="text-brand-purple underline">Surface to both</button>
+          </div>
+        </div>
+
+        <div class="knowledge-card">
+          <div class="flex items-start gap-3 mb-2">
+            <div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center font-bold text-brand-purple flex-shrink-0">?</div>
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">The postmortem from the Mar 14 incident already describes this week's incident.</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">Recommendation #3 from Mar 14 (add circuit breaker on payments-edge) was never implemented. Same failure mode recurred Nov 9.</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500">
+            <span>Discovered Day 47 · Source: postmortem-2024-03-14</span>
+            <button class="text-brand-purple underline">Open postmortem</button>
+          </div>
+        </div>
+
+        <div class="knowledge-card">
+          <div class="flex items-start gap-3 mb-2">
+            <div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center font-bold text-brand-purple flex-shrink-0">?</div>
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Anya R. is about to leave. She holds 4 undocumented integration patterns.</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">Slack signal patterns match pre-departure baseline from prior leavers. 0.71 probability within 30 days. Knowledge loss estimate: 280 hours to reconstruct.</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500">
+            <span>Discovered Day 44 · Confidence 0.71</span>
+            <button class="text-brand-purple underline">Open retention decision</button>
+          </div>
+        </div>
+
+        <div class="knowledge-card">
+          <div class="flex items-start gap-3 mb-2">
+            <div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center font-bold text-brand-purple flex-shrink-0">?</div>
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Your security review bottleneck is one specific reviewer, not the process.</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">Marcus T. reviews 81% of security-sensitive PRs. Median review time: 3.2 days. Without him: 0.9 days. He has not been on PTO in 14 months.</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500">
+            <span>Discovered Day 38 · Influence pattern</span>
+            <button class="text-brand-purple underline">See review graph</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 5: PREDICTIONS ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Predictions</span>
+        <div class="flex items-center gap-2 normal-case font-sans">
+          <span class="dq-badge">DQ · What does Maestro believe will happen?</span>
+          <button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="toggleModal('ledgerModal')">Open Ledger →</button>
+        </div>
+      </div>
+      <div class="p-0">
+        <div class="prediction-row text-[10px] uppercase tracking-wider text-fg-500 font-semibold" style="border-bottom: 1px solid rgba(255,255,255,0.06); padding: 8px 12px;">
+          <div>Prediction</div>
+          <div>Confidence</div>
+          <div>Made</div>
+          <div>Verifies</div>
+          <div>Status</div>
+        </div>
+
+        <div class="prediction-row">
+          <div>
+            <div class="text-fg-200">Q4 release frequency +18% if Platform gains 2 engineers</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Counterfactual · org-level</div>
+          </div>
+          <div><span class="text-brand-amber font-semibold">0.71</span></div>
+          <div class="text-fg-500 mono">Oct 22</div>
+          <div class="text-fg-500 mono">Jan 22</div>
+          <div><span class="tag tag-amber">Pending</span></div>
+        </div>
+
+        <div class="prediction-row">
+          <div>
+            <div class="text-fg-200">Anya R. departure within 30 days</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Influence · retention</div>
+          </div>
+          <div><span class="text-brand-amber font-semibold">0.71</span></div>
+          <div class="text-fg-500 mono">Nov 5</div>
+          <div class="text-fg-500 mono">Dec 5</div>
+          <div><span class="tag tag-amber">Pending</span></div>
+        </div>
+
+        <div class="prediction-row">
+          <div>
+            <div class="text-fg-200">L-0018 handoff drift will exceed 8 days by Dec 1 without intervention</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Law-based · leading indicator</div>
+          </div>
+          <div><span class="text-brand-cyan font-semibold">0.83</span></div>
+          <div class="text-fg-500 mono">Oct 28</div>
+          <div class="text-fg-500 mono">Dec 1</div>
+          <div><span class="tag tag-amber">Pending</span></div>
+        </div>
+
+        <div class="prediction-row">
+          <div>
+            <div class="text-fg-200">Legal-upstream change reduces platform ship time by 4.2×</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Counterfactual · causal model</div>
+          </div>
+          <div><span class="text-brand-cyan font-semibold">0.84</span></div>
+          <div class="text-fg-500 mono">Nov 1</div>
+          <div class="text-fg-500 mono">Feb 1</div>
+          <div><span class="tag tag-amber">Pending</span></div>
+        </div>
+
+        <div class="prediction-row">
+          <div>
+            <div class="text-fg-200">Eng velocity will drop 22% in week of Nov 18 (3 P1s in 7 days)</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Law-based · L-0007</div>
+          </div>
+          <div><span class="text-brand-cyan font-semibold">0.79</span></div>
+          <div class="text-fg-500 mono">Nov 8</div>
+          <div class="text-fg-500 mono">Nov 25</div>
+          <div><span class="tag tag-cyan">Verifying</span></div>
+        </div>
+
+        <div class="prediction-row" style="background: rgba(0,212,170,0.03);">
+          <div>
+            <div class="text-fg-200">OAuth duplication would recur in Q4 if unaddressed</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Structural · inferred</div>
+          </div>
+          <div><span class="text-brand-amber font-semibold">0.68</span></div>
+          <div class="text-fg-500 mono">Sep 15</div>
+          <div class="text-fg-500 mono">Dec 15</div>
+          <div><span class="tag tag-cyan">Verified · hit</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SURFACE: INBOX                                                -->
+<!-- ============================================================ -->
+<section class="surface" id="surface-inbox">
+  <div class="p-5 space-y-5">
+
+    <div class="flex items-end justify-between flex-wrap gap-3">
+      <div>
+        <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Inbox</div>
+        <h1 class="text-2xl font-bold text-white">Things only you can resolve.</h1>
+        <p class="text-xs text-fg-500 mt-1">3 decisions you owe · 2 prior decisions showing drift · 1 active dissent.</p>
+      </div>
+      <span class="dq-badge">DQ · What needs my judgment, not my team's?</span>
+    </div>
+
+    <!-- ============ A: DECISIONS I OWE ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>A · Decisions I Owe</span>
+        <span class="dq-badge">DQ · What must I commit to today?</span>
+      </div>
+      <div class="p-4 space-y-3">
+
+        <div class="decision-card urgent" onclick="navTo('decisions')">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Approve Q3 hiring plan: 14 hires, $2.1M, EMEA-heavy</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">CFO recommends approve. CTO recommends approve-with-reductions (−3 EMEA). VP Sales dissents — wants APAC instead.</div>
+            </div>
+            <span class="tag tag-rose ml-3">Expires 09:00</span>
+          </div>
+          <div class="flex items-center gap-4 text-[10px] text-fg-500 mt-2">
+            <span>6 stakeholders</span>
+            <span>·</span>
+            <span>1 dissent</span>
+            <span>·</span>
+            <span>Maestro recommendation: approve-with-reductions</span>
+            <span class="ml-auto text-brand-purple underline">Open workbench →</span>
+          </div>
+        </div>
+
+        <div class="decision-card" onclick="navTo('decisions')">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Promote Priya M. to release manager</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">CTO and VP Eng recommend. Maestro suggests redesigning the role first — current role would reduce her effectiveness by ~23%.</div>
+            </div>
+            <span class="tag tag-amber ml-3">This week</span>
+          </div>
+          <div class="flex items-center gap-4 text-[10px] text-fg-500 mt-2">
+            <span>4 stakeholders</span>
+            <span>·</span>
+            <span>0 dissent</span>
+            <span>·</span>
+            <span>Maestro recommendation: yes, with role redesign</span>
+            <span class="ml-auto text-brand-purple underline">Open workbench →</span>
+          </div>
+        </div>
+
+        <div class="decision-card" onclick="navTo('decisions')">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Move Legal review upstream into design phase</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">VP Eng and VP Product recommend. General Counsel dissents — capacity concern.</div>
+            </div>
+            <span class="tag tag-sky ml-3">This week</span>
+          </div>
+          <div class="flex items-center gap-4 text-[10px] text-fg-500 mt-2">
+            <span>3 stakeholders</span>
+            <span>·</span>
+            <span>1 dissent</span>
+            <span>·</span>
+            <span>Maestro recommendation: yes · 4.2× ship velocity</span>
+            <span class="ml-auto text-brand-purple underline">Open workbench →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ B: DECISIONS QUESTIONED ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>B · Decisions You Made That The Org Is Questioning</span>
+        <span class="dq-badge">DQ · Which past calls need revisiting?</span>
+      </div>
+      <div class="p-4 space-y-3">
+
+        <div class="risk-card med">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Oct 12 · Pricing restructure (SMB segment +12%)</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">You predicted neutral impact on SMB churn. Actual: SMB sales cycle length up 18% in segment 3 (the segment the model flagged as high-risk).</div>
+            </div>
+            <span class="tag tag-amber ml-3">Drift detected</span>
+          </div>
+          <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2">
+            <span>Maestro's Oct 10 prediction: <span class="text-brand-amber">0.62 confidence on neutral</span></span>
+            <span>·</span>
+            <span>Actual outcome: <span class="text-brand-rose">not neutral</span></span>
+          </div>
+          <div class="flex items-center justify-end gap-2 mt-3">
+            <button class="btn btn-ghost text-[10px] py-1 px-2">Review prediction</button>
+            <button class="btn btn-amber text-[10px] py-1 px-2">Reopen decision</button>
+          </div>
+        </div>
+
+        <div class="risk-card med">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1">
+              <div class="text-sm font-semibold text-white mb-1">Sep 28 · Centralize QA under Eng (away from Product)</div>
+              <div class="text-[11px] text-fg-400 leading-relaxed">You predicted no impact on QA–Product collaboration tempo. Actual: QA–Product Slack threads down 34%. Defect escape rate trending up.</div>
+            </div>
+            <span class="tag tag-amber ml-3">Drift detected</span>
+          </div>
+          <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2">
+            <span>Maestro's Sep 26 prediction: <span class="text-brand-cyan">0.81 confidence on neutral</span></span>
+            <span>·</span>
+            <span>Actual outcome: <span class="text-brand-rose">not neutral</span></span>
+          </div>
+          <div class="flex items-center justify-end gap-2 mt-3">
+            <button class="btn btn-ghost text-[10px] py-1 px-2">Review prediction</button>
+            <button class="btn btn-amber text-[10px] py-1 px-2">Reopen decision</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ C: DISSENT ============ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>C · Dissent Surfaced From Your Org</span>
+        <div class="flex items-center gap-2 normal-case font-sans">
+          <span class="dq-badge">DQ · Where does my org disagree that I haven't heard?</span>
+          <button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="navTo('debate')">Open Debate →</button>
+        </div>
+      </div>
+      <div class="p-4 space-y-3">
+
+        <div class="debate-card">
+          <div class="text-sm font-semibold text-white mb-2">"Sara K. is the wrong approval gate for Marketing → Eng handoffs."</div>
+          <div class="grid grid-cols-2 gap-3 text-[11px]">
+            <div class="debate-thesis">
+              <div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1">Thesis · 7 supporters</div>
+              <div class="text-fg-300 leading-relaxed">Removing Sara from the gate would reduce handoff latency by ~6 days. Her approval adds no detectable quality signal.</div>
+            </div>
+            <div class="debate-antithesis">
+              <div class="text-[10px] uppercase tracking-wider text-brand-rose font-semibold mb-1">Antithesis · 3 supporters</div>
+              <div class="text-fg-300 leading-relaxed">Sara's approvals catch 2–3 brand-risk issues per quarter. Removing her would shift risk, not eliminate it.</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500 mt-3 pt-3 border-t border-white/[0.04]">
+            <span>Surfaced Day 38 · Law L-0018</span>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost text-[10px] py-1 px-2" onclick="navTo('debate')">Defer</button>
+              <button class="btn btn-cyan text-[10px] py-1 px-2" onclick="navTo('debate')">Rule</button>
+              <button class="btn btn-ghost text-[10px] py-1 px-2" onclick="navTo('debate')">Kick to reviewer</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="debate-card">
+          <div class="text-sm font-semibold text-white mb-2">"The Q3 hiring plan should add APAC, not EMEA."</div>
+          <div class="grid grid-cols-2 gap-3 text-[11px]">
+            <div class="debate-thesis">
+              <div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1">Thesis · VP Sales + 4 supporters</div>
+              <div class="text-fg-300 leading-relaxed">APAC pipeline is up 41% QoQ. EMEA pipeline is flat. The plan optimizes for last year's geography.</div>
+            </div>
+            <div class="debate-antithesis">
+              <div class="text-[10px] uppercase tracking-wider text-brand-rose font-semibold mb-1">Antithesis · CFO + 2 supporters</div>
+              <div class="text-fg-300 leading-relaxed">EMEA deals are 2.3× larger. APAC pipeline expansion is recent; structural EMEA capacity is the bottleneck.</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-fg-500 mt-3 pt-3 border-t border-white/[0.04]">
+            <span>Surfaced Day 45 · 7 stakeholders</span>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost text-[10px] py-1 px-2" onclick="navTo('debate')">Defer</button>
+              <button class="btn btn-cyan text-[10px] py-1 px-2" onclick="navTo('decisions')">Rule</button>
+              <button class="btn btn-ghost text-[10px] py-1 px-2" onclick="navTo('debate')">Kick to reviewer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SURFACE: DECISIONS (WORKBENCH)                                -->
+<!-- ============================================================ -->
+<section class="surface" id="surface-decisions">
+  <div class="p-5 space-y-4">
+
+    <div class="flex items-end justify-between flex-wrap gap-3">
+      <div>
+        <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Decision Workbench</div>
+        <h1 class="text-2xl font-bold text-white">Approve Q3 hiring plan</h1>
+        <p class="text-xs text-fg-500 mt-1">14 hires · $2.1M · EMEA-heavy · Decision expires 09:00 today</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="dq-badge">DQ · What will happen if I approve this?</span>
+        <button class="btn btn-rose">Reject</button>
+        <button class="btn btn-cyan">Approve &amp; log prediction</button>
+      </div>
+    </div>
+
+    <!-- 3-column workbench -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+
+      <!-- ===== Column 1: The Decision ===== -->
+      <div class="column-decision">
+        <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-3">The Decision</div>
+
+        <div class="text-sm font-semibold text-white mb-2 leading-snug">Approve 14 hires in Q3: 8 EMEA, 4 APAC, 2 NA · $2.1M annualized</div>
+
+        <div class="text-[11px] text-fg-400 leading-relaxed mb-4">Proposed by CTO and CFO on Oct 28. Under debate since Nov 4. APAC allocation contested by VP Sales.</div>
+
+        <div class="border-t border-white/[0.05] pt-3 mb-3">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Stakeholder positions</div>
+          <div class="space-y-1.5 text-[11px]">
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-brand-cyan/15 flex items-center justify-center text-[9px] font-bold text-brand-cyan">CT</div>
+              <span class="flex-1">CTO</span>
+              <span class="tag tag-cyan">Approve</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-brand-cyan/15 flex items-center justify-center text-[9px] font-bold text-brand-cyan">CF</div>
+              <span class="flex-1">CFO</span>
+              <span class="tag tag-cyan">Approve</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-brand-amber/15 flex items-center justify-center text-[9px] font-bold text-brand-amber">PS</div>
+              <span class="flex-1">VP Sales</span>
+              <span class="tag tag-amber">Dissent · APAC</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-brand-amber/15 flex items-center justify-center text-[9px] font-bold text-brand-amber">PE</div>
+              <span class="flex-1">VP Eng</span>
+              <span class="tag tag-amber">Approve with reductions</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-brand-sky/15 flex items-center justify-center text-[9px] font-bold text-brand-sky">PP</div>
+              <span class="flex-1">VP Product</span>
+              <span class="tag tag-sky">Defer</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-brand-sky/15 flex items-center justify-center text-[9px] font-bold text-brand-sky">GC</div>
+              <span class="flex-1">General Counsel</span>
+              <span class="tag tag-sky">No position</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t border-white/[0.05] pt-3">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Linked laws</div>
+          <div class="space-y-1.5">
+            <div class="text-[11px] flex items-center gap-2">
+              <span class="source-cite" onclick="navTo('physics')">L-0014</span>
+              <span class="text-fg-400">APAC undersupport predicts APAC churn +14% within 2 quarters.</span>
+            </div>
+            <div class="text-[11px] flex items-center gap-2">
+              <span class="source-cite" onclick="navTo('physics')">L-0019</span>
+              <span class="text-fg-400">Hiring burst correlates 0.84 with prior-quarter incidents, not revenue.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Column 2: OEM's View ===== -->
+      <div class="column-oem">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-[10px] uppercase tracking-wider text-brand-purple font-semibold">Execution Model's View</div>
+          <span class="tag tag-purple">Confidence 0.78</span>
+        </div>
+
+        <div class="text-sm text-fg-200 leading-relaxed mb-4">
+          If approved as proposed, the model predicts the following organizational state 90 days from now.
+          <span class="text-fg-500">Every claim is sourced. Click any citation to inspect.</span>
+        </div>
+
+        <div class="space-y-3">
+
+          <div>
+            <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1.5">90-day leading indicators</div>
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex items-start gap-2">
+                <span class="text-brand-cyan mt-0.5">↑</span>
+                <div class="flex-1">
+                  <span class="text-fg-200">EMEA delivery capacity +24%</span>
+                  <span class="source-cite ml-1" onclick="event.stopPropagation()">jira:EMEA-1247</span>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-brand-rose mt-0.5">↓</span>
+                <div class="flex-1">
+                  <span class="text-fg-200">APAC sales support ratio drops below 1:14 threshold</span>
+                  <span class="source-cite ml-1" onclick="event.stopPropagation()">L-0014</span>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-brand-amber mt-0.5">⚠</span>
+                <div class="flex-1">
+                  <span class="text-fg-200">Onboarding load spikes beyond L-0007 trigger (>3 P1s likely)</span>
+                  <span class="source-cite ml-1" onclick="event.stopPropagation()">L-0007</span>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-brand-cyan mt-0.5">↑</span>
+                <div class="flex-1">
+                  <span class="text-fg-200">Eng hiring velocity normalizes after Q2 freeze recovery</span>
+                  <span class="source-cite ml-1" onclick="event.stopPropagation()">jira:HIRING-89</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-brand-purple/15 pt-3">
+            <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1.5">Capability deltas (90d)</div>
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex items-center justify-between">
+                <span class="text-fg-300">EMEA sales capacity</span>
+                <span class="text-brand-cyan font-semibold">+24%</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-fg-300">APAC sales capacity</span>
+                <span class="text-brand-rose font-semibold">−8%</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-fg-300">Eng onboarding throughput</span>
+                <span class="text-brand-amber font-semibold">−12% (Q1 recover)</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-fg-300">Cross-team handoff latency</span>
+                <span class="text-brand-amber font-semibold">+1.2 days</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-brand-purple/15 pt-3">
+            <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1.5">Risks (probability × impact)</div>
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex items-start gap-2">
+                <span class="text-brand-rose mt-0.5">●</span>
+                <div class="flex-1">
+                  <div class="text-fg-200">APAC churn spike Q1 2025 <span class="text-fg-500 mono ml-1">P 0.68 × I 0.74</span></div>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-brand-amber mt-0.5">●</span>
+                <div class="flex-1">
+                  <div class="text-fg-200">Onboarding-induced P1 cluster in Feb <span class="text-fg-500 mono ml-1">P 0.55 × I 0.68</span></div>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="text-brand-amber mt-0.5">●</span>
+                <div class="flex-1">
+                  <div class="text-fg-200">VP Sales attrition (dissent unresolved) <span class="text-fg-500 mono ml-1">P 0.42 × I 0.81</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-brand-purple/15 pt-3">
+            <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1.5">Maestro recommendation</div>
+            <div class="p-2.5 rounded-md bg-brand-purple/[0.06] border border-brand-purple/15 text-[11px] text-fg-200 leading-relaxed">
+              Approve with <span class="text-brand-cyan font-semibold">−3 EMEA, +2 APAC</span>. This preserves EMEA recovery (still +18% capacity) while keeping APAC above the 1:14 support threshold. Net cost delta: −$180K.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Column 3: Simulator ===== -->
+      <div class="column-sim">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold">Simulator · 90-day forward</div>
+          <button class="btn btn-ghost text-[10px] py-0.5 px-2">Reset</button>
+        </div>
+
+        <div class="space-y-4">
+
+          <div>
+            <div class="flex items-center justify-between text-[11px] mb-1.5">
+              <span class="text-fg-300">EMEA hires</span>
+              <span class="text-brand-cyan font-bold mono" id="sim-emea-val">8</span>
+            </div>
+            <input type="range" min="0" max="14" value="8" class="perturb-slider" id="sim-emea" oninput="simulate()">
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between text-[11px] mb-1.5">
+              <span class="text-fg-300">APAC hires</span>
+              <span class="text-brand-cyan font-bold mono" id="sim-apac-val">4</span>
+            </div>
+            <input type="range" min="0" max="14" value="4" class="perturb-slider" id="sim-apac" oninput="simulate()">
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between text-[11px] mb-1.5">
+              <span class="text-fg-300">NA hires</span>
+              <span class="text-brand-cyan font-bold mono" id="sim-na-val">2</span>
+            </div>
+            <input type="range" min="0" max="14" value="2" class="perturb-slider" id="sim-na" oninput="simulate()">
+          </div>
+
+          <div class="border-t border-brand-cyan/15 pt-3">
+            <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Predicted 90-day state</div>
+            <div class="space-y-2 text-[11px]">
+              <div class="flex items-center justify-between">
+                <span class="text-fg-400">EMEA capacity</span>
+                <span class="text-brand-cyan font-semibold" id="pred-emea">+24%</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-fg-400">APAC support ratio</span>
+                <span class="font-semibold" id="pred-apac">1:11 · below threshold</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-fg-400">P1 cluster probability</span>
+                <span class="text-brand-amber font-semibold" id="pred-p1">0.55</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-fg-400">VP Sales attrition risk</span>
+                <span class="text-brand-amber font-semibold" id="pred-attr">0.42</span>
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+                <span class="text-fg-300 font-semibold">Annualized cost</span>
+                <span class="text-white font-bold mono" id="pred-cost">$2.10M</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-brand-cyan/15 pt-3">
+            <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Confidence</div>
+            <div class="flex items-center gap-2">
+              <div class="conf-bar flex-1">
+                <div class="conf-bar-track flex-1"><div class="conf-bar-fill" style="width: 78%" id="sim-conf-fill"></div></div>
+                <span class="text-xs font-bold text-brand-cyan" id="sim-conf-val">0.78</span>
+              </div>
+            </div>
+            <div class="text-[10px] text-fg-500 mt-1.5" id="sim-conf-note">Within target band. Model is calibrated on 47 similar prior decisions in your org.</div>
+          </div>
+
+          <div class="border-t border-brand-cyan/15 pt-3">
+            <div class="flex items-center gap-2 text-[10px] text-brand-cyan">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Any approval will be logged to the Prediction Ledger and verified in 90 days.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SURFACE: PHYSICS                                              -->
+<!-- ============================================================ -->
+<section class="surface" id="surface-physics">
+  <div class="p-5 space-y-4">
+
+    <div class="flex items-end justify-between flex-wrap gap-3">
+      <div>
+        <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Organizational Physics</div>
+        <h1 class="text-2xl font-bold text-white">The laws your organization obeys.</h1>
+        <p class="text-xs text-fg-500 mt-1">19 inferred · 4 unknown to leadership · 0 invalidated last 30d · 1 under stress.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="dq-badge">DQ · What explains why my company behaves this way?</span>
+        <button class="btn btn-ghost">Export laws</button>
+        <button class="btn btn-primary" onclick="navTo('debate')">Challenge a law →</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+      <!-- Laws known to leadership -->
+      <div class="law-card" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-purple mono">L-0007</span>
+            <span class="tag tag-cyan">Validated · 6/6</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.91</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">Eng velocity drops 22% in weeks following &gt;3 P1 incidents.</div>
+        <div class="text-[10px] text-fg-500">Last observed Nov 8 · 3 incidents in 7 days · velocity drop confirmed</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">12 evidence artifacts · 0 counter-examples</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <!-- Laws unknown to leadership -->
+      <div class="law-card unknown" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-amber mono">L-0018</span>
+            <span class="tag tag-amber">Unknown to leadership</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.84</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">Marketing → Engineering handoffs lose 6.4 days median at exactly one approval step (Sara K., VP Marketing).</div>
+        <div class="text-[10px] text-brand-amber">Last observed Nov 10 · drift detected: 6.4 → 7.1 days · trend amber</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">8 evidence artifacts · 0 counter-examples</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <div class="law-card unknown" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-amber mono">L-0019</span>
+            <span class="tag tag-amber">Unknown to leadership</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.79</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">The org hires in bursts that correlate 0.84 with the previous quarter's incident count, not revenue.</div>
+        <div class="text-[10px] text-fg-500">Last observed Q3 hiring plan (current decision)</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">6 evidence artifacts · 1 counter-example (Q2 2023)</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <div class="law-card unknown" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-amber mono">L-0014</span>
+            <span class="tag tag-amber">Unknown to leadership</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.81</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">APAC sales support ratio below 1:14 predicts APAC churn +14% within 2 quarters.</div>
+        <div class="text-[10px] text-fg-500">Currently at 1:11 · threshold breached</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">9 evidence artifacts · 0 counter-examples</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <div class="law-card unknown" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-amber mono">L-0021</span>
+            <span class="tag tag-amber">Unknown to leadership</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.74</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">Architecture reviews with 2+ reviewers ship 31% faster than single-reviewer projects, controlling for complexity.</div>
+        <div class="text-[10px] text-fg-500">Counterintuitive: review time increases, total ship time decreases</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">14 evidence artifacts · 2 counter-examples</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <div class="law-card" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-purple mono">L-0003</span>
+            <span class="tag tag-cyan">Validated · 8/8</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.94</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">Postmortems with explicit owner assignments reduce recurrence by 67% within 90 days.</div>
+        <div class="text-[10px] text-fg-500">Last observed Nov 9 incident · no owner assigned · recurrence predicted</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">18 evidence artifacts · 1 counter-example</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <div class="law-card" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-purple mono">L-0005</span>
+            <span class="tag tag-cyan">Validated · 5/5</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.88</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">Slack threads with &gt;8 participants correlate 0.71 with no decision being made.</div>
+        <div class="text-[10px] text-fg-500">Used as a leading indicator in Debate surfacing</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">22 evidence artifacts · 3 counter-examples</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <div class="law-card" onclick="expandLaw(this)">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="tag tag-purple mono">L-0011</span>
+            <span class="tag tag-cyan">Validated · 4/4</span>
+          </div>
+          <span class="text-[10px] text-fg-500 mono">Confidence 0.86</span>
+        </div>
+        <div class="text-sm text-fg-200 leading-relaxed mb-2">PRs merged Friday after 4pm have 2.4× the revert rate of weekday median.</div>
+        <div class="text-[10px] text-fg-500">Predicts weekend incident probability</div>
+        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+          <span class="text-fg-500">31 evidence artifacts · 0 counter-examples</span>
+          <span class="text-brand-purple underline">Inspect →</span>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-lg border border-dashed border-white/[0.08] text-center text-[11px] text-fg-500">
+        + 11 additional laws · click any law to inspect evidence, predictions, and counter-examples.
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SURFACE: DEBATE                                               -->
+<!-- ============================================================ -->
+<section class="surface" id="surface-debate">
+  <div class="p-5 space-y-4">
+
+    <div class="flex items-end justify-between flex-wrap gap-3">
+      <div>
+        <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Execution Debate</div>
+        <h1 class="text-2xl font-bold text-white">Where your org disagrees, structured.</h1>
+        <p class="text-xs text-fg-500 mt-1">2 active debates · 14 closed precedents this quarter.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="dq-badge">DQ · Where does my org disagree that I haven't ruled on?</span>
+      </div>
+    </div>
+
+    <!-- Active debates -->
+    <div class="space-y-3">
+
+      <div class="debate-card">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <div class="text-sm font-semibold text-white mb-1">Should Sara K. remain the Marketing → Eng handoff gate?</div>
+            <div class="text-[10px] text-fg-500">Active · 10 stakeholders · Linked to L-0018 · Surfaced Day 38</div>
+          </div>
+          <span class="tag tag-amber">Awaiting CEO ruling</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+          <div class="debate-thesis">
+            <div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1.5">Thesis · 7 supporters</div>
+            <div class="text-[11px] text-fg-300 leading-relaxed mb-2">Removing Sara from the gate would reduce handoff latency by ~6 days.</div>
+            <div class="text-[10px] text-fg-500">Lead supporters: VP Eng, VP Product, 2 Eng managers, 3 senior ICs</div>
+            <div class="mt-2 text-[10px]">
+              <span class="source-cite">slack:C-1247</span>
+              <span class="source-cite ml-1">jira:HANDOFF-44</span>
+              <span class="source-cite ml-1">L-0018</span>
+            </div>
+          </div>
+          <div class="debate-antithesis">
+            <div class="text-[10px] uppercase tracking-wider text-brand-rose font-semibold mb-1.5">Antithesis · 3 supporters</div>
+            <div class="text-[11px] text-fg-300 leading-relaxed mb-2">Sara's approvals catch 2–3 brand-risk issues per quarter. Removing her shifts risk, doesn't eliminate it.</div>
+            <div class="text-[10px] text-fg-500">Lead supporters: Sara K. (VP Marketing), General Counsel, Brand director</div>
+            <div class="mt-2 text-[10px]">
+              <span class="source-cite">confluence:BRAND-RISK</span>
+              <span class="source-cite ml-1">slack:C-1248</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-md bg-brand-purple/[0.04] border border-brand-purple/15 mb-3">
+          <div class="text-[10px] uppercase tracking-wider text-brand-purple font-semibold mb-1">Maestro's structural read</div>
+          <div class="text-[11px] text-fg-300 leading-relaxed">Both sides are correct on their own axis. The decision is not "remove Sara" — it is "is brand-risk review a VP-level function, or a process function?" If the former, Sara stays. If the latter, redesign the process.</div>
+        </div>
+
+        <div class="flex items-center justify-between text-[10px] pt-3 border-t border-white/[0.04]">
+          <span class="text-fg-500">Maestro reframes the question. CEO ruling will create precedent.</span>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost text-[10px] py-1 px-2">Defer 7 days</button>
+            <button class="btn btn-ghost text-[10px] py-1 px-2">Kick to reviewer</button>
+            <button class="btn btn-cyan text-[10px] py-1 px-2">Rule</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="debate-card">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <div class="text-sm font-semibold text-white mb-1">Q3 hiring: APAC vs EMEA allocation</div>
+            <div class="text-[10px] text-fg-500">Active · 7 stakeholders · Linked to L-0014, L-0019 · Surfaced Day 45</div>
+          </div>
+          <span class="tag tag-amber">Awaiting CEO ruling</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+          <div class="debate-thesis">
+            <div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1.5">Thesis · VP Sales + 4 supporters</div>
+            <div class="text-[11px] text-fg-300 leading-relaxed mb-2">APAC pipeline is up 41% QoQ. EMEA pipeline is flat. Plan optimizes for last year's geography.</div>
+            <div class="text-[10px] text-fg-500">Lead supporters: VP Sales, 2 APAC reps, 2 product leads</div>
+            <div class="mt-2 text-[10px]">
+              <span class="source-cite">salesforce:PIPELINE-Q3</span>
+              <span class="source-cite ml-1">L-0014</span>
+            </div>
+          </div>
+          <div class="debate-antithesis">
+            <div class="text-[10px] uppercase tracking-wider text-brand-rose font-semibold mb-1.5">Antithesis · CFO + 2 supporters</div>
+            <div class="text-[11px] text-fg-300 leading-relaxed mb-2">EMEA deals are 2.3× larger. APAC pipeline expansion is recent; structural EMEA capacity is the bottleneck.</div>
+            <div class="text-[10px] text-fg-500">Lead supporters: CFO, VP Eng (reductions faction), 1 board observer</div>
+            <div class="mt-2 text-[10px]">
+              <span class="source-cite">salesforce:DEALSIZE-ANALYSIS</span>
+              <span class="source-cite ml-1">L-0019</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-md bg-brand-purple/[0.04] border border-brand-purple/15 mb-3">
+          <div class="text-[10px] uppercase tracking-wider text-brand-purple font-semibold mb-1">Maestro's structural read</div>
+          <div class="text-[11px] text-fg-300 leading-relaxed">The plan optimizes for the law the org knows (L-0019: hire-on-incidents) but ignores the law it doesn't (L-0014: APAC threshold). Maestro's recommended compromise: −3 EMEA, +2 APAC, preserving EMEA recovery while keeping APAC above the 1:14 threshold.</div>
+        </div>
+
+        <div class="flex items-center justify-between text-[10px] pt-3 border-t border-white/[0.04]">
+          <span class="text-fg-500">Decision expires 09:00 · ruling will be logged to Prediction Ledger.</span>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost text-[10px] py-1 px-2">Defer</button>
+            <button class="btn btn-cyan text-[10px] py-1 px-2" onclick="navTo('decisions')">Rule</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Closed precedents -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Closed Precedents · This Quarter</span>
+        <span class="dq-badge">DQ · What has the org already ruled on?</span>
+      </div>
+      <div class="p-0">
+        <div class="prediction-row" style="grid-template-columns: 1fr 100px 90px 90px;">
+          <div>
+            <div class="text-fg-200">Sara K. remains gate · process redesign required</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Brand-risk is VP-level function · closed Day 30</div>
+          </div>
+          <div><span class="tag tag-cyan">Held</span></div>
+          <div class="text-fg-500 mono">Day 30</div>
+          <div class="text-fg-500 mono">Day 60</div>
+        </div>
+        <div class="prediction-row" style="grid-template-columns: 1fr 100px 90px 90px;">
+          <div>
+            <div class="text-fg-200">Centralize QA under Eng (Sep 28)</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Predicted neutral · actual drift · under review</div>
+          </div>
+          <div><span class="tag tag-rose">Drifted</span></div>
+          <div class="text-fg-500 mono">Day 21</div>
+          <div class="text-fg-500 mono">Day 51</div>
+        </div>
+        <div class="prediction-row" style="grid-template-columns: 1fr 100px 90px 90px;">
+          <div>
+            <div class="text-fg-200">Pricing restructure SMB +12% (Oct 12)</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Predicted neutral · actual drift in segment 3</div>
+          </div>
+          <div><span class="tag tag-rose">Drifted</span></div>
+          <div class="text-fg-500 mono">Day 38</div>
+          <div class="text-fg-500 mono">Day 68</div>
+        </div>
+        <div class="prediction-row" style="grid-template-columns: 1fr 100px 90px 90px;">
+          <div>
+            <div class="text-fg-200">Friday-merge freeze after 4pm (L-0011)</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Adopted as policy · revert rate -42% in 30d</div>
+          </div>
+          <div><span class="tag tag-cyan">Held</span></div>
+          <div class="text-fg-500 mono">Day 14</div>
+          <div class="text-fg-500 mono">Day 44</div>
+        </div>
+        <div class="text-[10px] text-fg-500 p-3 text-center">+ 10 additional precedents this quarter</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL: PREDICTION LEDGER                                      -->
+<!-- ============================================================ -->
+<div class="modal-bg" id="ledgerModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="font-bold text-base">Prediction Ledger</div>
+        <div class="text-xs text-fg-500">Every prediction Maestro makes · verified against actual outcomes · calibration tracked</div>
+      </div>
+      <button class="btn btn-icon btn-ghost" onclick="toggleModal('ledgerModal')">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body space-y-5">
+
+      <!-- SHR summary -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">SHR (30d)</div>
+          <div class="text-2xl font-black text-brand-cyan">0.83</div>
+          <div class="text-[10px] text-fg-500 mt-1">Target band 0.80–0.88</div>
+          <div class="prog mt-2"><div class="prog-fill" style="width: 83%; background: #00d4aa;"></div></div>
+        </div>
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Predictions verified (30d)</div>
+          <div class="text-2xl font-black text-white">23</div>
+          <div class="text-[10px] text-fg-500 mt-1">19 hit · 4 missed</div>
+        </div>
+        <div class="stat-tile">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Calibration drift</div>
+          <div class="text-2xl font-black text-brand-cyan">0.04</div>
+          <div class="text-[10px] text-fg-500 mt-1">Lower is better · within tolerance</div>
+        </div>
+      </div>
+
+      <!-- Calibration curve -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Calibration Curve · predicted confidence vs actual hit rate</span>
+          <span class="text-[10px] text-fg-500 normal-case font-sans">last 90d</span>
+        </div>
+        <div class="p-4">
+          <div class="text-[11px] text-fg-500 mb-3">Each cell is a prediction bucket. Green = hit, red = missed. Perfect calibration = the diagonal.</div>
+          <div class="grid grid-cols-10 gap-1" id="cal-grid">
+            <!-- Generated by JS -->
+          </div>
+          <div class="flex items-center justify-between mt-3 text-[10px] text-fg-500">
+            <span>0.0 confidence</span>
+            <span>0.5</span>
+            <span>1.0 confidence</span>
+          </div>
+          <div class="mt-2 text-[11px] text-fg-400">
+            <span class="text-brand-cyan">●</span> Hit &nbsp; <span class="text-brand-rose">●</span> Miss &nbsp; <span class="text-fg-600">●</span> Pending
+            &nbsp;·&nbsp; Your model is slightly <span class="text-brand-amber">overconfident in the 0.6–0.7 band</span> (4 misses vs 1 expected).
+          </div>
+        </div>
+      </div>
+
+      <!-- Prediction ledger table -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Verified Predictions · last 30d</span>
+        </div>
+        <div class="p-0">
+          <div class="prediction-row text-[10px] uppercase tracking-wider text-fg-500 font-semibold" style="border-bottom: 1px solid rgba(255,255,255,0.06); padding: 8px 12px;">
+            <div>Prediction</div>
+            <div>Confidence</div>
+            <div>Made</div>
+            <div>Verified</div>
+            <div>Result</div>
+          </div>
+
+          <div class="prediction-row">
+            <div class="text-fg-200">OAuth duplication would recur Q4</div>
+            <div><span class="text-brand-amber">0.68</span></div>
+            <div class="text-fg-500 mono">Sep 15</div>
+            <div class="text-fg-500 mono">Dec 5</div>
+            <div><span class="tag tag-cyan">Hit</span></div>
+          </div>
+          <div class="prediction-row">
+            <div class="text-fg-200">Friday-merge freeze reduces reverts 40%+</div>
+            <div><span class="text-brand-cyan">0.82</span></div>
+            <div class="text-fg-500 mono">Aug 2</div>
+            <div class="text-fg-500 mono">Sep 1</div>
+            <div><span class="tag tag-cyan">Hit</span></div>
+          </div>
+          <div class="prediction-row">
+            <div class="text-fg-200">QA centralization neutral on QA-Product tempo</div>
+            <div><span class="text-brand-cyan">0.81</span></div>
+            <div class="text-fg-500 mono">Sep 26</div>
+            <div class="text-fg-500 mono">Oct 26</div>
+            <div><span class="tag tag-rose">Miss</span></div>
+          </div>
+          <div class="prediction-row">
+            <div class="text-fg-200">SMB pricing change neutral on churn</div>
+            <div><span class="text-brand-amber">0.62</span></div>
+            <div class="text-fg-500 mono">Oct 10</div>
+            <div class="text-fg-500 mono">Nov 10</div>
+            <div><span class="tag tag-rose">Miss</span></div>
+          </div>
+          <div class="prediction-row">
+            <div class="text-fg-200">L-0003: postmortem w/ owner reduces recurrence 60%+</div>
+            <div><span class="text-brand-cyan">0.84</span></div>
+            <div class="text-fg-500 mono">Aug 14</div>
+            <div class="text-fg-500 mono">Sep 14</div>
+            <div><span class="tag tag-cyan">Hit</span></div>
+          </div>
+          <div class="prediction-row">
+            <div class="text-fg-200">Sep hiring surge correlates with Q2 incidents</div>
+            <div><span class="text-brand-cyan">0.79</span></div>
+            <div class="text-fg-500 mono">Aug 1</div>
+            <div class="text-fg-500 mono">Sep 1</div>
+            <div><span class="tag tag-cyan">Hit</span></div>
+          </div>
+          <div class="prediction-row">
+            <div class="text-fg-200">Slack threads &gt;8 participants = no decision</div>
+            <div><span class="text-brand-cyan">0.71</span></div>
+            <div class="text-fg-500 mono">Aug 22</div>
+            <div class="text-fg-500 mono">Sep 22</div>
+            <div><span class="tag tag-cyan">Hit</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-[11px] text-fg-500 leading-relaxed">
+        <strong class="text-fg-300">Why this matters:</strong> The Ledger is the only mechanism by which trust in Maestro compounds over time. Without it, every decision feels like the first decision. With it, the CEO can see — at the moment of a new decision — that Maestro's prior predictions in this category have held up 83% of the time, and adjust their own scrutiny accordingly.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="toggleModal('ledgerModal')">Close</button>
+      <button class="btn btn-primary">Export verification report</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCRIPT                                                        -->
+<!-- ============================================================ -->
+<script>
+
+// ===== ONBOARDING =====
+let currentReveal = 0;
+function nextReveal() {
+  const reveals = document.querySelectorAll('.reveal-screen');
+  reveals[currentReveal].classList.remove('active');
+  currentReveal = Math.min(currentReveal + 1, reveals.length - 1);
+  reveals[currentReveal].classList.add('active');
+  updateProgress();
+}
+function updateProgress() {
+  const dots = document.querySelectorAll('#onb-progress span');
+  dots.forEach((d, i) => {
+    d.classList.remove('done', 'current');
+    if (i < currentReveal) d.classList.add('done');
+    if (i === currentReveal) d.classList.add('current');
+  });
+}
+function connectSignal(btn) {
+  btn.classList.remove('btn-ghost');
+  btn.classList.add('btn-cyan');
+  btn.innerHTML = '✓ ' + btn.textContent.trim();
+}
+function finishOnboarding() {
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('app').style.display = 'flex';
+}
+
+// ===== NAVIGATION =====
+const surfaceNames = {
+  'home': 'Home',
+  'inbox': 'Inbox',
+  'decisions': 'Decision Workbench',
+  'physics': 'Organizational Physics',
+  'debate': 'Execution Debate'
+};
+
+function navTo(surface) {
+  document.querySelectorAll('.surface').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById('surface-' + surface);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+  const link = document.querySelector('.sidebar-link[data-surface="' + surface + '"]');
+  if (link) link.classList.add('active');
+  document.getElementById('bc-surface').textContent = surfaceNames[surface] || surface;
+  document.getElementById('main-scroll').scrollTop = 0;
+  // Close any open modal
+  document.querySelectorAll('.modal-bg.active').forEach(m => m.classList.remove('active'));
+}
+
+document.querySelectorAll('.sidebar-link[data-surface]').forEach(link => {
+  link.addEventListener('click', () => navTo(link.dataset.surface));
+});
+
+// ===== MODALS =====
+function toggleModal(id) {
+  document.getElementById(id).classList.toggle('active');
+}
+document.querySelectorAll('.modal-bg').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+});
+
+// ===== DECISION SIMULATOR =====
+function simulate() {
+  const emea = parseInt(document.getElementById('sim-emea').value);
+  const apac = parseInt(document.getElementById('sim-apac').value);
+  const na = parseInt(document.getElementById('sim-na').value);
+
+  document.getElementById('sim-emea-val').textContent = emea;
+  document.getElementById('sim-apac-val').textContent = apac;
+  document.getElementById('sim-na-val').textContent = na;
+
+  // Predicted state
+  const emeaCapacity = Math.round((emea / 8) * 24);
+  document.getElementById('pred-emea').textContent = '+' + emeaCapacity + '%';
+  document.getElementById('pred-emea').className = emeaCapacity >= 18 ? 'text-brand-cyan font-semibold' : 'text-brand-amber font-semibold';
+
+  const apacSupport = apac >= 5 ? '1:14 · at threshold' : (apac >= 3 ? '1:11 · below threshold' : '1:8 · critical');
+  const apacEl = document.getElementById('pred-apac');
+  apacEl.textContent = apacSupport;
+  apacEl.className = apac >= 5 ? 'text-brand-cyan font-semibold' : (apac >= 3 ? 'text-brand-amber font-semibold' : 'text-brand-rose font-semibold');
+
+  const p1Prob = (0.55 + (emea + apac + na - 14) * 0.03).toFixed(2);
+  document.getElementById('pred-p1').textContent = p1Prob;
+  document.getElementById('pred-p1').className = p1Prob > 0.6 ? 'text-brand-rose font-semibold' : (p1Prob > 0.5 ? 'text-brand-amber font-semibold' : 'text-brand-cyan font-semibold');
+
+  const attrRisk = (0.42 + (apac < 4 ? 0.12 : 0)).toFixed(2);
+  document.getElementById('pred-attr').textContent = attrRisk;
+  document.getElementById('pred-attr').className = attrRisk > 0.5 ? 'text-brand-rose font-semibold' : 'text-brand-amber font-semibold';
+
+  const cost = ((emea + apac + na) * 0.15).toFixed(2);
+  document.getElementById('pred-cost').textContent = '$' + cost + 'M';
+
+  // Confidence adjusts with distance from Maestro's recommendation
+  const distFromRec = Math.abs(emea - 5) + Math.abs(apac - 6) + Math.abs(na - 2);
+  const conf = Math.max(0.55, 0.78 - distFromRec * 0.025);
+  document.getElementById('sim-conf-fill').style.width = (conf * 100) + '%';
+  document.getElementById('sim-conf-val').textContent = conf.toFixed(2);
+  const confNote = document.getElementById('sim-conf-note');
+  if (conf > 0.75) {
+    document.getElementById('sim-conf-val').className = 'text-xs font-bold text-brand-cyan';
+    confNote.textContent = 'Within target band. Model is calibrated on 47 similar prior decisions in your org.';
+    confNote.className = 'text-[10px] text-fg-500 mt-1.5';
+  } else if (conf > 0.65) {
+    document.getElementById('sim-conf-val').className = 'text-xs font-bold text-brand-amber';
+    confNote.textContent = 'Outside Maestro\'s recommended configuration. Lower confidence — fewer prior decisions match.';
+    confNote.className = 'text-[10px] text-brand-amber mt-1.5';
+  } else {
+    document.getElementById('sim-conf-val').className = 'text-xs font-bold text-brand-rose';
+    confNote.textContent = 'Low confidence. This configuration has few precedents in your org. Approve with explicit verification plan.';
+    confNote.className = 'text-[10px] text-brand-rose mt-1.5';
+  }
+}
+
+// ===== CALIBRATION GRID =====
+function buildCalibrationGrid() {
+  const grid = document.getElementById('cal-grid');
+  if (!grid) return;
+  // 10 columns (confidence buckets 0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
+  // Each column has a stack of predictions
+  const data = [
+    { bucket: '0.0–0.1', hits: 0, miss: 1, pending: 0 },
+    { bucket: '0.1–0.2', hits: 1, miss: 0, pending: 0 },
+    { bucket: '0.2–0.3', hits: 0, miss: 0, pending: 1 },
+    { bucket: '0.3–0.4', hits: 2, miss: 1, pending: 0 },
+    { bucket: '0.4–0.5', hits: 1, miss: 1, pending: 0 },
+    { bucket: '0.5–0.6', hits: 3, miss: 1, pending: 2 },
+    { bucket: '0.6–0.7', hits: 4, miss: 4, pending: 1 },  // overconfident band
+    { bucket: '0.7–0.8', hits: 6, miss: 1, pending: 3 },
+    { bucket: '0.8–0.9', hits: 5, miss: 0, pending: 2 },
+    { bucket: '0.9–1.0', hits: 3, miss: 0, pending: 0 }
+  ];
+  grid.innerHTML = '';
+  data.forEach(col => {
+    const colDiv = document.createElement('div');
+    colDiv.className = 'flex flex-col gap-0.5 items-center';
+    // hits (bottom)
+    for (let i = 0; i < col.hits; i++) {
+      const cell = document.createElement('span');
+      cell.className = 'cal-cell cal-hit';
+      colDiv.appendChild(cell);
+    }
+    for (let i = 0; i < col.miss; i++) {
+      const cell = document.createElement('span');
+      cell.className = 'cal-cell cal-miss';
+      colDiv.appendChild(cell);
+    }
+    for (let i = 0; i < col.pending; i++) {
+      const cell = document.createElement('span');
+      cell.className = 'cal-cell cal-empty';
+      colDiv.appendChild(cell);
+    }
+    grid.appendChild(colDiv);
+  });
+}
+
+// ===== LAWF EXPAND (placeholder) =====
+function expandLaw(el) {
+  // In a real product: open a side panel with full evidence trail
+  el.style.transform = 'scale(1.01)';
+  setTimeout(() => el.style.transform = '', 200);
+}
+
+// ===== KEYBOARD =====
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    // Future: command palette
+  }
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-bg.active').forEach(m => m.classList.remove('active'));
+  }
+  // ⌘1-5 for surface nav
+  if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '5') {
+    e.preventDefault();
+    const surfaces = ['home', 'inbox', 'decisions', 'physics', 'debate'];
+    const idx = parseInt(e.key) - 1;
+    if (surfaces[idx]) navTo(surfaces[idx]);
+  }
+});
+
+// ===== INIT =====
+buildCalibrationGrid();
+// Ensure app starts hidden if onboarding is showing
+document.getElementById('app').style.display = 'none';
+
+</script>
+
+</body>
+</html>
