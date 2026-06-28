@@ -1,0 +1,303 @@
+# Maestro — CI/CD Pipeline
+# =============================================================================
+# Workflow: Test → Build → Push → Deploy (staging → production)
+# Features: parallel testing, Docker build, ECR push, blue-green deploy,
+#           canary rollout, automatic rollback on health check failure
+# =============================================================================
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_API: maestro/api
+  ECR_WORKER: maestro/worker
+
+jobs:
+  # ===========================================================================
+  # TEST — Run all tests (backend + frontend)
+  # ===========================================================================
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: maestro
+          POSTGRES_PASSWORD: maestro
+          POSTGRES_DB: maestro_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: realtime-server/package-lock.json
+
+      # Backend tests
+      - name: Install backend dependencies
+        working-directory: realtime-server
+        run: npm ci
+
+      - name: Run backend unit tests
+        working-directory: realtime-server
+        run: npm test
+        env:
+          DATABASE_URL: postgresql://maestro:maestro@localhost:5432/maestro_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+      - name: Run backend integration tests
+        working-directory: realtime-server
+        run: npx vitest run tests/integration/ --testTimeout=30000
+        env:
+          DATABASE_URL: postgresql://maestro:maestro@localhost:5432/maestro_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+      # Frontend tests
+      - name: Install frontend dependencies
+        working-directory: frontend-next
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: frontend-next
+        run: npm test
+
+      - name: Run frontend lint
+        working-directory: frontend-next
+        run: npx next lint
+        continue-on-error: true
+
+  # ===========================================================================
+  # BUILD & PUSH — Build Docker images, push to ECR
+  # ===========================================================================
+  build-and-push:
+    name: Build & Push
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: api
+            dockerfile: realtime-server/Dockerfile
+            ecr: maestro/api
+          - image: worker
+            dockerfile: realtime-server/Dockerfile.worker
+            ecr: maestro/worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr }}:latest
+            ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ steps.ecr.outputs.registry }}/${{ matrix.ecr }}:latest
+          cache-to: type=inline
+
+  # ===========================================================================
+  # DEPLOY STAGING — Deploy to staging environment
+  # ===========================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build-and-push
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run database migrations
+        run: |
+          aws ecs run-task \
+            --cluster maestro-staging \
+            --task-definition maestro-migrate \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.STAGING_SUBNET }}],securityGroups=[${{ secrets.STAGING_SG }}],assignPublicIp=ENABLED}" \
+            --launch-type FARGATE
+
+      - name: Deploy API to staging (blue-green)
+        run: |
+          aws ecs update-service \
+            --cluster maestro-staging \
+            --service maestro-api \
+            --task-definition maestro-api-staging \
+            --force-new-deployment
+          # Wait for stable
+          aws ecs wait services-stable --cluster maestro-staging --services maestro-api
+
+      - name: Deploy Worker to staging
+        run: |
+          aws ecs update-service \
+            --cluster maestro-staging \
+            --service maestro-worker \
+            --task-definition maestro-worker-staging \
+            --force-new-deployment
+          aws ecs wait services-stable --cluster maestro-staging --services maestro-worker
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 10); do
+            STATUS=$(curl -s https://staging.maestro.app/api/health | jq -r .ok)
+            if [ "$STATUS" = "true" ]; then
+              echo "Health check passed"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Health check failed"
+          exit 1
+
+  # ===========================================================================
+  # DEPLOY PRODUCTION — Blue-green with canary
+  # ===========================================================================
+  deploy-production:
+    name: Deploy to Production
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run database migrations
+        run: |
+          aws ecs run-task \
+            --cluster maestro-production \
+            --task-definition maestro-migrate \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PROD_SUBNET }}],securityGroups=[${{ secrets.PROD_SG }}],assignPublicIp=ENABLED}" \
+            --launch-type FARGATE
+
+      - name: Deploy API (canary — 10% traffic first)
+        run: |
+          # Update task definition with new image
+          NEW_TD=$(aws ecs describe-task-definition --task-definition maestro-api-production --query 'taskDefinition' | \
+            jq --arg IMAGE "${{ secrets.ECR_URL }}/maestro/api:${{ github.sha }}" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+
+          NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TD" --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          # Canary: deploy 1 new task, keep old tasks running
+          CURRENT_DESIRED=$(aws ecs describe-services --cluster maestro-production --services maestro-api --query 'services[0].desiredCount' --output text)
+
+          # Scale up to canary (current + 1)
+          aws ecs update-service \
+            --cluster maestro-production \
+            --service maestro-api \
+            --task-definition "$NEW_TD_ARN" \
+            --desired-count $((CURRENT_DESIRED + 1))
+
+          # Wait for canary task to be healthy
+          sleep 60
+          aws ecs wait services-stable --cluster maestro-production --services maestro-api
+
+      - name: Canary health check (5 minutes)
+        run: |
+          END=$((SECONDS + 300))
+          while [ $SECONDS -lt $END ]; do
+            STATUS=$(curl -s https://maestro.app/api/health | jq -r .ok)
+            ERROR_RATE=$(curl -s -o /dev/null -w "%{http_code}" https://maestro.app/api/health)
+            if [ "$STATUS" != "true" ] || [ "$ERROR_RATE" != "200" ]; then
+              echo "Canary health check failed — rolling back"
+              aws ecs update-service \
+                --cluster maestro-production \
+                --service maestro-api \
+                --task-definition maestro-api-production \
+                --force-new-deployment
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "Canary passed — proceeding to full rollout"
+
+      - name: Full production rollout
+        run: |
+          aws ecs update-service \
+            --cluster maestro-production \
+            --service maestro-api \
+            --desired-count 2 \
+            --force-new-deployment
+          aws ecs wait services-stable --cluster maestro-production --services maestro-api
+
+      - name: Deploy Worker
+        run: |
+          aws ecs update-service \
+            --cluster maestro-production \
+            --service maestro-worker \
+            --force-new-deployment
+          aws ecs wait services-stable --cluster maestro-production --services maestro-worker
+
+      - name: Verify production health
+        run: |
+          STATUS=$(curl -s https://maestro.app/api/health | jq -r .ok)
+          if [ "$STATUS" != "true" ]; then
+            echo "Production health check failed"
+            exit 1
+          fi
+          echo "Production deployment successful"
+
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
