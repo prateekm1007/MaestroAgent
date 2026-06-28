@@ -1,0 +1,500 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en" class="dark">
+     3→<head>
+     4→<meta charset="UTF-8">
+     5→<meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→<title>Maestro — Internal App</title>
+     7→<meta name="description" content="MaestroAgent internal application — the browser-first Agent Operating System">
+     8→<script src="https://cdn.tailwindcss.com"></script>
+     9→<script>
+    10→tailwind.config = {
+    11→  darkMode: 'class',
+    12→  theme: {
+    13→    extend: {
+    14→      colors: {
+    15→        'ink': { 950:'#070710', 900:'#0a0a14', 850:'#0e0e1a', 800:'#12121e', 750:'#161624', 700:'#1c1c2c', 650:'#222234', 600:'#2a2a3c' },
+    16→        'brand': { purple:'#7c5cff', purple2:'#6b4df5', cyan:'#00d4aa', cyan2:'#00b894', amber:'#ffb84d', rose:'#ff5577', sky:'#5cc8ff' },
+    17→        'fg': { 100:'#f4f4fc', 200:'#e8e8f0', 300:'#c8c8d8', 400:'#8888a0', 500:'#5a5a72', 600:'#3a3a4a' }
+    18→      },
+    19→      fontFamily: {
+    20→        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+    21→        mono: ['JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
+    22→      },
+    23→    }
+    24→  }
+    25→}
+    26→</script>
+    27→<style>
+    28→@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    29→
+    30→* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; box-sizing: border-box; }
+    31→html, body { height: 100%; margin: 0; }
+    32→body { background: #070710; color: #e8e8f0; font-family: 'Inter', sans-serif; font-size: 13px; overflow: hidden; }
+    33→
+    34→::-webkit-scrollbar { width: 8px; height: 8px; }
+    35→::-webkit-scrollbar-track { background: transparent; }
+    36→::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+    37→::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+    38→
+    39→.panel { background: linear-gradient(180deg, rgba(22,22,36,0.55) 0%, rgba(18,18,30,0.55) 100%); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    40→.panel-solid { background: #12121e; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; }
+    41→.panel-hover { transition: all 0.25s cubic-bezier(0.16,1,0.3,1); }
+    42→.panel-hover:hover { border-color: rgba(124,92,255,0.3); transform: translateY(-2px); box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5), 0 0 24px -8px rgba(124,92,255,0.2); }
+    43→.panel-header { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8888a0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    44→
+    45→.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+    46→.tag-purple { background: rgba(124,92,255,0.14); color: #a594ff; }
+    47→.tag-cyan { background: rgba(0,212,170,0.12); color: #00d4aa; }
+    48→.tag-amber { background: rgba(255,184,77,0.12); color: #ffb84d; }
+    49→.tag-rose { background: rgba(255,85,119,0.12); color: #ff5577; }
+    50→.tag-sky { background: rgba(92,200,255,0.12); color: #5cc8ff; }
+    51→.tag-gray { background: rgba(255,255,255,0.06); color: #8888a0; }
+    52→
+    53→.sidebar-link { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; font-size: 12.5px; color: #8888a0; transition: all .12s; cursor: pointer; font-weight: 500; position: relative; }
+    54→.sidebar-link:hover { background: rgba(255,255,255,0.04); color: #e8e8f0; }
+    55→.sidebar-link.active { background: rgba(124,92,255,0.14); color: #a594ff; }
+    56→.sidebar-link.active::before { content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 16px; background: #7c5cff; border-radius: 2px; }
+    57→.sidebar-link svg { width: 15px; height: 15px; flex-shrink:0; }
+    58→.sidebar-link .badge { margin-left: auto; }
+    59→.sidebar-section { font-size: 9.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: #5a5a72; padding: 14px 10px 6px; cursor: pointer; display:flex; align-items:center; gap:6px; }
+    60→.sidebar-section .chev { margin-left:auto; transition: transform .15s; }
+    61→.sidebar-section.collapsed .chev { transform: rotate(-90deg); }
+    62→.sidebar-section.collapsed + .sidebar-group { display: none; }
+    63→
+    64→.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; transition: all .15s; cursor: pointer; border: none; white-space: nowrap; font-family: inherit; }
+    65→.btn-primary { background: linear-gradient(135deg, #7c5cff, #6b4df5); color: white; box-shadow: 0 2px 8px rgba(124,92,255,0.25); }
+    66→.btn-primary:hover { box-shadow: 0 4px 16px rgba(124,92,255,0.45); transform: translateY(-1px); }
+    67→.btn-ghost { background: rgba(255,255,255,0.04); color: #c8c8d8; border: 1px solid rgba(255,255,255,0.08); }
+    68→.btn-ghost:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); color: white; }
+    69→.btn-cyan { background: linear-gradient(135deg, #00d4aa, #00b894); color: #070710; }
+    70→.btn-cyan:hover { box-shadow: 0 4px 16px rgba(0,212,170,0.4); transform: translateY(-1px); }
+    71→.btn-rose { background: rgba(255,85,119,0.14); color: #ff5577; border: 1px solid rgba(255,85,119,0.25); }
+    72→.btn-rose:hover { background: rgba(255,85,119,0.22); }
+    73→.btn-icon { padding: 6px; }
+    74→
+    75→.pulse-dot { animation: pulseDot 2s infinite; }
+    76→@keyframes pulseDot { 0%,100% { box-shadow: 0 0 0 0 rgba(0,212,170,0.6); } 50% { box-shadow: 0 0 0 6px rgba(0,212,170,0); } }
+    77→.pulse-dot-purple { animation: pulseDotP 2s infinite; }
+    78→@keyframes pulseDotP { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,255,0.6); } 50% { box-shadow: 0 0 0 6px rgba(124,92,255,0); } }
+    79→.pulse-dot-amber { animation: pulseDotA 2s infinite; }
+    80→@keyframes pulseDotA { 0%,100% { box-shadow: 0 0 0 0 rgba(255,184,77,0.6); } 50% { box-shadow: 0 0 0 6px rgba(255,184,77,0); } }
+    81→
+    82→kbd { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 1.5px 5px; border-radius: 4px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); color: #e8e8f0; min-width: 18px; display: inline-flex; align-items: center; justify-content: center; }
+    83→
+    84→.page-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: #7c5cff; text-transform: uppercase; }
+    85→.mono { font-family: 'JetBrains Mono', monospace; }
+    86→
+    87→.tbl { width: 100%; border-collapse: separate; border-spacing: 0; }
+    88→.tbl th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5a5a72; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0; z-index: 1; }
+    89→.tbl td { padding: 9px 12px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #c8c8d8; }
+    90→.tbl tr:hover td { background: rgba(124,92,255,0.04); }
+    91→.tbl tr { transition: background .1s; }
+    92→
+    93→.bar { background: linear-gradient(180deg, #7c5cff, #5a3fdb); border-radius: 3px 3px 0 0; min-width: 18px; transition: opacity .2s; }
+    94→.bar:hover { opacity: 0.85; }
+    95→.bar-cyan { background: linear-gradient(180deg, #00d4aa, #00a886); border-radius: 3px 3px 0 0; }
+    96→.bar-amber { background: linear-gradient(180deg, #ffb84d, #d99a2e); border-radius: 3px 3px 0 0; }
+    97→.bar-sky { background: linear-gradient(180deg, #5cc8ff, #3a9fd6); border-radius: 3px 3px 0 0; }
+    98→.bar-rose { background: linear-gradient(180deg, #ff5577, #d93a5e); border-radius: 3px 3px 0 0; }
+    99→
+   100→.prog { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+   101→.prog-fill { height: 100%; background: linear-gradient(90deg, #7c5cff, #00d4aa); border-radius: 2px; transition: width .3s; }
+   102→
+   103→.gnode { position: absolute; background: #161624; border: 1px solid rgba(255,255,255,0.10); border-radius: 9px; padding: 8px 12px; font-size: 11px; font-weight: 600; color: #e8e8f0; min-width: 110px; text-align: center; cursor: grab; user-select: none; transition: all .15s; }
+   104→.gnode:hover { border-color: rgba(124,92,255,0.4); transform: scale(1.02); }
+   105→.gnode.entry { border-color: #00d4aa; box-shadow: 0 0 0 1px rgba(0,212,170,0.25); }
+   106→.gnode.loop { border-color: #ffb84d; box-shadow: 0 0 0 1px rgba(255,184,77,0.25); }
+   107→.gnode.exit { border-color: #7c5cff; box-shadow: 0 0 0 1px rgba(124,92,255,0.25); }
+   108→.gnode.active { background: rgba(124,92,255,0.18); border-color: #7c5cff; }
+   109→.gnode .gport { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #5a5a72; top: 50%; transform: translateY(-50%); }
+   110→.gnode .gport.in { left: -4px; }
+   111→.gnode .gport.out { right: -4px; }
+   112→.canvas-bg { background-color: #0a0a14; background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px); background-size: 22px 22px; }
+   113→
+   114→.kcard { background: #161624; border: 1px solid rgba(255,255,255,0.06); border-radius: 9px; padding: 10px; margin-bottom: 8px; cursor: grab; transition: all .15s; }
+   115→.kcard:hover { border-color: rgba(124,92,255,0.3); transform: translateY(-1px); }
+   116→.kcol { background: rgba(255,255,255,0.015); border-radius: 11px; padding: 10px; min-height: 200px; border: 1px solid rgba(255,255,255,0.04); }
+   117→
+   118→.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
+   119→.modal-bg.active { display: flex; }
+   120→.modal { background: #161624; border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; width: 100%; max-width: 560px; max-height: 90vh; overflow: auto; box-shadow: 0 30px 80px rgba(0,0,0,0.6); animation: modalIn .2s ease; }
+   121→@keyframes modalIn { from { opacity:0; transform: scale(0.96); } to { opacity:1; transform: scale(1); } }
+   122→.modal-header { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }
+   123→.modal-body { padding: 20px; }
+   124→.modal-footer { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: flex-end; gap: 8px; }
+   125→
+   126→.cmdp { position: fixed; top: 15%; left: 50%; transform: translateX(-50%); width: 90%; max-width: 580px; background: #161624; border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; z-index: 200; display: none; box-shadow: 0 30px 80px rgba(0,0,0,0.6); overflow: hidden; }
+   127→.cmdp.active { display: block; animation: modalIn .15s ease; }
+   128→.cmdp-item { padding: 9px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; color: #c8c8d8; }
+   129→.cmdp-item:hover, .cmdp-item.sel { background: rgba(124,92,255,0.12); color: #e8e8f0; }
+   130→.cmdp-cat { padding: 8px 16px 4px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: #5a5a72; }
+   131→
+   132→.input { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 7px 10px; font-size: 12px; color: #e8e8f0; width: 100%; outline: none; transition: all .15s; font-family: inherit; }
+   133→.input:focus { border-color: rgba(124,92,255,0.4); background: rgba(124,92,255,0.04); }
+   134→.input::placeholder { color: #5a5a72; }
+   135→textarea.input { resize: vertical; min-height: 60px; }
+   136→select.input { cursor: pointer; }
+   137→
+   138→.tab { padding: 7px 12px; font-size: 12px; font-weight: 600; color: #8888a0; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; background: transparent; border-left: none; border-right: none; border-top: none; font-family: inherit; }
+   139→.tab:hover { color: #e8e8f0; }
+   140→.tab.active { color: #a594ff; border-color: #7c5cff; }
+   141→
+   142→.rep-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+   143→.rep-fill { height: 100%; border-radius: 2px; }
+   144→
+   145→.switch { width: 32px; height: 18px; background: rgba(255,255,255,0.10); border-radius: 999px; position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0; }
+   146→.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: all .2s; }
+   147→.switch.on { background: #7c5cff; }
+   148→.switch.on::after { left: 16px; }
+   149→
+   150→.codewin { background: #0e0e1a; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; overflow: hidden; }
+   151→.codewin-hdr { display: flex; align-items: center; gap: 5px; padding: 7px 10px; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05); }
+   152→.codewin-dot { width: 9px; height: 9px; border-radius: 50%; }
+   153→
+   154→.chain-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+   155→.chain-row:hover { background: rgba(124,92,255,0.04); }
+   156→
+   157→@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+   158→.shimmer { background: linear-gradient(90deg, transparent, rgba(124,92,255,0.15), transparent); background-size: 200% 100%; animation: shimmer 2s linear infinite; }
+   159→
+   160→.page { display: none; }
+   161→.page.active { display: block; animation: fadeIn .25s ease; }
+   162→@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+   163→
+   164→.spark { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 18px; }
+   165→.spark span { width: 2.5px; background: #7c5cff; border-radius: 1px; opacity: 0.7; }
+   166→
+   167→.tree-branch { padding-left: 18px; position: relative; }
+   168→.tree-branch::before { content: ''; position: absolute; left: 7px; top: 0; bottom: 50%; width: 1px; background: rgba(255,255,255,0.10); }
+   169→.tree-branch::after { content: ''; position: absolute; left: 7px; top: 50%; width: 11px; height: 1px; background: rgba(255,255,255,0.10); }
+   170→.tree-branch:last-child::before { bottom: 50%; }
+   171→
+   172→/* Agent card with model assignment */
+   173→.agent-card { background: #161624; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; transition: all .2s; }
+   174→.agent-card:hover { border-color: rgba(124,92,255,0.3); transform: translateY(-1px); box-shadow: 0 8px 24px -6px rgba(0,0,0,0.4); }
+   175→.agent-tier-0 { border-left: 3px solid #7c5cff; }
+   176→.agent-tier-1 { border-left: 3px solid #00d4aa; }
+   177→.agent-tier-2 { border-left: 3px solid #ffb84d; }
+   178→
+   179→/* Right context panel */
+   180→.ctx-panel { background: linear-gradient(180deg, rgba(22,22,36,0.55) 0%, rgba(18,18,30,0.55) 100%); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; backdrop-filter: blur(10px); }
+   181→.ctx-row { padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+   182→.ctx-row:last-child { border-bottom: none; }
+   183→.ctx-label { color: #8888a0; }
+   184→.ctx-value { color: #e8e8f0; font-weight: 500; }
+   185→
+   186→/* Tooltip */
+   187→.tip { position: relative; }
+   188→.tip:hover .tip-text { opacity: 1; visibility: visible; }
+   189→.tip-text { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #1c1c2c; border: 1px solid rgba(255,255,255,0.10); padding: 4px 8px; border-radius: 5px; font-size: 10px; white-space: nowrap; opacity: 0; visibility: hidden; transition: all .15s; pointer-events: none; z-index: 10; }
+   190→
+   191→/* Glow effects */
+   192→.glow-purple { box-shadow: 0 0 30px rgba(124,92,255,0.15); }
+   193→.glow-cyan { box-shadow: 0 0 30px rgba(0,212,170,0.15); }
+   194→
+   195→/* Stat tile */
+   196→.stat-tile { background: linear-gradient(135deg, rgba(22,22,36,0.6), rgba(18,18,30,0.6)); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px; transition: all .2s; }
+   197→.stat-tile:hover { border-color: rgba(124,92,255,0.2); transform: translateY(-1px); }
+   198→
+   199→/* ===== Hierarchy Explorer ===== */
+   200→.hier-node { position: relative; padding: 10px 12px; border-radius: 9px; background: #161624; border: 1px solid rgba(255,255,255,0.06); transition: all .15s; cursor: pointer; }
+   201→.hier-node:hover { border-color: rgba(124,92,255,0.3); background: #1a1a2e; }
+   202→.hier-node.selected { border-color: #7c5cff; background: rgba(124,92,255,0.08); box-shadow: 0 0 0 1px rgba(124,92,255,0.2); }
+   203→.hier-node.tier-0 { border-left: 3px solid #7c5cff; background: rgba(124,92,255,0.05); }
+   204→.hier-node.tier-1 { border-left: 3px solid #00d4aa; }
+   205→.hier-node.tier-2 { border-left: 3px solid #ffb84d; }
+   206→.hier-children { padding-left: 20px; margin-left: 18px; border-left: 1px solid rgba(255,255,255,0.08); }
+   207→.hier-expand { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s; flex-shrink: 0; }
+   208→.hier-expand.collapsed { transform: rotate(-90deg); }
+   209→.hier-children.collapsed { display: none; }
+   210→
+   211→/* Hierarchy diagram (routing page) */
+   212→.hier-diagram { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px; }
+   213→.hier-tier { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+   214→.hier-tier-label { font-size: 9px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: #5a5a72; margin-bottom: 6px; text-align: center; }
+   215→.hier-box { padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; text-align: center; min-width: 90px; border: 1px solid; }
+   216→.hier-box.t0 { background: rgba(124,92,255,0.12); border-color: rgba(124,92,255,0.3); color: #a594ff; }
+   217→.hier-box.t1 { background: rgba(0,212,170,0.10); border-color: rgba(0,212,170,0.25); color: #00d4aa; }
+   218→.hier-box.t2 { background: rgba(255,184,77,0.10); border-color: rgba(255,184,77,0.25); color: #ffb84d; }
+   219→.hier-connector { width: 1px; height: 16px; background: rgba(255,255,255,0.12); }
+   220→
+   221→/* Context menu */
+   222→.ctx-menu { position: fixed; z-index: 300; background: #1c1c2c; border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; padding: 4px; min-width: 180px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); display: none; }
+   223→.ctx-menu.active { display: block; }
+   224→.ctx-menu-item { padding: 7px 10px; border-radius: 5px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #c8c8d8; }
+   225→.ctx-menu-item:hover { background: rgba(124,92,255,0.12); color: #e8e8f0; }
+   226→.ctx-menu-item.danger:hover { background: rgba(255,85,119,0.12); color: #ff5577; }
+   227→.ctx-menu-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 0; }
+   228→
+   229→/* Spawn modal enhancements */
+   230→.spawn-parent-picker { max-height: 160px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px; }
+   231→.spawn-parent-item { padding: 6px 8px; border-radius: 5px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+   232→.spawn-parent-item:hover { background: rgba(124,92,255,0.10); }
+   233→.spawn-parent-item.selected { background: rgba(124,92,255,0.14); color: #a594ff; }
+   234→.slider { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.10); outline: none; }
+   235→.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; box-shadow: 0 0 0 3px rgba(124,92,255,0.2); }
+   236→.slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; border: none; }
+   237→
+   238→/* Spawn animation */
+   239→@keyframes spawnPulse { 0% { opacity: 0; transform: scale(0.8) translateY(-4px); } 50% { opacity: 1; transform: scale(1.05); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+   240→.spawn-anim { animation: spawnPulse .4s cubic-bezier(0.16,1,0.3,1); }
+   241→
+   242→/* Inheritance badge */
+   243→.inherit-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 600; background: rgba(92,200,255,0.10); color: #5cc8ff; border: 1px solid rgba(92,200,255,0.15); }
+   244→
+   245→/* Cost savings callout */
+   246→.savings-callout { background: linear-gradient(135deg, rgba(0,212,170,0.08), rgba(92,200,255,0.06)); border: 1px solid rgba(0,212,170,0.20); border-radius: 9px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+   247→
+   248→/* Hierarchy diagram (Model Routing page) */
+   249→.hier-diagram-node { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: #161624; min-width: 120px; transition: all .2s; cursor: pointer; }
+   250→.hier-diagram-node:hover { border-color: rgba(124,92,255,0.3); transform: translateY(-2px); }
+   251→.hier-diagram-node.tier-0 { border-color: rgba(124,92,255,0.3); background: rgba(124,92,255,0.06); }
+   252→.hier-diagram-node.tier-1 { border-color: rgba(0,212,170,0.3); }
+   253→.hier-diagram-node.tier-2 { border-color: rgba(255,184,77,0.3); }
+   254→.hier-diagram-connector { width: 1px; height: 20px; background: rgba(255,255,255,0.10); }
+   255→.hier-diagram-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+   256→
+   257→/* Budget slider */
+   258→.budget-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); outline: none; }
+   259→.budget-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; box-shadow: 0 0 0 3px rgba(124,92,255,0.15); }
+   260→.budget-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #7c5cff; cursor: pointer; border: none; box-shadow: 0 0 0 3px rgba(124,92,255,0.15); }
+   261→
+   262→/* Toggle chip */
+   263→.toggle-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: #8888a0; }
+   264→.toggle-chip:hover { background: rgba(255,255,255,0.05); color: #e8e8f0; }
+   265→.toggle-chip.on { background: rgba(124,92,255,0.12); border-color: rgba(124,92,255,0.25); color: #a594ff; }
+   266→
+   267→/* Drag-to-reparent */
+   268→.dragging-node { opacity: 0.4; cursor: grabbing !important; }
+   269→.drop-target { border-color: #00d4aa !important; box-shadow: 0 0 0 2px rgba(0,212,170,0.3) !important; background: rgba(0,212,170,0.05) !important; }
+   270→.drop-target-invalid { border-color: #ff5577 !important; box-shadow: 0 0 0 2px rgba(255,85,119,0.2) !important; }
+   271→
+   272→/* Optimize modal suggestion cards */
+   273→.opt-suggestion { background: #161624; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; transition: all .15s; }
+   274→.opt-suggestion:hover { border-color: rgba(124,92,255,0.3); }
+   275→.opt-suggestion .savings { color: #00d4aa; font-weight: 700; }
+   276→
+   277→/* Inheritance preview in spawn modal */
+   278→.inherit-preview { background: rgba(92,200,255,0.06); border: 1px solid rgba(92,200,255,0.15); border-radius: 8px; padding: 10px; }
+   279→
+   280→/* Agent card draggable */
+   281→.agent-card[draggable="true"] { cursor: grab; }
+   282→.agent-card[draggable="true"]:active { cursor: grabbing; }
+   283→
+   284→/* Tree picker for spawn modal */
+   285→.tree-picker { background: #0e0e1a; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px; max-height: 200px; overflow-y: auto; }
+   286→.tree-picker-item { padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all .12s; display: flex; align-items: center; gap: 8px; }
+   287→.tree-picker-item:hover { background: rgba(124,92,255,0.08); }
+   288→.tree-picker-item.selected { background: rgba(124,92,255,0.12); color: #a594ff; }
+   289→
+   290→/* Focus ring for keyboard nav */
+   291→.hier-node:focus, .agent-card:focus { outline: 2px solid rgba(124,92,255,0.4); outline-offset: 2px; }
+   292→
+   293→/* ===== VOICE MODE ===== */
+   294→.voice-btn { position: relative; width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, rgba(124,92,255,0.15), rgba(0,212,170,0.10)); border: 1px solid rgba(124,92,255,0.25); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; flex-shrink: 0; }
+   295→.voice-btn:hover { background: linear-gradient(135deg, rgba(124,92,255,0.25), rgba(0,212,170,0.15)); transform: scale(1.05); }
+   296→.voice-btn.listening { background: linear-gradient(135deg, #7c5cff, #00d4aa); border-color: transparent; animation: voicePulse 1.5s infinite; }
+   297→.voice-btn.listening svg { color: white; }
+   298→@keyframes voicePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,255,0.5); } 50% { box-shadow: 0 0 0 8px rgba(124,92,255,0); } }
+   299→
+   300→/* Voice waveform */
+   301→.voice-waveform { display: flex; align-items: center; gap: 2px; height: 24px; }
+   302→.voice-waveform span { width: 3px; background: #7c5cff; border-radius: 2px; animation: waveBar 0.8s infinite ease-in-out; }
+   303→.voice-waveform span:nth-child(1) { animation-delay: 0s; height: 30%; }
+   304→.voice-waveform span:nth-child(2) { animation-delay: 0.1s; height: 60%; }
+   305→.voice-waveform span:nth-child(3) { animation-delay: 0.2s; height: 90%; }
+   306→.voice-waveform span:nth-child(4) { animation-delay: 0.15s; height: 70%; }
+   307→.voice-waveform span:nth-child(5) { animation-delay: 0.05s; height: 40%; }
+   308→.voice-waveform span:nth-child(6) { animation-delay: 0.25s; height: 80%; }
+   309→.voice-waveform span:nth-child(7) { animation-delay: 0.1s; height: 50%; }
+   310→@keyframes waveBar { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1.2); } }
+   311→
+   312→/* Voice banner */
+   313→.voice-banner { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 150; background: linear-gradient(135deg, rgba(124,92,255,0.15), rgba(0,212,170,0.10)); backdrop-filter: blur(20px); border: 1px solid rgba(124,92,255,0.25); border-radius: 12px; padding: 8px 20px; display: none; align-items: center; gap: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+   314→.voice-banner.active { display: flex; animation: voiceBannerIn .3s cubic-bezier(0.16,1,0.3,1); }
+   315→@keyframes voiceBannerIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+   316→
+   317→/* Voice transcript display */
+   318→.voice-transcript { font-size: 13px; color: #e8e8f0; font-weight: 500; min-width: 200px; }
+   319→.voice-transcript .interim { color: #8888a0; font-style: italic; }
+   320→
+   321→/* Voice history log */
+   322→.voice-history-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; transition: all .12s; cursor: pointer; }
+   323→.voice-history-item:hover { background: rgba(124,92,255,0.06); }
+   324→
+   325→/* ===== SPAWN PARTICLES & EFFECTS ===== */
+   326→.spawn-particle { position: absolute; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; z-index: 50; }
+   327→
+   328→/* Spawn rays animation */
+   329→.spawn-rays { position: absolute; pointer-events: none; z-index: 40; }
+   330→.spawn-ray { position: absolute; width: 2px; height: 40px; background: linear-gradient(180deg, transparent, rgba(0,212,170,0.6), transparent); transform-origin: bottom center; animation: rayExpand .6s cubic-bezier(0.16,1,0.3,1) forwards; }
+   331→@keyframes rayExpand { from { transform: scaleY(0) rotate(var(--angle)); opacity: 1; } to { transform: scaleY(1) rotate(var(--angle)); opacity: 0; } }
+   332→
+   333→/* Spring expand/collapse */
+   334→.hier-children { transition: max-height .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .2s ease; overflow: hidden; }
+   335→.hier-children.collapsed { max-height: 0; opacity: 0; }
+   336→.hier-children:not(.collapsed) { max-height: 2000px; opacity: 1; }
+   337→
+   338→/* Live hierarchy pulse — agents with active children gently pulse cyan */
+   339→.agent-card.has-active-children { animation: livePulse 3s infinite; }
+   340→@keyframes livePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,212,170,0); } 50% { box-shadow: 0 0 12px 0 rgba(0,212,170,0.15); } }
+   341→
+   342→/* Reputation flow line */
+   343→.rep-flow-line { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(0,212,170,0.3), transparent); pointer-events: none; animation: flowLine 2s linear infinite; }
+   344→@keyframes flowLine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+   345→
+   346→/* Confetti on successful re-parent */
+   347→.confetti-piece { position: fixed; width: 8px; height: 8px; z-index: 999; pointer-events: none; animation: confettiFall 1s ease-out forwards; }
+   348→@keyframes confettiFall { from { transform: translateY(0) rotate(0); opacity: 1; } to { transform: translateY(100px) rotate(360deg); opacity: 0; } }
+   349→
+   350→/* Savings micro-animation */
+   351→.savings-pop { animation: savingsPop .5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+   352→@keyframes savingsPop { 0% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+   353→
+   354→/* Auto-suggestion shimmer */
+   355→.auto-suggest { background: linear-gradient(90deg, rgba(124,92,255,0.06), rgba(0,212,170,0.06), rgba(124,92,255,0.06)); background-size: 200% 100%; animation: autoShimmer 3s linear infinite; border: 1px solid rgba(124,92,255,0.15); }
+   356→@keyframes autoShimmer { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+   357→
+   358→/* Ghost drag image */
+   359→.drag-ghost { position: fixed; pointer-events: none; z-index: 999; opacity: 0.8; transform: scale(1.05) rotate(-2deg); box-shadow: 0 8px 24px rgba(124,92,255,0.3); border-radius: 10px; }
+   360→
+   361→/* Glowing inheritance badge */
+   362→.inherit-glow { animation: inheritGlow 2s infinite; }
+   363→@keyframes inheritGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(92,200,255,0.3); } 50% { box-shadow: 0 0 8px 2px rgba(92,200,255,0.2); } }
+   364→
+   365→/* Voice suggestion in command palette */
+   366→.cmdp-voice-suggest { padding: 6px 16px; display: flex; align-items: center; gap: 8px; font-size: 11px; color: #5cc8ff; border-top: 1px solid rgba(255,255,255,0.04); }
+   367→
+   368→/* Nested hierarchy group in graph builder */
+   369→.hierarchy-group { position: absolute; border: 2px dashed rgba(124,92,255,0.2); border-radius: 14px; padding: 24px 16px 16px; pointer-events: none; }
+   370→.hierarchy-group-label { position: absolute; top: -10px; left: 12px; background: #0a0a14; padding: 0 8px; font-size: 10px; font-weight: 700; color: #a594ff; text-transform: uppercase; letter-spacing: 0.05em; }
+   371→</style>
+   372→</head>
+   373→<body>
+   374→
+   375→<div class="flex h-screen">
+   376→
+   377→  <!-- ===== LEFT SIDEBAR ===== -->
+   378→  <aside class="w-56 flex-shrink-0 bg-ink-900 border-r border-white/[0.05] flex flex-col">
+   379→    <div class="h-12 flex items-center gap-2 px-4 border-b border-white/[0.05]">
+   380→      <div class="w-7 h-7 rounded-md bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-xs font-black text-white">M</div>
+   381→      <span class="font-bold text-sm">Maestro</span>
+   382→      <span class="tag tag-gray ml-auto">v1.0</span>
+   383→    </div>
+   384→
+   385→    <div class="px-3 py-2.5 border-b border-white/[0.05]">
+   386→      <button class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/[0.04] text-left">
+   387→        <div class="w-6 h-6 rounded bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-[10px] font-bold">A</div>
+   388→        <div class="flex-1 min-w-0">
+   389→          <div class="text-xs font-semibold truncate">Acme Workspace</div>
+   390→          <div class="text-[9px] text-fg-500">Pro · 24 runs</div>
+   391→        </div>
+   392→        <svg class="w-3 h-3 text-fg-500" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+   393→      </button>
+   394→    </div>
+   395→
+   396→    <nav class="flex-1 overflow-y-auto px-3 py-2">
+   397→      <div class="sidebar-section" onclick="toggleSection(this)">Operate <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
+   398→      <div class="sidebar-group">
+   399→        <div class="sidebar-link active" data-page="dashboard"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Dashboard</div>
+   400→        <div class="sidebar-link" data-page="runs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Runs<span class="tag tag-cyan badge">3</span></div>
+   401→        <div class="sidebar-link" data-page="graph-builder"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>Graph Builder</div>
+   402→        <div class="sidebar-link" data-page="agents"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Agents<span class="tag tag-gray badge">47</span></div>
+   403→        <div class="sidebar-link" data-page="loops"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Loops<span class="tag tag-amber badge">3</span></div>
+   404→        <div class="sidebar-link" data-page="tasks"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Task Board<span class="tag tag-amber badge">2</span></div>
+   405→      </div>
+   406→
+   407→      <div class="sidebar-section" onclick="toggleSection(this)">Data <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
+   408→      <div class="sidebar-group">
+   409→        <div class="sidebar-link" data-page="memory"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 4 3 8 3s8-1 8-3V7M4 7c0 2 4 3 8 3s8-1 8-3M4 7c0-2 4-3 8-3s8 1 8 3"/></svg>Memory</div>
+   410→        <div class="sidebar-link" data-page="templates"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>Templates</div>
+   411→        <div class="sidebar-link" data-page="costs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>Costs</div>
+   412→        <div class="sidebar-link" data-page="audit"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Audit Log</div>
+   413→      </div>
+   414→
+   415→      <div class="sidebar-section" onclick="toggleSection(this)">Configure <svg class="w-3 h-3 chev" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg></div>
+   416→      <div class="sidebar-group">
+   417→        <div class="sidebar-link" data-page="command"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Command Center</div>
+   418→        <div class="sidebar-link" data-page="routing"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Model Routing</div>
+   419→        <div class="sidebar-link" data-page="marketplace"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Marketplace</div>
+   420→        <div class="sidebar-link" data-page="settings"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</div>
+   421→      </div>
+   422→    </nav>
+   423→
+   424→    <div class="p-3 border-t border-white/[0.05]">
+   425→      <div class="flex items-center gap-2 text-[10px] text-fg-500 mb-2">
+   426→        <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
+   427→        All systems operational
+   428→      </div>
+   429→      <div class="flex items-center gap-2">
+   430→        <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-[10px] font-bold">JD</div>
+   431→        <div class="flex-1 min-w-0">
+   432→          <div class="text-xs font-semibold truncate">Jane Doe</div>
+   433→          <div class="text-[9px] text-fg-500">admin · acme.com</div>
+   434→        </div>
+   435→      </div>
+   436→    </div>
+   437→  </aside>
+   438→
+   439→  <!-- ===== MAIN AREA ===== -->
+   440→  <div class="flex-1 flex flex-col overflow-hidden">
+   441→
+   442→    <header class="h-12 flex-shrink-0 bg-ink-900/80 backdrop-blur border-b border-white/[0.05] flex items-center px-4 gap-3">
+   443→      <div class="flex items-center gap-2 text-xs text-fg-500 min-w-0">
+   444→        <span id="bc-page" class="truncate">Dashboard</span>
+   445→        <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"/></svg>
+   446→        <span id="bc-detail" class="text-fg-300 truncate">Overview</span>
+   447→      </div>
+   448→
+   449→      <div class="flex-1 max-w-md mx-auto">
+   450→        <button onclick="toggleCmd()" class="w-full flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-xs text-fg-500 hover:bg-white/[0.06] transition">
+   451→          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+   452→          <span class="truncate">Search or run a command…</span>
+   453→          <span class="ml-auto flex gap-1 flex-shrink-0"><kbd>⌘</kbd><kbd>K</kbd></span>
+   454→        </button>
+   455→      </div>
+   456→
+   457→      <div class="flex items-center gap-2">
+   458→        <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-brand-cyan/10 border border-brand-cyan/20">
+   459→          <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan pulse-dot"></span>
+   460→          <span class="text-[10px] font-semibold text-brand-cyan">3 RUNS LIVE</span>
+   461→        </div>
+   462→        <!-- Voice Mode button -->
+   463→        <button class="voice-btn tip" id="voice-btn" onclick="toggleVoice()" title="Voice Mode (⌘⇧V)">
+   464→          <svg class="w-4 h-4 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+   465→        </button>
+   466→        <button class="btn btn-ghost" onclick="toggleModal('startRunModal')">
+   467→          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>
+   468→          <span class="hidden sm:inline">New Run</span>
+   469→        </button>
+   470→        <button class="btn btn-icon btn-ghost relative tip">
+   471→          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+   472→          <span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-brand-rose"></span>
+   473→        </button>
+   474→      </div>
+   475→    </header>
+   476→
+   477→    <!-- Voice Mode banner -->
+   478→    <div class="voice-banner" id="voice-banner">
+   479→      <div class="voice-waveform" id="voice-waveform"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+   480→      <div class="voice-transcript" id="voice-transcript"><span class="interim">Listening…</span></div>
+   481→      <button class="btn btn-ghost text-[10px] py-0.5 px-2" onclick="toggleVoice()">Esc</button>
+   482→    </div>
+   483→
+   484→    <main class="flex-1 overflow-y-auto" id="main-scroll">
+   485→
+   486→<!-- ============================================================ -->
+   487→<!-- PAGE 01: DASHBOARD                                            -->
+   488→<!-- ============================================================ -->
+   489→<section class="page active" id="page-dashboard">
+   490→  <div class="p-5 space-y-5">
+   491→    <div class="flex items-end justify-between flex-wrap gap-3">
+   492→      <div>
+   493→        <div class="page-label mb-1">Page 01 · Dashboard</div>
+   494→        <h1 class="text-2xl font-bold text-white">Welcome back, Jane</h1>
+   495→        <p class="text-xs text-fg-500 mt-0.5">3 runs in progress · 2 awaiting review · $2.41 spent today</p>
+   496→      </div>
+   497→      <div class="flex gap-2">
+   498→        <button class="btn btn-ghost">Import workflow</button>
+   499→        <button class="btn btn-primary" onclick="toggleModal('startRunModal')">
+   500→          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
