@@ -191,3 +191,184 @@ export function getReceiptStats() {
       : 0,
   };
 }
+
+// ============================================================================
+// EVIDENCE, CASES & PRECEDENTS (merged from evidence.js)
+//
+// Evidence is extracted from receipts. Cases link receipts to evidence.
+// Precedents aggregate cases for pattern matching.
+// ============================================================================
+
+import { getCurrentScope as _getCurrentScope2, getScopeHierarchy as _getScopeHierarchy2, scopeKey as _scopeKey2 } from './scope.js';
+
+const evidence = new Map();
+const cases = new Map();
+const precedents = new Map();
+
+export async function initEvidenceStore() {
+  console.log(`[receipts] evidence store initialized (${evidence.size} items, ${cases.size} cases, ${precedents.size} precedents)`);
+}
+
+export async function extractEvidenceFromReceipt(receipt) {
+  if (!receipt) return [];
+  const extracted = [];
+
+  for (const artifact of receipt.execution?.artifacts || []) {
+    const ev = {
+      id: crypto.randomUUID(),
+      receiptId: receipt.receiptId,
+      runId: receipt.runId,
+      type: 'artifact',
+      description: `${artifact.agent} produced ${artifact.filename}`,
+      reviewer: artifact.agent,
+      artifacts: [artifact.filename],
+      policyAddressed: null,
+      timestamp: receipt.createdAt,
+      hash: receipt.receiptHash,
+      scope: receipt.scope,
+    };
+    evidence.set(ev.id, ev);
+    extracted.push(ev);
+  }
+
+  for (const policy of receipt.policiesApplied || []) {
+    const ev = {
+      id: crypto.randomUUID(),
+      receiptId: receipt.receiptId,
+      runId: receipt.runId,
+      type: 'review',
+      description: `Policy addressed: ${policy.rule}`,
+      reviewer: 'Maestro Governance Engine',
+      artifacts: [],
+      policyAddressed: policy.rule,
+      timestamp: receipt.createdAt,
+      hash: receipt.receiptHash,
+      scope: receipt.scope,
+    };
+    evidence.set(ev.id, ev);
+    extracted.push(ev);
+  }
+
+  for (const approval of receipt.approvals || []) {
+    const ev = {
+      id: crypto.randomUUID(),
+      receiptId: receipt.receiptId,
+      runId: receipt.runId,
+      type: approval.granted ? 'approval' : 'pending_approval',
+      description: `Approval ${approval.granted ? 'granted' : 'pending'}: ${approval.control}`,
+      reviewer: approval.reviewer,
+      artifacts: [],
+      policyAddressed: approval.control,
+      timestamp: approval.timestamp || receipt.createdAt,
+      hash: receipt.receiptHash,
+      scope: receipt.scope,
+    };
+    evidence.set(ev.id, ev);
+    extracted.push(ev);
+  }
+
+  for (const exception of receipt.exceptions || []) {
+    const ev = {
+      id: crypto.randomUUID(),
+      receiptId: receipt.receiptId,
+      runId: receipt.runId,
+      type: 'exception',
+      description: `Exception: ${exception.policyId} — ${exception.reason}`,
+      reviewer: exception.approvedBy || 'unauthorized',
+      artifacts: [],
+      policyAddressed: exception.policyId,
+      timestamp: receipt.createdAt,
+      hash: receipt.receiptHash,
+      scope: receipt.scope,
+    };
+    evidence.set(ev.id, ev);
+    extracted.push(ev);
+  }
+
+  return extracted;
+}
+
+export async function createCase(receipt, evidenceItems) {
+  const goalClass = receipt.goalClass || 'unknown';
+  const c = {
+    id: crypto.randomUUID(),
+    receiptId: receipt.receiptId,
+    runId: receipt.runId,
+    goal: receipt.goal,
+    goalClass,
+    evidence: (evidenceItems || []).map(e => e.id),
+    evidenceTypes: (evidenceItems || []).map(e => e.type),
+    policiesAddressed: (receipt.policiesApplied || []).map(p => p.rule),
+    outcome: receipt.outcome?.result || 'pending',
+    scope: receipt.scope,
+    scopeKey: receipt.scope ? _scopeKey2({ level: 'company', ...receipt.scope }) : 'global',
+    createdAt: new Date().toISOString(),
+    precedentStrength: 0,
+  };
+  cases.set(c.id, c);
+  return c;
+}
+
+export function retrievePrecedents(goal, goalClass, scope = null) {
+  const useScope = scope || _getCurrentScope2();
+  const hierarchy = _getScopeHierarchy2(useScope);
+  const results = [];
+
+  for (const scopeLvl of hierarchy) {
+    const sKey = _scopeKey2(scopeLvl);
+    for (const p of precedents.values()) {
+      if (p.goalClass === goalClass && p.scopeKey === sKey && p.caseCount > 0) {
+        results.push(p);
+        break;
+      }
+    }
+  }
+  return results;
+}
+
+export function formatPrecedentContext(precedentsArr) {
+  if (!precedentsArr || precedentsArr.length === 0) return '';
+  const blocks = precedentsArr.map(p => {
+    const evidenceStr = p.typicalEvidence.length > 0
+      ? p.typicalEvidence.map(e => `${e.type} (${e.count}x)`).join(', ')
+      : 'none yet';
+    return `--- Precedent [${p.scopeLevel}] for ${p.goalClass} ---\n${p.pattern}\nTypical evidence: ${evidenceStr}\nCases: ${p.caseCount}\n---`;
+  });
+  return blocks.join('\n\n');
+}
+
+export function getEvidenceStats() {
+  const all = Array.from(evidence.values());
+  return {
+    evidence: {
+      total: all.length,
+      byType: all.reduce((acc, e) => { acc[e.type] = (acc[e.type] || 0) + 1; return acc; }, {}),
+    },
+    cases: {
+      total: cases.size,
+      approved: Array.from(cases.values()).filter(c => c.outcome === 'accepted' || c.outcome === 'approved').length,
+      blocked: Array.from(cases.values()).filter(c => c.outcome === 'blocked').length,
+    },
+    precedents: {
+      total: precedents.size,
+      byScope: Array.from(precedents.values()).reduce((acc, p) => { acc[p.scopeLevel] = (acc[p.scopeLevel] || 0) + 1; return acc; }, {}),
+    },
+  };
+}
+
+export function listEvidence(limit = 50) {
+  return Array.from(evidence.values())
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, limit);
+}
+
+export function listCases(limit = 50) {
+  return Array.from(cases.values())
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, limit);
+}
+
+export function listPrecedents() {
+  return Array.from(precedents.values())
+    .sort((a, b) => b.caseCount - a.caseCount);
+}

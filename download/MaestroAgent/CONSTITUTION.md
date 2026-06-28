@@ -30,22 +30,18 @@ Every company has it. Nobody has digitized it. Maestro digitizes it, learns from
 
 ---
 
-## The 7-Layer Enterprise Cognition Hierarchy
+## The 5-Layer Enterprise Cognition Hierarchy (Simplified)
 
 ```
 1. Learning Object         — one execution (what happened)
         ↓
 2. Execution Pattern       — a repeated workflow (what works)
         ↓
-3. Organizational Playbook — how Acme launches products (company-scoped patterns)
+3. Operating Policy        — what is mandatory + governance controls (how it's enforced)
         ↓
-4. Operating Policy        — what is mandatory (law-promoted from patterns)
+4. Execution Receipt       — immutable audit trail + evidence + cases + precedents
         ↓
-5. Governance Control      — how it's enforced (evidence, reviewer, approval, block)
-        ↓
-6. Execution Receipt       — immutable audit trail (why this was allowed)
-        ↓
-7. Operational Knowledge   — the company's living operating model
+5. Metrics                 — all measurements: CPR, OED, TTV, COI, EII, simulation, benchmarks, observatory, explanations
 ```
 
 Each layer is scoped hierarchically:
