@@ -742,3 +742,43 @@ Stage Summary:
 - The Friday Dashboard forces weekly honesty about customer conversations vs. coding
 - The transition is complete: from "can we build it?" to "can we prove it matters?"
 - Live URL: http://localhost:8765/
+
+---
+Task ID: final-freeze-cpr
+Agent: main (Super Z)
+Task: Build Customer Proof Rate (CPR) + freeze all three learning systems + write 90-day operating plan
+
+Work Log:
+- Built src/cpr.js — Customer Proof Rate:
+  * The ONE external metric. Replaces all others for external communication.
+  * "Percentage of design partners that achieve their promised outcome within 90 days."
+  * Target: ≥ 80% (4 of 5 partners)
+  * Each partner has a promise (e.g., "15% cycle time reduction"), baseline, start date
+  * Evaluates at 90 days: achieved / missed / in_progress / not_started
+  * Investors, customers, and employees all understand CPR
+
+- Updated CONSTITUTION.md with the final freeze:
+  * Three learning systems explicitly frozen:
+    1. Product Learning (architecture)
+    2. Customer Learning (OED, TTV, COI, CPR)
+    3. Company Learning (Evidence Ledger, Friday Dashboard, Reasons We Might Be Wrong)
+  * "No new systems. No dashboards for dashboards."
+  * 90-day operating plan with targets (20 interviews, 5 partners, 3 deployments, max 1 weekly change, 0 new layers, 0 new systems)
+  * Weekly question: "What belief changed this week?"
+
+- Verified CPR:
+  * Set partner promise for acme-corp (15% reduction target, 5.0h baseline)
+  * CPR = 100% (1/1 partners achieved) — test data shows 100% reduction
+  * Rating: excellent. Interpretation: "Strong product-market fit signal."
+
+Committed to git and pushed to GitHub (commit b77cd3d).
+
+Final Stage Summary:
+- The architecture is frozen. The management operating system is frozen. The three learning systems are frozen.
+- The ONE external metric is CPR. Everything else is internal.
+- The 90-day operating plan is set: 20 interviews, 5 partners, 3 deployments, max 1 weekly change.
+- The weekly question: "What belief changed this week?"
+- The thesis: "Foundation models generate intelligence. Maestro helps organizations convert that intelligence into repeatable, governed, measurable execution."
+- The uncertainty is no longer technical. It's whether organizations value it enough to adopt and keep using it.
+- The next commit to main should be evidence — not code.
+- Live URL: http://localhost:8765/
