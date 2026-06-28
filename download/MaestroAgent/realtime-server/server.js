@@ -90,6 +90,10 @@ app.use('/api/rbac', rbacRouter);
 import jiraRouter from './src/routes/integrations-jira.js';
 app.use('/api/integrations/jira', jiraRouter);
 
+// --- GitHub Integration Routes ---
+import githubRouter from './src/routes/integrations-github.js';
+app.use('/api/integrations/github', githubRouter);
+
 // --- Static UI ---
 // Serve the new app.html at /, and the mock backup at /mock.
 app.get('/', async (req, res) => {
