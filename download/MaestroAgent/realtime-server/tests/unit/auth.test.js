@@ -1,6 +1,10 @@
 // tests/unit/auth.test.js — Unit tests for src/auth.js (non-DB parts)
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Set required env vars before importing auth
+process.env.JWT_SECRET = 'test-secret-at-least-32-characters-long-for-security!!';
+
 import {
   PERMISSIONS,
   getPermissionsForRole,

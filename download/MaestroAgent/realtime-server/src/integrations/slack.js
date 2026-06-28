@@ -98,10 +98,15 @@ export async function getSlackClient(orgId) {
 // WEBHOOK VERIFICATION
 // ============================================================================
 
+// P0-5 FIX: Reject webhooks in production when secret is not configured.
 export function verifySlackWebhook(req) {
   const secret = process.env.SLACK_SIGNING_SECRET;
   if (!secret) {
-    console.warn('[slack] SLACK_SIGNING_SECRET not set — skipping verification');
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[slack] SLACK_SIGNING_SECRET not set — REJECTING webhook in production');
+      return false;
+    }
+    console.warn('[slack] SLACK_SIGNING_SECRET not set — allowing in development only');
     return true;
   }
 

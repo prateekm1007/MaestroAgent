@@ -141,18 +141,16 @@ export async function getJiraClient(orgId) {
  * @returns {boolean} True if verified
  */
 export function verifyJiraWebhook(req, orgId) {
-  // Check for required headers
-  const webhookId = req.headers['x-atlassian-webhook-identifier'];
-  if (!webhookId) {
-    // Some Atlassian webhook configurations don't send this header
-    // In that case, rely on URL-based verification
-  }
-
-  // Verify the webhook secret from URL path
-  const webhookSecret = req.params.secret || req.query.secret;
+  // P0-5 FIX: Reject in production when secret is not configured.
   const expectedSecret = process.env.ATLASSIAN_WEBHOOK_SECRET;
-
-  if (expectedSecret) {
+  if (!expectedSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[jira] ATLASSIAN_WEBHOOK_SECRET not set — REJECTING webhook in production');
+      return false;
+    }
+    console.warn('[jira] ATLASSIAN_WEBHOOK_SECRET not set — allowing in development only');
+  } else {
+    const webhookSecret = req.params.secret || req.query.secret;
     if (!webhookSecret || webhookSecret !== expectedSecret) {
       return false;
     }

@@ -37,15 +37,21 @@ const AUDIENCE = process.env.JWT_AUDIENCE || 'maestro-api';
 const MAX_FAILED_LOGINS = parseInt(process.env.MAX_FAILED_LOGINS || '5', 10);
 const LOCK_DURATION_MINUTES = parseInt(process.env.LOCK_DURATION_MINUTES || '15', 10);
 
+// P0-4 FIX: No hardcoded fallback. Always require a real secret.
 function getSignKey() {
   if (ALGORITHM === 'RS256') {
     const key = process.env.JWT_PRIVATE_KEY;
     if (!key) throw new Error('JWT_PRIVATE_KEY required for RS256');
     return key;
   }
-  return process.env.JWT_SECRET || (process.env.NODE_ENV === 'production'
-    ? (() => { throw new Error('JWT_SECRET required in production'); })()
-    : 'maestro-dev-secret-change-in-production');
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is required. Generate with: openssl rand -hex 32');
+  }
+  if (secret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters.');
+  }
+  return secret;
 }
 
 function getVerifyKey() {
@@ -54,7 +60,11 @@ function getVerifyKey() {
     if (!key) throw new Error('JWT_PUBLIC_KEY required for RS256');
     return key;
   }
-  return process.env.JWT_SECRET || 'maestro-dev-secret-change-in-production';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is required.');
+  }
+  return secret;
 }
 
 // ============================================================================
@@ -154,16 +164,18 @@ export function generateAccessToken(user) {
  * @param {string|null} userAgent
  * @returns {Promise<string>} Raw refresh token
  */
+// P0-1 FIX: Store a token_prefix for O(1) index lookup instead of O(n) bcrypt scan.
 export async function generateRefreshToken(user, ipAddress, userAgent) {
   const token = generateToken(48);
   const tokenHash = await hashValue(token);
+  const tokenPrefix = sha256(token).slice(0, 16);
   const tokenFamily = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + REFRESH_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
   await query(
-    `INSERT INTO refresh_tokens (user_id, org_id, token_hash, token_family, expires_at, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [user.id, user.org_id, tokenHash, tokenFamily, expiresAt, ipAddress, userAgent]
+    `INSERT INTO refresh_tokens (user_id, org_id, token_hash, token_prefix, token_family, expires_at, ip_address, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [user.id, user.org_id, tokenHash, tokenPrefix, tokenFamily, expiresAt, ipAddress, userAgent]
   );
 
   return token;
@@ -178,25 +190,27 @@ export async function generateRefreshToken(user, ipAddress, userAgent) {
  * @param {string|null} userAgent
  * @returns {Promise<object>} New token pair
  */
+// P0-1 FIX: O(1) index lookup by token_prefix, then single bcrypt verify.
 export async function rotateRefreshToken(refreshToken, ipAddress, userAgent) {
-  // Find the token by scanning active tokens (bcrypt hashes can't be queried directly)
-  const activeTokens = await query(
+  const prefix = sha256(refreshToken).slice(0, 16);
+
+  const result = await query(
     `SELECT id, user_id, org_id, token_hash, token_family, expires_at
      FROM refresh_tokens
-     WHERE revoked_at IS NULL AND expires_at > now()
-     ORDER BY created_at DESC
-     LIMIT 200`
+     WHERE token_prefix = $1 AND revoked_at IS NULL AND expires_at > now()
+     LIMIT 1`,
+    [prefix]
   );
 
-  let matchedToken = null;
-  for (const row of activeTokens.rows) {
-    if (await verifyHash(refreshToken, row.token_hash)) {
-      matchedToken = row;
-      break;
-    }
+  if (result.rows.length === 0) {
+    throw new AuthError('Invalid or expired refresh token', 401);
   }
 
-  if (!matchedToken) {
+  const matchedToken = result.rows[0];
+
+  // Single bcrypt verify — O(1)
+  const valid = await verifyHash(refreshToken, matchedToken.token_hash);
+  if (!valid) {
     throw new AuthError('Invalid or expired refresh token', 401);
   }
 
@@ -592,10 +606,12 @@ export async function authenticateApiKey(apiKey, ipAddress) {
   }
 
   const prefix = apiKey.slice(0, 12);
+  // P0-2 FIX: LIMIT to 5 (rare prefix collisions), single bcrypt verify in most cases.
   const result = await query(
     `SELECT id, user_id, org_id, key_hash, scopes, expires_at, status
      FROM api_keys
-     WHERE key_prefix = $1 AND status = 'active'`,
+     WHERE key_prefix = $1 AND status = 'active'
+     LIMIT 5`,
     [prefix]
   );
 
@@ -763,9 +779,8 @@ export async function authMiddleware(req, res, next) {
       req.ipAddress = ipAddress;
       req.userAgent = userAgent;
 
-      // Set RLS context
-      await query('SET LOCAL app.org_id = $1', [user.org_id]);
-      await query('SET LOCAL app.user_id = $1', [user.id]);
+      // P1-13 FIX: RLS context is set by tenantMiddleware (dedicated connection).
+      // Do NOT set RLS here — query() uses pool connections where SET LOCAL is lost.
 
       return next();
     }
@@ -801,9 +816,7 @@ export async function authMiddleware(req, res, next) {
       req.ipAddress = ipAddress;
       req.userAgent = userAgent;
 
-      // Set RLS context
-      await query('SET LOCAL app.org_id = $1', [req.user.org_id]);
-      await query('SET LOCAL app.user_id = $1', [req.user.id]);
+      // P1-13 FIX: RLS context is set by tenantMiddleware (dedicated connection).
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
         return res.status(401).json({ error: 'Access token expired', code: 'token_expired' });
