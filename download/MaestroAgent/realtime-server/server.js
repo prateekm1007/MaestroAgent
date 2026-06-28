@@ -82,6 +82,10 @@ app.use(requestAuditMiddleware);
 import authRouter from './src/routes/auth.js';
 app.use('/api/auth', authRouter);
 
+// --- RBAC Routes ---
+import rbacRouter from './src/routes/rbac.js';
+app.use('/api/rbac', rbacRouter);
+
 // --- Static UI ---
 // Serve the new app.html at /, and the mock backup at /mock.
 app.get('/', async (req, res) => {
