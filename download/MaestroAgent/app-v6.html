@@ -150,6 +150,108 @@ body { background: #070710; color: #e8e8f0; font-family: 'Inter', sans-serif; fo
 .modal-body { flex: 1; overflow-y-auto; padding: 16px 18px; }
 .modal-footer { padding: 12px 18px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; gap: 8px; }
 
+/* ===== LIVE MEETING INTELLIGENCE ===== */
+.live-consent { background: rgba(0,212,170,0.06); border: 1px solid rgba(0,212,170,0.2); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 11px; }
+.live-consent.warn { background: rgba(255,184,77,0.06); border-color: rgba(255,184,77,0.2); }
+.rec-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; background: rgba(255,85,119,0.12); color: #ff5577; border: 1px solid rgba(255,85,119,0.2); }
+.rec-dot { width: 6px; height: 6px; border-radius: 50%; background: #ff5577; animation: pulse 1.5s ease-in-out infinite; }
+
+.transcript-area { font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; }
+.transcript-line { padding: 6px 10px; border-radius: 4px; margin-bottom: 2px; display: flex; gap: 10px; align-items: flex-start; }
+.transcript-line:hover { background: rgba(255,255,255,0.02); }
+.transcript-line .ts { color: #5a5a72; flex-shrink: 0; width: 50px; }
+.transcript-line .spk { font-weight: 700; flex-shrink: 0; width: 70px; }
+.transcript-line .txt { flex: 1; color: #c8c8d8; }
+.transcript-line .txt .highlight { background: rgba(124,92,255,0.15); padding: 1px 4px; border-radius: 2px; color: #a594ff; }
+.transcript-line .txt .objection { background: rgba(255,85,119,0.12); padding: 1px 4px; border-radius: 2px; color: #ff5577; }
+.transcript-line.typing .txt::after { content: '▋'; color: #7c5cff; animation: blink 0.8s infinite; }
+@keyframes blink { 0%,50%{opacity:1;} 51%,100%{opacity:0;} }
+
+.intel-panel { background: rgba(124,92,255,0.03); border: 1px solid rgba(124,92,255,0.12); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.intel-panel-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #a594ff; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.intel-panel-header .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.objection-callout { background: rgba(255,85,119,0.06); border-left: 3px solid #ff5577; border-radius: 4px; padding: 10px 12px; margin-bottom: 8px; }
+.objection-callout .obj-text { font-size: 11px; color: #ff5577; font-weight: 600; margin-bottom: 4px; }
+.objection-callout .obj-reason { font-size: 10px; color: #8888a0; line-height: 1.5; }
+.objection-callout .obj-law { margin-top: 6px; }
+
+.action-item-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 11px; }
+.action-item-row:last-child { border-bottom: none; }
+.action-item-row .ai-check { width: 14px; height: 14px; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 3px; flex-shrink: 0; margin-top: 1px; cursor: pointer; }
+.action-item-row .ai-check.done { background: #00d4aa; border-color: #00d4aa; }
+.action-item-row .ai-text { flex: 1; color: #c8c8d8; }
+.action-item-row .ai-meta { font-size: 9px; color: #5a5a72; margin-top: 2px; }
+
+.decision-tracker { background: rgba(0,212,170,0.06); border: 1px solid rgba(0,212,170,0.2); border-radius: 8px; padding: 12px; }
+.decision-tracker .dt-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #00d4aa; font-weight: 700; margin-bottom: 6px; }
+.decision-tracker .dt-text { font-size: 12px; color: #e8e8f0; font-weight: 600; line-height: 1.4; margin-bottom: 8px; }
+.decision-tracker .dt-conf { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #8888a0; }
+
+.live-suggestion { background: rgba(92,200,255,0.06); border: 1px solid rgba(92,200,255,0.15); border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; font-size: 11px; color: #c8c8d8; cursor: pointer; transition: all 0.15s; }
+.live-suggestion:hover { background: rgba(92,200,255,0.12); border-color: rgba(92,200,255,0.3); }
+.live-suggestion .ls-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: #5cc8ff; font-weight: 700; margin-bottom: 3px; }
+
+.dossier-card { background: rgba(18,18,30,0.6); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; margin-bottom: 8px; transition: all 0.15s; }
+.dossier-card.speaking { border-color: rgba(0,212,170,0.4); background: rgba(0,212,170,0.04); }
+.dossier-card .dc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dossier-card .dc-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.dossier-card .dc-name { font-size: 12px; font-weight: 600; color: #e8e8f0; }
+.dossier-card .dc-role { font-size: 10px; color: #8888a0; }
+.dossier-card .dc-section { margin-top: 8px; }
+.dossier-card .dc-section-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: #5a5a72; font-weight: 700; margin-bottom: 4px; }
+.dossier-card .dc-section-content { font-size: 10px; color: #8888a0; line-height: 1.5; }
+.dossier-card .dc-ext { display: flex; gap: 4px; margin-top: 6px; }
+.dossier-card .dc-ext-badge { font-size: 8px; padding: 2px 5px; border-radius: 3px; font-weight: 600; }
+.ext-linkedin { background: rgba(10,102,194,0.15); color: #5cc8ff; }
+.ext-twitter { background: rgba(29,155,240,0.15); color: #5cc8ff; }
+.ext-news { background: rgba(255,184,77,0.12); color: #ffb84d; }
+.ext-internal { background: rgba(124,92,255,0.12); color: #a594ff; }
+
+.mention-card { background: rgba(18,18,30,0.6); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; }
+.mention-card .mc-header { display: flex; align-items: center; justify-content: between; gap: 8px; margin-bottom: 6px; }
+.mention-card .mc-type { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: #5a5a72; font-weight: 700; }
+.mention-card .mc-name { font-size: 12px; font-weight: 600; color: #e8e8f0; flex: 1; }
+.mention-card .mc-content { font-size: 10px; color: #8888a0; line-height: 1.5; }
+.mention-card .mc-source { font-size: 9px; color: #5a5a72; margin-top: 4px; }
+
+.hotkey-overlay { position: fixed; top: 30%; left: 50%; transform: translateX(-50%); width: 600px; max-width: 90vw; background: #0e0e1a; border: 1px solid rgba(124,92,255,0.3); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,92,255,0.1); z-index: 200; display: none; }
+.hotkey-overlay.active { display: block; }
+.hotkey-overlay .ho-header { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px; }
+.hotkey-overlay .ho-input { width: 100%; background: transparent; border: none; outline: none; color: #e8e8f0; font-size: 14px; font-family: 'Inter', sans-serif; }
+.hotkey-overlay .ho-input::placeholder { color: #5a5a72; }
+.hotkey-overlay .ho-body { max-height: 400px; overflow-y-auto; padding: 8px; }
+.hotkey-overlay .ho-suggestion { padding: 10px 12px; border-radius: 6px; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; }
+.hotkey-overlay .ho-suggestion:hover { background: rgba(124,92,255,0.06); }
+.hotkey-overlay .ho-suggestion .hs-icon { width: 28px; height: 28px; border-radius: 6px; background: rgba(124,92,255,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #a594ff; }
+.hotkey-overlay .ho-suggestion .hs-text { flex: 1; }
+.hotkey-overlay .ho-suggestion .hs-title { font-size: 12px; font-weight: 600; color: #e8e8f0; margin-bottom: 2px; }
+.hotkey-overlay .ho-suggestion .hs-desc { font-size: 10px; color: #8888a0; line-height: 1.4; }
+.hotkey-overlay .ho-response { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.05); }
+.hotkey-overlay .ho-response-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #7c5cff; font-weight: 700; margin-bottom: 8px; }
+.hotkey-overlay .ho-response-text { font-size: 12px; color: #c8c8d8; line-height: 1.6; }
+.hotkey-overlay .ho-response-cite { margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap; }
+.hotkey-overlay .ho-footer { padding: 8px 16px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; font-size: 9px; color: #5a5a72; }
+
+.briefing-card { background: rgba(18,18,30,0.55); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 14px; margin-bottom: 10px; cursor: pointer; transition: all 0.15s; }
+.briefing-card:hover { border-color: rgba(124,92,255,0.3); }
+.briefing-card .bc-time { font-size: 10px; color: #5a5a72; font-family: 'JetBrains Mono', monospace; }
+.briefing-card .bc-title { font-size: 13px; font-weight: 600; color: #e8e8f0; margin: 4px 0; }
+.briefing-card .bc-attendees { display: flex; gap: 4px; margin-top: 8px; }
+
+.live-tab { padding: 6px 14px; font-size: 11px; font-weight: 600; color: #8888a0; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+.live-tab:hover { color: #c8c8d8; }
+.live-tab.active { color: #a594ff; border-bottom-color: #7c5cff; }
+
+.live-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.15s; background: rgba(255,85,119,0.10); color: #ff5577; border: 1px solid rgba(255,85,119,0.2); }
+.live-pill:hover { transform: translateY(-1px); }
+.live-pill .rec-dot { width: 5px; height: 5px; }
+
+.synthesis-section { margin-bottom: 16px; }
+.synthesis-section .ss-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #5a5a72; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.synthesis-flow { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #8888a0; padding: 8px 10px; background: rgba(255,255,255,0.02); border-radius: 6px; margin-bottom: 4px; }
+.synthesis-flow .sf-arrow { color: #5a5a72; }
+
 </style>
 </head>
 <body>
@@ -459,6 +561,11 @@ body { background: #070710; color: #e8e8f0; font-family: 'Inter', sans-serif; fo
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         Home
       </div>
+      <div class="sidebar-link" data-surface="live">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        Live
+        <span class="badge" style="background:rgba(255,85,119,0.15);color:#ff5577;animation:pulse 1.5s ease-in-out infinite;">REC</span>
+      </div>
       <div class="sidebar-link" data-surface="inbox">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
         Inbox
@@ -512,6 +619,10 @@ body { background: #070710; color: #e8e8f0; font-family: 'Inter', sans-serif; fo
       </div>
 
       <div class="flex items-center gap-2">
+        <button class="live-pill" onclick="navTo('live')" title="Live meeting in progress · Q3 Hiring Decision · 4 participants">
+          <span class="rec-dot"></span>
+          LIVE · Q3 Hiring · 09:14
+        </button>
         <button class="shr-pill shr-ok" onclick="toggleModal('ledgerModal')" title="Surprise Hit Rate (30d). Target band 80–88%.">
           <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan"></span>
           SHR 30d · 0.83
@@ -1629,7 +1740,629 @@ body { background: #070710; color: #e8e8f0; font-family: 'Inter', sans-serif; fo
   </div>
 </section>
 
+<!-- ============================================================ -->
+<!-- SURFACE: LIVE (Meeting Intelligence)                          -->
+<!-- ============================================================ -->
+<section class="surface" id="surface-live">
+  <div class="p-5 space-y-4">
+
+    <!-- Header -->
+    <div class="flex items-end justify-between flex-wrap gap-3">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="rec-indicator"><span class="rec-dot"></span> REC · 09:14</span>
+          <span class="text-[10px] uppercase tracking-[0.2em] text-fg-500">Live Meeting Intelligence</span>
+        </div>
+        <h1 class="text-2xl font-bold text-white">Q3 Hiring Plan Decision</h1>
+        <p class="text-xs text-fg-500 mt-1">4 participants · Started 09:00 · Maestro listening with consent · Transparent to all participants</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="dq-badge">DQ · What is being decided, and what should I say next?</span>
+        <button class="btn btn-ghost" onclick="toggleModal('synthesisModal')">End meeting &amp; synthesize</button>
+        <button class="btn btn-primary" onclick="toggleHotkey()">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+          Ask Maestro <span class="kbd ml-1">⌘↵</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Consent banner -->
+    <div class="live-consent">
+      <svg class="w-4 h-4 text-brand-cyan flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <div class="flex-1">
+        <span class="text-brand-cyan font-semibold">All 4 participants have consented.</span>
+        Maestro is transcribing, extracting action items, and comparing statements against the organizational execution model. Every participant can see this panel. Meeting will be audit-logged.
+      </div>
+      <span class="text-[10px] text-fg-500">Consent logged 09:00:14</span>
+    </div>
+
+    <!-- Tabs: Live meeting | Briefings | Archive -->
+    <div class="flex gap-1 border-b border-white/[0.06]">
+      <div class="live-tab active" data-livetab="live" onclick="switchLiveTab('live')">Live Meeting</div>
+      <div class="live-tab" data-livetab="briefings" onclick="switchLiveTab('briefings')">Briefings <span class="tag tag-gray ml-1" style="font-size:8px;padding:1px 4px;">3</span></div>
+      <div class="live-tab" data-livetab="archive" onclick="switchLiveTab('archive')">Archive <span class="tag tag-gray ml-1" style="font-size:8px;padding:1px 4px;">47</span></div>
+    </div>
+
+    <!-- ===== LIVE TAB ===== -->
+    <div id="livetab-live" class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+
+      <!-- Column 1: Live transcript (5 cols) -->
+      <div class="lg:col-span-5 panel flex flex-col" style="height: 600px;">
+        <div class="panel-header">
+          <span class="flex items-center gap-2"><span class="rec-dot"></span> Live Transcript</span>
+          <span class="text-[10px] text-fg-500 normal-case font-sans">Auto-scrolling · Speaker-identified</span>
+        </div>
+        <div class="flex-1 overflow-y-auto p-3 transcript-area" id="transcript-area">
+          <!-- Transcript lines injected by JS -->
+        </div>
+        <div class="px-3 py-2 border-t border-white/[0.05] flex items-center justify-between text-[10px] text-fg-500">
+          <span>Transcribing via on-device model · No audio leaves laptop</span>
+          <span>⌘↵ to ask Maestro · ⌘P to pause</span>
+        </div>
+      </div>
+
+      <!-- Column 2: Maestro Intelligence (4 cols) -->
+      <div class="lg:col-span-4 space-y-3">
+
+        <!-- Decision tracker -->
+        <div class="decision-tracker">
+          <div class="dt-label">Decision forming</div>
+          <div class="dt-text" id="decision-text">No decision yet — discussion in progress.</div>
+          <div class="dt-conf">
+            <span>Confidence</span>
+            <div class="conf-bar">
+              <div class="conf-bar-track" style="width:60px"><div class="conf-bar-fill" style="width: 0%" id="decision-conf-fill"></div></div>
+              <span class="font-bold text-brand-cyan" id="decision-conf-val">—</span>
+            </div>
+            <span class="ml-auto" id="decision-status">listening…</span>
+          </div>
+        </div>
+
+        <!-- Objections detected -->
+        <div class="intel-panel">
+          <div class="intel-panel-header"><span class="dot bg-brand-rose"></span> Objections Detected <span class="ml-auto text-[10px] text-fg-500 normal-case font-sans" id="objection-count">0</span></div>
+          <div id="objection-list">
+            <div class="text-[11px] text-fg-500 italic">No objections yet.</div>
+          </div>
+        </div>
+
+        <!-- Action items extracted -->
+        <div class="intel-panel">
+          <div class="intel-panel-header"><span class="dot bg-brand-amber"></span> Action Items <span class="ml-auto text-[10px] text-fg-500 normal-case font-sans" id="action-count">0</span></div>
+          <div id="action-list">
+            <div class="text-[11px] text-fg-500 italic">No action items yet.</div>
+          </div>
+        </div>
+
+        <!-- Laws being invoked -->
+        <div class="intel-panel">
+          <div class="intel-panel-header"><span class="dot bg-brand-purple"></span> Laws Invoked <span class="ml-auto text-[10px] text-fg-500 normal-case font-sans" id="laws-count">0</span></div>
+          <div id="laws-list" class="space-y-1.5">
+            <div class="text-[11px] text-fg-500 italic">No laws triggered yet.</div>
+          </div>
+        </div>
+
+        <!-- Predictions being made -->
+        <div class="intel-panel">
+          <div class="intel-panel-header"><span class="dot bg-brand-cyan"></span> Predictions Logging <span class="ml-auto text-[10px] text-fg-500 normal-case font-sans" id="pred-count">0</span></div>
+          <div id="pred-list">
+            <div class="text-[11px] text-fg-500 italic">No predictions yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 3: Participants + Mentions (3 cols) -->
+      <div class="lg:col-span-3 space-y-3">
+
+        <!-- Participants -->
+        <div class="panel">
+          <div class="panel-header"><span>Participants · Enriched</span></div>
+          <div class="p-2 space-y-1.5" id="participants-list">
+            <!-- Dossiers injected by JS -->
+          </div>
+        </div>
+
+        <!-- External mentions -->
+        <div class="panel">
+          <div class="panel-header"><span>Mentions · Auto-Enriched</span></div>
+          <div class="p-2" id="mentions-list">
+            <div class="text-[11px] text-fg-500 italic p-2">No external mentions yet.</div>
+          </div>
+        </div>
+
+        <!-- Meeting context -->
+        <div class="panel">
+          <div class="panel-header"><span>Meeting Context</span></div>
+          <div class="p-3 space-y-2 text-[11px]">
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Linked decisions</div>
+              <div class="text-brand-purple underline cursor-pointer" onclick="navTo('decisions')">Q3 Hiring Plan →</div>
+            </div>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Active debates</div>
+              <div class="text-brand-purple underline cursor-pointer" onclick="navTo('debate')">APAC vs EMEA allocation →</div>
+            </div>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Prior meeting on this</div>
+              <div class="text-fg-400">Nov 4 · same attendees · no resolution</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BRIEFINGS TAB ===== -->
+    <div id="livetab-briefings" style="display:none;">
+      <div class="text-xs text-fg-500 mb-3">Pre-meeting briefings, assembled from internal signals + external context (LinkedIn, Twitter/X, Google News). Every briefing connects to the OEM.</div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+        <!-- Next meeting briefing -->
+        <div class="briefing-card">
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <div class="bc-time">Today · 11:00 · 30 min</div>
+              <div class="bc-title">Customer escallation: Globex churn risk</div>
+            </div>
+            <span class="tag tag-rose">High stakes</span>
+          </div>
+          <div class="text-[11px] text-fg-400 mb-3 leading-relaxed">Globex ($2.4M ARR) has filed 3 P1 tickets in 14 days. Their CTO is questioning renewal. Maestro predicts 0.62 churn probability without intervention.</div>
+
+          <div class="space-y-2 mb-3">
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Attendees · external dossiers</div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2 text-[11px]">
+                  <div class="w-5 h-5 rounded-full bg-brand-rose/15 flex items-center justify-center text-[9px] font-bold text-brand-rose">GR</div>
+                  <span class="flex-1">Globex CTO · Raj Patel</span>
+                  <span class="dc-ext-badge ext-linkedin">LinkedIn · 4y at Globex</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px]">
+                  <div class="w-5 h-5 rounded-full bg-brand-purple/15 flex items-center justify-center text-[9px] font-bold text-brand-purple">JD</div>
+                  <span class="flex-1">You (CEO)</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px]">
+                  <div class="w-5 h-5 rounded-full bg-brand-cyan/15 flex items-center justify-center text-[9px] font-bold text-brand-cyan">PS</div>
+                  <span class="flex-1">VP Sales</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Raj Patel · LinkedIn harvested</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">Ex-Stripe engineer (2018-2020). Posts frequently about API reliability. Recently published "When vendors become liabilities" on LinkedIn (3 days ago). 2 mutual connections: your VP Eng, your board observer.</div>
+            </div>
+
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Globex · Twitter/X signal (7d)</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">Sentiment negative. 4 tweets from Globex engineers about "tooling frustration." No direct @mentions of Acme. CTO active in r/devops threads about vendor evaluation.</div>
+            </div>
+
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Globex · Google News (30d)</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">Series B announced 6 weeks ago ($40M). Press release mentioned "infrastructure modernization." Likely evaluating replacements.</div>
+            </div>
+
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Internal · Maestro OEM</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">3 P1s in 14 days triggers L-0007 (velocity drop predicted next week). Globex ticket pattern matches 2 prior churn precedents (Q4 2023, Q1 2024). <span class="source-cite" onclick="navTo('physics')">L-0007</span> <span class="source-cite" onclick="navTo('debate')">Precedent: churn-Q4-2023</span></div>
+            </div>
+
+            <div class="p-2 rounded-md bg-brand-cyan/[0.06] border border-brand-cyan/15">
+              <div class="text-[9px] uppercase tracking-wider text-brand-cyan font-semibold mb-1">Maestro's suggested talking points</div>
+              <div class="text-[10px] text-fg-300 leading-relaxed">1. Acknowledge the 3 P1s directly — do not deflect.<br>2. Offer a named engineer (Priya M.) as dedicated contact for 30 days.<br>3. Reference Raj's LinkedIn post — show you read it.<br>4. Propose a written SLA upgrade, not a discount.<br>5. Do NOT mention the Series B unless he does.</div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary w-full justify-center text-[11px]">Open full briefing</button>
+        </div>
+
+        <!-- Second briefing -->
+        <div class="briefing-card">
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <div class="bc-time">Tomorrow · 09:00 · 45 min</div>
+              <div class="bc-title">Board prep · November update</div>
+            </div>
+            <span class="tag tag-amber">Recurring</span>
+          </div>
+          <div class="text-[11px] text-fg-400 mb-3 leading-relaxed">Monthly board sync. 6 directors. Maestro has prepared a draft narrative tied to your Prediction Ledger verifications this month.</div>
+
+          <div class="space-y-2 mb-3">
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Board dossiers · external</div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2 text-[11px]">
+                  <div class="w-5 h-5 rounded-full bg-brand-sky/15 flex items-center justify-center text-[9px] font-bold text-brand-sky">MA</div>
+                  <span class="flex-1">Maria Chen · Lead Director</span>
+                  <span class="dc-ext-badge ext-linkedin">LinkedIn · ex-CPO Stripe</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px]">
+                  <div class="w-5 h-5 rounded-full bg-brand-sky/15 flex items-center justify-center text-[9px] font-bold text-brand-sky">DK</div>
+                  <span class="flex-1">David Kim · Audit Chair</span>
+                  <span class="dc-ext-badge ext-twitter">X · active in fintech</span>
+                </div>
+                <div class="text-[10px] text-fg-500 pl-7">+ 4 additional directors</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Predictions verifying this month</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">5 predictions from August verify this month. 4 hit, 1 missed (SMB pricing). Maestro recommends opening with the miss and the structural fix, not the hits.</div>
+            </div>
+
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Maria Chen · recent signal</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">LinkedIn post 5 days ago: "The best CEOs I work with are obsessed with their own error rate." Maestro flags this as a signal to lead with calibration data, not wins.</div>
+            </div>
+
+            <div class="p-2 rounded-md bg-brand-purple/[0.06] border border-brand-purple/15">
+              <div class="text-[9px] uppercase tracking-wider text-brand-purple font-semibold mb-1">Maestro's narrative recommendation</div>
+              <div class="text-[10px] text-fg-300 leading-relaxed">Open with: "Here's what I got wrong in November, and what it changed about how I'm thinking about December." Then 3 wins. Then 1 ask. Maria will engage within 90 seconds.</div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary w-full justify-center text-[11px]">Open full briefing</button>
+        </div>
+
+        <!-- Third briefing -->
+        <div class="briefing-card">
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <div class="bc-time">Friday · 14:00 · 60 min</div>
+              <div class="bc-title">All-hands · Q3 strategy</div>
+            </div>
+            <span class="tag tag-purple">Org-wide</span>
+          </div>
+          <div class="text-[11px] text-fg-400 mb-3 leading-relaxed">180 attendees. Maestro has analyzed the last 6 all-hands transcripts and predicted the 14 questions most likely to be asked.</div>
+
+          <div class="space-y-2 mb-3">
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Top 3 predicted questions · from prior Q&A patterns</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">1. "Is the Q3 hiring plan changing?" (P 0.84)<br>2. "What does the Globex situation mean for us?" (P 0.71)<br>3. "Are there going to be layoffs?" (P 0.68 — sentiment spike in #engineering Slack)</div>
+            </div>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Slack sentiment · 7d</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">#engineering sentiment down 12%. Driver: Priya M. retention rumors (unfounded) + Globex P1 stress. Address both directly.</div>
+            </div>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Industry context · Google News</div>
+              <div class="text-[10px] text-fg-400 leading-relaxed">2 competitors announced layoffs this week. Maestro recommends explicitly differentiating: "We are hiring, not firing, and here is why."</div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary w-full justify-center text-[11px]">Open full briefing</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== ARCHIVE TAB ===== -->
+    <div id="livetab-archive" style="display:none;">
+      <div class="text-xs text-fg-500 mb-3">Past meetings · each synthesized into decisions, predictions, and law updates that flowed to the OEM.</div>
+
+      <div class="panel">
+        <div class="panel-header"><span>Last 7 days</span></div>
+        <div class="p-0">
+          <div class="prediction-row" style="grid-template-columns: 90px 1fr 100px 100px 90px;">
+            <div class="text-fg-500 mono">Nov 11 · 14:00</div>
+            <div>
+              <div class="text-fg-200">Eng leadership sync · Priya promotion discussion</div>
+              <div class="text-[10px] text-fg-500 mt-0.5">3 decisions extracted · 1 prediction logged · 0 debates opened</div>
+            </div>
+            <div><span class="tag tag-cyan">Synthesized</span></div>
+            <div class="text-fg-500 mono text-[10px]">→ Inbox · Ledger</div>
+            <div><button class="btn btn-ghost text-[10px] py-0.5 px-2">Open</button></div>
+          </div>
+          <div class="prediction-row" style="grid-template-columns: 90px 1fr 100px 100px 90px;">
+            <div class="text-fg-500 mono">Nov 10 · 11:00</div>
+            <div>
+              <div class="text-fg-200">Customer call · Globex P1 escalation</div>
+              <div class="text-[10px] text-fg-500 mt-0.5">1 decision extracted · 2 predictions logged · L-0007 invoked</div>
+            </div>
+            <div><span class="tag tag-cyan">Synthesized</span></div>
+            <div class="text-fg-500 mono text-[10px]">→ Inbox · Ledger · Physics</div>
+            <div><button class="btn btn-ghost text-[10px] py-0.5 px-2">Open</button></div>
+          </div>
+          <div class="prediction-row" style="grid-template-columns: 90px 1fr 100px 100px 90px;">
+            <div class="text-fg-500 mono">Nov 8 · 09:00</div>
+            <div>
+              <div class="text-fg-200">Q3 hiring debate · APAC vs EMEA</div>
+              <div class="text-[10px] text-fg-500 mt-0.5">0 decisions · 1 debate opened · L-0014 and L-0019 invoked</div>
+            </div>
+            <div><span class="tag tag-amber">Open</span></div>
+            <div class="text-fg-500 mono text-[10px]">→ Debate · Physics</div>
+            <div><button class="btn btn-ghost text-[10px] py-0.5 px-2">Open</button></div>
+          </div>
+          <div class="prediction-row" style="grid-template-columns: 90px 1fr 100px 100px 90px;">
+            <div class="text-fg-500 mono">Nov 6 · 15:00</div>
+            <div>
+              <div class="text-fg-200">Pricing restructure retrospective</div>
+              <div class="text-[10px] text-fg-500 mt-0.5">1 decision reopened · 1 prediction verified (miss) · calibration updated</div>
+            </div>
+            <div><span class="tag tag-rose">Reopened</span></div>
+            <div class="text-fg-500 mono text-[10px]">→ Inbox · Ledger</div>
+            <div><button class="btn btn-ghost text-[10px] py-0.5 px-2">Open</button></div>
+          </div>
+          <div class="prediction-row" style="grid-template-columns: 90px 1fr 100px 100px 90px;">
+            <div class="text-fg-500 mono">Nov 5 · 10:00</div>
+            <div>
+              <div class="text-fg-200">Board prep · October update</div>
+              <div class="text-[10px] text-fg-500 mt-0.5">5 predictions presented · 4 verified hit, 1 miss</div>
+            </div>
+            <div><span class="tag tag-cyan">Synthesized</span></div>
+            <div class="text-fg-500 mono text-[10px]">→ Ledger</div>
+            <div><button class="btn btn-ghost text-[10px] py-0.5 px-2">Open</button></div>
+          </div>
+          <div class="text-[10px] text-fg-500 p-3 text-center">+ 42 additional meetings in the last 90 days</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
     </main>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- HOTKEY OVERLAY (⌘Enter) — Ask Maestro during meeting          -->
+<!-- ============================================================ -->
+<div class="hotkey-overlay" id="hotkeyOverlay">
+  <div class="ho-header">
+    <svg class="w-4 h-4 text-brand-purple flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+    <input type="text" class="ho-input" id="hotkeyInput" placeholder="Ask Maestro… (e.g. 'What's the structural reason for the objection?')" oninput="filterHotkeySuggestions(this.value)">
+    <span class="text-[10px] text-fg-500 flex-shrink-0">Esc to close</span>
+  </div>
+  <div class="ho-body" id="hotkeySuggestions">
+    <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold px-3 py-2">Contextual suggestions · based on current meeting state</div>
+
+    <div class="ho-suggestion" onclick="askMaestro('objection')">
+      <div class="hs-icon"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div>
+      <div class="hs-text">
+        <div class="hs-title">What's the structural reason for VP Sales's objection?</div>
+        <div class="hs-desc">Maestro will explain the underlying law and prediction driving the dissent.</div>
+      </div>
+    </div>
+
+    <div class="ho-suggestion" onclick="askMaestro('precedent')">
+      <div class="hs-icon"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+      <div class="hs-text">
+        <div class="hs-title">What did we decide last time on this?</div>
+        <div class="hs-desc">Surfaces prior meeting decisions and their outcomes from the Prediction Ledger.</div>
+      </div>
+    </div>
+
+    <div class="ho-suggestion" onclick="askMaestro('predict')">
+      <div class="hs-icon"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg></div>
+      <div class="hs-text">
+        <div class="hs-title">What happens if I approve VP Eng's compromise?</div>
+        <div class="hs-desc">Runs the 90-day counterfactual through the OEM and reports the predicted organizational state.</div>
+      </div>
+    </div>
+
+    <div class="ho-suggestion" onclick="askMaestro('law')">
+      <div class="hs-icon"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg></div>
+      <div class="hs-text">
+        <div class="hs-title">Which laws are at stake in this decision?</div>
+        <div class="hs-desc">Lists the organizational laws this decision would invoke, validate, or stress.</div>
+      </div>
+    </div>
+
+    <div class="ho-suggestion" onclick="askMaestro('who')">
+      <div class="hs-icon"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg></div>
+      <div class="hs-text">
+        <div class="hs-title">Who else should be in this meeting?</div>
+        <div class="hs-desc">Identifies missing stakeholders based on the OEM's influence graph and prior decision patterns.</div>
+      </div>
+    </div>
+
+    <div class="ho-suggestion" onclick="askMaestro('talking')">
+      <div class="hs-icon"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg></div>
+      <div class="hs-text">
+        <div class="hs-title">What should I say next to break the deadlock?</div>
+        <div class="hs-desc">Suggests a reframing based on Maestro's structural read of the disagreement.</div>
+      </div>
+    </div>
+  </div>
+  <div class="ho-response" id="hotkeyResponse" style="display:none;">
+    <div class="ho-response-label">Maestro's response</div>
+    <div class="ho-response-text" id="hotkeyResponseText"></div>
+    <div class="ho-response-cite" id="hotkeyResponseCite"></div>
+  </div>
+  <div class="ho-footer">
+    <span>↑↓ to navigate · ↵ to select · Esc to close</span>
+    <span>Responses cite internal OEM + external sources</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL: POST-MEETING SYNTHESIS                                 -->
+<!-- ============================================================ -->
+<div class="modal-bg" id="synthesisModal">
+  <div class="modal" style="max-width: 820px;">
+    <div class="modal-header">
+      <div>
+        <div class="font-bold text-base">Post-Meeting Synthesis</div>
+        <div class="text-xs text-fg-500">Q3 Hiring Plan Decision · 09:00–09:23 · 4 participants</div>
+      </div>
+      <button class="btn btn-icon btn-ghost" onclick="toggleModal('synthesisModal')">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body space-y-4">
+
+      <div class="text-xs text-fg-500 leading-relaxed">
+        Maestro has synthesized the meeting into structured artifacts. Each flows to the appropriate surface — decisions to Inbox, predictions to Ledger, debates to Debate, laws to Physics. Nothing requires manual entry.
+      </div>
+
+      <!-- Decisions extracted -->
+      <div class="synthesis-section">
+        <div class="ss-label">
+          <svg class="w-3 h-3 text-brand-cyan" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Decisions extracted
+        </div>
+        <div class="synthesis-flow">
+          <span class="tag tag-cyan">Approved</span>
+          <span class="text-fg-200">Q3 hiring: −3 EMEA, +2 APAC, 2 NA (VP Eng compromise)</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-purple">Inbox (logged)</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-cyan">Decision Workbench</span>
+        </div>
+        <div class="text-[10px] text-fg-500 mt-1 pl-2">Confidence 0.78 · 90-day prediction logged for verification Feb 12</div>
+      </div>
+
+      <!-- Predictions logged -->
+      <div class="synthesis-section">
+        <div class="ss-label">
+          <svg class="w-3 h-3 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          Predictions logged
+        </div>
+        <div class="synthesis-flow">
+          <span class="text-fg-200">EMEA capacity +18% within 90 days</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-cyan">Prediction Ledger</span>
+          <span class="text-[10px] text-fg-500 ml-2">conf 0.84 · verifies Feb 12</span>
+        </div>
+        <div class="synthesis-flow">
+          <span class="text-fg-200">APAC support ratio stays above 1:14</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-cyan">Prediction Ledger</span>
+          <span class="text-[10px] text-fg-500 ml-2">conf 0.79 · verifies Feb 12</span>
+        </div>
+        <div class="synthesis-flow">
+          <span class="text-fg-200">VP Sales attrition risk drops below 0.30</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-cyan">Prediction Ledger</span>
+          <span class="text-[10px] text-fg-500 ml-2">conf 0.62 · verifies Feb 12</span>
+        </div>
+      </div>
+
+      <!-- Action items -->
+      <div class="synthesis-section">
+        <div class="ss-label">
+          <svg class="w-3 h-3 text-brand-amber" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Action items extracted
+        </div>
+        <div class="space-y-1.5">
+          <div class="action-item-row">
+            <div class="ai-check"></div>
+            <div class="flex-1">
+              <div class="ai-text">Update Q3 hiring plan document with revised allocation</div>
+              <div class="ai-meta">Assignee: CTO · Due: Nov 13 · Source: meeting transcript 09:18</div>
+            </div>
+            <span class="tag tag-gray">Jira</span>
+          </div>
+          <div class="action-item-row">
+            <div class="ai-check"></div>
+            <div class="flex-1">
+              <div class="ai-text">Schedule APAC recruiting kickoff with VP Sales</div>
+              <div class="ai-meta">Assignee: VP Eng · Due: Nov 15 · Source: meeting transcript 09:20</div>
+            </div>
+            <span class="tag tag-gray">Calendar</span>
+          </div>
+          <div class="action-item-row">
+            <div class="ai-check"></div>
+            <div class="flex-1">
+              <div class="ai-text">Draft revised EMEA onboarding plan (reduced by 3 roles)</div>
+              <div class="ai-meta">Assignee: VP Eng · Due: Nov 18 · Source: meeting transcript 09:21</div>
+            </div>
+            <span class="tag tag-gray">Confluence</span>
+          </div>
+          <div class="action-item-row">
+            <div class="ai-check"></div>
+            <div class="flex-1">
+              <div class="ai-text">Notify board of revised plan in monthly update</div>
+              <div class="ai-meta">Assignee: CEO · Due: Nov 19 · Source: meeting transcript 09:22</div>
+            </div>
+            <span class="tag tag-gray">Email</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Debate updates -->
+      <div class="synthesis-section">
+        <div class="ss-label">
+          <svg class="w-3 h-3 text-brand-rose" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          Debate updates
+        </div>
+        <div class="synthesis-flow">
+          <span class="text-fg-200">"Q3 hiring: APAC vs EMEA allocation" debate</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-cyan">Resolved (compromise)</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-purple">Debate archive</span>
+        </div>
+        <div class="text-[10px] text-fg-500 mt-1 pl-2">7 stakeholders notified · precedent logged for future similar debates</div>
+      </div>
+
+      <!-- Law updates -->
+      <div class="synthesis-section">
+        <div class="ss-label">
+          <svg class="w-3 h-3 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+          Law updates
+        </div>
+        <div class="synthesis-flow">
+          <span class="source-cite">L-0014</span>
+          <span class="text-fg-200">APAC threshold law — new evidence added (this decision avoids threshold breach)</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-purple">Physics</span>
+        </div>
+        <div class="synthesis-flow">
+          <span class="source-cite">L-0019</span>
+          <span class="text-fg-200">Hiring-incident correlation law — counter-example logged (decision diverges from incident-driven pattern)</span>
+          <span class="sf-arrow">→</span>
+          <span class="text-brand-purple">Physics</span>
+        </div>
+      </div>
+
+      <!-- Follow-up drafts -->
+      <div class="synthesis-section">
+        <div class="ss-label">
+          <svg class="w-3 h-3 text-brand-sky" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Follow-up drafts generated
+        </div>
+        <div class="space-y-1.5">
+          <div class="synthesis-flow">
+            <span class="tag tag-gray">Slack</span>
+            <span class="text-fg-200">Meeting summary to #leadership</span>
+            <span class="sf-arrow">→</span>
+            <button class="btn btn-ghost text-[10px] py-0.5 px-2">Review</button>
+          </div>
+          <div class="synthesis-flow">
+            <span class="tag tag-gray">Email</span>
+            <span class="text-fg-200">Decision recap to all 6 stakeholders</span>
+            <span class="sf-arrow">→</span>
+            <button class="btn btn-ghost text-[10px] py-0.5 px-2">Review</button>
+          </div>
+          <div class="synthesis-flow">
+            <span class="tag tag-gray">Jira</span>
+            <span class="text-fg-200">4 action items as tickets</span>
+            <span class="sf-arrow">→</span>
+            <button class="btn btn-ghost text-[10px] py-0.5 px-2">Review</button>
+          </div>
+          <div class="synthesis-flow">
+            <span class="tag tag-gray">Calendar</span>
+            <span class="text-fg-200">90-day verification review scheduled (Feb 12)</span>
+            <span class="sf-arrow">→</span>
+            <button class="btn btn-ghost text-[10px] py-0.5 px-2">Review</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calibration note -->
+      <div class="p-3 rounded-md bg-brand-cyan/[0.04] border border-brand-cyan/15">
+        <div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1">SHR impact</div>
+        <div class="text-[11px] text-fg-300 leading-relaxed">This meeting's 3 logged predictions will enter the Surprise Hit Rate calculation when they verify on Feb 12. Current SHR 0.83 (target band 0.80–0.88). If all 3 hit, SHR → 0.84. If all 3 miss, SHR → 0.79 (below band — would trigger calibration review).</div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="toggleModal('synthesisModal')">Close</button>
+      <button class="btn btn-primary">Commit all to OEM</button>
+    </div>
   </div>
 </div>
 
@@ -1805,6 +2538,7 @@ function finishOnboarding() {
 // ===== NAVIGATION =====
 const surfaceNames = {
   'home': 'Home',
+  'live': 'Live Meeting',
   'inbox': 'Inbox',
   'decisions': 'Decision Workbench',
   'physics': 'Organizational Physics',
@@ -1943,20 +2677,386 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     // Future: command palette
   }
+  // ⌘Enter or Ctrl+Enter — Ask Maestro (hotkey overlay)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    toggleHotkey();
+    return;
+  }
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-bg.active').forEach(m => m.classList.remove('active'));
+    document.getElementById('hotkeyOverlay').classList.remove('active');
   }
-  // ⌘1-5 for surface nav
-  if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '5') {
+  // ⌘1-6 for surface nav (now includes Live)
+  if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '6') {
     e.preventDefault();
-    const surfaces = ['home', 'inbox', 'decisions', 'physics', 'debate'];
+    const surfaces = ['home', 'live', 'inbox', 'decisions', 'physics', 'debate'];
     const idx = parseInt(e.key) - 1;
     if (surfaces[idx]) navTo(surfaces[idx]);
   }
 });
 
+// ===== LIVE SURFACE: TABS =====
+function switchLiveTab(tab) {
+  document.querySelectorAll('.live-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.live-tab[data-livetab="' + tab + '"]').classList.add('active');
+  ['live', 'briefings', 'archive'].forEach(t => {
+    const el = document.getElementById('livetab-' + t);
+    if (el) el.style.display = (t === tab) ? '' : 'none';
+  });
+}
+
+// ===== LIVE SURFACE: PARTICIPANTS (enriched dossiers) =====
+const participants = [
+  {
+    initials: 'JD', name: 'Jane Doe', role: 'CEO (you)', color: 'purple',
+    linkedin: '8y at Acme · ex-McKinsey · Stanford MBA',
+    twitter: 'Active · posts on org design · 2.3K followers',
+    internal: '47 decisions logged · 12 debates ruled on',
+    influence: '0.94'
+  },
+  {
+    initials: 'CT', name: 'Chris Tan', role: 'CTO', color: 'cyan',
+    linkedin: '4y at Acme · ex-Stripe · MIT CS',
+    twitter: 'Quiet · 1 tweet/month · technical content',
+    internal: '23 decisions · 4 debates · aligned with CFO 89%',
+    influence: '0.81'
+  },
+  {
+    initials: 'CF', name: 'Casey Fischer', role: 'CFO', color: 'cyan',
+    linkedin: '3y at Acme · ex-Goldman · Wharton',
+    twitter: 'No presence',
+    internal: '19 decisions · 2 debates · budget hawk',
+    influence: '0.76'
+  },
+  {
+    initials: 'PS', name: 'Pat Sato', role: 'VP Sales', color: 'amber',
+    linkedin: '2y at Acme · ex-Snowflake · APAC specialist',
+    twitter: 'Very active · sales thought leadership · 8.1K followers',
+    internal: '8 decisions · 3 dissents · APAC advocate',
+    influence: '0.68'
+  },
+  {
+    initials: 'PE', name: 'Priya Eng', role: 'VP Eng', color: 'sky',
+    linkedin: '5y at Acme · ex-Google · Berkeley PhD',
+    twitter: 'Inactive',
+    internal: '14 decisions · 1 dissent · bridge-builder pattern',
+    influence: '0.72'
+  }
+];
+
+function renderParticipants() {
+  const list = document.getElementById('participants-list');
+  if (!list) return;
+  list.innerHTML = participants.map(p => `
+    <div class="dossier-card" data-participant="${p.initials}">
+      <div class="dc-header">
+        <div class="dc-avatar bg-brand-${p.color}/15 text-brand-${p.color}">${p.initials}</div>
+        <div class="flex-1 min-w-0">
+          <div class="dc-name truncate">${p.name}</div>
+          <div class="dc-role truncate">${p.role}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-[9px] text-fg-500 uppercase">Influence</div>
+          <div class="text-xs font-bold text-brand-cyan">${p.influence}</div>
+        </div>
+      </div>
+      <div class="dc-section">
+        <div class="dc-section-label">LinkedIn</div>
+        <div class="dc-section-content">${p.linkedin}</div>
+      </div>
+      <div class="dc-section">
+        <div class="dc-section-label">Twitter / X</div>
+        <div class="dc-section-content">${p.twitter}</div>
+      </div>
+      <div class="dc-section">
+        <div class="dc-section-label">Maestro internal</div>
+        <div class="dc-section-content">${p.internal}</div>
+      </div>
+      <div class="dc-ext">
+        <span class="dc-ext-badge ext-linkedin">LinkedIn</span>
+        <span class="dc-ext-badge ext-twitter">X</span>
+        <span class="dc-ext-badge ext-internal">OEM</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ===== LIVE SURFACE: TRANSCRIPT SIMULATION =====
+const meetingScript = [
+  { ts: '09:00', spk: 'Jane', color: 'purple', text: "Let's make a decision on Q3 hiring. We've been debating this for two weeks.", triggers: [] },
+  { ts: '09:01', spk: 'Chris', color: 'cyan', text: "I recommend we approve the plan as-is. 14 hires, EMEA-heavy.", triggers: [] },
+  { ts: '09:02', spk: 'Casey', color: 'cyan', text: "I agree. The budget works. EMEA deals are 2.3× larger.", triggers: [
+    { type: 'mention', name: 'EMEA', mtype: 'Region', content: 'EMEA deals 2.3× larger than APAC per CFO analysis', source: 'salesforce:DEALSIZE' }
+  ]},
+  { ts: '09:03', spk: 'Pat', color: 'amber', text: "I dissent. APAC pipeline is up 41% QoQ. We're optimizing for last year.", triggers: [
+    { type: 'objection', text: 'VP Sales dissents on EMEA-heavy allocation', reason: 'APAC pipeline growing 41% QoQ while EMEA flat. Current plan optimizes for prior-year geography.', law: 'L-0014' },
+    { type: 'mention', name: 'APAC', mtype: 'Region', content: 'APAC pipeline +41% QoQ. Support ratio currently 1:11, below 1:14 threshold.', source: 'salesforce:PIPELINE-Q3' },
+    { type: 'law', law: 'L-0014', desc: 'APAC support ratio below 1:14 predicts churn +14% within 2 quarters' }
+  ]},
+  { ts: '09:04', spk: 'Priya', color: 'sky', text: "I'm in the middle. Approve, but reduce EMEA by 3, add 2 to APAC.", triggers: [
+    { type: 'action', text: 'Draft revised EMEA onboarding plan (reduced by 3 roles)', assignee: 'VP Eng', due: 'Nov 18' },
+    { type: 'action', text: 'Schedule APAC recruiting kickoff', assignee: 'VP Eng', due: 'Nov 15' }
+  ]},
+  { ts: '09:05', spk: 'Jane', color: 'purple', text: "What happens if we go with Priya's compromise?", triggers: [
+    { type: 'suggestion', label: 'Run simulation', text: 'Maestro can run the 90-day counterfactual. Press ⌘↵ and ask "What happens if I approve VP Eng\'s compromise?"' }
+  ]},
+  { ts: '09:06', spk: 'Chris', color: 'cyan', text: "We can work with that. EMEA still gets capacity.", triggers: [] },
+  { ts: '09:07', spk: 'Pat', color: 'amber', text: "That works for me. APAC gets support.", triggers: [
+    { type: 'prediction', text: 'VP Sales attrition risk drops below 0.30', conf: '0.62' }
+  ]},
+  { ts: '09:08', spk: 'Jane', color: 'purple', text: "Maestro, what's your read?", triggers: [
+    { type: 'suggestion', label: 'Ask Maestro', text: 'Press ⌘↵ to ask Maestro for its structural read on the compromise.' }
+  ]},
+  { ts: '09:09', spk: 'Jane', color: 'purple', text: "Approved. −3 EMEA, +2 APAC, 2 NA. Let's document this.", triggers: [
+    { type: 'decision', text: 'Q3 hiring: −3 EMEA, +2 APAC, 2 NA (VP Eng compromise)', conf: 0.78 },
+    { type: 'prediction', text: 'EMEA capacity +18% within 90 days', conf: '0.84' },
+    { type: 'prediction', text: 'APAC support ratio stays above 1:14', conf: '0.79' },
+    { type: 'action', text: 'Update Q3 hiring plan document with revised allocation', assignee: 'CTO', due: 'Nov 13' },
+    { type: 'action', text: 'Notify board of revised plan in monthly update', assignee: 'CEO', due: 'Nov 19' },
+    { type: 'law', law: 'L-0019', desc: 'Hiring-incident correlation — counter-example logged (decision diverges from incident pattern)' }
+  ]}
+];
+
+let transcriptIdx = 0;
+let meetingActive = false;
+const seenMentions = new Set();
+
+function addTranscriptLine(line) {
+  const area = document.getElementById('transcript-area');
+  if (!area) return;
+  const div = document.createElement('div');
+  div.className = 'transcript-line typing';
+  let processedText = line.text;
+  // Highlight key terms
+  processedText = processedText.replace(/\b(APAC|EMEA|NA|hiring|approve|dissent|compromise)\b/g, '<span class="highlight">$1</span>');
+  if (line.spk === 'Pat' && line.text.includes('dissent')) {
+    processedText = processedText.replace('dissent', '<span class="objection">dissent</span>');
+  }
+  div.innerHTML = `<span class="ts">${line.ts}</span><span class="spk text-brand-${line.color}">${line.spk}</span><span class="txt">${processedText}</span>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  // Remove typing cursor after a moment
+  setTimeout(() => div.classList.remove('typing'), 800);
+  // Highlight speaking participant
+  document.querySelectorAll('.dossier-card').forEach(c => c.classList.remove('speaking'));
+  const speakerCard = document.querySelector(`.dossier-card[data-participant="${line.spk === 'Jane' ? 'JD' : line.spk === 'Chris' ? 'CT' : line.spk === 'Casey' ? 'CF' : line.spk === 'Pat' ? 'PS' : 'PE'}"]`);
+  if (speakerCard) speakerCard.classList.add('speaking');
+}
+
+function processTriggers(triggers) {
+  if (!triggers) return;
+  triggers.forEach(t => {
+    if (t.type === 'objection') addObjection(t);
+    else if (t.type === 'action') addActionItem(t);
+    else if (t.type === 'law') addInvokedLaw(t);
+    else if (t.type === 'prediction') addLivePrediction(t);
+    else if (t.type === 'decision') updateDecisionTracker(t);
+    else if (t.type === 'mention') addMention(t);
+    else if (t.type === 'suggestion') addSuggestion(t);
+  });
+}
+
+function addObjection(t) {
+  const list = document.getElementById('objection-list');
+  if (!list) return;
+  const count = parseInt(document.getElementById('objection-count').textContent) + 1;
+  document.getElementById('objection-count').textContent = count;
+  if (list.querySelector('.italic')) list.innerHTML = '';
+  list.innerHTML += `
+    <div class="objection-callout">
+      <div class="obj-text">${t.text}</div>
+      <div class="obj-reason">${t.reason}</div>
+      <div class="obj-law"><span class="source-cite" onclick="navTo('physics')">${t.law}</span></div>
+    </div>`;
+}
+
+function addActionItem(t) {
+  const list = document.getElementById('action-list');
+  if (!list) return;
+  const count = parseInt(document.getElementById('action-count').textContent) + 1;
+  document.getElementById('action-count').textContent = count;
+  if (list.querySelector('.italic')) list.innerHTML = '';
+  list.innerHTML += `
+    <div class="action-item-row">
+      <div class="ai-check" onclick="this.classList.toggle('done')"></div>
+      <div class="flex-1">
+        <div class="ai-text">${t.text}</div>
+        <div class="ai-meta">${t.assignee} · Due ${t.due}</div>
+      </div>
+    </div>`;
+}
+
+function addInvokedLaw(t) {
+  const list = document.getElementById('laws-list');
+  if (!list) return;
+  const count = parseInt(document.getElementById('laws-count').textContent) + 1;
+  document.getElementById('laws-count').textContent = count;
+  if (list.querySelector('.italic')) list.innerHTML = '';
+  list.innerHTML += `
+    <div class="flex items-start gap-2 text-[11px]">
+      <span class="source-cite flex-shrink-0" onclick="navTo('physics')">${t.law}</span>
+      <span class="text-fg-400 leading-relaxed">${t.desc}</span>
+    </div>`;
+}
+
+function addLivePrediction(t) {
+  const list = document.getElementById('pred-list');
+  if (!list) return;
+  const count = parseInt(document.getElementById('pred-count').textContent) + 1;
+  document.getElementById('pred-count').textContent = count;
+  if (list.querySelector('.italic')) list.innerHTML = '';
+  list.innerHTML += `
+    <div class="flex items-start gap-2 text-[11px] py-1">
+      <span class="text-brand-cyan mt-0.5">→</span>
+      <div class="flex-1">
+        <div class="text-fg-200">${t.text}</div>
+        <div class="text-[10px] text-fg-500">conf ${t.conf} · logging to Ledger · verifies in 90 days</div>
+      </div>
+    </div>`;
+}
+
+function updateDecisionTracker(t) {
+  document.getElementById('decision-text').textContent = t.text;
+  document.getElementById('decision-conf-fill').style.width = (t.conf * 100) + '%';
+  document.getElementById('decision-conf-val').textContent = t.conf.toFixed(2);
+  document.getElementById('decision-status').textContent = 'DECIDED';
+  document.getElementById('decision-status').className = 'ml-auto text-brand-cyan font-semibold';
+}
+
+function addMention(t) {
+  if (seenMentions.has(t.name)) return;
+  seenMentions.add(t.name);
+  const list = document.getElementById('mentions-list');
+  if (!list) return;
+  if (list.querySelector('.italic')) list.innerHTML = '';
+  list.innerHTML += `
+    <div class="mention-card">
+      <div class="mc-header">
+        <span class="mc-type">${t.mtype}</span>
+        <span class="mc-name">${t.name}</span>
+      </div>
+      <div class="mc-content">${t.content}</div>
+      <div class="mc-source">${t.source}</div>
+      <div class="flex gap-1 mt-1">
+        <span class="dc-ext-badge ext-linkedin">LinkedIn</span>
+        <span class="dc-ext-badge ext-twitter">X · 7d</span>
+        <span class="dc-ext-badge ext-news">News · 30d</span>
+      </div>
+    </div>`;
+}
+
+function addSuggestion(t) {
+  // Suggestions appear as a temporary toast-like element in the intel column
+  const col = document.querySelector('#livetab-live .lg\\:col-span-4');
+  if (!col) return;
+  const toast = document.createElement('div');
+  toast.className = 'live-suggestion';
+  toast.innerHTML = `<div class="ls-label">💡 ${t.label}</div><div>${t.text}</div>`;
+  toast.onclick = () => { toggleHotkey(); toast.remove(); };
+  col.insertBefore(toast, col.firstChild);
+  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 15000);
+}
+
+function startMeeting() {
+  if (meetingActive) return;
+  meetingActive = true;
+  renderParticipants();
+  nextTranscriptLine();
+}
+
+function nextTranscriptLine() {
+  if (!meetingActive || transcriptIdx >= meetingScript.length) {
+    // Meeting ended — show synthesis prompt
+    const area = document.getElementById('transcript-area');
+    if (area) {
+      const div = document.createElement('div');
+      div.className = 'transcript-line';
+      div.innerHTML = `<span class="ts">09:23</span><span class="spk text-fg-500">—</span><span class="txt text-brand-cyan italic">Meeting ended. <span class="underline cursor-pointer" onclick="toggleModal('synthesisModal')">View synthesis →</span></span>`;
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+    }
+    return;
+  }
+  const line = meetingScript[transcriptIdx];
+  addTranscriptLine(line);
+  setTimeout(() => processTriggers(line.triggers), 1200);
+  transcriptIdx++;
+  setTimeout(nextTranscriptLine, 3500);
+}
+
+// ===== HOTKEY OVERLAY (⌘Enter) =====
+function toggleHotkey() {
+  const overlay = document.getElementById('hotkeyOverlay');
+  overlay.classList.toggle('active');
+  if (overlay.classList.contains('active')) {
+    setTimeout(() => document.getElementById('hotkeyInput').focus(), 50);
+    document.getElementById('hotkeyResponse').style.display = 'none';
+  }
+}
+
+function filterHotkeySuggestions(q) {
+  if (!q) {
+    document.querySelectorAll('.ho-suggestion').forEach(s => s.style.display = '');
+    return;
+  }
+  q = q.toLowerCase();
+  document.querySelectorAll('.ho-suggestion').forEach(s => {
+    const text = s.textContent.toLowerCase();
+    s.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+const maestroResponses = {
+  objection: {
+    text: "VP Sales's objection is structural, not positional. Your organization's Law L-0014 states that APAC support ratio below 1:14 predicts APAC churn +14% within 2 quarters. The current plan (4 APAC hires) keeps the ratio at 1:11 — below threshold. VP Sales has been in APAC markets for 8 years (per LinkedIn); he is sensing what the model has inferred. This is not a sales-vs-finance argument. It is a Law-vs-plan argument. The compromise (6 APAC hires) brings the ratio to 1:13, still below threshold but trending correct.",
+    cites: ['L-0014', 'salesforce:PIPELINE-Q3', 'linkedin:pat-sato']
+  },
+  precedent: {
+    text: "Two prior decisions are relevant. (1) Q2 2024 hiring plan (May 14): approved 10 EMEA, 2 APAC. Prediction: EMEA capacity +20%. Verified: +18% (hit). (2) Q4 2023 hiring freeze (Oct 3): approved 0 hires. Prediction: APAC churn +12%. Verified: +14% (hit, slightly undercalibrated). The pattern: APAC under-investment has been predicted and verified twice. VP Sales's dissent is consistent with the model's prior warnings.",
+    cites: ['Ledger:pred-2024-05-14', 'Ledger:pred-2023-10-03']
+  },
+  predict: {
+    text: "Running the 90-day counterfactual for VP Eng's compromise (5 EMEA, 6 APAC, 2 NA = 13 hires, $1.95M): EMEA capacity +18% (vs +24% for original plan — still recovery, less aggressive). APAC support ratio 1:13 (vs 1:11 for original — still below 1:14 threshold but closer). P1 cluster probability 0.52 (vs 0.55 — slight improvement). VP Sales attrition risk 0.31 (vs 0.42 — dissent resolved). Net: the compromise trades 6% EMEA capacity for 11% APAC risk reduction and 11% attrition risk reduction. Maestro recommends approve.",
+    cites: ['OEM:counterfactual-run', 'L-0014', 'L-0019']
+  },
+  law: {
+    text: "Three laws are at stake in this decision. L-0014 (APAC support threshold — currently breached, this decision partially addresses). L-0019 (hiring-incident correlation — this decision diverges from the incident-driven pattern, which is a counter-example that will stress the law). L-0007 (eng velocity drops after >3 P1s — 3 P1s in 7 days currently, so any hiring onboarding load will compound this). The decision will validate L-0014, stress L-0019, and interact with L-0007.",
+    cites: ['L-0014', 'L-0019', 'L-0007']
+  },
+  who: {
+    text: "One stakeholder is missing: General Counsel. GC has no position on this decision, but per the OEM's influence graph, GC has flagged legal-review-timing concerns on 3 of the last 5 hiring surges (per Confluence:HIRING-LEGAL-REVIEW). The compromise (faster APAC hiring) may trigger GC's standard legal-review window, which adds 5-7 days. Maestro recommends: do not approve without GC's 24-hour read on APAC hiring legal-review timeline.",
+    cites: ['confluence:HIRING-LEGAL-REVIEW', 'OEM:influence-graph']
+  },
+  talking: {
+    text: "The deadlock is not about geography. It is about what each side is optimizing for. VP Sales is optimizing for revenue growth (APAC pipeline is up). CFO is optimizing for revenue certainty (EMEA deals are larger). Reframe: 'Both are right. The question is: what is our ratio of growth-to-certainty for the next 4 quarters?' Then propose Maestro's compromise as the answer to that question, not as a middle ground. This converts a debate into a design problem.",
+    cites: ['OEM:structural-read']
+  }
+};
+
+function askMaestro(query) {
+  const resp = maestroResponses[query];
+  if (!resp) return;
+  document.getElementById('hotkeyResponseText').innerHTML = resp.text;
+  document.getElementById('hotkeyResponseCite').innerHTML = resp.cites.map(c => `<span class="source-cite">${c}</span>`).join('');
+  document.getElementById('hotkeyResponse').style.display = 'block';
+  document.getElementById('hotkeyInput').value = '';
+  document.getElementById('hotkeyInput').blur();
+}
+
 // ===== INIT =====
 buildCalibrationGrid();
+renderParticipants();
+// Start meeting simulation when user navigates to Live surface (lazy)
+let liveStarted = false;
+const origNavTo = navTo;
+navTo = function(surface) {
+  origNavTo(surface);
+  if (surface === 'live' && !liveStarted) {
+    liveStarted = true;
+    setTimeout(startMeeting, 500);
+  }
+};
 // Ensure app starts hidden if onboarding is showing
 document.getElementById('app').style.display = 'none';
 
