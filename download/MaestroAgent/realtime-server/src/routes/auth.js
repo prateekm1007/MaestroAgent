@@ -46,6 +46,7 @@ import {
 } from '../auth.js';
 import { query } from '../db.js';
 import cookieParser from 'cookie-parser';
+import { generateToken } from '../crypto.js';
 
 const router = express.Router();
 router.use(cookieParser());
@@ -464,6 +465,156 @@ router.get('/permissions', authMiddleware, (req, res) => {
       org_viewer: getPermissionsForRole('org_viewer'),
     },
   });
+});
+
+// ============================================================================
+// SSO / Auth0
+// ============================================================================
+
+import {
+  getAuth0AuthUrl,
+  ssoLogin,
+  verifyAuth0AccessToken,
+  getSSOStatus,
+  SSO_ENABLED,
+} from '../sso.js';
+
+/**
+ * GET /api/auth/sso/status
+ * Check if SSO is configured.
+ */
+router.get('/sso/status', (req, res) => {
+  return res.json(getSSOStatus());
+});
+
+/**
+ * GET /api/auth/sso/login
+ * Redirect to Auth0 for SSO login.
+ * Query params:
+ *   - org_slug: optional org to log into
+ *   - connection: optional Auth0 connection name (e.g. "google-oauth2", "github")
+ */
+router.get('/sso/login', (req, res) => {
+  if (!SSO_ENABLED) {
+    return res.status(503).json({ error: 'SSO is not configured' });
+  }
+
+  const state = generateToken(16);
+  const { org_slug, connection } = req.query;
+
+  // Store state in cookie for CSRF protection
+  res.cookie('sso_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000, // 10 minutes
+  });
+
+  const authUrl = getAuth0AuthUrl(state, connection || null, org_slug || null);
+  return res.redirect(authUrl);
+});
+
+/**
+ * GET /api/auth/sso/callback
+ * Auth0 redirects here after user authenticates.
+ * Exchanges code for tokens, creates/links user, redirects to frontend with tokens.
+ */
+router.get('/sso/callback', async (req, res) => {
+  const { code, state, error, error_description } = req.query;
+
+  // Check for Auth0 error
+  if (error) {
+    const frontendUrl = process.env.FRONTEND_URL || '/';
+    return res.redirect(`${frontendUrl}?sso_error=${encodeURIComponent(error_description || error)}`);
+  }
+
+  if (!code) {
+    return res.status(400).json({ error: 'Missing authorization code' });
+  }
+
+  // Verify state (CSRF protection)
+  const cookieState = req.cookies?.sso_state;
+  if (!cookieState || cookieState !== state) {
+    return res.status(400).json({ error: 'Invalid state parameter — possible CSRF attack' });
+  }
+
+  // Clear state cookie
+  res.clearCookie('sso_state');
+
+  const ipAddress = getIp(req);
+  const userAgent = getUA(req);
+
+  // Extract org_slug from app_state if present
+  let orgSlug = null;
+  try {
+    const appState = JSON.parse(req.query.app_state || '{}');
+    orgSlug = appState.org_slug || null;
+  } catch {}
+
+  try {
+    const { tokens, user } = await ssoLogin(code, orgSlug, ipAddress, userAgent);
+
+    setAuthCookies(res, tokens);
+
+    // Redirect to frontend with success
+    const frontendUrl = process.env.FRONTEND_URL || '/';
+    return res.redirect(`${frontendUrl}?sso_success=1`);
+  } catch (err) {
+    console.error('[auth] SSO callback error:', err);
+    const frontendUrl = process.env.FRONTEND_URL || '/';
+    return res.redirect(`${frontendUrl}?sso_error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+/**
+ * POST /api/auth/sso/token
+ * Exchange an Auth0 access token for Maestro tokens.
+ * For SPAs that handle the Auth0 flow client-side.
+ * Body: { access_token, org_slug }
+ */
+router.post('/sso/token', async (req, res) => {
+  const { access_token, org_slug } = req.body;
+
+  if (!access_token) {
+    return res.status(400).json({ error: 'access_token is required' });
+  }
+
+  const ipAddress = getIp(req);
+  const userAgent = getUA(req);
+
+  try {
+    const authUser = await verifyAuth0AccessToken(access_token, ipAddress);
+
+    // Generate Maestro tokens
+    const accessToken = generateAccessToken(authUser);
+    const refreshToken = await generateRefreshToken(authUser, ipAddress, userAgent);
+
+    setAuthCookies(res, { access_token: accessToken, refresh_token: refreshToken });
+
+    return res.json({
+      user: {
+        id: authUser.id,
+        email: authUser.email,
+        name: authUser.name,
+        role: authUser.role,
+        org_id: authUser.org_id,
+        org_name: authUser.org_name,
+        org_slug: authUser.org_slug,
+      },
+      tokens: {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: 3600,
+        token_type: 'Bearer',
+      },
+    });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    console.error('[auth] SSO token exchange error:', err);
+    return res.status(500).json({ error: 'SSO authentication failed' });
+  }
 });
 
 export default router;
