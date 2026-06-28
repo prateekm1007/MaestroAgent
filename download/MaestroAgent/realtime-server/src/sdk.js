@@ -18,7 +18,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { setCurrentScope, getScopeHierarchy, scopeKey } from './scope.js';
-import { createControlForPolicy } from './governance.js';
+import { createControlForPolicy } from './policies.js';
 import { recordOutcome } from './learning.js';
 
 const MODEL_STORE_PATH = path.resolve('./operating-models.jsonl');

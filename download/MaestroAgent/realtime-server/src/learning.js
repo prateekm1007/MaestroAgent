@@ -29,7 +29,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { updatePatternFromLearning } from './patterns.js';
 import { checkForPolicyPromotion } from './policies.js';
-import { createControlForPolicy } from './governance.js';
+import { createControlForPolicy } from './policies.js';
 
 // In-memory store. Persisted to disk as JSONL.
 const STORE_PATH = path.resolve('./learning-objects.jsonl');

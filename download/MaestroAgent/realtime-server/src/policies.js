@@ -320,3 +320,175 @@ export function listPolicies() {
     lastReinforced: p.lastReinforced,
   }));
 }
+
+// ============================================================================
+// GOVERNANCE CONTROLS (merged from governance.js)
+//
+// Policies say WHAT is required. Governance Controls say HOW it's enforced.
+// A Control includes: evidence required, reviewer, approval required,
+// block_execution, exception_allowed, violation_action.
+//
+// The planner doesn't merely READ policies. It REFUSES to violate them.
+// ============================================================================
+
+import { getCurrentScope as _getCurrentScope, getScopeHierarchy as _getScopeHierarchy, scopeKey as _scopeKey } from './scope.js';
+
+const controls = new Map();
+
+export async function initGovernanceStore() {
+  console.log(`[policies] governance controls initialized (${controls.size} controls)`);
+}
+
+export async function createControlForPolicy(policy) {
+  const control = {
+    id: crypto.randomUUID(),
+    policyId: policy.id,
+    policyRule: policy.rule,
+    scope: policy.scope,
+    scopeKey: policy.scopeKey,
+    scopeLevel: policy.scopeLevel,
+    category: policy.category,
+    enforcement: policy.enforcement,
+    evidenceRequired: policy.evidenceRequired || 'Evidence of compliance',
+    reviewer: _inferReviewer(policy.category),
+    approvalRequired: policy.enforcement === 'constitutional' || policy.enforcement === 'mandatory',
+    autoApprove: false,
+    auditTrailRequired: true,
+    exceptionAllowed: policy.enforcement !== 'constitutional',
+    exceptionApprover: policy.enforcement !== 'constitutional' ? 'Director' : null,
+    violationAction: policy.enforcement === 'constitutional' ? 'block' : 'warn',
+    blockExecution: policy.enforcement === 'constitutional',
+    createdAt: new Date().toISOString(),
+    status: 'active',
+  };
+
+  controls.set(control.id, control);
+  console.log(`[policies] control created for policy "${policy.rule.slice(0, 50)}..." (enforcement: ${policy.enforcement}, block: ${control.blockExecution})`);
+  return control;
+}
+
+function _inferReviewer(category) {
+  switch (category) {
+    case 'security': return 'Security Team';
+    case 'legal': return 'Legal Team';
+    case 'quality': return 'QA Lead';
+    case 'accessibility': return 'Accessibility Team';
+    case 'process': return 'Engineering Manager';
+    case 'documentation': return 'Tech Lead';
+    default: return 'Team Lead';
+  }
+}
+
+export function retrieveControls(scope = null) {
+  const useScope = scope || _getCurrentScope();
+  const hierarchy = _getScopeHierarchy(useScope);
+  const applicable = [];
+
+  for (const scopeLvl of hierarchy) {
+    const sKey = _scopeKey(scopeLvl);
+    for (const c of controls.values()) {
+      if (c.scopeKey === sKey && c.status === 'active') {
+        applicable.push(c);
+      }
+    }
+  }
+
+  return applicable;
+}
+
+export function validatePlanAgainstGovernance(plan, scope = null) {
+  const applicable = retrieveControls(scope);
+  const violations = [];
+  const warnings = [];
+  const evidenceRequired = [];
+  const approvalsRequired = [];
+
+  for (const control of applicable) {
+    const planLower = (plan || '').toLowerCase();
+    const ruleKeywords = control.policyRule.toLowerCase()
+      .split(/\s+/)
+      .filter(w => w.length > 4 && !['should', 'must', 'always', 'never'].includes(w));
+    const addressed = ruleKeywords.some(kw => planLower.includes(kw));
+
+    if (!addressed) {
+      if (control.blockExecution) {
+        violations.push({
+          control: control.policyRule,
+          scope: control.scopeLevel,
+          evidence: control.evidenceRequired,
+          reviewer: control.reviewer,
+          severity: 'constitutional',
+          action: 'BLOCKED',
+        });
+      } else if (control.enforcement === 'mandatory') {
+        warnings.push({
+          control: control.policyRule,
+          scope: control.scopeLevel,
+          evidence: control.evidenceRequired,
+          reviewer: control.reviewer,
+          severity: 'mandatory',
+          action: 'WARNING',
+        });
+      }
+    }
+
+    if (control.approvalRequired) {
+      approvalsRequired.push({
+        control: control.policyRule,
+        reviewer: control.reviewer,
+        scope: control.scopeLevel,
+      });
+    }
+
+    if (control.evidenceRequired) {
+      evidenceRequired.push({
+        control: control.policyRule,
+        evidence: control.evidenceRequired,
+        scope: control.scopeLevel,
+      });
+    }
+  }
+
+  return {
+    allowed: violations.length === 0,
+    violations,
+    warnings,
+    evidenceRequired,
+    approvalsRequired,
+    controlCount: applicable.length,
+  };
+}
+
+export function getGovernanceStats() {
+  const all = Array.from(controls.values());
+  return {
+    total: all.length,
+    blocking: all.filter(c => c.blockExecution).length,
+    approvalRequired: all.filter(c => c.approvalRequired).length,
+    exceptionAllowed: all.filter(c => c.exceptionAllowed).length,
+    byScope: all.reduce((acc, c) => {
+      acc[c.scopeLevel] = (acc[c.scopeLevel] || 0) + 1;
+      return acc;
+    }, {}),
+    byCategory: all.reduce((acc, c) => {
+      acc[c.category] = (acc[c.category] || 0) + 1;
+      return acc;
+    }, {}),
+  };
+}
+
+export function listControls() {
+  return Array.from(controls.values()).map(c => ({
+    id: c.id,
+    policyRule: c.policyRule,
+    scopeLevel: c.scopeLevel,
+    category: c.category,
+    enforcement: c.enforcement,
+    evidenceRequired: c.evidenceRequired,
+    reviewer: c.reviewer,
+    approvalRequired: c.approvalRequired,
+    blockExecution: c.blockExecution,
+    exceptionAllowed: c.exceptionAllowed,
+    violationAction: c.violationAction,
+  }));
+}

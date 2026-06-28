@@ -51,15 +51,20 @@ import {
   formatPolicyContext,
   validatePlan,
   initPolicyStore,
-} from './policies.js';
-import {
   retrieveControls,
   validatePlanAgainstGovernance,
   createControlForPolicy,
   initGovernanceStore,
-} from './governance.js';
-import { createReceipt, initReceiptStore } from './receipts.js';
-import { extractEvidenceFromReceipt, createCase, retrievePrecedents, formatPrecedentContext, initEvidenceStore } from './evidence.js';
+} from './policies.js';
+import {
+  createReceipt,
+  initReceiptStore,
+  extractEvidenceFromReceipt,
+  createCase,
+  retrievePrecedents,
+  formatPrecedentContext,
+  initEvidenceStore,
+} from './receipts.js';
 import { initSDKStore } from './sdk.js';
 import { initDesignPartnerStore } from './design-partner.js';
 import { initIntegrationStore } from './integrations.js';

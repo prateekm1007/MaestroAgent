@@ -34,22 +34,22 @@ import {
 import { recordOutcome, getStats as getLearningStats } from './src/learning.js';
 import { getPatternStats } from './src/patterns.js';
 import { getCurrentScope, setCurrentScope, getScopeHierarchy, formatScopeContext } from './src/scope.js';
-import { getPolicyStats, listPolicies } from './src/policies.js';
-import { getGovernanceStats, listControls, createControlForPolicy } from './src/governance.js';
-import { getReceiptByRunId, getReceipt, listReceipts, getReceiptStats, verifyReceipt } from './src/receipts.js';
-import { getEvidenceStats, listEvidence, listCases, listPrecedents } from './src/evidence.js';
-import { computeMetrics, computeROIReport } from './src/metrics.js';
+import { getPolicyStats, listPolicies, getGovernanceStats, listControls, createControlForPolicy } from './src/policies.js';
+import { getReceiptByRunId, getReceipt, listReceipts, getReceiptStats, verifyReceipt, getEvidenceStats, listEvidence, listCases, listPrecedents } from './src/receipts.js';
+import {
+  computeMetrics, computeROIReport,
+  runSimulation, listSimulationTypes,
+  computeBenchmarks, getBenchmarkStats,
+  contributeObservation, getObservatoryStats, compare_toPeers, computeOED, initObservatoryStore,
+  computeTTV, computeCOI, computeCustomerHealth,
+  explainRecommendation, computeEII,
+  setPartnerPromise, computeCPR, getPartnerProof, listPartnerPromises,
+} from './src/metrics.js';
 import { registerOperatingModel, getOperatingModel, listOperatingModels, validateOperatingModel, findWorkflowTemplate, getApprovalChain } from './src/sdk.js';
 import { startOnboarding, advanceStage, getOnboardingStatus, getOnboardingGuide, listDesignPartners } from './src/design-partner.js';
 import { connectIntegration, listIntegrations, disconnectIntegration, handleWebhookEvent, getIntegrationStats, listProviders, PROVIDERS } from './src/integrations.js';
-import { runSimulation, listSimulationTypes } from './src/simulation.js';
-import { computeBenchmarks, getBenchmarkStats } from './src/benchmarks.js';
 import { getProductDeliveryTemplate, getTemplateSummary } from './src/product-delivery-template.js';
-import { explainRecommendation, computeEII } from './src/explanation.js';
-import { contributeObservation, getObservatoryStats, compare_toPeers, computeOED, initObservatoryStore } from './src/observatory.js';
-import { computeTTV, computeCOI, computeCustomerHealth } from './src/customer-metrics.js';
 import { initEvidenceLedger, getLedger, getHypothesis, addHypothesis, updateHypothesis, getLedgerStats, getFridayDashboard, saveFridayDashboard, listFridayDashboards } from './src/evidence-ledger.js';
-import { setPartnerPromise, computeCPR, getPartnerProof, listPartnerPromises } from './src/cpr.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
