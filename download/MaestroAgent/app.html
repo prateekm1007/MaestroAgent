@@ -1578,7 +1578,7 @@ function navTo(surface) {
   document.getElementById('main-scroll').scrollTop = 0;
   document.querySelectorAll('.modal-bg.active').forEach(m => m.classList.remove('active'));
   if (surface === 'hayek' && !hayekInitialized) initHayek();
-  if (surface === 'live' && !liveStarted) startLiveMeeting();
+  if (surface === 'live') startLiveMeeting();
 }
 
 document.querySelectorAll('.sidebar-link[data-surface]').forEach(link => {
@@ -1625,8 +1625,8 @@ function toggleSetting(el, settingName) {
   if (el.classList.contains('locked')) return;
   el.classList.toggle('on');
   const enabled = el.classList.contains('on');
-  // In production this would persist to the org's settings via API
-  if (window.log) log().info({ setting: settingName, enabled }, 'setting toggled');
+  // In production this persists to the org's settings via API
+  console.log('[maestro] setting toggled:', settingName, '=', enabled);
 }
 
 // ===== LAW CARDS — event delegation with expand/collapse =====
@@ -1676,7 +1676,8 @@ function filterCmd(q) {
     }
     cat.style.display = hasVisible ? '' : 'none';
   });
-  // Select first visible
+  // Reset cmdIndex and select first visible
+  cmdIndex = 0;
   document.querySelectorAll('#cmdp-list .cmdp-item').forEach(i => i.classList.remove('selected'));
   const firstVisible = [...document.querySelectorAll('#cmdp-list .cmdp-item')].find(i => i.style.display !== 'none');
   if (firstVisible) firstVisible.classList.add('selected');
@@ -2002,6 +2003,9 @@ function filterHayek(domain) {
 
 // ===== ASK THE ORGANIZATION =====
 function updateAskSuggestions(q) {
+  const suggestions = document.getElementById('ask-suggestions');
+  // If suggestions are hidden (after a query was submitted), don't re-show them on input clear
+  if (suggestions && suggestions.style.display === 'none') return;
   if (!q) { document.querySelectorAll('#ask-suggestions .ac-suggestion').forEach(s => s.style.display = ''); return; }
   document.querySelectorAll('#ask-suggestions .ac-suggestion').forEach(s => {
     s.style.display = s.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
@@ -2083,6 +2087,7 @@ function submitAsk(query) {
 
 // ===== LIVE MEETING =====
 let liveStarted = false;
+let liveTimer = null;
 const meetingScript = [
   { ts: '09:00', spk: 'Jane', color: 'purple', text: "Let's make a decision on Q3 hiring.", triggers: [] },
   { ts: '09:01', spk: 'Chris', color: 'cyan', text: "I recommend we approve the plan as-is. 14 hires, EMEA-heavy.", triggers: [] },
@@ -2094,6 +2099,8 @@ const meetingScript = [
 let liveIdx = 0;
 
 function startLiveMeeting() {
+  // Clear any existing timer from previous visit
+  if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
   liveStarted = true; liveIdx = 0;
   document.getElementById('transcript-area').innerHTML = '';
   document.getElementById('live-obj-count').textContent = '0';
@@ -2146,11 +2153,12 @@ function nextLiveLine() {
     }
   });
   liveIdx++;
-  setTimeout(nextLiveLine, 2500);
+  liveTimer = setTimeout(nextLiveLine, 2500);
 }
 
 // ===== VOICE MODE =====
 let voiceActive = false;
+let voiceTimers = [];
 function toggleVoice() {
   voiceActive = !voiceActive;
   const banner = document.getElementById('voice-banner');
@@ -2160,8 +2168,12 @@ function toggleVoice() {
     btn.classList.add('btn-cyan');
     simulateVoice();
   } else {
+    // Clear all pending timers to stop the loop cleanly
+    voiceTimers.forEach(t => clearTimeout(t));
+    voiceTimers = [];
     banner.classList.remove('active');
     btn.classList.remove('btn-cyan');
+    document.getElementById('voice-transcript').innerHTML = '<span class="text-fg-500">Listening…</span>';
   }
 }
 
@@ -2169,7 +2181,7 @@ function simulateVoice() {
   if (!voiceActive) return;
   const commands = [
     { text: "Show me the Q3 hiring decision", action: () => navTo('simulator') },
-    { text: "What's the risk of Priya leaving?", action: () => { navTo('hayek'); setTimeout(() => inspectNode(hayekNodes[0]), 500); } },
+    { text: "What's the risk of Priya leaving?", action: () => { navTo('hayek'); voiceTimers.push(setTimeout(() => inspectNode(hayekNodes[0]), 500)); } },
     { text: "Open the prediction ledger", action: () => toggleModal('ledgerModal') },
     { text: "What are our organizational laws?", action: () => navTo('physics') },
   ];
@@ -2178,15 +2190,15 @@ function simulateVoice() {
     if (!voiceActive) return;
     const cmd = commands[i % commands.length];
     document.getElementById('voice-transcript').innerHTML = `<span class="text-fg-200">${cmd.text}</span>`;
-    setTimeout(() => {
+    voiceTimers.push(setTimeout(() => {
       if (!voiceActive) return;
       cmd.action();
       document.getElementById('voice-transcript').innerHTML = `<span class="text-fg-500">Listening…</span>`;
       i++;
-      setTimeout(runNext, 3000);
-    }, 1500);
+      voiceTimers.push(setTimeout(runNext, 3000));
+    }, 1500));
   };
-  setTimeout(runNext, 1000);
+  voiceTimers.push(setTimeout(runNext, 1000));
 }
 
 // ===== CALIBRATION GRID =====
