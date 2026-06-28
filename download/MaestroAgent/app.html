@@ -136,6 +136,21 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
 .ac-suggestion { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 10px; padding: 14px; cursor: pointer; transition: all var(--transition-fast); }
 .ac-suggestion:hover { border-color: rgba(124,92,255,0.3); background: rgba(124,92,255,0.04); transform: translateY(-1px); }
 
+/* Organizational Autocomplete dropdown */
+.exec-autocomplete { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #0a0a14; border: 1px solid rgba(124,92,255,0.2); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); z-index: 30; max-height: 500px; overflow-y: auto; display: none; }
+.exec-autocomplete.active { display: block; animation: surfaceIn 200ms var(--ease-out); }
+.exec-ac-header { padding: 8px 14px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #7c5cff; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; gap: 6px; }
+.exec-ac-item { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: background var(--transition-fast); }
+.exec-ac-item:hover { background: rgba(124,92,255,0.04); }
+.exec-ac-item:last-child { border-bottom: none; }
+.exec-ac-completion { font-size: 13px; font-weight: 600; color: #eaeaef; margin-bottom: 8px; line-height: 1.4; }
+.exec-ac-completion .typed { color: #5c5c70; }
+.exec-ac-completion .completed { color: #a594ff; }
+.exec-ac-precedent { font-size: 10px; color: #8a8a9e; line-height: 1.6; padding-left: 12px; border-left: 2px solid rgba(124,92,255,0.15); margin-bottom: 6px; }
+.exec-ac-precedent .label { color: #5c5c70; font-weight: 600; }
+.exec-ac-meta { display: flex; align-items: center; gap: 8px; font-size: 9px; color: #5c5c70; }
+.exec-ac-meta .conf { color: #00d4aa; font-weight: 700; }
+
 .browser-sim { background: #1a1a2e; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
 .browser-chrome { background: #13131f; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .browser-dot { width: 11px; height: 11px; border-radius: 50%; }
@@ -415,6 +430,97 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
         <p class="text-xs text-fg-500 mt-1">3 decisions awaiting you · 2 prior decisions showing drift · 1 prediction verifying today.</p>
       </div>
       <span class="dq-badge">Every section answers a decision question</span>
+    </div>
+
+    <!-- ═══ IF YOU ONLY DO ONE THING TODAY ═══ -->
+    <div class="panel relative overflow-hidden" style="background: linear-gradient(135deg, rgba(124,92,255,0.08), rgba(0,212,170,0.04)); border-color: rgba(124,92,255,0.2);">
+      <div class="absolute top-0 right-0 w-48 h-48 rounded-full" style="background: radial-gradient(circle, rgba(124,92,255,0.1), transparent 70%); pointer-events: none;"></div>
+      <div class="p-5 relative">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-6 h-6 rounded-md bg-brand-purple/20 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <span class="text-[10px] uppercase tracking-[0.15em] text-brand-purple font-bold">If you only do one thing today</span>
+        </div>
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="flex-1 min-w-[300px]">
+            <div class="text-xl font-bold text-white mb-2 leading-snug cursor-pointer hover:text-brand-purple transition" onclick="navTo('simulator')">Approve Legal Parallelization — move Legal review upstream into design phase.</div>
+            <div class="text-sm text-fg-300 leading-relaxed mb-3">Unlocks <span class="text-brand-cyan font-semibold">three initiatives</span> worth approximately <span class="text-brand-cyan font-semibold">$8.2M ARR</span>. 73% of platform projects are currently bottlenecked at the Legal gate — this fixes the structural delay, not just one ticket.</div>
+            <div class="flex items-center gap-4 text-[11px]">
+              <div class="flex items-center gap-1.5"><svg class="w-3 h-3 text-brand-rose" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-fg-400">Waiting another week historically delayed releases by <span class="text-brand-rose font-semibold">19 days</span></span></div>
+              <div class="prov-chain"><span class="prov-node">L-0018</span><span class="prov-arrow">→</span><span class="prov-node">oem:counterfactual</span></div>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2 flex-shrink-0">
+            <button class="btn btn-primary text-sm px-5 py-2.5" onclick="navTo('simulator')">Open in Simulator →</button>
+            <button class="btn btn-ghost text-[11px]">Defer to next week</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ WHAT CHANGED OVERNIGHT ═══ -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="flex items-center gap-2"><span class="dot dot-pulse bg-brand-cyan"></span> Since yesterday · 07:00 → now</span>
+        <span class="dq-badge">DQ · What is different today that I need to know about?</span>
+      </div>
+      <div class="p-4 grid grid-cols-1 lg:grid-cols-2 gap-2">
+        <!-- Positive change -->
+        <div class="flex items-start gap-3 p-3 rounded-lg bg-brand-cyan/[0.04] border border-brand-cyan/10 cursor-pointer hover:bg-brand-cyan/[0.07] transition" onclick="navTo('physics')">
+          <div class="w-7 h-7 rounded-md bg-brand-cyan/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-cyan text-sm font-bold">↑</span></div>
+          <div class="flex-1">
+            <div class="text-[12px] font-semibold text-fg-100">Release confidence ↑ 6%</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Friday-merge freeze policy showing sustained effect · L-0011 validated 4/4</div>
+          </div>
+          <span class="text-[9px] text-fg-600 mono">2h ago</span>
+        </div>
+        <!-- New knowledge -->
+        <div class="flex items-start gap-3 p-3 rounded-lg bg-brand-purple/[0.04] border border-brand-purple/10 cursor-pointer hover:bg-brand-purple/[0.07] transition" onclick="navTo('hayek')">
+          <div class="w-7 h-7 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-purple text-sm font-bold">?</span></div>
+          <div class="flex-1">
+            <div class="text-[12px] font-semibold text-fg-100">Hidden expert discovered in Payments</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Anya R. reviews 71% of successful payments deploys — undocumented, departure risk 0.71</div>
+          </div>
+          <span class="text-[9px] text-fg-600 mono">4h ago</span>
+        </div>
+        <!-- Duplicate work -->
+        <div class="flex items-start gap-3 p-3 rounded-lg bg-brand-amber/[0.04] border border-brand-amber/10 cursor-pointer hover:bg-brand-amber/[0.07] transition" onclick="navTo('flow')">
+          <div class="w-7 h-7 rounded-md bg-brand-amber/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-amber text-sm font-bold">⚠</span></div>
+          <div class="flex-1">
+            <div class="text-[12px] font-semibold text-fg-100">Two duplicate projects detected</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Cache invalidation library built independently by Carlos (infra) and Aisha (platform) · 142 hrs redundant</div>
+          </div>
+          <span class="text-[9px] text-fg-600 mono">6h ago</span>
+        </div>
+        <!-- Law strengthened -->
+        <div class="flex items-start gap-3 p-3 rounded-lg bg-brand-cyan/[0.04] border border-brand-cyan/10 cursor-pointer hover:bg-brand-cyan/[0.07] transition" onclick="navTo('physics')">
+          <div class="w-7 h-7 rounded-md bg-brand-cyan/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-cyan text-sm font-bold">✓</span></div>
+          <div class="flex-1">
+            <div class="text-[12px] font-semibold text-fg-100">Execution law strengthened: L-0003</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Postmortem owner assignment reduces recurrence by 67% — validated 8/8 runtimes · confidence 0.91 → 0.94</div>
+          </div>
+          <span class="text-[9px] text-fg-600 mono">8h ago</span>
+        </div>
+        <!-- Prediction proved wrong — honesty builds trust -->
+        <div class="flex items-start gap-3 p-3 rounded-lg bg-brand-rose/[0.04] border border-brand-rose/10 cursor-pointer hover:bg-brand-rose/[0.07] transition" onclick="toggleModal('ledgerModal')">
+          <div class="w-7 h-7 rounded-md bg-brand-rose/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-rose text-sm font-bold">✗</span></div>
+          <div class="flex-1">
+            <div class="text-[12px] font-semibold text-fg-100">Prediction proved wrong: SMB pricing neutral</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Oct 10 prediction (conf 0.62) verified as MISS · SMB sales cycle up 18% · calibration updated · SHR holds at 0.83</div>
+          </div>
+          <span class="text-[9px] text-fg-600 mono">11h ago</span>
+        </div>
+        <!-- Decisions requiring attention -->
+        <div class="flex items-start gap-3 p-3 rounded-lg bg-brand-purple/[0.04] border border-brand-purple/10 cursor-pointer hover:bg-brand-purple/[0.07] transition" onclick="navTo('inbox')">
+          <div class="w-7 h-7 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-purple text-sm font-bold">3</span></div>
+          <div class="flex-1">
+            <div class="text-[12px] font-semibold text-fg-100">Three decisions now require executive attention</div>
+            <div class="text-[10px] text-fg-500 mt-0.5">Q3 hiring (expires 09:00) · Priya promotion · Legal upstream — all surfaced from overnight signal analysis</div>
+          </div>
+          <span class="text-[9px] text-fg-600 mono">now</span>
+        </div>
+      </div>
     </div>
 
     <!-- Today's Decisions -->
@@ -932,8 +1038,10 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
       <div class="mt-3 flex justify-center"><span class="dq-badge">DQ · What does the organization collectively know about this?</span></div>
     </div>
     <div class="relative">
-      <input type="text" class="ask-input" id="ask-input" placeholder="e.g. What do we know about customer churn in APAC?" oninput="updateAskSuggestions(this.value)" onkeydown="if(event.key==='Enter') submitAsk(this.value)">
+      <input type="text" class="ask-input" id="ask-input" placeholder="Type 'we should…' for organizational autocomplete, or ask any question" oninput="onAskInput(this.value)" onkeydown="if(event.key==='Enter') submitAsk(this.value)">
       <div class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-fg-500"><kbd>↵</kbd> to ask</div>
+      <!-- Organizational Autocomplete dropdown -->
+      <div class="exec-autocomplete" id="exec-autocomplete"></div>
     </div>
     <div class="space-y-2" id="ask-suggestions">
       <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold px-1">Try asking</div>
@@ -2010,6 +2118,171 @@ function updateAskSuggestions(q) {
   document.querySelectorAll('#ask-suggestions .ac-suggestion').forEach(s => {
     s.style.display = s.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
   });
+}
+
+// ===== ORGANIZATIONAL AUTOCOMPLETE — "We should…" with historical precedent =====
+const execCompletions = [
+  {
+    typed: 'we should',
+    completion: 'move Legal review upstream into the design phase',
+    precedent: [
+      { label: 'Last proposed:', detail: 'Mar 2024 (VP Eng) — approved but never implemented' },
+      { label: 'Legal objected:', detail: 'capacity concern — 4-week onboarding required' },
+      { label: 'Finance required:', detail: 'headcount freeze exemption for 1 legal hire' },
+      { label: 'Platform estimated:', detail: '4.2× ship velocity on 73% of bottlenecked projects' },
+    ],
+    predictedToday: 'Approving now unlocks $8.2M ARR across 3 initiatives. Waiting another week adds 19 days median delay.',
+    confidence: 0.84,
+    sources: ['L-0018', 'jira:EMEA-1247', 'oem:counterfactual'],
+    action: () => navTo('simulator'),
+  },
+  {
+    typed: 'we should',
+    completion: 'promote Priya M. to release manager',
+    precedent: [
+      { label: 'Last proposed:', detail: 'Sep 2024 (CTO) — deferred pending role redesign' },
+      { label: 'Risk identified:', detail: 'Current role would reduce her effectiveness by ~23% — she reviews 73% of successful releases informally' },
+      { label: 'VP Eng required:', detail: 'Formalize the influence pattern before the title change' },
+      { label: 'Departure risk:', detail: 'Without promotion, P 0.42 she leaves within 90 days — degrades release success by 32%' },
+    ],
+    predictedToday: 'Promote with redesigned role. Net positive: preserves her influence, adds formal authority, reduces departure risk to 0.18.',
+    confidence: 0.71,
+    sources: ['hayek:priya', 'oem:role-fit', 'L-0014'],
+    action: () => navTo('simulator'),
+  },
+  {
+    typed: 'we should',
+    completion: 'delay the Q4 launch by 2 weeks',
+    precedent: [
+      { label: 'Last delay:', detail: 'Q2 2024 — delayed 1 week, recovered in 3 weeks, no revenue impact' },
+      { label: 'Q1 2024 delay:', detail: 'Delayed 3 weeks — $340K revenue slipped to Q2, 2 deals lost to competitors' },
+      { label: 'L-0007 predicts:', detail: 'Without delay, P1 cluster probability 0.55 → velocity drops 22% in Dec' },
+      { label: 'With delay:', detail: 'P1 probability drops to 0.31, but Platform queue saturation recurs in Q1' },
+    ],
+    predictedToday: 'Delay + 2 Platform hires: conf 0.81. Delay alone: conf 0.62. The delay treats the symptom, not the cause.',
+    confidence: 0.78,
+    sources: ['L-0007', 'oem:counterfactual', 'jira:PLATFORM-QUEUE'],
+    action: () => navTo('simulator'),
+  },
+  {
+    typed: 'we should',
+    completion: 'consolidate the three OAuth implementations',
+    precedent: [
+      { label: 'Last proposed:', detail: 'Jun 2024 (Carlos R.) — approved in RFC-412, implementation started Oct 28' },
+      { label: 'Failed in 2022:', detail: 'Similar consolidation attempted — abandoned after Legal raised compliance concern' },
+      { label: 'Estimated waste:', detail: '480 engineering hours across 3 teams, same 3 bug patterns in different languages' },
+      { label: 'Knowledge graph:', detail: 'Carlos (robust version) and Aisha (widely-used version) hold complementary expertise — neither knows about the other' },
+    ],
+    predictedToday: 'Consolidation in progress. Surface Aisha\'s work to Carlos — saves 142 hours. Combined library ships in 3 weeks.',
+    confidence: 0.91,
+    sources: ['github:auth/oauth.py', 'github:oauth/provider.ts', 'confluence:RFC-412'],
+    action: () => navTo('hayek'),
+  },
+  {
+    typed: 'we should',
+    completion: 'hire 2 more Platform engineers',
+    precedent: [
+      { label: 'Last hiring burst:', detail: 'Q2 2024 — 4 hires, correlated with Q1 incidents (L-0019), not revenue' },
+      { label: 'Finance required:', detail: 'Budget approval + 8-week onboarding ramp' },
+      { label: 'Platform estimated:', detail: '+2 engineers → release frequency +18%, queue saturation resolved' },
+      { label: 'Counter-evidence:', detail: '3 engineers would not improve further — next bottleneck is QA (structural)' },
+    ],
+    predictedToday: 'Hire 2, not 3. Confidence 0.71. Combined with Legal upstream: unlocks $8.2M ARR. Without: Q4 launch at risk.',
+    confidence: 0.71,
+    sources: ['L-0019', 'oem:counterfactual', 'jira:HIRING-89'],
+    action: () => navTo('simulator'),
+  },
+  {
+    typed: 'we should',
+    completion: 'assign an owner to the Nov 9 postmortem',
+    precedent: [
+      { label: 'L-0003 predicts:', detail: 'Postmortems without owners have 67% recurrence within 90 days' },
+      { label: 'Current state:', detail: 'Nov 9 postmortem has NO owner assigned — same failure mode as Mar 14' },
+      { label: 'Mar 14 precedent:', detail: 'No owner → recommendation #3 (circuit breaker) never implemented → recurred Nov 9' },
+      { label: 'Verified:', detail: '12 postmortems WITH owners → only 4 recurrences (33% baseline)' },
+    ],
+    predictedToday: 'Assign owner today. P 0.67 the Nov 9 failure recurs within 90 days without action. Cost of inaction: 1 incident, ~$45K.',
+    confidence: 0.94,
+    sources: ['L-0003', 'confluence:PM-2024-11-09', 'confluence:PM-2024-03-14'],
+    action: () => navTo('physics'),
+  },
+];
+
+function onAskInput(value) {
+  const dropdown = document.getElementById('exec-autocomplete');
+  const lower = value.toLowerCase().trim();
+
+  // Show execution autocomplete when user types "we should"
+  if (lower.startsWith('we should') || lower.startsWith('we  should')) {
+    renderExecAutocomplete(value);
+    dropdown.classList.add('active');
+    // Hide regular suggestions while exec autocomplete is open
+    const suggestions = document.getElementById('ask-suggestions');
+    if (suggestions) suggestions.style.display = 'none';
+    return;
+  }
+
+  // Otherwise, hide exec autocomplete and show regular suggestions
+  dropdown.classList.remove('active');
+  const suggestions = document.getElementById('ask-suggestions');
+  if (suggestions && suggestions.style.display === 'none' && !lower) {
+    // Don't re-show if we just submitted a query
+    return;
+  }
+  if (suggestions) suggestions.style.display = '';
+  updateAskSuggestions(value);
+}
+
+function renderExecAutocomplete(typedValue) {
+  const dropdown = document.getElementById('exec-autocomplete');
+  const typed = typedValue.trim();
+
+  // Filter completions based on what's typed after "we should"
+  const afterWeShould = typed.toLowerCase().replace(/^we\s+should\s*/i, '').trim();
+  const matching = execCompletions.filter(c => {
+    if (!afterWeShould) return true;
+    return c.completion.toLowerCase().includes(afterWeShould);
+  });
+
+  if (matching.length === 0) {
+    dropdown.innerHTML = `<div class="exec-ac-header">No execution precedent found</div><div class="exec-ac-item"><div class="text-[11px] text-fg-500">No historical match for this proposal. Maestro will still analyze it — press Enter to ask.</div></div>`;
+    return;
+  }
+
+  let html = `<div class="exec-ac-header"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Organizational Autocomplete · ${matching.length} precedents found</div>`;
+
+  matching.forEach((item, idx) => {
+    const typedPart = typed.replace(new RegExp(afterWeShould + '$', 'i'), '').trim();
+    html += `
+      <div class="exec-ac-item" onclick="selectExecCompletion(${idx})">
+        <div class="exec-ac-completion"><span class="typed">${typedPart}</span> <span class="completed">${item.completion}</span></div>
+        <div class="exec-ac-precedent">
+          ${item.precedent.map(p => `<div><span class="label">${p.label}</span> ${p.detail}</div>`).join('')}
+        </div>
+        <div class="text-[10px] text-brand-cyan leading-relaxed mb-2">${item.predictedToday}</div>
+        <div class="exec-ac-meta">
+          <span class="conf">conf ${item.confidence.toFixed(2)}</span>
+          <span>·</span>
+          ${item.sources.map(s => `<span class="source-cite">${s}</span>`).join(' ')}
+        </div>
+      </div>`;
+  });
+
+  // Store matching items for onclick reference
+  dropdown._matchingItems = matching;
+  dropdown.innerHTML = html;
+}
+
+function selectExecCompletion(idx) {
+  const dropdown = document.getElementById('exec-autocomplete');
+  const item = dropdown._matchingItems[idx];
+  if (!item) return;
+  // Fill the input with the full completion
+  const fullText = 'we should ' + item.completion;
+  document.getElementById('ask-input').value = fullText;
+  dropdown.classList.remove('active');
+  // Navigate to the action surface
+  if (item.action) item.action();
 }
 
 const askResponses = {
