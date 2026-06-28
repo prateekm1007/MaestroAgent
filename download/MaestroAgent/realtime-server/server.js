@@ -94,6 +94,10 @@ app.use('/api/integrations/jira', jiraRouter);
 import githubRouter from './src/routes/integrations-github.js';
 app.use('/api/integrations/github', githubRouter);
 
+// --- Slack Integration Routes ---
+import slackRouter from './src/routes/integrations-slack.js';
+app.use('/api/integrations/slack', slackRouter);
+
 // --- Static UI ---
 // Serve the new app.html at /, and the mock backup at /mock.
 app.get('/', async (req, res) => {
