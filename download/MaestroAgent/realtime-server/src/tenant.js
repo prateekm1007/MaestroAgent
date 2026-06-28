@@ -294,7 +294,6 @@ export const tenantQueue = new TenantQueue();
  */
 export function tenantMiddleware(req, res, next) {
   if (!req.user?.org_id) {
-    // No org context (e.g., health checks, public endpoints)
     return next();
   }
 
@@ -302,42 +301,46 @@ export function tenantMiddleware(req, res, next) {
   const userId = req.user.id;
   const sessionId = req.headers['x-session-id'] || crypto.randomUUID();
 
-  // Acquire a dedicated client for this request
-  // This ensures the RLS context is isolated to this request
   pool.connect().then(async (client) => {
+    let released = false;
+
+    // P0-3 FIX: Guaranteed release with dirty-state cleanup.
+    const releaseClient = async () => {
+      if (released) return;
+      released = true;
+      try {
+        await client.query('RESET app.org_id');
+        await client.query('RESET app.user_id');
+      } catch {
+        // Connection may be broken — release anyway
+      } finally {
+        client.release();
+      }
+    };
+
     try {
-      // Set RLS context
       await client.query('SET LOCAL app.org_id = $1', [orgId]);
       if (userId) {
         await client.query('SET LOCAL app.user_id = $1', [userId]);
       }
 
-      // Attach client to request
       req.dbClient = client;
-      req.tenant = {
-        orgId,
-        userId,
-        sessionId,
-      };
+      req.tenant = { orgId, userId, sessionId };
 
       // Track tenant context (fire and forget)
       query(
         `INSERT INTO tenant_context (org_id, user_id, session_id, ip_address, user_agent, expires_at)
          VALUES ($1, $2, $3, $4, $5, now() + interval '1 hour')`,
         [orgId, userId, sessionId, req.ip, req.headers['user-agent'] || null]
-      ).catch(() => {}); // Non-critical
+      ).catch(() => {});
 
-      // Release client after response
-      res.on('finish', () => {
-        // Reset RLS context before releasing (defense-in-depth)
-        client.query('RESET app.org_id').catch(() => {});
-        client.query('RESET app.user_id').catch(() => {});
-        client.release();
-      });
+      // P0-3 FIX: Release on BOTH finish and close — whichever fires first.
+      res.on('finish', releaseClient);
+      res.on('close', releaseClient);
 
       next();
     } catch (err) {
-      client.release();
+      await releaseClient();
       console.error('[tenant] Failed to set tenant context:', err.message);
       res.status(500).json({ error: 'Failed to establish tenant context' });
     }

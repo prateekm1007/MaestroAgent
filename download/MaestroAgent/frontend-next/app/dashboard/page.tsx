@@ -5,7 +5,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { runs as runsApi, connectWebSocket } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { getGreeting, renderMarkdown, relativeTime } from '@/lib/utils';
+import { getGreeting, relativeTime } from '@/lib/utils';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { Send, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
 import { runs as runsApiList } from '@/lib/api';
@@ -185,7 +186,7 @@ export default function DashboardPage() {
                   <div className="flex items-start gap-2">
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5">M</div>
                     <div className="bg-gradient-to-br from-brand-purple/[0.06] to-brand-cyan/[0.04] border border-brand-purple/12 rounded-2xl p-4 max-w-[85%]">
-                      <p className="text-sm text-fg-100" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                      <div className="text-sm text-fg-100"><MarkdownRenderer content={msg.content} /></div>
                     </div>
                   </div>
                 )}
@@ -201,7 +202,7 @@ export default function DashboardPage() {
                 )}
                 {msg.type === 'specialist' && (
                   <div className="ml-9 panel p-4">
-                    {msg.content ? <p className="text-sm text-fg-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} /> : <div className="flex gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand-cyan typing-dot" /><span className="w-1.5 h-1.5 rounded-full bg-brand-cyan typing-dot" /><span className="w-1.5 h-1.5 rounded-full bg-brand-cyan typing-dot" /></div>}
+                    {msg.content ? <div className="text-sm text-fg-300"><MarkdownRenderer content={msg.content} /></div> : <div className="flex gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand-cyan typing-dot" /><span className="w-1.5 h-1.5 rounded-full bg-brand-cyan typing-dot" /><span className="w-1.5 h-1.5 rounded-full bg-brand-cyan typing-dot" /></div>}
                   </div>
                 )}
                 {msg.type === 'feedback' && (

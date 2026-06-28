@@ -32,19 +32,18 @@ export function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
+// P0-6 FIX: Removed manual HTML rendering — use react-markdown component instead.
+// This function is kept for backward compatibility but should not be used with dangerouslySetInnerHTML.
+// @deprecated Use the <MarkdownRenderer> component instead.
 export function renderMarkdown(text: string): string {
-  let html = text
+  // Escape everything — return safe text only.
+  return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-ink-950 border border-white/10 rounded-lg p-3 overflow-x-auto font-mono text-xs text-brand-cyan my-2"><code>$2</code></pre>')
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-fg-100 mt-2 mb-1">$1</h4>')
-    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-fg-100 mt-3 mb-1">$1</h3>')
-    .replace(/^# (.+)$/gm, '<h2 class="text-lg font-bold text-fg-100 mt-3 mb-2">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-fg-100 font-semibold">$1</strong>')
-    .replace(/`([^`]+)`/g, '<code class="bg-brand-purple/15 text-[#a594ff] px-1.5 py-0.5 rounded text-xs font-mono">$1</code>')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/\n/g, '<br/>');
-  return html;
 }
 
 export function getGreeting(): string {
