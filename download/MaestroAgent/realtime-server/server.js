@@ -69,8 +69,9 @@ import {
   rateLimitMiddleware,
   requestAuditMiddleware,
 } from './src/security.js';
+import { tenantMiddleware } from './src/tenant.js';
 
-// Order matters: TLS redirect → security headers → CORS → rate limit → body parser → audit → routes
+// Order: TLS → security headers → CORS → rate limit → body parser → audit → auth (per route) → tenant (per route)
 app.use(tlsRedirectMiddleware);
 app.use(securityHeadersMiddleware);
 app.use(cors({ origin: true, credentials: true }));
@@ -81,6 +82,17 @@ app.use(requestAuditMiddleware);
 // --- Auth Routes ---
 import authRouter from './src/routes/auth.js';
 app.use('/api/auth', authRouter);
+
+// --- Tenant Isolation Middleware (after auth, before tenant-scoped routes) ---
+app.use('/api', (req, res, next) => {
+  // Skip tenant middleware for auth routes (already handled) and health checks
+  if (req.path.startsWith('/auth') || req.path === '/health' || req.path === '/security/status') {
+    return next();
+  }
+  // Skip if no user (public endpoints)
+  if (!req.user) return next();
+  return tenantMiddleware(req, res, next);
+});
 
 // --- RBAC Routes ---
 import rbacRouter from './src/routes/rbac.js';
@@ -124,11 +136,22 @@ app.get('/api/health', (req, res) => {
 // Security status endpoint
 import { getSecurityStatus } from './src/security.js';
 import { getKMSStatus } from './src/kms.js';
+import { getTenantIsolationStatus } from './src/tenant.js';
 app.get('/api/security/status', (req, res) => {
   res.json({
     security: getSecurityStatus(),
     kms: getKMSStatus(),
   });
+});
+
+// Tenant isolation status endpoint
+app.get('/api/tenant/status', async (req, res) => {
+  try {
+    const status = await getTenantIsolationStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/runs', async (req, res) => {
