@@ -86,6 +86,10 @@ app.use('/api/auth', authRouter);
 import rbacRouter from './src/routes/rbac.js';
 app.use('/api/rbac', rbacRouter);
 
+// --- Jira Integration Routes ---
+import jiraRouter from './src/routes/integrations-jira.js';
+app.use('/api/integrations/jira', jiraRouter);
+
 // --- Static UI ---
 // Serve the new app.html at /, and the mock backup at /mock.
 app.get('/', async (req, res) => {
