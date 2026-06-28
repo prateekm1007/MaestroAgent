@@ -1,0 +1,65 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Maestro v6 — Local dev + test stack
+# Usage: docker compose up -d
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: maestro
+    ports: ['5432:5432']
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports: ['6379:6379']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Ollama for local LLM inference (meeting transcription)
+  ollama:
+    image: ollama/ollama:latest
+    ports: ['11434:11434']
+    volumes:
+      - ollamadata:/root/.ollama
+    # Uncomment to run with GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # App (uncomment to run app in Docker)
+  # app:
+  #   build: .
+  #   ports: ['3000:3000']
+  #   env_file: .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:postgres@postgres:5432/maestro
+  #     REDIS_URL: redis://redis:6379
+
+volumes:
+  pgdata:
+  redisdata:
+  ollamadata:

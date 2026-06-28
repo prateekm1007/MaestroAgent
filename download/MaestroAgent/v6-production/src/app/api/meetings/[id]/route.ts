@@ -1,106 +1,226 @@
-// Maestro v6 — Live Meeting WebSocket
-// Handles real-time transcript streaming, objection detection, action item extraction.
-// Critical: consent must be verified before any recording begins.
+// Maestro v6 — Live Meeting API (hardened)
+// POST /api/meetings/[id] — Submit transcript chunk (consent-gated, idempotent, sanitized)
+// GET  /api/meetings/[id] — Get meeting state
 
-import { NextRequest } from 'next/server';
-import { WebSocket, WebSocketServer } from 'ws';
-import { requireUser, audit, ApiError, prisma, log } from '@/lib/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { getAuthContext, audit } from '@/lib/server';
+import { Errors, asyncHandler } from '@/lib/errors';
+import { prisma } from '@/lib/db';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { checkIdempotency, storeIdempotencyResponse } from '@/lib/idempotency';
+import { sanitizeTranscript } from '@/lib/sanitize';
 import { processTranscriptChunk, verifyConsent, logConsent, type TranscriptChunk } from '@/lib/meeting-engine';
+import { publish } from '@/lib/redis';
+import { log } from '@/lib/logger';
 
-// In-memory state for active meetings (production: Redis)
-const activeMeetings = new Map<string, { ws: Set<WebSocket>; consentVerified: boolean }>();
+// ============================================================
+// POST /api/meetings/[id] — transcript chunk
+// ============================================================
 
-export async function GET(req: NextRequest) {
-  // Upgrade to WebSocket — Next.js 16 custom server pattern
-  // In production this is handled by a separate ws server
-  return new Response('WebSocket endpoint — use ws:// protocol', {
-    status: 426,
-    headers: { 'Upgrade': 'websocket' },
+const TranscriptChunkSchema = z.object({
+  ts: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'ts must be HH:MM or HH:MM:SS'),
+  speakerId: z.string().min(1).max(100),
+  speakerName: z.string().min(1).max(200),
+  text: z.string().min(1).max(5000),
+});
+
+const TranscriptRequestBodySchema = z.object({
+  meetingId: z.string().cuid(),
+  chunk: TranscriptChunkSchema,
+});
+
+export const POST = asyncHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
+  const ctx = getAuthContext(req);
+
+  // Rate limit: 100 chunks/min/user
+  await enforceRateLimit(`${ctx.orgId}:${ctx.userId}:meetings`, 100, 60_000);
+
+  const body = await req.json();
+  const parsed = TranscriptRequestBodySchema.safeParse(body);
+  if (!parsed.success) {
+    throw Errors.badRequest('Invalid transcript chunk', parsed.error.issues);
+  }
+
+  // Idempotency
+  const idempotencyKey = req.headers.get('idempotency-key');
+  const cached = await checkIdempotency(idempotencyKey, ctx.orgId, body);
+  if (cached) return NextResponse.json(cached.body, { status: cached.status });
+
+  // Sanitize the chunk text BEFORE any processing
+  const sanitizedChunk: TranscriptChunk = {
+    ts: parsed.data.chunk.ts,
+    speakerId: parsed.data.chunk.speakerId,
+    speakerName: sanitizeTranscript(parsed.data.chunk.speakerName),
+    text: sanitizeTranscript(parsed.data.chunk.text),
+  };
+
+  // Verify meeting exists and belongs to org
+  const meeting = await prisma.meeting.findFirst({
+    where: { id: params.id, orgId: ctx.orgId },
   });
-}
+  if (!meeting) throw Errors.notFound('Meeting', params.id);
 
-export async function POST(req: NextRequest) {
-  // REST fallback for transcript chunks (if WS unavailable)
-  try {
-    const ctx = await requireUser();
-    const body = await req.json();
+  // Verify participant is in the meeting (authorization)
+  const participants = meeting.participants as any[];
+  const isParticipant = participants.some((p) => p.entityId === ctx.userId);
+  if (!isParticipant) {
+    throw Errors.forbidden('You are not a participant in this meeting');
+  }
 
-    const { meetingId, chunk } = body as { meetingId: string; chunk: TranscriptChunk };
-    if (!meetingId || !chunk) {
-      throw new ApiError(400, 'INVALID_REQUEST', 'meetingId and chunk required');
-    }
+  // CONSENT GATE — hard server-side check, cannot be bypassed by client
+  if (!verifyConsent(participants)) {
+    throw Errors.consentRequired();
+  }
 
-    const meeting = await prisma.meeting.findFirst({
-      where: { id: meetingId, orgId: ctx.orgId },
-      include: { participants: true },
-    });
-    if (!meeting) throw new ApiError(404, 'NOT_FOUND', 'Meeting not found');
+  // Fetch org laws for trigger matching
+  const laws = await prisma.orgLaw.findMany({
+    where: {
+      orgId: ctx.orgId,
+      status: { in: ['VALIDATED', 'STRESSED', 'UNKNOWN_TO_LEADERSHIP'] },
+    },
+  });
 
-    // CRITICAL: Verify consent before processing any audio
-    if (!verifyConsent(meeting.participants as any)) {
-      throw new ApiError(403, 'CONSENT_REQUIRED',
-        'All participants must consent before recording begins');
-    }
+  // Process the chunk
+  const result = processTranscriptChunk(sanitizedChunk, laws as any);
 
-    // Fetch org laws for trigger matching
-    const laws = await prisma.orgLaw.findMany({
-      where: { orgId: ctx.orgId, status: { in: ['VALIDATED', 'STRESSED', 'UNKNOWN_TO_LEADERSHIP'] } },
-    });
-
-    const result = processTranscriptChunk(chunk, laws as any);
-
-    // Persist transcript line
-    await prisma.meeting.update({
-      where: { id: meetingId },
+  // ATOMIC: persist transcript line + action items + audit
+  await prisma.$transaction(async (tx) => {
+    // Append transcript line
+    const currentTranscript = (meeting.transcript as any[]) || [];
+    await tx.meeting.update({
+      where: { id: meeting.id },
       data: {
-        transcript: [...(meeting.transcript as any[]), {
-          ts: chunk.ts, speakerId: chunk.speakerId,
-          speakerName: chunk.speakerName, text: chunk.text,
+        transcript: [...currentTranscript, {
+          ts: sanitizedChunk.ts,
+          speakerId: sanitizedChunk.speakerId,
+          speakerName: sanitizedChunk.speakerName,
+          text: sanitizedChunk.text,
           highlights: result.highlights,
         }],
       },
     });
 
-    // Log action items as they're detected
+    // Create action items
     for (const ai of result.actionItems) {
-      await prisma.actionItem.create({
+      await tx.actionItem.create({
         data: {
-          orgId: ctx.orgId, meetingId,
-          text: ai.text, source: ai.source,
+          orgId: ctx.orgId,
+          meetingId: meeting.id,
+          text: sanitizeTranscript(ai.text),
+          source: ai.source,
         },
       });
     }
 
-    return NextResponse.json(result);
-  } catch (err) {
-    if (err instanceof ApiError) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
-    }
-    log.error({ err }, 'meeting transcript failed');
-    return NextResponse.json({ error: 'Internal error', code: 'INTERNAL' }, { status: 500 });
-  }
+    // Audit
+    await tx.auditEvent.create({
+      data: {
+        orgId: ctx.orgId,
+        actorId: ctx.userId,
+        action: 'meeting.transcript_chunk',
+        entityType: 'meeting',
+        entityId: meeting.id,
+        after: { ts: sanitizedChunk.ts, objections: result.objections.length, actionItems: result.actionItems.length },
+      },
+    });
+  });
+
+  // Broadcast to other participants via Redis pub/sub
+  await publish(`meeting:${meeting.id}`, {
+    type: 'transcript_chunk',
+    chunk: sanitizedChunk,
+    processing: result,
+  });
+
+  log().info({
+    meetingId: meeting.id,
+    objections: result.objections.length,
+    actionItems: result.actionItems.length,
+    invokedLaws: result.invokedLaws.length,
+  }, 'Transcript chunk processed');
+
+  const response = { status: 200, body: result };
+  await storeIdempotencyResponse(idempotencyKey, ctx.orgId, body, response);
+
+  return NextResponse.json(result);
+});
+
+// ============================================================
+// POST /api/meetings/[id]/consent — participant consents
+// ============================================================
+
+const ConsentSchema = z.object({
+  participantId: z.string().cuid(),
+});
+
+export async function POST_CONSENT(req: NextRequest, { params }: { params: { id: string } }) {
+  return asyncHandler(async () => {
+    const ctx = getAuthContext(req);
+    const body = await req.json();
+    const parsed = ConsentSchema.safeParse(body);
+    if (!parsed.success) throw Errors.badRequest('Invalid consent body');
+
+    const meeting = await prisma.meeting.findFirst({
+      where: { id: params.id, orgId: ctx.orgId },
+    });
+    if (!meeting) throw Errors.notFound('Meeting', params.id);
+
+    // Update participant consent
+    const participants = (meeting.participants as any[]).map((p) => {
+      if (p.entityId === parsed.data.participantId) {
+        return { ...p, consentedAt: new Date().toISOString(), consentMethod: 'EXPLICIT' };
+      }
+      return p;
+    });
+
+    const consentState = logConsent(meeting.id, participants as any);
+
+    await prisma.meeting.update({
+      where: { id: meeting.id },
+      data: {
+        participants: participants as any,
+        consentLoggedAt: consentState.consentLoggedAt,
+      },
+    });
+
+    await audit(ctx, 'meeting.consent_logged', 'meeting', meeting.id, undefined, {
+      participantId: parsed.data.participantId,
+      allConsented: consentState.allConsented,
+    });
+
+    // Broadcast consent update
+    await publish(`meeting:${meeting.id}`, {
+      type: 'consent_update',
+      consentState,
+    });
+
+    return NextResponse.json(consentState);
+  })(req);
 }
 
-// Helper exported for the ws server (separate process in production)
-export function handleMeetingMessage(meetingId: string, message: any, ws: WebSocket) {
-  // Broadcast transcript to all participants in the meeting
-  const active = activeMeetings.get(meetingId);
-  if (!active) return;
-  active.ws.forEach(client => {
-    if (client !== ws && client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(message));
-    }
-  });
-}
+// ============================================================
+// GET /api/meetings/[id] — get meeting state
+// ============================================================
 
-// Cron: verify predictions whose verifyDate has passed
-export async function verifyDuePredictions() {
-  const due = await prisma.prediction.findMany({
-    where: { result: 'PENDING', verifyDate: { lte: new Date() } },
+export const GET = asyncHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
+  const ctx = getAuthContext(req);
+
+  const meeting = await prisma.meeting.findFirst({
+    where: { id: params.id, orgId: ctx.orgId },
+    include: {
+      actionItems: true,
+      predictions: true,
+    },
   });
-  for (const pred of due) {
-    // In production: call the OEM verification engine
-    // For scaffold: mark as PENDING — verification logic is org-specific
-    log.info({ predictionId: pred.id }, 'prediction due for verification');
+  if (!meeting) throw Errors.notFound('Meeting', params.id);
+
+  // Verify participant
+  const participants = meeting.participants as any[];
+  const isParticipant = participants.some((p) => p.entityId === ctx.userId);
+  if (!isParticipant) {
+    throw Errors.forbidden('You are not a participant in this meeting');
   }
-}
+
+  return NextResponse.json(meeting);
+});
