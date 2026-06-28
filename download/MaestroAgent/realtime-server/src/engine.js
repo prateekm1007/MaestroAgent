@@ -22,6 +22,7 @@
 // work already done while letting the user steer.
 
 import ZAI from 'z-ai-web-dev-sdk';
+import { complete as llmComplete, streamLLM as routerStreamLLM } from './llm/router.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { AGENTS, pickTeam, parseConfidence, parseDisagreements, stripStructuredBlocks } from './agents.js';
@@ -131,83 +132,10 @@ async function emit(run, type, payload = {}) {
   );
 }
 
-// Stream a specialist LLM call. Same SSE parser as before.
-// Retries on 429 (rate limit) with exponential backoff.
+// Stream a specialist LLM call via the multi-provider router.
+// Handles retries, fallbacks, rate limits, and cost tracking.
 async function streamLLM({ system, user, onToken }) {
-  const zai = await ZAI.create();
-  const messages = [
-    { role: 'assistant', content: system },
-    { role: 'user', content: user },
-  ];
-
-  let lastErr = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      const stream = await zai.chat.completions.create({
-        messages,
-        stream: true,
-        thinking: { type: 'disabled' },
-      });
-      let full = '';
-      let buffer = '';
-      for await (const rawChunk of stream) {
-        let text;
-        if (rawChunk instanceof Uint8Array || ArrayBuffer.isView(rawChunk)) {
-          text = Buffer.from(rawChunk).toString('utf8');
-        } else if (typeof rawChunk === 'string') {
-          text = rawChunk;
-        } else if (rawChunk?.choices?.[0]?.delta?.content) {
-          const delta = rawChunk.choices[0].delta.content;
-          full += delta;
-          if (onToken) onToken(delta);
-          continue;
-        } else {
-          continue;
-        }
-        buffer += text;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
-          const payload = trimmed.slice(5).trim();
-          if (payload === '[DONE]') continue;
-          try {
-            const obj = JSON.parse(payload);
-            const delta = obj?.choices?.[0]?.delta?.content || '';
-            if (delta) {
-              full += delta;
-              if (onToken) onToken(delta);
-            }
-          } catch {}
-        }
-      }
-      if (buffer.trim().startsWith('data:')) {
-        const payload = buffer.trim().slice(5).trim();
-        if (payload && payload !== '[DONE]') {
-          try {
-            const obj = JSON.parse(payload);
-            const delta = obj?.choices?.[0]?.delta?.content || '';
-            if (delta) {
-              full += delta;
-              if (onToken) onToken(delta);
-            }
-          } catch {}
-        }
-      }
-      return full;
-    } catch (err) {
-      lastErr = err;
-      if (String(err.message || '').includes('429') && attempt < 3) {
-        const wait = Math.pow(2, attempt + 2) * 1000;
-        console.warn(`[engine] specialist 429 rate limited, retrying in ${wait/1000}s (attempt ${attempt+1}/3)`);
-        await new Promise(r => setTimeout(r, wait));
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw lastErr || new Error('specialist stream failed');
+  return routerStreamLLM({ system, user, onToken });
 }
 
 async function saveArtifact(run, agentId, content, ext = 'md') {

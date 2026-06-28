@@ -15,6 +15,7 @@
 // actually reads the goal/context and reasons about it.
 
 import ZAI from 'z-ai-web-dev-sdk';
+import { complete as llmComplete } from './llm/router.js';
 
 // Shared ZAI instance (cheap to reuse).
 let _zai = null;
@@ -24,85 +25,10 @@ async function getZAI() {
 }
 
 // Stream a conductor call. Returns the full text.
-// onToken(delta) is called for every token.
-// Same SSE-parsing logic as the specialist streamLLM in engine.js.
-// Retries on 429 (rate limit) with exponential backoff.
+// Stream a conductor call via the multi-provider router.
 async function streamConductor({ system, user, onToken }) {
-  const zai = await getZAI();
-  const messages = [
-    { role: 'assistant', content: system },
-    { role: 'user', content: user },
-  ];
-
-  let lastErr = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      const stream = await zai.chat.completions.create({
-        messages,
-        stream: true,
-        thinking: { type: 'disabled' },
-      });
-      let full = '';
-      let buffer = '';
-      for await (const rawChunk of stream) {
-        let text;
-        if (rawChunk instanceof Uint8Array || ArrayBuffer.isView(rawChunk)) {
-          text = Buffer.from(rawChunk).toString('utf8');
-        } else if (typeof rawChunk === 'string') {
-          text = rawChunk;
-        } else if (rawChunk?.choices?.[0]?.delta?.content) {
-          const delta = rawChunk.choices[0].delta.content;
-          full += delta;
-          if (onToken) onToken(delta);
-          continue;
-        } else {
-          continue;
-        }
-        buffer += text;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
-          const payload = trimmed.slice(5).trim();
-          if (payload === '[DONE]') continue;
-          try {
-            const obj = JSON.parse(payload);
-            const delta = obj?.choices?.[0]?.delta?.content || '';
-            if (delta) {
-              full += delta;
-              if (onToken) onToken(delta);
-            }
-          } catch {}
-        }
-      }
-      if (buffer.trim().startsWith('data:')) {
-        const payload = buffer.trim().slice(5).trim();
-        if (payload && payload !== '[DONE]') {
-          try {
-            const obj = JSON.parse(payload);
-            const delta = obj?.choices?.[0]?.delta?.content || '';
-            if (delta) {
-              full += delta;
-              if (onToken) onToken(delta);
-            }
-          } catch {}
-        }
-      }
-      return full;
-    } catch (err) {
-      lastErr = err;
-      // 429 = rate limited. Back off and retry.
-      if (String(err.message || '').includes('429') && attempt < 3) {
-        const wait = Math.pow(2, attempt + 2) * 1000; // 4s, 8s, 16s
-        console.warn(`[conductor] 429 rate limited, retrying in ${wait/1000}s (attempt ${attempt+1}/3)`);
-        await new Promise(r => setTimeout(r, wait));
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw lastErr || new Error('conductor stream failed');
+  const response = await llmComplete({ system, user, stream: true, onToken });
+  return response.text;
 }
 
 const CONDUCTOR_SYSTEM = `You are Maestro's Conductor — the orchestration intelligence visible to the user.
