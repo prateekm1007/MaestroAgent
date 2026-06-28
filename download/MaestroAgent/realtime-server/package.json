@@ -6,12 +6,25 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "ws": "^8.18.0",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.22.0",
+    "uuid": "^14.0.1",
+    "ws": "^8.18.0",
     "z-ai-web-dev-sdk": "*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.9"
   }
 }

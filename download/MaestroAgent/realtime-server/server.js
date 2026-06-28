@@ -61,8 +61,12 @@ initObservatoryStore().catch(err => console.warn('[server] observatory init fail
 initEvidenceLedger().catch(err => console.warn('[server] evidence ledger init failed:', err.message));
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
+
+// --- Auth Routes ---
+import authRouter from './src/routes/auth.js';
+app.use('/api/auth', authRouter);
 
 // --- Static UI ---
 // Serve the new app.html at /, and the mock backup at /mock.
