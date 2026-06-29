@@ -1,0 +1,33 @@
+{
+  "name": "maestro-realtime",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Real-time backend for MaestroAgent — runs the agent graph with real streaming LLM output via z-ai-web-dev-sdk",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "jose": "^6.2.3",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.22.0",
+    "undici": "^8.5.0",
+    "uuid": "^14.0.1",
+    "ws": "^8.18.0",
+    "z-ai-web-dev-sdk": "*"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.9"
+  }
+}

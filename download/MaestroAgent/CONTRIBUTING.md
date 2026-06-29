@@ -1,125 +1,88 @@
-# Contributing to MaestroAgent
+# Contributing to Maestro
 
-Thanks for your interest in contributing! MaestroAgent is open-source (MIT) and welcomes contributions of all kinds: bug reports, feature requests, code, docs, templates, and plugins.
+## The Merge-Gate Rule
 
-## Code of conduct
+> **No engineer — including the founder — can merge a feature unless it satisfies one of:**
+>
+> 1. A design partner explicitly requested it.
+> 2. It removes friction from onboarding.
+> 3. It improves a measured business outcome.
+> 4. It fixes a reliability or security issue.
+>
+> If a feature doesn't satisfy one of those four criteria, it waits.
 
-Be kind. Be concrete. Be patient. Disagreement is fine; disrespect is not.
+This discipline is what turns a sophisticated platform into a successful enterprise company.
 
-## Quick start for contributors
+---
 
-```bash
-# Fork + clone the repo
-git clone https://github.com/YOUR-USERNAME/maestroagent.git
-cd maestroagent
+## Why This Exists
 
-# Backend
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+The architecture is complete (see [CONSTITUTION.md](./CONSTITUTION.md)). The cognitive stack is frozen. The next risk is not underbuilding — it's overbuilding.
 
-# Frontend
-cd ../frontend
-pnpm install
+Every feature that doesn't satisfy the merge-gate rule:
+- Adds complexity without adding customer value
+- Increases the surface area that needs maintenance
+- Distracts from the only hypothesis that matters:
+  > *Organizations using Maestro execute measurably better than organizations that don't.*
 
-# Run in dev mode (two terminals)
-# T1: maestro serve
-# T2: pnpm dev
+---
+
+## How to Contribute
+
+### 1. Check the Merge-Gate
+
+Before writing any code, ask: **which of the four criteria does this satisfy?**
+
+If you can't answer with a specific, measurable reason — don't build it.
+
+### 2. Link to Customer Evidence
+
+In your PR description, include:
+- Which design partner requested this (or which onboarding friction it removes, or which metric it improves)
+- The expected business outcome
+- How you'll measure whether it worked
+
+### 3. Keep the Architecture Frozen
+
+No new cognitive layers. The hierarchy is:
+```
+Learning Object → Pattern → Playbook → Policy → Governance Control →
+Evidence → Case → Precedent → Receipt → Operational Knowledge
 ```
 
-See [`docs/BROWSER_SETUP.md`](docs/BROWSER_SETUP.md) for full setup details.
+Do not add: Rule Layer, Wisdom Layer, Experience Layer, Meta Pattern Layer, Reflection Layer, or any other conceptual abstraction. The constitution is frozen until 10 enterprise organizations are running Maestro AND we have evidence that a new kind of knowledge cannot be represented by existing layers.
 
-## Project structure
+### 4. Customer-Driven, Not Imagination-Driven
 
-Read [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) first. The key boundary:
+The roadmap is driven by observed customer bottlenecks, not architectural imagination. If you're excited about a feature that no customer has asked for, channel that energy into finding a customer who needs it.
 
-- **`maestro_core`** is pure Python with zero UI deps. Don't import FastAPI, React, or any provider SDK here.
-- **`maestro_api`** is the only HTTP boundary. Routes are thin; business logic lives in core.
-- **`frontend/`** talks to the backend only via the typed `api` client in `src/lib/api.ts`.
+---
 
-## How to contribute
+## What Gets Merged
 
-### Bug reports
+✅ **Merged:**
+- A design partner reported that approval latency is too high → optimize the approval flow
+- Onboarding takes 45 minutes → reduce to 15 minutes by pre-configuring defaults
+- Knowledge reuse is stuck at 20% → improve pattern retrieval relevance
+- Security vulnerability in the receipt hashing → fix immediately
 
-Open an issue with:
-1. MaestroAgent version (`maestro --version` or check the status bar).
-2. Browser + OS (for PWA issues) or Python version (for backend issues).
-3. Steps to reproduce.
-4. Expected vs actual behavior.
-5. Relevant logs (from the Terminal panel or `docker compose logs`).
+❌ **Not Merged:**
+- "It would be cool if Maestro had voice mode"
+- "Let's add a new agent type called 'Architect'"
+- "What if we added a Wisdom Layer above Policies?"
+- "Let's build a mobile app" (no customer has asked for it)
 
-### Feature requests
+---
 
-Open an issue with the `feature` label. Describe the use case, not just the solution. The maintainers will discuss whether it fits the v0.1 / v0.2 / v1.0 scope.
+## The One Sentence
 
-### Pull requests
+> **We are no longer a platform engineering company. We are a customer learning company.**
 
-1. **Branch from `main`**: `git checkout -b feat/my-feature`.
-2. **Keep PRs small**: one feature or fix per PR. Large PRs take longer to review.
-3. **Write tests**: add or update tests in `backend/tests/` for backend changes. Frontend tests are coming in v0.2.
-4. **Run checks locally**:
-   ```bash
-   cd backend && pytest && ruff check . && black --check .
-   cd ../frontend && pnpm lint && pnpm typecheck
-   ```
-5. **Update docs**: if your change affects user-facing behavior, update `docs/` and `README.md`.
-6. **Write a clear PR description**: what changed, why, and how to test it.
+The architecture is complete. The next 6 months are about producing evidence that organizations using Maestro execute better than organizations that don't.
 
-### Templates and plugins
+If we can do that with 3 design partners, we have a business.
+If we can't, no amount of architecture will save us.
 
-Templates (in `backend/examples/templates/`) and plugins (in `backend/plugins/`) are the easiest way to contribute:
+---
 
-- A template is a single Python file exposing `build_graph(goal: str, **extras) -> Graph`.
-- A plugin is a single Python file exposing `PLUGIN_ENTRIES = [PluginEntry(...)]` or a `register(registry)` function.
-
-Drop a file in the right directory and it auto-loads. No build step.
-
-## Coding standards
-
-### Python (backend)
-
-- **Type hints everywhere.** The codebase targets Python 3.11+.
-- **Pydantic v2** for all data models.
-- **Async-first.** All I/O is `async def`. Use `anyio.to_thread.run_sync` for sync SDKs.
-- **Docstrings** on every public module, class, and function. Google style.
-- **Line length 100.** Run `black` + `ruff` before committing.
-
-### TypeScript (frontend)
-
-- **Strict mode.** `tsconfig.json` has `strict: true`.
-- **No `any`** without a comment explaining why.
-- **Functional components + hooks.** No class components.
-- **Zustand for global state.** Don't reach for Redux.
-- **Tailwind for styling.** No CSS-in-JS.
-
-### Rust (optional Tauri wrapper, v0.3)
-
-- Only used for the optional desktop wrapper. The browser PWA is the primary surface.
-- Follow the existing style in `desktop/src-tauri/src/`.
-
-## Architecture principles
-
-When proposing changes, keep these in mind:
-
-1. **Local-first.** Everything should work with no cloud dependency. Cloud is opt-in.
-2. **Browser-first.** New features must work in the PWA. Native-only features are out of scope.
-3. **Loops are first-class.** Don't hide iteration inside nodes. Use `LoopHandler`.
-4. **Verifiable autonomy.** Every loop's exit must be checkable by an independent verifier.
-5. **Observability.** Every transition emits an event. The UI is a consumer, not a special case.
-6. **No UI in core.** `maestro_core` stays pure Python.
-
-## Release process (for maintainers)
-
-1. Update `VERSION` in `backend/maestro_core/__init__.py` and `frontend/package.json`.
-2. Update `docs/CHANGELOG.md` (coming in v0.2).
-3. Tag: `git tag v0.X.Y && git push --tags`.
-4. GitHub Actions (coming in v0.2) builds the Docker image and publishes it.
-
-## Getting help
-
-- **Issues:** [github.com/your-org/maestroagent/issues](https://github.com/your-org/maestroagent/issues)
-- **Discussions:** [github.com/your-org/maestroagent/discussions](https://github.com/your-org/maestroagent/discussions)
-
-## License
-
-By contributing, you agree that your contributions are licensed under the MIT license.
+*See [DESIGN_PARTNER_PLAYBOOK.md](./DESIGN_PARTNER_PLAYBOOK.md) for the full customer validation plan.*
