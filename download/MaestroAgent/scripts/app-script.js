@@ -716,67 +716,111 @@ async function loadMemory() {
 
 let autocompleteAbort = null;
 let autocompleteSelectedIdx = -1;
+let autocompleteSuggestions = [];  // Store full suggestion objects for rich rendering
 
 async function onAskInput(value) {
   const dropdown = document.getElementById('exec-autocomplete');
   const v = value.trim();
   if (!v) {
     dropdown.classList.remove('active');
+    autocompleteSuggestions = [];
     return;
   }
 
   if (autocompleteAbort) autocompleteAbort.abort();
   autocompleteAbort = new AbortController();
 
+  // Include the current surface as context for context-aware ranking
+  const surface = window._currentSurface || '';
+  const contextParam = surface ? `&surface=${encodeURIComponent(surface)}` : '';
+
   try {
     const resp = await fetch(
-      MAESTRO_API + '/api/oem/autocomplete?q=' + encodeURIComponent(v) + '&limit=8',
+      MAESTRO_API + '/api/oem/autocomplete?q=' + encodeURIComponent(v) + '&limit=8' + contextParam,
       { signal: autocompleteAbort.signal }
     );
     if (!resp.ok) throw new Error('Autocomplete failed: ' + resp.status);
     const data = await resp.json();
     const suggestions = data.suggestions || [];
+    autocompleteSuggestions = suggestions;
 
     if (suggestions.length === 0) {
-      dropdown.innerHTML = `<div class="exec-ac-header">No matches in OEM</div>`;
+      dropdown.innerHTML = `<div class="exec-ac-header" role="status">No matches in OEM for "${escapeHtml(v)}"</div>`;
       dropdown.classList.add('active');
       autocompleteSelectedIdx = -1;
       return;
     }
 
     autocompleteSelectedIdx = -1;
-    dropdown.innerHTML = `<div class="exec-ac-header">Suggested questions · from OEM</div>` +
+    // Build rich dropdown with completion, reason, confidence, citations
+    dropdown.setAttribute('role', 'listbox');
+    dropdown.setAttribute('aria-label', 'Organizational autocomplete suggestions');
+    dropdown.innerHTML = `<div class="exec-ac-header">Semantic suggestions · from live OEM · ranked by recency, authority, outcome, feedback</div>` +
       suggestions.map((s, i) => {
-        const meta = s.metadata || {};
-        const metaStr = meta.code ? ` · ${meta.code}` :
-                        meta.domain ? ` · ${meta.domain}` :
-                        meta.urgency ? ` · ${meta.urgency}` : '';
-        return `<div class="exec-ac-item" data-idx="${i}" data-query="${escapeHtml(s.query)}" role="option" tabindex="-1" onmouseenter="autocompleteSelectedIdx=${i}; updateAutocompleteHighlight()" onclick="selectAutocomplete(${i})">
+        const confPct = Math.round((s.confidence || 0) * 100);
+        const rankPct = Math.round((s.rank_score || 0) * 100);
+        const citations = (s.citations || []).slice(0, 3).map(c => {
+          const short = String(c).substring(0, 20);
+          return `<span class="source-cite" title="${escapeHtml(c)}">${escapeHtml(short)}</span>`;
+        }).join(' ');
+        const evidenceCount = (s.evidence || []).length;
+        const similarCount = (s.similar_executions || []).length;
+        const sourceIcon = {
+          'law': 'L', 'recommendation': 'R', 'expert': '?', 'risk': '!',
+          'evidence': 'E', 'lo:bottleneck': 'B', 'lo:hidden_expert': '?',
+          'lo:departure_risk': 'X', 'lo:duplicate_work': 'D', 'lo:knowledge_death': 'K',
+          'lo:approval_gate': 'G', 'lo:incident_pattern': 'I', 'lo:velocity_drop': 'V',
+        }[s.source_type] || '*';
+        return `<div class="exec-ac-item" data-idx="${i}" data-query="${escapeHtml(s.query)}" role="option" aria-selected="false" tabindex="-1" onmouseenter="autocompleteSelectedIdx=${i}; updateAutocompleteHighlight()" onclick="selectAutocomplete(${i})">
           <div class="exec-ac-completion">
-            <span class="completed">${escapeHtml(s.label)}</span>
+            <span class="completed">${escapeHtml(s.completion)}</span>
           </div>
-          <div class="text-[9px] text-fg-600 mt-0.5">${escapeHtml(s.type)}${escapeHtml(metaStr)}</div>
+          <div class="text-[10px] text-fg-400 mt-1 leading-relaxed">${escapeHtml(s.reason)}</div>
+          <div class="flex items-center gap-2 mt-1.5 text-[9px] text-fg-500 flex-wrap">
+            <span class="mono text-brand-purple">[${escapeHtml(s.source_type)}]</span>
+            <span class="text-brand-cyan">conf ${confPct}%</span>
+            <span>·</span>
+            <span>rank ${rankPct}%</span>
+            <span>·</span>
+            <span>${evidenceCount} evidence</span>
+            ${similarCount ? `<span>·</span><span>${similarCount} similar</span>` : ''}
+          </div>
+          ${citations ? `<div class="mt-1 flex flex-wrap gap-1">${citations}</div>` : ''}
+          ${s.expected_outcome ? `<div class="text-[9px] text-fg-600 mt-1 italic">→ ${escapeHtml(s.expected_outcome.substring(0, 100))}</div>` : ''}
         </div>`;
       }).join('');
     dropdown.classList.add('active');
   } catch (e) {
     if (e.name === 'AbortError') return;
-    dropdown.innerHTML = `<div class="exec-ac-header">Autocomplete error: ${escapeHtml(e.message)}</div>`;
+    dropdown.innerHTML = `<div class="exec-ac-header" role="alert">Autocomplete error: ${escapeHtml(e.message)}</div>`;
     dropdown.classList.add('active');
   }
 }
 
 function updateAutocompleteHighlight() {
   document.querySelectorAll('.exec-ac-item').forEach((el, i) => {
-    el.classList.toggle('selected', i === autocompleteSelectedIdx);
+    const selected = i === autocompleteSelectedIdx;
+    el.classList.toggle('selected', selected);
+    el.setAttribute('aria-selected', selected ? 'true' : 'false');
   });
+  // Scroll the selected item into view
+  if (autocompleteSelectedIdx >= 0) {
+    const sel = document.querySelector(`.exec-ac-item[data-idx="${autocompleteSelectedIdx}"]`);
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 function selectAutocomplete(idx) {
   const item = document.querySelector(`.exec-ac-item[data-idx="${idx}"]`);
   if (!item) return;
   const query = item.dataset.query;
-  document.getElementById('ask-input').value = query;
+  // Fill the input with the completion text (not the query) for a natural feel
+  const suggestion = autocompleteSuggestions[idx];
+  if (suggestion && suggestion.completion) {
+    document.getElementById('ask-input').value = suggestion.completion;
+  } else {
+    document.getElementById('ask-input').value = query;
+  }
   document.getElementById('exec-autocomplete').classList.remove('active');
   submitAsk(query);
 }

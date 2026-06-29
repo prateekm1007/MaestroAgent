@@ -38,20 +38,30 @@ def client(tmp_path, monkeypatch):
 # ─── Autocomplete ───
 
 def test_autocomplete_returns_suggestions(client):
-    """Autocomplete must return real OEM-derived suggestions, not hardcoded."""
+    """Autocomplete must return real OEM-derived suggestions, not hardcoded.
+
+    The new semantic autocomplete returns rich results with:
+    completion, reason, expected_outcome, confidence, evidence,
+    similar_executions, citations, source_type, source_id, rank_score.
+    """
     resp = client.get("/api/oem/autocomplete?q=who&limit=10")
     assert resp.status_code == 200
     data = resp.json()
     assert "suggestions" in data
     assert isinstance(data["suggestions"], list)
-    # With the seeded OEM, "who" should match at least one capability
-    # ("Who is the bottleneck?")
     assert len(data["suggestions"]) >= 1
     for s in data["suggestions"]:
-        assert "type" in s
-        assert "label" in s
-        assert "query" in s
-        assert s["type"] in ("law", "expert", "risk", "recommendation", "capability")
+        # Rich result structure (not the old label/type format)
+        assert "completion" in s
+        assert "reason" in s
+        assert "expected_outcome" in s
+        assert "confidence" in s
+        assert "evidence" in s
+        assert "similar_executions" in s
+        assert "citations" in s
+        assert "source_type" in s
+        assert "source_id" in s
+        assert "rank_score" in s
 
 
 def test_autocomplete_empty_query(client):
@@ -59,8 +69,8 @@ def test_autocomplete_empty_query(client):
     resp = client.get("/api/oem/autocomplete?q=&limit=20")
     assert resp.status_code == 200
     data = resp.json()
-    # Should surface laws, risks, recommendations, capabilities
-    types = {s["type"] for s in data["suggestions"]}
+    # Should surface multiple source types from the OEM
+    types = {s["source_type"] for s in data["suggestions"]}
     assert len(types) >= 1
 
 
@@ -74,25 +84,26 @@ def test_autocomplete_no_hardcoded_list(client):
       - what hidden experts exist?
       - what are the concentration risks?
 
-    The new endpoint should return suggestions that reference actual law codes
+    The new endpoint returns rich completions that reference actual law codes
     (L-0001, etc.) or actual entity names from the OEM.
     """
     resp = client.get("/api/oem/autocomplete?q=&limit=20")
     data = resp.json()
-    labels = [s["label"] for s in data["suggestions"]]
+    completions = [s["completion"] for s in data["suggestions"]]
     # At least one suggestion should reference a real law code (L-0001 etc.)
-    has_law_ref = any("L-" in label for label in labels)
-    assert has_law_ref, f"No law-code references found in: {labels}"
+    has_law_ref = any("L-" in c for c in completions)
+    assert has_law_ref, f"No law-code references found in: {completions}"
 
 
 def test_autocomplete_we_query_matches_recommendations(client):
-    """Typing 'we' should match 'Should we: ...' recommendations."""
+    """Typing 'we' should match 'We should...' recommendations and laws."""
     resp = client.get("/api/oem/autocomplete?q=we&limit=10")
     data = resp.json()
-    # Should match at least one recommendation (they start with "Should we:")
-    labels = [s["label"].lower() for s in data["suggestions"]]
-    has_we = any("we" in label for label in labels)
-    assert has_we, f"No 'we' matches in: {labels}"
+    # The new engine surfaces "We should..." completions from recommendations
+    # and "We should respect L-XXXX..." from laws
+    completions = [s["completion"].lower() for s in data["suggestions"]]
+    has_we = any("we should" in c for c in completions)
+    assert has_we, f"No 'we should' matches in: {completions}"
 
 
 def test_autocomplete_limit_respected(client):

@@ -236,6 +236,7 @@ class OEMState:
         self._initialized = False
         self._lock = threading.RLock()
         self._live_signals_ingested = 0
+        self._contradiction_log = None  # Set on first contradict() call
 
     def initialize(self) -> None:
         """Build the OEM from real signal data. Idempotent."""

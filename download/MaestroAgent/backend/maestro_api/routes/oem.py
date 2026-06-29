@@ -438,132 +438,62 @@ def get_knowledge() -> dict[str, Any]:
 def autocomplete(
     q: str = Query("", description="Partial query for autocomplete"),
     limit: int = Query(10, ge=1, le=50, description="Max suggestions"),
+    surface: str = Query("", description="Current surface for context-aware ranking"),
+    user: str = Query("", description="Current user email for personalization"),
+    org: str = Query("", description="Current organization ID"),
 ) -> dict[str, Any]:
-    """Backend-driven autocomplete for the Ask the Organization input.
+    """Real semantic Organizational Autocomplete.
 
-    Surfaces real entities from the OEM:
-      - Law codes + statements
-      - Hidden expert names
-      - Bottleneck entities
-      - Domains with concentration risk
-      - Recommendation titles
-      - Common question templates derived from actual OEM capabilities
+    No hardcoded suggestions. Every result is derived from the live OEM
+    state across ALL data sources:
+      - Learning Objects (patterns, experts, bottlenecks, departure risks)
+      - Patterns (detected organizational patterns)
+      - Receipts (signal history)
+      - Laws (induced organizational laws)
+      - Evidence (evidence graph nodes + edges)
+      - Knowledge Graph (hidden experts, concentration risks)
+      - Execution Model (health metrics, approval network)
+      - Recommendations (active decisions)
+      - Context (current surface, user, org)
+      - History (contradiction feedback log — feedback learning)
 
-    No hardcoded suggestions — every result is derived from the live OEM state.
+    Each suggestion includes:
+      - completion: the suggested text
+      - reason: why this is relevant
+      - expected_outcome: what the OEM predicts
+      - confidence: 0.0–1.0 Bayesian confidence
+      - evidence: supporting evidence chain
+      - similar_executions: past similar patterns
+      - citations: law codes, LO ids, receipt ids
+
+    Ranking factors:
+      - Recency (90-day half-life)
+      - Authority (influence / evidence count)
+      - Outcome (validated runtimes ratio)
+      - Feedback learning (agree/reject from contradiction log)
+
+    Typing "We should..." produces completely different results for every
+    company because the underlying data is derived from that company's
+    actual signal history.
     """
-    model = oem_state.model
-    q_lower = q.lower().strip()
-    suggestions: list[dict[str, Any]] = []
+    from maestro_oem.autocomplete import SemanticAutocompleteEngine
 
-    # 1. Laws — surface as "what does law L-0001 say about …"
-    for law in model.laws.values():
-        text = (law.statement + " " + law.condition + " " + law.outcome).lower()
-        if not q_lower or q_lower in text or q_lower in law.code.lower():
-            suggestions.append({
-                "type": "law",
-                "label": f"What does {law.code} say about {law.condition[:60]}?",
-                "query": f"What does {law.code} say?",
-                "metadata": {
-                    "code": law.code,
-                    "confidence": round(law.confidence, 4),
-                    "status": law.status.value if hasattr(law.status, "value") else str(law.status),
-                },
-            })
-            if len(suggestions) >= limit:
-                break
-
-    # 2. Hidden experts — "who knows the most about X?"
-    if len(suggestions) < limit:
-        for expert in model.knowledge.get_hidden_experts():
-            entity = expert.get("entity", "")
-            domains = expert.get("domains", [])
-            domain_str = domains[0] if domains else "this domain"
-            label = f"Who knows the most about {domain_str}?"
-            if not q_lower or q_lower in label.lower() or q_lower in entity.lower() \
-               or any(q_lower in d.lower() for d in domains):
-                suggestions.append({
-                    "type": "expert",
-                    "label": label,
-                    "query": f"Who knows the most about {domain_str}?",
-                    "metadata": {
-                        "entity": entity,
-                        "influence": expert.get("influence", 0),
-                        "domains": domains,
-                    },
-                })
-                if len(suggestions) >= limit:
-                    break
-
-    # 3. Concentration risks — "what are the concentration risks in X?"
-    if len(suggestions) < limit:
-        for domain, score in model.knowledge.get_concentration_risk().items():
-            label = f"What are the concentration risks in {domain}?"
-            if not q_lower or q_lower in label.lower() or q_lower in domain.lower():
-                suggestions.append({
-                    "type": "risk",
-                    "label": label,
-                    "query": f"What are the concentration risks in {domain}?",
-                    "metadata": {"domain": domain, "score": round(score, 2)},
-                })
-                if len(suggestions) >= limit:
-                    break
-
-    # 4. Recommendations — surface the active decisions
-    if len(suggestions) < limit:
-        for rec in oem_state.decisions.get_recommendations():
-            title = rec.title
-            label = f"Should we: {title[:80]}?"
-            if not q_lower or q_lower in label.lower() or q_lower in title.lower():
-                suggestions.append({
-                    "type": "recommendation",
-                    "label": label,
-                    "query": f"Should we {title[:80]}?",
-                    "metadata": {
-                        "urgency": rec.urgency,
-                        "confidence": round(rec.confidence, 4),
-                    },
-                })
-                if len(suggestions) >= limit:
-                    break
-
-    # 5. Capability-derived question templates — derived from what the OEM
-    #    can actually answer (has data for), not hardcoded
-    if len(suggestions) < limit:
-        capabilities: list[str] = []
-        if model.laws:
-            capabilities.append("What laws have been discovered?")
-        if any(l.status.value == "stressed" if hasattr(l.status, "value") else False
-               for l in model.laws.values()):
-            capabilities.append("Which laws are showing drift?")
-        if model.knowledge.get_hidden_experts():
-            capabilities.append("What hidden experts exist?")
-        if model.knowledge.get_concentration_risk():
-            capabilities.append("What are the concentration risks?")
-        if hasattr(model.health, "p1_cluster_risk") and model.health.p1_cluster_risk > 0:
-            capabilities.append("What is the P1 cluster risk?")
-        if any(lo.type.value == "bottleneck" for lo in model.learning_objects.values()):
-            capabilities.append("Who is the bottleneck?")
-        if any(lo.type.value == "departure_risk" for lo in model.learning_objects.values()):
-            capabilities.append("Who is at risk of leaving?")
-        if any(lo.type.value == "duplicate_work" for lo in model.learning_objects.values()):
-            capabilities.append("What duplicate work exists?")
-
-        for cap in capabilities:
-            if not q_lower or q_lower in cap.lower():
-                suggestions.append({
-                    "type": "capability",
-                    "label": cap,
-                    "query": cap,
-                    "metadata": {},
-                })
-                if len(suggestions) >= limit:
-                    break
-
-    return {
-        "query": q,
-        "suggestions": suggestions[:limit],
-        "total": len(suggestions),
+    context = {
+        "surface": surface,
+        "user": user,
+        "org": org,
     }
+
+    engine = SemanticAutocompleteEngine(
+        model=oem_state.model,
+        graph=oem_state.graph,
+        decisions=oem_state.decisions,
+        contradiction_log=getattr(oem_state, "_contradiction_log", None),
+        signals=oem_state.signals,
+    )
+
+    result = engine.suggest(query=q, context=context, limit=limit)
+    return result
 
 
 # ─── 11. GET /api/oem/receipts ────────────────────────────────────────────
@@ -770,7 +700,7 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
     This is the optimistic-update target — the UI can apply the feedback
     locally and the backend confirms or rolls back.
     """
-    from maestro_oem.contradiction import ContradictionEngine, FeedbackAction
+    from maestro_oem.contradiction import ContradictionEngine, FeedbackAction, ContradictionLog
 
     target_type = payload.get("target_type", "law")
     target_id = payload.get("target_id", "")
@@ -792,7 +722,10 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
     }
     action = action_map.get(action_str, FeedbackAction.IGNORE)
 
-    engine = ContradictionEngine(oem_state.model)
+    # Use the shared contradiction log so autocomplete can learn from feedback
+    if oem_state._contradiction_log is None:
+        oem_state._contradiction_log = ContradictionLog()
+    engine = ContradictionEngine(oem_state.model, oem_state._contradiction_log)
     event = engine.apply_feedback(
         target_type=target_type,
         target_id=target_id,
