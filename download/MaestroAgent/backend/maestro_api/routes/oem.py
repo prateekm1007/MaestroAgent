@@ -1404,7 +1404,10 @@ from pathlib import Path as _Path
 
 def _learning_db_path() -> str:
     """Get the learning DB path, ensuring the directory exists."""
-    db_path = _learning_db_path()
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    _Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     return db_path
 
 @router.get("/learning")
