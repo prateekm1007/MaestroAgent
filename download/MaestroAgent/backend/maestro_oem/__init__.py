@@ -21,6 +21,14 @@ from maestro_oem.model import ExecutionModel, ModelDelta
 from maestro_oem.engine import OEMEngine
 from maestro_oem.decision import DecisionEngine, Recommendation
 from maestro_oem.confidence import ConfidenceCalculator
+from maestro_oem.evidence_graph import (
+    EvidenceGraph,
+    EvidenceNode,
+    EvidenceEdge,
+    EvidenceEdgeType,
+    EvidenceNodeType,
+    EvidenceChain,
+)
 
 __all__ = [
     "ExecutionSignal",
@@ -41,6 +49,12 @@ __all__ = [
     "DecisionEngine",
     "Recommendation",
     "ConfidenceCalculator",
+    "EvidenceGraph",
+    "EvidenceNode",
+    "EvidenceEdge",
+    "EvidenceEdgeType",
+    "EvidenceNodeType",
+    "EvidenceChain",
 ]
 
 __version__ = "0.1.0"

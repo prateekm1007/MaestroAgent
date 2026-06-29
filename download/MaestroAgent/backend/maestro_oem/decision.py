@@ -31,6 +31,11 @@ class Recommendation(BaseModel):
     linked_laws: list[str] = Field(default_factory=list)
     impact: str = ""  # Business impact description
     urgency: str = "normal"  # "urgent", "normal", "low"
+    # Evidence graph fields
+    evidence_chain: dict[str, Any] | None = None  # Full traversable chain
+    supporting_artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    contradicting_artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_strength: float = 0.0  # 0..1, computed from graph traversal
 
 
 class DecisionEngine:
@@ -39,10 +44,17 @@ class DecisionEngine:
 
     The engine reads the model's state and produces actionable
     recommendations. Every recommendation traces back to evidence.
+
+    When an EvidenceGraph is provided, recommendations include:
+    - Full evidence chain (traversable)
+    - Supporting artifacts
+    - Contradicting artifacts
+    - Evidence strength (0..1)
     """
 
-    def __init__(self, model: ExecutionModel) -> None:
+    def __init__(self, model: ExecutionModel, evidence_graph: Any = None) -> None:
         self.model = model
+        self.evidence_graph = evidence_graph
 
     def get_recommendations(self) -> list[Recommendation]:
         """Get all active recommendations."""
@@ -63,7 +75,30 @@ class DecisionEngine:
         # 5. Departure risk recommendations
         recs.extend(self._departure_risk_recommendations())
 
+        # Enrich with evidence chains if graph is available
+        if self.evidence_graph:
+            for rec in recs:
+                self._enrich_with_evidence(rec)
+
         return recs
+
+    def _enrich_with_evidence(self, rec: Recommendation) -> None:
+        """Attach evidence chain, supporting/contradicting artifacts, and strength."""
+        rec_node_id = f"rec:{rec.rec_id}"
+        chain = self.evidence_graph.traverse(rec_node_id)
+
+        # If rec node not in graph, try traversing from linked laws
+        if not chain.nodes and rec.linked_laws:
+            for law_code in rec.linked_laws:
+                law_chain = self.evidence_graph.traverse(f"law:{law_code}")
+                if law_chain.nodes:
+                    chain = law_chain
+                    break
+
+        rec.evidence_chain = chain.to_display()
+        rec.supporting_artifacts = chain.supporting_artifacts
+        rec.contradicting_artifacts = chain.contradicting_artifacts
+        rec.evidence_strength = chain.strength
 
     def _bottleneck_recommendations(self) -> list[Recommendation]:
         recs: list[Recommendation] = []
