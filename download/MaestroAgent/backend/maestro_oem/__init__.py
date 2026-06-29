@@ -44,6 +44,16 @@ from maestro_oem.replay import (
 )
 from maestro_oem.persistence import OEMStore, PersistentOEM
 from maestro_oem.dependency import DependencyGraph, DependencyManager, DependencyImpact
+from maestro_oem.multiuser import (
+    SharedOEM,
+    UserSession,
+    UserRole,
+    SyncEvent,
+    SyncEventType,
+    OptimisticUpdate,
+    SharedDecision,
+    ConflictResolution,
+)
 
 __all__ = [
     "ExecutionSignal",
@@ -84,6 +94,14 @@ __all__ = [
     "DependencyGraph",
     "DependencyManager",
     "DependencyImpact",
+    "SharedOEM",
+    "UserSession",
+    "UserRole",
+    "SyncEvent",
+    "SyncEventType",
+    "OptimisticUpdate",
+    "SharedDecision",
+    "ConflictResolution",
 ]
 
 __version__ = "0.1.0"
