@@ -35,6 +35,13 @@ from maestro_oem.contradiction import (
     ContradictionLog,
     FeedbackAction,
 )
+from maestro_oem.replay import (
+    HistoricalReplay,
+    HistoricalPrediction,
+    PredictionOutcome,
+    ReplayMetrics,
+    ReplayResult,
+)
 
 __all__ = [
     "ExecutionSignal",
@@ -65,6 +72,11 @@ __all__ = [
     "ContradictionEvent",
     "ContradictionLog",
     "FeedbackAction",
+    "HistoricalReplay",
+    "HistoricalPrediction",
+    "PredictionOutcome",
+    "ReplayMetrics",
+    "ReplayResult",
 ]
 
 __version__ = "0.1.0"
