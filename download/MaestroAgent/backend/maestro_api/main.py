@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status
+from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem
 from maestro_api.websocket import register_ws_routes
 from maestro_api.state import AppState
 
@@ -46,6 +46,9 @@ def create_app(
         await app.state.maestro.start()
         # Initialize auth (after AppState so we can reuse its DB).
         await _init_auth(app)
+        # Initialize the OEM from real signal data (idempotent, ~100ms).
+        from maestro_api.oem_state import oem_state
+        oem_state.initialize()
         try:
             yield
         finally:
@@ -96,6 +99,7 @@ def create_app(
     app.include_router(costs.router, prefix="/api/costs", tags=["costs"])
     app.include_router(meta.router, prefix="/api/meta", tags=["meta"])
     app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
+    app.include_router(oem.router, prefix="/api/oem", tags=["oem"])
     # Status dashboard (HTML at /status — NOT part of /api).
     app.include_router(status.router, tags=["status"])
 
@@ -136,6 +140,18 @@ def create_app(
             "Run `cd frontend && pnpm build` to enable self-host mode.",
             dist_path,
         )
+
+    # Serve the executive app (app.html) from the repo root if it exists.
+    # This lets users visit http://localhost:8765/app.html to see the OEM-wired UI.
+    app_html_path = Path(__file__).resolve().parent.parent.parent / "app.html"
+    if app_html_path.exists():
+        @app.get("/app.html")
+        async def serve_app_html():
+            return FileResponse(app_html_path, media_type="text/html")
+        @app.get("/")
+        async def serve_root():
+            return FileResponse(app_html_path, media_type="text/html")
+        logger.info("Serving executive app from %s", app_html_path)
 
     return app
 

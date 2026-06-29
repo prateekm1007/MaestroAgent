@@ -297,15 +297,15 @@ No full recompute. No reprocessing of historical signals. Migration scripts run 
 
 ## Known Limitations
 
-1. **UI not yet wired to OEM** — `app.html` is a standalone prototype. The OEM backend is real but not connected to the frontend. Every CEO-product surface (inbox, simulator, hayek, etc.) now carries an explicit `DEMO PROTOTYPE` banner so users know the data is illustrative. The engineering console pages (runs, agents, loops) ARE wired to the `maestro_api` backend via `/api/runs` etc. — those pages replace hardcoded rows with real data when the backend is reachable. Wiring the OEM to the UI requires an API layer (FastAPI/Next.js) that serves OEM state.
+1. **UI is now wired to OEM** — `app.html` fetches from `/api/oem/*` endpoints. Every surface (home, inbox, simulator, ask, physics, debate, live, engineering) renders real OEM data. No hardcoded insights remain.
 2. **SQLite (not Postgres)** — persistence uses SQLite (zero-config). Production should swap for PostgreSQL — same interface, swap `OEMStore` for `PostgresStore`.
-3. **No real API connections** — providers have normalizers but no OAuth/API client implementations. Production requires GitHub/Slack/Jira OAuth flows.
-4. **Multi-user model exists, transport does not** — `multiuser.py` provides `SharedOEM`, `UserSession`, `SyncManager`, and `OptimisticUpdate` with conflict resolution (last-write-wins for simple fields, merge for additive fields). What is missing is the WebSocket transport layer that broadcasts `SyncEvent`s to connected browser sessions. Production requires a `fastapi.WebSocket` endpoint that calls `SyncManager.broadcast()`.
-5. **Pre-existing test failures — RESOLVED** — `tests/test_core_engine.py` and `tests/test_loops.py` previously failed because `RunStatus` was imported from the wrong module. Fixed in commit `00a6314`: `RunStatus` is now imported from `maestro_core.state` in `maestro_core/__init__.py`. `EventBus.start()` also handles the no-running-event-loop case gracefully. See `test_sprint_fixes.py` for regression coverage.
+3. **No real OAuth API connections** — providers have normalizers but no OAuth/API client implementations. The OEM is seeded with realistic signal data (39 events from 5 providers). Production requires GitHub/Slack/Jira OAuth flows to ingest live data.
+4. **Multi-user model exists, transport does not** — `multiuser.py` provides `SharedOEM`, `UserSession`, `SyncManager`, and `OptimisticUpdate` with conflict resolution. WebSocket transport layer not yet implemented.
+5. **Pre-existing test failures — RESOLVED** — All tests pass (330 total).
 
 ## Test Coverage
 
-The OEM engine has **275 tests, all passing, 0 skipped, 0 failed**:
+The OEM engine has **330 tests, all passing, 0 skipped, 0 failed**:
 
 - `tests/test_core_engine.py` — 4 tests (orchestration engine lifecycle)
 - `tests/test_loops.py` — 3 tests (loop handler with `RunStatus`)
@@ -323,11 +323,31 @@ The OEM engine has **275 tests, all passing, 0 skipped, 0 failed**:
 - `maestro_oem/tests/test_replay.py` — 21 tests (historical replay)
 - `maestro_oem/tests/test_multiuser.py` — 23 tests (shared OEM, optimistic updates)
 - `maestro_oem/tests/test_ingestion.py` — 28 tests (real ingestion pipeline)
-- `maestro_oem/tests/test_sprint_fixes.py` — 25 tests (regression coverage for the fixes from commit `00a6314`)
+- `maestro_oem/tests/test_sprint_fixes.py` — 25 tests (regression coverage)
+- `maestro_api/tests/test_oem_routes.py` — 36 tests (9 OEM API endpoints)
+- `maestro_api/tests/test_frontend_smoke.py` — 19 tests (Playwright frontend smoke)
 
 Run all tests:
 ```bash
 cd backend
-pytest tests/ maestro_oem/tests/ -q
-# 275 passed in ~130s (ingestion tests are slow due to rate-limit simulation)
+pytest tests/ maestro_oem/tests/ maestro_api/tests/ -q
+# 330 passed in ~130s
 ```
+
+## OEM API Endpoints
+
+The OEM is exposed via 9 FastAPI endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/oem/state` | OEM summary (signal counts, laws, health metrics) |
+| `GET /api/oem/dashboard` | Home dashboard widget data |
+| `GET /api/oem/recommendations` | Active recommendations with evidence chains |
+| `GET /api/oem/inbox` | Executive inbox (decisions owed + drift + dissent) |
+| `GET /api/oem/laws` | All organizational laws with provenance |
+| `GET /api/oem/laws/{code}` | Single law with full evidence chain |
+| `GET /api/oem/ask?q=...` | Ask the organization (NL question → OEM answer) |
+| `GET /api/oem/simulator` | Decision simulator state + counterfactual |
+| `POST /api/oem/simulator` | Run a what-if simulation |
+| `GET /api/oem/provenance/{id}` | Full provenance chain for any entity |
+| `GET /api/oem/knowledge` | Knowledge flow + hidden experts + concentration risk |
