@@ -221,23 +221,29 @@ def get_recommendations(urgency: str | None = Query(None)) -> dict[str, Any]:
 # ─── 4. GET /api/oem/inbox ─────────────────────────────────────────────────
 
 @router.get("/inbox")
-def get_inbox() -> dict[str, Any]:
-    """Executive inbox — decisions owed, drift, dissent."""
+def get_inbox(
+    limit: int = Query(50, ge=1, le=200, description="Max items per category"),
+) -> dict[str, Any]:
+    """Executive inbox — decisions owed, drift, dissent.
+
+    Paginated: each category is capped at `limit` items (default 50).
+    At 100k employees, the inbox could have hundreds of items per category.
+    """
     model = oem_state.model
     recs = oem_state.decisions.get_recommendations()
 
     # Decisions owed = urgent recommendations
-    decisions_owed = [_rec_to_dict(r) for r in recs if r.urgency == "urgent"]
+    decisions_owed = [_rec_to_dict(r) for r in recs if r.urgency == "urgent"][:limit]
     # Decisions needing attention (normal urgency)
-    decisions_attention = [_rec_to_dict(r) for r in recs if r.urgency == "normal"]
+    decisions_attention = [_rec_to_dict(r) for r in recs if r.urgency == "normal"][:limit]
 
     # Drift = laws with drift_detected or stressed status
     drift_laws = [_law_to_dict(l) for l in model.laws.values()
-                  if l.drift_detected or l.status.value == "stressed"]
+                  if l.drift_detected or l.status.value == "stressed"][:limit]
 
     # Dissent = laws unknown to leadership (the org knows something the CEO doesn't)
     dissent = [_law_to_dict(l) for l in model.laws.values()
-               if l.status.value == "unknown_to_leadership"]
+               if l.status.value == "unknown_to_leadership"][:limit]
 
     return {
         "decisions_owed": decisions_owed,
@@ -256,15 +262,30 @@ def get_inbox() -> dict[str, Any]:
 # ─── 5. GET /api/oem/laws ──────────────────────────────────────────────────
 
 @router.get("/laws")
-def get_laws(status: str | None = Query(None)) -> dict[str, Any]:
-    """All organizational laws with provenance and evidence chains."""
+def get_laws(
+    status: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200, description="Max laws to return"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+) -> dict[str, Any]:
+    """All organizational laws with provenance and evidence chains.
+
+    Paginated: default limit=50, max limit=200. Use offset for pagination.
+    At 10M signals, thousands of laws may exist — unbounded queries would
+    produce multi-MB responses and multi-second frontend renders.
+    """
     model = oem_state.model
     laws = list(model.laws.values())
     if status:
         laws = [l for l in laws if l.status.value == status]
+    total = len(laws)
+    # Apply pagination
+    paginated = laws[offset:offset + limit]
     return {
-        "laws": [_law_to_dict(l) for l in laws],
-        "total": len(laws),
+        "laws": [_law_to_dict(l) for l in paginated],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < total,
         "by_status": {
             s: sum(1 for l in laws if l.status.value == s)
             for s in {"candidate", "validated", "stressed", "invalidated", "unknown_to_leadership"}
@@ -383,11 +404,16 @@ def get_provenance(entity_id: str) -> dict[str, Any]:
 # ─── 9. GET /api/oem/knowledge ─────────────────────────────────────────────
 
 @router.get("/knowledge")
-def get_knowledge() -> dict[str, Any]:
-    """Knowledge flow — hidden experts, concentration risk, knowledge death."""
+def get_knowledge(
+    limit: int = Query(50, ge=1, le=200, description="Max items per category"),
+) -> dict[str, Any]:
+    """Knowledge flow — hidden experts, concentration risk, knowledge death.
+
+    Paginated: each category is capped at `limit` items (default 50).
+    """
     model = oem_state.model
-    experts = model.knowledge.get_hidden_experts()
-    risks = model.knowledge.get_concentration_risk()
+    experts = model.knowledge.get_hidden_experts()[:limit]
+    risks = dict(list(model.knowledge.get_concentration_risk().items())[:limit])
     # Knowledge death = LOs of type knowledge_death
     knowledge_death = [
         {
