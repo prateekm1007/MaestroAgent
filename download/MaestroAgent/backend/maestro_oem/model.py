@@ -675,8 +675,20 @@ class ExecutionModel(BaseModel):
             text = signal.metadata.get("text", "").lower()
             departure_keywords = ["leaving", "resign", "quit", "new job", "new opportunity", "offer"]
             if any(w in text for w in departure_keywords):
-                self.risks.add_departure_risk(signal.actor, 0.71)
-                delta.risk_changes["departure_risk"] = {"entity": signal.actor, "probability": 0.71}
+                # Compute departure risk from evidence, not hardcoded 0.71
+                from maestro_oem.confidence import ConfidenceCalculator
+                risk_expl = ConfidenceCalculator.compute_risk_probability(
+                    signal_count=1,
+                    contradiction_count=0,
+                    providers={"slack"},
+                    last_signal=signal.timestamp,
+                )
+                self.risks.add_departure_risk(signal.actor, risk_expl.value)
+                delta.risk_changes["departure_risk"] = {
+                    "entity": signal.actor,
+                    "probability": risk_expl.value,
+                    "formula": risk_expl.formula,
+                }
 
     def _add_receipt(
         self,
