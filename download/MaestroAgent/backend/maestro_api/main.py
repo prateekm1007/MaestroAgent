@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports
+from maestro_auth.routes import router as enterprise_auth_router, scim_router as scim_router_v2
 from maestro_api.websocket import register_ws_routes
 from maestro_api.state import AppState
 
@@ -51,6 +52,25 @@ def create_app(
         oem_state.initialize()
         # Initialize the import pipeline (Checkpoints, OAuth, Connections).
         import_state.ensure_initialized()
+        # Initialize enterprise auth (users, sessions, RBAC, OIDC, SAML, SCIM).
+        from maestro_auth.models import AuthStore
+        from maestro_auth.permissions import init_auth
+        import os as _os
+        _auth_db_dir = Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent
+        _auth_db_dir.mkdir(parents=True, exist_ok=True)
+        auth_db = _os.environ.get("MAESTRO_AUTH_DB", str(_auth_db_dir / "auth.db"))
+        _auth_store = AuthStore(auth_db)
+        init_auth(_auth_store)
+        # Seed a default admin user if no users exist (dev convenience).
+        if not _auth_store.list_users(limit=1):
+            admin = _auth_store.create_user(
+                email="admin@maestro.local",
+                display_name="Default Admin",
+                password=_os.environ.get("MAESTRO_ADMIN_PASSWORD", "changeme-now"),
+                is_admin=True,
+            )
+            _auth_store.assign_role(admin["id"], "admin")
+            logger.info("Seeded default admin user (admin@maestro.local) — change the password!")
         # Resume any incomplete jobs from before the restart.
         try:
             assert import_state.engine is not None
@@ -98,7 +118,12 @@ def create_app(
         logger.info("Auth disabled (local dev mode). Set MAESTRO_AUTH_ENABLED=true to enable.")
 
     # Register API routes.
+    # Enterprise auth router registered FIRST so its /api/auth/login takes
+    # precedence over the legacy auth.router (which is kept for backward
+    # compatibility with API-key status endpoints).
+    app.include_router(enterprise_auth_router, tags=["enterprise-auth", "oidc", "saml", "scim", "mfa", "rbac"])
     app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+    app.include_router(scim_router_v2, tags=["scim"])
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(runs.router, prefix="/api/runs", tags=["runs"])
     app.include_router(live.router, prefix="/api/runs", tags=["live"])
@@ -168,11 +193,16 @@ def create_app(
 
 
 async def _init_auth(app: FastAPI) -> None:
-    """Initialize auth subsystem and inject middleware that needs the store."""
+    """Initialize auth subsystem and inject middleware that needs the store.
+
+    Note: The new enterprise auth system (maestro_auth.models + permissions + routes)
+    is initialized separately in the lifespan and does NOT use middleware-based auth.
+    This function only runs for the legacy API-key flow when MAESTRO_AUTH_ENABLED
+    is NOT set (backward compatibility).
+    """
     from maestro_auth.config import AuthConfig
     from maestro_auth.api_keys import SQLiteApiKeyStore, ensure_default_key
     from maestro_auth.oauth import make_provider
-    from maestro_auth.middleware import AuthMiddleware
 
     state: AppState = app.state.maestro
     config = AuthConfig.from_env()
@@ -181,22 +211,16 @@ async def _init_auth(app: FastAPI) -> None:
     if config.enabled:
         state.api_key_store = SQLiteApiKeyStore(db_path=state.db_path)
         state.oauth_provider = make_provider(config)
-        # Ensure a default key exists (auto-generate if none configured).
         key = await ensure_default_key(state.api_key_store, state.db_path)
         if key and not os.environ.get("MAESTRO_API_KEY"):
             logger.warning(
                 "Generated API key (saved to keyring + %s/api_key.txt): %s...",
                 Path(state.db_path).parent, key[:12],
             )
-        # Wire the key_store + oauth_provider into the AuthMiddleware.
-        # We use the app's user_middleware list to find the AuthMiddleware
-        # we haven't added yet (it needs the store), then add it.
-        app.add_middleware(
-            AuthMiddleware,
-            config=config,
-            key_store=state.api_key_store,
-            oauth_provider=state.oauth_provider,
-        )
+        # Note: We do NOT add AuthMiddleware here because it can't be added after
+        # the app starts (TestClient constraint). The enterprise auth system uses
+        # FastAPI dependencies (require_user, require_permission) instead of middleware.
+        # The middleware was already added in create_app() above if config.enabled.
     else:
         state.api_key_store = None
         state.oauth_provider = None
