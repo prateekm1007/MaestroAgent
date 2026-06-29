@@ -239,7 +239,7 @@ if contra.shouldsuppress_law("L-TEST"):
 ## Test Results
 
 ```
-105 passed, 3 skipped in 0.96s
+170 passed, 3 skipped in 1.29s
 ```
 
 | Suite | Tests | Result |
@@ -250,13 +250,55 @@ if contra.shouldsuppress_law("L-TEST"):
 | `test_evidence_graph_edge_cases.py` (graph edge cases) | 8 | ✓ |
 | `test_contradiction.py` (contradiction learning) | 20 | ✓ |
 | `test_contradiction_edge_cases.py` (contradiction edge cases) | 12 | ✓ |
+| `test_confidence_refactored.py` (Bayesian confidence) | 19 | ✓ |
+| `test_replay.py` (historical replay) | 21 | ✓ |
+| `test_persistence.py` (persistence) | 17 | ✓ |
+| `test_persistence_edge_cases.py` (persistence edge cases) | 8 | ✓ |
 | `tests/test_memory.py` (regression) | 3 | ✓ |
-| **Total** | **105** | **✓ All pass** |
+| **Total** | **170** | **✓ All pass** |
+
+## Persistence
+
+The OEM survives restart. All state persists to SQLite.
+
+### What Persists
+
+| Component | Table |
+|---|---|
+| Model state (health, knowledge, approvals, risks) | `model_state` |
+| LearningObjects | `learning_objects` |
+| Patterns | `patterns` |
+| Laws | `laws` |
+| Receipts | `receipts` |
+| ReceiptChains | `receipt_chains` |
+| Processed signal IDs | `processed_signals` |
+| Contradiction events | `contradiction_events` (append-only) |
+| Raw signals | `signals` (for replay) |
+
+### Cold Boot
+
+```python
+from maestro_oem import PersistentOEM
+
+# First run
+persistent = PersistentOEM(db_path="maestro.db")
+persistent.ingest(signals)
+persistent.close()
+
+# Restart — cold boot reconstructs everything
+persistent = PersistentOEM(db_path="maestro.db")
+model = persistent.get_model()  # Fully restored — no reprocessing
+
+# Continue with new signals (incremental)
+persistent.ingest(new_signals)
+```
+
+No full recompute. No reprocessing of historical signals. Migration scripts run automatically on startup (`CREATE TABLE IF NOT EXISTS` + `schema_version` tracking).
 
 ## Known Limitations
 
 1. **UI not yet wired to OEM** — `app.html` is a standalone prototype with hardcoded data. The OEM backend is real but not connected to the frontend. Wiring requires an API layer (FastAPI/Next.js) that serves OEM state to the UI.
-2. **No persistence** — the OEM lives in memory. Page refresh resets state. Production requires PostgreSQL (schema exists in `v6-production/prisma/schema.prisma`).
+2. **SQLite (not Postgres)** — persistence uses SQLite (zero-config). Production should swap for PostgreSQL — same interface, swap `OEMStore` for `PostgresStore`.
 3. **No real API connections** — providers have normalizers but no OAuth/API client implementations. Production requires GitHub/Slack/Jira OAuth flows.
 4. **No multi-user** — single-engine, single-model. Production requires per-org engine instances with Redis pub/sub.
 5. **Pre-existing test failures** — `tests/test_core_engine.py` and `tests/test_loops.py` have a pre-existing import error (`RunStatus` not defined in `maestro_core.context.py`). This is unrelated to the OEM work.
