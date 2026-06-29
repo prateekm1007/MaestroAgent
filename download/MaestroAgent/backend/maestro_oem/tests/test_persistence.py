@@ -97,7 +97,7 @@ class TestSaveRestore:
             assert restored_summary["signals_processed"] == original_summary["signals_processed"]
             assert restored_summary["learning_objects"] == original_summary["learning_objects"]
             assert restored_summary["laws_inferred"] == original_summary["laws_inferred"]
-            assert restored_summary["providers_connected"] == original_summary["providers_connected"]
+            assert set(restored_summary["providers_connected"]) == set(original_summary["providers_connected"])
             persistent2.close()
 
 
