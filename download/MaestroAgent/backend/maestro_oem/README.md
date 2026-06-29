@@ -297,8 +297,37 @@ No full recompute. No reprocessing of historical signals. Migration scripts run 
 
 ## Known Limitations
 
-1. **UI not yet wired to OEM** — `app.html` is a standalone prototype with hardcoded data. The OEM backend is real but not connected to the frontend. Wiring requires an API layer (FastAPI/Next.js) that serves OEM state to the UI.
+1. **UI not yet wired to OEM** — `app.html` is a standalone prototype. The OEM backend is real but not connected to the frontend. Every CEO-product surface (inbox, simulator, hayek, etc.) now carries an explicit `DEMO PROTOTYPE` banner so users know the data is illustrative. The engineering console pages (runs, agents, loops) ARE wired to the `maestro_api` backend via `/api/runs` etc. — those pages replace hardcoded rows with real data when the backend is reachable. Wiring the OEM to the UI requires an API layer (FastAPI/Next.js) that serves OEM state.
 2. **SQLite (not Postgres)** — persistence uses SQLite (zero-config). Production should swap for PostgreSQL — same interface, swap `OEMStore` for `PostgresStore`.
 3. **No real API connections** — providers have normalizers but no OAuth/API client implementations. Production requires GitHub/Slack/Jira OAuth flows.
-4. **No multi-user** — single-engine, single-model. Production requires per-org engine instances with Redis pub/sub.
-5. **Pre-existing test failures** — `tests/test_core_engine.py` and `tests/test_loops.py` have a pre-existing import error (`RunStatus` not defined in `maestro_core.context.py`). This is unrelated to the OEM work.
+4. **Multi-user model exists, transport does not** — `multiuser.py` provides `SharedOEM`, `UserSession`, `SyncManager`, and `OptimisticUpdate` with conflict resolution (last-write-wins for simple fields, merge for additive fields). What is missing is the WebSocket transport layer that broadcasts `SyncEvent`s to connected browser sessions. Production requires a `fastapi.WebSocket` endpoint that calls `SyncManager.broadcast()`.
+5. **Pre-existing test failures — RESOLVED** — `tests/test_core_engine.py` and `tests/test_loops.py` previously failed because `RunStatus` was imported from the wrong module. Fixed in commit `00a6314`: `RunStatus` is now imported from `maestro_core.state` in `maestro_core/__init__.py`. `EventBus.start()` also handles the no-running-event-loop case gracefully. See `test_sprint_fixes.py` for regression coverage.
+
+## Test Coverage
+
+The OEM engine has **275 tests, all passing, 0 skipped, 0 failed**:
+
+- `tests/test_core_engine.py` — 4 tests (orchestration engine lifecycle)
+- `tests/test_loops.py` — 3 tests (loop handler with `RunStatus`)
+- `tests/test_memory.py` — 3 tests (memory graph)
+- `maestro_oem/tests/test_oem.py` — 34 tests (end-to-end OEM signal flow)
+- `maestro_oem/tests/test_oem_edge_cases.py` — 13 tests (edge cases)
+- `maestro_oem/tests/test_confidence_refactored.py` — 19 tests (Bayesian confidence)
+- `maestro_oem/tests/test_contradiction.py` — 20 tests (CEO contradiction feedback)
+- `maestro_oem/tests/test_contradiction_edge_cases.py` — 12 tests
+- `maestro_oem/tests/test_evidence_graph.py` — 18 tests (traversable evidence chains)
+- `maestro_oem/tests/test_evidence_graph_edge_cases.py` — 8 tests
+- `maestro_oem/tests/test_dependency.py` — 19 tests (provider disconnection)
+- `maestro_oem/tests/test_persistence.py` — 17 tests (SQLite cold boot)
+- `maestro_oem/tests/test_persistence_edge_cases.py` — 8 tests
+- `maestro_oem/tests/test_replay.py` — 21 tests (historical replay)
+- `maestro_oem/tests/test_multiuser.py` — 23 tests (shared OEM, optimistic updates)
+- `maestro_oem/tests/test_ingestion.py` — 28 tests (real ingestion pipeline)
+- `maestro_oem/tests/test_sprint_fixes.py` — 25 tests (regression coverage for the fixes from commit `00a6314`)
+
+Run all tests:
+```bash
+cd backend
+pytest tests/ maestro_oem/tests/ -q
+# 275 passed in ~130s (ingestion tests are slow due to rate-limit simulation)
+```
