@@ -25,6 +25,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("maestro_api.oem_state._IMPORT_DB_PATH", test_db)
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test-admin-pass")
+    monkeypatch.setenv("MAESTRO_APP_DIR", "/home/z/my-project/MaestroAgent/download/MaestroAgent")
 
     import_state._initialized = False
     import_state.store = None
@@ -188,10 +189,10 @@ class TestHomepageCEOUX:
 
     def test_homepage_one_thing_has_investigate_button(self, client):
         """The 'one thing' section should have an 'Investigate this' button."""
-        resp = client.get("/app.html")
-        html = resp.text
-        # The renderDrilldownTab function should exist
-        assert "openDrilldown" in html
+        # Check the external JS file (openDrilldown is defined there now)
+        js_resp = client.get("/static/app.js")
+        js = js_resp.text if js_resp.status_code == 200 else ""
+        assert "openDrilldown" in js, "openDrilldown not found in JS"
 
     def test_homepage_every_section_has_loading_state(self, client):
         """Every CEO question panel should have a loading state (no blank waits)."""
@@ -206,11 +207,13 @@ class TestHomepageCEOUX:
 
     def test_homepage_every_card_is_clickable(self, client):
         """Every card in the CEO briefing must be clickable (no dead-ends)."""
-        resp = client.get("/app.html")
-        html = resp.text
-        # The loadDashboard function must use openDrilldown for all cards
-        assert "openDrilldown" in html
-        assert "cursor-pointer" in html
+        # Check both app.html and the external JS file
+        html = client.get("/app.html").text
+        js_resp = client.get("/static/app.js")
+        js = js_resp.text if js_resp.status_code == 200 else ""
+        combined = html + "\n" + js
+        assert "openDrilldown" in combined
+        assert "cursor-pointer" in combined
 
 
 # ═══════════════════════════════════════════════════════════════════════════

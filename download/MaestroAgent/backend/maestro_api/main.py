@@ -187,6 +187,22 @@ def create_app(
 
         logger.info("Serving PWA bundle from %s", dist_path)
     else:
+        # Serve static assets (compiled CSS, JS) from the app directory.
+        app_static_dir = Path(os.environ.get("MAESTRO_APP_DIR", ".")).resolve() / "static"
+        if app_static_dir.exists():
+            app.mount("/static", StaticFiles(directory=app_static_dir), name="static")
+            logger.info("Serving static assets from %s", app_static_dir)
+
+        # Serve app.html at root if it exists.
+        app_html = Path(os.environ.get("MAESTRO_APP_DIR", ".")).resolve() / "app.html"
+        if app_html.exists():
+            @app.get("/")
+            async def serve_app():
+                return FileResponse(app_html)
+
+            @app.get("/app.html")
+            async def serve_app_html():
+                return FileResponse(app_html)
         logger.info(
             "Frontend dist not found at %s — API-only mode. "
             "Run `cd frontend && pnpm build` to enable self-host mode.",

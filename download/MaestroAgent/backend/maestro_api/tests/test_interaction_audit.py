@@ -32,10 +32,13 @@ from maestro_api.oem_state import oem_state, import_state
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    """Test client with auth + static file serving enabled."""
     test_db = str(tmp_path / "test_import.db")
     monkeypatch.setattr("maestro_api.oem_state._IMPORT_DB_PATH", test_db)
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test-admin-pass")
+    # Point to the app directory so /static/app.js is served
+    monkeypatch.setenv("MAESTRO_APP_DIR", "/home/z/my-project/MaestroAgent/download/MaestroAgent")
 
     import_state._initialized = False
     import_state.store = None
@@ -57,12 +60,19 @@ def client(tmp_path, monkeypatch):
 class TestNoDeadCards:
     """Verify no card in app.html is a dead-end."""
 
+    @staticmethod
+    def _get_all_js(client):
+        """Get app.html + external JS combined (JS is now in /static/app.js)."""
+        html = client.get("/app.html").text
+        # Also fetch the external JS file
+        js_resp = client.get("/static/app.js")
+        js = js_resp.text if js_resp.status_code == 200 else ""
+        return html + "\n" + js
+
     def test_metric_tiles_are_clickable(self, client):
         """All 6 metric tiles on Home must have the metric-clickable class."""
-        resp = client.get("/app.html")
-        html = resp.text
-        # Count metric-clickable occurrences
-        assert html.count("metric-clickable") >= 6, "Not all metrics are clickable"
+        combined = self._get_all_js(client)
+        assert combined.count("metric-clickable") >= 6, "Not all metrics are clickable"
 
     def test_drilldown_modal_exists(self, client):
         """The drill-down modal must exist in the HTML."""
@@ -80,40 +90,28 @@ class TestNoDeadCards:
 
     def test_openDrilldown_function_exists(self, client):
         """The openDrilldown function must be defined."""
-        resp = client.get("/app.html")
-        html = resp.text
-        assert "function openDrilldown" in html or "openDrilldown = " in html
+        combined = self._get_all_js(client)
+        assert "function openDrilldown" in combined or "openDrilldown = " in combined
 
     def test_closeDrilldown_function_exists(self, client):
         """The closeDrilldown function must be defined."""
-        resp = client.get("/app.html")
-        html = resp.text
-        assert "function closeDrilldown" in html
+        combined = TestNoDeadCards._get_all_js(client)
+        assert "function closeDrilldown" in combined
 
     def test_every_card_has_onclick(self, client):
         """Every card div must have an onclick handler (no dead cards)."""
-        resp = client.get("/app.html")
-        html = resp.text
-        # Find all 'class="card' occurrences and check they have onclick
-        # This is a heuristic check — we look for card divs without onclick
-        import re
-        card_count = html.count('class="card')
-        cards_with_onclick = html.count('class="card')  # Most have onclick now
-        # At least 80% of cards should have onclick or cursor-pointer
-        assert 'cursor-pointer' in html, "No clickable cards found"
+        combined = TestNoDeadCards._get_all_js(client)
+        assert 'cursor-pointer' in combined, "No clickable cards found"
 
     def test_no_navTo_on_cards(self, client):
         """Cards should use openDrilldown, not generic navTo (which dead-ends)."""
-        resp = client.get("/app.html")
-        html = resp.text
-        # Count navTo calls in card contexts (should be minimal)
-        # The renderRecCard and renderLawCard should use openDrilldown
-        assert "openDrilldown('law'" in html, "Law cards don't use openDrilldown"
-        assert "openDrilldown('recommendation'" in html, "Rec cards don't use openDrilldown"
-        assert "openDrilldown('expert'" in html, "Expert cards don't use openDrilldown"
-        assert "openDrilldown('risk'" in html, "Risk cards don't use openDrilldown"
-        assert "openDrilldown('metric'" in html, "Metric tiles don't use openDrilldown"
-        assert "openDrilldown('signal'" in html, "Audit receipts don't use openDrilldown"
+        combined = TestNoDeadCards._get_all_js(client)
+        assert "openDrilldown('law'" in combined, "Law cards don't use openDrilldown"
+        assert "openDrilldown('recommendation'" in combined, "Rec cards don't use openDrilldown"
+        assert "openDrilldown('expert'" in combined, "Expert cards don't use openDrilldown"
+        assert "openDrilldown('risk'" in combined, "Risk cards don't use openDrilldown"
+        assert "openDrilldown('metric'" in combined, "Metric tiles don't use openDrilldown"
+        assert "openDrilldown('signal'" in combined, "Audit receipts don't use openDrilldown"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

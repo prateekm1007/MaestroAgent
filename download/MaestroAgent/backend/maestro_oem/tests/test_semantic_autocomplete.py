@@ -33,6 +33,7 @@ def client(tmp_path, monkeypatch):
     """Test client with isolated import_state DB."""
     test_db = str(tmp_path / "test_import.db")
     monkeypatch.setattr("maestro_api.oem_state._IMPORT_DB_PATH", test_db)
+    monkeypatch.setenv("MAESTRO_APP_DIR", "/home/z/my-project/MaestroAgent/download/MaestroAgent")
     import_state._initialized = False
     import_state.store = None
     import_state.oauth = None
@@ -441,34 +442,42 @@ def test_api_autocomplete_no_hardcoded_results(client):
 
 def test_autocomplete_html_has_aria_roles(client):
     """The autocomplete dropdown must have ARIA roles for accessibility."""
-    resp = client.get("/")
-    html = resp.text
-    # The onAskInput function should set role="listbox" and role="option"
-    assert "listbox" in html
-    assert "option" in html
+    # JS is now external — check both HTML and JS
+    html = client.get("/").text
+    js_resp = client.get("/static/app.js")
+    js = js_resp.text if js_resp.status_code == 200 else ""
+    combined = html + "\n" + js
+    assert "listbox" in combined
+    assert "option" in combined
 
 
 def test_autocomplete_has_keyboard_handlers(client):
     """The autocomplete must handle ArrowUp/ArrowDown/Enter/Escape."""
-    resp = client.get("/")
-    html = resp.text
-    assert "ArrowDown" in html
-    assert "ArrowUp" in html
-    assert "Escape" in html
+    html = client.get("/").text
+    js_resp = client.get("/static/app.js")
+    js = js_resp.text if js_resp.status_code == 200 else ""
+    combined = html + "\n" + js
+    assert "ArrowDown" in combined
+    assert "ArrowUp" in combined
+    assert "Escape" in combined
 
 
 def test_autocomplete_has_aria_selected(client):
     """The autocomplete items must support aria-selected."""
-    resp = client.get("/")
-    html = resp.text
-    assert "aria-selected" in html
+    html = client.get("/").text
+    js_resp = client.get("/static/app.js")
+    js = js_resp.text if js_resp.status_code == 200 else ""
+    combined = html + "\n" + js
+    assert "aria-selected" in combined
 
 
 def test_autocomplete_has_scroll_into_view(client):
     """Keyboard navigation should scroll the selected item into view."""
-    resp = client.get("/")
-    html = resp.text
-    assert "scrollIntoView" in html
+    html = client.get("/").text
+    js_resp = client.get("/static/app.js")
+    js = js_resp.text if js_resp.status_code == 200 else ""
+    combined = html + "\n" + js
+    assert "scrollIntoView" in combined
 
 
 # ═══════════════════════════════════════════════════════════════════════════
