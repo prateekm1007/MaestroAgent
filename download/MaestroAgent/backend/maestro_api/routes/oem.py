@@ -1533,3 +1533,127 @@ def run_drift_detection() -> dict[str, Any]:
     from maestro_oem.learning import ContinuousLearningEngine
     engine = ContinuousLearningEngine(db_path, oem_state.model, oem_state.signals)
     return engine.run_drift_detection()
+
+
+# ─── 18. Organizational Digital Twin — "What happens if...?" ───────────────
+
+@router.get("/twin/state")
+def get_twin_state() -> dict[str, Any]:
+    """Get the current organizational digital twin state.
+
+    Returns the org's people, domains, workload distribution, and health —
+    the baseline for running what-if scenarios.
+    """
+    from maestro_oem.digital_twin import DigitalTwin
+    twin = DigitalTwin(oem_state.model, oem_state.signals, oem_state.decisions)
+    summary = twin.get_org_summary()
+    return {
+        "summary": summary,
+        "people": [
+            {
+                "email": p.email,
+                "team": p.team,
+                "domains": p.domains,
+                "influence": round(p.influence, 4),
+                "signal_count": p.signal_count,
+                "approval_count": p.approval_count,
+                "workload": round(p.workload, 2),
+                "is_hidden_expert": p.is_hidden_expert,
+                "is_bottleneck": p.is_bottleneck,
+            }
+            for p in twin.people.values()
+        ],
+        "domains": [
+            {
+                "name": d.name,
+                "people": d.people,
+                "signal_count": d.signal_count,
+                "concentration_score": round(d.concentration_score, 4),
+                "is_at_risk": d.is_at_risk,
+            }
+            for d in twin.domains.values()
+        ],
+    }
+
+
+@router.post("/twin/simulate")
+def simulate_twin_scenario(payload: dict[str, Any]) -> dict[str, Any]:
+    """Run a what-if scenario on the digital twin.
+
+    Payload: {type: "person_leaves"|"move_team"|"team_doubles"|"cut_meetings"|"add_hires"|"merge_teams", ...}
+
+    Returns an ImpactReport with:
+      - overloaded_people: who gets too much work
+      - knowledge_loss: domains that lose knowledge
+      - new_bottlenecks: approval pipeline issues
+      - velocity_change: predicted health delta
+      - law_violations: laws that might break
+      - pattern_shifts: patterns that strengthen/weaken
+      - recommendations: what to do about it
+      - risk_level: low | medium | high | critical
+    """
+    from maestro_oem.digital_twin import DigitalTwin, ScenarioEngine
+    twin = DigitalTwin(oem_state.model, oem_state.signals, oem_state.decisions)
+    engine = ScenarioEngine(twin)
+    report = engine.run_scenario(payload)
+    return report.to_dict()
+
+
+@router.get("/twin/scenarios")
+def get_available_scenarios() -> dict[str, Any]:
+    """List all available scenario types with descriptions and required params."""
+    return {
+        "scenarios": [
+            {
+                "type": "person_leaves",
+                "title": "What happens if this person leaves?",
+                "description": "Remove a person and redistribute their workload. Detects knowledge loss, overload, and bottleneck emergence.",
+                "params": [{"name": "person", "type": "string", "required": True, "description": "Email of the person"}],
+                "example": {"type": "person_leaves", "person": "priya.m@acme.com"},
+            },
+            {
+                "type": "move_team",
+                "title": "What happens if we move this team?",
+                "description": "Transfer a domain's ownership to a different person. Predicts overload and velocity change.",
+                "params": [
+                    {"name": "domain", "type": "string", "required": True, "description": "Domain name"},
+                    {"name": "new_owner", "type": "string", "required": True, "description": "New owner email"},
+                ],
+                "example": {"type": "move_team", "domain": "payments", "new_owner": "carlos.r@acme.com"},
+            },
+            {
+                "type": "team_doubles",
+                "title": "What happens if Legal doubles?",
+                "description": "Double a team's headcount. Predicts workload reduction and risk improvement.",
+                "params": [{"name": "domain", "type": "string", "required": True, "description": "Domain name"}],
+                "example": {"type": "team_doubles", "domain": "legal"},
+            },
+            {
+                "type": "cut_meetings",
+                "title": "What happens if we cut meetings by 30%?",
+                "description": "Reduce meeting load by N%. Predicts velocity improvement and workload reduction.",
+                "params": [{"name": "reduction_pct", "type": "int", "required": True, "description": "Percentage reduction (0-100)"}],
+                "example": {"type": "cut_meetings", "reduction_pct": 30},
+            },
+            {
+                "type": "add_hires",
+                "title": "What happens if we add hires?",
+                "description": "Add N new hires to a domain. Predicts risk reduction and workload redistribution.",
+                "params": [
+                    {"name": "domain", "type": "string", "required": True, "description": "Domain name"},
+                    {"name": "count", "type": "int", "required": True, "description": "Number of hires"},
+                ],
+                "example": {"type": "add_hires", "domain": "payments", "count": 3},
+            },
+            {
+                "type": "merge_teams",
+                "title": "What happens if we merge two teams?",
+                "description": "Merge two domains into one. Predicts concentration changes and workload redistribution.",
+                "params": [
+                    {"name": "domain_a", "type": "string", "required": True, "description": "Surviving domain"},
+                    {"name": "domain_b", "type": "string", "required": True, "description": "Merged domain"},
+                ],
+                "example": {"type": "merge_teams", "domain_a": "auth", "domain_b": "payments"},
+            },
+        ]
+    }
