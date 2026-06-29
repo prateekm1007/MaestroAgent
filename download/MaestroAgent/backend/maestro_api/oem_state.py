@@ -283,11 +283,26 @@ class OEMState:
                     self._live_signals_ingested += 1
                 except Exception as e:
                     logger.warning("Live signal ingest failed: %s", e)
-            # Refresh downstream artifacts
-            model = self.engine.get_model()
-            self.evidence_graph = EvidenceGraph()
-            self.evidence_graph.build_from_model(model)
-            self.decision_engine = DecisionEngine(model, self.evidence_graph)
+            self._refresh_downstream_locked()
+
+    def _refresh_downstream(self) -> None:
+        """Rebuild the decision engine + evidence graph from the current model.
+
+        Public version — acquires the lock. Called after contradiction
+        feedback or any other mutation that doesn't go through live_ingest.
+        """
+        if not self._initialized:
+            return
+        with self._lock:
+            self._refresh_downstream_locked()
+
+    def _refresh_downstream_locked(self) -> None:
+        """Refresh downstream artifacts (caller holds the lock)."""
+        assert self.engine is not None
+        model = self.engine.get_model()
+        self.evidence_graph = EvidenceGraph()
+        self.evidence_graph.build_from_model(model)
+        self.decision_engine = DecisionEngine(model, self.evidence_graph)
 
     def snapshot(self) -> dict[str, int]:
         """Return a count snapshot for the ProgressTracker."""
