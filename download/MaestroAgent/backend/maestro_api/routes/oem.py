@@ -1094,3 +1094,252 @@ def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         "linked_laws": linked_laws,
         "inputs_applied": inputs,
     }
+
+
+# ─── 16. CEO Briefing — answers the 5 questions a CEO needs ─────────────────
+
+@router.get("/ceo-briefing")
+def get_ceo_briefing() -> dict[str, Any]:
+    """The CEO's morning briefing. Answers 5 questions:
+
+    1. What changed overnight?
+    2. If I only do one thing today?
+    3. Where is money being lost?
+    4. Where is knowledge trapped?
+    5. What decision only I can make?
+
+    Every answer is specific, actionable, and derived from the live OEM.
+    No generic metrics — every number has a "so what" attached.
+    """
+    model = oem_state.model
+    recs = oem_state.decisions.get_recommendations()
+    experts = model.knowledge.get_hidden_experts()
+    risks = model.knowledge.get_concentration_risk()
+
+    # ─── 1. What changed overnight? ───
+    # Use the dashboard's overnight_changes (already filtered by recency)
+    dashboard = _get_dashboard_data()
+    overnight = dashboard.get("overnight_changes", [])
+    overnight_answer = {
+        "summary": f"{len(overnight)} thing{'s' if len(overnight) != 1 else ''} changed since you last looked.",
+        "changes": overnight[:5],  # Top 5 most important
+        "headline": overnight[0]["title"] if overnight else "Nothing new. The org is stable.",
+        "headline_detail": overnight[0]["detail"] if overnight else "No new patterns, laws, or risks detected.",
+    }
+
+    # ─── 2. If I only do one thing today? ───
+    # The highest-urgency, highest-confidence recommendation
+    one_thing = None
+    if recs:
+        # Sort by urgency (urgent first) then confidence (highest first)
+        urgency_rank = {"urgent": 0, "normal": 1, "low": 2}
+        sorted_recs = sorted(recs, key=lambda r: (urgency_rank.get(r.urgency, 3), -r.confidence))
+        top = sorted_recs[0]
+        one_thing = {
+            "title": top.title,
+            "recommendation": top.recommendation,
+            "why": top.description,
+            "impact": top.impact or "Impact not yet assessed.",
+            "confidence": round(top.confidence, 4),
+            "urgency": top.urgency,
+            "linked_laws": top.linked_laws or [],
+            "rec_id": top.rec_id,
+        }
+    else:
+        one_thing = {
+            "title": "Nothing urgent today.",
+            "recommendation": "Review the org state and connect more signal sources for richer insights.",
+            "why": "The OEM has no active recommendations.",
+            "impact": "No action needed.",
+            "confidence": 1.0,
+            "urgency": "low",
+            "linked_laws": [],
+            "rec_id": None,
+        }
+
+    # ─── 3. Where is money being lost? ───
+    # Derive from: bottlenecks (time cost), duplicate work (wasted effort),
+    # incident patterns (rework cost), velocity drops (delayed revenue)
+    money_losses: list[dict[str, Any]] = []
+
+    # Bottlenecks = approval delays = money
+    for lo in model.learning_objects.values():
+        lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+        if lo_type == "bottleneck":
+            money_losses.append({
+                "type": "bottleneck",
+                "title": lo.title,
+                "detail": lo.description,
+                "entities": lo.entities,
+                "estimated_cost": f"~{lo.evidence_count * 2}h/week lost in approval delays",
+                "severity": "high" if lo.evidence_count > 5 else "medium",
+            })
+        elif lo_type == "duplicate_work":
+            money_losses.append({
+                "type": "duplicate_work",
+                "title": lo.title,
+                "detail": lo.description,
+                "entities": lo.entities,
+                "estimated_cost": f"~{lo.evidence_count}h/week wasted on duplicate effort",
+                "severity": "medium",
+            })
+        elif lo_type == "incident_pattern":
+            money_losses.append({
+                "type": "incident",
+                "title": lo.title,
+                "detail": lo.description,
+                "entities": lo.entities,
+                "estimated_cost": f"~{lo.evidence_count}h/week in incident response",
+                "severity": "high" if lo.evidence_count > 3 else "medium",
+            })
+        elif lo_type == "velocity_drop":
+            money_losses.append({
+                "type": "velocity_drop",
+                "title": lo.title,
+                "detail": lo.description,
+                "entities": lo.entities,
+                "estimated_cost": "Delayed releases = delayed revenue",
+                "severity": "high",
+            })
+
+    money_answer = {
+        "summary": f"{len(money_losses)} money drain{'s' if len(money_losses) != 1 else ''} detected.",
+        "losses": money_losses[:5],
+        "headline": money_losses[0]["title"] if money_losses else "No obvious money drains detected.",
+        "headline_cost": money_losses[0]["estimated_cost"] if money_losses else "",
+    }
+
+    # ─── 4. Where is knowledge trapped? ───
+    # Hidden experts (bus factor), concentration risks, knowledge death
+    knowledge_traps: list[dict[str, Any]] = []
+
+    for expert in experts[:5]:
+        knowledge_traps.append({
+            "type": "hidden_expert",
+            "entity": expert.get("entity", ""),
+            "domains": expert.get("domains", []),
+            "influence": round(expert.get("influence", 0), 4),
+            "risk": "If this person leaves, knowledge is lost.",
+            "evidence_count": expert.get("evidence_count", 0),
+        })
+
+    for domain, score in list(risks.items())[:3]:
+        knowledge_traps.append({
+            "type": "concentration_risk",
+            "domain": domain,
+            "score": round(score, 4),
+            "risk": f"Knowledge in '{domain}' is concentrated in too few people.",
+        })
+
+    for lo in model.learning_objects.values():
+        lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+        if lo_type == "knowledge_death":
+            knowledge_traps.append({
+                "type": "knowledge_death",
+                "title": lo.title,
+                "detail": lo.description,
+                "boundary": lo.metadata.get("boundary", "unknown"),
+                "risk": "Knowledge is dying at this boundary.",
+            })
+
+    knowledge_answer = {
+        "summary": f"{len(knowledge_traps)} knowledge trap{'s' if len(knowledge_traps) != 1 else ''} found.",
+        "traps": knowledge_traps[:5],
+        "headline": knowledge_traps[0].get("entity") or knowledge_traps[0].get("domain") or knowledge_traps[0].get("title", "") if knowledge_traps else "No knowledge traps detected.",
+        "headline_risk": knowledge_traps[0]["risk"] if knowledge_traps else "",
+    }
+
+    # ─── 5. What decision only I can make? ───
+    # Decisions that require CEO authority: urgent recommendations,
+    # departure risks, drift-detected laws, unknown-to-leadership laws
+    ceo_decisions: list[dict[str, Any]] = []
+
+    for rec in recs:
+        if rec.urgency == "urgent":
+            ceo_decisions.append({
+                "type": "urgent_decision",
+                "title": rec.title,
+                "question": rec.decision_question,
+                "recommendation": rec.recommendation,
+                "confidence": round(rec.confidence, 4),
+                "linked_laws": rec.linked_laws or [],
+            })
+
+    for lo in model.learning_objects.values():
+        lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+        if lo_type == "departure_risk":
+            ceo_decisions.append({
+                "type": "retention",
+                "title": lo.title,
+                "question": f"Should we retain {', '.join(lo.entities[:2])}?",
+                "recommendation": "Initiate retention conversation before knowledge is lost.",
+                "confidence": round(lo.confidence, 4),
+                "linked_laws": [],
+            })
+
+    for law in model.laws.values():
+        status = law.status.value if hasattr(law.status, "value") else str(law.status)
+        if status == "unknown_to_leadership":
+            ceo_decisions.append({
+                "type": "hidden_law",
+                "title": f"{law.code}: {law.statement[:80]}",
+                "question": f"Are you aware of this organizational law?",
+                "recommendation": "Acknowledge or reject this law to align leadership with reality.",
+                "confidence": round(law.confidence, 4),
+                "linked_laws": [law.code],
+            })
+
+    decisions_answer = {
+        "summary": f"{len(ceo_decisions)} decision{'s' if len(ceo_decisions) != 1 else ''} only you can make.",
+        "decisions": ceo_decisions[:5],
+        "headline": ceo_decisions[0]["title"] if ceo_decisions else "No CEO-only decisions pending.",
+        "headline_question": ceo_decisions[0]["question"] if ceo_decisions else "The org is running without your intervention.",
+    }
+
+    return {
+        "generated_at": model.last_updated.isoformat() if hasattr(model.last_updated, "isoformat") else str(model.last_updated),
+        "overnight": overnight_answer,
+        "one_thing": one_thing,
+        "money": money_answer,
+        "knowledge": knowledge_answer,
+        "decisions": decisions_answer,
+    }
+
+
+def _get_dashboard_data() -> dict[str, Any]:
+    """Helper to get the dashboard data without re-implementing."""
+    model = oem_state.model
+    recs = oem_state.decisions.get_recommendations()
+    experts = model.knowledge.get_hidden_experts()
+    risks = model.knowledge.get_concentration_risk()
+
+    overnight_changes: list[dict[str, Any]] = []
+    for expert in experts[:3]:
+        overnight_changes.append({
+            "type": "hidden_expert",
+            "severity": "warning",
+            "title": f"Hidden expert detected: {expert.get('entity', '')}",
+            "detail": f"Influence {expert.get('influence', 0):.2f} across {len(expert.get('domains', []))} domains. Not formally recognized.",
+            "entity": expert.get("entity", ""),
+            "domains": expert.get("domains", []),
+        })
+    for domain, score in list(risks.items())[:2]:
+        overnight_changes.append({
+            "type": "concentration_risk",
+            "severity": "urgent" if score > 5 else "warning",
+            "title": f"Concentration risk in {domain}",
+            "detail": f"Score {score:.2f} — knowledge is held by too few people.",
+            "domain": domain,
+        })
+    for lo in list(model.learning_objects.values())[:5]:
+        lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+        if lo_type in ("bottleneck", "departure_risk", "velocity_drop", "duplicate_work"):
+            overnight_changes.append({
+                "type": lo_type,
+                "severity": "urgent" if lo_type in ("departure_risk", "velocity_drop") else "warning",
+                "title": lo.title,
+                "detail": lo.description,
+                "entity": lo.entities[0] if lo.entities else "",
+            })
+
+    return {"overnight_changes": overnight_changes, "metrics": model.get_summary()}
