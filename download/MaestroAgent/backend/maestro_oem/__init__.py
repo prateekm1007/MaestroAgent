@@ -42,6 +42,7 @@ from maestro_oem.replay import (
     ReplayMetrics,
     ReplayResult,
 )
+from maestro_oem.persistence import OEMStore, PersistentOEM
 
 __all__ = [
     "ExecutionSignal",
@@ -77,6 +78,8 @@ __all__ = [
     "PredictionOutcome",
     "ReplayMetrics",
     "ReplayResult",
+    "OEMStore",
+    "PersistentOEM",
 ]
 
 __version__ = "0.1.0"

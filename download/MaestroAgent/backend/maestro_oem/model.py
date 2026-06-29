@@ -77,50 +77,49 @@ class ExecutionHealth(BaseModel):
 class KnowledgeGraph(BaseModel):
     """Who knows what, and where knowledge lives."""
     # entity -> set of domains they have expertise in
-    expertise: dict[str, set[str]] = Field(default_factory=lambda: defaultdict(set))
+    expertise: dict[str, set[str]] = Field(default_factory=dict)
     # entity -> influence score (computed from review/approval patterns)
-    influence: dict[str, float] = Field(default_factory=lambda: defaultdict(float))
+    influence: dict[str, float] = Field(default_factory=dict)
     # domain -> set of entities who hold this knowledge
-    domain_holders: dict[str, set[str]] = Field(default_factory=lambda: defaultdict(set))
+    domain_holders: dict[str, set[str]] = Field(default_factory=dict)
     # entity -> entities they collaborate with
-    collaboration: dict[str, set[str]] = Field(default_factory=lambda: defaultdict(set))
+    collaboration: dict[str, set[str]] = Field(default_factory=dict)
     # artifacts -> entities who touched them
-    artifact_authors: dict[str, set[str]] = Field(default_factory=lambda: defaultdict(set))
+    artifact_authors: dict[str, set[str]] = Field(default_factory=dict)
 
     def update_from_signal(self, signal: ExecutionSignal) -> dict[str, Any]:
         changes: dict[str, Any] = {}
 
         if signal.type in (SignalType.PR_OPENED, SignalType.PR_MERGED, SignalType.COMMIT):
             domain = signal.metadata.get("domain", "engineering")
-            self.expertise[signal.actor].add(domain)
-            self.domain_holders[domain].add(signal.actor)
-            self.artifact_authors[signal.artifact].add(signal.actor)
+            self.expertise.setdefault(signal.actor, set()).add(domain)
+            self.domain_holders.setdefault(domain, set()).add(signal.actor)
+            self.artifact_authors.setdefault(signal.artifact, set()).add(signal.actor)
             # Increment influence for active contributors
-            self.influence[signal.actor] += 0.5
+            self.influence[signal.actor] = self.influence.get(signal.actor, 0) + 0.5
             changes["expertise_added"] = {"actor": signal.actor, "domain": domain}
 
         elif signal.type == SignalType.PR_REVIEWED:
             reviewer = signal.metadata.get("reviewer", "")
             if reviewer:
-                self.influence[reviewer] += 1.0  # Reviews are high-influence
-                self.collaboration[reviewer].add(signal.actor)
+                self.influence[reviewer] = self.influence.get(reviewer, 0) + 1.0
+                self.collaboration.setdefault(reviewer, set()).add(signal.actor)
                 changes["influence_updated"] = {"reviewer": reviewer}
 
         elif signal.type in (SignalType.PAGE_CREATED, SignalType.PAGE_EDITED):
             domain = signal.metadata.get("domain", "documentation")
-            self.expertise[signal.actor].add(domain)
-            self.domain_holders[domain].add(signal.actor)
+            self.expertise.setdefault(signal.actor, set()).add(domain)
+            self.domain_holders.setdefault(domain, set()).add(signal.actor)
             changes["knowledge_documented"] = {"actor": signal.actor, "domain": domain}
 
         elif signal.type in (SignalType.MESSAGE_SENT, SignalType.THREAD_STARTED,
                              SignalType.DECISION_SIGNAL, SignalType.CONFLICT,
                              SignalType.AGREEMENT, SignalType.QUESTION_ASKED):
             channel = signal.metadata.get("channel", "general")
-            # Slack messages contribute to collaboration graph
             participants = signal.metadata.get("participants", [])
             for p in participants:
                 if p != signal.actor:
-                    self.collaboration[signal.actor].add(p)
+                    self.collaboration.setdefault(signal.actor, set()).add(p)
             changes["collaboration_updated"] = {"actor": signal.actor, "channel": channel}
 
         return changes
@@ -159,11 +158,11 @@ class KnowledgeGraph(BaseModel):
 class ApprovalNetwork(BaseModel):
     """Who approves what, and where the gates are."""
     # gate -> count of items gated
-    gate_counts: dict[str, int] = Field(default_factory=lambda: defaultdict(int))
+    gate_counts: dict[str, int] = Field(default_factory=dict)
     # gate -> total delay days
-    gate_delays: dict[str, float] = Field(default_factory=lambda: defaultdict(float))
+    gate_delays: dict[str, float] = Field(default_factory=dict)
     # entity -> approval count
-    approvers: dict[str, int] = Field(default_factory=lambda: defaultdict(int))
+    approvers: dict[str, int] = Field(default_factory=dict)
 
     def update_from_signal(self, signal: ExecutionSignal) -> dict[str, Any]:
         changes: dict[str, Any] = {}
@@ -171,22 +170,20 @@ class ApprovalNetwork(BaseModel):
         if signal.type == SignalType.ISSUE_TRANSITIONED:
             transition = signal.metadata.get("transition", "")
             if "approve" in transition.lower() or "review" in transition.lower():
-                self.approvers[signal.actor] += 1
+                self.approvers[signal.actor] = self.approvers.get(signal.actor, 0) + 1
                 changes["approval_recorded"] = {"approver": signal.actor}
 
         elif signal.type in (SignalType.MESSAGE_SENT, SignalType.THREAD_STARTED):
-            # Detect approval-seeking patterns in Slack
             text = signal.metadata.get("text", "").lower()
             if any(w in text for w in ["approve", "sign off", "review", "ok to"]):
                 gate = signal.metadata.get("channel", signal.actor)
-                self.gate_counts[gate] += 1
+                self.gate_counts[gate] = self.gate_counts.get(gate, 0) + 1
                 changes["gate_detected"] = {"gate": gate, "count": self.gate_counts[gate]}
 
         elif signal.type == SignalType.ISSUE_ASSIGNED:
-            # Assignment to a specific person can indicate a gate
             assignee = signal.metadata.get("assignee", "")
             if assignee:
-                self.gate_counts[assignee] += 1
+                self.gate_counts[assignee] = self.gate_counts.get(assignee, 0) + 1
                 changes["gate_detected"] = {"gate": assignee, "count": self.gate_counts[assignee]}
 
         return changes
