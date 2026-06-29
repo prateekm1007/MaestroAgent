@@ -62,6 +62,11 @@ class Pattern(BaseModel):
         """A pattern becomes a law candidate when it has enough evidence."""
         return self.evidence_count >= 3 and self.coverage >= 2
 
+    @property
+    def is_law_candidate_relaxed(self) -> bool:
+        """Relaxed threshold — evidence >= 3 and coverage >= 1 (single-entity patterns)."""
+        return self.evidence_count >= 3
+
 
 class PatternDetector:
     """
@@ -113,7 +118,7 @@ class PatternDetector:
                 new_p.coverage = self._compute_coverage(new_p, learning_objects)
                 self.patterns.append(new_p)
 
-        return [p for p in self.patterns if p.is_law_candidate]
+        return [p for p in self.patterns if p.is_law_candidate or p.is_law_candidate_relaxed]
 
     def _find_matching(self, pattern: Pattern) -> Pattern | None:
         for p in self.patterns:
@@ -168,80 +173,137 @@ class PatternDetector:
         return patterns
 
     def _detect_hidden_experts(self, los: list) -> list[Pattern]:
-        """Detect undocumented experts."""
+        """Detect undocumented experts — aggregates evidence across LOs for the same entity."""
         patterns: list[Pattern] = []
+        # Group hidden_expert LOs by entity
+        by_entity: dict[str, list] = {}
         for lo in los:
-            if lo.type.value == "hidden_expert" and lo.evidence_count >= 3:
-                expert = lo.entities[0] if lo.entities else "unknown"
+            if lo.type.value == "hidden_expert":
+                for entity in lo.entities:
+                    by_entity.setdefault(entity, []).append(lo)
+
+        for entity, entity_los in by_entity.items():
+            total_evidence = sum(lo.evidence_count for lo in entity_los)
+            if total_evidence >= 3:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                for lo in entity_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
                 patterns.append(Pattern(
                     type=PatternType.INFLUENCE,
-                    description=f"{expert} is an undocumented expert — touches {lo.metadata.get('touch_rate', 'high')}% of successful outcomes",
-                    learning_object_ids=[lo.lo_id],
-                    providers=lo.providers,
-                    coverage=len(lo.entities),
-                    metadata={"expert": expert},
+                    description=f"{entity} is an undocumented expert — {total_evidence} evidence signals across {len(entity_los)} observations",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(entity_los),
+                    metadata={"expert": entity, "total_evidence": total_evidence},
                 ))
         return patterns
 
     def _detect_bottlenecks(self, los: list) -> list[Pattern]:
-        """Detect process bottlenecks."""
+        """Detect process bottlenecks — aggregates evidence across LOs for the same gate."""
         patterns: list[Pattern] = []
+        # Group bottleneck LOs by gate entity
+        by_gate: dict[str, list] = {}
         for lo in los:
-            if lo.type.value == "bottleneck" and lo.evidence_count >= 2:
-                gate = lo.entities[0] if lo.entities else "unknown"
+            if lo.type.value == "bottleneck":
+                for entity in lo.entities:
+                    by_gate.setdefault(entity, []).append(lo)
+
+        for gate, gate_los in by_gate.items():
+            total_evidence = sum(lo.evidence_count for lo in gate_los)
+            if total_evidence >= 2:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                for lo in gate_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
                 patterns.append(Pattern(
                     type=PatternType.CAUSAL,
-                    description=f"{gate} is a bottleneck — {lo.metadata.get('delay_days', 0)} day median delay across {lo.evidence_count} projects",
-                    learning_object_ids=[lo.lo_id],
-                    providers=lo.providers,
-                    coverage=len(lo.entities),
-                    metadata={"gate": gate},
+                    description=f"{gate} is a bottleneck — {total_evidence} evidence signals across {len(gate_los)} observations",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(gate_los),
+                    metadata={"gate": gate, "total_evidence": total_evidence},
                 ))
         return patterns
 
     def _detect_velocity_patterns(self, los: list) -> list[Pattern]:
-        """Detect velocity drops after incidents."""
+        """Detect velocity drops after incidents — aggregates across LOs."""
         patterns: list[Pattern] = []
+        by_type: dict[str, list] = {}
         for lo in los:
-            if lo.type.value == "velocity_drop" and lo.evidence_count >= 3:
+            if lo.type.value == "velocity_drop":
+                by_type.setdefault("velocity", []).append(lo)
+
+        for key, group_los in by_type.items():
+            total_evidence = sum(lo.evidence_count for lo in group_los)
+            if total_evidence >= 3:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                for lo in group_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
                 patterns.append(Pattern(
                     type=PatternType.VELOCITY,
-                    description=f"Velocity drops {lo.metadata.get('drop_pct', 0)}% after {lo.metadata.get('incident_threshold', 3)}+ P1 incidents",
-                    learning_object_ids=[lo.lo_id],
-                    providers=lo.providers,
-                    coverage=len(lo.entities),
-                    metadata={"drop_pct": lo.metadata.get("drop_pct", 0)},
+                    description=f"Velocity drop pattern — {total_evidence} evidence signals across {len(group_los)} observations",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(group_los),
+                    metadata={"total_evidence": total_evidence},
                 ))
         return patterns
 
     def _detect_knowledge_death(self, los: list) -> list[Pattern]:
-        """Detect knowledge that doesn't transfer."""
+        """Detect knowledge that doesn't transfer — aggregates across LOs."""
         patterns: list[Pattern] = []
+        by_boundary: dict[str, list] = {}
         for lo in los:
-            if lo.type.value == "knowledge_death" and lo.evidence_count >= 2:
+            if lo.type.value == "knowledge_death":
                 boundary = lo.metadata.get("boundary", "unknown")
+                by_boundary.setdefault(boundary, []).append(lo)
+
+        for boundary, group_los in by_boundary.items():
+            total_evidence = sum(lo.evidence_count for lo in group_los)
+            if total_evidence >= 2:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                for lo in group_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
                 patterns.append(Pattern(
                     type=PatternType.KNOWLEDGE,
-                    description=f"Knowledge dies at {boundary} boundary — {lo.metadata.get('rework_rate', 0)}% rework rate",
-                    learning_object_ids=[lo.lo_id],
-                    providers=lo.providers,
-                    coverage=len(lo.entities),
-                    metadata={"boundary": boundary},
+                    description=f"Knowledge death at {boundary} — {total_evidence} evidence signals across {len(group_los)} observations",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(group_los),
+                    metadata={"boundary": boundary, "total_evidence": total_evidence},
                 ))
         return patterns
 
     def _detect_approval_gates(self, los: list) -> list[Pattern]:
-        """Detect approval gate patterns."""
+        """Detect approval gate patterns — aggregates across LOs."""
         patterns: list[Pattern] = []
+        by_gate: dict[str, list] = {}
         for lo in los:
-            if lo.type.value == "approval_gate" and lo.evidence_count >= 3:
+            if lo.type.value == "approval_gate":
                 gate = lo.entities[0] if lo.entities else "unknown"
+                by_gate.setdefault(gate, []).append(lo)
+
+        for gate, gate_los in by_gate.items():
+            total_evidence = sum(lo.evidence_count for lo in gate_los)
+            if total_evidence >= 3:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                for lo in gate_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
                 patterns.append(Pattern(
                     type=PatternType.APPROVAL,
-                    description=f"{gate} gates {lo.metadata.get('gate_pct', 0)}% of projects — entering late causes {lo.metadata.get('delay_multiplier', 0)}× delay",
-                    learning_object_ids=[lo.lo_id],
-                    providers=lo.providers,
-                    coverage=len(lo.entities),
-                    metadata={"gate": gate},
+                    description=f"{gate} gates {total_evidence} items across {len(gate_los)} observations",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(gate_los),
+                    metadata={"gate": gate, "total_evidence": total_evidence},
                 ))
         return patterns

@@ -25,7 +25,7 @@ from maestro_plugins.registry import PluginRegistry
 
 
 @pytest.fixture
-def ctx(tmp_path: Path) -> RunContext:
+async def ctx(tmp_path: Path) -> RunContext:
     """Build a minimal RunContext for tests."""
     db_path = str(tmp_path / "test.db")
     bus = EventBus()

@@ -24,7 +24,7 @@ from maestro_loops.types import OnExceedAction
 
 
 @pytest.fixture
-def ctx(tmp_path: Path) -> RunContext:
+async def ctx(tmp_path: Path) -> RunContext:
     db_path = str(tmp_path / "test.db")
     bus = EventBus()
     bus.start()

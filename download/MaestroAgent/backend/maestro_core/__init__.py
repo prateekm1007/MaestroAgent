@@ -11,7 +11,8 @@ from maestro_core.graph import Graph, Node, Edge, ConditionalEdge
 from maestro_core.state import State, StateSchema
 from maestro_core.checkpoint import CheckpointStore, SQLiteCheckpointStore
 from maestro_core.streaming import EventBus, Event, EventType
-from maestro_core.context import RunContext, RunConfig, RunStatus
+from maestro_core.context import RunContext, RunConfig
+from maestro_core.state import RunStatus
 
 __all__ = [
     "OrchestrationEngine",
