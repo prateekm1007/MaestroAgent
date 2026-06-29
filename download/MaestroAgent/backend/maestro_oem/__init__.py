@@ -43,6 +43,7 @@ from maestro_oem.replay import (
     ReplayResult,
 )
 from maestro_oem.persistence import OEMStore, PersistentOEM
+from maestro_oem.dependency import DependencyGraph, DependencyManager, DependencyImpact
 
 __all__ = [
     "ExecutionSignal",
@@ -80,6 +81,9 @@ __all__ = [
     "ReplayResult",
     "OEMStore",
     "PersistentOEM",
+    "DependencyGraph",
+    "DependencyManager",
+    "DependencyImpact",
 ]
 
 __version__ = "0.1.0"
