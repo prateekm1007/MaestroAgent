@@ -1,0 +1,202 @@
+  2666→    </div>
+  2667→    <div class="space-y-2" id="ask-suggestions">
+  2668→      <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold px-1">Try asking</div>
+  2669→      <div class="ac-suggestion" onclick="submitAsk('What do we know about customer churn in APAC?')">
+  2670→        <div class="flex items-start gap-3"><div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></div><div class="flex-1"><div class="text-sm font-semibold text-fg-100">What do we know about customer churn in APAC?</div><div class="text-[11px] text-fg-500 mt-0.5">Synthesizes across Salesforce, Zendesk, Slack signals, and L-0014 prediction.</div></div></div>
+  2671→      </div>
+  2672→      <div class="ac-suggestion" onclick="submitAsk('Who is the bottleneck in our release process?')">
+  2673→        <div class="flex items-start gap-3"><div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div><div class="flex-1"><div class="text-sm font-semibold text-fg-100">Who is the bottleneck in our release process?</div><div class="text-[11px] text-fg-500 mt-0.5">Uses the Hayek Lens influence graph and L-0018 handoff analysis.</div></div></div>
+  2674→      </div>
+  2675→      <div class="ac-suggestion" onclick="submitAsk('What will happen if we delay the Q4 launch by 2 weeks?')">
+  2676→        <div class="flex items-start gap-3"><div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg></div><div class="flex-1"><div class="text-sm font-semibold text-fg-100">What will happen if we delay the Q4 launch by 2 weeks?</div><div class="text-[11px] text-fg-500 mt-0.5">Runs the 90-day counterfactual through the OEM.</div></div></div>
+  2677→      </div>
+  2678→      <div class="ac-suggestion" onclick="submitAsk('What did we know on Oct 12 when we approved the pricing change?')">
+  2679→        <div class="flex items-start gap-3"><div class="w-8 h-8 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4 text-brand-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div class="flex-1"><div class="text-sm font-semibold text-fg-100">What did we know on Oct 12 when we approved the pricing change?</div><div class="text-[11px] text-fg-500 mt-0.5">Replays organizational memory at the decision point.</div></div></div>
+  2680→      </div>
+  2681→    </div>
+  2682→    <div id="ask-answer" class="hidden space-y-4">
+  2683→      <div class="panel">
+  2684→        <div class="panel-header"><span>Maestro's synthesis</span><div class="flex items-center gap-2 normal-case font-sans"><span class="text-[10px] text-fg-500" id="ask-confidence">Confidence 0.84 · 12 sources</span></div></div>
+  2685→        <div class="p-5 space-y-4">
+  2686→          <div class="text-sm text-fg-200 leading-relaxed" id="ask-answer-text"></div>
+  2687→          <div class="border-t border-white/[0.05] pt-3"><div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Sources &amp; evidence chain</div><div class="flex flex-wrap gap-1.5" id="ask-citations"></div></div>
+  2688→          <div class="border-t border-white/[0.05] pt-3"><div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Knowledge path</div><div class="text-[11px] text-fg-400 leading-relaxed" id="ask-path"></div></div>
+  2689→          <div class="border-t border-white/[0.05] pt-3"><div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Decision impact</div><div class="text-[11px] text-fg-300 leading-relaxed" id="ask-impact"></div></div>
+  2690→        </div>
+  2691→      </div>
+  2692→    </div>
+  2693→  </div>
+  2694→</section>
+  2695→
+  2696→<!-- ============================================================ -->
+  2697→<!-- SURFACE: PHYSICS                                              -->
+  2698→<!-- ============================================================ -->
+  2699→<section class="surface" id="surface-physics">
+  2700→  <div class="p-6 space-y-4 max-w-7xl mx-auto">
+  2701→    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-physics"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
+  2702→    <div class="flex items-end justify-between flex-wrap gap-3">
+  2703→      <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Organizational Physics</div><h1 class="text-2xl font-bold text-white">The laws your organization obeys.</h1><p class="text-xs text-fg-500 mt-1">19 inferred · 4 unknown to leadership · 0 invalidated last 30d · 1 under stress.</p></div>
+  2704→      <div class="flex items-center gap-2"><span class="dq-badge">DQ · What explains why my company behaves this way?</span><button class="btn btn-primary" onclick="navTo('debate')">Challenge a law →</button></div>
+  2705→    </div>
+  2706→    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3" id="law-grid">
+  2707→      <div class="law-card" data-law="L-0007" tabindex="0" role="button" aria-expanded="false">
+  2708→        <div class="flex items-start justify-between mb-2"><div class="flex items-center gap-2"><span class="tag tag-purple mono">L-0007</span><span class="tag tag-cyan">Validated · 6/6</span></div><span class="text-[10px] text-fg-500 mono">Confidence 0.91</span></div>
+  2709→        <div class="text-sm text-fg-200 leading-relaxed mb-2">Eng velocity drops 22% in weeks following >3 P1 incidents.</div>
+  2710→        <div class="text-[10px] text-fg-500">Last observed Nov 8 · 3 incidents in 7 days · velocity drop confirmed</div>
+  2711→        <div class="prov-chain mt-2"><span class="prov-node">jira:incidents</span><span class="prov-arrow">→</span><span class="prov-node">github:velocity</span></div>
+  2712→        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]"><span class="text-fg-500">12 evidence artifacts · 0 counter-examples</span><span class="text-brand-purple">Inspect →</span></div>
+  2713→        <div class="law-detail">
+  2714→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Evidence trail</div>
+  2715→          <div class="space-y-1.5 text-[11px]">
+  2716→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">Nov 8: 3 P1s in 7 days → velocity dropped 24% the following week</span> <span class="source-cite">jira:INC-2024-11-08</span></div></div>
+  2717→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">Oct 14: 4 P1s in 7 days → velocity dropped 26%</span> <span class="source-cite">jira:INC-2024-10-14</span></div></div>
+  2718→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">Sep 3: 3 P1s in 7 days → velocity dropped 21%</span> <span class="source-cite">jira:INC-2024-09-03</span></div></div>
+  2719→          </div>
+  2720→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mt-3 mb-2">Active predictions using this law</div>
+  2721→          <div class="text-[11px] text-fg-300">P 0.79: Eng velocity will drop 22% in week of Nov 18 <span class="source-cite">prediction:pred-2024-11-08</span></div>
+  2722→          <div class="flex gap-2 mt-3"><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('debate')">Challenge this law</button><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('simulator')">Use in simulator</button></div>
+  2723→        </div>
+  2724→      </div>
+  2725→      <div class="law-card unknown" data-law="L-0018" tabindex="0" role="button" aria-expanded="false">
+  2726→        <div class="flex items-start justify-between mb-2"><div class="flex items-center gap-2"><span class="tag tag-amber mono">L-0018</span><span class="tag tag-amber">Unknown to leadership</span></div><span class="text-[10px] text-fg-500 mono">Confidence 0.84</span></div>
+  2727→        <div class="text-sm text-fg-200 leading-relaxed mb-2">Marketing → Engineering handoffs lose 6.4 days median at one approval step (Sara K., VP Marketing).</div>
+  2728→        <div class="text-[10px] text-brand-amber">Last observed Nov 10 · drift detected: 6.4 → 7.1 days · trend amber</div>
+  2729→        <div class="prov-chain mt-2"><span class="prov-node">jira:HANDOFF-44</span><span class="prov-arrow">→</span><span class="prov-node">slack:approvals</span></div>
+  2730→        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]"><span class="text-fg-500">8 evidence artifacts · 0 counter-examples</span><span class="text-brand-purple">Inspect →</span></div>
+  2731→        <div class="law-detail">
+  2732→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Evidence trail</div>
+  2733→          <div class="space-y-1.5 text-[11px]">
+  2734→            <div class="flex items-start gap-2"><span class="text-brand-amber mt-0.5">⚠</span><div class="flex-1"><span class="text-fg-300">73% of platform projects wait 11 days for Legal review after design lock</span> <span class="source-cite">jira:HANDOFF-44</span></div></div>
+  2735→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">27% where Legal enters during design ship 4.2× faster</span> <span class="source-cite">jira:EMEA-1247</span></div></div>
+  2736→          </div>
+  2737→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mt-3 mb-2">Drift alert</div>
+  2738→          <div class="text-[11px] text-brand-amber">Handoff latency trending 6.4 → 7.1 days over last 14 days. If this exceeds 8 days, escalates to high risk.</div>
+  2739→          <div class="flex gap-2 mt-3"><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('debate')">Challenge this law</button><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('simulator')">Use in simulator</button></div>
+  2740→        </div>
+  2741→      </div>
+  2742→      <div class="law-card unknown" data-law="L-0019" tabindex="0" role="button" aria-expanded="false">
+  2743→        <div class="flex items-start justify-between mb-2"><div class="flex items-center gap-2"><span class="tag tag-amber mono">L-0019</span><span class="tag tag-amber">Unknown to leadership</span></div><span class="text-[10px] text-fg-500 mono">Confidence 0.79</span></div>
+  2744→        <div class="text-sm text-fg-200 leading-relaxed mb-2">The org hires in bursts that correlate 0.84 with the previous quarter's incident count, not revenue.</div>
+  2745→        <div class="text-[10px] text-fg-500">Last observed Q3 hiring plan (current decision)</div>
+  2746→        <div class="prov-chain mt-2"><span class="prov-node">jira:hiring</span><span class="prov-arrow">→</span><span class="prov-node">jira:incidents</span></div>
+  2747→        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]"><span class="text-fg-500">6 evidence artifacts · 1 counter-example (Q2 2023)</span><span class="text-brand-purple">Inspect →</span></div>
+  2748→        <div class="law-detail">
+  2749→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Evidence trail</div>
+  2750→          <div class="space-y-1.5 text-[11px]">
+  2751→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">Q3 2024: 14 hires proposed — follows Q2's 7 incidents (correlation 0.84)</span> <span class="source-cite">jira:HIRING-89</span></div></div>
+  2752→            <div class="flex items-start gap-2"><span class="text-brand-rose mt-0.5">✗</span><div class="flex-1"><span class="text-fg-300">Counter-example: Q2 2023 hiring was revenue-driven (only counter-example in 6 quarters)</span> <span class="source-cite">jira:HIRING-2023-Q2</span></div></div>
+  2753→          </div>
+  2754→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mt-3 mb-2">Decision impact</div>
+  2755→          <div class="text-[11px] text-fg-300">The current Q3 hiring plan follows this pattern. VP Sales's dissent challenges the law's applicability to APAC.</div>
+  2756→          <div class="flex gap-2 mt-3"><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('debate')">Challenge this law</button><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('simulator')">Use in simulator</button></div>
+  2757→        </div>
+  2758→      </div>
+  2759→      <div class="law-card unknown" data-law="L-0014" tabindex="0" role="button" aria-expanded="false">
+  2760→        <div class="flex items-start justify-between mb-2"><div class="flex items-center gap-2"><span class="tag tag-amber mono">L-0014</span><span class="tag tag-amber">Unknown to leadership</span></div><span class="text-[10px] text-fg-500 mono">Confidence 0.81</span></div>
+  2761→        <div class="text-sm text-fg-200 leading-relaxed mb-2">APAC sales support ratio below 1:14 predicts APAC churn +14% within 2 quarters.</div>
+  2762→        <div class="text-[10px] text-fg-500">Currently at 1:11 · threshold breached</div>
+  2763→        <div class="prov-chain mt-2"><span class="prov-node">salesforce:pipeline</span><span class="prov-arrow">→</span><span class="prov-node">zendesk:churn</span></div>
+  2764→        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]"><span class="text-fg-500">9 evidence artifacts · 0 counter-examples</span><span class="text-brand-purple">Inspect →</span></div>
+  2765→        <div class="law-detail">
+  2766→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Evidence trail</div>
+  2767→          <div class="space-y-1.5 text-[11px]">
+  2768→            <div class="flex items-start gap-2"><span class="text-brand-rose mt-0.5">●</span><div class="flex-1"><span class="text-fg-300">Current ratio: 1:11 (below 1:14 threshold) — 3 APAC reps for 33 active accounts</span> <span class="source-cite">salesforce:APAC-Q4</span></div></div>
+  2769→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">Q1 2024: ratio dropped to 1:12 → APAC churn hit 16% (predicted 14%)</span> <span class="source-cite">zendesk:churn-Q1-2024</span></div></div>
+  2770→          </div>
+  2771→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mt-3 mb-2">Active risk</div>
+  2772→          <div class="text-[11px] text-brand-rose">Threshold currently breached. Without intervention, APAC churn predicted at +14% within 2 quarters ($1.8M ARR at risk).</div>
+  2773→          <div class="flex gap-2 mt-3"><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('debate')">Challenge this law</button><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('simulator')">Use in simulator</button></div>
+  2774→        </div>
+  2775→      </div>
+  2776→      <div class="law-card" data-law="L-0003" tabindex="0" role="button" aria-expanded="false">
+  2777→        <div class="flex items-start justify-between mb-2"><div class="flex items-center gap-2"><span class="tag tag-purple mono">L-0003</span><span class="tag tag-cyan">Validated · 8/8</span></div><span class="text-[10px] text-fg-500 mono">Confidence 0.94</span></div>
+  2778→        <div class="text-sm text-fg-200 leading-relaxed mb-2">Postmortems with explicit owner assignments reduce recurrence by 67% within 90 days.</div>
+  2779→        <div class="text-[10px] text-fg-500">Last observed Nov 9 incident · no owner assigned · recurrence predicted</div>
+  2780→        <div class="prov-chain mt-2"><span class="prov-node">confluence:postmortems</span><span class="prov-arrow">→</span><span class="prov-node">jira:incidents</span></div>
+  2781→        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]"><span class="text-fg-500">18 evidence artifacts · 1 counter-example</span><span class="text-brand-purple">Inspect →</span></div>
+  2782→        <div class="law-detail">
+  2783→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Evidence trail</div>
+  2784→          <div class="space-y-1.5 text-[11px]">
+  2785→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">12 postmortems with owners → 4 recurrences in 90 days (33% baseline)</span> <span class="source-cite">confluence:postmortems-2024</span></div></div>
+  2786→            <div class="flex items-start gap-2"><span class="text-brand-rose mt-0.5">●</span><div class="flex-1"><span class="text-fg-300">Nov 9 postmortem: NO owner assigned → recurrence predicted at 67% probability</span> <span class="source-cite">confluence:PM-2024-11-09</span></div></div>
+  2787→          </div>
+  2788→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mt-3 mb-2">Active prediction</div>
+  2789→          <div class="text-[11px] text-brand-amber">P 0.67: The Nov 9 failure mode will recur within 90 days because no owner was assigned.</div>
+  2790→          <div class="flex gap-2 mt-3"><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('debate')">Challenge this law</button><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('simulator')">Use in simulator</button></div>
+  2791→        </div>
+  2792→      </div>
+  2793→      <div class="law-card" data-law="L-0011" tabindex="0" role="button" aria-expanded="false">
+  2794→        <div class="flex items-start justify-between mb-2"><div class="flex items-center gap-2"><span class="tag tag-purple mono">L-0011</span><span class="tag tag-cyan">Validated · 4/4</span></div><span class="text-[10px] text-fg-500 mono">Confidence 0.86</span></div>
+  2795→        <div class="text-sm text-fg-200 leading-relaxed mb-2">PRs merged Friday after 4pm have 2.4× the revert rate of weekday median.</div>
+  2796→        <div class="text-[10px] text-fg-500">Predicts weekend incident probability</div>
+  2797→        <div class="prov-chain mt-2"><span class="prov-node">github:merges</span><span class="prov-arrow">→</span><span class="prov-node">github:reverts</span></div>
+  2798→        <div class="mt-3 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[10px]"><span class="text-fg-500">31 evidence artifacts · 0 counter-examples</span><span class="text-brand-purple">Inspect →</span></div>
+  2799→        <div class="law-detail">
+  2800→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Evidence trail</div>
+  2801→          <div class="space-y-1.5 text-[11px]">
+  2802→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">31 Friday-after merges analyzed: 12% revert rate vs 5% weekday median</span> <span class="source-cite">github:merge-analysis</span></div></div>
+  2803→            <div class="flex items-start gap-2"><span class="text-brand-cyan mt-0.5">✓</span><div class="flex-1"><span class="text-fg-300">Policy adopted Sep 15: Friday-merge freeze after 4pm → revert rate dropped 42%</span> <span class="source-cite">prediction:pred-2024-09-15</span></div></div>
+  2804→          </div>
+  2805→          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mt-3 mb-2">Verified prediction</div>
+  2806→          <div class="text-[11px] text-brand-cyan">Sep 15 prediction (freeze reduces reverts 40%+) → VERIFIED HIT on Oct 15. This law is now policy.</div>
+  2807→          <div class="flex gap-2 mt-3"><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('debate')">Challenge this law</button><button class="btn btn-ghost text-[10px] py-1 px-2" onclick="event.stopPropagation(); navTo('simulator')">Use in simulator</button></div>
+  2808→        </div>
+  2809→      </div>
+  2810→      <div class="p-4 rounded-lg border border-dashed border-white/[0.08] text-center text-[11px] text-fg-500">+ 13 additional laws · click any law to inspect evidence, predictions, and counter-examples.</div>
+  2811→    </div>
+  2812→  </div>
+  2813→</section>
+  2814→
+  2815→<!-- ============================================================ -->
+  2816→<!-- SURFACE: DEBATE                                               -->
+  2817→<!-- ============================================================ -->
+  2818→<section class="surface" id="surface-debate">
+  2819→  <div class="p-6 space-y-4 max-w-7xl mx-auto">
+  2820→    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-debate"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
+  2821→    <div class="flex items-end justify-between flex-wrap gap-3">
+  2822→      <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Execution Debate</div><h1 class="text-2xl font-bold text-white">Where your org disagrees, structured.</h1><p class="text-xs text-fg-500 mt-1">2 active debates · 14 closed precedents this quarter.</p></div>
+  2823→      <span class="dq-badge">DQ · Where does my org disagree that I haven't ruled on?</span>
+  2824→    </div>
+  2825→    <div class="space-y-3">
+  2826→      <div class="debate-card">
+  2827→        <div class="flex items-start justify-between mb-3"><div><div class="text-sm font-semibold text-white mb-1">Should Sara K. remain the Marketing → Eng handoff gate?</div><div class="text-[10px] text-fg-500">Active · 10 stakeholders · Linked to L-0018 · Surfaced Day 38</div></div><span class="tag tag-amber">Awaiting CEO ruling</span></div>
+  2828→        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+  2829→          <div class="debate-thesis"><div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1.5">Thesis · 7 supporters</div><div class="text-[11px] text-fg-300 leading-relaxed mb-2">Removing Sara from the gate would reduce handoff latency by ~6 days.</div><div class="text-[10px] text-fg-500">Lead supporters: VP Eng, VP Product, 2 Eng managers, 3 senior ICs</div><div class="mt-2"><span class="source-cite">slack:C-1247</span> <span class="source-cite ml-1">jira:HANDOFF-44</span> <span class="source-cite ml-1" onclick="navTo('physics')">L-0018</span></div></div>
+  2830→          <div class="debate-antithesis"><div class="text-[10px] uppercase tracking-wider text-brand-rose font-semibold mb-1.5">Antithesis · 3 supporters</div><div class="text-[11px] text-fg-300 leading-relaxed mb-2">Sara's approvals catch 2–3 brand-risk issues per quarter. Removing her shifts risk, doesn't eliminate it.</div><div class="text-[10px] text-fg-500">Lead supporters: Sara K., General Counsel, Brand director</div><div class="mt-2"><span class="source-cite">confluence:BRAND-RISK</span> <span class="source-cite ml-1">slack:C-1248</span></div></div>
+  2831→        </div>
+  2832→        <div class="p-3 rounded-md bg-brand-purple/[0.04] border border-brand-purple/15 mb-3"><div class="text-[10px] uppercase tracking-wider text-brand-purple font-semibold mb-1">Maestro's structural read</div><div class="text-[11px] text-fg-300 leading-relaxed">Both sides are correct on their own axis. The decision is not "remove Sara" — it is "is brand-risk review a VP-level function, or a process function?" If the former, Sara stays. If the latter, redesign the process.</div></div>
+  2833→        <div class="flex items-center justify-between text-[10px] pt-3 border-t border-white/[0.04]"><span class="text-fg-500">Maestro reframes the question. CEO ruling will create precedent.</span><div class="flex gap-2"><button class="btn btn-ghost text-[10px] py-1 px-2">Defer 7 days</button><button class="btn btn-ghost text-[10px] py-1 px-2">Kick to reviewer</button><button class="btn btn-cyan text-[10px] py-1 px-2">Rule</button></div></div>
+  2834→      </div>
+  2835→      <div class="debate-card">
+  2836→        <div class="flex items-start justify-between mb-3"><div><div class="text-sm font-semibold text-white mb-1">Q3 hiring: APAC vs EMEA allocation</div><div class="text-[10px] text-fg-500">Active · 7 stakeholders · Linked to L-0014, L-0019 · Surfaced Day 45</div></div><span class="tag tag-amber">Awaiting CEO ruling</span></div>
+  2837→        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+  2838→          <div class="debate-thesis"><div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1.5">Thesis · VP Sales + 4 supporters</div><div class="text-[11px] text-fg-300 leading-relaxed mb-2">APAC pipeline is up 41% QoQ. EMEA pipeline is flat. Plan optimizes for last year's geography.</div><div class="text-[10px] text-fg-500">Lead supporters: VP Sales, 2 APAC reps, 2 product leads</div></div>
+  2839→          <div class="debate-antithesis"><div class="text-[10px] uppercase tracking-wider text-brand-rose font-semibold mb-1.5">Antithesis · CFO + 2 supporters</div><div class="text-[11px] text-fg-300 leading-relaxed mb-2">EMEA deals are 2.3× larger. APAC pipeline expansion is recent; structural EMEA capacity is the bottleneck.</div><div class="text-[10px] text-fg-500">Lead supporters: CFO, VP Eng (reductions faction), 1 board observer</div></div>
+  2840→        </div>
+  2841→        <div class="p-3 rounded-md bg-brand-purple/[0.04] border border-brand-purple/15 mb-3"><div class="text-[10px] uppercase tracking-wider text-brand-purple font-semibold mb-1">Maestro's structural read</div><div class="text-[11px] text-fg-300 leading-relaxed">The plan optimizes for the law the org knows (L-0019: hire-on-incidents) but ignores the law it doesn't (L-0014: APAC threshold). Maestro's recommended compromise: −3 EMEA, +2 APAC.</div></div>
+  2842→        <div class="flex items-center justify-between text-[10px] pt-3 border-t border-white/[0.04]"><span class="text-fg-500">Decision expires 09:00 · ruling will be logged to Prediction Ledger.</span><div class="flex gap-2"><button class="btn btn-ghost text-[10px] py-1 px-2">Defer</button><button class="btn btn-cyan text-[10px] py-1 px-2" onclick="navTo('simulator')">Rule</button></div></div>
+  2843→      </div>
+  2844→    </div>
+  2845→  </div>
+  2846→</section>
+  2847→
+  2848→<!-- ============================================================ -->
+  2849→<!-- SURFACE: LIVE                                                 -->
+  2850→<!-- ============================================================ -->
+  2851→<section class="surface" id="surface-live">
+  2852→  <div class="p-6 space-y-4 max-w-7xl mx-auto">
+  2853→    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-live"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
+  2854→    <div class="flex items-end justify-between flex-wrap gap-3">
+  2855→      <div><div class="flex items-center gap-2 mb-1"><span class="live-pill"><span class="rec-dot"></span> REC · 09:14</span><span class="text-[10px] uppercase tracking-[0.2em] text-fg-500">Live Meeting Intelligence</span></div><h1 class="text-2xl font-bold text-white">Q3 Hiring Plan Decision</h1><p class="text-xs text-fg-500 mt-1">4 participants · Started 09:00 · Maestro listening with consent</p></div>
+  2856→      <div class="flex items-center gap-2"><span class="dq-badge">DQ · What is being decided, and what should I say next?</span><button class="btn btn-primary" onclick="toggleModal('synthesisModal')">End &amp; synthesize</button></div>
+  2857→    </div>
+  2858→    <div class="flex items-center gap-2 p-3 rounded-lg bg-brand-cyan/[0.06] border border-brand-cyan/20 text-[11px]"><svg class="w-4 h-4 text-brand-cyan flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div class="flex-1"><span class="text-brand-cyan font-semibold">All 4 participants have consented.</span> Maestro is transcribing, extracting action items, and comparing against the OEM. Every participant can see this panel.</div><span class="text-[10px] text-fg-500">Consent logged 09:00:14</span></div>
+  2859→    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+  2860→      <div class="lg:col-span-2 panel flex flex-col" style="height: 480px;">
+  2861→        <div class="panel-header"><span class="flex items-center gap-2"><span class="rec-dot"></span> Live Transcript</span><span class="text-[10px] text-fg-500 normal-case font-sans">On-device transcription · no audio leaves laptop</span></div>
+  2862→        <div class="flex-1 overflow-y-auto p-3" id="transcript-area" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7;"></div>
+  2863→      </div>
+  2864→      <div class="space-y-3">
+  2865→        <div class="panel p-3 bg-brand-cyan/[0.04] border-brand-cyan/20"><div class="text-[10px] uppercase tracking-wider text-brand-cyan font-semibold mb-1">Decision forming</div><div class="text-sm text-fg-100 font-semibold leading-snug mb-2" id="live-decision-text">No decision yet — discussion in progress.</div><div class="flex items-center gap-2 text-[10px] text-fg-500"><span>Confidence</span><div class="conf-bar"><div class="conf-bar-track" style="width:60px"><div class="conf-bar-fill" style="width: 0%" id="live-decision-conf"></div></div></div><span class="ml-auto" id="live-decision-status">listening…</span></div></div>
+
+[showing lines 2666-2865 of 6383; use offset=2866 with limit to continue reading]

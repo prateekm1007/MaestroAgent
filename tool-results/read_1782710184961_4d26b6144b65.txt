@@ -1,0 +1,302 @@
+   500→
+   501→/* Pro mode sections — hidden in beginner mode */
+   502→.pro-only { display: none; }
+   503→body.pro-mode .pro-only { display: block; }
+   504→body.pro-mode .beginner-only { display: none; }
+   505→
+   506→/* Mission Control home */
+   507→.mission-control { max-width: 720px; margin: 0 auto; padding: 48px 24px; }
+   508→.mission-prompt { background: linear-gradient(180deg, rgba(22,22,36,0.6), rgba(18,18,30,0.6)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; backdrop-filter: blur(20px); transition: all .3s; }
+   509→.mission-prompt:focus-within { border-color: rgba(124,92,255,0.4); box-shadow: 0 0 40px -8px rgba(124,92,255,0.2); }
+   510→.mission-prompt-input { width: 100%; background: transparent; border: none; outline: none; color: #e8e8f0; font-size: 18px; font-family: inherit; resize: none; min-height: 56px; }
+   511→.mission-prompt-input::placeholder { color: #5a5a72; }
+   512→.mission-prompt-bar { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.04); }
+   513→.mission-prompt-hint { font-size: 11px; color: #5a5a72; display: flex; align-items: center; gap: 6px; }
+   514→
+   515→/* Task cards grid */
+   516→.task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 32px; }
+   517→.task-card { background: linear-gradient(180deg, rgba(22,22,36,0.4), rgba(18,18,30,0.4)); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; cursor: pointer; transition: all .25s cubic-bezier(0.16,1,0.3,1); position: relative; overflow: hidden; }
+   518→.task-card:hover { border-color: rgba(124,92,255,0.3); transform: translateY(-3px); box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5), 0 0 24px -8px rgba(124,92,255,0.15); }
+   519→.task-card:active { transform: scale(0.98); }
+   520→.task-card-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 12px; }
+   521→.task-card-title { font-size: 15px; font-weight: 700; color: #e8e8f0; margin-bottom: 4px; }
+   522→.task-card-desc { font-size: 12px; color: #8888a0; line-height: 1.4; }
+   523→.task-card-glow { position: absolute; top: -40px; right: -40px; width: 80px; height: 80px; border-radius: 50%; opacity: 0.06; pointer-events: none; transition: opacity .3s; }
+   524→.task-card:hover .task-card-glow { opacity: 0.12; }
+   525→
+   526→/* Task flow modal */
+   527→.task-flow-modal { max-width: 560px; }
+   528→.task-flow-step { display: none; }
+   529→.task-flow-step.active { display: block; animation: spaPageIn .25s ease; }
+   530→.task-flow-option { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); cursor: pointer; transition: all .15s; margin-bottom: 8px; }
+   531→.task-flow-option:hover { background: rgba(124,92,255,0.08); border-color: rgba(124,92,255,0.2); }
+   532→.task-flow-option.selected { background: rgba(124,92,255,0.12); border-color: rgba(124,92,255,0.3); }
+   533→.task-flow-option-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+   534→.task-flow-option-text { flex: 1; }
+   535→.task-flow-option-title { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+   536→.task-flow-option-desc { font-size: 11px; color: #8888a0; }
+   537→
+   538→/* Auto-team creation reveal */
+   539→.auto-team-reveal { background: linear-gradient(135deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.15); border-radius: 14px; padding: 20px; animation: spaPageIn .4s ease; }
+   540→.auto-team-agent { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 10px; margin-bottom: 6px; animation: spaPageIn .3s ease; }
+   541→.auto-team-agent:last-child { margin-bottom: 0; }
+   542→
+   543→/* Recent work (beginner mode) */
+   544→.recent-work-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); cursor: pointer; transition: all .15s; margin-bottom: 8px; }
+   545→.recent-work-item:hover { background: rgba(255,255,255,0.04); border-color: rgba(124,92,255,0.15); }
+   546→.recent-work-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+   547→.recent-work-title { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+   548→.recent-work-meta { font-size: 10px; color: #8888a0; }
+   549→
+   550→/* Consumer sidebar — simplified */
+   551→body:not(.pro-mode) .sidebar-section { display: none; }
+   552→body:not(.pro-mode) .sidebar-link.pro-only { display: none; }
+   553→body.pro-mode .sidebar-link.beginner-only { display: none; }
+   554→
+   555→/* ===== PHASE 3: CONVERSATIONAL WORKSPACE ===== */
+   556→
+   557→/* Work stream — replaces modal, work happens in-page */
+   558→.work-stream { max-width: 720px; margin: 0 auto; padding: 24px; display: none; }
+   559→.work-stream.active { display: block; animation: spaPageIn .3s ease; }
+   560→
+   561→/* Maestro's message bubble */
+   562→.maestro-msg { background: linear-gradient(180deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.12); border-radius: 16px; padding: 16px 20px; margin-bottom: 16px; animation: spaPageIn .3s ease; }
+   563→.maestro-msg-avatar { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: white; margin-right: 8px; vertical-align: middle; }
+   564→.maestro-msg-text { font-size: 14px; color: #e8e8f0; line-height: 1.6; display: inline; }
+   565→
+   566→/* User's message */
+   567→.user-msg { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px 16px 4px 16px; padding: 14px 18px; margin-bottom: 16px; margin-left: 48px; animation: spaPageIn .25s ease; }
+   568→.user-msg-text { font-size: 14px; color: #c8c8d8; }
+   569→
+   570→/* Specialist joining — feels alive */
+   571→.specialist-join { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(0,212,170,0.04); border: 1px solid rgba(0,212,170,0.10); border-radius: 10px; margin-bottom: 6px; animation: spaPageIn .3s ease; }
+   572→.specialist-join-avatar { width: 28px; height: 28px; border-radius: 8px; background: rgba(124,92,255,0.12); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+   573→.specialist-join-name { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+   574→.specialist-join-role { font-size: 11px; color: #8888a0; }
+   575→.specialist-join-badge { margin-left: auto; font-size: 10px; color: #00d4aa; font-weight: 600; }
+   576→
+   577→/* Progress shimmer */
+   578→.work-progress { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+   579→.work-progress-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+   580→.work-progress-fill { height: 100%; background: linear-gradient(90deg, #7c5cff, #00d4aa); border-radius: 2px; width: 0%; transition: width 1s ease; }
+   581→
+   582→/* Typing indicator */
+   583→.typing-dots { display: inline-flex; gap: 3px; margin-left: 4px; }
+   584→.typing-dots span { width: 5px; height: 5px; border-radius: 50%; background: #7c5cff; animation: typingBounce 1s infinite; }
+   585→.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+   586→.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+   587→@keyframes typingBounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+   588→
+   589→/* Project-centric sidebar items */
+   590→.project-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; font-size: 12px; color: #8888a0; cursor: pointer; transition: all .12s; }
+   591→.project-item:hover { background: rgba(255,255,255,0.04); color: #e8e8f0; }
+   592→.project-item-icon { width: 18px; height: 18px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+   593→.project-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+   594→
+   595→/* ===== REAL-TIME STREAMING UI ===== */
+   596→
+   597→/* Agent streaming message — replaces typing-dots with real LLM output */
+   598→.agent-stream-msg { background: linear-gradient(180deg, rgba(124,92,255,0.04), rgba(0,212,170,0.03)); border: 1px solid rgba(124,92,255,0.15); border-radius: 14px; padding: 14px 18px; margin-bottom: 16px; animation: spaPageIn .3s ease; }
+   599→.agent-stream-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+   600→.agent-stream-name { font-size: 13px; font-weight: 700; color: #e8e8f0; }
+   601→.agent-stream-step { font-size: 10.5px; color: #8888a0; margin-left: auto; }
+   602→.agent-stream-step .agent-artifact-link { color: #00d4aa; text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+   603→.agent-stream-step .agent-artifact-link:hover { text-decoration: underline; }
+   604→.agent-stream-body { font-size: 13px; color: #c8c8d8; line-height: 1.6; max-height: 600px; overflow-y: auto; padding-right: 8px; }
+   605→.agent-stream-body .md-h2 { font-size: 16px; font-weight: 700; color: #f4f4fc; margin: 12px 0 6px; }
+   606→.agent-stream-body .md-h3 { font-size: 14px; font-weight: 700; color: #e8e8f0; margin: 10px 0 4px; }
+   607→.agent-stream-body .md-h4 { font-size: 13px; font-weight: 600; color: #c8c8d8; margin: 8px 0 4px; }
+   608→.agent-stream-body .md-code { background: #070710; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #00d4aa; margin: 8px 0; }
+   609→.agent-stream-body .md-inline { background: rgba(124,92,255,0.12); color: #a594ff; padding: 1px 5px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+   610→.agent-stream-body strong { color: #f4f4fc; font-weight: 700; }
+   611→
+   612→/* Deliverables panel */
+   613→.deliverables-panel { background: linear-gradient(180deg, rgba(0,212,170,0.04), rgba(124,92,255,0.03)); border: 1px solid rgba(0,212,170,0.20); border-radius: 16px; padding: 20px; margin-top: 24px; animation: spaPageIn .4s ease; }
+   614→.deliverables-header { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #00d4aa; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(0,212,170,0.12); }
+   615→.deliverables-header svg { color: #00d4aa; }
+   616→.deliverables-count { margin-left: auto; color: #8888a0; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11px; }
+   617→.deliverables-list { display: flex; flex-direction: column; gap: 10px; }
+   618→.deliverable-card { display: flex; align-items: flex-start; gap: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px; transition: all .25s; }
+   619→.deliverable-card:hover { border-color: rgba(0,212,170,0.3); transform: translateY(-1px); box-shadow: 0 6px 20px -8px rgba(0,212,170,0.2); }
+   620→.deliverable-card.final { background: linear-gradient(180deg, rgba(0,212,170,0.08), rgba(124,92,255,0.05)); border-color: rgba(0,212,170,0.4); box-shadow: 0 0 24px -8px rgba(0,212,170,0.3); }
+   621→.deliverable-card-icon { width: 36px; height: 36px; border-radius: 8px; background: rgba(0,212,170,0.12); color: #00d4aa; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
+   622→.deliverable-card.final .deliverable-card-icon { background: linear-gradient(135deg, #00d4aa, #7c5cff); color: white; }
+   623→.deliverable-card-body { flex: 1; min-width: 0; }
+   624→.deliverable-card-name { font-size: 13px; font-weight: 600; color: #f4f4fc; font-family: 'JetBrains Mono', monospace; word-break: break-all; }
+   625→.deliverable-card-meta { font-size: 10.5px; color: #8888a0; margin-top: 2px; }
+   626→.deliverable-card-preview { font-size: 11px; color: #5a5a72; margin-top: 6px; line-height: 1.4; max-height: 60px; overflow: hidden; font-family: 'JetBrains Mono', monospace; white-space: pre-wrap; }
+   627→.deliverable-download { flex-shrink: 0; align-self: center; }
+   628→
+   629→/* Start-new CTA */
+   630→.start-new-cta { text-align: center; padding: 24px; margin-top: 24px; background: rgba(255,255,255,0.02); border-radius: 14px; }
+   631→
+   632→/* ===== PHASE 4: REAL COGNITION UI ===== */
+   633→
+   634→/* Conductor narration — distinct from specialist bubbles.
+   635→   Purple gradient border, "thinking out loud" feel. */
+   636→.conductor-bubble { background: linear-gradient(135deg, rgba(124,92,255,0.08), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.25); border-radius: 14px; padding: 14px 18px; margin-bottom: 14px; animation: spaPageIn .3s ease; position: relative; }
+   637→.conductor-bubble::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; background: linear-gradient(180deg, #7c5cff, #00d4aa); border-radius: 0 2px 2px 0; }
+   638→.conductor-bubble-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #a594ff; }
+   639→.conductor-bubble-header .conductor-avatar { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: white; }
+   640→.conductor-bubble-header .phase-label { color: #8888a0; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11px; margin-left: auto; }
+   641→.conductor-bubble-text { font-size: 13.5px; color: #e8e8f0; line-height: 1.65; padding-left: 4px; }
+   642→.conductor-bubble-text .typing-dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+   643→
+   644→/* Confidence badge — appears on agent completion */
+   645→.confidence-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; margin-left: 8px; vertical-align: middle; }
+   646→.confidence-badge.high { background: rgba(0,212,170,0.14); color: #00d4aa; border: 1px solid rgba(0,212,170,0.25); }
+   647→.confidence-badge.medium { background: rgba(255,184,77,0.14); color: #ffb84d; border: 1px solid rgba(255,184,77,0.25); }
+   648→.confidence-badge.low { background: rgba(255,85,119,0.14); color: #ff5577; border: 1px solid rgba(255,85,119,0.25); }
+   649→.confidence-badge .conf-score { font-family: 'JetBrains Mono', monospace; }
+   650→.confidence-detail { font-size: 11px; color: #8888a0; margin-top: 6px; padding: 8px 12px; background: rgba(255,255,255,0.02); border-radius: 8px; border-left: 2px solid rgba(124,92,255,0.3); }
+   651→.confidence-detail .conf-reason { color: #c8c8d8; }
+   652→.confidence-detail .conf-alternatives { color: #5a5a72; margin-top: 4px; font-size: 10.5px; }
+   653→
+   654→/* Debate thread — disagreements + resolution */
+   655→.debate-card { background: linear-gradient(180deg, rgba(255,184,77,0.06), rgba(255,85,119,0.04)); border: 1px solid rgba(255,184,77,0.25); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; animation: spaPageIn .3s ease; }
+   656→.debate-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #ffb84d; }
+   657→.debate-card-header svg { width: 14px; height: 14px; }
+   658→.debate-card .debater { font-size: 12px; color: #c8c8d8; margin-bottom: 6px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 2px solid rgba(255,184,77,0.4); }
+   659→.debate-card .debater-name { font-weight: 700; color: #ffb84d; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+   660→.resolution-card { background: linear-gradient(180deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.30); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; animation: spaPageIn .3s ease; }
+   661→.resolution-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #a594ff; }
+   662→.resolution-card-text { font-size: 13px; color: #e8e8f0; line-height: 1.6; }
+   663→
+   664→/* Evidence checklist — replaces progress bar */
+   665→.evidence-panel { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+   666→.evidence-panel-header { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8888a0; margin-bottom: 10px; }
+   667→.evidence-panel-header .evidence-count { margin-left: auto; color: #00d4aa; font-family: 'JetBrains Mono', monospace; }
+   668→.evidence-list { display: flex; flex-direction: column; gap: 6px; }
+   669→.evidence-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #c8c8d8; padding: 6px 10px; background: rgba(0,212,170,0.04); border-radius: 6px; border-left: 2px solid rgba(0,212,170,0.4); animation: spaPageIn .25s ease; }
+   670→.evidence-item .evidence-check { width: 16px; height: 16px; border-radius: 50%; background: rgba(0,212,170,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+   671→.evidence-item .evidence-check svg { width: 10px; height: 10px; color: #00d4aa; }
+   672→.evidence-item .evidence-label { flex: 1; }
+   673→.evidence-item .evidence-agent { font-size: 10px; color: #5a5a72; font-family: 'JetBrains Mono', monospace; }
+   674→
+   675→/* Interrupt input — always visible at bottom of work-stream */
+   676→.interrupt-bar { position: sticky; bottom: 0; background: linear-gradient(180deg, rgba(7,7,16,0) 0%, rgba(7,7,16,0.95) 30%); padding: 16px 0 8px; margin-top: 8px; }
+   677→.interrupt-input-wrap { background: linear-gradient(180deg, rgba(22,22,36,0.8), rgba(18,18,30,0.8)); border: 1px solid rgba(124,92,255,0.25); border-radius: 14px; padding: 12px 14px; backdrop-filter: blur(20px); transition: all .25s; }
+   678→.interrupt-input-wrap:focus-within { border-color: rgba(124,92,255,0.5); box-shadow: 0 0 24px -6px rgba(124,92,255,0.3); }
+   679→.interrupt-input { width: 100%; background: transparent; border: none; outline: none; color: #e8e8f0; font-size: 13px; font-family: inherit; resize: none; min-height: 22px; max-height: 100px; }
+   680→.interrupt-input::placeholder { color: #5a5a72; }
+   681→.interrupt-bar-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.04); }
+   682→.interrupt-hint { font-size: 10.5px; color: #5a5a72; display: flex; align-items: center; gap: 6px; }
+   683→.interrupt-send { background: linear-gradient(135deg, #7c5cff, #6b4df5); color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; }
+   684→.interrupt-send:hover { box-shadow: 0 2px 12px rgba(124,92,255,0.4); transform: translateY(-1px); }
+   685→.interrupt-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+   686→
+   687→/* User interjection bubble — when interrupt is consumed */
+   688→.user-interjection { background: rgba(255,184,77,0.08); border: 1px solid rgba(255,184,77,0.25); border-radius: 12px 12px 4px 12px; padding: 10px 14px; margin: 8px 0 8px 48px; animation: spaPageIn .3s ease; }
+   689→.user-interjection-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #ffb84d; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+   690→.user-interjection-text { font-size: 13px; color: #e8e8f0; }
+   691→
+   692→/* ===== LEARNING LAYER UI ===== */
+   693→
+   694→/* "Remembered from past work" indicator — shown when learning.retrieved fires */
+   695→.learning-retrieved { background: linear-gradient(135deg, rgba(124,92,255,0.08), rgba(0,212,170,0.06)); border: 1px solid rgba(124,92,255,0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; animation: spaPageIn .3s ease; }
+   696→
+   697→/* Execution Pattern indicator — the scalable abstraction */
+   698→.pattern-indicator { background: linear-gradient(135deg, rgba(0,212,170,0.08), rgba(124,92,255,0.06)); border: 1px solid rgba(0,212,170,0.30); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; animation: spaPageIn .3s ease; }
+   699→.pattern-indicator-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+   700→.pattern-indicator-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #00d4aa, #7c5cff); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+   701→.pattern-indicator-icon svg { width: 16px; height: 16px; color: white; }
+   702→.pattern-indicator-title { font-size: 12px; font-weight: 700; color: #00d4aa; text-transform: uppercase; letter-spacing: 0.06em; }
+   703→.pattern-indicator-class { font-size: 14px; font-weight: 700; color: #e8e8f0; margin-left: 4px; }
+   704→.pattern-indicator-stats { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+   705→.pattern-stat { display: flex; flex-direction: column; gap: 2px; }
+   706→.pattern-stat-label { font-size: 9.5px; color: #5a5a72; text-transform: uppercase; letter-spacing: 0.06em; }
+   707→.pattern-stat-value { font-size: 14px; font-weight: 700; color: #e8e8f0; font-family: 'JetBrains Mono', monospace; }
+   708→.pattern-stat-value.green { color: #00d4aa; }
+   709→.pattern-stat-value.amber { color: #ffb84d; }
+   710→.pattern-indicator-note { font-size: 11px; color: #8888a0; margin-top: 8px; font-style: italic; }
+   711→
+   712→/* Operating Policy indicator — the governance layer */
+   713→.policy-indicator { background: linear-gradient(135deg, rgba(255,85,119,0.06), rgba(255,184,77,0.04)); border: 1px solid rgba(255,85,119,0.20); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; animation: spaPageIn .3s ease; }
+   714→.policy-indicator-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+   715→.policy-indicator-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #ff5577, #ffb84d); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+   716→.policy-indicator-icon svg { width: 16px; height: 16px; color: white; }
+   717→.policy-indicator-title { font-size: 12px; font-weight: 700; color: #ff5577; text-transform: uppercase; letter-spacing: 0.06em; }
+   718→.policy-indicator-stats { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+   719→.policy-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+   720→.policy-item { font-size: 11.5px; padding: 6px 10px; border-radius: 6px; display: flex; align-items: flex-start; gap: 8px; }
+   721→.policy-item.constitutional { background: rgba(255,85,119,0.10); border-left: 2px solid #ff5577; }
+   722→.policy-item.mandatory { background: rgba(255,184,77,0.08); border-left: 2px solid #ffb84d; }
+   723→.policy-item.recommended { background: rgba(124,92,255,0.06); border-left: 2px solid #7c5cff; }
+   724→.policy-item-scope { font-size: 9px; color: #8888a0; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; min-width: 70px; }
+   725→.policy-item-rule { color: #e8e8f0; flex: 1; }
+   726→.policy-item-badge { font-size: 9px; padding: 1px 6px; border-radius: 999px; font-weight: 700; text-transform: uppercase; flex-shrink: 0; }
+   727→.policy-item-badge.constitutional { background: rgba(255,85,119,0.20); color: #ff5577; }
+   728→.policy-item-badge.mandatory { background: rgba(255,184,77,0.20); color: #ffb84d; }
+   729→.policy-item-badge.recommended { background: rgba(124,92,255,0.15); color: #a594ff; }
+   730→.learning-retrieved-icon { width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(135deg, #7c5cff, #00d4aa); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+   731→.learning-retrieved-icon svg { width: 14px; height: 14px; color: white; }
+   732→.learning-retrieved-text { font-size: 12px; color: #a594ff; line-height: 1.4; }
+   733→.learning-retrieved-text strong { color: #e8e8f0; }
+   734→
+   735→/* Feedback bar — shown after run completes */
+   736→.feedback-bar { background: linear-gradient(180deg, rgba(124,92,255,0.06), rgba(0,212,170,0.04)); border: 1px solid rgba(124,92,255,0.20); border-radius: 14px; padding: 16px 20px; margin-top: 16px; animation: spaPageIn .4s ease; }
+   737→.feedback-bar-header { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #a594ff; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+   738→.feedback-bar-question { font-size: 14px; color: #e8e8f0; margin-bottom: 12px; font-weight: 500; }
+   739→.feedback-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+   740→.feedback-btn { padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all .15s; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+   741→.feedback-btn-accept { background: rgba(0,212,170,0.12); color: #00d4aa; border-color: rgba(0,212,170,0.25); }
+   742→.feedback-btn-accept:hover { background: rgba(0,212,170,0.20); transform: translateY(-1px); }
+   743→.feedback-btn-edit { background: rgba(255,184,77,0.12); color: #ffb84d; border-color: rgba(255,184,77,0.25); }
+   744→.feedback-btn-edit:hover { background: rgba(255,184,77,0.20); transform: translateY(-1px); }
+   745→.feedback-btn-reject { background: rgba(255,85,119,0.12); color: #ff5577; border-color: rgba(255,85,119,0.25); }
+   746→.feedback-btn-reject:hover { background: rgba(255,85,119,0.20); transform: translateY(-1px); }
+   747→.feedback-btn.selected { transform: scale(0.97); opacity: 0.7; }
+   748→.feedback-btn-accept.selected { background: rgba(0,212,170,0.25); }
+   749→.feedback-btn-edit.selected { background: rgba(255,184,77,0.25); }
+   750→.feedback-btn-reject.selected { background: rgba(255,85,119,0.25); }
+   751→.feedback-result { font-size: 12px; color: #8888a0; margin-top: 10px; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; display: none; }
+   752→.feedback-result.visible { display: block; animation: spaPageIn .25s ease; }
+   753→
+   754→/* Learning stats badge — shown in the home sidebar */
+   755→.learning-stats-mini { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(124,92,255,0.06); border: 1px solid rgba(124,92,255,0.15); border-radius: 8px; margin: 8px 10px; font-size: 11px; color: #a594ff; }
+   756→.learning-stats-mini svg { width: 12px; height: 12px; }
+   757→.learning-stats-mini .stat-num { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #e8e8f0; }
+   758→
+   759→</style>
+   760→</head>
+   761→<body>
+   762→
+   763→<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+   764→<div class="flex h-screen">
+   765→
+   766→  <!-- ===== LEFT SIDEBAR ===== -->
+   767→  <aside class="sidebar w-56 flex-shrink-0 bg-ink-900 border-r border-white/[0.05] flex flex-col">
+   768→    <div class="h-12 flex items-center gap-2 px-4 border-b border-white/[0.05]">
+   769→      <div class="w-7 h-7 rounded-md bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-xs font-black text-white">M</div>
+   770→      <div class="flex flex-col"><span class="font-bold text-sm leading-none">Maestro</span><span class="text-[9px] text-fg-500 mt-0.5">Executive Cognition Center</span></div>
+   771→    </div>
+   772→
+   773→    <!-- Mode toggle: Executive / Engineering -->
+   774→    <div class="px-3 py-2 border-b border-white/[0.04]">
+   775→      <div class="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.04]">
+   776→        <button class="flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all mode-btn active" data-mode="executive" onclick="setMode('executive')" style="background:rgba(124,92,255,0.15);color:#a594ff">Executive</button>
+   777→        <button class="flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all mode-btn" data-mode="engineering" onclick="setMode('engineering')" style="color:#5c5c70">Engineering</button>
+   778→      </div>
+   779→    </div>
+   780→
+   781→    <div class="px-3 py-2 border-b border-white/[0.04]">
+   782→      <div class="flex items-center gap-2 px-2 py-1">
+   783→        <div class="w-6 h-6 rounded bg-gradient-to-br from-brand-purple to-brand-cyan flex items-center justify-center text-[10px] font-bold">A</div>
+   784→        <div class="flex-1 min-w-0"><div class="text-xs font-semibold truncate">Acme Corp</div><div class="text-[9px] text-fg-500">OEM active · 19 laws · SHR 0.83</div></div>
+   785→      </div>
+   786→    </div>
+   787→
+   788→    <nav class="flex-1 overflow-y-auto px-3 py-2">
+   789→      <!-- Beginner mode: Projects-centric nav -->
+   790→      <div class="sidebar-link active beginner-only" data-page="dashboard"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Home</div>
+   791→      <div class="sidebar-link beginner-only" data-page="runs"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Projects<span class="tag tag-cyan badge">3</span></div>
+   792→      <div class="sidebar-link beginner-only" data-page="templates"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>Templates</div>
+   793→      <!-- Recent projects -->
+   794→      <div class="sidebar-section beginner-only" style="display:block; padding-top:10px;">Recent Projects</div>
+   795→      <div class="beginner-only">
+   796→        <div class="project-item" onclick="navTo('run-detail')"><div class="project-item-icon" style="background:rgba(124,92,255,0.12);">🚀</div><span class="project-item-name">SaaS MVP</span><span class="tag tag-amber badge">●</span></div>
+   797→        <div class="project-item" onclick="navTo('runs')"><div class="project-item-icon" style="background:rgba(92,200,255,0.12);">📄</div><span class="project-item-name">Nvidia Research</span></div>
+   798→        <div class="project-item" onclick="navTo('runs')"><div class="project-item-icon" style="background:rgba(0,212,170,0.12);">📊</div><span class="project-item-name">Q3 Churn Analysis</span></div>
+   799→      </div>
+
+[showing lines 500-799 of 6383; use offset=800 with limit to continue reading]
