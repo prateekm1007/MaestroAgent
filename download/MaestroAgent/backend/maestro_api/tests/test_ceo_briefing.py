@@ -149,20 +149,25 @@ class TestHomepageCEOUX:
     """The homepage HTML must have sections for all 5 CEO questions."""
 
     def test_homepage_has_5_ceo_question_panels(self, client):
-        """The homepage must have panels for all 5 CEO questions."""
+        """The homepage must have panels for all CEO questions (now ECC sections)."""
         resp = client.get("/app.html")
         html = resp.text
-        assert "What changed overnight?" in html
-        assert "If you do one thing today" in html
-        assert "Where is money being lost?" in html
-        assert "Where is knowledge trapped?" in html
-        assert "What decision only you can make?" in html
+        # The ECC sections replace the old CEO question panels
+        assert "Today's Attention" in html
+        assert "What Changed Overnight" in html
+        assert "Hayek Lens" in html
+        assert "Knowledge Flow" in html
+        assert "Hidden Experts" in html
+        assert "Decision Simulator" in html
+        assert "Ask the Organization" in html
+        assert "Execution Replay" in html
+        assert "Executive Autocomplete" in html
 
     def test_homepage_says_good_morning(self, client):
-        """The homepage should greet the CEO, not say 'Organizational execution state.'"""
+        """The homepage should say 'Executive Cognition Center', not 'Organizational execution state.'"""
         resp = client.get("/app.html")
         html = resp.text
-        assert "Good morning" in html or "briefing" in html.lower()
+        assert "Executive Cognition Center" in html or "briefing" in html.lower()
         # Should NOT have the old generic title
         assert "Organizational execution state." not in html
 
