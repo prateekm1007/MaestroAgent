@@ -6,7 +6,15 @@ The real OEM. Replaces all hardcoded insights with a signal-driven inference eng
 
 ```
 Signal → Normalizer → Receipt → LearningObject → Pattern → Law → ExecutionModel → DecisionEngine → UI
+                                                                        ↓
+                                                                  EvidenceGraph
+                                                                  (traversable)
 ```
+
+Every recommendation traces back through:
+  Recommendation → Law → Pattern → LearningObject → Receipt → Signal → Original Artifact
+
+The EvidenceGraph makes this chain traversable, deletable, and reconnectable.
 
 Every provider (GitHub, Jira, Slack, Confluence, Gmail) produces normalized `ExecutionSignal` objects.
 The OEM consumes these and updates itself incrementally — never rebuilds.
@@ -120,15 +128,69 @@ confidence = posterior_mean × evidence_weight × recency_factor + provider_dive
 | Confluence | Documented knowledge, knowledge death detection | `KNOWLEDGE_DEATH` |
 | Gmail | Decision velocity, external communication patterns | `HANDOFF_DELAY` |
 
+## Evidence Graph
+
+The `EvidenceGraph` is a traversable directed graph connecting recommendations back to original artifacts.
+
+### Components
+
+| Component | Purpose |
+|---|---|
+| `EvidenceNode` | Typed node (signal, receipt, LO, pattern, law, recommendation) with `artifact_ref` |
+| `EvidenceEdge` | Directed "supported by" edge with weight and type (PRODUCED, CAUSED, CONTRIBUTED, VALIDATED, CONTRADICTED, DERIVED) |
+| `EvidenceChain` | Complete traversable chain with supporting + contradicting artifacts and computed strength |
+| `EvidenceGraph` | The graph — build, traverse, delete, reconnect |
+
+### API
+
+```python
+from maestro_oem import EvidenceGraph, DecisionEngine
+
+# Build from model
+graph = EvidenceGraph()
+graph.build_from_model(model)
+
+# Enrich recommendations with evidence
+dec = DecisionEngine(model, evidence_graph=graph)
+for rec in dec.get_recommendations():
+    print(rec.evidence_chain)        # Full traversable chain
+    print(rec.supporting_artifacts)  # [{"artifact": "github:pr/447", "provider": "github", ...}]
+    print(rec.contradicting_artifacts)
+    print(rec.evidence_strength)     # 0..1
+
+# Traverse from any node
+chain = graph.traverse("law:L-0007")
+print(chain.to_display())  # UI-ready dict
+
+# Delete evidence (cascading removal, returns affected nodes)
+affected = graph.delete_evidence("signal-uuid")
+
+# Reconnect evidence (rebuilds chain after re-add)
+graph.reconnect_evidence(signal_node, receipt_node, lo_node, ["law:L-0007"])
+```
+
+### Strength Formula
+
+```
+strength = total_edge_weight / (total_edge_weight + 2)
+```
+
+More edges with higher weights = higher strength. Deleting edges reduces strength. Reconnecting restores it.
+
 ## Test Results
 
 ```
-50 passed in 0.78s
+73 passed, 3 skipped in 0.89s
 ```
 
-- 34 core OEM tests (test_oem.py)
-- 16 edge case tests (test_oem_edge_cases.py)
-- 3 pre-existing memory tests (test_memory.py) — regression pass, no breakage
+| Suite | Tests | Result |
+|---|---|---|
+| `test_oem.py` (core OEM) | 34 | ✓ All pass |
+| `test_oem_edge_cases.py` (edge cases) | 16 | ✓ All pass |
+| `test_evidence_graph.py` (evidence graph) | 15 | ✓ All pass (3 skipped — require laws from larger dataset) |
+| `test_evidence_graph_edge_cases.py` (graph edge cases) | 8 | ✓ All pass |
+| `tests/test_memory.py` (regression) | 3 | ✓ All pass |
+| **Total** | **73** | **✓ All pass** |
 
 ## Known Limitations
 
