@@ -383,12 +383,12 @@ async function loadDashboard() {
 
     stateEl.innerHTML = `
       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <div class="metric"><div class="metric-value">${m.signals_processed}</div><div class="metric-label">Signals</div></div>
-        <div class="metric"><div class="metric-value">${m.learning_objects}</div><div class="metric-label">Learning Objects</div></div>
-        <div class="metric"><div class="metric-value">${m.laws_inferred}</div><div class="metric-label">Laws</div></div>
-        <div class="metric"><div class="metric-value">${m.validated_laws}</div><div class="metric-label">Validated</div></div>
-        <div class="metric"><div class="metric-value">${m.recommendations_active}</div><div class="metric-label">Recommendations</div></div>
-        <div class="metric"><div class="metric-value">${formatConfidence(m.p1_cluster_risk)}</div><div class="metric-label">P1 Risk</div></div>
+        <div class="metric metric-clickable" onclick="openDrilldown('metric', 'signals_processed')"><div class="metric-value">${m.signals_processed}</div><div class="metric-label">Signals</div></div>
+        <div class="metric metric-clickable" onclick="openDrilldown('metric', 'learning_objects')"><div class="metric-value">${m.learning_objects}</div><div class="metric-label">Learning Objects</div></div>
+        <div class="metric metric-clickable" onclick="openDrilldown('metric', 'laws_inferred')"><div class="metric-value">${m.laws_inferred}</div><div class="metric-label">Laws</div></div>
+        <div class="metric metric-clickable" onclick="openDrilldown('metric', 'validated_laws')"><div class="metric-value">${m.validated_laws}</div><div class="metric-label">Validated</div></div>
+        <div class="metric metric-clickable" onclick="openDrilldown('metric', 'recommendations_active')"><div class="metric-value">${m.recommendations_active}</div><div class="metric-label">Recommendations</div></div>
+        <div class="metric metric-clickable" onclick="openDrilldown('metric', 'p1_cluster_risk')"><div class="metric-value">${formatConfidence(m.p1_cluster_risk)}</div><div class="metric-label">P1 Risk</div></div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/[0.05] flex flex-wrap gap-2">
         ${data.providers_connected.map(p => `<span class="tag tag-cyan">${escapeHtml(p)}</span>`).join('')}
@@ -402,7 +402,10 @@ async function loadDashboard() {
       changesEl.innerHTML = data.overnight_changes.map(c => {
         const sevColor = c.severity === 'urgent' ? 'rose' : c.severity === 'warning' ? 'amber' : 'cyan';
         const icon = c.type === 'hidden_expert' ? '?' : c.type === 'bottleneck' ? '!' : c.type === 'departure_risk' ? 'x' : 'v';
-        return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-${sevColor}/[0.04] border border-brand-${sevColor}/10 mb-2 cursor-pointer hover:bg-brand-${sevColor}/[0.08] transition-colors" onclick="navTo('hayek')">
+        // Determine drill-down target based on discovery type
+        const drillType = c.type === 'hidden_expert' ? 'expert' : c.type === 'bottleneck' ? 'pattern' : c.type === 'concentration_risk' ? 'risk' : 'pattern';
+        const drillId = c.entity || c.domain || c.title || c.detail;
+        return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-${sevColor}/[0.04] border border-brand-${sevColor}/10 mb-2 cursor-pointer hover:bg-brand-${sevColor}/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(drillId)}')">
           <div class="w-7 h-7 rounded-md bg-brand-${sevColor}/15 flex items-center justify-center flex-shrink-0">
             <span class="text-brand-${sevColor} text-sm font-bold">${icon}</span>
           </div>
@@ -441,7 +444,7 @@ function renderRecCard(r) {
     const key = p.oem_change || p.gate || p.entity || p.domain || 'evidence';
     return `<span class="prov-node">${escapeHtml(key)}</span>`;
   }).join('<span class="prov-arrow">→</span>');
-  return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" onclick="navTo('simulator')">
+  return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" onclick="openDrilldown('recommendation', '${escapeHtml(r.title)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="text-sm font-semibold text-white mb-1">${escapeHtml(r.title)}</div>
@@ -500,7 +503,7 @@ async function loadInbox() {
 
 function renderLawCard(l) {
   const statusTag = l.status === 'validated' ? 'tag-cyan' : l.status === 'stressed' ? 'tag-amber' : l.status === 'invalidated' ? 'tag-rose' : l.status === 'unknown_to_leadership' ? 'tag-purple' : 'tag-gray';
-  return `<div class="card mb-3 cursor-pointer" onclick="navTo('physics')">
+  return `<div class="card mb-3 cursor-pointer" onclick="openDrilldown('law', '${escapeHtml(l.code)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="flex items-center gap-2 mb-1">
@@ -628,7 +631,7 @@ async function loadHayek() {
     risksEl.innerHTML = data.concentration_risks.length === 0
       ? '<div class="empty-state">No concentration risks detected.</div>'
       : data.concentration_risks.map(r => `
-        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="navTo('flow')">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('risk', '${escapeHtml(r.domain)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(r.domain)}</div>
           <div class="text-[11px] text-fg-400 mt-1">Influence concentration: <span class="mono text-brand-rose">${r.score.toFixed(2)}</span></div>
           <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${Math.min(r.score*10,100)}%;background:#ff5577;"></div></div></div>
@@ -637,7 +640,7 @@ async function loadHayek() {
     knowEl.innerHTML = data.hidden_experts.length === 0
       ? '<div class="empty-state">No hidden experts detected.</div>'
       : data.hidden_experts.map(e => `
-        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="navTo('flow')">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('expert', '${escapeHtml(e.entity)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(e.entity)}</div>
           <div class="text-[11px] text-fg-400 mt-1">Influence: <span class="mono text-brand-purple">${e.influence.toFixed(2)}</span> · ${e.domains ? e.domains.length : 0} domains</div>
           ${e.domains && e.domains.length ? `<div class="mt-2 flex flex-wrap gap-1">${e.domains.map(d => `<span class="tag tag-gray">${escapeHtml(d)}</span>`).join('')}</div>` : ''}
@@ -663,7 +666,7 @@ async function loadKnowledge() {
     expertsEl.innerHTML = data.hidden_experts.length === 0
       ? '<div class="empty-state">No hidden experts detected.</div>'
       : data.hidden_experts.map(e => `
-        <div class="card mb-2">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('expert', '${escapeHtml(e.entity)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(e.entity)}</div>
           <div class="text-[11px] text-fg-400 mt-1">Influence ${e.influence.toFixed(2)} · ${e.domains ? e.domains.length : 0} domains</div>
         </div>
@@ -671,7 +674,7 @@ async function loadKnowledge() {
     deathEl.innerHTML = data.knowledge_death.length === 0
       ? '<div class="empty-state">No knowledge death detected.</div>'
       : data.knowledge_death.map(k => `
-        <div class="card mb-2">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeHtml(k.title || k.description || 'knowledge_death')}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(k.title)}</div>
           <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(k.description)}</div>
           <div class="text-[10px] text-fg-500 mt-1">Boundary: ${escapeHtml(k.boundary)} · Confidence ${formatConfidence(k.confidence)}</div>
@@ -680,7 +683,7 @@ async function loadKnowledge() {
     dupEl.innerHTML = data.duplicate_work.length === 0
       ? '<div class="empty-state">No duplicate work detected.</div>'
       : data.duplicate_work.map(d => `
-        <div class="card mb-2">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeHtml(d.title || d.description || 'duplicate_work')}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(d.title)}</div>
           <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(d.description)}</div>
           <div class="text-[10px] text-fg-500 mt-1">Domain: ${escapeHtml(d.domain)} · ${d.providers.join(', ')}</div>
@@ -897,7 +900,7 @@ async function loadLaws(statusFilter) {
 function renderLawCardDetailed(l) {
   const statusTag = l.status === 'validated' ? 'tag-cyan' : l.status === 'stressed' ? 'tag-amber' : l.status === 'invalidated' ? 'tag-rose' : l.status === 'unknown_to_leadership' ? 'tag-purple' : 'tag-gray';
   const chain = l.evidence_chain && l.evidence_chain.chain ? l.evidence_chain.chain : [];
-  return `<div class="card mb-3" data-law-code="${escapeHtml(l.code)}">
+  return `<div class="card mb-3 cursor-pointer" data-law-code="${escapeHtml(l.code)}" onclick="openDrilldown('law', '${escapeHtml(l.code)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="flex items-center gap-2 mb-1">
@@ -932,12 +935,12 @@ function renderLawCardDetailed(l) {
         <div class="flex flex-wrap gap-1">${chain.slice(0, 12).map(n => `<span class="evidence-node ${n.type}">${escapeHtml(n.label)}</span>`).join('')}</div>
       </div>
     ` : ''}
-    <div class="mt-3 pt-3 border-t border-white/[0.05] flex items-center gap-2">
+    <div class="mt-3 pt-3 border-t border-white/[0.05] flex items-center gap-2" onclick="event.stopPropagation()">
       <div class="text-[10px] uppercase text-fg-500 mr-2">Feedback:</div>
-      <button class="btn btn-ghost text-[10px]" onclick="contradictLaw('${escapeHtml(l.code)}', 'agree')">Agree</button>
-      <button class="btn btn-ghost text-[10px]" onclick="contradictLaw('${escapeHtml(l.code)}', 'reject')">Reject</button>
-      <button class="btn btn-ghost text-[10px]" onclick="contradictLaw('${escapeHtml(l.code)}', 'modify')">Modify</button>
-      <button class="btn btn-ghost text-[10px]" onclick="contradictLaw('${escapeHtml(l.code)}', 'ignore')">Ignore</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'agree')">Agree</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'reject')">Reject</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'modify')">Modify</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'ignore')">Ignore</button>
     </div>
   </div>`;
 }
@@ -1187,7 +1190,7 @@ async function loadEngAudit() {
       <div class="text-[10px] text-fg-500 mb-3">${data.total} receipts · showing latest ${data.receipts.length}</div>
       <div class="space-y-1">
         ${data.receipts.map(r => `
-          <div class="text-[11px] p-2 rounded bg-white/[0.02] border border-white/[0.04] grid grid-cols-12 gap-2 items-center hover:bg-white/[0.04]">
+          <div class="text-[11px] p-2 rounded bg-white/[0.02] border border-white/[0.04] grid grid-cols-12 gap-2 items-center hover:bg-white/[0.04] cursor-pointer" onclick="openDrilldown('signal', '${escapeHtml(r.receipt_id)}')">
             <span class="mono text-brand-purple col-span-2" title="${escapeHtml(r.receipt_id)}">${escapeHtml(r.receipt_id.substring(0, 8))}</span>
             <span class="text-fg-500 col-span-2">${formatTimestamp(r.timestamp)}</span>
             <span class="tag tag-gray col-span-1">${escapeHtml(r.provider)}</span>
@@ -1431,6 +1434,208 @@ function updateImportBanner(jobId, snap) {
 function hideImportBanner() {
   document.getElementById('import-banner').classList.add('hidden');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRILL-DOWN MODAL — every card/metric/insight is clickable
+// Answers: Why? Where? Evidence? Timeline? People? Prediction? Simulation? Recommendation?
+// ═══════════════════════════════════════════════════════════════════════════
+
+let drilldownData = null;
+let drilldownActiveTab = 'why';
+
+async function openDrilldown(entityType, entityId) {
+  const modal = document.getElementById('drilldown-modal');
+  const body = document.getElementById('drilldown-body');
+  const title = document.getElementById('drilldown-title');
+  const typeLabel = document.getElementById('drilldown-type');
+
+  modal.classList.remove('hidden');
+  body.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading drill-down…</div>';
+  title.textContent = entityId;
+  typeLabel.textContent = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+
+  try {
+    const resp = await fetch(`${MAESTRO_API}/api/oem/entity/${entityType}/${encodeURIComponent(entityId)}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    drilldownData = await resp.json();
+    drilldownActiveTab = 'why';
+    updateDrilldownTabs();
+    renderDrilldownTab('why');
+  } catch (e) {
+    body.innerHTML = `<div class="error-state">Failed to load: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function closeDrilldown() {
+  document.getElementById('drilldown-modal').classList.add('hidden');
+  drilldownData = null;
+}
+
+function switchDrilldownTab(tab) {
+  drilldownActiveTab = tab;
+  updateDrilldownTabs();
+  renderDrilldownTab(tab);
+}
+
+function updateDrilldownTabs() {
+  document.querySelectorAll('.drilldown-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === drilldownActiveTab);
+  });
+}
+
+function renderDrilldownTab(tab) {
+  const body = document.getElementById('drilldown-body');
+  if (!drilldownData) return;
+
+  if (tab === 'why') {
+    body.innerHTML = `
+      <div class="space-y-4">
+        <div class="text-sm text-fg-200 leading-relaxed">${escapeHtml(drilldownData.why || 'No explanation available.')}</div>
+        ${drilldownData.where ? `
+          <div class="mt-4 pt-4 border-t border-white/[0.05]">
+            <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Context</div>
+            <pre class="text-[11px] text-fg-400 bg-white/[0.02] p-3 rounded-lg overflow-x-auto">${escapeHtml(JSON.stringify(drilldownData.where, null, 2))}</pre>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } else if (tab === 'where') {
+    body.innerHTML = `
+      <div class="space-y-3">
+        <div class="text-sm text-fg-200">${drilldownData.where ? 'This entity appears in:' : 'No location data.'}</div>
+        ${drilldownData.where ? `<pre class="text-[11px] text-fg-400 bg-white/[0.02] p-3 rounded-lg overflow-x-auto">${escapeHtml(JSON.stringify(drilldownData.where, null, 2))}</pre>` : ''}
+      </div>
+    `;
+  } else if (tab === 'evidence') {
+    const ev = drilldownData.evidence || [];
+    body.innerHTML = ev.length === 0
+      ? '<div class="empty-state">No evidence available.</div>'
+      : `<div class="text-[10px] text-fg-500 mb-3">${ev.length} evidence item(s)</div>
+         <div class="space-y-2">${ev.map(e => `
+           <div class="drilldown-evidence-item" onclick="${e.signal_id ? `openDrilldown('signal', '${escapeHtml(e.signal_id)}')` : ''}">
+             <div class="flex items-center justify-between">
+               <span class="text-xs font-semibold text-fg-200">${escapeHtml(e.type)}${e.signal_type ? ': ' + escapeHtml(e.signal_type) : ''}</span>
+               ${e.provider ? `<span class="tag tag-gray">${escapeHtml(e.provider)}</span>` : ''}
+             </div>
+             ${e.actor ? `<div class="text-[10px] text-fg-500 mt-1">Actor: ${escapeHtml(e.actor)}</div>` : ''}
+             ${e.artifact ? `<div class="text-[10px] text-fg-500">Artifact: ${escapeHtml(e.artifact)}</div>` : ''}
+             ${e.timestamp ? `<div class="text-[10px] text-fg-600 mt-1">${formatTimestamp(e.timestamp)}</div>` : ''}
+           </div>
+         `).join('')}</div>`;
+  } else if (tab === 'timeline') {
+    const tl = drilldownData.timeline || [];
+    body.innerHTML = tl.length === 0
+      ? '<div class="empty-state">No timeline data.</div>'
+      : `<div class="space-y-0">${tl.map(t => `
+         <div class="drilldown-timeline-item">
+           <div class="text-xs font-semibold text-fg-200">${escapeHtml(t.event)}</div>
+           <div class="text-[10px] text-fg-500">${escapeHtml(t.detail || '')}</div>
+           ${t.timestamp ? `<div class="text-[10px] text-fg-600 mt-1">${formatTimestamp(t.timestamp)}</div>` : ''}
+         </div>
+       `).join('')}</div>`;
+  } else if (tab === 'people') {
+    const ppl = drilldownData.people || [];
+    body.innerHTML = ppl.length === 0
+      ? '<div class="empty-state">No people data.</div>'
+      : `<div class="space-y-1">${ppl.map(p => `
+         <div class="drilldown-person" onclick="openDrilldown('expert', '${escapeHtml(p.name)}')">
+           <div class="w-8 h-8 rounded-full bg-brand-violet/20 flex items-center justify-center text-xs font-bold text-brand-violet">${escapeHtml(p.name.charAt(0).toUpperCase())}</div>
+           <div class="flex-1">
+             <div class="text-xs font-semibold text-fg-200">${escapeHtml(p.name)}</div>
+             <div class="text-[10px] text-fg-500">${escapeHtml(p.role || '')}</div>
+           </div>
+           ${p.influence ? `<span class="text-[10px] text-brand-purple mono">inf ${p.influence.toFixed(2)}</span>` : ''}
+         </div>
+       `).join('')}</div>`;
+  } else if (tab === 'prediction') {
+    const pred = drilldownData.prediction;
+    body.innerHTML = !pred
+      ? '<div class="empty-state">No prediction available.</div>'
+      : `<div class="space-y-3">
+         ${pred.condition ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Condition</div><div class="text-sm text-fg-200">${escapeHtml(pred.condition)}</div></div>` : ''}
+         ${pred.outcome ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Predicted Outcome</div><div class="text-sm text-brand-cyan">${escapeHtml(pred.outcome)}</div></div>` : ''}
+         ${pred.detail ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Detail</div><div class="text-sm text-fg-300">${escapeHtml(pred.detail)}</div></div>` : ''}
+         ${pred.impact ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Impact</div><div class="text-sm text-fg-300">${escapeHtml(pred.impact)}</div></div>` : ''}
+         ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" style="width:200px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${pred.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(pred.confidence)}</span></div></div>` : ''}
+         ${pred.risk ? `<div><span class="tag tag-rose">${escapeHtml(pred.risk)}</span></div>` : ''}
+       </div>`;
+  } else if (tab === 'simulation') {
+    const sim = drilldownData.simulation;
+    body.innerHTML = !sim || !sim.available
+      ? '<div class="empty-state">No simulation available for this entity.</div>'
+      : `<div class="space-y-4">
+         <div class="text-sm text-fg-200">${escapeHtml(sim.prompt || 'Run a what-if simulation.')}</div>
+         ${sim.linked_laws && sim.linked_laws.length ? `<div class="text-[10px] text-fg-500">Linked laws: ${sim.linked_laws.map(l => `<span class="source-cite">${escapeHtml(l)}</span>`).join(' ')}</div>` : ''}
+         <div>
+           <div class="text-[10px] uppercase text-fg-500 mb-2">Quick Simulation</div>
+           <div class="flex items-center gap-3">
+             <label class="text-[11px] text-fg-400">Hire count:</label>
+             <input type="range" min="0" max="10" value="2" id="drilldown-sim-hires" class="flex-1" oninput="document.getElementById('drilldown-sim-val').textContent=this.value">
+             <span class="text-xs font-bold text-brand-cyan mono" id="drilldown-sim-val">2</span>
+             <button class="btn btn-primary text-[11px]" onclick="runDrilldownSimulation()">Run</button>
+           </div>
+           <div id="drilldown-sim-result" class="mt-4"></div>
+         </div>
+       </div>`;
+  } else if (tab === 'recommendation') {
+    const rec = drilldownData.recommendation;
+    body.innerHTML = !rec || !rec.available
+      ? '<div class="empty-state">No recommendations linked to this entity.</div>'
+      : `<div class="space-y-2">${rec.items.map(r => `
+         <div class="card mb-2 cursor-pointer" onclick="navTo('simulator')">
+           <div class="text-sm font-semibold text-white">${escapeHtml(r.title)}</div>
+           <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(r.recommendation || '')}</div>
+           <div class="flex items-center gap-2 mt-2 text-[10px] text-fg-500">
+             ${r.urgency ? `<span class="tag ${r.urgency === 'urgent' ? 'tag-rose' : 'tag-amber'}">${escapeHtml(r.urgency)}</span>` : ''}
+             ${r.confidence != null ? `<span>conf ${formatConfidence(r.confidence)}</span>` : ''}
+           </div>
+         </div>
+       `).join('')}</div>`;
+  }
+}
+
+async function runDrilldownSimulation() {
+  const hires = parseInt(document.getElementById('drilldown-sim-hires').value);
+  const resultEl = document.getElementById('drilldown-sim-result');
+  resultEl.innerHTML = '<div class="loading-state"><span class="spinner"></span> Running…</div>';
+  try {
+    const lawCode = drilldownData?.simulation?.linked_laws?.[0];
+    const resp = await fetch(`${MAESTRO_API}/api/oem/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ law_code: lawCode, inputs: { hire_count: hires } }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    resultEl.innerHTML = `
+      <div class="grid grid-cols-2 gap-3 text-[11px]">
+        <div class="p-3 rounded-lg bg-white/[0.02]">
+          <div class="text-[10px] uppercase text-fg-500">P1 Risk</div>
+          <div class="text-lg font-bold text-brand-amber mono">${formatConfidence(data.predicted.p1_cluster_risk)}</div>
+          <div class="text-[10px] text-fg-600">Base: ${formatConfidence(data.base_health.p1_cluster_risk)}</div>
+        </div>
+        <div class="p-3 rounded-lg bg-white/[0.02]">
+          <div class="text-[10px] uppercase text-fg-500">Decision Velocity</div>
+          <div class="text-lg font-bold text-brand-cyan mono">${data.predicted.decision_velocity_days}d</div>
+          <div class="text-[10px] text-fg-600">Base: ${data.base_health.decision_velocity_days}d</div>
+        </div>
+      </div>
+      <div class="mt-3 text-[10px] text-fg-500">Confidence: ${formatConfidence(data.confidence)}</div>
+    `;
+  } catch (e) {
+    resultEl.innerHTML = `<div class="error-state">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ESC closes the drill-down modal
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('drilldown-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+      closeDrilldown();
+    }
+  }
+});
 
 window.addEventListener('load', () => {
   setTimeout(checkForRunningImports, 1000);
