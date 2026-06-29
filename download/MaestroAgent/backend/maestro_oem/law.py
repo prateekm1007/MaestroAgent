@@ -68,6 +68,7 @@ class OrganizationalLaw(BaseModel):
     def add_validation(self, signal_id: UUID | None = None) -> None:
         """Record that the law held true in a new runtime."""
         self.validated_runtimes += 1
+        self.evidence_count = max(self.evidence_count, self.validated_runtimes + self.failed_runtimes)
         self.last_validated = datetime.now(timezone.utc)
         if signal_id and signal_id not in self.signal_ids:
             self.signal_ids.append(signal_id)
@@ -80,6 +81,7 @@ class OrganizationalLaw(BaseModel):
         """Record that the law failed to hold in a new runtime."""
         self.failed_runtimes += 1
         self.counter_examples += 1
+        self.evidence_count = max(self.evidence_count, self.validated_runtimes + self.failed_runtimes)
         if signal_id and signal_id not in self.signal_ids:
             self.signal_ids.append(signal_id)
         if self.failed_runtimes >= 2 and self.validated_runtimes > 0:
