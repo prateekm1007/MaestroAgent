@@ -29,6 +29,12 @@ from maestro_oem.evidence_graph import (
     EvidenceNodeType,
     EvidenceChain,
 )
+from maestro_oem.contradiction import (
+    ContradictionEngine,
+    ContradictionEvent,
+    ContradictionLog,
+    FeedbackAction,
+)
 
 __all__ = [
     "ExecutionSignal",
@@ -55,6 +61,10 @@ __all__ = [
     "EvidenceEdgeType",
     "EvidenceNodeType",
     "EvidenceChain",
+    "ContradictionEngine",
+    "ContradictionEvent",
+    "ContradictionLog",
+    "FeedbackAction",
 ]
 
 __version__ = "0.1.0"
