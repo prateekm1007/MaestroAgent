@@ -86,4 +86,4 @@ target-version = ["py311"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["tests", "maestro_oem/tests", "maestro_api/tests"]

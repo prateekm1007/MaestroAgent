@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem
+from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports
 from maestro_api.websocket import register_ws_routes
 from maestro_api.state import AppState
 
@@ -47,8 +47,18 @@ def create_app(
         # Initialize auth (after AppState so we can reuse its DB).
         await _init_auth(app)
         # Initialize the OEM from real signal data (idempotent, ~100ms).
-        from maestro_api.oem_state import oem_state
+        from maestro_api.oem_state import oem_state, import_state
         oem_state.initialize()
+        # Initialize the import pipeline (Checkpoints, OAuth, Connections).
+        import_state.ensure_initialized()
+        # Resume any incomplete jobs from before the restart.
+        try:
+            assert import_state.engine is not None
+            resumed = await import_state.engine.resume_incomplete_jobs()
+            if resumed:
+                logger.info("Resumed %d incomplete import job(s) after restart", len(resumed))
+        except Exception as e:
+            logger.warning("Failed to resume incomplete jobs: %s", e)
         try:
             yield
         finally:
@@ -100,6 +110,7 @@ def create_app(
     app.include_router(meta.router, prefix="/api/meta", tags=["meta"])
     app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
     app.include_router(oem.router, prefix="/api/oem", tags=["oem"])
+    app.include_router(imports.router, tags=["imports", "oauth"])
     # Status dashboard (HTML at /status — NOT part of /api).
     app.include_router(status.router, tags=["status"])
 
