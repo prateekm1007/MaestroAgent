@@ -100,16 +100,32 @@ def create_app(
         allow_origins=cors_origins,
         allow_credentials=cors_origins != ["*"],
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"] if cors_origins != ["*"] else ["*"],
-        allow_headers=["Authorization", "Content-Type"] if cors_origins != ["*"] else ["*"],
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"] if cors_origins != ["*"] else ["*"],
     )
 
-    # Security middleware (added in reverse execution order).
-    # Execution order: Auth → RateLimit → Audit → CORS → route.
+    # Security hardening middleware (from the security audit fixes).
+    # Execution order (last added = outermost = runs first):
+    #   SecurityHeaders → CSRF → EnhancedRateLimit → TenantIsolation → CORS → route
+    from maestro_auth.security import (
+        SecurityHeadersMiddleware,
+        CSRFMiddleware,
+        EnhancedRateLimitMiddleware,
+        TenantIsolationMiddleware,
+        TrustedProxyConfig,
+    )
+    trusted_proxy_config = TrustedProxyConfig()
+    app.add_middleware(TenantIsolationMiddleware)
+    app.add_middleware(EnhancedRateLimitMiddleware,
+                       global_rpm=auth_config.rate_limit_rpm,
+                       trusted_config=trusted_proxy_config)
+    app.add_middleware(CSRFMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+    logger.info("Security middleware enabled: CSP, CSRF, rate-limiting, tenant isolation, trusted-proxy validation")
+
+    # Legacy audit middleware (best-effort logging).
     if auth_config.enabled:
         from maestro_auth.middleware import AuditMiddleware, RateLimitMiddleware, AuthMiddleware
         app.add_middleware(AuditMiddleware, store=None)  # store set in _init_auth
-        app.add_middleware(RateLimitMiddleware, config=auth_config)
-        # AuthMiddleware added in _init_auth (needs key_store).
         logger.info("Auth enabled: API key required, rate limit=%d rpm", auth_config.rate_limit_rpm)
     else:
         # Even with auth off, audit logging is useful.
