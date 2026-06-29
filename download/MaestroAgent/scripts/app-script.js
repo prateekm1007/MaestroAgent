@@ -364,23 +364,181 @@ function loadSurfaceData(surface) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HOME — every metric from /api/oem/dashboard
+// HOME — CEO Briefing: answers 5 questions a Fortune 100 CEO needs
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function loadDashboard() {
+  const overnightEl = document.getElementById('home-overnight');
+  const oneThingEl = document.getElementById('home-one-thing');
+  const moneyEl = document.getElementById('home-money');
+  const knowledgeEl = document.getElementById('home-knowledge');
+  const decisionsEl = document.getElementById('home-ceo-decisions');
   const stateEl = document.getElementById('home-oem-state');
-  const changesEl = document.getElementById('home-changes');
-  const decisionsEl = document.getElementById('home-decisions');
   const providersBadge = document.getElementById('oem-providers-badge');
 
-  loadingHTML(stateEl, 'Loading OEM state…');
-  loadingHTML(changesEl, 'Loading discoveries…');
-  loadingHTML(decisionsEl, 'Loading recommendations…');
-
+  // Load CEO briefing + OEM state in parallel
   try {
-    const data = await api.getOEM('/dashboard');
-    const m = data.metrics;
+    const [briefing, stateData] = await Promise.all([
+      api.getOEM('/ceo-briefing'),
+      api.getOEM('/dashboard'),
+    ]);
 
+    // Update timestamp
+    const tsEl = document.getElementById('home-briefing-timestamp');
+    if (tsEl && briefing.generated_at) {
+      tsEl.textContent = `Last updated: ${formatTimestamp(briefing.generated_at)}`;
+    }
+
+    // ─── Q1: What changed overnight? ───
+    const ov = briefing.overnight;
+    document.getElementById('home-overnight-count').textContent = ov.summary;
+    if (!ov.changes || ov.changes.length === 0) {
+      emptyHTML(overnightEl, 'Nothing new. The org is stable. The OEM will surface new patterns as signals flow.');
+    } else {
+      overnightEl.innerHTML = `
+        <div class="mb-3 p-3 rounded-lg bg-brand-cyan/[0.04] border border-brand-cyan/10">
+          <div class="text-sm font-semibold text-white">${escapeHtml(ov.headline)}</div>
+          <div class="text-[11px] text-fg-500 mt-1">${escapeHtml(ov.headline_detail)}</div>
+        </div>
+        <div class="space-y-2">
+          ${ov.changes.map(c => {
+            const sevColor = c.severity === 'urgent' ? 'rose' : c.severity === 'warning' ? 'amber' : 'cyan';
+            const drillType = c.type === 'hidden_expert' ? 'expert' : c.type === 'bottleneck' ? 'pattern' : c.type === 'concentration_risk' ? 'risk' : 'pattern';
+            const drillId = c.entity || c.domain || c.title || c.detail;
+            return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-${sevColor}/[0.04] border border-brand-${sevColor}/10 cursor-pointer hover:bg-brand-${sevColor}/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(drillId)}')">
+              <div class="w-7 h-7 rounded-md bg-brand-${sevColor}/15 flex items-center justify-center flex-shrink-0">
+                <span class="text-brand-${sevColor} text-sm font-bold">${c.type === 'hidden_expert' ? '?' : c.type === 'bottleneck' ? '!' : c.type === 'departure_risk' ? 'x' : 'v'}</span>
+              </div>
+              <div class="flex-1">
+                <div class="text-[12px] font-semibold text-fg-100">${escapeHtml(c.title)}</div>
+                <div class="text-[10px] text-fg-500 mt-0.5">${escapeHtml(c.detail)}</div>
+              </div>
+              <span class="tag tag-${sevColor}">${escapeHtml(c.severity)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // ─── Q2: If I only do one thing today? ───
+    const ot = briefing.one_thing;
+    const urgencyColor = ot.urgency === 'urgent' ? 'rose' : ot.urgency === 'normal' ? 'amber' : 'gray';
+    oneThingEl.innerHTML = `
+      <div class="space-y-3">
+        <div>
+          <div class="text-base font-bold text-white">${escapeHtml(ot.title)}</div>
+          <div class="text-[11px] text-fg-400 mt-1 leading-relaxed">${escapeHtml(ot.why)}</div>
+        </div>
+        <div class="pt-3 border-t border-white/[0.05]">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Recommended action</div>
+          <div class="text-sm text-brand-violet font-medium">${escapeHtml(ot.recommendation)}</div>
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+          <span class="tag tag-${urgencyColor}">${escapeHtml(ot.urgency)}</span>
+          <div class="conf-bar" style="width:120px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${ot.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(ot.confidence)}</span></div>
+          <span class="text-[10px] text-fg-500">confidence</span>
+        </div>
+        <div class="text-[11px] text-fg-300 pt-2">${escapeHtml(ot.impact)}</div>
+        ${ot.rec_id ? `<button class="btn btn-primary text-[11px] mt-2" onclick="openDrilldown('recommendation', '${escapeHtml(ot.title)}')">Investigate this →</button>` : ''}
+      </div>
+    `;
+
+    // ─── Q3: Where is money being lost? ───
+    const money = briefing.money;
+    document.getElementById('home-money-count').textContent = money.summary;
+    if (!money.losses || money.losses.length === 0) {
+      emptyHTML(moneyEl, 'No obvious money drains detected. The OEM will surface bottlenecks, duplicate work, and incident costs as signals flow.');
+    } else {
+      moneyEl.innerHTML = `
+        <div class="mb-3 p-3 rounded-lg bg-brand-rose/[0.04] border border-brand-rose/10">
+          <div class="text-sm font-semibold text-white">${escapeHtml(money.headline)}</div>
+          <div class="text-[11px] text-brand-rose mt-1">${escapeHtml(money.headline_cost)}</div>
+        </div>
+        <div class="space-y-2">
+          ${money.losses.map(l => {
+            const sevColor = l.severity === 'high' ? 'rose' : 'amber';
+            const drillType = l.type === 'bottleneck' ? 'pattern' : l.type === 'duplicate_work' ? 'pattern' : l.type === 'incident' ? 'pattern' : 'pattern';
+            return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-${sevColor}/[0.04] border border-brand-${sevColor}/10 cursor-pointer hover:bg-brand-${sevColor}/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(l.title)}')">
+              <div class="w-7 h-7 rounded-md bg-brand-${sevColor}/15 flex items-center justify-center flex-shrink-0">
+                <span class="text-brand-${sevColor} text-sm font-bold">$</span>
+              </div>
+              <div class="flex-1">
+                <div class="text-[12px] font-semibold text-fg-100">${escapeHtml(l.title)}</div>
+                <div class="text-[10px] text-fg-500 mt-0.5">${escapeHtml(l.estimated_cost)}</div>
+                <div class="text-[10px] text-fg-600 mt-0.5">${escapeHtml(l.detail)}</div>
+              </div>
+              <span class="tag tag-${sevColor}">${escapeHtml(l.severity)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // ─── Q4: Where is knowledge trapped? ───
+    const knowledge = briefing.knowledge;
+    document.getElementById('home-knowledge-count').textContent = knowledge.summary;
+    if (!knowledge.traps || knowledge.traps.length === 0) {
+      emptyHTML(knowledgeEl, 'No knowledge traps detected. The OEM will surface hidden experts, concentration risks, and knowledge death as signals flow.');
+    } else {
+      knowledgeEl.innerHTML = `
+        <div class="mb-3 p-3 rounded-lg bg-brand-amber/[0.04] border border-brand-amber/10">
+          <div class="text-sm font-semibold text-white">${escapeHtml(knowledge.headline)}</div>
+          <div class="text-[11px] text-brand-amber mt-1">${escapeHtml(knowledge.headline_risk)}</div>
+        </div>
+        <div class="space-y-2">
+          ${knowledge.traps.map(t => {
+            const drillType = t.type === 'hidden_expert' ? 'expert' : t.type === 'concentration_risk' ? 'risk' : 'pattern';
+            const drillId = t.entity || t.domain || t.title || 'unknown';
+            const icon = t.type === 'hidden_expert' ? '?' : t.type === 'concentration_risk' ? '!' : 'x';
+            return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-amber/[0.04] border border-brand-amber/10 cursor-pointer hover:bg-brand-amber/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(drillId)}')">
+              <div class="w-7 h-7 rounded-md bg-brand-amber/15 flex items-center justify-center flex-shrink-0">
+                <span class="text-brand-amber text-sm font-bold">${icon}</span>
+              </div>
+              <div class="flex-1">
+                <div class="text-[12px] font-semibold text-fg-100">${escapeHtml(t.entity || t.domain || t.title || 'Unknown')}</div>
+                <div class="text-[10px] text-fg-500 mt-0.5">${escapeHtml(t.risk)}</div>
+                ${t.influence ? `<div class="text-[10px] text-fg-600 mt-0.5">Influence: ${t.influence.toFixed(2)}</div>` : ''}
+                ${t.score ? `<div class="text-[10px] text-fg-600 mt-0.5">Concentration score: ${t.score.toFixed(2)}</div>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // ─── Q5: What decision only I can make? ───
+    const decisions = briefing.decisions;
+    document.getElementById('home-decisions-count').textContent = decisions.summary;
+    if (!decisions.decisions || decisions.decisions.length === 0) {
+      emptyHTML(decisionsEl, 'No CEO-only decisions pending. The org is running without your intervention.');
+    } else {
+      decisionsEl.innerHTML = `
+        <div class="mb-3 p-3 rounded-lg bg-brand-purple/[0.06] border border-brand-purple/15">
+          <div class="text-sm font-semibold text-white">${escapeHtml(decisions.headline)}</div>
+          <div class="text-[11px] text-brand-purple mt-1">${escapeHtml(decisions.headline_question)}</div>
+        </div>
+        <div class="space-y-2">
+          ${decisions.decisions.map(d => {
+            const drillType = d.type === 'urgent_decision' ? 'recommendation' : d.type === 'retention' ? 'pattern' : 'law';
+            const drillId = d.linked_laws && d.linked_laws.length ? d.linked_laws[0] : d.title;
+            return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-purple/[0.04] border border-brand-purple/10 cursor-pointer hover:bg-brand-purple/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(drillId)}')">
+              <div class="w-7 h-7 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0">
+                <span class="text-brand-purple text-sm font-bold">!</span>
+              </div>
+              <div class="flex-1">
+                <div class="text-[12px] font-semibold text-fg-100">${escapeHtml(d.title)}</div>
+                <div class="text-[10px] text-fg-500 mt-0.5">${escapeHtml(d.question)}</div>
+                <div class="text-[10px] text-brand-violet mt-1">${escapeHtml(d.recommendation)}</div>
+              </div>
+              <span class="text-[10px] text-fg-500">conf ${formatConfidence(d.confidence)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // ─── OEM State (collapsed reference) ───
+    const m = stateData.metrics;
     stateEl.innerHTML = `
       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         <div class="metric metric-clickable" onclick="openDrilldown('metric', 'signals_processed')"><div class="metric-value">${m.signals_processed}</div><div class="metric-label">Signals</div></div>
@@ -391,50 +549,25 @@ async function loadDashboard() {
         <div class="metric metric-clickable" onclick="openDrilldown('metric', 'p1_cluster_risk')"><div class="metric-value">${formatConfidence(m.p1_cluster_risk)}</div><div class="metric-label">P1 Risk</div></div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/[0.05] flex flex-wrap gap-2">
-        ${data.providers_connected.map(p => `<span class="tag tag-cyan">${escapeHtml(p)}</span>`).join('')}
+        ${stateData.providers_connected.map(p => `<span class="tag tag-cyan">${escapeHtml(p)}</span>`).join('')}
       </div>
     `;
-    providersBadge.textContent = data.providers_connected.length + ' providers';
+    providersBadge.textContent = stateData.providers_connected.length + ' providers';
 
-    if (data.overnight_changes.length === 0) {
-      emptyHTML(changesEl, 'No recent discoveries. The OEM will surface new patterns as signals flow.');
-    } else {
-      changesEl.innerHTML = data.overnight_changes.map(c => {
-        const sevColor = c.severity === 'urgent' ? 'rose' : c.severity === 'warning' ? 'amber' : 'cyan';
-        const icon = c.type === 'hidden_expert' ? '?' : c.type === 'bottleneck' ? '!' : c.type === 'departure_risk' ? 'x' : 'v';
-        // Determine drill-down target based on discovery type
-        const drillType = c.type === 'hidden_expert' ? 'expert' : c.type === 'bottleneck' ? 'pattern' : c.type === 'concentration_risk' ? 'risk' : 'pattern';
-        const drillId = c.entity || c.domain || c.title || c.detail;
-        return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-${sevColor}/[0.04] border border-brand-${sevColor}/10 mb-2 cursor-pointer hover:bg-brand-${sevColor}/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(drillId)}')">
-          <div class="w-7 h-7 rounded-md bg-brand-${sevColor}/15 flex items-center justify-center flex-shrink-0">
-            <span class="text-brand-${sevColor} text-sm font-bold">${icon}</span>
-          </div>
-          <div class="flex-1">
-            <div class="text-[12px] font-semibold text-fg-100">${escapeHtml(c.title)}</div>
-            <div class="text-[10px] text-fg-500 mt-0.5">${escapeHtml(c.detail)}</div>
-          </div>
-          <span class="tag tag-${sevColor}">${escapeHtml(c.severity)}</span>
-        </div>`;
-      }).join('');
-    }
-
-    if (data.today_decisions.length === 0) {
-      emptyHTML(decisionsEl, 'No active recommendations. The OEM will surface decisions as it detects patterns.');
-    } else {
-      decisionsEl.innerHTML = data.today_decisions.map(r => renderRecCard(r)).join('');
-    }
-
+    // Update OEM status
     document.getElementById('oem-status').innerHTML = `<span class="text-brand-cyan">●</span> <span>OEM connected · ${m.signals_processed} signals · ${m.laws_inferred} laws</span>`;
     document.getElementById('oem-status-badge').textContent = 'OEM ONLINE';
     document.getElementById('oem-status-badge').className = 'text-[10px] font-semibold text-brand-cyan';
   } catch (e) {
-    errorHTML(stateEl, 'Failed to load OEM state: ' + e.message, 'loadDashboard()');
-    errorHTML(changesEl, 'Failed to load discoveries: ' + e.message, 'loadDashboard()');
-    errorHTML(decisionsEl, 'Failed to load recommendations: ' + e.message, 'loadDashboard()');
+    errorHTML(overnightEl, 'Failed to load briefing: ' + e.message, 'loadDashboard()');
+    errorHTML(oneThingEl, e.message, 'loadDashboard()');
+    errorHTML(moneyEl, e.message, 'loadDashboard()');
+    errorHTML(knowledgeEl, e.message, 'loadDashboard()');
+    errorHTML(decisionsEl, e.message, 'loadDashboard()');
     document.getElementById('oem-status').innerHTML = `<span class="text-brand-rose">●</span> <span>OEM unreachable: ${escapeHtml(e.message)}</span>`;
     document.getElementById('oem-status-badge').textContent = 'OEM OFFLINE';
     document.getElementById('oem-status-badge').className = 'text-[10px] font-semibold text-brand-rose';
-    showError('Failed to load dashboard: ' + e.message);
+    showError('Failed to load CEO briefing: ' + e.message);
   }
 }
 
