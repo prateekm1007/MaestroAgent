@@ -106,7 +106,25 @@ class DecisionEngine:
         for bn in bottlenecks:
             gate = bn["gate"]
             count = bn["items_gated"]
-            confidence = min(0.9, 0.5 + count * 0.05)
+            # Confidence from evidence count + linked laws
+            linked_laws = [l for l in self.model.laws.values() if gate in l.statement]
+            linked_confidences = [l.confidence for l in linked_laws]
+            # Gather evidence from LOs that mention this gate
+            evidence_count = sum(1 for lo in self.model.learning_objects.values()
+                                if lo.type.value == "approval_gate" and gate in lo.entities)
+            providers = set()
+            for lo in self.model.learning_objects.values():
+                if gate in lo.entities:
+                    providers.update(lo.providers)
+            from datetime import datetime, timezone
+            confidence_expl = ConfidenceCalculator.compute_recommendation_confidence(
+                evidence_count=max(evidence_count, count),
+                contradiction_count=0,
+                providers=providers or {"jira"},
+                linked_law_confidences=linked_confidences,
+                last_seen=datetime.now(timezone.utc),
+            )
+            confidence = confidence_expl.value
             provenance = self.model.get_provenance_chain(gate)
             recs.append(Recommendation(
                 title=f"Address bottleneck: {gate} gates {count} items",
@@ -114,8 +132,8 @@ class DecisionEngine:
                 recommendation="Redesign or redistribute the approval gate",
                 confidence=confidence,
                 decision_question="Is this approval gate a VP-level function or a process function?",
-                provenance=provenance or [{"oem_change": "bottleneck.detected", "gate": gate, "count": count}],
-                linked_laws=[l.code for l in self.model.laws.values() if gate in l.statement],
+                provenance=provenance or [{"oem_change": "bottleneck.detected", "gate": gate, "count": count, "confidence_formula": confidence_expl.formula}],
+                linked_laws=[l.code for l in linked_laws],
                 impact=f"Resolving this gate could unblock {count} in-flight items",
                 urgency="normal" if count < 5 else "urgent",
             ))
@@ -124,10 +142,25 @@ class DecisionEngine:
     def _hidden_expert_recommendations(self) -> list[Recommendation]:
         recs: list[Recommendation] = []
         experts = self.model.knowledge.get_hidden_experts()
-        for expert in experts[:3]:  # Top 3
+        for expert in experts[:3]:
             entity = expert["entity"]
             influence = expert["influence"]
-            confidence = min(0.9, 0.4 + influence * 0.05)
+            # Confidence from influence score (normalized) + evidence count
+            # Influence is already a count of signals — use it as evidence count
+            evidence_count = int(influence)
+            providers = set()
+            for lo in self.model.learning_objects.values():
+                if entity in lo.entities:
+                    providers.update(lo.providers)
+            from datetime import datetime, timezone
+            confidence_expl = ConfidenceCalculator.compute_recommendation_confidence(
+                evidence_count=evidence_count,
+                contradiction_count=0,
+                providers=providers or {"github"},
+                linked_law_confidences=[],
+                last_seen=datetime.now(timezone.utc),
+            )
+            confidence = confidence_expl.value
             provenance = self.model.get_provenance_chain(entity)
             recs.append(Recommendation(
                 title=f"Formalize hidden expert: {entity}",
@@ -135,7 +168,7 @@ class DecisionEngine:
                 recommendation="Document expertise and consider formal role",
                 confidence=confidence,
                 decision_question=f"Should {entity}'s influence be formalized?",
-                provenance=provenance or [{"oem_change": "hidden_expert.detected", "entity": entity, "influence": influence}],
+                provenance=provenance or [{"oem_change": "hidden_expert.detected", "entity": entity, "influence": influence, "confidence_formula": confidence_expl.formula}],
                 impact=f"Departure would degrade outcomes in {len(expert['domains'])} domains",
                 urgency="normal",
             ))
@@ -145,14 +178,25 @@ class DecisionEngine:
         recs: list[Recommendation] = []
         risks = self.model.knowledge.get_concentration_risk()
         for domain, score in risks.items():
-            confidence = min(0.9, 0.5 + score * 0.05)
+            # Confidence from the influence score of the single holder
+            # score IS the influence — higher = more risk = more confidence in the risk
+            evidence_count = int(score) if score > 0 else 1
+            from datetime import datetime, timezone
+            confidence_expl = ConfidenceCalculator.compute_recommendation_confidence(
+                evidence_count=evidence_count,
+                contradiction_count=0,
+                providers={"github"},
+                linked_law_confidences=[],
+                last_seen=datetime.now(timezone.utc),
+            )
+            confidence = confidence_expl.value
             recs.append(Recommendation(
                 title=f"Bus-factor risk in {domain}",
                 description=f"Knowledge in {domain} is concentrated in one person. No redundancy.",
                 recommendation="Cross-train or document critical knowledge",
                 confidence=confidence,
                 decision_question=f"What happens if the {domain} expert leaves?",
-                provenance=[{"oem_change": "concentration_risk.detected", "domain": domain, "influence": score}],
+                provenance=[{"oem_change": "concentration_risk.detected", "domain": domain, "influence": score, "confidence_formula": confidence_expl.formula}],
                 impact=f"Loss of this person would create a knowledge gap in {domain}",
                 urgency="urgent" if score > 10 else "normal",
             ))
@@ -161,15 +205,28 @@ class DecisionEngine:
     def _incident_velocity_recommendations(self) -> list[Recommendation]:
         recs: list[Recommendation] = []
         if self.model.health.p1_cluster_risk > 0.4:
-            confidence = min(0.9, self.model.health.p1_cluster_risk)
+            # Confidence from the P1 cluster risk itself (already computed from incident count)
+            # plus evidence from incident LOs
+            evidence_count = int(self.model.health.incident_rate)
+            linked_laws = [l for l in self.model.laws.values() if "velocity" in l.statement.lower()]
+            linked_confidences = [l.confidence for l in linked_laws]
+            from datetime import datetime, timezone
+            confidence_expl = ConfidenceCalculator.compute_recommendation_confidence(
+                evidence_count=max(evidence_count, 1),
+                contradiction_count=0,
+                providers={"jira"},
+                linked_law_confidences=linked_confidences,
+                last_seen=datetime.now(timezone.utc),
+            )
+            confidence = confidence_expl.value
             recs.append(Recommendation(
                 title=f"P1 cluster risk: {self.model.health.p1_cluster_risk:.0%} probability of velocity drop",
                 description=f"{self.model.health.incident_rate:.0f} incidents detected. Velocity drop predicted.",
                 recommendation="Pause non-critical work and address incident cluster",
                 confidence=confidence,
                 decision_question="Should we delay the next release to address the incident cluster?",
-                provenance=[{"oem_change": "p1_cluster_risk.computed", "risk": self.model.health.p1_cluster_risk}],
-                linked_laws=[l.code for l in self.model.laws.values() if "velocity" in l.statement.lower()],
+                provenance=[{"oem_change": "p1_cluster_risk.computed", "risk": self.model.health.p1_cluster_risk, "confidence_formula": confidence_expl.formula}],
+                linked_laws=[l.code for l in linked_laws],
                 impact="Velocity predicted to drop 22% in the following week",
                 urgency="urgent",
             ))
