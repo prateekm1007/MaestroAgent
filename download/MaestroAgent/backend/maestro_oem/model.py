@@ -726,6 +726,8 @@ class ExecutionModel(BaseModel):
             )
 
         for law in self.laws.values():
+            # Ensure evidence_count is consistent with validated + failed
+            law.evidence_count = max(law.evidence_count, law.validated_runtimes + law.failed_runtimes)
             law.confidence = calc.compute_law_confidence(
                 validated_runtimes=law.validated_runtimes,
                 failed_runtimes=law.failed_runtimes,
