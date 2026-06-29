@@ -1,0 +1,766 @@
+     1→"""
+     2→ExecutionModel — the living OEM state.
+     3→
+     4→This is NOT a rebuild-every-time model. It is incrementally updated.
+     5→
+     6→Every signal that arrives produces a ModelDelta — a set of changes
+     7→to the model's state. The model applies the delta and records a receipt.
+     8→
+     9→The model maintains:
+    10→- Execution Health (velocity, throughput, incident rate)
+    11→- Knowledge Flow (who knows what, where it dies)
+    12→- Hidden Expertise (undocumented experts)
+    13→- Decision Velocity (how fast decisions are made)
+    14→- Approval Network (who approves what)
+    15→- Risk Surface (departure risks, bottleneck risks)
+    16→- Current Reality (what's true right now)
+    17→- Execution Capacity (what the org can do)
+    18→- Confidence Surface (how reliable each insight is)
+    19→- Organizational Laws (validated patterns)
+    20→"""
+    21→
+    22→from __future__ import annotations
+    23→
+    24→from collections import defaultdict
+    25→from datetime import datetime, timezone
+    26→from typing import Any
+    27→from uuid import UUID
+    28→
+    29→from pydantic import BaseModel, Field
+    30→
+    31→from maestro_oem.confidence import ConfidenceCalculator
+    32→from maestro_oem.law import LawStatus, OrganizationalLaw
+    33→from maestro_oem.learning_object import LearningObject, LearningObjectType
+    34→from maestro_oem.pattern import Pattern, PatternDetector, PatternType
+    35→from maestro_oem.receipt import Receipt, ReceiptChain
+    36→from maestro_oem.signal import ExecutionSignal, SignalProvider, SignalType
+    37→
+    38→
+    39→class ExecutionHealth(BaseModel):
+    40→    """Real-time execution health metrics."""
+    41→    decision_velocity_days: float = 0.0  # Median decision-to-action time
+    42→    release_frequency: float = 0.0  # Releases per week
+    43→    incident_rate: float = 0.0  # P1s per week
+    44→    velocity_trend: float = 0.0  # Positive = improving
+    45→    p1_cluster_risk: float = 0.0  # Probability of velocity drop
+    46→
+    47→    def update_from_signal(self, signal: ExecutionSignal) -> dict[str, Any]:
+    48→        """Update health metrics from a signal. Returns what changed."""
+    49→        changes: dict[str, Any] = {}
+    50→
+    51→        if signal.type == SignalType.PR_MERGED:
+    52→            self.release_frequency += 0.1  # Small increment per merge
+    53→            changes["release_frequency"] = self.release_frequency
+    54→
+    55→        elif signal.type == SignalType.INCIDENT or (
+    56→            signal.type == SignalType.ISSUE_CREATED
+    57→            and signal.metadata.get("priority", "").upper() in ("P1", "P0", "CRITICAL")
+    58→        ):
+    59→            self.incident_rate += 1.0
+    60→            if self.incident_rate >= 3:
+    61→                self.p1_cluster_risk = min(1.0, self.incident_rate * 0.15)
+    62→            changes["incident_rate"] = self.incident_rate
+    63→            changes["p1_cluster_risk"] = self.p1_cluster_risk
+    64→
+    65→        elif signal.type == SignalType.SPRINT_COMPLETED:
+    66→            self.decision_velocity_days = max(1.0, self.decision_velocity_days - 0.1)
+    67→            changes["decision_velocity_days"] = self.decision_velocity_days
+    68→
+    69→        elif signal.type in (SignalType.DECISION_SIGNAL, SignalType.MEETING_COMPLETED):
+    70→            if signal.decision:
+    71→                self.decision_velocity_days = max(0.5, self.decision_velocity_days - 0.05)
+    72→                changes["decision_velocity_days"] = self.decision_velocity_days
+    73→
+    74→        return changes
+    75→
+    76→
+    77→class KnowledgeGraph(BaseModel):
+    78→    """Who knows what, and where knowledge lives."""
+    79→    # entity -> set of domains they have expertise in
+    80→    expertise: dict[str, set[str]] = Field(default_factory=dict)
+    81→    # entity -> influence score (computed from review/approval patterns)
+    82→    influence: dict[str, float] = Field(default_factory=dict)
+    83→    # domain -> set of entities who hold this knowledge
+    84→    domain_holders: dict[str, set[str]] = Field(default_factory=dict)
+    85→    # entity -> entities they collaborate with
+    86→    collaboration: dict[str, set[str]] = Field(default_factory=dict)
+    87→    # artifacts -> entities who touched them
+    88→    artifact_authors: dict[str, set[str]] = Field(default_factory=dict)
+    89→
+    90→    def update_from_signal(self, signal: ExecutionSignal) -> dict[str, Any]:
+    91→        changes: dict[str, Any] = {}
+    92→
+    93→        if signal.type in (SignalType.PR_OPENED, SignalType.PR_MERGED, SignalType.COMMIT):
+    94→            domain = signal.metadata.get("domain", "engineering")
+    95→            self.expertise.setdefault(signal.actor, set()).add(domain)
+    96→            self.domain_holders.setdefault(domain, set()).add(signal.actor)
+    97→            self.artifact_authors.setdefault(signal.artifact, set()).add(signal.actor)
+    98→            # Increment influence for active contributors
+    99→            self.influence[signal.actor] = self.influence.get(signal.actor, 0) + 0.5
+   100→            changes["expertise_added"] = {"actor": signal.actor, "domain": domain}
+   101→
+   102→        elif signal.type == SignalType.PR_REVIEWED:
+   103→            reviewer = signal.metadata.get("reviewer", "")
+   104→            if reviewer:
+   105→                self.influence[reviewer] = self.influence.get(reviewer, 0) + 1.0
+   106→                self.collaboration.setdefault(reviewer, set()).add(signal.actor)
+   107→                changes["influence_updated"] = {"reviewer": reviewer}
+   108→
+   109→        elif signal.type in (SignalType.PAGE_CREATED, SignalType.PAGE_EDITED):
+   110→            domain = signal.metadata.get("domain", "documentation")
+   111→            self.expertise.setdefault(signal.actor, set()).add(domain)
+   112→            self.domain_holders.setdefault(domain, set()).add(signal.actor)
+   113→            changes["knowledge_documented"] = {"actor": signal.actor, "domain": domain}
+   114→
+   115→        elif signal.type in (SignalType.MESSAGE_SENT, SignalType.THREAD_STARTED,
+   116→                             SignalType.DECISION_SIGNAL, SignalType.CONFLICT,
+   117→                             SignalType.AGREEMENT, SignalType.QUESTION_ASKED):
+   118→            channel = signal.metadata.get("channel", "general")
+   119→            participants = signal.metadata.get("participants", [])
+   120→            for p in participants:
+   121→                if p != signal.actor:
+   122→                    self.collaboration.setdefault(signal.actor, set()).add(p)
+   123→            changes["collaboration_updated"] = {"actor": signal.actor, "channel": channel}
+   124→
+   125→        return changes
+   126→
+   127→    def get_hidden_experts(self) -> list[dict[str, Any]]:
+   128→        """Find entities with high influence but no formal documentation."""
+   129→        experts: list[dict[str, Any]] = []
+   130→        for entity, score in self.influence.items():
+   131→            if score >= 5.0:  # Threshold for "high influence"
+   132→                documented_domains = self.expertise.get(entity, set())
+   133→                # If their expertise isn't documented in Confluence
+   134→                has_docs = any(
+   135→                    entity in holders
+   136→                    for holders in self.domain_holders.values()
+   137→                    if "documentation" in holders or "confluence" in holders
+   138→                )
+   139→                if not has_docs and score > 5.0:
+   140→                    experts.append({
+   141→                        "entity": entity,
+   142→                        "influence": score,
+   143→                        "domains": list(documented_domains),
+   144→                        "undocumented": True,
+   145→                    })
+   146→        return sorted(experts, key=lambda x: x["influence"], reverse=True)
+   147→
+   148→    def get_concentration_risk(self) -> dict[str, float]:
+   149→        """Find domains where knowledge is concentrated in 1 person."""
+   150→        risks: dict[str, float] = {}
+   151→        for domain, holders in self.domain_holders.items():
+   152→            if len(holders) == 1:
+   153→                entity = list(holders)[0]
+   154→                risks[domain] = self.influence.get(entity, 0)
+   155→        return risks
+   156→
+   157→
+   158→class ApprovalNetwork(BaseModel):
+   159→    """Who approves what, and where the gates are."""
+   160→    # gate -> count of items gated
+   161→    gate_counts: dict[str, int] = Field(default_factory=dict)
+   162→    # gate -> total delay days
+   163→    gate_delays: dict[str, float] = Field(default_factory=dict)
+   164→    # entity -> approval count
+   165→    approvers: dict[str, int] = Field(default_factory=dict)
+   166→
+   167→    def update_from_signal(self, signal: ExecutionSignal) -> dict[str, Any]:
+   168→        changes: dict[str, Any] = {}
+   169→
+   170→        if signal.type == SignalType.ISSUE_TRANSITIONED:
+   171→            transition = signal.metadata.get("transition", "")
+   172→            if "approve" in transition.lower() or "review" in transition.lower():
+   173→                self.approvers[signal.actor] = self.approvers.get(signal.actor, 0) + 1
+   174→                changes["approval_recorded"] = {"approver": signal.actor}
+   175→
+   176→        elif signal.type in (SignalType.MESSAGE_SENT, SignalType.THREAD_STARTED):
+   177→            text = signal.metadata.get("text", "").lower()
+   178→            if any(w in text for w in ["approve", "sign off", "review", "ok to"]):
+   179→                gate = signal.metadata.get("channel", signal.actor)
+   180→                self.gate_counts[gate] = self.gate_counts.get(gate, 0) + 1
+   181→                changes["gate_detected"] = {"gate": gate, "count": self.gate_counts[gate]}
+   182→
+   183→        elif signal.type == SignalType.ISSUE_ASSIGNED:
+   184→            assignee = signal.metadata.get("assignee", "")
+   185→            if assignee:
+   186→                self.gate_counts[assignee] = self.gate_counts.get(assignee, 0) + 1
+   187→                changes["gate_detected"] = {"gate": assignee, "count": self.gate_counts[assignee]}
+   188→
+   189→        return changes
+   190→
+   191→    def get_bottlenecks(self, min_count: int = 3) -> list[dict[str, Any]]:
+   192→        """Find approval gates that are bottlenecks."""
+   193→        bottlenecks: list[dict[str, Any]] = []
+   194→        for gate, count in self.gate_counts.items():
+   195→            if count >= min_count:
+   196→                avg_delay = self.gate_delays.get(gate, 0) / count if count > 0 else 0
+   197→                bottlenecks.append({
+   198→                    "gate": gate,
+   199→                    "items_gated": count,
+   200→                    "avg_delay_days": avg_delay,
+   201→                })
+   202→        return sorted(bottlenecks, key=lambda x: x["items_gated"], reverse=True)
+   203→
+   204→
+   205→class RiskSurface(BaseModel):
+   206→    """Active risks the OEM has detected."""
+   207→    departure_risks: dict[str, float] = Field(default_factory=dict)  # entity -> probability
+   208→    bottleneck_risks: dict[str, float] = Field(default_factory=dict)
+   209→    duplicate_work: list[dict[str, Any]] = Field(default_factory=list)
+   210→
+   211→    def add_departure_risk(self, entity: str, probability: float) -> None:
+   212→        existing = self.departure_risks.get(entity, 0)
+   213→        self.departure_risks[entity] = max(existing, probability)
+   214→
+   215→    def add_bottleneck_risk(self, gate: str, probability: float) -> None:
+   216→        existing = self.bottleneck_risks.get(gate, 0)
+   217→        self.bottleneck_risks[gate] = max(existing, probability)
+   218→
+   219→
+   220→class ModelDelta(BaseModel):
+   221→    """A set of changes produced by processing a signal."""
+   222→    signal_id: UUID
+   223→    signal_type: str
+   224→    provider: str
+   225→    health_changes: dict[str, Any] = Field(default_factory=dict)
+   226→    knowledge_changes: dict[str, Any] = Field(default_factory=dict)
+   227→    approval_changes: dict[str, Any] = Field(default_factory=dict)
+   228→    new_learning_objects: list[UUID] = Field(default_factory=list)
+   229→    new_patterns: list[UUID] = Field(default_factory=list)
+   230→    new_laws: list[str] = Field(default_factory=list)  # Law codes
+   231→    law_updates: list[str] = Field(default_factory=list)  # Law codes
+   232→    risk_changes: dict[str, Any] = Field(default_factory=dict)
+   233→    receipts: list[Receipt] = Field(default_factory=list)
+   234→
+   235→
+   236→class ExecutionModel(BaseModel):
+   237→    """
+   238→    The Organizational Execution Model.
+   239→
+   240→    This is the living model. It is updated incrementally — never rebuilt.
+   241→    Every signal produces a ModelDelta that is applied to the model.
+   242→    """
+   243→
+   244→    # Allow PatternDetector (non-pydantic type) as a field
+   245→    model_config = {"arbitrary_types_allowed": True}
+   246→
+   247→    # The actual state
+   248→    health: ExecutionHealth = Field(default_factory=ExecutionHealth)
+   249→    knowledge: KnowledgeGraph = Field(default_factory=KnowledgeGraph)
+   250→    approvals: ApprovalNetwork = Field(default_factory=ApprovalNetwork)
+   251→    risks: RiskSurface = Field(default_factory=RiskSurface)
+   252→
+   253→    # Learning objects (evidence units)
+   254→    learning_objects: dict[UUID, LearningObject] = Field(default_factory=dict)
+   255→
+   256→    # Detected patterns
+   257→    pattern_detector: PatternDetector = Field(default_factory=PatternDetector)
+   258→
+   259→    # Organizational laws
+   260→    laws: dict[str, OrganizationalLaw] = Field(default_factory=dict)
+   261→    next_law_number: int = 1
+   262→
+   263→    # Receipt chains (provenance)
+   264→    receipt_chains: dict[str, ReceiptChain] = Field(default_factory=dict)  # target -> chain
+   265→
+   266→    # Signal log
+   267→    processed_signals: list[UUID] = Field(default_factory=list)
+   268→    connected_providers: set[str] = Field(default_factory=set)
+   269→
+   270→    # Metadata
+   271→    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+   272→    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+   273→
+   274→    def process_signal(self, signal: ExecutionSignal) -> ModelDelta:
+   275→        """
+   276→        Process a single signal and update the model.
+   277→
+   278→        This is the core function. Every signal changes the model.
+   279→        Returns a ModelDelta describing what changed.
+   280→        """
+   281→        if signal.signal_id in self.processed_signals:
+   282→            return ModelDelta(
+   283→                signal_id=signal.signal_id,
+   284→                signal_type=signal.type.value,
+   285→                provider=signal.provider.value,
+   286→            )
+   287→
+   288→        self.processed_signals.append(signal.signal_id)
+   289→        self.connected_providers.add(signal.provider.value)
+   290→        self.last_updated = datetime.now(timezone.utc)
+   291→
+   292→        delta = ModelDelta(
+   293→            signal_id=signal.signal_id,
+   294→            signal_type=signal.type.value,
+   295→            provider=signal.provider.value,
+   296→        )
+   297→
+   298→        # 1. Update health metrics
+   299→        health_changes = self.health.update_from_signal(signal)
+   300→        delta.health_changes = health_changes
+   301→
+   302→        # 2. Update knowledge graph
+   303→        knowledge_changes = self.knowledge.update_from_signal(signal)
+   304→        delta.knowledge_changes = knowledge_changes
+   305→
+   306→        # 3. Update approval network
+   307→        approval_changes = self.approvals.update_from_signal(signal)
+   308→        delta.approval_changes = approval_changes
+   309→
+   310→        # 4. Generate LearningObjects from this signal
+   311→        los = self._generate_learning_objects(signal)
+   312→        for lo in los:
+   313→            self.learning_objects[lo.lo_id] = lo
+   314→            delta.new_learning_objects.append(lo.lo_id)
+   315→            self._add_receipt(signal, lo.lo_id, "learning_object.created", str(lo.lo_id), delta)
+   316→
+   317→        # 5. Detect patterns from accumulated LOs
+   318→        all_los = list(self.learning_objects.values())
+   319→        law_candidates = self.pattern_detector.detect(all_los)
+   320→        for pattern in law_candidates:
+   321→            if pattern.is_law_candidate:
+   322→                law = self._promote_to_law(pattern, signal)
+   323→                if law:
+   324→                    delta.new_laws.append(law.code)
+   325→                    delta.law_updates.append(law.code)
+   326→                    self._add_receipt(signal, law.law_id, "law.created", law.code, delta)
+   327→
+   328→        # 6. Update existing laws with new evidence
+   329→        self._update_laws_from_signal(signal, delta)
+   330→
+   331→        # 7. Update risks
+   332→        self._update_risks(signal, delta)
+   333→
+   334→        # 8. Recompute all confidence scores
+   335→        self._recompute_confidence()
+   336→
+   337→        return delta
+   338→
+   339→    def _generate_learning_objects(self, signal: ExecutionSignal) -> list[LearningObject]:
+   340→        """Generate LearningObjects from a signal. Provider-specific logic lives in providers/."""
+   341→        los: list[LearningObject] = []
+   342→
+   343→        # GitHub signals → engineering LOs
+   344→        if signal.provider == SignalProvider.GITHUB:
+   345→            los.extend(self._github_to_los(signal))
+   346→        elif signal.provider == SignalProvider.JIRA:
+   347→            los.extend(self._jira_to_los(signal))
+   348→        elif signal.provider == SignalProvider.SLACK:
+   349→            los.extend(self._slack_to_los(signal))
+   350→        elif signal.provider == SignalProvider.CONFLUENCE:
+   351→            los.extend(self._confluence_to_los(signal))
+   352→        elif signal.provider == SignalProvider.GMAIL:
+   353→            los.extend(self._gmail_to_los(signal))
+   354→
+   355→        return los
+   356→
+   357→    def _github_to_los(self, signal: ExecutionSignal) -> list[LearningObject]:
+   358→        """GitHub signals produce engineering LearningObjects."""
+   359→        los: list[LearningObject] = []
+   360→
+   361→        if signal.type == SignalType.PR_REVIEWED:
+   362→            reviewer = signal.metadata.get("reviewer", "")
+   363→            author = signal.actor
+   364→            domain = signal.metadata.get("domain", "engineering")
+   365→            lo = LearningObject(
+   366→                type=LearningObjectType.REVIEW_PATTERN,
+   367→                title=f"{reviewer} reviewed {author}'s PR in {domain}",
+   368→                description=f"Code review in {domain} — reviewer: {reviewer}, author: {author}",
+   369→                entities=[reviewer, author],
+   370→                artifacts=[signal.artifact],
+   371→                providers={"github"},
+   372→                metadata={"reviewer": reviewer, "author": author, "domain": domain},
+   373→            )
+   374→            lo.add_evidence(signal.signal_id, "github")
+   375→            los.append(lo)
+   376→
+   377→        elif signal.type == SignalType.PR_MERGED:
+   378→            domain = signal.metadata.get("domain", "engineering")
+   379→            lo = LearningObject(
+   380→                type=LearningObjectType.RELEASE_PATTERN,
+   381→                title=f"PR merged in {domain} by {signal.actor}",
+   382→                description=f"Release pattern: {signal.actor} merged {signal.artifact}",
+   383→                entities=[signal.actor],
+   384→                artifacts=[signal.artifact],
+   385→                providers={"github"},
+   386→                metadata={"domain": domain},
+   387→            )
+   388→            lo.add_evidence(signal.signal_id, "github")
+   389→            los.append(lo)
+   390→
+   391→        elif signal.type == SignalType.COMMIT:
+   392→            # Track who touches what domain
+   393→            domain = signal.metadata.get("domain", "engineering")
+   394→            lo = LearningObject(
+   395→                type=LearningObjectType.HIDDEN_EXPERT,
+   396→                title=f"{signal.actor} committed to {domain}",
+   397→                description=f"Contribution pattern: {signal.actor} in {domain}",
+   398→                entities=[signal.actor],
+   399→                artifacts=[signal.artifact],
+   400→                providers={"github"},
+   401→                metadata={"domain": domain},
+   402→            )
+   403→            lo.add_evidence(signal.signal_id, "github")
+   404→            los.append(lo)
+   405→
+   406→        return los
+   407→
+   408→    def _jira_to_los(self, signal: ExecutionSignal) -> list[LearningObject]:
+   409→        """Jira signals produce delivery LearningObjects."""
+   410→        los: list[LearningObject] = []
+   411→
+   412→        if signal.type == SignalType.ISSUE_TRANSITIONED:
+   413→            transition = signal.metadata.get("transition", "")
+   414→            assignee = signal.metadata.get("assignee", signal.actor)
+   415→            if "approve" in transition.lower() or "review" in transition.lower():
+   416→                lo = LearningObject(
+   417→                    type=LearningObjectType.APPROVAL_GATE,
+   418→                    title=f"{assignee} approved/reviewed {signal.artifact}",
+   419→                    description=f"Approval gate: {assignee} — transition: {transition}",
+   420→                    entities=[assignee],
+   421→                    artifacts=[signal.artifact],
+   422→                    providers={"jira"},
+   423→                    metadata={"gate": assignee, "transition": transition},
+   424→                )
+   425→                lo.add_evidence(signal.signal_id, "jira")
+   426→                los.append(lo)
+   427→
+   428→        elif signal.type == SignalType.ISSUE_CREATED:
+   429→            priority = signal.metadata.get("priority", "medium")
+   430→            if priority.upper() in ("P1", "P0", "CRITICAL"):
+   431→                lo = LearningObject(
+   432→                    type=LearningObjectType.INCIDENT_PATTERN,
+   433→                    title=f"P1 incident: {signal.artifact}",
+   434→                    description=f"High-priority issue created: {signal.artifact}",
+   435→                    entities=[signal.actor],
+   436→                    artifacts=[signal.artifact],
+   437→                    providers={"jira"},
+   438→                    metadata={"priority": priority},
+   439→                )
+   440→                lo.add_evidence(signal.signal_id, "jira")
+   441→                los.append(lo)
+   442→
+   443→        elif signal.type == SignalType.SPRINT_COMPLETED:
+   444→            velocity = signal.metadata.get("velocity", 0)
+   445→            lo = LearningObject(
+   446→                type=LearningObjectType.VELOCITY_DROP,
+   447→                title=f"Sprint completed — velocity: {velocity}",
+   448→                description=f"Sprint velocity: {velocity} points",
+   449→                entities=[signal.team],
+   450→                artifacts=[signal.artifact],
+   451→                providers={"jira"},
+   452→                metadata={"velocity": velocity},
+   453→            )
+   454→            lo.add_evidence(signal.signal_id, "jira")
+   455→            los.append(lo)
+   456→
+   457→        return los
+   458→
+   459→    def _slack_to_los(self, signal: ExecutionSignal) -> list[LearningObject]:
+   460→        """Slack signals produce decision-graph LearningObjects."""
+   461→        los: list[LearningObject] = []
+   462→
+   463→        if signal.type == SignalType.DECISION_SIGNAL:
+   464→            lo = LearningObject(
+   465→                type=LearningObjectType.DECISION_PATTERN,
+   466→                title=f"Decision signal from {signal.actor}",
+   467→                description=f"Decision pattern detected in Slack: {signal.metadata.get('text', '')[:100]}",
+   468→                entities=[signal.actor],
+   469→                artifacts=[signal.artifact],
+   470→                providers={"slack"},
+   471→                metadata={"channel": signal.metadata.get("channel", "")},
+   472→            )
+   473→            lo.add_evidence(signal.signal_id, "slack")
+   474→            los.append(lo)
+   475→
+   476→        elif signal.type == SignalType.QUESTION_ASKED:
+   477→            # Questions are unique to Slack — they represent knowledge friction / bottleneck
+   478→            participants = signal.metadata.get("participants", [])
+   479→            lo = LearningObject(
+   480→                type=LearningObjectType.BOTTLENECK,
+   481→                title=f"Question asked by {signal.actor} — knowledge friction",
+   482→                description=f"Question in {signal.metadata.get('channel', '')}: {signal.metadata.get('text', '')[:80]}",
+   483→                entities=[signal.actor] + participants,
+   484→                artifacts=[signal.artifact],
+   485→                providers={"slack"},
+   486→                metadata={"channel": signal.metadata.get("channel", ""), "question": True},
+   487→            )
+   488→            lo.add_evidence(signal.signal_id, "slack")
+   489→            los.append(lo)
+   490→
+   491→        elif signal.type == SignalType.AGREEMENT:
+   492→            # Agreements are unique to Slack — they represent consensus
+   493→            participants = signal.metadata.get("participants", [])
+   494→            lo = LearningObject(
+   495→                type=LearningObjectType.REVIEW_PATTERN,
+   496→                title=f"Agreement reached — {len(participants)} participants aligned",
+   497→                description=f"Consensus signal in {signal.metadata.get('channel', '')}",
+   498→                entities=participants,
+   499→                artifacts=[signal.artifact],
+   500→                providers={"slack"},
+   501→                metadata={"channel": signal.metadata.get("channel", ""), "agreement": True},
+   502→            )
+   503→            lo.add_evidence(signal.signal_id, "slack")
+   504→            los.append(lo)
+   505→
+   506→        elif signal.type == SignalType.CONFLICT:
+   507→            participants = signal.metadata.get("participants", [])
+   508→            lo = LearningObject(
+   509→                type=LearningObjectType.DECISION_PATTERN,
+   510→                title=f"Conflict detected between {len(participants)} participants",
+   511→                description=f"Organizational disagreement in {signal.metadata.get('channel', '')}",
+   512→                entities=participants,
+   513→                artifacts=[signal.artifact],
+   514→                providers={"slack"},
+   515→                metadata={"conflict": True, "participants": participants},
+   516→            )
+   517→            lo.add_evidence(signal.signal_id, "slack")
+   518→            los.append(lo)
+   519→
+   520→        return los
+   521→
+   522→    def _confluence_to_los(self, signal: ExecutionSignal) -> list[LearningObject]:
+   523→        """Confluence signals produce knowledge-graph LearningObjects."""
+   524→        los: list[LearningObject] = []
+   525→
+   526→        if signal.type == SignalType.PAGE_CREATED:
+   527→            domain = signal.metadata.get("domain", "documentation")
+   528→            lo = LearningObject(
+   529→                type=LearningObjectType.HIDDEN_EXPERT,
+   530→                title=f"Documentation created by {signal.actor} in {domain}",
+   531→                description=f"Knowledge documented: {signal.artifact}",
+   532→                entities=[signal.actor],
+   533→                artifacts=[signal.artifact],
+   534→                providers={"confluence"},
+   535→                metadata={"domain": domain},
+   536→            )
+   537→            lo.add_evidence(signal.signal_id, "confluence")
+   538→            los.append(lo)
+   539→
+   540→        elif signal.type == SignalType.RFC_CREATED:
+   541→            # RFCs are unique to Confluence — they represent formal proposals
+   542→            domain = signal.metadata.get("domain", "planning")
+   543→            lo = LearningObject(
+   544→                type=LearningObjectType.APPROVAL_GATE,
+   545→                title=f"RFC created by {signal.actor}: {signal.metadata.get('title', '')}",
+   546→                description=f"Formal proposal: {signal.artifact} — domain: {domain}",
+   547→                entities=[signal.actor],
+   548→                artifacts=[signal.artifact],
+   549→                providers={"confluence"},
+   550→                metadata={"domain": domain, "rfc": True},
+   551→            )
+   552→            lo.add_evidence(signal.signal_id, "confluence")
+   553→            los.append(lo)
+   554→
+   555→        elif signal.type == SignalType.POSTMORTEM_CREATED:
+   556→            has_owner = signal.metadata.get("has_owner", False)
+   557→            # Postmortems without owners → knowledge death (lesson created but never acted on)
+   558→            lo_type = LearningObjectType.INCIDENT_PATTERN if has_owner else LearningObjectType.KNOWLEDGE_DEATH
+   559→            lo = LearningObject(
+   560→                type=lo_type,
+   561→                title=f"Postmortem created — owner: {'yes' if has_owner else 'NO'}",
+   562→                description=f"Postmortem: {signal.artifact} — owner assignment: {has_owner}",
+   563→                entities=[signal.actor],
+   564→                artifacts=[signal.artifact],
+   565→                providers={"confluence"},
+   566→                metadata={"has_owner": has_owner},
+   567→            )
+   568→            lo.add_evidence(signal.signal_id, "confluence")
+   569→            los.append(lo)
+   570→
+   571→        return los
+   572→
+   573→    def _gmail_to_los(self, signal: ExecutionSignal) -> list[LearningObject]:
+   574→        """Gmail signals produce decision-velocity LearningObjects."""
+   575→        los: list[LearningObject] = []
+   576→
+   577→        if signal.type == SignalType.MEETING_COMPLETED:
+   578→            participants = signal.metadata.get("participants", [])
+   579→            lo = LearningObject(
+   580→                type=LearningObjectType.DECISION_PATTERN,
+   581→                title=f"Meeting completed — {len(participants)} participants",
+   582→                description=f"Decision velocity signal: meeting with {len(participants)} people",
+   583→                entities=participants,
+   584→                artifacts=[signal.artifact],
+   585→                providers={"gmail"},
+   586→                metadata={"participants": participants, "duration": signal.metadata.get("duration", 0)},
+   587→            )
+   588→            lo.add_evidence(signal.signal_id, "gmail")
+   589→            los.append(lo)
+   590→
+   591→        elif signal.type == SignalType.EMAIL_SENT:
+   592→            # External communication pattern — unique to Gmail
+   593→            recipient = signal.metadata.get("recipient", "")
+   594→            if recipient and "external" in signal.metadata.get("recipient_type", "").lower():
+   595→                lo = LearningObject(
+   596→                    type=LearningObjectType.HANDOFF_DELAY,
+   597→                    title=f"External communication: {signal.actor} → {recipient}",
+   598→                    description=f"External email pattern — may indicate customer or vendor interaction",
+   599→                    entities=[signal.actor, recipient],
+   600→                    artifacts=[signal.artifact],
+   601→                    providers={"gmail"},
+   602→                    metadata={"recipient": recipient, "external": True},
+   603→                )
+   604→                lo.add_evidence(signal.signal_id, "gmail")
+   605→                los.append(lo)
+   606→
+   607→        return los
+   608→
+   609→    def _promote_to_law(self, pattern: Pattern, signal: ExecutionSignal) -> OrganizationalLaw | None:
+   610→        """Promote a pattern to a law if it qualifies."""
+   611→        # Check if we already have a law for this pattern
+   612→        for existing in self.laws.values():
+   613→            if pattern.description in existing.statement:
+   614→                existing.add_validation(signal.signal_id)
+   615→                return existing
+   616→
+   617→        # Create new law
+   618→        code = f"L-{self.next_law_number:04d}"
+   619→        self.next_law_number += 1
+   620→
+   621→        law = OrganizationalLaw(
+   622→            code=code,
+   623→            statement=pattern.description,
+   624→            condition=pattern.description,
+   625→            outcome=f"Predicted by pattern with strength {pattern.strength:.2f}",
+   626→            status=LawStatus.CANDIDATE,
+   627→            pattern_ids=[pattern.pattern_id],
+   628→            providers=pattern.providers,
+   629→            evidence_count=pattern.evidence_count,
+   630→            validated_runtimes=1,
+   631→        )
+   632→        law.add_validation(signal.signal_id)
+   633→        self.laws[code] = law
+   634→        return law
+   635→
+   636→    def _update_laws_from_signal(self, signal: ExecutionSignal, delta: ModelDelta) -> None:
+   637→        """Update existing laws with new evidence from a signal."""
+   638→        for law in self.laws.values():
+   639→            # If the signal type is relevant to the law's condition
+   640→            if self._signal_relevant_to_law(signal, law):
+   641→                if signal.metadata.get("contradicts", False):
+   642→                    law.add_counter_example(signal.signal_id)
+   643→                else:
+   644→                    law.add_validation(signal.signal_id)
+   645→                delta.law_updates.append(law.code)
+   646→                self._add_receipt(signal, law.law_id, "law.evidence_added", law.code, delta)
+   647→
+   648→    def _signal_relevant_to_law(self, signal: ExecutionSignal, law: OrganizationalLaw) -> bool:
+   649→        """Check if a signal is relevant to a law."""
+   650→        # Simple heuristic: if the law's condition mentions the signal type
+   651→        signal_type_str = signal.type.value.lower()
+   652→        condition_lower = law.condition.lower()
+   653→        # Check for keyword overlap
+   654→        keywords = signal_type_str.split(".")
+   655→        return any(kw in condition_lower for kw in keywords if len(kw) > 2)
+   656→
+   657→    def _update_risks(self, signal: ExecutionSignal, delta: ModelDelta) -> None:
+   658→        """Update risk surface from signal."""
+   659→        if signal.type == SignalType.INCIDENT or (
+   660→            signal.type == SignalType.ISSUE_CREATED
+   661→            and signal.metadata.get("priority", "").upper() in ("P1", "P0", "CRITICAL")
+   662→        ):
+   663→            # P1 cluster risk
+   664→            self.risks.add_bottleneck_risk(
+   665→                signal.team,
+   666→                min(1.0, self.health.p1_cluster_risk + 0.1)
+   667→            )
+   668→            delta.risk_changes["p1_cluster"] = self.health.p1_cluster_risk
+   669→
+   670→        # Departure risk from Slack patterns — check all Slack signal types
+   671→        if signal.provider == SignalProvider.SLACK:
+   672→            text = signal.metadata.get("text", "").lower()
+   673→            departure_keywords = ["leaving", "resign", "quit", "new job", "new opportunity", "offer"]
+   674→            if any(w in text for w in departure_keywords):
+   675→                # Compute departure risk from evidence, not hardcoded 0.71
+   676→                from maestro_oem.confidence import ConfidenceCalculator
+   677→                risk_expl = ConfidenceCalculator.compute_risk_probability(
+   678→                    signal_count=1,
+   679→                    contradiction_count=0,
+   680→                    providers={"slack"},
+   681→                    last_signal=signal.timestamp,
+   682→                )
+   683→                self.risks.add_departure_risk(signal.actor, risk_expl.value)
+   684→                delta.risk_changes["departure_risk"] = {
+   685→                    "entity": signal.actor,
+   686→                    "probability": risk_expl.value,
+   687→                    "formula": risk_expl.formula,
+   688→                }
+   689→
+   690→    def _add_receipt(
+   691→        self,
+   692→        signal: ExecutionSignal,
+   693→        target_id: UUID,
+   694→        change: str,
+   695→        target: str,
+   696→        delta: ModelDelta,
+   697→    ) -> None:
+   698→        """Add a receipt to the delta and the chain."""
+   699→        receipt = Receipt(
+   700→            signal_id=signal.signal_id,
+   701→            signal_type=signal.type.value,
+   702→            signal_provider=signal.provider.value,
+   703→            signal_timestamp=signal.timestamp,
+   704→            signal_actor=signal.actor,
+   705→            signal_artifact=signal.artifact,
+   706→            oem_change=change,
+   707→            oem_target=target,
+   708→        )
+   709→        delta.receipts.append(receipt)
+   710→
+   711→        # Add to chain
+   712→        chain = self.receipt_chains.setdefault(target, ReceiptChain(target=target, target_type="auto"))
+   713→        chain.add(receipt)
+   714→
+   715→    def _recompute_confidence(self) -> None:
+   716→        """Recompute all confidence scores after a model update."""
+   717→        calc = ConfidenceCalculator()
+   718→
+   719→        for lo in self.learning_objects.values():
+   720→            lo.confidence = calc.compute_lo_confidence(
+   721→                evidence_count=lo.evidence_count,
+   722→                contradiction_count=lo.contradiction_count,
+   723→                providers=lo.providers,
+   724→                first_seen=lo.first_seen,
+   725→                last_seen=lo.last_seen,
+   726→            )
+   727→
+   728→        for law in self.laws.values():
+   729→            # Ensure evidence_count is consistent with validated + failed
+   730→            law.evidence_count = max(law.evidence_count, law.validated_runtimes + law.failed_runtimes)
+   731→            law.confidence = calc.compute_law_confidence(
+   732→                validated_runtimes=law.validated_runtimes,
+   733→                failed_runtimes=law.failed_runtimes,
+   734→                evidence_count=law.evidence_count,
+   735→                providers=law.providers,
+   736→                last_validated=law.last_validated,
+   737→            )
+   738→
+   739→    def get_summary(self) -> dict[str, Any]:
+   740→        """Get a summary of the current model state."""
+   741→        return {
+   742→            "providers_connected": list(self.connected_providers),
+   743→            "signals_processed": len(self.processed_signals),
+   744→            "learning_objects": len(self.learning_objects),
+   745→            "patterns_detected": len(self.pattern_detector.patterns),
+   746→            "laws_inferred": len(self.laws),
+   747→            "validated_laws": sum(1 for l in self.laws.values() if l.status == LawStatus.VALIDATED),
+   748→            "unknown_laws": sum(1 for l in self.laws.values() if l.status == LawStatus.UNKNOWN_TO_LEADERSHIP),
+   749→            "hidden_experts": len(self.knowledge.get_hidden_experts()),
+   750→            "bottlenecks": len(self.approvals.get_bottlenecks()),
+   751→            "concentration_risks": len(self.knowledge.get_concentration_risk()),
+   752→            "departure_risks": len(self.risks.departure_risks),
+   753→            "decision_velocity_days": self.health.decision_velocity_days,
+   754→            "release_frequency": self.health.release_frequency,
+   755→            "incident_rate": self.health.incident_rate,
+   756→            "p1_cluster_risk": self.health.p1_cluster_risk,
+   757→            "last_updated": self.last_updated.isoformat(),
+   758→        }
+   759→
+   760→    def get_provenance_chain(self, target: str) -> list[dict[str, Any]]:
+   761→        """Get the full provenance chain for a law, LO, or recommendation."""
+   762→        chain = self.receipt_chains.get(target)
+   763→        if chain:
+   764→            return chain.to_display()
+   765→        return []
+   766→
