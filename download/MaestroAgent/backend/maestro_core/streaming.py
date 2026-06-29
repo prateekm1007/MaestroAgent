@@ -114,6 +114,16 @@ class EventBus:
 
     def start(self) -> None:
         if self._task is None or self._task.done():
+            try:
+                self._task = asyncio.create_task(self._dispatch_loop())
+            except RuntimeError:
+                # No running event loop — create one for the task
+                loop = asyncio.new_event_loop()
+                self._task = loop.create_task(self._dispatch_loop())
+
+    async def start_async(self) -> None:
+        """Async-safe start — use from async fixtures."""
+        if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._dispatch_loop())
 
     async def stop(self) -> None:
