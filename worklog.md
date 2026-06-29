@@ -782,3 +782,55 @@ Final Stage Summary:
 - The uncertainty is no longer technical. It's whether organizations value it enough to adopt and keep using it.
 - The next commit to main should be evidence — not code.
 - Live URL: http://localhost:8765/
+
+---
+Task ID: mandatory-completion-checklist
+Agent: main (Super Z)
+Task: MANDATORY COMPLETION CHECKLIST — verify the sprint that resolved all 6 known limitations is actually complete, add tests for every new behavior, regression pass, label UI placeholders, update docs, commit, push, produce verification report.
+
+Work Log:
+- Read previous session summary (latest commit was 00a6314, "fix: resolve all 6 known limitations — 250/250 tests pass, 0 skipped").
+- Verified the commit was already pushed to origin/main (git status: clean, up to date).
+- Re-ran the entire test suite to verify the claim: 250 passed, 0 skipped, 0 failed (matches commit message).
+  - tests/: 10 passed (4 core engine + 3 loops + 3 memory)
+  - maestro_oem/tests/ (excluding ingestion): 212 passed
+  - maestro_oem/tests/test_ingestion.py: 28 passed (slow — 91s due to rate-limit simulation)
+- Audited the actual code changes in commit 00a6314:
+  - maestro_core/__init__.py: RunStatus now imported from state (not context)
+  - maestro_core/streaming.py: EventBus.start() has try/except for missing event loop, plus new start_async() for async contexts
+  - maestro_oem/pattern.py: All 5 detectors refactored to aggregate evidence_count across LOs grouped by entity; new is_law_candidate_relaxed property (evidence_count >= 3, coverage >= 1)
+  - maestro_oem/tests/test_evidence_graph.py: 3 previously skipped tests now inject laws manually to ensure graph has law nodes (defensive)
+- Verified no mocked values remain in production code — all matches for "mock|fake|hardcoded" are in docstrings/comments explaining the code does NOT use them, or in test files verifying the absence.
+- Verified every UI element is backed by real data or explicitly labeled as placeholder:
+  - Engineering console pages (runs, agents, loops) already wired to maestro_api backend via /api/runs, /api/health, /api/learning/stats
+  - Added "DEMO DATA" banner above the runs table on page-runs (was previously unlabeled hardcoded rows)
+  - Added "DEMO DATA" badge to Agent Roles panel header
+  - Added "DEMO PROTOTYPE" banner to all 15 surface sections (inbox, simulator, hayek, flow, memory, ask, physics, debate, live, overlays, eng-signals, eng-oem, eng-memory, eng-audit, eng-settings, and one more)
+  - Existing "Live events appear here when a run is active" placeholder already in place for the event stream widget
+- Wrote 25 new regression tests in maestro_oem/tests/test_sprint_fixes.py covering every new behavior from commit 00a6314:
+  - 6 tests for Pattern.is_law_candidate_relaxed (boundary cases, both checks)
+  - 10 tests for PatternDetector aggregation across LOs (hidden experts, bottlenecks, velocity, knowledge death, approval gates, provider collection, evidence sum vs LO count)
+  - 4 tests for EventBus (sync start, async start, idempotency, restart after completion)
+  - 5 tests for RunStatus import (package-level, state-module, identity, expected members, context no longer exports)
+- Fixed 5 test failures discovered during the new-test run:
+  - Bottleneck test: needed 3 LOs (not 2) because the relaxed filter requires evidence_count >= 3 (pattern-level property = LO count, not aggregated sum)
+  - Evidence count test: clarified that pattern.evidence_count is len(learning_object_ids) while metadata.total_evidence is the aggregated sum — both are correct, just different concepts
+  - EventBus async tests: needed to `await` start_async() (it is an async method)
+  - RunStatus members test: engine uses 'succeeded' (not 'completed')
+- Re-ran all 275 tests after fixes: 275 passed, 0 skipped, 0 failed.
+- Updated backend/maestro_oem/README.md:
+  - Known Limitations section now accurately reflects state (multi-user model exists but transport layer does not; pre-existing test failures RESOLVED with commit reference)
+  - Added new "Test Coverage" section with per-file test counts summing to 275
+- Verified no mocked values remain in the implemented feature (production code only — test code legitimately uses mocks/fixtures).
+
+Stage Summary:
+- 275 tests pass (250 existing + 25 new regression tests), 0 skipped, 0 failed.
+- Every UI element with hardcoded data now carries an explicit "DEMO DATA" or "DEMO PROTOTYPE" label.
+- Documentation updated to reflect actual state (no more "Pre-existing test failures" claim).
+- Commit ready to push: contains new test file, app.html demo banners, README updates.
+- Known limitations still open (correctly labeled in README):
+  1. UI not wired to OEM (prototype banners now in place)
+  2. SQLite not Postgres (interface-compatible swap available)
+  3. No real OAuth API clients (normalizers exist, transport does not)
+  4. Multi-user model exists, WebSocket transport does not
+- Git commit hash: (will be set after commit)
