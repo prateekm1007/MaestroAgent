@@ -177,20 +177,81 @@ strength = total_edge_weight / (total_edge_weight + 2)
 
 More edges with higher weights = higher strength. Deleting edges reduces strength. Reconnecting restores it.
 
+## Contradiction Learning
+
+Maestro can admit it is wrong. CEO feedback cascades through the entire model.
+
+### Feedback Actions
+
+| Action | Effect | Confidence Change |
+|---|---|---|
+| `AGREE` | Law gains validation | ↑ Increases |
+| `REJECT` | Law gains counter-example, drift flag set | ↓ Decreases |
+| `MODIFY` | Law gains both validation and counter-example | ↓ Slight decrease |
+| `IGNORE` | No change to model | None (event recorded) |
+
+### Law Lifecycle from Contradictions
+
+```
+VALIDATED → (3 rejections, ratio > 0.3) → STRESSED → (6 rejections, ratio > 0.5) → INVALIDATED
+```
+
+Invalidated laws are suppressed — they stop appearing in recommendations.
+
+### Append-Only History
+
+Every `ContradictionEvent` permanently stores:
+- Action, reasoning, actor, timestamp
+- Predicted confidence, predicted outcome, actual outcome
+- Confidence before/after for each affected law
+- Law status changes
+
+Events are **never overwritten, never deleted**.
+
+### API
+
+```python
+from maestro_oem import ContradictionEngine, FeedbackAction
+
+contra = ContradictionEngine(model)
+
+# CEO rejects a prediction
+event = contra.apply_feedback(
+    target_type="law",
+    target_id="L-TEST",
+    action=FeedbackAction.REJECT,
+    reasoning="APAC churn didn't increase — the law is wrong for this segment",
+    actor="jane@acme.com",
+    predicted_confidence=0.84,
+    predicted_outcome="APAC churn +14%",
+    actual_outcome="APAC churn -2%",
+)
+
+# Check calibration impact
+impact = contra.get_calibration_impact()
+# → {total_feedback: 1, rejection_rate: 1.0, average_confidence_delta: -0.12}
+
+# Check if law should be suppressed
+if contra.shouldsuppress_law("L-TEST"):
+    print("Law L-TEST is no longer reliable — suppressing from recommendations")
+```
+
 ## Test Results
 
 ```
-73 passed, 3 skipped in 0.89s
+105 passed, 3 skipped in 0.96s
 ```
 
 | Suite | Tests | Result |
 |---|---|---|
-| `test_oem.py` (core OEM) | 34 | ✓ All pass |
-| `test_oem_edge_cases.py` (edge cases) | 16 | ✓ All pass |
-| `test_evidence_graph.py` (evidence graph) | 15 | ✓ All pass (3 skipped — require laws from larger dataset) |
-| `test_evidence_graph_edge_cases.py` (graph edge cases) | 8 | ✓ All pass |
-| `tests/test_memory.py` (regression) | 3 | ✓ All pass |
-| **Total** | **73** | **✓ All pass** |
+| `test_oem.py` (core OEM) | 34 | ✓ |
+| `test_oem_edge_cases.py` (edge cases) | 16 | ✓ |
+| `test_evidence_graph.py` (evidence graph) | 15 | ✓ |
+| `test_evidence_graph_edge_cases.py` (graph edge cases) | 8 | ✓ |
+| `test_contradiction.py` (contradiction learning) | 20 | ✓ |
+| `test_contradiction_edge_cases.py` (contradiction edge cases) | 12 | ✓ |
+| `tests/test_memory.py` (regression) | 3 | ✓ |
+| **Total** | **105** | **✓ All pass** |
 
 ## Known Limitations
 
