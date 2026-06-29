@@ -324,63 +324,107 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
       <section class="surface active" id="surface-home">
         <div class="p-6 space-y-5 max-w-7xl mx-auto">
           <div>
-            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Good morning</div>
-            <h1 class="text-2xl font-bold text-white">Here is your briefing.</h1>
-            <p class="text-xs text-fg-500 mt-1" id="home-briefing-timestamp">Every answer below is derived from your live execution signals.</p>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Executive Cognition Center</div>
+            <h1 class="text-2xl font-bold text-white">Live organizational intelligence.</h1>
+            <p class="text-xs text-fg-500 mt-1" id="home-briefing-timestamp">Every section below is derived from your live execution signals. No fake data.</p>
           </div>
 
-          <!-- Q1: What changed overnight? -->
-          <div class="panel">
-            <div class="panel-header">
-              <span>What changed overnight?</span>
-              <span id="home-overnight-count" class="tag tag-cyan">—</span>
-            </div>
-            <div class="panel-body" id="home-overnight">
-              <div class="loading-state"><span class="spinner"></span> Loading overnight changes…</div>
-            </div>
-          </div>
-
-          <!-- Q2: If I only do one thing today? -->
+          <!-- 1. Today's Attention -->
           <div class="panel" style="border: 1px solid rgba(124,92,255,0.2); background: rgba(124,92,255,0.03);">
             <div class="panel-header">
-              <span style="color: #7c5cff;">If you do one thing today...</span>
-              <span class="dq-badge">Most important action</span>
+              <span style="color: #7c5cff;">1. Today's Attention</span>
+              <span id="ecc-attention-count" class="tag tag-violet">—</span>
             </div>
-            <div class="panel-body" id="home-one-thing">
-              <div class="loading-state"><span class="spinner"></span> Finding your top priority...</div>
-            </div>
-          </div>
-
-          <!-- Q3: Where is money being lost? -->
-          <div class="panel">
-            <div class="panel-header">
-              <span>Where is money being lost?</span>
-              <span id="home-money-count" class="tag tag-rose">—</span>
-            </div>
-            <div class="panel-body" id="home-money">
-              <div class="loading-state"><span class="spinner"></span> Calculating money drains...</div>
+            <div class="panel-body" id="ecc-attention">
+              <div class="loading-state"><span class="spinner"></span> Loading your top priorities...</div>
             </div>
           </div>
 
-          <!-- Q4: Where is knowledge trapped? -->
+          <!-- 2. What Changed Overnight -->
           <div class="panel">
             <div class="panel-header">
-              <span>Where is knowledge trapped?</span>
-              <span id="home-knowledge-count" class="tag tag-amber">—</span>
+              <span>2. What Changed Overnight</span>
+              <span id="ecc-overnight-count" class="tag tag-cyan">—</span>
             </div>
-            <div class="panel-body" id="home-knowledge">
-              <div class="loading-state"><span class="spinner"></span> Finding knowledge traps...</div>
+            <div class="panel-body" id="ecc-overnight">
+              <div class="loading-state"><span class="spinner"></span> Loading overnight changes...</div>
             </div>
           </div>
 
-          <!-- Q5: What decision only I can make? -->
+          <!-- 3. Hayek Lens (concentration risks + knowledge domains) -->
           <div class="panel">
             <div class="panel-header">
-              <span>What decision only you can make?</span>
-              <span id="home-decisions-count" class="tag tag-purple">—</span>
+              <span>3. Hayek Lens — Concentration &amp; Influence</span>
+              <span id="ecc-hayek-count" class="tag tag-amber">—</span>
             </div>
-            <div class="panel-body" id="home-ceo-decisions">
-              <div class="loading-state"><span class="spinner"></span> Finding CEO-only decisions...</div>
+            <div class="panel-body" id="ecc-hayek">
+              <div class="loading-state"><span class="spinner"></span> Loading Hayek Lens...</div>
+            </div>
+          </div>
+
+          <!-- 4. Knowledge Flow (duplicate work + knowledge death) -->
+          <div class="panel">
+            <div class="panel-header">
+              <span>4. Knowledge Flow — Duplicates &amp; Death</span>
+              <span id="ecc-flow-count" class="tag tag-rose">—</span>
+            </div>
+            <div class="panel-body" id="ecc-flow">
+              <div class="loading-state"><span class="spinner"></span> Loading knowledge flow...</div>
+            </div>
+          </div>
+
+          <!-- 5. Hidden Experts -->
+          <div class="panel">
+            <div class="panel-header">
+              <span>5. Hidden Experts — Bus Factor Risks</span>
+              <span id="ecc-experts-count" class="tag tag-purple">—</span>
+            </div>
+            <div class="panel-body" id="ecc-experts">
+              <div class="loading-state"><span class="spinner"></span> Loading hidden experts...</div>
+            </div>
+          </div>
+
+          <!-- 6. Decision Simulator -->
+          <div class="panel">
+            <div class="panel-header">
+              <span>6. Decision Simulator — What-If Analysis</span>
+              <span id="ecc-simulator-status" class="tag tag-cyan">Ready</span>
+            </div>
+            <div class="panel-body" id="ecc-simulator">
+              <div class="loading-state"><span class="spinner"></span> Loading simulator...</div>
+            </div>
+          </div>
+
+          <!-- 7. Ask Organization -->
+          <div class="panel">
+            <div class="panel-header">
+              <span>7. Ask the Organization</span>
+              <span class="dq-badge">Natural language</span>
+            </div>
+            <div class="panel-body" id="ecc-ask">
+              <div class="loading-state"><span class="spinner"></span> Loading ask interface...</div>
+            </div>
+          </div>
+
+          <!-- 8. Execution Replay -->
+          <div class="panel">
+            <div class="panel-header">
+              <span>8. Execution Replay — Historical Accuracy</span>
+              <span id="ecc-replay-count" class="tag tag-cyan">—</span>
+            </div>
+            <div class="panel-body" id="ecc-replay">
+              <div class="loading-state"><span class="spinner"></span> Loading execution replay...</div>
+            </div>
+          </div>
+
+          <!-- 9. Executive Autocomplete -->
+          <div class="panel">
+            <div class="panel-header">
+              <span>9. Executive Autocomplete — Semantic Suggestions</span>
+              <span class="dq-badge">Live OEM</span>
+            </div>
+            <div class="panel-body" id="ecc-autocomplete">
+              <div class="loading-state"><span class="spinner"></span> Loading autocomplete...</div>
             </div>
           </div>
 
