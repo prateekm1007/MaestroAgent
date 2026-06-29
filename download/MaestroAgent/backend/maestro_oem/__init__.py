@@ -54,6 +54,18 @@ from maestro_oem.multiuser import (
     SharedDecision,
     ConflictResolution,
 )
+from maestro_oem.ingestion import (
+    IngestionPipeline,
+    IngestionResult,
+    IngestionCheckpoint,
+    PageFetcher,
+    PageResult,
+    PageStatus,
+    RateLimiter,
+    RetryPolicy,
+    SyncMode,
+    SimulatedFetcher,
+)
 
 __all__ = [
     "ExecutionSignal",
@@ -102,6 +114,16 @@ __all__ = [
     "OptimisticUpdate",
     "SharedDecision",
     "ConflictResolution",
+    "IngestionPipeline",
+    "IngestionResult",
+    "IngestionCheckpoint",
+    "PageFetcher",
+    "PageResult",
+    "PageStatus",
+    "RateLimiter",
+    "RetryPolicy",
+    "SyncMode",
+    "SimulatedFetcher",
 ]
 
 __version__ = "0.1.0"
