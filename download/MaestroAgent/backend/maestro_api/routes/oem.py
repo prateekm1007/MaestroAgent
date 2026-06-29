@@ -763,6 +763,33 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
     # Refresh downstream artifacts (decision engine + evidence graph)
     oem_state._refresh_downstream()
 
+    # Record feedback in the learning engine for calibration
+    import os as _os
+    from pathlib import Path as _Path
+    _learning_db = _os.environ.get("MAESTRO_LEARNING_DB",
+                                    str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    try:
+        _Path(_learning_db).parent.mkdir(parents=True, exist_ok=True)
+        from maestro_oem.learning import ContinuousLearningEngine
+        learning = ContinuousLearningEngine(_learning_db, oem_state.model, oem_state.signals)
+        for law_code in event.affected_laws:
+            law = oem_state.model.laws.get(law_code)
+            if law:
+                conf_before = event.confidence_before.get(law_code, 0)
+                conf_after = law.confidence
+                learning.on_feedback(
+                    entity_type="law",
+                    entity_id=law_code,
+                    feedback=action_str,
+                    confidence_before=conf_before,
+                    confidence_after=conf_after,
+                    reasoning=reasoning,
+                    actor=actor,
+                )
+    except Exception as e:
+        import logging as _l
+        _l.getLogger(__name__).warning("Learning engine feedback recording failed: %s", e)
+
     return {
         "ok": True,
         "target_type": target_type,
@@ -1369,3 +1396,157 @@ def _get_dashboard_data() -> dict[str, Any]:
             })
 
     return {"overnight_changes": overnight_changes, "metrics": model.get_summary()}
+
+
+# ─── 17. Continuous Learning — evidence of improvement ─────────────────────
+
+@router.get("/learning")
+def get_learning_report() -> dict[str, Any]:
+    """The OEM's continuous learning report.
+
+    Shows evidence that every recommendation becomes better over time:
+      - Prediction calibration (10-bucket reliability diagram)
+      - Historical accuracy (with weekly trend)
+      - Feedback learning (CEO agree/reject → confidence adjustment)
+      - Law evolution events (promotions, demotions, drift)
+      - Pattern decay (patterns losing weight without reinforcement)
+      - Knowledge freshness (stale domains flagged)
+      - Concept drift + organization drift detection
+      - Brier score (prediction quality metric)
+    """
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    # Ensure directory exists
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import ContinuousLearningEngine
+    engine = ContinuousLearningEngine(db_path, oem_state.model, oem_state.signals)
+    return engine.get_learning_report()
+
+
+@router.get("/learning/calibration")
+def get_calibration_report() -> dict[str, Any]:
+    """Prediction calibration report — 10-bucket reliability diagram.
+
+    Shows whether the OEM's confidence scores match its actual accuracy.
+    A well-calibrated system predicting 80% confidence is right 80% of the time.
+    """
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import CalibrationEngine
+    engine = CalibrationEngine(db_path)
+    return engine.get_calibration()
+
+
+@router.get("/learning/accuracy")
+def get_historical_accuracy(entity_id: str | None = Query(None)) -> dict[str, Any]:
+    """Historical prediction accuracy — shows improvement over time.
+
+    If entity_id is provided, returns accuracy for that specific entity (law code,
+    recommendation ID). Otherwise returns overall accuracy.
+    """
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import CalibrationEngine
+    engine = CalibrationEngine(db_path)
+    return engine.get_historical_accuracy(entity_id)
+
+
+@router.get("/learning/evolution")
+def get_evolution_history(law_code: str | None = Query(None), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+    """Law evolution history — how laws have changed over time.
+
+    Shows promotion/demotion/stress/drift events for each law.
+    """
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import LawEvolutionEngine, CalibrationEngine
+    cal = CalibrationEngine(db_path)
+    engine = LawEvolutionEngine(cal)
+    events = engine.get_evolution_history(law_code, limit)
+    return {"events": events, "count": len(events)}
+
+
+@router.get("/learning/drift")
+def get_drift_events(drift_type: str | None = Query(None), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+    """Drift detection events — concept drift and organization drift.
+
+    drift_type: 'concept' or 'organization' (None = all)
+    """
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import DriftDetectionEngine, CalibrationEngine
+    cal = CalibrationEngine(db_path)
+    engine = DriftDetectionEngine(cal)
+    events = engine.get_drift_events(drift_type, limit)
+    return {"events": events, "count": len(events)}
+
+
+@router.get("/learning/freshness")
+def get_freshness_report() -> dict[str, Any]:
+    """Knowledge freshness report — which domains have stale knowledge."""
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import KnowledgeFreshnessTracker, CalibrationEngine
+    cal = CalibrationEngine(db_path)
+    engine = KnowledgeFreshnessTracker(cal)
+    report = engine.get_freshness_report()
+    return {"domains": report, "total": len(report), "stale": sum(1 for d in report if d.get("is_stale"))}
+
+
+@router.get("/learning/decay")
+def get_pattern_decay() -> dict[str, Any]:
+    """Pattern decay report — which patterns are losing weight without reinforcement."""
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import LawEvolutionEngine, CalibrationEngine
+    cal = CalibrationEngine(db_path)
+    engine = LawEvolutionEngine(cal)
+    report = engine.get_pattern_decay_report(oem_state.model)
+    return {"patterns": report, "total": len(report), "decaying": sum(1 for p in report if p.get("is_decaying"))}
+
+
+@router.get("/learning/feedback")
+def get_feedback_summary(entity_id: str | None = Query(None)) -> dict[str, Any]:
+    """Feedback learning summary — how CEO feedback has adjusted confidence."""
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import FeedbackLearningEngine, CalibrationEngine
+    cal = CalibrationEngine(db_path)
+    engine = FeedbackLearningEngine(cal)
+    return engine.get_feedback_summary(entity_id)
+
+
+@router.post("/learning/run-drift-detection")
+def run_drift_detection() -> dict[str, Any]:
+    """Manually trigger drift detection. Returns detected drifts."""
+    import os as _os
+    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
+                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    from maestro_oem.learning import ContinuousLearningEngine
+    engine = ContinuousLearningEngine(db_path, oem_state.model, oem_state.signals)
+    return engine.run_drift_detection()
