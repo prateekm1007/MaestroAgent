@@ -3,15 +3,20 @@ OEM application state — a singleton OEMEngine + DecisionEngine + EvidenceGraph
 seeded with REAL signal data from all 5 providers.
 
 This is the bridge between maestro_oem (the inference engine) and maestro_api
-(the HTTP layer). The OEM is built once at server startup from realistic
-GitHub/Jira/Slack/Confluence/Gmail signals, then served to every UI surface.
+(the HTTP layer). The OEM is built once at server startup, then continuously
+updated as the HistoricalImportEngine streams in real signals from connected
+providers (GitHub, Jira, Slack, Confluence, Gmail).
 
-No hardcoded insights. Every number the UI displays comes from this engine.
+The OEM is also wired to a CheckpointStore, OAuthManager, ConnectionManager,
+ProgressTracker, and HistoricalImportEngine — see `import_state` below.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import threading
+from pathlib import Path
 from typing import Any
 
 from maestro_oem import (
@@ -27,8 +32,22 @@ from maestro_oem.providers import (
     normalize_confluence,
     normalize_gmail,
 )
+from maestro_oem.checkpoint_store import CheckpointStore
+from maestro_oem.oauth_manager import OAuthManager
+from maestro_oem.connection_manager import ConnectionManager
+from maestro_oem.progress_tracker import ProgressTracker
+from maestro_oem.importers.factory import ProviderFactory
+from maestro_oem.historical_engine import HistoricalImportEngine
 
 logger = logging.getLogger(__name__)
+
+
+# Path to the import state DB (persisted checkpoints + OAuth tokens).
+# Override with MAESTRO_IMPORT_DB env var; defaults to a sibling of the OEM DB.
+_IMPORT_DB_PATH = os.environ.get(
+    "MAESTRO_IMPORT_DB",
+    str(Path(__file__).parent.parent.parent / "import_state.db"),
+)
 
 
 # ─── Realistic signal data (mirrors the test fixtures in test_oem.py) ───────
@@ -201,8 +220,12 @@ class OEMState:
     Singleton holding the initialized OEM engine, decision engine, and evidence graph.
 
     Built once at server startup. The OEM is seeded with realistic signal data
-    from all 5 providers. Every API response is derived from this single source
-    of truth — no hardcoded insights anywhere in the HTTP layer.
+    from all 5 providers. As the HistoricalImportEngine streams in real signals
+    from connected providers, the OEM is incrementally updated — every API
+    response reflects the latest state.
+
+    Thread-safe via a single RLock (the underlying OEMEngine.process_signal
+    is not async).
     """
 
     def __init__(self) -> None:
@@ -211,26 +234,85 @@ class OEMState:
         self.evidence_graph: EvidenceGraph | None = None
         self.signals: list[ExecutionSignal] = []
         self._initialized = False
+        self._lock = threading.RLock()
+        self._live_signals_ingested = 0
 
     def initialize(self) -> None:
         """Build the OEM from real signal data. Idempotent."""
         if self._initialized:
             return
-        logger.info("Initializing OEM from real signal data (5 providers, %d events)",
-                    len(GITHUB_EVENTS) + len(JIRA_EVENTS) + len(SLACK_EVENTS)
-                    + len(CONFLUENCE_EVENTS) + len(GMAIL_EVENTS))
-        self.engine = OEMEngine()
-        self.signals = _build_signals()
-        self.engine.ingest(self.signals)
-        model = self.engine.get_model()
-        self.evidence_graph = EvidenceGraph()
-        self.evidence_graph.build_from_model(model)
-        self.decision_engine = DecisionEngine(model, self.evidence_graph)
-        self._initialized = True
-        summary = model.get_summary()
-        logger.info("OEM ready: %d signals → %d learning objects → %d patterns → %d laws",
-                    summary["signals_processed"], summary["learning_objects"],
-                    summary["patterns_detected"], summary["laws_inferred"])
+        with self._lock:
+            if self._initialized:
+                return
+            logger.info("Initializing OEM from real signal data (5 providers, %d events)",
+                        len(GITHUB_EVENTS) + len(JIRA_EVENTS) + len(SLACK_EVENTS)
+                        + len(CONFLUENCE_EVENTS) + len(GMAIL_EVENTS))
+            self.engine = OEMEngine()
+            self.signals = _build_signals()
+            self.engine.ingest(self.signals)
+            model = self.engine.get_model()
+            self.evidence_graph = EvidenceGraph()
+            self.evidence_graph.build_from_model(model)
+            self.decision_engine = DecisionEngine(model, self.evidence_graph)
+            self._initialized = True
+            summary = model.get_summary()
+            logger.info("OEM ready: %d signals → %d learning objects → %d patterns → %d laws",
+                        summary["signals_processed"], summary["learning_objects"],
+                        summary["patterns_detected"], summary["laws_inferred"])
+
+    def live_ingest(self, new_signals: list[ExecutionSignal]) -> None:
+        """Stream new signals into the live OEM.
+
+        Called by HistoricalImportEngine after each page of historical data
+        is fetched. The OEM engine is incremental — process_signal updates
+        the model without rebuilding from scratch.
+
+        After ingest, the decision engine and evidence graph are refreshed
+        so every API response reflects the new data.
+        """
+        if not new_signals:
+            return
+        if not self._initialized:
+            self.initialize()
+        with self._lock:
+            assert self.engine is not None
+            for sig in new_signals:
+                try:
+                    self.engine.ingest([sig])
+                    self.signals.append(sig)
+                    self._live_signals_ingested += 1
+                except Exception as e:
+                    logger.warning("Live signal ingest failed: %s", e)
+            # Refresh downstream artifacts
+            model = self.engine.get_model()
+            self.evidence_graph = EvidenceGraph()
+            self.evidence_graph.build_from_model(model)
+            self.decision_engine = DecisionEngine(model, self.evidence_graph)
+
+    def snapshot(self) -> dict[str, int]:
+        """Return a count snapshot for the ProgressTracker."""
+        if not self._initialized:
+            self.initialize()
+        assert self.engine is not None
+        with self._lock:
+            model = self.engine.get_model()
+            summary = model.get_summary()
+            return {
+                "signals_processed": summary["signals_processed"],
+                "learning_objects": summary["learning_objects"],
+                "patterns_detected": summary["patterns_detected"],
+                "laws_inferred": summary["laws_inferred"],
+                "recommendations": len(self.decision_engine.get_recommendations()) if self.decision_engine else 0,
+                "validated_laws": sum(
+                    1 for l in model.laws.values()
+                    if hasattr(l, "status") and str(l.status).endswith("VALIDATED")
+                ),
+            }
+
+    @property
+    def live_signals_ingested(self) -> int:
+        """Number of signals ingested since startup via live_ingest."""
+        return self._live_signals_ingested
 
     @property
     def model(self) -> Any:
@@ -256,3 +338,63 @@ class OEMState:
 
 # Module-level singleton — imported by the route handlers.
 oem_state = OEMState()
+
+
+# ─── Import state — wires together the historical import pipeline ──────────
+
+class ImportState:
+    """
+    Singleton holding all the infrastructure for live historical imports.
+
+    Lazily initialized on first access (so test environments that only use
+    the OEM engine don't pay the cost of creating SQLite stores / OAuth
+    managers / etc.).
+
+    Wires together:
+      - CheckpointStore       (SQLite-backed persistence)
+      - OAuthManager          (5-provider OAuth flows)
+      - ConnectionManager     (provider connection state)
+      - ProgressTracker       (live progress for UI)
+      - ProviderFactory       (creates PageFetcher per provider)
+      - HistoricalImportEngine (orchestrator)
+    """
+
+    def __init__(self) -> None:
+        self._initialized = False
+        self.store: CheckpointStore | None = None
+        self.oauth: OAuthManager | None = None
+        self.connections: ConnectionManager | None = None
+        self.tracker: ProgressTracker | None = None
+        self.factory: ProviderFactory | None = None
+        self.engine: HistoricalImportEngine | None = None
+
+    def initialize(self) -> None:
+        if self._initialized:
+            return
+        # Build the wiring
+        self.store = CheckpointStore(_IMPORT_DB_PATH)
+        self.oauth = OAuthManager(self.store)
+        self.factory = ProviderFactory(self.oauth)
+        self.tracker = ProgressTracker()
+        # on_signals streams into the live OEM
+        # on_oem_update returns a fresh snapshot for the progress UI
+        self.engine = HistoricalImportEngine(
+            store=self.store,
+            oauth=self.oauth,
+            factory=self.factory,
+            tracker=self.tracker,
+            on_signals=oem_state.live_ingest,
+            on_oem_update=oem_state.snapshot,
+        )
+        self.connections = ConnectionManager(
+            store=self.store, oauth=self.oauth, import_engine=self.engine,
+        )
+        self._initialized = True
+        logger.info("ImportState initialized (db=%s)", _IMPORT_DB_PATH)
+
+    def ensure_initialized(self) -> None:
+        if not self._initialized:
+            self.initialize()
+
+
+import_state = ImportState()

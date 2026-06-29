@@ -610,10 +610,63 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
               </div>
             </div>
           </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span>Signal Sources</span>
+              <span class="text-[10px] text-fg-500">Connect a provider to trigger automatic 5-year historical import</span>
+            </div>
+            <div class="panel-body space-y-3" id="signal-providers-list">
+              <!-- Populated by loadProviderStatus() -->
+              <div class="text-xs text-fg-500">Loading providers…</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span>Import Jobs</span></div>
+            <div class="panel-body space-y-2" id="import-jobs-list">
+              <div class="text-xs text-fg-500">No import jobs yet.</div>
+            </div>
+          </div>
         </div>
       </section>
 
     </main>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- IMPORT PROGRESS BANNER — shown when an import is running -->
+<!-- ============================================================ -->
+<div id="import-banner" class="fixed bottom-0 left-0 right-0 bg-ink-900 border-t-2 border-brand-violet/40 p-4 shadow-2xl hidden" style="z-index:40;">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-3">
+        <div class="w-2 h-2 rounded-full bg-brand-violet animate-pulse"></div>
+        <div>
+          <div class="text-sm font-semibold text-white" id="import-banner-title">Importing GitHub…</div>
+          <div class="text-[10px] text-fg-500" id="import-banner-subtitle">142,315 events processed · ETA 3m</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="text-right">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500">Patterns</div>
+          <div class="text-sm font-bold text-brand-cyan" id="import-banner-patterns">0</div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500">Laws</div>
+          <div class="text-sm font-bold text-brand-violet" id="import-banner-laws">0</div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] uppercase tracking-wider text-fg-500">Recs</div>
+          <div class="text-sm font-bold text-brand-amber" id="import-banner-recs">0</div>
+        </div>
+        <button class="btn btn-ghost text-[11px]" onclick="cancelImport()">Cancel</button>
+      </div>
+    </div>
+    <div class="h-1 bg-ink-700 rounded-full overflow-hidden">
+      <div id="import-banner-progress" class="h-full bg-gradient-to-r from-brand-violet to-brand-cyan transition-all duration-500" style="width:0%"></div>
+    </div>
   </div>
 </div>
 
@@ -639,6 +692,8 @@ const pageNames = {
 };
 
 function navTo(surface) {
+  // Track current surface globally so import progress banner can refresh dashboard
+  window._currentSurface = surface;
   // Update URL hash
   if (window.location.hash !== '#' + surface) {
     history.replaceState(null, '', '#' + surface);
@@ -1353,7 +1408,241 @@ async function loadEngSettings() {
   } catch (e) {
     statusEl.innerHTML = `<span class="text-brand-rose">●</span> Unreachable: ${escapeHtml(e.message)}`;
   }
+  // Load the signal provider connection UI
+  await loadProviderStatus();
+  // Load existing import jobs
+  await loadImportJobs();
 }
+
+// ─── Signal provider connection UI ─────────────────────────────────────────
+
+const PROVIDER_META = {
+  github:     { name: 'GitHub',     icon: '🐙', description: 'Code execution, PR reviews, and repository management' },
+  jira:       { name: 'Jira',       icon: '🎯', description: 'Issue tracking, sprint velocity, approval bottlenecks' },
+  slack:      { name: 'Slack',      icon: '💬', description: 'Messages, threads, hidden experts, departure signals' },
+  confluence: { name: 'Confluence', icon: '📚', description: 'Knowledge pages, version history, expertise graph' },
+  gmail:      { name: 'Gmail',      icon: '✉️', description: 'Email patterns, decision trails, cross-team signals' },
+};
+
+async function loadProviderStatus() {
+  const listEl = document.getElementById('signal-providers-list');
+  if (!listEl) return;
+  try {
+    const resp = await fetch(`${MAESTRO_API}/api/oauth/status`);
+    const data = await resp.json();
+    listEl.innerHTML = data.providers.map(p => {
+      const meta = PROVIDER_META[p.provider] || { name: p.provider, icon: '○', description: '' };
+      const statusBadge = p.connected
+        ? `<span class="tag tag-cyan">Connected</span>`
+        : p.configured
+          ? `<span class="tag tag-gray">Not connected</span>`
+          : `<span class="tag tag-amber" title="Set MAESTRO_OAUTH_${p.provider.toUpperCase()}_CLIENT_ID and _SECRET env vars">Not configured</span>`;
+      const actionButton = p.connected
+        ? `<button class="btn btn-ghost text-[11px]" onclick="disconnectProvider('${p.provider}')">Disconnect</button>`
+        : `<button class="btn btn-primary text-[11px]" ${p.configured ? '' : 'disabled'} onclick="connectProvider('${p.provider}')">Connect</button>`;
+      return `
+        <div class="flex items-center justify-between p-3 rounded-lg bg-ink-800/60 border border-ink-700">
+          <div class="flex items-center gap-3">
+            <div class="text-xl">${meta.icon}</div>
+            <div>
+              <div class="text-sm font-semibold text-white">${meta.name}</div>
+              <div class="text-[10px] text-fg-500">${escapeHtml(meta.description)}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            ${statusBadge}
+            ${actionButton}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="text-xs text-brand-rose">Failed to load provider status: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function connectProvider(provider) {
+  try {
+    const resp = await fetch(`${MAESTRO_API}/api/oauth/${provider}/start`);
+    if (!resp.ok) {
+      const err = await resp.json();
+      alert(`Failed to start OAuth: ${err.detail || 'Unknown error'}`);
+      return;
+    }
+    const { auth_url } = await resp.json();
+    // Redirect to provider's OAuth consent screen
+    window.location.href = auth_url;
+  } catch (e) {
+    alert(`Connection failed: ${e.message}`);
+  }
+}
+
+async function disconnectProvider(provider) {
+  if (!confirm(`Disconnect ${provider}? Already-ingested history is preserved.`)) return;
+  try {
+    await fetch(`${MAESTRO_API}/api/oauth/${provider}/disconnect`, { method: 'POST' });
+    await loadProviderStatus();
+  } catch (e) {
+    alert(`Disconnect failed: ${e.message}`);
+  }
+}
+
+// ─── Import jobs list ──────────────────────────────────────────────────────
+
+async function loadImportJobs() {
+  const listEl = document.getElementById('import-jobs-list');
+  if (!listEl) return;
+  try {
+    const resp = await fetch(`${MAESTRO_API}/api/imports`);
+    const data = await resp.json();
+    if (!data.jobs || data.jobs.length === 0) {
+      listEl.innerHTML = '<div class="text-xs text-fg-500">No import jobs yet. Connect a provider to start.</div>';
+      return;
+    }
+    listEl.innerHTML = data.jobs.slice(0, 10).map(job => {
+      const statusColor = job.status === 'completed' ? 'cyan' : job.status === 'failed' ? 'rose' : job.status === 'running' ? 'violet' : 'gray';
+      return `
+        <div class="flex items-center justify-between p-2 rounded-lg bg-ink-800/60 border border-ink-700 text-xs">
+          <div>
+            <div class="font-semibold text-white">${job.providers.join(', ')}</div>
+            <div class="text-fg-500">${job.total_signals || 0} signals · ${job.started_at ? new Date(job.started_at).toLocaleString() : ''}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="tag tag-${statusColor}">${job.status}</span>
+            ${job.status === 'running' ? `<button class="btn btn-ghost text-[10px]" onclick="cancelImport('${job.job_id}')">Cancel</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="text-xs text-brand-rose">Failed to load jobs: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function cancelImport(jobId) {
+  // Find any running job if not specified
+  if (!jobId) {
+    const banner = document.getElementById('import-banner');
+    jobId = banner.dataset.jobId;
+  }
+  if (!jobId) return;
+  try {
+    await fetch(`${MAESTRO_API}/api/imports/${jobId}/cancel`, { method: 'POST' });
+  } catch (e) {
+    console.warn('Cancel failed:', e);
+  }
+}
+
+// ─── Live import progress banner (WebSocket) ────────────────────────────────
+
+let importWs = null;
+let importPollInterval = null;
+
+async function checkForRunningImports() {
+  try {
+    const resp = await fetch(`${MAESTRO_API}/api/imports`);
+    const data = await resp.json();
+    const running = (data.jobs || []).find(j => j.status === 'running');
+    if (running) {
+      subscribeToImport(running.job_id);
+    }
+  } catch (e) {
+    // Silently fail — banner is non-critical
+  }
+}
+
+function subscribeToImport(jobId) {
+  // Close existing WS
+  if (importWs) {
+    try { importWs.close(); } catch (e) {}
+  }
+  const wsBase = MAESTRO_API.replace(/^http/, 'ws') || (window.location.origin.replace(/^http/, 'ws'));
+  importWs = new WebSocket(`${wsBase}/api/imports/${jobId}/stream`);
+  importWs.onmessage = (e) => {
+    try {
+      const snap = JSON.parse(e.data);
+      if (snap.type === 'ping') return;
+      updateImportBanner(jobId, snap);
+    } catch (err) {}
+  };
+  importWs.onclose = () => {
+    // If the job is still running, poll every 5s
+    if (importPollInterval) clearInterval(importPollInterval);
+    importPollInterval = setInterval(async () => {
+      try {
+        const resp = await fetch(`${MAESTRO_API}/api/imports/${jobId}`);
+        const job = await resp.json();
+        if (job.status === 'running' || (job.providers_progress && Object.values(job.providers_progress).some(p => p.status === 'running'))) {
+          updateImportBanner(jobId, job);
+        } else {
+          hideImportBanner();
+          clearInterval(importPollInterval);
+          importPollInterval = null;
+        }
+      } catch (e) {}
+    }, 5000);
+  };
+}
+
+function updateImportBanner(jobId, snap) {
+  const banner = document.getElementById('import-banner');
+  banner.classList.remove('hidden');
+  banner.dataset.jobId = jobId;
+
+  // Aggregate provider progress
+  const providers = snap.providers_progress || {};
+  const providerNames = Object.keys(providers);
+  const totalEvents = snap.total_events || 0;
+  const runningProvider = providerNames.find(p => providers[p].status === 'running');
+  const totalEstimated = runningProvider ? providers[runningProvider].total_estimated : 0;
+  const etaSeconds = runningProvider ? providers[runningProvider].eta_seconds : 0;
+
+  // Title and subtitle
+  const titleEl = document.getElementById('import-banner-title');
+  const subtitleEl = document.getElementById('import-banner-subtitle');
+  if (runningProvider) {
+    const meta = PROVIDER_META[runningProvider] || { name: runningProvider };
+    titleEl.textContent = `Importing ${meta.name}…`;
+    const etaMin = Math.ceil(etaSeconds / 60);
+    subtitleEl.textContent = `${totalEvents.toLocaleString()} events processed · ETA ${etaMin}m`;
+  } else if (snap.status === 'completed') {
+    titleEl.textContent = `Import complete`;
+    subtitleEl.textContent = `${totalEvents.toLocaleString()} events imported`;
+    setTimeout(hideImportBanner, 5000);
+  } else if (snap.status === 'failed') {
+    titleEl.textContent = `Import failed`;
+    subtitleEl.textContent = snap.error || 'Unknown error';
+    setTimeout(hideImportBanner, 10000);
+  }
+
+  // OEM snapshot (patterns/laws/recs)
+  const oem = snap.oem || {};
+  document.getElementById('import-banner-patterns').textContent = oem.patterns_detected || 0;
+  document.getElementById('import-banner-laws').textContent = oem.laws_inferred || 0;
+  document.getElementById('import-banner-recs').textContent = oem.recommendations || 0;
+
+  // Progress bar
+  const progressPct = totalEstimated > 0 ? Math.min(100, (totalEvents / totalEstimated) * 100) : 0;
+  document.getElementById('import-banner-progress').style.width = `${progressPct}%`;
+
+  // Refresh the home dashboard so new patterns/laws show up live
+  if (snap.phase === 'importing' || snap.phase === 'completed') {
+    // Throttle dashboard refresh to once every 2 seconds
+    if (!window._lastDashboardRefresh || Date.now() - window._lastDashboardRefresh > 2000) {
+      window._lastDashboardRefresh = Date.now();
+      if (window._currentSurface === 'home') {
+        loadDashboard();
+      }
+    }
+  }
+}
+
+function hideImportBanner() {
+  document.getElementById('import-banner').classList.add('hidden');
+}
+
+// Check for running imports on page load
+window.addEventListener('load', () => {
+  setTimeout(checkForRunningImports, 1000);
+});
 
 // ─── Initial load ────────────────────────────────────────────────────────────
 // The DOMContentLoaded handler above calls navTo('home') which triggers loadDashboard().
