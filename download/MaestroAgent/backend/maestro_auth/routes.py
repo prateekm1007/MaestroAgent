@@ -598,6 +598,66 @@ async def list_audit(request: Request, limit: int = 100, event_type: str | None 
     return {"events": events, "count": len(events)}
 
 
+# ─── SOC2 monitoring endpoints ───
+
+@router.get("/api/auth/soc2/access-review")
+async def soc2_access_review(request: Request) -> dict[str, Any]:
+    """Generate an access review report for SOC2 auditors (admin only)."""
+    require_admin(request)
+    from maestro_auth.security import SOC2Monitor
+    store = get_auth_store()
+    monitor = SOC2Monitor(store)
+    return monitor.access_review()
+
+
+@router.get("/api/auth/soc2/change-log")
+async def soc2_change_log(request: Request, limit: int = 100) -> dict[str, Any]:
+    """Recent role/permission changes for SOC2 change management (admin only)."""
+    require_admin(request)
+    from maestro_auth.security import SOC2Monitor
+    store = get_auth_store()
+    monitor = SOC2Monitor(store)
+    events = monitor.change_log(limit=limit)
+    return {"events": events, "count": len(events)}
+
+
+@router.get("/api/auth/soc2/sessions")
+async def soc2_session_inventory(request: Request) -> dict[str, Any]:
+    """Active session inventory for SOC2 monitoring (admin only)."""
+    require_admin(request)
+    from maestro_auth.security import SOC2Monitor
+    store = get_auth_store()
+    monitor = SOC2Monitor(store)
+    return monitor.session_inventory()
+
+
+@router.get("/api/auth/soc2/posture")
+async def soc2_security_posture(request: Request) -> dict[str, Any]:
+    """Security posture summary for SOC2 monitoring (admin only)."""
+    require_admin(request)
+    from maestro_auth.security import SOC2Monitor
+    store = get_auth_store()
+    monitor = SOC2Monitor(store)
+    return monitor.security_posture()
+
+
+@router.post("/api/auth/soc2/cleanup-sessions")
+async def soc2_cleanup_sessions(request: Request) -> dict[str, Any]:
+    """Manually trigger expired session cleanup (admin only)."""
+    require_admin(request)
+    from maestro_auth.security import SessionExpiryManager
+    store = get_auth_store()
+    manager = SessionExpiryManager(store)
+    count = manager.cleanup_expired_sessions()
+    store.audit(
+        event_type="session_cleanup",
+        user_id=request.state.user_data["user"]["id"] if hasattr(request.state, "user_data") else None,
+        detail={"revoked_count": count},
+        success=True,
+    )
+    return {"ok": True, "revoked_count": count}
+
+
 # ─── SCIM 2.0 endpoints ───
 
 def _scim_auth(request: Request) -> dict[str, Any]:

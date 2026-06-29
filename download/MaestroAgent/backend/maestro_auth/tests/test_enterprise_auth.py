@@ -399,10 +399,12 @@ def test_me_returns_user_after_login(client):
 
 
 def test_logout_clears_cookies(client):
-    client.post("/api/auth/login", json={
+    login_resp = client.post("/api/auth/login", json={
         "email": "admin@maestro.local", "password": "test-admin-pass",
     })
-    resp = client.post("/api/auth/logout")
+    csrf_token = login_resp.json().get("csrf_token", "")
+    resp = client.post("/api/auth/logout",
+                       headers={"X-CSRF-Token": csrf_token} if csrf_token else {})
     assert resp.status_code == 200
     cookies = resp.headers.get("set-cookie", "")
     assert "Max-Age=0" in cookies or "expires=Thu, 01 Jan 1970" in cookies.lower()
