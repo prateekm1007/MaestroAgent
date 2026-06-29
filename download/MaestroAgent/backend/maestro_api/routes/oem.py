@@ -1400,6 +1400,13 @@ def _get_dashboard_data() -> dict[str, Any]:
 
 # ─── 17. Continuous Learning — evidence of improvement ─────────────────────
 
+from pathlib import Path as _Path
+
+def _learning_db_path() -> str:
+    """Get the learning DB path, ensuring the directory exists."""
+    db_path = _learning_db_path()
+    return db_path
+
 @router.get("/learning")
 def get_learning_report() -> dict[str, Any]:
     """The OEM's continuous learning report.
@@ -1416,9 +1423,9 @@ def get_learning_report() -> dict[str, Any]:
     """
     import os as _os
     db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+                               str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
     # Ensure directory exists
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    _Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     from maestro_oem.learning import ContinuousLearningEngine
     engine = ContinuousLearningEngine(db_path, oem_state.model, oem_state.signals)
@@ -1432,10 +1439,7 @@ def get_calibration_report() -> dict[str, Any]:
     Shows whether the OEM's confidence scores match its actual accuracy.
     A well-calibrated system predicting 80% confidence is right 80% of the time.
     """
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import CalibrationEngine
     engine = CalibrationEngine(db_path)
@@ -1449,10 +1453,7 @@ def get_historical_accuracy(entity_id: str | None = Query(None)) -> dict[str, An
     If entity_id is provided, returns accuracy for that specific entity (law code,
     recommendation ID). Otherwise returns overall accuracy.
     """
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import CalibrationEngine
     engine = CalibrationEngine(db_path)
@@ -1465,10 +1466,7 @@ def get_evolution_history(law_code: str | None = Query(None), limit: int = Query
 
     Shows promotion/demotion/stress/drift events for each law.
     """
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import LawEvolutionEngine, CalibrationEngine
     cal = CalibrationEngine(db_path)
@@ -1483,10 +1481,7 @@ def get_drift_events(drift_type: str | None = Query(None), limit: int = Query(50
 
     drift_type: 'concept' or 'organization' (None = all)
     """
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import DriftDetectionEngine, CalibrationEngine
     cal = CalibrationEngine(db_path)
@@ -1498,10 +1493,7 @@ def get_drift_events(drift_type: str | None = Query(None), limit: int = Query(50
 @router.get("/learning/freshness")
 def get_freshness_report() -> dict[str, Any]:
     """Knowledge freshness report — which domains have stale knowledge."""
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import KnowledgeFreshnessTracker, CalibrationEngine
     cal = CalibrationEngine(db_path)
@@ -1513,10 +1505,7 @@ def get_freshness_report() -> dict[str, Any]:
 @router.get("/learning/decay")
 def get_pattern_decay() -> dict[str, Any]:
     """Pattern decay report — which patterns are losing weight without reinforcement."""
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import LawEvolutionEngine, CalibrationEngine
     cal = CalibrationEngine(db_path)
@@ -1528,10 +1517,7 @@ def get_pattern_decay() -> dict[str, Any]:
 @router.get("/learning/feedback")
 def get_feedback_summary(entity_id: str | None = Query(None)) -> dict[str, Any]:
     """Feedback learning summary — how CEO feedback has adjusted confidence."""
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import FeedbackLearningEngine, CalibrationEngine
     cal = CalibrationEngine(db_path)
@@ -1542,10 +1528,7 @@ def get_feedback_summary(entity_id: str | None = Query(None)) -> dict[str, Any]:
 @router.post("/learning/run-drift-detection")
 def run_drift_detection() -> dict[str, Any]:
     """Manually trigger drift detection. Returns detected drifts."""
-    import os as _os
-    db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path = _learning_db_path()
 
     from maestro_oem.learning import ContinuousLearningEngine
     engine = ContinuousLearningEngine(db_path, oem_state.model, oem_state.signals)
