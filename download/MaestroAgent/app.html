@@ -1041,6 +1041,11 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
       </div>
     </div>
 
+    <div class="panel p-2 flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md" id="runs-demo-banner">
+      <span class="tag tag-amber">DEMO DATA</span>
+      <span>The rows below are illustrative sample runs. Start a new run or connect a healthy backend at <code class="mono text-fg-400">MAESTRO_API</code> to see real runs.</span>
+    </div>
+
     <div class="panel p-3 flex items-center gap-2 flex-wrap">
       <input type="text" class="input flex-1 min-w-[200px]" placeholder="Filter by run ID, goal, template…">
       <select class="input w-auto"><option>All statuses</option><option>Running</option><option>Paused</option><option>Awaiting review</option><option>Completed</option><option>Failed</option></select>
@@ -1526,7 +1531,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
     <div class="grid grid-cols-12 gap-3">
       <!-- Agent role roster -->
       <div class="col-span-12 lg:col-span-8 panel overflow-hidden">
-        <div class="panel-header"><span>Agent Roles · with Model Assignment</span><span class="tag tag-gray">6 total</span></div>
+        <div class="panel-header"><span>Agent Roles · with Model Assignment</span><span class="flex items-center gap-2"><span class="tag tag-amber">DEMO DATA</span><span class="tag tag-gray">6 total</span></span></div>
         <div class="overflow-x-auto">
           <table class="tbl">
             <thead><tr><th>Role</th><th>Description</th><th>Model (primary → failover)</th><th>Tools</th><th>Reputation</th><th>Active</th><th></th></tr></thead>
@@ -2266,6 +2271,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-inbox">
   <div class="p-6 space-y-5 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-inbox"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Inbox</div><h1 class="text-2xl font-bold text-white">Things only you can resolve.</h1><p class="text-xs text-fg-500 mt-1">3 decisions you owe · 2 prior decisions showing drift · 1 active dissent. Press <span class="kbd">A</span> approve · <span class="kbd">R</span> reject · <span class="kbd">D</span> defer</p></div>
       <span class="dq-badge">DQ · What needs my judgment, not my team's?</span>
@@ -2328,6 +2334,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-simulator">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-simulator"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Decision Workbench</div><h1 class="text-2xl font-bold text-white">Approve Q3 hiring plan</h1><p class="text-xs text-fg-500 mt-1">14 hires · $2.1M · EMEA-heavy · Decision expires 09:00 today</p></div>
       <div class="flex items-center gap-2"><span class="dq-badge">DQ · What will happen if I approve this?</span><button class="btn btn-rose">Reject</button><button class="btn btn-cyan">Approve &amp; log prediction</button></div>
@@ -2445,6 +2452,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-hayek">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-hayek"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Hayek Lens</div><h1 class="text-2xl font-bold text-white">Who knows what. Who influences whom.</h1><p class="text-xs text-fg-500 mt-1">47 entities · 142 relationships · knowledge domains mapped from 12,847 signals</p></div>
       <div class="flex items-center gap-2"><span class="dq-badge">DQ · Where does knowledge live, and where does it die?</span><select class="btn btn-ghost text-[11px]" onchange="filterHayek(this.value)"><option value="all">All domains</option><option value="payments">Payments</option><option value="auth">Auth &amp; Security</option><option value="deploy">Deployment</option><option value="customer">Customer</option></select></div>
@@ -2515,6 +2523,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-flow">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-flow"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Knowledge Flow</div><h1 class="text-2xl font-bold text-white">How knowledge moves through your organization.</h1><p class="text-xs text-fg-500 mt-1">Where it's created, where it transfers, where it dies, where it duplicates.</p></div>
       <span class="dq-badge">DQ · Where does knowledge die, and where does it duplicate?</span>
@@ -2587,6 +2596,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-memory">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-memory"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Memory Replay</div><h1 class="text-2xl font-bold text-white">What did the org know, and when?</h1><p class="text-xs text-fg-500 mt-1">Time-travel through your organization's knowledge state. See what was known at any decision point.</p></div>
       <span class="dq-badge">DQ · What did we know then, and what should we have done differently?</span>
@@ -2641,6 +2651,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-ask">
   <div class="p-6 space-y-4 max-w-4xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-ask"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="text-center pt-4">
       <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-2">Ask the Organization</div>
       <h1 class="text-2xl font-bold text-white mb-2">What do you want to know?</h1>
@@ -2687,6 +2698,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-physics">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-physics"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Organizational Physics</div><h1 class="text-2xl font-bold text-white">The laws your organization obeys.</h1><p class="text-xs text-fg-500 mt-1">19 inferred · 4 unknown to leadership · 0 invalidated last 30d · 1 under stress.</p></div>
       <div class="flex items-center gap-2"><span class="dq-badge">DQ · What explains why my company behaves this way?</span><button class="btn btn-primary" onclick="navTo('debate')">Challenge a law →</button></div>
@@ -2805,6 +2817,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-debate">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-debate"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Execution Debate</div><h1 class="text-2xl font-bold text-white">Where your org disagrees, structured.</h1><p class="text-xs text-fg-500 mt-1">2 active debates · 14 closed precedents this quarter.</p></div>
       <span class="dq-badge">DQ · Where does my org disagree that I haven't ruled on?</span>
@@ -2837,6 +2850,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-live">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-live"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="flex items-center gap-2 mb-1"><span class="live-pill"><span class="rec-dot"></span> REC · 09:14</span><span class="text-[10px] uppercase tracking-[0.2em] text-fg-500">Live Meeting Intelligence</span></div><h1 class="text-2xl font-bold text-white">Q3 Hiring Plan Decision</h1><p class="text-xs text-fg-500 mt-1">4 participants · Started 09:00 · Maestro listening with consent</p></div>
       <div class="flex items-center gap-2"><span class="dq-badge">DQ · What is being decided, and what should I say next?</span><button class="btn btn-primary" onclick="toggleModal('synthesisModal')">End &amp; synthesize</button></div>
@@ -2863,6 +2877,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ============================================================ -->
 <section class="surface" id="surface-overlays">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-overlays"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Ambient Overlays</div><h1 class="text-2xl font-bold text-white">Maestro lives where you work.</h1><p class="text-xs text-fg-500 mt-1">Contextual intelligence overlaid on Jira, GitHub, Slack, Gmail — without leaving your workflow.</p></div>
       <span class="dq-badge">DQ · What does Maestro know about what I'm looking at right now?</span>
@@ -2966,6 +2981,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ENG: Signals -->
 <section class="surface" id="surface-eng-signals">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-eng-signals"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Engineering Console · Signals</div><h1 class="text-2xl font-bold text-white">Signal Sources</h1><p class="text-xs text-fg-500 mt-1">5 connected · 447,610 signals processed · last sync 12 seconds ago</p></div>
       <span class="dq-badge">DQ · Is the OEM receiving clean signal data?</span>
@@ -3006,6 +3022,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ENG: OEM Builder -->
 <section class="surface" id="surface-eng-oem">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-eng-oem"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Engineering Console · OEM Builder</div><h1 class="text-2xl font-bold text-white">Organizational Execution Model</h1><p class="text-xs text-fg-500 mt-1">The living model of your company · 47 entities · 142 relationships · 19 laws · 23 active predictions</p></div>
       <span class="dq-badge">DQ · Is the OEM healthy and learning?</span>
@@ -3032,6 +3049,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ENG: Memory -->
 <section class="surface" id="surface-eng-memory">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-eng-memory"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Engineering Console · Memory</div><h1 class="text-2xl font-bold text-white">Knowledge Artifacts</h1><p class="text-xs text-fg-500 mt-1">2,847 documents · 412 RFCs · 67 postmortems · 19 laws · 142 influence relations</p></div>
       <span class="dq-badge">DQ · What has the org learned and retained?</span>
@@ -3056,6 +3074,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ENG: Audit -->
 <section class="surface" id="surface-eng-audit">
   <div class="p-6 space-y-4 max-w-7xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-eng-audit"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Engineering Console · Audit Log</div><h1 class="text-2xl font-bold text-white">Audit Trail</h1><p class="text-xs text-fg-500 mt-1">247 entries · hash chain intact · retained 7 years per SOC 2</p></div>
       <span class="dq-badge">DQ · Can we prove what was decided, when, and why?</span>
@@ -3076,6 +3095,7 @@ body.pro-mode .sidebar-link.beginner-only { display: none; }
 <!-- ENG: Settings -->
 <section class="surface" id="surface-eng-settings">
   <div class="p-6 space-y-4 max-w-4xl mx-auto">
+    <div class="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-500/[0.04] border border-amber-500/20 rounded-md px-3 py-2" data-demo-banner="surface-eng-settings"><span class="tag tag-amber">DEMO PROTOTYPE</span><span>This surface is a product prototype. The decisions, laws, and recommendations shown are illustrative placeholders — wire to the OEM backend (<code class="mono text-fg-400">maestro_oem</code>) to see real organizational state.</span></div>
     <div class="flex items-end justify-between flex-wrap gap-3">
       <div><div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Engineering Console · Settings</div><h1 class="text-2xl font-bold text-white">Configuration</h1></div>
       <span class="dq-badge">DQ · How is Maestro configured for this organization?</span>
