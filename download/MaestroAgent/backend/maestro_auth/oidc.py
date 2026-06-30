@@ -347,6 +347,25 @@ class OIDCManager:
             allowed_algorithms = os.environ.get(
                 "MAESTRO_OIDC_ALGORITHMS", "RS256"
             ).split(",")
+
+            # DEFENSE-IN-DEPTH: explicitly block symmetric algorithms (HS256/HS384/
+            # HS512) even if an operator misconfigures MAESTRO_OIDC_ALGORITHMS.
+            # Symmetric algorithms enable the algorithm injection attack: an attacker
+            # signs a forged token with HMAC using the server's public RSA key (which
+            # is available via JWKS). Modern PyJWT (>=2.4) rejects asymmetric keys
+            # for HMAC algorithms at the library level, but we block them here too
+            # so the rejection is explicit and doesn't depend on the PyJWT version.
+            _BLOCKED_ALGORITHMS = {"HS256", "HS384", "HS512", "none"}
+            blocked = [a for a in allowed_algorithms if a.strip() in _BLOCKED_ALGORITHMS]
+            if blocked:
+                raise OIDCError(
+                    f"Blocked algorithms {blocked} in MAESTRO_OIDC_ALGORITHMS — "
+                    f"symmetric algorithms (HS256/HS384/HS512) and 'none' are "
+                    f"explicitly blocked because they enable algorithm injection "
+                    f"attacks. Only asymmetric algorithms (RS256/RS384/RS512/ES256/"
+                    f"ES384/ES512/PS256/PS384/PS512) are allowed."
+                )
+
             token_alg = header.get("alg", "RS256")
             if token_alg not in allowed_algorithms:
                 raise OIDCError(

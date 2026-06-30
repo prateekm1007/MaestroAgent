@@ -63,36 +63,87 @@ class TestOIDCAlgorithmInjection:
     """
 
     def test_oidc_uses_hardcoded_algorithms_not_header(self):
-        """The OIDC verifier must NOT read the algorithm from the JWT header.
+        """The OIDC verifier must NOT pass header-derived algorithms to pyjwt.decode().
 
-        This is a source-level test: it verifies the code pattern is correct,
-        not just that a specific forged token is rejected. If someone re-
-        introduces `algorithms=[header.get("alg"...)]`, this test fails.
+        This is an AST-level test: it walks the parse tree of OIDCManager
+        and verifies that every call to `pyjwt.decode()` receives
+        `algorithms=<variable>` (a Name node), NOT `algorithms=[header.get(...)]`
+        (a List/Call node derived from the unverified JWT header).
 
-        Note: the test strips comments before checking, so the security
-        comment that documents the old vulnerability doesn't trigger a
-        false positive.
+        This catches both the typo'd old pattern AND a correctly-formed
+        reintroduction. If someone writes any of these, the test fails:
+          algorithms=[header.get("alg", "RS256")]    # the original bug
+          algorithms=[header.get("alg")]             # variant
+          algorithms=[header["alg"]]                 # variant
+          algorithms=header.get("alg", "RS256")      # without list wrap
+
+        The string-based check from round 5 only caught the typo'd version
+        (`algorithms=eader.get` — missing `[`). This AST-based check is
+        robust against all variants.
         """
         import inspect
-        import re
+        import ast
         from maestro_auth.oidc import OIDCManager
         source = inspect.getsource(OIDCManager)
-        # Strip comments (lines starting with #) so the security comment
-        # that documents the old vulnerability doesn't trigger a false positive
-        code_lines = [line for line in source.split('\n')
-                      if not line.strip().startswith('#')]
-        code_only = '\n'.join(code_lines)
+        tree = ast.parse(source)
 
-        # The old vulnerable pattern must NOT be present in actual code
-        assert 'algorithms=[header.get("alg"' not in code_only, (
-            "OIDC still reads algorithm from unverified JWT header — "
-            "algorithm injection vulnerability is present. "
-            "Use a hardcoded allowed_algorithms list instead."
+        # Walk the AST and find every Call to pyjwt.decode()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            # Check if this is a call to pyjwt.decode or .decode
+            func = node.func
+            is_decode = (
+                (isinstance(func, ast.Attribute) and func.attr == "decode") or
+                (isinstance(func, ast.Name) and func.id == "decode")
+            )
+            if not is_decode:
+                continue
+
+            # Find the algorithms= keyword argument
+            for kw in node.keywords:
+                if kw.arg == "algorithms":
+                    # The value MUST be a Name node (variable reference),
+                    # NOT a List, Call, Subscript, or Attribute that derives
+                    # from the header.
+                    if not isinstance(kw.value, ast.Name):
+                        raise AssertionError(
+                            f"pyjwt.decode() algorithms= must be a variable "
+                            f"(Name node), got {type(kw.value).__name__} at "
+                            f"line {node.lineno}. Passing header-derived "
+                            f"values to algorithms= enables the algorithm "
+                            f"injection attack. Use a hardcoded "
+                            f"allowed_algorithms list instead."
+                        )
+                    # The variable name should be allowed_algorithms, not
+                    # something derived from header
+                    var_name = kw.value.id
+                    assert var_name == "allowed_algorithms", (
+                        f"pyjwt.decode() algorithms= must use 'allowed_algorithms' "
+                        f"variable, got '{var_name}' at line {node.lineno}."
+                    )
+
+    def test_oidc_blocked_algorithms_list_includes_hs256(self):
+        """The OIDC verifier must explicitly block HS256/HS384/HS512 and 'none'.
+
+        Per the round-5 auditor's defense-in-depth finding: even if an
+        operator misconfigures MAESTRO_OIDC_ALGORITHMS to include HS256,
+        the code must reject it. This test verifies the blocklist exists
+        in the source.
+        """
+        import inspect
+        from maestro_auth.oidc import OIDCManager
+        source = inspect.getsource(OIDCManager)
+        # The blocklist must be present and include HS256
+        assert "_BLOCKED_ALGORITHMS" in source, (
+            "OIDC must have a _BLOCKED_ALGORITHMS blocklist for symmetric "
+            "algorithms (defense-in-depth against misconfiguration)."
         )
-        # The new safe pattern MUST be present
-        assert "allowed_algorithms" in code_only, (
-            "OIDC must use an explicit allowed_algorithms list, not "
-            "algorithms from the JWT header."
+        assert "HS256" in source, "HS256 must be in the blocked algorithms list"
+        assert "HS384" in source, "HS384 must be in the blocked algorithms list"
+        assert "HS512" in source, "HS512 must be in the blocked algorithms list"
+        assert '"none"' in source or "'none'" in source, (
+            "'none' algorithm must be in the blocked algorithms list"
         )
 
     def test_oidc_rejects_hs256_algorithm(self):
