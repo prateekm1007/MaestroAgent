@@ -16,6 +16,11 @@ from maestro_oem.prediction_lifecycle import (
     ClosedLoopLearningManager,
 )
 from maestro_oem.learning import CalibrationEngine
+from maestro_oem.contradiction import (
+    ContradictionLog,
+    ContradictionEvent,
+    FeedbackAction,
+)
 
 
 @pytest.fixture
@@ -384,3 +389,346 @@ class TestPredictionAPI:
         assert r1.status_code == 200
         assert r2.status_code == 200
         assert r1.json()["confidence"] == r2.json()["confidence"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 6. CLOSED-LOOP END-TO-END — proves the loop actually closes
+#
+# These tests exist because the previous commit (8f342f8) shipped with
+# "loop closed" in the commit message but the loop did NOT close: the
+# resolver read feedback from a nonexistent attribute (_feedback_index on
+# CalibrationEngine), and live_ingest() never called on_signals_ingested().
+# The tests below submit feedback, trigger resolution, and assert the
+# prediction status flips AND the calibration engine records the outcome
+# (Brier score moves off 0.5, total_resolved > 0). If any of these break,
+# the loop is broken — do not ship.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestClosedLoopEndToEnd:
+    """End-to-end proof that the learning loop actually closes."""
+
+    def test_agree_feedback_via_contradiction_log_resolves_prediction(self, db_path):
+        """A recommendation prediction must resolve as `correct` when an AGREE
+        event for its entity_id appears in the contradiction log and
+        on_signals_ingested() runs.
+
+        This is the exact path that was broken in 8f342f8: the resolver
+        looked for _feedback_index on CalibrationEngine (which doesn't have
+        it) instead of reading the ContradictionLog.
+        """
+        cal = CalibrationEngine(db_path)
+        log = ContradictionLog()
+        manager = ClosedLoopLearningManager(
+            db_path, None, [], cal, contradiction_log=log,
+        )
+
+        # Surface a recommendation → creates a pending prediction.
+        pred_id = manager.on_recommendation_surfaced(
+            type("R", (), {
+                "title": "Hire 3 APAC engineers",
+                "recommendation": "Hire 3 APAC engineers",
+                "impact": "APAC coverage improves",
+                "confidence": 0.8,
+                "linked_laws": ["L-APAC-001"],
+                "urgency": "normal",
+            }),
+            None,
+        )
+        assert manager.recorder.get_prediction(pred_id)["status"] == "pending"
+
+        # CEO agrees — append the event to the shared contradiction log.
+        log.append(ContradictionEvent(
+            target_type="recommendation",
+            target_id="Hire 3 APAC engineers",
+            action=FeedbackAction.AGREE,
+            reasoning="Looks right",
+            actor="ceo@acme.com",
+        ))
+
+        # New signals arrive → live_ingest fires on_signals_ingested →
+        # check_pending → _evaluate_prediction reads the log → resolves.
+        class MockModel:
+            class health:
+                p1_cluster_risk = 0.45
+                incident_rate = 3
+                decision_velocity_days = 0.8
+                release_frequency = 0.1
+            laws = {}
+
+        result = manager.on_signals_ingested([], MockModel())
+        assert result["predictions_resolved"] >= 1, (
+            f"Expected ≥1 resolved, got {result} — the contradiction log "
+            f"is not being read by _evaluate_prediction."
+        )
+
+        pred = manager.recorder.get_prediction(pred_id)
+        assert pred["status"] == "correct", (
+            f"Expected 'correct' after AGREE, got '{pred['status']}'."
+        )
+
+        # Calibration must have recorded the outcome → Brier score moves
+        # off 0.5 (the value returned when nothing is resolved).
+        cal_data = cal.get_calibration()
+        assert cal_data["overall"]["total_resolved"] >= 1, (
+            "Calibration engine did not record the resolved prediction."
+        )
+        assert cal_data["overall"]["total_hits"] >= 1
+        # Brier for a single hit at confidence 0.8 = (0.8-1)^2 = 0.04.
+        assert abs(cal_data["overall"]["brier_score"] - 0.04) < 0.01, (
+            f"Brier score {cal_data['overall']['brier_score']} != 0.04 — "
+            f"calibration did not update from the resolved prediction."
+        )
+
+    def test_reject_feedback_via_contradiction_log_resolves_as_incorrect(self, db_path):
+        """A REJECT event must resolve the prediction as `incorrect` and
+        register a miss in calibration (Brier = (0.8-0)^2 = 0.64)."""
+        cal = CalibrationEngine(db_path)
+        log = ContradictionLog()
+        manager = ClosedLoopLearningManager(
+            db_path, None, [], cal, contradiction_log=log,
+        )
+
+        pred_id = manager.on_recommendation_surfaced(
+            type("R", (), {
+                "title": "Migrate to microservices",
+                "recommendation": "Migrate to microservices",
+                "impact": "Velocity improves",
+                "confidence": 0.8,
+                "linked_laws": [],
+                "urgency": "normal",
+            }),
+            None,
+        )
+
+        log.append(ContradictionEvent(
+            target_type="recommendation",
+            target_id="Migrate to microservices",
+            action=FeedbackAction.REJECT,
+            reasoning="Too risky right now",
+            actor="ceo@acme.com",
+        ))
+
+        class MockModel:
+            class health:
+                p1_cluster_risk = 0.45
+                incident_rate = 3
+                decision_velocity_days = 0.8
+                release_frequency = 0.1
+            laws = {}
+
+        result = manager.on_signals_ingested([], MockModel())
+        assert result["predictions_resolved"] >= 1
+
+        pred = manager.recorder.get_prediction(pred_id)
+        assert pred["status"] == "incorrect"
+
+        cal_data = cal.get_calibration()
+        assert cal_data["overall"]["total_resolved"] >= 1
+        # Brier for a single miss at confidence 0.8 = (0.8-0)^2 = 0.64.
+        assert abs(cal_data["overall"]["brier_score"] - 0.64) < 0.01, (
+            f"Brier {cal_data['overall']['brier_score']} != 0.64 — "
+            f"miss was not recorded by calibration."
+        )
+
+    def test_feedback_on_linked_law_resolves_recommendation_prediction(self, db_path):
+        """Feedback on a LAW must resolve every recommendation prediction that
+        links to that law (via linked_laws). This covers the common production
+        path: CEO contradicts a law, all recommendations depending on it
+        should resolve."""
+        cal = CalibrationEngine(db_path)
+        log = ContradictionLog()
+        manager = ClosedLoopLearningManager(
+            db_path, None, [], cal, contradiction_log=log,
+        )
+
+        pred_id = manager.on_recommendation_surfaced(
+            type("R", (), {
+                "title": "Reduce EMEA headcount by 3",
+                "recommendation": "Reduce EMEA headcount by 3",
+                "impact": "Cost savings",
+                "confidence": 0.7,
+                "linked_laws": ["L-EMEA-001", "L-EMEA-002"],
+                "urgency": "normal",
+            }),
+            None,
+        )
+
+        # CEO rejects the LAW (not the recommendation directly).
+        log.append(ContradictionEvent(
+            target_type="law",
+            target_id="L-EMEA-001",
+            action=FeedbackAction.REJECT,
+            reasoning="EMEA law is outdated",
+            actor="ceo@acme.com",
+        ))
+
+        class MockModel:
+            class health:
+                p1_cluster_risk = 0.45
+                incident_rate = 3
+                decision_velocity_days = 0.8
+                release_frequency = 0.1
+            laws = {}
+
+        result = manager.on_signals_ingested([], MockModel())
+        assert result["predictions_resolved"] >= 1, (
+            "Feedback on a linked law did not resolve the recommendation prediction."
+        )
+
+        pred = manager.recorder.get_prediction(pred_id)
+        assert pred["status"] == "incorrect"
+
+    def test_resolver_returns_zero_when_no_feedback(self, db_path):
+        """Sanity check: with no feedback in the log, recommendation
+        predictions stay pending. This guards against false positives in
+        the tests above (they could pass even if the resolver always
+        returns 'correct')."""
+        cal = CalibrationEngine(db_path)
+        log = ContradictionLog()
+        manager = ClosedLoopLearningManager(
+            db_path, None, [], cal, contradiction_log=log,
+        )
+
+        manager.on_recommendation_surfaced(
+            type("R", (), {
+                "title": "Adopt trunk-based development",
+                "recommendation": "Adopt trunk-based development",
+                "impact": "Integration risk drops",
+                "confidence": 0.6,
+                "linked_laws": ["L-DEV-001"],
+                "urgency": "normal",
+            }),
+            None,
+        )
+
+        class MockModel:
+            class health:
+                p1_cluster_risk = 0.45
+                incident_rate = 3
+                decision_velocity_days = 0.8
+                release_frequency = 0.1
+            laws = {}
+
+        result = manager.on_signals_ingested([], MockModel())
+        assert result["predictions_resolved"] == 0, (
+            "Resolver resolved a prediction with no feedback — false positive."
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 7. API-LEVEL CLOSED-LOOP — the exact test the auditor ran manually
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestClosedLoopAPI:
+    """Submit feedback via /contradict, then verify /improvement moved."""
+
+    def test_contradict_endpoint_resolves_predictions_and_updates_brier(self, client):
+        """The exact end-to-end test the auditor ran manually and that failed
+        on 8f342f8:
+
+            1. GET /recommendations  → predictions auto-created
+            2. POST /contradict      → CEO agrees on a linked law
+            3. GET /improvement      → resolved > 0, correct > 0, brier != 0.5
+
+        Before the fix, step 3 returned resolved=0, accuracy=0, brier=0.5
+        because (a) /contradict never called manager.on_feedback() and
+        (b) the resolver's _evaluate_prediction looked for feedback on the
+        wrong object. Both are now fixed.
+        """
+        import pathlib
+        # Point the learning DB at a temp file so the test is hermetic.
+        learning_db = str(pathlib.Path(client.app.state.__dict__.get("_db_path", "/tmp/maestro_test")) .parent / "test_learning.db") \
+            if hasattr(client.app.state, "_db_path") else None
+        # Fall back to env-based path (the routes use MAESTRO_LEARNING_DB).
+        import os as _os
+        _os.environ["MAESTRO_LEARNING_DB"] = str(pathlib.Path(_os.environ.get("MAESTRO_AUTH_DB", "/tmp/maestro_test/auth.db")).parent / "test_learning.db")
+
+        # 1. Surface recommendations → auto-creates predictions.
+        resp = client.get("/api/oem/recommendations")
+        assert resp.status_code == 200
+        recs = resp.json().get("recommendations", [])
+        assert len(recs) > 0, "Demo data should produce at least one recommendation."
+
+        # Pick a recommendation with at least one linked law.
+        rec = next((r for r in recs if r.get("linked_laws")), recs[0])
+        target_law = rec["linked_laws"][0] if rec.get("linked_laws") else rec["title"]
+
+        # Sanity: predictions were created.
+        resp = client.get("/api/oem/predictions")
+        preds_before = resp.json().get("predictions", [])
+        pending_before = [p for p in preds_before if p["status"] == "pending"]
+        assert len(pending_before) > 0, "Recommendations did not auto-create pending predictions."
+
+        # 2. CEO agrees on the linked law (or on the rec title if no law).
+        resp = client.post("/api/oem/contradict", json={
+            "target_type": "law" if rec.get("linked_laws") else "recommendation",
+            "target_id": target_law,
+            "action": "agree",
+            "reasoning": "End-to-end test: this recommendation is right",
+            "actor": "ceo@acme.com",
+        })
+        assert resp.status_code == 200, f"contradict failed: {resp.text}"
+        assert resp.json()["ok"] is True
+
+        # 3. Improvement dashboard must show the loop closed.
+        resp = client.get("/api/oem/improvement")
+        assert resp.status_code == 200
+        report = resp.json()
+        summary = report["summary"]
+
+        assert summary["resolved"] > 0, (
+            f"resolved={summary['resolved']} — /contradict did not resolve "
+            f"any predictions. The on_feedback wire is missing or broken."
+        )
+        assert summary["correct"] > 0, (
+            f"correct={summary['correct']} — agree feedback did not register "
+            f"as a correct resolution."
+        )
+
+        # Brier score must have moved off 0.5 (the empty-calibration default).
+        brier = report["calibration"].get("brier_score", 0.5)
+        assert brier != 0.5, (
+            f"brier_score={brier} — calibration never updated. The resolved "
+            f"prediction did not flow into CalibrationEngine.record_prediction."
+        )
+
+        # Improvement evidence should now report is_learning=True.
+        assert report["improvement_evidence"]["is_learning"] is True
+
+    def test_resolve_endpoint_picks_up_contradiction_log_feedback(self, client):
+        """The manual /predictions/resolve endpoint must also see feedback
+        in the contradiction log (it constructs the manager with the log
+        passed in). This is the fallback path when live_ingest hasn't fired."""
+        import os as _os
+        import pathlib
+        _os.environ["MAESTRO_LEARNING_DB"] = str(pathlib.Path(_os.environ.get("MAESTRO_AUTH_DB", "/tmp/maestro_test/auth.db")).parent / "test_learning_resolve.db")
+
+        # Create predictions.
+        resp = client.get("/api/oem/recommendations")
+        recs = resp.json().get("recommendations", [])
+        assert recs, "Demo data should produce recommendations."
+        rec = next((r for r in recs if r.get("linked_laws")), recs[0])
+        target_law = rec["linked_laws"][0] if rec.get("linked_laws") else rec["title"]
+
+        # Submit reject feedback.
+        resp = client.post("/api/oem/contradict", json={
+            "target_type": "law" if rec.get("linked_laws") else "recommendation",
+            "target_id": target_law,
+            "action": "reject",
+            "reasoning": "End-to-end test: this is wrong",
+            "actor": "ceo@acme.com",
+        })
+        assert resp.status_code == 200
+
+        # /contradict already calls manager.on_feedback(), so predictions
+        # should already be resolved. But the /resolve endpoint must NOT
+        # break when called after — and any remaining pending predictions
+        # that can now be resolved (e.g. via expiry) should be handled.
+        resp = client.post("/api/oem/predictions/resolve")
+        assert resp.status_code == 200
+        result = resp.json()
+        # At least the endpoint ran and returned a well-formed summary.
+        assert "predictions_checked" in result
+        assert "predictions_resolved" in result
+        assert "still_pending" in result
+

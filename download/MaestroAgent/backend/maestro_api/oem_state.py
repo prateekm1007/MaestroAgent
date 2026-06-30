@@ -272,7 +272,11 @@ class OEMState:
         the model without rebuilding from scratch.
 
         After ingest, the decision engine and evidence graph are refreshed
-        so every API response reflects the new data.
+        so every API response reflects the new data. The closed learning loop
+        is also triggered: any pending predictions whose outcome can now be
+        determined are resolved and confidence is recalibrated. This is the
+        "auto" in "predictions auto-resolve" — without this wire, the loop
+        only fires when someone manually hits POST /api/oem/predictions/resolve.
         """
         if not new_signals:
             return
@@ -288,6 +292,9 @@ class OEMState:
                 except Exception as e:
                     logger.warning("Live signal ingest failed: %s", e)
             self._refresh_downstream_locked()
+            # Close the loop: resolve predictions that the new signals
+            # (or earlier CEO feedback) can now settle.
+            self._trigger_learning_resolution_locked()
 
     def _refresh_downstream(self) -> None:
         """Rebuild the decision engine + evidence graph from the current model.
@@ -307,6 +314,51 @@ class OEMState:
         self.evidence_graph = EvidenceGraph()
         self.evidence_graph.build_from_model(model)
         self.decision_engine = DecisionEngine(model, self.evidence_graph)
+
+    def _trigger_learning_resolution_locked(self) -> None:
+        """Fire the closed learning loop (caller holds the lock).
+
+        Constructs a ClosedLoopLearningManager pointing at the shared
+        ContradictionLog and asks it to resolve any pending predictions
+        whose outcome can now be determined from the model state or from
+        CEO feedback already in the log. Resolved predictions flow into
+        the CalibrationEngine, which updates the Brier score and the
+        10-bucket reliability diagram.
+
+        Failures here MUST NOT break ingest — the loop is best-effort and
+        the worst case is "predictions resolve a bit later via the manual
+        /predictions/resolve endpoint".
+        """
+        try:
+            import os as _os
+            from pathlib import Path as _Path
+            from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
+            from maestro_oem.learning import CalibrationEngine
+
+            db_path = _os.environ.get(
+                "MAESTRO_LEARNING_DB",
+                str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"),
+            )
+            _Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+            cal = CalibrationEngine(db_path)
+            manager = ClosedLoopLearningManager(
+                db_path,
+                self.engine.get_model() if self.engine else None,
+                self.signals,
+                cal,
+                contradiction_log=self._contradiction_log,
+            )
+            result = manager.on_signals_ingested(self.signals, self.model)
+            if result.get("predictions_resolved", 0) or result.get("predictions_expired", 0):
+                logger.info(
+                    "Closed-loop resolution: %d resolved, %d expired, %d still pending",
+                    result["predictions_resolved"],
+                    result["predictions_expired"],
+                    result["still_pending"],
+                )
+        except Exception as e:
+            logger.warning("Closed-loop learning resolution failed (non-fatal): %s", e)
 
     def snapshot(self) -> dict[str, int]:
         """Return a count snapshot for the ProgressTracker."""

@@ -249,9 +249,21 @@ class PredictionResolver:
       - expired: timeframe elapsed without resolution
     """
 
-    def __init__(self, recorder: PredictionRecorder, calibration: Any) -> None:
+    def __init__(
+        self,
+        recorder: PredictionRecorder,
+        calibration: Any,
+        contradiction_log: Any = None,
+    ) -> None:
         self.recorder = recorder
         self.calibration = calibration
+        # Shared ContradictionLog (maestro_oem.contradiction.ContradictionLog).
+        # When set, the resolver reads CEO feedback (agree/reject/modify) from
+        # this log instead of looking for a nonexistent _feedback_index on the
+        # calibration engine. This is what closes the loop: feedback submitted
+        # via /contradict is visible to check_pending() on the next signal
+        # ingest (or the next manual /predictions/resolve call).
+        self.contradiction_log = contradiction_log
 
     def check_pending(self, model: Any, signals: list) -> dict[str, Any]:
         """Check all pending predictions against current model state.
@@ -306,15 +318,47 @@ class PredictionResolver:
         expected_metric = pred.get("expected_metric")
         predicted_value = pred.get("predicted_value")
 
-        # For recommendations: check if CEO took the action (feedback)
+        # For recommendations: check if CEO gave feedback (agree/reject/modify)
+        # on the recommendation itself OR on any law linked to it.
         if pred_type == "recommendation":
-            # Check feedback events for this entity
-            feedback = self.calibration._feedback_index if hasattr(self.calibration, '_feedback_index') else {}
-            fb = feedback.get(entity_id, (0, 0))
-            if fb[0] > 0:  # Agree count > 0
-                return {"status": "correct", "evidence": f"CEO agreed with recommendation. {fb[0]} agreements."}
-            if fb[1] > 0:  # Reject count > 0
-                return {"status": "incorrect", "evidence": f"CEO rejected recommendation. {fb[1]} rejections."}
+            # Check feedback on the recommendation entity_id (title) and on
+            # every linked law. A rejection on a linked law should also
+            # resolve the recommendation prediction as incorrect.
+            entity_ids_to_check = {entity_id}
+            linked_laws = pred.get("linked_laws") or []
+            entity_ids_to_check.update(linked_laws)
+
+            total_agree = 0
+            total_reject = 0
+            total_modify = 0
+            for eid in entity_ids_to_check:
+                if not eid:
+                    continue
+                a, r, m = self._count_feedback(str(eid))
+                total_agree += a
+                total_reject += r
+                total_modify += m
+
+            if total_reject > 0 and total_agree == 0:
+                return {
+                    "status": "incorrect",
+                    "evidence": f"CEO rejected ({total_reject} rejections across rec + linked laws).",
+                }
+            if total_agree > 0 and total_reject == 0:
+                return {
+                    "status": "correct",
+                    "evidence": f"CEO agreed ({total_agree} agreements across rec + linked laws).",
+                }
+            if total_agree > 0 and total_reject > 0:
+                return {
+                    "status": "partially_correct",
+                    "evidence": f"Mixed feedback: {total_agree} agree, {total_reject} reject.",
+                }
+            if total_modify > 0:
+                return {
+                    "status": "partially_correct",
+                    "evidence": f"CEO modified ({total_modify} modifications).",
+                }
 
         # For simulations: check if predicted metric was close to actual
         if pred_type == "simulation" and expected_metric and predicted_value is not None:
@@ -350,6 +394,29 @@ class PredictionResolver:
                     return {"status": "incorrect", "evidence": f"Risk did not materialize: {expected_metric} went from {baseline} to {actual}."}
 
         return None  # Insufficient data to resolve
+
+    def _count_feedback(self, entity_id: str) -> tuple[int, int, int]:
+        """Count CEO feedback events for an entity from the contradiction log.
+
+        Returns (agree_count, reject_count, modify_count).
+
+        This replaces the old broken lookup that read ``self.calibration._feedback_index``
+        — an attribute that only exists on SemanticAutocompleteEngine, not on
+        CalibrationEngine. With the contradiction_log wired in, the resolver
+        can finally see feedback submitted via /contradict.
+        """
+        if not self.contradiction_log:
+            return (0, 0, 0)
+        try:
+            from maestro_oem.contradiction import FeedbackAction
+            events = self.contradiction_log.get_events_for_target(entity_id)
+            agree = sum(1 for e in events if e.action == FeedbackAction.AGREE)
+            reject = sum(1 for e in events if e.action == FeedbackAction.REJECT)
+            modify = sum(1 for e in events if e.action == FeedbackAction.MODIFY)
+            return (agree, reject, modify)
+        except Exception as e:
+            logger.debug("Feedback count lookup failed for %s: %s", entity_id, e)
+            return (0, 0, 0)
 
     @staticmethod
     def _get_metric_value(model: Any, metric: str) -> float | None:
@@ -570,14 +637,20 @@ class ClosedLoopLearningManager:
         model: Any = None,
         signals: list | None = None,
         calibration: Any = None,
+        contradiction_log: Any = None,
     ) -> None:
         self.db_path = db_path
         self.model = model
         self.signals = signals or []
         self.calibration = calibration
+        self.contradiction_log = contradiction_log
 
         self.recorder = PredictionRecorder(db_path)
-        self.resolver = PredictionResolver(self.recorder, calibration or self._dummy_calibration())
+        self.resolver = PredictionResolver(
+            self.recorder,
+            calibration or self._dummy_calibration(),
+            contradiction_log=contradiction_log,
+        )
         self.explainer = ExplainableConfidence(self.recorder, calibration or self._dummy_calibration())
 
     def _dummy_calibration(self):
@@ -693,7 +766,12 @@ class ClosedLoopLearningManager:
         reasoning: str = "",
         actor: str = "",
     ) -> None:
-        """Called when CEO gives feedback. Resolves related predictions."""
+        """Called when CEO gives feedback. Resolves related predictions.
+
+        Resolves any pending prediction whose ``entity_id`` matches OR whose
+        ``linked_laws`` contain ``entity_id`` (so feedback on a law also
+        resolves every recommendation prediction that depends on it).
+        """
         # Record confidence history
         self.resolver._record_confidence_history(
             entity_type=entity_type,
@@ -704,12 +782,23 @@ class ClosedLoopLearningManager:
             source="feedback",
         )
 
-        # Try to resolve any pending predictions for this entity
+        status = (
+            "correct" if feedback == "agree"
+            else "incorrect" if feedback == "reject"
+            else "partially_correct"
+        )
+
+        # Resolve any pending predictions for this entity OR predictions
+        # linked to this entity via linked_laws.
         pending = self.recorder.get_pending_predictions()
         for pred in pending:
-            if pred.get("entity_id") == entity_id:
-                status = "correct" if feedback == "agree" else "incorrect" if feedback == "reject" else "partially_correct"
-                self.resolver._resolve(pred, status, f"CEO feedback: {feedback} — {reasoning}")
+            pred_entity = pred.get("entity_id", "")
+            pred_linked_laws = pred.get("linked_laws") or []
+            matches = (pred_entity == entity_id) or (entity_id in pred_linked_laws)
+            if matches:
+                self.resolver._resolve(
+                    pred, status, f"CEO feedback: {feedback} — {reasoning}"
+                )
 
     def get_improvement_report(self) -> dict[str, Any]:
         """Dashboard proving Maestro gets smarter over time."""

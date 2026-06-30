@@ -243,7 +243,10 @@ def get_recommendations(urgency: str | None = Query(None)) -> dict[str, Any]:
                                     str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
     _Path(_learning_db).parent.mkdir(parents=True, exist_ok=True)
     try:
-        manager = ClosedLoopLearningManager(_learning_db, oem_state.model, oem_state.signals)
+        manager = ClosedLoopLearningManager(
+            _learning_db, oem_state.model, oem_state.signals,
+            contradiction_log=getattr(oem_state, "_contradiction_log", None),
+        )
         for rec in recs:
             manager.on_recommendation_surfaced(rec, oem_state.model)
     except Exception as e:
@@ -813,6 +816,40 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
     except Exception as e:
         import logging as _l
         _l.getLogger(__name__).warning("Learning engine feedback recording failed: %s", e)
+
+    # Close the loop: resolve pending predictions for the target entity AND
+    # every affected law. Without this wire, predictions stay pending forever
+    # even after the CEO explicitly agreed or rejected — which is the bug the
+    # auditor found (Brier score stuck at 0.5, improvement dashboard stuck at
+    # resolved=0). manager.on_feedback() flips prediction status and records
+    # the calibration outcome (hit/miss) so the Brier score updates.
+    try:
+        from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
+        from maestro_oem.learning import CalibrationEngine
+        cal = CalibrationEngine(_learning_db)
+        manager = ClosedLoopLearningManager(
+            _learning_db, oem_state.model, oem_state.signals, cal,
+            contradiction_log=oem_state._contradiction_log,
+        )
+        # Resolve predictions whose entity_id == target_id OR whose linked_laws
+        # contain target_id (covers both rec-targeted and law-targeted feedback).
+        conf_after = oem_state.model.laws[event.affected_laws[0]].confidence \
+            if event.affected_laws and event.affected_laws[0] in oem_state.model.laws \
+            else 0.5
+        manager.on_feedback(
+            entity_type=target_type,
+            entity_id=target_id,
+            feedback=action_str,
+            confidence_before=event.confidence_before.get(
+                event.affected_laws[0] if event.affected_laws else "", 0.5
+            ),
+            confidence_after=conf_after,
+            reasoning=reasoning,
+            actor=actor,
+        )
+    except Exception as e:
+        import logging as _l
+        _l.getLogger(__name__).warning("Closed-loop prediction resolution failed: %s", e)
 
     return {
         "ok": True,
@@ -1735,7 +1772,10 @@ def resolve_predictions() -> dict[str, Any]:
     from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
     from maestro_oem.learning import CalibrationEngine
     cal = CalibrationEngine(_learning_db_path())
-    manager = ClosedLoopLearningManager(_learning_db_path(), oem_state.model, oem_state.signals, cal)
+    manager = ClosedLoopLearningManager(
+        _learning_db_path(), oem_state.model, oem_state.signals, cal,
+        contradiction_log=getattr(oem_state, "_contradiction_log", None),
+    )
     result = manager.on_signals_ingested(oem_state.signals, oem_state.model)
     return result
 
@@ -1756,7 +1796,10 @@ def get_improvement_report() -> dict[str, Any]:
     from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
     from maestro_oem.learning import CalibrationEngine
     cal = CalibrationEngine(_learning_db_path())
-    manager = ClosedLoopLearningManager(_learning_db_path(), oem_state.model, oem_state.signals, cal)
+    manager = ClosedLoopLearningManager(
+        _learning_db_path(), oem_state.model, oem_state.signals, cal,
+        contradiction_log=getattr(oem_state, "_contradiction_log", None),
+    )
     return manager.get_improvement_report()
 
 
@@ -1779,5 +1822,8 @@ def explain_confidence(
     from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
     from maestro_oem.learning import CalibrationEngine
     cal = CalibrationEngine(_learning_db_path())
-    manager = ClosedLoopLearningManager(_learning_db_path(), oem_state.model, oem_state.signals, cal)
+    manager = ClosedLoopLearningManager(
+        _learning_db_path(), oem_state.model, oem_state.signals, cal,
+        contradiction_log=getattr(oem_state, "_contradiction_log", None),
+    )
     return manager.explain_confidence(entity_id, confidence, entity_type)
