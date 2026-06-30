@@ -394,10 +394,11 @@ def get_simulator() -> dict[str, Any]:
 
 @router.post("/simulator")
 def run_simulator(payload: dict[str, Any]) -> dict[str, Any]:
-    """Run a what-if simulation. DEPRECATED — use POST /api/oem/simulate instead.
+    """Run a what-if simulation. Delegates to the unified SimulationEngine.
 
-    This endpoint is kept for backward compatibility but delegates to
-    the unified /simulate endpoint. Both return identical results.
+    Kept for backward compatibility with UIs that POST to /simulator.
+    POST /api/oem/simulate is the canonical endpoint; both return the
+    same response shape because they call the same engine.
     """
     return simulate_scenario(payload)
 
@@ -1164,59 +1165,20 @@ def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
 
     Payload: {law_code?: str, recommendation_id?: str, inputs: {...}}
 
-    Returns: predicted outcomes with confidence.
+    This is the canonical simulation endpoint. POST /api/oem/simulator
+    delegates here, and both share the same SimulationEngine — one
+    confidence calculation, one response shape.
+
+    Returns: {base_health, predicted, confidence, linked_laws, inputs,
+              inputs_applied}.
     """
-    model = oem_state.model
-    inputs = payload.get("inputs", {})
-    law_code = payload.get("law_code")
-    rec_id = payload.get("recommendation_id")
-
-    # Base health from the model
-    base_p1 = model.health.p1_cluster_risk
-    base_incident = model.health.incident_rate
-    base_velocity = model.health.decision_velocity_days
-    base_release = model.health.release_frequency
-
-    # Apply input adjustments
-    hire_count = inputs.get("hire_count", 0)
-    adjusted_p1 = max(0.0, base_p1 - (hire_count * 0.02))
-    adjusted_velocity = max(0.5, base_velocity - (hire_count * 0.1))
-
-    # Find linked laws
-    linked_laws = []
-    if law_code and law_code in model.laws:
-        linked_laws.append(law_code)
-    elif rec_id:
-        rec = next((r for r in oem_state.decisions.get_recommendations() if r.rec_id == rec_id), None)
-        if rec:
-            linked_laws = rec.linked_laws or []
-
-    # Compute confidence from linked laws (same as /simulator endpoint)
-    # If specific law_code/rec_id given, use those; otherwise use all laws
-    if linked_laws:
-        law_objs = [model.laws[lc] for lc in linked_laws if lc in model.laws]
-    else:
-        law_objs = list(model.laws.values())
-    confidence = sum(l.confidence for l in law_objs) / max(len(law_objs), 1) if law_objs else 0.0
-    all_linked = [l.code for l in law_objs]
-
-    return {
-        "base_health": {
-            "p1_cluster_risk": round(base_p1, 4),
-            "incident_rate": base_incident,
-            "decision_velocity_days": round(base_velocity, 2),
-            "release_frequency": round(base_release, 2),
-        },
-        "predicted": {
-            "p1_cluster_risk": round(adjusted_p1, 4),
-            "incident_rate": base_incident,
-            "decision_velocity_days": round(adjusted_velocity, 2),
-            "release_frequency": round(base_release, 2),
-        },
-        "confidence": round(confidence, 4),
-        "linked_laws": all_linked,
-        "inputs_applied": inputs,
-    }
+    from maestro_oem.simulation import SimulationEngine
+    engine = SimulationEngine(oem_state.model, oem_state.decisions)
+    return engine.simulate(
+        inputs=payload.get("inputs", {}),
+        law_code=payload.get("law_code"),
+        recommendation_id=payload.get("recommendation_id"),
+    )
 
 
 # ─── 16. CEO Briefing — answers the 5 questions a CEO needs ─────────────────
@@ -1652,6 +1614,18 @@ def get_twin_state() -> dict[str, Any]:
 @router.post("/twin/simulate")
 def simulate_twin_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     """Run a what-if scenario on the digital twin.
+
+    NOTE: This endpoint is intentionally separate from POST /api/oem/simulate.
+    /simulate runs a METRIC what-if ("if we hire 3 people, what happens to
+    P1 risk?") via SimulationEngine. /twin/simulate runs an ORGANIZATIONAL
+    what-if ("if Priya leaves, who gets overloaded?") via the DigitalTwin +
+    ScenarioEngine, producing an ImpactReport with overloaded people,
+    knowledge loss, and law violations. The two operations produce
+    fundamentally different output shapes and serve different questions,
+    so they remain separate endpoints. The previous duplication bug (two
+    endpoints returning inconsistent confidence for the same input) is
+    fixed by consolidating the METRIC path; this ORGANIZATIONAL path was
+    never duplicated.
 
     Payload: {type: "person_leaves"|"move_team"|"team_doubles"|"cut_meetings"|"add_hires"|"merge_teams", ...}
 

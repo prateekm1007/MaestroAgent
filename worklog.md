@@ -834,3 +834,46 @@ Stage Summary:
   3. No real OAuth API clients (normalizers exist, transport does not)
   4. Multi-user model exists, WebSocket transport does not
 - Git commit hash: (will be set after commit)
+
+---
+Task ID: historical-import-engine
+Agent: Principal Backend Engineer
+Task: Replace the frozen demo fixture with REAL organizational history ingestion across all 5 providers (GitHub, Jira, Slack, Confluence, Gmail). Continuous OEM updates during import.
+
+Work Log:
+- Read existing ingestion.py to understand PageFetcher interface and IngestionPipeline contract
+- Built CheckpointStore (SQLite, thread-safe, WAL mode, atomic upserts for resume)
+- Built OAuthManager with real OAuth 2.0 flows for all 5 providers (state-token CSRF, code exchange, refresh, revoke)
+- Built ProgressTracker with subscriber-based WebSocket broadcast (4 Hz throttle)
+- Built ConnectionManager to track provider states and trigger imports on connect
+- Built 5 real PageFetcher implementations using httpx.AsyncClient:
+  - GitHub: repos discovery, PRs/issues/commits/reviews, Link-header pagination, X-RateLimit parsing
+  - Jira: Atlassian Cloud REST API, JQL queries, changelog→transitions, comment events
+  - Slack: conversations.list + conversations.history with cursor pagination, users.list email lookup
+  - Confluence: v2 API with cursor pagination, page version events
+  - Gmail: messages.list + batch metadata fetch, RFC 2822 date parsing, participant extraction
+- Built ProviderFactory for single-dispatch
+- Built HistoricalImportEngine: parallel asyncio.gather across providers, continuous OEM updates
+  via on_signals callback, checkpoint persistence every page, resume on restart
+- Extended OEMState with live_ingest() and snapshot() methods (additive — no existing API broken)
+- Wired ImportState singleton in oem_state.py connecting all components
+- Added 11 new API endpoints + 1 WebSocket under /api/oauth/* and /api/imports/*
+- Modified main.py lifespan to resume incomplete jobs on startup
+- Modified app.html Settings page: Connect/Disconnect buttons for all 5 providers
+- Added live progress banner with WebSocket-driven updates: events processed, ETA, patterns/laws/recs
+- Banner auto-refreshes Home dashboard as OEM improves
+- Wrote 132 new tests across 7 test files (all passing)
+- Updated docs/HISTORICAL_IMPORT.md with architecture diagram and verification steps
+
+Stage Summary:
+- 397 tests pass (265 existing + 132 new), 0 failures
+- Architecture frozen — extended PageFetcher interface, did not redesign
+- Real OAuth for all 5 providers (not stubs)
+- Real HTTP calls via httpx.AsyncClient (not mocked in production code)
+- Continuous OEM updates — dashboard improves in real time during import
+- Checkpoints persist to SQLite every page → resume on restart works
+- Parallel ingestion across providers via asyncio.gather
+- Rate limiting per provider (GitHub 5000/hr, Slack 20/min, etc.)
+- OAuth refresh on 401, retry with exponential backoff
+- 5-year history default (configurable via 'since' parameter)
+- Commit 15d445d pushed to main

@@ -608,10 +608,19 @@ class ExecutionModel(BaseModel):
 
     def _promote_to_law(self, pattern: Pattern, signal: ExecutionSignal) -> OrganizationalLaw | None:
         """Promote a pattern to a law if it qualifies."""
-        # Check if we already have a law for this pattern
+        # Check if we already have a law for this pattern. We compare on a
+        # normalized form of the description (entity + pattern type, with the
+        # volatile "N evidence signals across M observations" suffix stripped)
+        # so that the same bottleneck detected at 3 vs 4 evidence points does
+        # not produce two near-duplicate laws (the L-0001 / L-0003 bug).
+        new_key = self._law_dedup_key(pattern.description)
         for existing in self.laws.values():
-            if pattern.description in existing.statement:
+            existing_key = self._law_dedup_key(existing.statement)
+            if new_key and existing_key and new_key == existing_key:
+                # Merge: this pattern's evidence reinforces the existing law.
                 existing.add_validation(signal.signal_id)
+                if pattern.pattern_id not in existing.pattern_ids:
+                    existing.pattern_ids.append(pattern.pattern_id)
                 return existing
 
         # Create new law
@@ -632,6 +641,30 @@ class ExecutionModel(BaseModel):
         law.add_validation(signal.signal_id)
         self.laws[code] = law
         return law
+
+    @staticmethod
+    def _law_dedup_key(description: str) -> str:
+        """Normalize a pattern/law description for dedup.
+
+        Strips the volatile " — N evidence signals across M observations"
+        suffix so two patterns describing the same underlying phenomenon
+        (e.g. the same person being a bottleneck, observed at 3 vs 4 points)
+        map to the same key and therefore to the same law.
+
+        Returns the entity/type prefix in lowercase, or "" if the description
+        does not match the expected shape.
+        """
+        if not description:
+            return ""
+        # Cut at the first " — " (em dash) or " - " (hyphen) separator that
+        # precedes the evidence-count suffix. Patterns are built as
+        #   "<entity/type> — <count> evidence signals across <count> observations"
+        # so anything before the separator is the stable identifier.
+        for sep in (" — ", " - "):
+            idx = description.find(sep)
+            if idx > 0:
+                return description[:idx].strip().lower()
+        return description.strip().lower()
 
     def _update_laws_from_signal(self, signal: ExecutionSignal, delta: ModelDelta) -> None:
         """Update existing laws with new evidence from a signal."""

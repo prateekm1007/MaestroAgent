@@ -315,8 +315,12 @@ class TestNoHardcodedInsights:
         summary = data["summary"]
         assert summary["signals_processed"] == 39, \
             f"Expected 39 signals, got {summary['signals_processed']} — OEM not wired"
-        assert summary["laws_inferred"] >= 3, \
-            f"Expected at least 3 laws, got {summary['laws_inferred']}"
+        # Note: laws_inferred was previously >= 3, but the L-0001/L-0003
+        # near-duplicate (same person, same bottleneck, different evidence
+        # counts) is now deduplicated to a single law. The correct
+        # expectation is >= 2 (one per distinct bottleneck person).
+        assert summary["laws_inferred"] >= 2, \
+            f"Expected at least 2 laws, got {summary['laws_inferred']}"
         assert "github" in summary["providers_connected"]
         assert "jira" in summary["providers_connected"]
         assert "slack" in summary["providers_connected"]
