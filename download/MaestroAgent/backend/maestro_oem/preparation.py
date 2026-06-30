@@ -48,6 +48,7 @@ class Preparation:
         created_at: datetime | None = None,
         approved_by: str = "",
         approved_at: datetime | None = None,
+        intent_id: str = "",  # Links to the Intent this preparation serves
     ) -> None:
         self.preparation_id = preparation_id
         self.preparation_type = preparation_type
@@ -60,6 +61,7 @@ class Preparation:
         self.created_at = created_at or datetime.now(timezone.utc)
         self.approved_by = approved_by
         self.approved_at = approved_at
+        self.intent_id = intent_id
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +69,7 @@ class Preparation:
             "preparation_type": self.preparation_type,
             "title": self.title,
             "recommendation_id": self.recommendation_id,
+            "intent_id": self.intent_id,
             "content": self.content,
             "evidence": self.evidence,
             "confidence": round(self.confidence, 4),

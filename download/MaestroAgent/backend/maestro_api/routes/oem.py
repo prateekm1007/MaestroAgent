@@ -2408,25 +2408,32 @@ def list_assumptions(status: str | None = Query(None)) -> dict[str, Any]:
 
 @router.post("/assumptions")
 def create_assumption(payload: dict[str, Any]) -> dict[str, Any]:
-    """Create an explicit assumption.
+    """Create an explicit assumption linked to an intent.
 
     Payload: {
         statement: str (required),
         context: str,
         stakes: "low" | "medium" | "high" | "critical",
         made_by: str,
+        intent_id: str (links assumption to its intent),
     }
     """
     graph = _get_assumption_graph()
     statement = payload.get("statement", "")
     if not statement:
         raise HTTPException(400, "statement is required")
+    intent_id = payload.get("intent_id", "")
     assumption_id = graph.create(
         statement=statement,
         made_by=payload.get("made_by", "user"),
         context=payload.get("context", ""),
         stakes=payload.get("stakes", "medium"),
+        intent_id=intent_id,
     )
+    # Link assumption to intent if intent_id provided
+    if intent_id:
+        intent_store = _get_intent_store()
+        intent_store.add_assumption(intent_id, assumption_id)
     return {"ok": True, "assumption_id": assumption_id}
 
 
@@ -2461,3 +2468,184 @@ def get_assumption(assumption_id: str) -> dict[str, Any]:
     if not a:
         raise HTTPException(404, f"Assumption {assumption_id} not found")
     return a
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 21. INTENT MODEL — root entity of the cognitive model
+# ═══════════════════════════════════════════════════════════════════════════
+
+_intent_store = None
+_hypothesis_store = None
+
+def _get_intent_store():
+    global _intent_store
+    if _intent_store is None:
+        from maestro_oem.intent_model import IntentStore
+        _intent_store = IntentStore()
+        # Infer intents from current recommendations
+        try:
+            recs = oem_state.decisions.get_recommendations()
+            _intent_store.infer_from_recommendations(recs)
+        except Exception:
+            pass
+    return _intent_store
+
+def _get_hypothesis_store():
+    global _hypothesis_store
+    if _hypothesis_store is None:
+        from maestro_oem.hypothesis import HypothesisStore
+        _hypothesis_store = HypothesisStore()
+        # Infer hypotheses from recommendations
+        try:
+            recs = oem_state.decisions.get_recommendations()
+            intent_store = _get_intent_store()
+            _hypothesis_store.infer_from_recommendations(recs, intent_store)
+        except Exception:
+            pass
+    return _hypothesis_store
+
+
+@router.get("/intents")
+def list_intents(status: str | None = Query(None)) -> dict[str, Any]:
+    """List all intents (the root entities of the cognitive model)."""
+    store = _get_intent_store()
+    return {"intents": store.list_intents(status), "total": len(store.list_intents())}
+
+
+@router.post("/intents")
+def create_intent(payload: dict[str, Any]) -> dict[str, Any]:
+    """Create an explicit intent.
+
+    Payload: {goal, owner, success_criteria, deadline, stakeholders, intent_type}
+    """
+    store = _get_intent_store()
+    goal = payload.get("goal", "")
+    if not goal:
+        raise HTTPException(400, "goal is required")
+    intent_id = store.create(
+        goal=goal,
+        owner=payload.get("owner", ""),
+        success_criteria=payload.get("success_criteria", ""),
+        deadline=payload.get("deadline", ""),
+        stakeholders=payload.get("stakeholders", []),
+        intent_type=payload.get("intent_type", "tactical"),
+    )
+    return {"ok": True, "intent_id": intent_id}
+
+
+@router.get("/intents/{intent_id}")
+def get_intent_cascade(intent_id: str) -> dict[str, Any]:
+    """Get the full cascade: intent → assumptions → hypotheses → predictions → preparations → evidence.
+
+    This is the OEM's root query: 'tell me about this intent.'
+    """
+    store = _get_intent_store()
+    assumption_graph = _get_assumption_graph()
+    hypothesis_store = _get_hypothesis_store()
+
+    cascade = store.get_cascade(
+        intent_id,
+        assumption_graph=assumption_graph,
+        hypothesis_store=hypothesis_store,
+    )
+    if not cascade:
+        raise HTTPException(404, f"Intent {intent_id} not found")
+    return cascade
+
+
+@router.patch("/intents/{intent_id}/status")
+def update_intent_status(intent_id: str, status: str = Query(...)) -> dict[str, Any]:
+    """Update an intent's status (active | achieved | abandoned | superseded)."""
+    store = _get_intent_store()
+    ok = store.update_status(intent_id, status)
+    if not ok:
+        raise HTTPException(404, f"Intent {intent_id} not found")
+    return {"ok": True, "intent_id": intent_id, "status": status}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 22. HYPOTHESIS LAYER — testable claims linked to intents
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/hypotheses")
+def list_hypotheses(
+    status: str | None = Query(None),
+    intent_id: str | None = Query(None),
+) -> dict[str, Any]:
+    """List hypotheses, optionally filtered by status or intent."""
+    store = _get_hypothesis_store()
+    return {"hypotheses": store.list_hypotheses(status=status, intent_id=intent_id),
+            "total": len(store.list_hypotheses())}
+
+
+@router.post("/hypotheses")
+def create_hypothesis(payload: dict[str, Any]) -> dict[str, Any]:
+    """Create a testable hypothesis linked to an intent.
+
+    Payload: {statement, intent_id, assumption_ids, prediction, predicted_value, confidence}
+    """
+    store = _get_hypothesis_store()
+    statement = payload.get("statement", "")
+    intent_id = payload.get("intent_id", "")
+    if not statement:
+        raise HTTPException(400, "statement is required")
+    if not intent_id:
+        raise HTTPException(400, "intent_id is required — hypotheses must link to an intent")
+
+    hid = store.create(
+        statement=statement,
+        intent_id=intent_id,
+        assumption_ids=payload.get("assumption_ids", []),
+        prediction=payload.get("prediction", ""),
+        predicted_value=payload.get("predicted_value"),
+        confidence=payload.get("confidence", 0.5),
+    )
+
+    # Link hypothesis to intent
+    intent_store = _get_intent_store()
+    intent_store.add_hypothesis(intent_id, hid)
+
+    return {"ok": True, "hypothesis_id": hid}
+
+
+@router.get("/hypotheses/calibration")
+def get_hypothesis_calibration() -> dict[str, Any]:
+    """Calibration report for all hypotheses.
+
+    'Our hypotheses were 60% accurate. The ones based on assumptions
+    about Legal were systematically overconfident.'
+    """
+    store = _get_hypothesis_store()
+    return store.calibration_report()
+
+
+@router.get("/hypotheses/{hypothesis_id}")
+def get_hypothesis(hypothesis_id: str) -> dict[str, Any]:
+    """Get a single hypothesis with full evidence."""
+    store = _get_hypothesis_store()
+    h = store.get(hypothesis_id)
+    if not h:
+        raise HTTPException(404, f"Hypothesis {hypothesis_id} not found")
+    return h
+
+
+@router.post("/hypotheses/{hypothesis_id}/resolve")
+def resolve_hypothesis(
+    hypothesis_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve a hypothesis with the actual outcome.
+
+    Payload: {actual_value?, outcome?, evidence?, notes?}
+    """
+    store = _get_hypothesis_store()
+    ok = store.resolve(
+        hypothesis_id,
+        actual_value=payload.get("actual_value"),
+        outcome=payload.get("outcome"),
+        evidence=payload.get("evidence"),
+        notes=payload.get("notes", ""),
+    )
+    if not ok:
+        raise HTTPException(404, f"Hypothesis {hypothesis_id} not found")
+    return {"ok": True, "hypothesis_id": hypothesis_id, "status": "resolved"}

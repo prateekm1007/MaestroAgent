@@ -93,8 +93,9 @@ class AssumptionGraph:
         context: str = "",
         stakes: str = "medium",
         linked_recommendation_id: str = "",
+        intent_id: str = "",
     ) -> str:
-        """Create an explicit assumption.
+        """Create an explicit assumption linked to an intent.
 
         Returns the assumption_id.
         """
@@ -107,8 +108,15 @@ class AssumptionGraph:
             stakes=stakes,
             linked_recommendation_id=linked_recommendation_id,
         )
+        # Store intent_id in evidence as a linking reference
+        if intent_id:
+            assumption.evidence.append({
+                "type": "intent_link",
+                "intent_id": intent_id,
+                "detail": f"Assumption supports intent {intent_id}",
+            })
         self._assumptions[assumption_id] = assumption
-        logger.info("Assumption created: %s — '%s'", assumption_id, statement[:60])
+        logger.info("Assumption created: %s — '%s' (intent: %s)", assumption_id, statement[:60], intent_id or "none")
         return assumption_id
 
     def infer_from_recommendations(self, recommendations: list[Any]) -> list[str]:
