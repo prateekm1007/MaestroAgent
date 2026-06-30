@@ -13,6 +13,7 @@
   --ds-surface-2: #16161a;
   --ds-divider: #2A2A32;
   --ds-accent: #7C5CFF;
+  --ds-accent-hover: #6b4cef;
   --ds-secondary: #00D4AA;
   --ds-text-primary: #F0F0F5;
   --ds-text-secondary: #A1A1AA;
@@ -176,7 +177,7 @@
 }
 
 .ds-btn-primary { background: var(--ds-accent); color: #fff; }
-.ds-btn-primary:hover { background: #6b4cef; transform: translateY(-1px); }
+.ds-btn-primary:hover { background: var(--ds-accent-hover, #6b4cef); transform: translateY(-1px); }
 
 .ds-btn-positive { background: rgba(34, 197, 94, 0.14); color: var(--ds-positive); border-color: rgba(34, 197, 94, 0.3); }
 .ds-btn-positive:hover { background: rgba(34, 197, 94, 0.22); }
@@ -392,3 +393,44 @@
     transform: none !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — override --ds-* tokens when data-theme="light"
+   ════════════════════════════════════════════════════════════════════════════
+   The cognitive-model surfaces (Intent Cascade, Contradictions, Prediction
+   Market, Assumptions, Prepared Decisions) use --ds-* tokens. This block
+   overrides those tokens when the user switches to light mode, mirroring
+   the app.css light palette.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme="light"] {
+  --ds-bg: #FFFFFF;
+  --ds-surface: #F9F9F9;
+  --ds-surface-2: #F0F0F0;
+  --ds-divider: #E4E4E7;
+  --ds-accent: #7C5CFF;
+  --ds-accent-hover: #6b4cef;
+  --ds-secondary: #00A887;
+  --ds-text-primary: #1A1A1A;
+  --ds-text-secondary: #52525B;
+  --ds-text-muted: #A1A1AA;
+  --ds-positive: #16A34A;
+  --ds-warning: #D97706;
+  --ds-risk: #DC2626;
+}
+
+/* Light-mode tag color adjustments (darker text for contrast on light bg) */
+:root[data-theme="light"] .ds-tag-open { background: rgba(217, 119, 6, 0.12); color: var(--ds-warning); border-color: rgba(217, 119, 6, 0.25); }
+:root[data-theme="light"] .ds-tag-high { background: rgba(220, 38, 38, 0.12); color: var(--ds-risk); border-color: rgba(220, 38, 38, 0.3); }
+:root[data-theme="light"] .ds-tag-validated { background: rgba(22, 163, 74, 0.12); color: var(--ds-positive); border-color: rgba(22, 163, 74, 0.25); }
+:root[data-theme="light"] .ds-tag-invalidated { background: rgba(220, 38, 38, 0.12); color: var(--ds-risk); border-color: rgba(220, 38, 38, 0.25); }
+
+/* Light-mode Brier badge adjustments */
+:root[data-theme="light"] .ds-brier-excellent { background: rgba(22, 163, 74, 0.15); color: var(--ds-positive); }
+:root[data-theme="light"] .ds-brier-well { background: rgba(0, 168, 135, 0.15); color: var(--ds-secondary); }
+:root[data-theme="light"] .ds-brier-moderate { background: rgba(217, 119, 6, 0.15); color: var(--ds-warning); }
+:root[data-theme="light"] .ds-brier-poor { background: rgba(220, 38, 38, 0.15); color: var(--ds-risk); }
+
+/* Light-mode perspective grid surface */
+:root[data-theme="light"] .ds-perspective-team { background: var(--ds-surface-2); }
+:root[data-theme="light"] .ds-perspective-text { background: var(--ds-surface); }

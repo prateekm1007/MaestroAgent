@@ -64,31 +64,31 @@
   padding: 10px 16px;
   font-size: 12px;
   font-weight: 600;
-  color: #8b8b9a;
+  color: var(--text-muted);
   border-bottom: 2px solid transparent;
   white-space: nowrap;
   transition: all 0.15s;
 }
-.drilldown-tab:hover { color: #e4e4e7; }
-.drilldown-tab.active { color: #7c5cff; border-bottom-color: #7c5cff; }
-.drilldown-tab:focus-visible { outline: 2px solid #7c5cff; outline-offset: -2px; }
+.drilldown-tab:hover { color: var(--text-secondary); }
+.drilldown-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.drilldown-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .drilldown-section { display: none; }
 .drilldown-section.active { display: block; }
 .drilldown-evidence-item {
   padding: 8px 12px;
   border-radius: 6px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: var(--surface-2);
+  border: 1px solid var(--divider);
   margin-bottom: 6px;
   cursor: pointer;
   transition: background 0.15s;
 }
-.drilldown-evidence-item:hover { background: rgba(255,255,255,0.05); }
+.drilldown-evidence-item:hover { background: var(--surface-3); }
 .drilldown-timeline-item {
   position: relative;
   padding-left: 24px;
   padding-bottom: 16px;
-  border-left: 2px solid rgba(124,92,255,0.2);
+  border-left: 2px solid var(--accent-border);
 }
 .drilldown-timeline-item::before {
   content: '';
@@ -98,7 +98,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #7c5cff;
+  background: var(--accent);
 }
 .drilldown-person {
   display: flex;
@@ -106,7 +106,7 @@
   gap: 8px;
   padding: 8px 12px;
   border-radius: 6px;
-  background: rgba(255,255,255,0.02);
+  background: var(--surface-2);
   margin-bottom: 6px;
 }
 .metric-clickable {
@@ -114,8 +114,8 @@
   transition: all 0.15s;
 }
 .metric-clickable:hover {
-  background: rgba(124,92,255,0.08);
-  border-color: rgba(124,92,255,0.2);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
   transform: translateY(-1px);
 }
 </style>
@@ -147,7 +147,7 @@
 <!-- WCAG 2.1: Skip-to-content link for keyboard users -->
 <a href="#main-content" class="skip-link">Skip to content</a>
 <!-- Demo-mode banner — unmistakable visual indicator when demo seed is active -->
-<div id="demo-banner" role="alert" style="display:none; background:#f59e0b; color:#000; font-size:11px; font-weight:700; text-align:center; padding:4px 8px; letter-spacing:0.05em; text-transform:uppercase; position:sticky; top:0; z-index:9999;">
+<div id="demo-banner" role="alert" style="display:none; background:var(--warning); color:#000; font-size:11px; font-weight:700; text-align:center; padding:4px 8px; letter-spacing:0.05em; text-transform:uppercase; position:sticky; top:0; z-index:9999;">
   ⚠ Demo Mode — Showing synthetic acme-corp sample data. Connect real providers via Settings to see live signals.
 </div>
 <div class="app-shell" id="app">
@@ -192,6 +192,17 @@
       <div id="oem-status" class="text-[10px] text-fg-500">
         <span class="spinner" style="width:10px;height:10px;border-width:1px;"></span>
         <span>Connecting to OEM…</span>
+      </div>
+      <div class="theme-toggle-row">
+        <div class="theme-toggle" onclick="toggleTheme()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTheme();}" tabindex="0" role="button" aria-label="Toggle theme">
+          <svg id="theme-icon-moon" class="theme-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+          <svg id="theme-icon-sun" class="theme-icon hidden" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <span class="theme-toggle-label" id="theme-toggle-label">Light mode</span>
+        </div>
       </div>
     </div>
   </aside>
@@ -268,7 +279,7 @@
           <!-- 0. Prepared Decisions (cognitive-model surface — replaces "you should do X" with "X is ready. Approve?") -->
           <div class="panel" style="border: 1px solid rgba(0,212,170,0.2); background: rgba(0,212,170,0.03);">
             <div class="panel-header">
-              <span style="color: #00d4aa;">Prepared Decisions — ready for approval</span>
+              <span style="color: var(--secondary);">Prepared Decisions — ready for approval</span>
               <span id="ecc-prepared-count" class="tag tag-cyan">—</span>
             </div>
             <div class="panel-body" id="ecc-prepared">
@@ -279,7 +290,7 @@
           <!-- 1. Today's Attention -->
           <div class="panel" style="border: 1px solid rgba(124,92,255,0.2); background: rgba(124,92,255,0.03);">
             <div class="panel-header">
-              <span style="color: #7c5cff;">1. Today's Attention</span>
+              <span style="color: var(--accent);">1. Today's Attention</span>
               <span id="ecc-attention-count" class="tag tag-violet">—</span>
             </div>
             <div class="panel-body" id="ecc-attention">
@@ -378,7 +389,7 @@
           <!-- 10. Digital Twin — What happens if...? -->
           <div class="panel" style="border: 1px solid rgba(0,212,170,0.2); background: rgba(0,212,170,0.03);">
             <div class="panel-header">
-              <span style="color: #00d4aa;">10. Digital Twin — What happens if...?</span>
+              <span style="color: var(--secondary);">10. Digital Twin — What happens if...?</span>
               <span id="ecc-twin-status" class="tag tag-green">Ready</span>
             </div>
             <div class="panel-body" id="ecc-twin">
@@ -913,7 +924,7 @@
           <!-- Enterprise OAuth Self-Service: Admin Integration Configuration -->
           <div class="panel" style="border: 1px solid rgba(124,92,255,0.15);">
             <div class="panel-header">
-              <span style="color:#7c5cff;">OAuth Integration Configuration</span>
+              <span style="color: var(--accent);">OAuth Integration Configuration</span>
               <span class="text-[10px] text-fg-500">Admin-only · Secrets encrypted at rest</span>
             </div>
             <div class="panel-body space-y-3" id="oauth-admin-list">
