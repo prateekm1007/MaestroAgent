@@ -19,6 +19,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -2120,3 +2121,160 @@ def organizational_whisper(
     from maestro_oem.whisper import OrganizationalWhisper
     w = OrganizationalWhisper(oem_state.model, oem_state.signals)
     return w.for_context(context=context, entity=entity, topic=topic, user=user)
+
+
+# ─── Ambient: Intent Detection + Interrupt Intelligence ────────────────────
+
+@router.get("/intent")
+def infer_intent(
+    active_app: str = Query("", description="email|calendar|github|jira|slack|browser|zoom|docs|crm"),
+    user: str = Query("", description="User email"),
+    calendar_title: str = Query("", description="Calendar event title (if opted in)"),
+    calendar_participants: str = Query("", description="Comma-separated participant emails"),
+    url_context: str = Query("", description="Current URL domain"),
+) -> dict[str, Any]:
+    """Intent Engine — infer what the user is trying to do without being told.
+
+    The core of ambient intelligence. Takes observable context (which app is
+    active, calendar metadata, URL domain) and infers likely intent:
+    preparing_for_negotiation, reviewing_code, resolving_incident, etc.
+
+    Privacy: does NOT inspect content. Uses only app identity, calendar
+    titles, and URL domains — never email bodies, document content, or
+    keystrokes.
+    """
+    from maestro_oem.intent import IntentEngine
+    engine = IntentEngine(oem_state.model, oem_state.signals)
+    calendar_context = {}
+    if calendar_title:
+        calendar_context["title"] = calendar_title
+    if calendar_participants:
+        calendar_context["participants"] = [p.strip() for p in calendar_participants.split(",") if p.strip()]
+    return engine.infer(
+        active_app=active_app,
+        user=user,
+        calendar_context=calendar_context,
+        url_context=url_context,
+    )
+
+
+@router.get("/interrupt")
+def get_interrupt_decisions(
+    user: str = Query("", description="User email"),
+    active_app: str = Query("", description="Current active app"),
+) -> dict[str, Any]:
+    """Interrupt Intelligence — which events warrant interruption right now?
+
+    Evaluates the executive feed against the user's current cognitive load
+    and intent, and returns only the events that warrant attention — with
+    a priority (ignore/notify/recommend/escalate/interrupt) and delivery
+    method (silent/badge/toast/banner/modal).
+    """
+    from maestro_oem.feed import ExecutiveFeed
+    from maestro_oem.interrupt import InterruptEngine
+    from maestro_oem.cognitive_load import CognitiveLoadEngine
+    from maestro_oem.intent import IntentEngine
+    from maestro_oem.gps import OrganizationalGPS
+
+    # Get the feed
+    feed = ExecutiveFeed(oem_state.model, oem_state.signals)
+    events = feed.generate(limit=30)
+
+    # Get user's cognitive load
+    gps = OrganizationalGPS(oem_state.model, oem_state.signals, oem_state.decisions)
+    user_data = gps.locate(user) if user else {}
+    cognitive_load = user_data.get("cognitive_load", {}).get("score", 0)
+
+    # Infer user's intent
+    intent_engine = IntentEngine(oem_state.model, oem_state.signals)
+    intent_result = intent_engine.infer(active_app=active_app, user=user)
+    user_intent = intent_result.get("intent", "")
+
+    # Evaluate each event
+    interrupt_engine = InterruptEngine(oem_state.model, oem_state.signals)
+    evaluated = interrupt_engine.evaluate_feed(
+        events,
+        user_cognitive_load=cognitive_load,
+        user_intent=user_intent,
+        user_email=user,
+    )
+
+    return {
+        "user": user,
+        "cognitive_load": cognitive_load,
+        "inferred_intent": user_intent,
+        "events_needing_attention": evaluated,
+        "total_evaluated": len(events),
+        "total_suppressed": len(events) - len(evaluated),
+    }
+
+
+@router.get("/ambient")
+def get_ambient_state(
+    user: str = Query("", description="User email"),
+    active_app: str = Query("", description="Current active app"),
+    calendar_title: str = Query("", description="Calendar event title"),
+    url_context: str = Query("", description="Current URL domain"),
+) -> dict[str, Any]:
+    """Ambient State — the single endpoint for the overlay/extension.
+
+    Returns everything the ambient delivery mechanism needs in one call:
+      - inferred intent
+      - recommended whisper (what to surface without being asked)
+      - pulse (organizational state)
+      - interrupt decisions (which events warrant attention)
+      - cognitive load (user's current load)
+
+    This is the endpoint a browser extension, IDE plugin, or overlay would
+    call to decide what (if anything) to show the user.
+    """
+    from maestro_oem.intent import IntentEngine
+    from maestro_oem.pulse import OrganizationalPulse
+    from maestro_oem.gps import OrganizationalGPS
+
+    # Infer intent
+    intent_engine = IntentEngine(oem_state.model, oem_state.signals)
+    calendar_context = {"title": calendar_title} if calendar_title else {}
+    intent = intent_engine.infer(
+        active_app=active_app,
+        user=user,
+        calendar_context=calendar_context,
+        url_context=url_context,
+    )
+
+    # Get pulse
+    pulse = OrganizationalPulse(oem_state.model, oem_state.signals)
+    pulse_state = pulse.compute()
+
+    # Get interrupt decisions
+    r = get_interrupt_decisions(user=user, active_app=active_app)
+    interrupts = r if isinstance(r, dict) else {}
+
+    # Get user cognitive load
+    gps = OrganizationalGPS(oem_state.model, oem_state.signals, oem_state.decisions)
+    user_data = gps.locate(user) if user else {}
+    user_cl = user_data.get("cognitive_load", {})
+
+    # Decide what to whisper
+    whisper = intent.get("recommended_whisper")
+
+    # Should we show anything at all?
+    should_show = (
+        whisper is not None
+        or len(interrupts.get("events_needing_attention", [])) > 0
+    ) and user_cl.get("level") != "overloaded"
+
+    return {
+        "should_show": should_show,
+        "intent": intent,
+        "whisper": whisper,
+        "pulse": {
+            "state": pulse_state["state"],
+            "temperature": pulse_state["temperature"],
+            "momentum": pulse_state["momentum"],
+            "narrative": pulse_state["narrative"],
+        },
+        "interrupts": interrupts.get("events_needing_attention", [])[:3],
+        "cognitive_load": user_cl,
+        "timestamp": datetime.now(timezone.utc).isoformat() if True else None,
+    }

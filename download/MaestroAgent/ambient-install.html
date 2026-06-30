@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maestro Ambient Overlay — Installation</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0d1a; color: #eaeaef; max-width: 640px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+  h1 { color: #7c5cff; font-size: 24px; }
+  h2 { color: #eaeaef; font-size: 18px; margin-top: 32px; }
+  .bookmarklet { display: inline-block; background: rgba(124,92,255,0.15); border: 1px solid rgba(124,92,255,0.4); color: #7c5cff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; cursor: grab; margin: 16px 0; }
+  .bookmarklet:hover { background: rgba(124,92,255,0.25); }
+  code { background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .step { background: rgba(255,255,255,0.03); padding: 16px; border-radius: 8px; margin: 12px 0; }
+  .step-num { display: inline-block; background: #7c5cff; color: #fff; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; font-weight: 700; margin-right: 8px; }
+  .host-config { background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; margin: 12px 0; }
+  input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #eaeaef; padding: 8px 12px; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 14px; }
+  .privacy { background: rgba(34,197,94,0.05); border-left: 3px solid #22c55e; padding: 12px; border-radius: 4px; margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<h1>Maestro Ambient Overlay</h1>
+<p style="color: #9a9aa3;">Surface organizational judgment on any page — without opening Maestro.</p>
+
+<div class="privacy">
+  <strong style="color: #22c55e;">Privacy by design.</strong> The overlay only reads the URL domain and page title.
+  It never inspects page content, email bodies, or keystrokes. It activates only when you click the bookmarklet —
+  Maestro never auto-activates.
+</div>
+
+<h2>Install the bookmarklet</h2>
+
+<div class="step">
+  <span class="step-num">1</span>
+  <strong>Configure your Maestro host:</strong>
+  <div class="host-config">
+    <label for="maestro-host" style="color:#9a9aa3;font-size:13px;">Maestro server URL:</label><br>
+    <input type="text" id="maestro-host" value="http://localhost:8000" oninput="updateBookmarklet()">
+  </div>
+</div>
+
+<div class="step">
+  <span class="step-num">2</span>
+  <strong>Drag this link to your bookmarks bar:</strong>
+  <br>
+  <a href="#" id="bookmarklet-link" class="bookmarklet">Maestro Whisper</a>
+</div>
+
+<div class="step">
+  <span class="step-num">3</span>
+  <strong>Click the bookmarklet on any page.</strong>
+  <br>
+  <span style="color: #9a9aa3;">When you're in Gmail, Calendar, GitHub, Jira, Slack, or Zoom, click "Maestro Whisper"
+  in your bookmarks bar. A small panel appears in the corner with organizational judgment relevant to your current context.</span>
+</div>
+
+<h2>What it does</h2>
+<p>When you click the bookmarklet, Maestro:</p>
+<ul>
+  <li><strong>Detects your context</strong> — which app you're in (Gmail, Calendar, GitHub, etc.)</li>
+  <li><strong>Infers your intent</strong> — preparing for a negotiation? reviewing code? resolving an incident?</li>
+  <li><strong>Surfaces a whisper</strong> — what the organization knows that's relevant right now</li>
+  <li><strong>Shows interrupts</strong> — events that warrant your attention, filtered by priority</li>
+  <li><strong>Displays the pulse</strong> — a one-line summary of the organization's current state</li>
+</ul>
+<p>The panel auto-dismisses after 15 seconds. If Maestro has nothing to add, it says so and disappears in 2 seconds.</p>
+
+<h2>How it works</h2>
+<p>The bookmarklet calls <code>/api/oem/ambient</code> with only three pieces of information:</p>
+<ul>
+  <li><code>active_app</code> — which app you're in (inferred from the URL domain)</li>
+  <li><code>calendar_title</code> — the page title (only useful on Calendar)</li>
+  <li><code>url_context</code> — the URL domain (not the full path)</li>
+</ul>
+<p>No page content is read. No keystrokes are logged. No email bodies are inspected. The overlay appears only when you explicitly click the bookmarklet.</p>
+
+<script>
+function updateBookmarklet() {
+  const host = document.getElementById('maestro-host').value || 'http://localhost:8000';
+  const code = `(function(){var h="${host}";var d=window.location.hostname;var t=document.title;var a="browser";if(d.includes("mail.google"))a="email";else if(d.includes("calendar.google"))a="calendar";else if(d.includes("github.com"))a="github";else if(d.includes("atlassian")||d.includes("jira"))a="jira";else if(d.includes("slack.com"))a="slack";else if(d.includes("zoom"))a="zoom";else if(d.includes("salesforce")||d.includes("hubspot"))a="crm";else if(d.includes("docs.google"))a="docs";var p=new URLSearchParams({active_app:a,calendar_title:t,url_context:d});fetch(h+"/api/oem/ambient?"+p).then(r=>r.json()).then(s){var e=document.getElementById("maestro-ov");if(e)e.remove();if(!s||!s.should_show){var x=document.createElement("div");x.id="maestro-ov";x.style.cssText="position:fixed;bottom:20px;right:20px;z-index:999999;background:#1a1a2e;color:#9a9aa3;font-family:sans-serif;font-size:12px;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);max-width:320px;";x.innerHTML='<span style="color:#7c5cff;font-weight:700;">M</span> Maestro has nothing to add right now.';document.body.appendChild(x);setTimeout(function(){x.remove()},2000);return}var o=document.createElement("div");o.id="maestro-ov";o.style.cssText="position:fixed;bottom:20px;right:20px;z-index:999999;background:#0d0d1a;color:#eaeaef;font-family:sans-serif;font-size:12px;padding:0;border-radius:10px;border:1px solid rgba(124,92,255,0.3);max-width:360px;box-shadow:0 8px 24px rgba(0,0,0,0.4);overflow:hidden;";var h2='<div style="background:rgba(124,92,255,0.1);padding:8px 12px;display:flex;justify-content:space-between;"><span style="color:#7c5cff;font-weight:700;">M Maestro Whisper</span><span style="color:#9a9aa3;font-size:10px;">'+(s.intent&&s.intent.label||"")+'</span></div>';if(s.whisper&&s.whisper.text){h2+='<div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.05);"><div>'+s.whisper.text+'</div>'+(s.whisper.action?'<div style="color:#7c5cff;font-size:11px;margin-top:4px;cursor:pointer" onclick="window.open(\''+h+(s.whisper.endpoint||"")+'\',\'_blank\')">'+s.whisper.action+' →</div>':"")+'</div>'}if(s.interrupts&&s.interrupts.length>0){h2+='<div style="padding:8px 12px;"><div style="color:#9a9aa3;font-size:10px;text-transform:uppercase;margin-bottom:4px;">Needs attention</div>';s.interrupts.slice(0,3).forEach(function(ev){h2+='<div style="margin-bottom:4px;padding-left:8px;border-left:2px solid #f59e0b;"><div>'+ev.title+'</div><div style="color:#9a9aa3;font-size:10px;">'+ev.why_it_matters+'</div></div>'});h2+='</div>'}if(s.pulse&&s.pulse.narrative){h2+='<div style="padding:6px 12px;color:#9a9aa3;font-size:10px;">● '+s.pulse.narrative+'</div>'}h2+='<div style="padding:4px 12px;text-align:right;"><span style="color:#6b7280;font-size:11px;cursor:pointer" onclick="this.closest(\'#maestro-ov\').remove()">✕</span></div>';o.innerHTML=h2;document.body.appendChild(o);setTimeout(function(){o.remove()},15000)}).catch(function(e){console.error("[Maestro]",e)})})();`;
+  document.getElementById('bookmarklet-link').href = 'javascript:' + encodeURIComponent(code);
+}
+updateBookmarklet();
+</script>
+
+</body>
+</html>

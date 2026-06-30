@@ -91,22 +91,45 @@ class OrganizationalGPS:
 
         recent = sorted(signals, key=lambda s: s.timestamp, reverse=True)
         last = recent[0]
-        days_ago = (datetime.now(timezone.utc) - last.timestamp).days
+        now = datetime.now(timezone.utc)
+        days_ago = (now - last.timestamp).days
 
-        # Infer what they're working on
+        # Build a time qualifier that reads naturally
+        if days_ago == 0:
+            time_q = "today"
+        elif days_ago == 1:
+            time_q = "yesterday"
+        elif days_ago < 7:
+            time_q = f"{days_ago}d ago"
+        elif days_ago < 30:
+            time_q = f"{days_ago // 7}w ago"
+        elif days_ago < 365:
+            time_q = f"{days_ago // 30}mo ago"
+        else:
+            time_q = f"{days_ago // 365}y ago"
+
+        # Infer what they're working on from recent signal types
         from maestro_oem.signal import SignalType
-        if any(s.type in (SignalType.PR_OPENED, SignalType.PR_MERGED, SignalType.COMMIT) for s in recent[:5]):
-            domain = recent[0].metadata.get("domain", "engineering")
-            return f"Active in {domain} engineering. Last signal {days_ago}d ago."
-        if any(s.type == SignalType.CUSTOMER_MEETING for s in recent[:5]):
-            customer = recent[0].metadata.get("customer", "a customer")
-            return f"Engaged with {customer}. Last meeting {days_ago}d ago."
-        if any(s.type == SignalType.ISSUE_TRANSITIONED for s in recent[:5]):
-            return f"In the delivery flow. Last Jira action {days_ago}d ago."
-        if any(s.type == SignalType.MEETING_COMPLETED for s in recent[:5]):
-            return f"In meetings/communication flow. Last meeting {days_ago}d ago."
+        recent_types = [s.type for s in recent[:5]]
 
-        return f"Active in the organization. Last signal {days_ago}d ago."
+        if any(t in (SignalType.PR_OPENED, SignalType.PR_MERGED, SignalType.COMMIT) for t in recent_types):
+            domain = recent[0].metadata.get("domain", "engineering")
+            return f"Active in {domain} engineering. Last signal {time_q}."
+        if any(t == SignalType.CUSTOMER_MEETING for t in recent_types):
+            customer = recent[0].metadata.get("customer", "a customer")
+            return f"Engaged with {customer}. Last meeting {time_q}."
+        if any(t == SignalType.ISSUE_TRANSITIONED for t in recent_types):
+            return f"In the delivery flow. Last Jira action {time_q}."
+        if any(t == SignalType.MEETING_COMPLETED for t in recent_types):
+            return f"In meetings/communication flow. Last meeting {time_q}."
+        if any(t == SignalType.CUSTOMER_COMMITMENT_MADE for t in recent_types):
+            customer = recent[0].metadata.get("customer", "a customer")
+            return f"Owns commitments to {customer}. Last commitment {time_q}."
+        if any(t == SignalType.CUSTOMER_OBJECTION for t in recent_types):
+            customer = recent[0].metadata.get("customer", "a customer")
+            return f"Handling objections from {customer}. Last signal {time_q}."
+
+        return f"Active in the organization. Last signal {time_q}."
 
     def _find_blockers(self, email: str) -> list[dict[str, Any]]:
         """Find what's blocking this user's progress."""

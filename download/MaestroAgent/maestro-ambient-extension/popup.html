@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { width: 280px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0a0a14; color: #eaeaef; padding: 12px; }
+  .header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .logo { width: 24px; height: 24px; border-radius: 6px; background: rgba(124,92,255,0.15); display: flex; align-items: center; justify-content: center; color: #7c5cff; font-weight: bold; }
+  .title { font-size: 13px; font-weight: 600; }
+  .status { font-size: 11px; color: #6b7280; margin-bottom: 10px; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; margin-bottom: 8px; }
+  .toggle-label { font-size: 12px; }
+  .toggle { position: relative; width: 36px; height: 20px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #374151; border-radius: 20px; transition: 0.3s; }
+  .slider:before { content: ""; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+  input:checked + .slider { background: #7c5cff; }
+  input:checked + .slider:before { transform: translateX(16px); }
+  .btn { width: 100%; padding: 8px; background: rgba(124,92,255,0.15); border: 1px solid rgba(124,92,255,0.3); color: #7c5cff; border-radius: 6px; font-size: 11px; cursor: pointer; margin-top: 4px; }
+  .btn:hover { background: rgba(124,92,255,0.25); }
+  .api-url { width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #eaeaef; border-radius: 4px; font-size: 11px; margin-top: 4px; box-sizing: border-box; }
+  .label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">M</div>
+    <div class="title">Maestro Whisper</div>
+  </div>
+  <div class="status" id="status">Checking connection…</div>
+
+  <div class="toggle-row">
+    <div class="toggle-label">Enable whispers</div>
+    <label class="toggle">
+      <input type="checkbox" id="enableToggle" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="label">Maestro API URL</div>
+  <input type="text" class="api-url" id="apiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+
+  <button class="btn" id="triggerBtn">Trigger whisper now</button>
+  <button class="btn" id="saveBtn" style="margin-top: 4px;">Save settings</button>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const toggle = document.getElementById('enableToggle');
+    const apiUrlInput = document.getElementById('apiUrl');
+    const triggerBtn = document.getElementById('triggerBtn');
+    const saveBtn = document.getElementById('saveBtn');
+
+    // Load settings
+    chrome.storage.local.get(['maestroApiUrl', 'whisperEnabled'], (result) => {
+      if (result.maestroApiUrl) apiUrlInput.value = result.maestroApiUrl;
+      if (result.whisperEnabled !== undefined) toggle.checked = result.whisperEnabled;
+      checkConnection(apiUrlInput.value);
+    });
+
+    // Check connection to Maestro
+    async function checkConnection(url) {
+      try {
+        const resp = await fetch(url + '/api/health');
+        if (resp.ok) {
+          statusEl.textContent = '● Connected to Maestro';
+          statusEl.style.color = '#10b981';
+        } else {
+          statusEl.textContent = '● Maestro unreachable';
+          statusEl.style.color = '#ef4444';
+        }
+      } catch {
+        statusEl.textContent = '● Maestro unreachable (is the server running?)';
+        statusEl.style.color = '#ef4444';
+      }
+    }
+
+    // Save settings
+    saveBtn.addEventListener('click', () => {
+      chrome.storage.local.set({
+        maestroApiUrl: apiUrlInput.value,
+        whisperEnabled: toggle.checked,
+      }, () => {
+        statusEl.textContent = '● Settings saved';
+        statusEl.style.color = '#10b981';
+        setTimeout(() => checkConnection(apiUrlInput.value), 1000);
+      });
+    });
+
+    // Toggle
+    toggle.addEventListener('change', () => {
+      chrome.storage.local.set({ whisperEnabled: toggle.checked });
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'toggleWhisper', enabled: toggle.checked });
+      });
+    });
+
+    // Trigger
+    triggerBtn.addEventListener('click', () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'triggerWhisper' });
+      });
+      window.close();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0a0a14; color: #eaeaef; padding: 20px; max-width: 400px; }
+  h1 { font-size: 16px; color: #7c5cff; }
+  label { font-size: 12px; color: #6b7280; display: block; margin-top: 12px; }
+  input { width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #eaeaef; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+  button { padding: 8px 16px; background: rgba(124,92,255,0.15); border: 1px solid rgba(124,92,255,0.3); color: #7c5cff; border-radius: 6px; cursor: pointer; margin-top: 16px; font-size: 12px; }
+  p { font-size: 11px; color: #6b7280; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <h1>Maestro Ambient Whisper — Settings</h1>
+  <p>Configure the Maestro API URL. The extension will call the Whisper API at this address when it detects you're in Gmail, Calendar, GitHub, Zoom, or Slack.</p>
+  <label>Maestro API URL</label>
+  <input type="text" id="apiUrl" value="http://localhost:8000">
+  <button id="save">Save</button>
+  <p style="margin-top: 16px;"><strong>Privacy:</strong> This extension does NOT inspect email bodies, document content, or keystrokes. It uses only the page URL and title to infer context, then calls the Maestro Whisper API. No data is stored or transmitted elsewhere.</p>
+  <script>
+    chrome.storage.local.get(['maestroApiUrl'], (result) => {
+      if (result.maestroApiUrl) document.getElementById('apiUrl').value = result.maestroApiUrl;
+    });
+    document.getElementById('save').addEventListener('click', () => {
+      chrome.storage.local.set({ maestroApiUrl: document.getElementById('apiUrl').value });
+      alert('Saved.');
+    });
+  </script>
+</body>
+</html>
