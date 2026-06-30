@@ -134,25 +134,29 @@ class PreparationEngine:
         impact = getattr(rec, "impact", "")
         confidence = getattr(rec, "confidence", 0.5)
         linked_laws = getattr(rec, "linked_laws", [])
+        # Use the title as a stable identifier — rec_id changes between calls
+        # because DecisionEngine generates new UUIDs each time get_recommendations()
+        # is called. The title is deterministic and unique per recommendation.
         rec_id = getattr(rec, "rec_id", "")
+        stable_id = title  # Stable across calls for auto-linking
 
         title_lower = title.lower()
         impact_lower = impact.lower()
 
         # Determine preparation type from the recommendation's content
         if any(kw in title_lower for kw in ["rollback", "deploy", "release", "ship"]):
-            return self._prepare_rollback_plan(rec, title, rec_id, confidence, linked_laws)
+            return self._prepare_rollback_plan(rec, title, stable_id, confidence, linked_laws)
         elif any(kw in title_lower for kw in ["bottleneck", "approval", "gate"]):
-            return self._prepare_rfc_draft(rec, title, rec_id, confidence, linked_laws)
+            return self._prepare_rfc_draft(rec, title, stable_id, confidence, linked_laws)
         elif any(kw in title_lower for kw in ["customer", "renewal", "churn", "objection"]):
-            return self._prepare_customer_brief(rec, title, rec_id, confidence, linked_laws)
+            return self._prepare_customer_brief(rec, title, stable_id, confidence, linked_laws)
         elif any(kw in title_lower for kw in ["incident", "p1", "outage", "sev"]):
-            return self._prepare_incident_response(rec, title, rec_id, confidence, linked_laws)
+            return self._prepare_incident_response(rec, title, stable_id, confidence, linked_laws)
         elif any(kw in title_lower for kw in ["legal", "compliance", "contract", "policy"]):
-            return self._prepare_legal_packet(rec, title, rec_id, confidence, linked_laws)
+            return self._prepare_legal_packet(rec, title, stable_id, confidence, linked_laws)
         else:
             # Default: prepare a general brief
-            return self._prepare_general_brief(rec, title, rec_id, confidence, linked_laws)
+            return self._prepare_general_brief(rec, title, stable_id, confidence, linked_laws)
 
     def _prepare_rollback_plan(self, rec, title, rec_id, confidence, linked_laws) -> Preparation:
         """Assemble a rollback plan from OEM data."""

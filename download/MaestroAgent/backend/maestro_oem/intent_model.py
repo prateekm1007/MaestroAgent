@@ -307,10 +307,12 @@ class IntentStore:
                         self.add_assumption(intent_id, assumption["assumption_id"])
 
             # Auto-link existing preparations that were created for this recommendation
+            # Preparations use the recommendation title as a stable ID (rec_id changes between calls)
             if preparation_engine:
                 for prep in preparation_engine.list_preparations():
                     prep_rec_id = prep.get("recommendation_id", "")
-                    if rec_id and rec_id == prep_rec_id:
+                    # Match by stable_id (title) since rec_id changes between calls
+                    if title and (title == prep_rec_id or title[:30] in prep_rec_id):
                         self.add_preparation(intent_id, prep["preparation_id"])
 
         return inferred_ids
