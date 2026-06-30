@@ -2482,12 +2482,17 @@ def _get_intent_store():
     if _intent_store is None:
         from maestro_oem.intent_model import IntentStore
         _intent_store = IntentStore()
-        # Infer intents from current recommendations
+        # Infer intents from current recommendations, auto-linking assumptions + preparations
         try:
             recs = oem_state.decisions.get_recommendations()
-            _intent_store.infer_from_recommendations(recs)
-        except Exception:
-            pass
+            assumption_graph = _get_assumption_graph()
+            # Build preparation engine for auto-linking
+            from maestro_oem.preparation import PreparationEngine
+            prep_engine = PreparationEngine(oem_state.model, oem_state.signals, oem_state.decisions)
+            prep_engine.prepare_all()
+            _intent_store.infer_from_recommendations(recs, assumption_graph, prep_engine)
+        except Exception as e:
+            logger.warning("Intent inference failed: %s", e)
     return _intent_store
 
 def _get_hypothesis_store():

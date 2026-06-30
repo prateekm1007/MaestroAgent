@@ -254,11 +254,17 @@ class IntentStore:
 
         return cascade
 
-    def infer_from_recommendations(self, recommendations: list[Any]) -> list[str]:
+    def infer_from_recommendations(self, recommendations: list[Any],
+                                    assumption_graph=None, preparation_engine=None) -> list[str]:
         """Infer intents from OEM recommendations.
 
         Each recommendation implies an intent: "address bottleneck X"
         implies the intent "unblock work gated by X."
+
+        If assumption_graph and preparation_engine are provided, this method
+        also auto-links existing assumptions and preparations that were
+        created for the same recommendation, so the cascade query returns
+        a fully populated tree without manual linking.
         """
         inferred_ids = []
         for rec in recommendations:
@@ -290,5 +296,21 @@ class IntentStore:
                 intent_type=intent_type,
             )
             inferred_ids.append(intent_id)
+
+            # Auto-link existing assumptions that were created for this recommendation
+            if assumption_graph:
+                for assumption in assumption_graph.list_assumptions():
+                    # Match by recommendation_id in the assumption's context or linked_recommendation_id
+                    a_context = assumption.get("context", "")
+                    a_rec_id = assumption.get("linked_recommendation_id", "")
+                    if rec_id and (rec_id in a_context or rec_id == a_rec_id or title[:30] in a_context):
+                        self.add_assumption(intent_id, assumption["assumption_id"])
+
+            # Auto-link existing preparations that were created for this recommendation
+            if preparation_engine:
+                for prep in preparation_engine.list_preparations():
+                    prep_rec_id = prep.get("recommendation_id", "")
+                    if rec_id and rec_id == prep_rec_id:
+                        self.add_preparation(intent_id, prep["preparation_id"])
 
         return inferred_ids
