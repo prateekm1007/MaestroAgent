@@ -46,7 +46,8 @@ class TestOemState:
         r = client.get("/api/oem/state")
         providers = r.json()["providers"]
         provider_names = {p["provider"] for p in providers}
-        assert provider_names == {"github", "jira", "slack", "confluence", "gmail"}
+        # 5 original providers + customer (Customer Judgment Engine)
+        assert provider_names == {"github", "jira", "slack", "confluence", "gmail", "customer"}
         for p in providers:
             assert p["signal_count"] > 0, f"{p['provider']} has 0 signals"
             assert p["label"], f"{p['provider']} has no label"
@@ -96,7 +97,8 @@ class TestOemDashboard:
 
     def test_returns_providers_connected(self, client):
         data = client.get("/api/oem/dashboard").json()
-        assert len(data["providers_connected"]) == 5
+        # 5 original + customer
+        assert len(data["providers_connected"]) == 6
 
 
 # ============================================================
@@ -313,19 +315,21 @@ class TestNoHardcodedInsights:
         """The state must reflect the real seed signal data."""
         data = client.get("/api/oem/state").json()
         summary = data["summary"]
-        assert summary["signals_processed"] == 39, \
-            f"Expected 39 signals, got {summary['signals_processed']} — OEM not wired"
+        # 39 base signals + 26 customer signals (3 enterprise customers)
+        assert summary["signals_processed"] == 65, \
+            f"Expected 65 signals (39 base + 26 customer), got {summary['signals_processed']} — OEM not wired"
         # Note: laws_inferred was previously >= 3, but the L-0001/L-0003
         # near-duplicate (same person, same bottleneck, different evidence
-        # counts) is now deduplicated to a single law. The correct
-        # expectation is >= 2 (one per distinct bottleneck person).
-        assert summary["laws_inferred"] >= 2, \
-            f"Expected at least 2 laws, got {summary['laws_inferred']}"
+        # counts) is now deduplicated to a single law. With the customer
+        # provider adding 4 customer-specific laws, total is >= 6.
+        assert summary["laws_inferred"] >= 6, \
+            f"Expected at least 6 laws, got {summary['laws_inferred']}"
         assert "github" in summary["providers_connected"]
         assert "jira" in summary["providers_connected"]
         assert "slack" in summary["providers_connected"]
         assert "confluence" in summary["providers_connected"]
         assert "gmail" in summary["providers_connected"]
+        assert "customer" in summary["providers_connected"]
 
     def test_recommendations_have_real_provenance(self, client):
         """Provenance must include OEM-derived fields, not hardcoded strings."""

@@ -278,6 +278,7 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
       <div class="sidebar-link" data-surface="flow" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Knowledge Flow</div>
       <div class="sidebar-link" data-surface="memory" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Memory Replay</div>
       <div class="sidebar-link" data-surface="ask" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>Ask the Org</div>
+      <div class="sidebar-link" data-surface="customer" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Customer Judgment</div>
       <div class="sidebar-link" data-surface="physics" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>Physics</div>
       <div class="sidebar-link" data-surface="debate" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Debate</div>
       <div class="sidebar-link" data-surface="live" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>Live Meeting</div>
@@ -626,6 +627,86 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
                   <div class="text-[11px] text-fg-400 leading-relaxed" id="ask-path"></div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- SURFACE: CUSTOMER JUDGMENT ENGINE -->
+      <!-- ============================================================ -->
+      <section class="surface" id="surface-customer">
+        <div class="p-6 space-y-5 max-w-6xl mx-auto">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Customer Judgment Engine</div>
+            <h1 class="text-2xl font-bold text-white">What does the organization know about this relationship?</h1>
+            <p class="text-xs text-fg-400 mt-1">Another OEM surface — reads the same signals, laws, and receipts as every other view.</p>
+          </div>
+
+          <!-- Morning Brief -->
+          <div class="panel">
+            <div class="panel-header"><span>Morning Brief — Relationships needing attention today</span><span class="text-[10px] text-fg-500" id="customer-morning-summary"></span></div>
+            <div class="panel-body" id="customer-morning">
+              <div class="loading-state"><span class="spinner"></span>Loading judgment…</div>
+            </div>
+          </div>
+
+          <!-- Customer List + Selector -->
+          <div class="panel">
+            <div class="panel-header"><span>Customer Relationships</span><span class="text-[10px] text-fg-500">Click any customer for the full judgment</span></div>
+            <div class="panel-body" id="customer-list">
+              <div class="loading-state"><span class="spinner"></span>Loading…</div>
+            </div>
+          </div>
+
+          <!-- Selected Customer: Executive Brief -->
+          <div class="panel" id="customer-brief-panel" style="display:none;">
+            <div class="panel-header"><span id="customer-brief-title">Executive Brief</span><span class="text-[10px] text-fg-500" id="customer-brief-confidence"></span></div>
+            <div class="panel-body space-y-4" id="customer-brief-body"></div>
+          </div>
+
+          <!-- Selected Customer: Buying Committee -->
+          <div class="panel" id="customer-committee-panel" style="display:none;">
+            <div class="panel-header"><span>Buying Committee</span><span class="text-[10px] text-fg-500" id="customer-committee-meta"></span></div>
+            <div class="panel-body" id="customer-committee-body"></div>
+          </div>
+
+          <!-- Selected Customer: Drift -->
+          <div class="panel" id="customer-drift-panel" style="display:none;">
+            <div class="panel-header"><span>Relationship Drift</span><span class="text-[10px] text-fg-500">Continuous metrics, not snapshots</span></div>
+            <div class="panel-body" id="customer-drift-body"></div>
+          </div>
+
+          <!-- Ask the Relationship -->
+          <div class="panel">
+            <div class="panel-header"><span>Ask the Relationship</span><span class="text-[10px] text-fg-500">Natural-language query</span></div>
+            <div class="panel-body space-y-3">
+              <div style="position:relative;">
+                <input type="text" class="ask-input" id="customer-ask-input" placeholder="e.g. 'Why is Initech slowing down?'" onkeydown="if(event.key==='Enter') submitCustomerAsk(this.value)" aria-label="Ask the relationship">
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Why is Initech slowing down?'; submitCustomerAsk('Why is Initech slowing down?')">Why is Initech slowing down?</button>
+                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Who actually influences Globex?'; submitCustomerAsk('Who actually influences Globex?')">Who influences Globex?</button>
+                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Why did we lose Hooli?'; submitCustomerAsk('Why did we lose Hooli?')">Why did we lose Hooli?</button>
+                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='What promises have we made?'; submitCustomerAsk('What promises have we made?')">What promises have we made?</button>
+                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Which engineering work unlocks the most ARR?'; submitCustomerAsk('Which engineering work unlocks the most ARR?')">Which engineering unlocks the most ARR?</button>
+              </div>
+              <div id="customer-ask-answer" class="space-y-2" style="display:none;">
+                <div class="text-sm text-fg-200 leading-relaxed" id="customer-ask-text"></div>
+                <div class="text-[11px] text-fg-400" id="customer-ask-evidence"></div>
+                <div class="text-[11px] text-amber-400" id="customer-ask-unknowns"></div>
+                <div class="text-[10px] text-fg-500" id="customer-ask-confidence"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Customer Digital Twin -->
+          <div class="panel">
+            <div class="panel-header"><span>Customer Digital Twin — What happens if…?</span></div>
+            <div class="panel-body space-y-3">
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="customer-twin-scenarios"></div>
+              <div id="customer-twin-form" class="space-y-2" style="display:none;"></div>
+              <div id="customer-twin-result" style="display:none;"></div>
             </div>
           </div>
         </div>

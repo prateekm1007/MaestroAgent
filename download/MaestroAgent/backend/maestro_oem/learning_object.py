@@ -40,6 +40,15 @@ class LearningObjectType(str, Enum):
     DECISION_PATTERN = "decision_pattern"
     RELEASE_PATTERN = "release_pattern"
     REVIEW_PATTERN = "review_pattern"
+    # Customer Judgment Engine — relationship-level Learning Objects.
+    # These are NOT people records; they model the organizational relationship
+    # with a customer account (who champions us, what was promised, how the
+    # relationship is drifting, what risks are accumulating).
+    CUSTOMER_COMMITTEE_ROLE = "customer_committee_role"  # inferred buying-committee role (champion, economic buyer, etc.)
+    CUSTOMER_COMMITMENT = "customer_commitment"           # a promise made to a customer (with due date + status)
+    CUSTOMER_DECISION_PATTERN = "customer_decision_pattern"  # how this customer historically decides
+    CUSTOMER_DRIFT = "customer_drift"                     # relationship momentum / trust / engagement trend
+    CUSTOMER_RISK = "customer_risk"                       # accumulated risk on a customer relationship
 
 
 class LearningObject(BaseModel):

@@ -206,9 +206,10 @@ class TestDemoProvider:
         assert fetcher.provider == "github"
 
     def test_demo_provider_supports_all_five_providers(self):
-        """The demo dataset covers the same 5 providers as real OAuth."""
+        """The demo dataset covers the same providers as real OAuth plus customer."""
         providers = demo_provider_names()
-        assert set(providers) == {"github", "jira", "slack", "confluence", "gmail"}
+        # 5 original (github, jira, slack, confluence, gmail) + customer
+        assert set(providers) == {"github", "jira", "slack", "confluence", "gmail", "customer"}
 
     def test_demo_provider_fetch_page_returns_items(self):
         """fetch_page_sync returns the demo items for page 1."""
@@ -241,7 +242,8 @@ class TestDemoProvider:
         """Sanity check on the demo dataset size."""
         total = demo_total_events()
         # 11 github + 12 jira + 6 slack + 6 confluence + 4 gmail = 39
-        assert total == 39, f"Expected 39 demo events, got {total}"
+        # + 26 customer events (3 enterprise customers) = 65
+        assert total == 65, f"Expected 65 demo events, got {total}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

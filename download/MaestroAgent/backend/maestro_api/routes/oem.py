@@ -1801,3 +1801,202 @@ def explain_confidence(
         contradiction_log=getattr(oem_state, "_contradiction_log", None),
     )
     return manager.explain_confidence(entity_id, confidence, entity_type)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 17. CUSTOMER JUDGMENT ENGINE — another OEM surface, not a parallel system
+# ═══════════════════════════════════════════════════════════════════════════
+# The Customer Judgment Engine reads customer signals (which have already
+# flowed through the ingestion pipeline into LOs, patterns, and laws) and
+# produces organizational judgment: briefs, committee graphs, drift analysis,
+# opportunity graphs, natural-language answers, and what-if simulations.
+#
+# Every output is evidence-backed. Every confidence traces to the OEM.
+# The engine NEVER models people — it models organizational relationships.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _customer_engine():
+    """Construct a CustomerJudgmentEngine from the live OEM state."""
+    from maestro_oem.customer_judgment import CustomerJudgmentEngine
+    return CustomerJudgmentEngine(oem_state.model, oem_state.signals, oem_state.decisions)
+
+
+@router.get("/customer/morning")
+def customer_morning_brief() -> dict[str, Any]:
+    """The Customer Morning Brief — 3 relationships needing attention today.
+
+    Surfaces the customer relationships with the highest escalation_risk * ARR.
+    For each: why, risk, opportunity, recommended decision, business impact,
+    confidence, expected value.
+    """
+    return _customer_engine().morning_brief()
+
+
+@router.get("/customer/brief/{customer}")
+def customer_executive_brief(customer: str) -> dict[str, Any]:
+    """Pre-meeting briefing for a customer relationship.
+
+    Returns: relationship state, open commitments, recent interactions,
+    outstanding risks, likely objections, decision history, recommended
+    outcome, things not to say, evidence, confidence, business impact.
+    """
+    return _customer_engine().executive_brief(customer)
+
+
+@router.get("/customer/memory/{customer}")
+def customer_relationship_memory(
+    customer: str,
+    q: str = Query("", description="Search query for the timeline"),
+) -> dict[str, Any]:
+    """Searchable timeline of every interaction with a customer.
+
+    Every meeting, email, commitment, decision, objection — with receipts.
+    """
+    return _customer_engine().relationship_memory(customer, query=q)
+
+
+@router.get("/customer/committee/{customer}")
+def customer_buying_committee(customer: str) -> dict[str, Any]:
+    """Inferred buying-committee graph for a customer.
+
+    Returns: members with roles, influence, support level, confidence;
+    decision radius; role coverage (filled vs missing).
+    """
+    return _customer_engine().buying_committee(customer)
+
+
+@router.get("/customer/drift/{customer}")
+def customer_relationship_drift(customer: str) -> dict[str, Any]:
+    """Continuously-computed drift metrics for a customer.
+
+    Returns: momentum, trust, executive engagement, response latency,
+    decision readiness, champion health, buying velocity, escalation risk.
+    """
+    return _customer_engine().relationship_drift(customer)
+
+
+@router.get("/customer/opportunity/{customer}")
+def customer_opportunity_graph(customer: str) -> dict[str, Any]:
+    """Cross-functional dependencies affecting this customer opportunity.
+
+    Connects engineering, legal, finance, security, support, product,
+    customer success. NOT pipeline stages — execution dependencies.
+    """
+    return _customer_engine().opportunity_graph(customer)
+
+
+@router.get("/customer/ask")
+def customer_ask(q: str = Query(..., description="Natural-language question")) -> dict[str, Any]:
+    """Ask the Relationship — natural-language customer query.
+
+    Examples:
+      ?q=Why is Initech slowing down?
+      ?q=Who actually influences Globex?
+      ?q=Why did we lose Hooli?
+      ?q=What promises have we made?
+      ?q=Which engineering work unlocks the most ARR?
+
+    Returns: answer, evidence, counter-evidence, unknowns, confidence.
+    """
+    return _customer_engine().ask(q)
+
+
+@router.get("/customer/physics/{customer}")
+def customer_physics(customer: str) -> dict[str, Any]:
+    """Customer Physics — inferred continuous metrics, NOT CRM stages.
+
+    Returns: decision velocity, trust velocity, knowledge flow, commitment
+    health, organizational gravity, escalation pressure, buying momentum.
+    """
+    return _customer_engine().customer_physics(customer)
+
+
+@router.get("/customer/list")
+def customer_list() -> dict[str, Any]:
+    """List all customer accounts known to the OEM."""
+    engine = _customer_engine()
+    customers = []
+    for name in engine._all_customers():
+        arr = engine._arr_at_stake(name)
+        drift = engine.relationship_drift(name)
+        customers.append({
+            "name": name,
+            "arr_at_stake": arr,
+            "state": drift["momentum"],
+            "escalation_risk": drift["escalation_risk"],
+            "champion_health": drift["champion_health"],
+        })
+    customers.sort(key=lambda c: c["arr_at_stake"], reverse=True)
+    return {"customers": customers, "total": len(customers)}
+
+
+@router.post("/customer/twin/simulate")
+def customer_twin_simulate(payload: dict[str, Any]) -> dict[str, Any]:
+    """Run a what-if scenario on a customer relationship.
+
+    Payload: {
+      type: "pricing" | "pilot" | "delay" | "champion_leaves" |
+            "security" | "procurement" | "legal",
+      customer: str,
+      ...scenario-specific params
+    }
+
+    Returns: expected outcome, confidence, supporting evidence,
+    counter-evidence, business impact, alternative actions.
+    """
+    from maestro_oem.customer_twin import CustomerScenarioEngine
+    engine = _customer_engine()
+    twin = CustomerScenarioEngine(engine)
+    report = twin.run_scenario(payload)
+    return report.to_dict()
+
+
+@router.get("/customer/twin/scenarios")
+def customer_twin_scenarios() -> dict[str, Any]:
+    """List available customer what-if scenario types."""
+    return {
+        "scenarios": [
+            {
+                "type": "pricing",
+                "title": "What if we increase price?",
+                "params": [{"name": "increase_pct", "type": "number", "required": True}],
+                "example": {"type": "pricing", "customer": "Globex", "increase_pct": 10},
+            },
+            {
+                "type": "pilot",
+                "title": "What if we offer a pilot?",
+                "params": [{"name": "days", "type": "integer", "required": False, "default": 90}],
+                "example": {"type": "pilot", "customer": "Initech", "days": 90},
+            },
+            {
+                "type": "delay",
+                "title": "What if we delay delivery?",
+                "params": [{"name": "weeks", "type": "integer", "required": True}],
+                "example": {"type": "delay", "customer": "Globex", "weeks": 4},
+            },
+            {
+                "type": "champion_leaves",
+                "title": "What if the champion departs?",
+                "params": [],
+                "example": {"type": "champion_leaves", "customer": "Initech"},
+            },
+            {
+                "type": "security",
+                "title": "What if a security concern is raised?",
+                "params": [],
+                "example": {"type": "security", "customer": "Globex"},
+            },
+            {
+                "type": "procurement",
+                "title": "What if procurement delays?",
+                "params": [{"name": "weeks", "type": "integer", "required": False, "default": 3}],
+                "example": {"type": "procurement", "customer": "Globex", "weeks": 3},
+            },
+            {
+                "type": "legal",
+                "title": "What if legal review takes longer?",
+                "params": [{"name": "weeks", "type": "integer", "required": False, "default": 4}],
+                "example": {"type": "legal", "customer": "Globex", "weeks": 4},
+            },
+        ]
+    }

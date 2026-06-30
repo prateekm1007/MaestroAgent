@@ -172,6 +172,148 @@ _GMAIL_ITEMS = [
       "duration": 60, "subject": "Q3 Hiring Decision"}},
 ]
 
+# ─── Customer demo dataset (3 enterprise customers) ─────────────────────────
+# Models the organizational relationship between Acme (the seller) and three
+# enterprise customers: Globex (healthy, expanding), Initech (drifting,
+# at-risk), Hooli (churning). Each event is a relationship signal —
+# meetings, emails, commitments, stage changes, objections, champion
+# activity. No personal data; only business-role metadata.
+#
+# The dataset is designed to produce:
+#   - Buying-committee patterns (3+ role signals per customer → law candidate)
+#   - Commitment-health patterns (kept/broken ratios → law candidate)
+#   - Drift patterns (champion_quiet signals → law candidate on Initech)
+#   - Risk clusters (objections on Hooli → law candidate)
+
+_CUSTOMER_ITEMS = [
+    # ─── Globex: healthy, expanding relationship ───────────────────────────
+    # Champion: raj@globex.com (active). Economic buyer: sam@globex.com.
+    # ARR at stake: $3.2M. Story: renewal progressing, SSO commitment made+kept.
+    {"event_type": "meeting", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-mtg-1", "timestamp": "2024-10-15T10:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",
+                  "arr_impact": 3200000, "subject": "Q4 renewal kickoff",
+                  "participants": ["jane.d@acme.com", "raj@globex.com"]}},
+    {"event_type": "meeting", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-mtg-2", "timestamp": "2024-10-22T14:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "sam@globex.com", "role": "economic_buyer",
+                  "arr_impact": 3200000, "subject": "Pricing review",
+                  "participants": ["jane.d@acme.com", "sam@globex.com"]}},
+    {"event_type": "meeting", "actor": "chris.t@acme.com",
+     "artifact": "crm:globex-mtg-3", "timestamp": "2024-10-29T11:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "alex@globex.com", "role": "technical_buyer",
+                  "arr_impact": 3200000, "subject": "Architecture review",
+                  "participants": ["chris.t@acme.com", "alex@globex.com"]}},
+    {"event_type": "commitment_made", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-commit-1", "timestamp": "2024-11-01T09:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",
+                  "arr_impact": 3200000, "commitment": "Deliver SSO by 2024-12-15",
+                  "due_date": "2024-12-15"}},
+    {"event_type": "commitment_kept", "actor": "chris.t@acme.com",
+     "artifact": "crm:globex-commit-1-kept", "timestamp": "2024-12-10T16:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",
+                  "arr_impact": 3200000, "commitment": "Deliver SSO by 2024-12-15"}},
+    {"event_type": "champion_active", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-champ-1", "timestamp": "2024-12-12T10:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",
+                  "arr_impact": 3200000}},
+    {"event_type": "stage_change", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-stage-1", "timestamp": "2024-12-15T12:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",
+                  "arr_impact": 3200000, "stage": "negotiation"}},
+    {"event_type": "decision", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-dec-1", "timestamp": "2024-12-20T15:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "sam@globex.com", "role": "economic_buyer",
+                  "arr_impact": 3200000, "decision_outcome": "renewed"}},
+    {"event_type": "contract_renewed", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-contract-1", "timestamp": "2025-01-05T10:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "sam@globex.com", "role": "economic_buyer",
+                  "arr_impact": 3200000, "contract_value": 3200000}},
+
+    # ─── Initech: drifting, at-risk relationship ───────────────────────────
+    # Champion: priya@initech.com (went quiet). Economic buyer: max@initech.com.
+    # ARR at stake: $1.8M. Story: champion disengaged, broken commitment,
+    # objection on pricing. Should produce drift + risk patterns.
+    {"event_type": "meeting", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-mtg-1", "timestamp": "2024-09-10T10:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "priya@initech.com", "role": "champion",
+                  "arr_impact": 1800000, "subject": "Renewal discussion",
+                  "participants": ["jane.d@acme.com", "priya@initech.com"]}},
+    {"event_type": "meeting", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-mtg-2", "timestamp": "2024-09-20T14:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "max@initech.com", "role": "economic_buyer",
+                  "arr_impact": 1800000, "subject": "Pricing negotiation",
+                  "participants": ["jane.d@acme.com", "max@initech.com"]}},
+    {"event_type": "meeting", "actor": "chris.t@acme.com",
+     "artifact": "crm:initech-mtg-3", "timestamp": "2024-10-05T11:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "ben@initech.com", "role": "security",
+                  "arr_impact": 1800000, "subject": "Security review",
+                  "participants": ["chris.t@acme.com", "ben@initech.com"]}},
+    {"event_type": "commitment_made", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-commit-1", "timestamp": "2024-10-10T09:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "priya@initech.com", "role": "champion",
+                  "arr_impact": 1800000, "commitment": "Deliver SOC2 report by 2024-11-15",
+                  "due_date": "2024-11-15"}},
+    {"event_type": "commitment_broken", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-commit-1-broken", "timestamp": "2024-11-20T16:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "priya@initech.com", "role": "champion",
+                  "arr_impact": 1800000, "commitment": "Deliver SOC2 report by 2024-11-15"}},
+    {"event_type": "objection", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-obj-1", "timestamp": "2024-11-25T10:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "max@initech.com", "role": "economic_buyer",
+                  "arr_impact": 1800000, "objection_type": "pricing"}},
+    {"event_type": "champion_quiet", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-quiet-1", "timestamp": "2024-12-01T00:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "priya@initech.com", "role": "champion",
+                  "arr_impact": 1800000}},
+    {"event_type": "champion_quiet", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-quiet-2", "timestamp": "2024-12-15T00:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "priya@initech.com", "role": "champion",
+                  "arr_impact": 1800000}},
+    {"event_type": "objection", "actor": "jane.d@acme.com",
+     "artifact": "crm:initech-obj-2", "timestamp": "2025-01-05T10:00:00Z",
+     "metadata": {"customer": "Initech", "contact": "max@initech.com", "role": "economic_buyer",
+                  "arr_impact": 1800000, "objection_type": "timeline"}},
+
+    # ─── Hooli: churning relationship ──────────────────────────────────────
+    # Champion: carl@hooli.com (left). ARR at stake: $2.4M (lost).
+    # Story: champion departed, multiple objections, contract churned.
+    {"event_type": "meeting", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-mtg-1", "timestamp": "2024-08-05T10:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "carl@hooli.com", "role": "champion",
+                  "arr_impact": 2400000, "subject": "Renewal kickoff",
+                  "participants": ["jane.d@acme.com", "carl@hooli.com"]}},
+    {"event_type": "meeting", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-mtg-2", "timestamp": "2024-08-20T14:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "vincent@hooli.com", "role": "economic_buyer",
+                  "arr_impact": 2400000, "subject": "Pricing discussion",
+                  "participants": ["jane.d@acme.com", "vincent@hooli.com"]}},
+    {"event_type": "objection", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-obj-1", "timestamp": "2024-09-01T10:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "vincent@hooli.com", "role": "economic_buyer",
+                  "arr_impact": 2400000, "objection_type": "pricing"}},
+    {"event_type": "objection", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-obj-2", "timestamp": "2024-09-15T10:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "vincent@hooli.com", "role": "economic_buyer",
+                  "arr_impact": 2400000, "objection_type": "features"}},
+    {"event_type": "champion_quiet", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-quiet-1", "timestamp": "2024-10-01T00:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "carl@hooli.com", "role": "champion",
+                  "arr_impact": 2400000}},
+    {"event_type": "commitment_broken", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-commit-1-broken", "timestamp": "2024-10-15T16:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "vincent@hooli.com", "role": "economic_buyer",
+                  "arr_impact": 2400000, "commitment": "Custom integration by Q3"}},
+    {"event_type": "decision", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-dec-1", "timestamp": "2024-11-01T15:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "vincent@hooli.com", "role": "economic_buyer",
+                  "arr_impact": 2400000, "decision_outcome": "churned"}},
+    {"event_type": "contract_churned", "actor": "jane.d@acme.com",
+     "artifact": "crm:hooli-churn-1", "timestamp": "2024-11-10T10:00:00Z",
+     "metadata": {"customer": "Hooli", "contact": "vincent@hooli.com", "role": "economic_buyer",
+                  "arr_impact": 2400000, "contract_value": 2400000}},
+]
+
 # Map provider name → its demo items. Each provider is one page.
 _DEMO_PAGES: dict[str, list[dict[str, Any]]] = {
     "github": _GITHUB_ITEMS,
@@ -179,6 +321,7 @@ _DEMO_PAGES: dict[str, list[dict[str, Any]]] = {
     "slack": _SLACK_ITEMS,
     "confluence": _CONFLUENCE_ITEMS,
     "gmail": _GMAIL_ITEMS,
+    "customer": _CUSTOMER_ITEMS,
 }
 
 # Map provider name → its normalizer (lazy import to avoid cycles).
@@ -188,6 +331,7 @@ _NORMALIZER_NAMES = {
     "slack": "normalize_slack",
     "confluence": "normalize_confluence",
     "gmail": "normalize_gmail",
+    "customer": "normalize_customer",
 }
 
 

@@ -26,6 +26,7 @@ class PatternType(str, Enum):
     VELOCITY = "velocity"  # Throughput patterns (P1 → velocity drop)
     KNOWLEDGE = "knowledge"  # Knowledge distribution patterns
     APPROVAL = "approval"  # Approval gate patterns
+    CUSTOMER = "customer"  # Customer relationship patterns (drift, committee, commitment health)
 
 
 class Pattern(BaseModel):
@@ -103,6 +104,12 @@ class PatternDetector:
 
         # Approval: gate patterns
         new_patterns.extend(self._detect_approval_gates(learning_objects))
+
+        # Customer: relationship drift, committee formation, commitment health
+        new_patterns.extend(self._detect_customer_drift(learning_objects))
+        new_patterns.extend(self._detect_customer_committee(learning_objects))
+        new_patterns.extend(self._detect_customer_commitment_health(learning_objects))
+        new_patterns.extend(self._detect_customer_objection_clusters(learning_objects))
 
         # Merge with existing patterns
         for new_p in new_patterns:
@@ -305,5 +312,180 @@ class PatternDetector:
                     providers=all_providers,
                     coverage=len(gate_los),
                     metadata={"gate": gate, "total_evidence": total_evidence},
+                ))
+        return patterns
+
+    # ─── Customer relationship patterns ──────────────────────────────────
+
+    def _detect_customer_drift(self, los: list) -> list[Pattern]:
+        """Detect relationship drift — aggregates CUSTOMER_DRIFT LOs per customer.
+
+        A pattern is promoted when a customer accumulates >= 2 drift signals
+        (champion quiet, engagement waning). This becomes a law candidate
+        like "Globex champion engagement is decaying — predict renewal risk."
+        """
+        patterns: list[Pattern] = []
+        by_customer: dict[str, list] = {}
+        for lo in los:
+            if lo.type.value == "customer_drift":
+                customer = lo.metadata.get("customer", "unknown")
+                by_customer.setdefault(customer, []).append(lo)
+
+        for customer, cust_los in by_customer.items():
+            total_evidence = sum(lo.evidence_count for lo in cust_los)
+            if total_evidence >= 2:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                arr = 0.0
+                for lo in cust_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
+                    arr += float(lo.metadata.get("arr_impact", 0) or 0)
+                patterns.append(Pattern(
+                    type=PatternType.CUSTOMER,
+                    description=f"{customer} relationship drifting — {total_evidence} drift signals across {len(cust_los)} observations",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(cust_los),
+                    metadata={
+                        "customer": customer,
+                        "total_evidence": total_evidence,
+                        "arr_at_stake": arr,
+                        "drift_type": "relationship_decay",
+                    },
+                ))
+        return patterns
+
+    def _detect_customer_committee(self, los: list) -> list[Pattern]:
+        """Detect buying-committee formation — aggregates COMMITTEE_ROLE LOs.
+
+        A pattern is promoted when a customer has >= 3 distinct role signals,
+        indicating the buying committee is taking shape. The law candidate
+        becomes "Globex buying committee: champion=Raj, economic_buyer=Sam..."
+        """
+        patterns: list[Pattern] = []
+        by_customer: dict[str, list] = {}
+        for lo in los:
+            if lo.type.value == "customer_committee_role":
+                customer = lo.metadata.get("customer", "unknown")
+                by_customer.setdefault(customer, []).append(lo)
+
+        for customer, cust_los in by_customer.items():
+            total_evidence = sum(lo.evidence_count for lo in cust_los)
+            if total_evidence >= 3:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                roles_seen: dict[str, str] = {}
+                for lo in cust_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
+                    role = lo.metadata.get("role", "")
+                    contact = lo.metadata.get("contact", "")
+                    if role and contact:
+                        roles_seen[role] = contact
+                patterns.append(Pattern(
+                    type=PatternType.CUSTOMER,
+                    description=f"{customer} buying committee active — {len(roles_seen)} roles identified across {total_evidence} signals",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(roles_seen),
+                    metadata={
+                        "customer": customer,
+                        "roles": roles_seen,
+                        "total_evidence": total_evidence,
+                    },
+                ))
+        return patterns
+
+    def _detect_customer_commitment_health(self, los: list) -> list[Pattern]:
+        """Detect commitment-health patterns per customer.
+
+        When a customer accumulates >= 2 commitment LOs, we promote a pattern
+        showing the kept/broken ratio. A high broken ratio becomes a law
+        candidate like "Acme has a pattern of broken commitments — trust
+        deficit predicts renewal failure."
+        """
+        patterns: list[Pattern] = []
+        by_customer: dict[str, list] = {}
+        for lo in los:
+            if lo.type.value == "customer_commitment":
+                customer = lo.metadata.get("customer", "unknown")
+                by_customer.setdefault(customer, []).append(lo)
+
+        for customer, cust_los in by_customer.items():
+            total_evidence = sum(lo.evidence_count for lo in cust_los)
+            if total_evidence >= 2:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                kept = 0
+                broken = 0
+                open_count = 0
+                for lo in cust_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
+                    status = lo.metadata.get("status", "open")
+                    if status == "kept":
+                        kept += 1
+                    elif status == "broken":
+                        broken += 1
+                    else:
+                        open_count += 1
+                health_ratio = kept / max(kept + broken, 1)
+                patterns.append(Pattern(
+                    type=PatternType.CUSTOMER,
+                    description=f"{customer} commitment health — {kept} kept, {broken} broken, {open_count} open across {total_evidence} signals",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(cust_los),
+                    metadata={
+                        "customer": customer,
+                        "kept": kept,
+                        "broken": broken,
+                        "open": open_count,
+                        "health_ratio": round(health_ratio, 3),
+                    },
+                ))
+        return patterns
+
+    def _detect_customer_objection_clusters(self, los: list) -> list[Pattern]:
+        """Detect clusters of objections on the same customer.
+
+        When a customer accumulates >= 2 objection LOs, we promote a pattern.
+        The law candidate becomes "Globex objects to security concerns —
+        repeated pattern indicates unresolved review-blocker."
+        """
+        patterns: list[Pattern] = []
+        by_customer: dict[str, list] = {}
+        for lo in los:
+            if lo.type.value == "customer_risk":
+                customer = lo.metadata.get("customer", "unknown")
+                by_customer.setdefault(customer, []).append(lo)
+
+        for customer, cust_los in by_customer.items():
+            total_evidence = sum(lo.evidence_count for lo in cust_los)
+            if total_evidence >= 2:
+                all_providers: set[str] = set()
+                lo_ids: list = []
+                arr = 0.0
+                objection_types: list[str] = []
+                for lo in cust_los:
+                    all_providers.update(lo.providers)
+                    lo_ids.append(lo.lo_id)
+                    arr += float(lo.metadata.get("arr_impact", 0) or 0)
+                    ot = lo.metadata.get("objection_type", "")
+                    if ot:
+                        objection_types.append(ot)
+                patterns.append(Pattern(
+                    type=PatternType.CUSTOMER,
+                    description=f"{customer} risk cluster — {total_evidence} risk signals across {len(cust_los)} observations",
+                    learning_object_ids=lo_ids,
+                    providers=all_providers,
+                    coverage=len(cust_los),
+                    metadata={
+                        "customer": customer,
+                        "total_evidence": total_evidence,
+                        "arr_at_stake": arr,
+                        "objection_types": objection_types,
+                    },
                 ))
         return patterns

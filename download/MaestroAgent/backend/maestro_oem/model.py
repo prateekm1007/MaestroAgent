@@ -351,6 +351,8 @@ class ExecutionModel(BaseModel):
             los.extend(self._confluence_to_los(signal))
         elif signal.provider == SignalProvider.GMAIL:
             los.extend(self._gmail_to_los(signal))
+        elif signal.provider == SignalProvider.CUSTOMER:
+            los.extend(self._customer_to_los(signal))
 
         return los
 
@@ -603,6 +605,242 @@ class ExecutionModel(BaseModel):
                 )
                 lo.add_evidence(signal.signal_id, "gmail")
                 los.append(lo)
+
+        return los
+
+    def _customer_to_los(self, signal: ExecutionSignal) -> list[LearningObject]:
+        """Customer signals produce relationship-level LearningObjects.
+
+        These are NOT personal profiles. They model the organizational
+        relationship with a customer account:
+          - who (which contact) plays which committee role
+          - what commitments have been made and whether they're healthy
+          - how the relationship is drifting (champion going quiet, etc.)
+          - what risks are accumulating
+
+        The `entities` field always contains [internal_employee, customer_contact]
+        and the `metadata.customer` field carries the account name. This keeps
+        the LO relationship-oriented, not person-oriented.
+        """
+        los: list[LearningObject] = []
+        customer = signal.metadata.get("customer", "unknown")
+        contact = signal.metadata.get("contact", "")
+        role = signal.metadata.get("role", "")
+        arr = signal.metadata.get("arr_impact", 0)
+        entities = [signal.actor] + ([contact] if contact else [])
+
+        # ─── Committee role signals ──────────────────────────────────────
+        # When a contact takes a meaningful action (meeting, email, decision,
+        # objection), we record their inferred committee role. Over time
+        # these accumulate into a buying-committee graph.
+        if signal.type in (SignalType.CUSTOMER_MEETING, SignalType.CUSTOMER_EMAIL,
+                           SignalType.CUSTOMER_DECISION, SignalType.CUSTOMER_OBJECTION,
+                           SignalType.CUSTOMER_CHAMPION_ACTIVE,
+                           SignalType.CUSTOMER_STAGE_CHANGE) and role and contact:
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_COMMITTEE_ROLE,
+                title=f"{contact} ({role}) engaged on {customer}",
+                description=(
+                    f"Committee role signal: {contact} acts as {role} for {customer}. "
+                    f"Interaction: {signal.type.value} via {signal.actor}."
+                ),
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "contact": contact,
+                    "role": role,
+                    "interaction": signal.type.value,
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        # ─── Commitment signals ──────────────────────────────────────────
+        # A commitment is a promise made to a customer. We record it when
+        # made, and update its health when kept or broken.
+        if signal.type == SignalType.CUSTOMER_COMMITMENT_MADE:
+            commitment = signal.metadata.get("commitment", "unnamed commitment")
+            due_date = signal.metadata.get("due_date", "")
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_COMMITMENT,
+                title=f"Commitment to {customer}: {commitment}",
+                description=(
+                    f"Promise made by {signal.actor} to {customer}: {commitment}. "
+                    f"Due: {due_date}. ARR at stake: ${arr:,.0f}."
+                ),
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "commitment": commitment,
+                    "due_date": due_date,
+                    "status": "open",
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        elif signal.type == SignalType.CUSTOMER_COMMITMENT_KEPT:
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_COMMITMENT,
+                title=f"Commitment kept to {customer}",
+                description=f"Fulfilled promise to {customer}. Positive trust signal.",
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "commitment": signal.metadata.get("commitment", ""),
+                    "status": "kept",
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        elif signal.type == SignalType.CUSTOMER_COMMITMENT_BROKEN:
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_COMMITMENT,
+                title=f"Commitment BROKEN to {customer}",
+                description=(
+                    f"Missed promise to {customer}: {signal.metadata.get('commitment', '')}. "
+                    f"Trust impact: negative. ARR at stake: ${arr:,.0f}."
+                ),
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "commitment": signal.metadata.get("commitment", ""),
+                    "status": "broken",
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        # ─── Drift signals ───────────────────────────────────────────────
+        # Champion going quiet is the strongest leading indicator of
+        # relationship decay. We record it as a DRIFT LO so the pattern
+        # detector can aggregate "N quiet weeks" into a law.
+        if signal.type == SignalType.CUSTOMER_CHAMPION_QUIET:
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_DRIFT,
+                title=f"Champion quiet at {customer}: {contact}",
+                description=(
+                    f"{contact} (champion at {customer}) has gone quiet. "
+                    f"Engagement may be waning — relationship drift risk."
+                ),
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "contact": contact,
+                    "role": role or "champion",
+                    "drift_type": "champion_quiet",
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        elif signal.type == SignalType.CUSTOMER_CHAMPION_ACTIVE:
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_DRIFT,
+                title=f"Champion active at {customer}: {contact}",
+                description=f"Positive engagement signal from {contact} at {customer}.",
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "contact": contact,
+                    "role": role or "champion",
+                    "drift_type": "champion_active",
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        # ─── Risk signals ────────────────────────────────────────────────
+        # Objections, broken commitments, and churn events accumulate as
+        # relationship risks. The pattern detector can promote "N objections
+        # on the same customer" into a law like "Customer X rejects proposals
+        # involving Y".
+        if signal.type == SignalType.CUSTOMER_OBJECTION:
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_RISK,
+                title=f"Objection raised by {customer}: {signal.metadata.get('objection_type', '')}",
+                description=(
+                    f"Customer objection from {contact} at {customer}: "
+                    f"{signal.metadata.get('objection_type', 'unspecified')}. "
+                    f"ARR at stake: ${arr:,.0f}."
+                ),
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "contact": contact,
+                    "objection_type": signal.metadata.get("objection_type", ""),
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        elif signal.type == SignalType.CUSTOMER_CONTRACT_CHURNED:
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_RISK,
+                title=f"CHURN: {customer} contract lost",
+                description=(
+                    f"Customer {customer} has churned. Lost ARR: ${arr:,.0f}. "
+                    f"Pattern should be analyzed to prevent recurrence."
+                ),
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "risk_type": "churn",
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
+
+        # ─── Decision pattern signals ────────────────────────────────────
+        # Record how the customer historically decides so we can predict
+        # future decision velocity.
+        if signal.type == SignalType.CUSTOMER_DECISION:
+            outcome = signal.metadata.get("decision_outcome", "unknown")
+            lo = LearningObject(
+                type=LearningObjectType.CUSTOMER_DECISION_PATTERN,
+                title=f"Decision by {customer}: {outcome}",
+                description=(
+                    f"Customer {customer} made a decision: {outcome}. "
+                    f"Contact: {contact} ({role}). ARR impact: ${arr:,.0f}."
+                ),
+                entities=entities,
+                artifacts=[signal.artifact],
+                providers={"customer"},
+                metadata={
+                    "customer": customer,
+                    "contact": contact,
+                    "role": role,
+                    "outcome": outcome,
+                    "arr_impact": arr,
+                },
+            )
+            lo.add_evidence(signal.signal_id, "customer")
+            los.append(lo)
 
         return los
 

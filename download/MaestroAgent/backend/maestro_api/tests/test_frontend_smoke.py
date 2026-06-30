@@ -128,8 +128,9 @@ class TestOEMDataLoads:
         page.wait_for_selector("#home-oem-state .metric-value", timeout=15000)
         text = page.text_content("#home-oem-state")
         assert "Loading" not in text, "Dashboard still loading"
-        # The OEM seed data has 39 signals
-        assert "39" in text, f"Expected 39 signals in dashboard, got: {text}"
+        # The OEM seed data has 65 signals (39 base + 26 customer from the
+        # Customer Judgment Engine provider)
+        assert "65" in text, f"Expected 65 signals in dashboard, got: {text}"
 
     def test_overnight_changes_load(self, browser_context):
         page, _, _ = browser_context
@@ -175,6 +176,24 @@ class TestNavigation:
         page, _, _ = browser_context
         page.click('.sidebar-link[data-surface="ask"]')
         page.wait_for_selector("#surface-ask.active", timeout=5000)
+
+    def test_navigate_to_customer(self, browser_context):
+        """The Customer Judgment Engine surface must load and render real data."""
+        page, _, _ = browser_context
+        page.click('.sidebar-link[data-surface="customer"]')
+        page.wait_for_selector("#surface-customer.active", timeout=5000)
+        # Morning brief must load
+        _wait_for_loading_done(page, "customer-morning", 20)
+        text = page.text_content("#customer-morning")
+        assert "Loading" not in text, "Customer morning brief still loading"
+        # Should mention at least one demo customer (Globex, Initech, or Hooli)
+        assert any(name in text for name in ["Globex", "Initech", "Hooli"]), (
+            f"Customer morning brief did not render demo customers: {text[:200]}"
+        )
+        # Customer list must load
+        _wait_for_loading_done(page, "customer-list", 20)
+        list_text = page.text_content("#customer-list")
+        assert "Loading" not in list_text
 
     def test_navigate_to_simulator(self, browser_context):
         page, _, _ = browser_context

@@ -12,6 +12,7 @@ from maestro_oem.providers.jira import normalize_jira
 from maestro_oem.providers.slack import normalize_slack
 from maestro_oem.providers.confluence import normalize_confluence
 from maestro_oem.providers.gmail import normalize_gmail
+from maestro_oem.providers.customer import normalize_customer
 
 __all__ = [
     "normalize_github",
@@ -19,4 +20,5 @@ __all__ = [
     "normalize_slack",
     "normalize_confluence",
     "normalize_gmail",
+    "normalize_customer",
 ]

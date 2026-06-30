@@ -76,6 +76,17 @@ _CONCEPT_SYNONYMS: dict[str, set[str]] = {
     "oauth": {"auth", "sso", "identity", "token"},
     "platform": {"infrastructure", "infra", "platform", "foundation"},
     "engineering": {"dev", "developer", "eng", "swe"},
+    # Customer Judgment Engine concepts — map NL queries to customer LOs/laws.
+    "customer": {"account", "client", "prospect", "buyer"},
+    "champion": {"advocate", "supporter", "ally"},
+    "renewal": {"renew", "extend", "continue"},
+    "churn": {"left", "departed", "cancelled", "lost"},
+    "objection": {"concern", "pushback", "hesitation", "resistance"},
+    "committee": {"buying committee", "decision committee", "stakeholders"},
+    "commitment": {"promise", "pledge", "guarantee", "commitments"},
+    "globex": {"globex"},
+    "initech": {"initech"},
+    "hooli": {"hooli"},
 }
 
 # Maps keywords to OEM LearningObject types
@@ -105,6 +116,18 @@ _LO_TYPE_TRIGGERS: dict[str, str] = {
     "release": "release_pattern",
     "review": "review_pattern",
     "decision": "decision_pattern",
+    # Customer Judgment Engine LO types
+    "champion": "customer_committee_role",
+    "committee": "customer_committee_role",
+    "buyer": "customer_committee_role",
+    "commitment": "customer_commitment",
+    "promise": "customer_commitment",
+    "pledge": "customer_commitment",
+    "objection": "customer_risk",
+    "churn": "customer_risk",
+    "drift": "customer_drift",
+    "renewal": "customer_decision_pattern",
+    "customer_decision": "customer_decision_pattern",
 }
 
 

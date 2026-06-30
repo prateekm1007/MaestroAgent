@@ -24,6 +24,7 @@ class SignalProvider(str, Enum):
     CONFLUENCE = "confluence"
     GMAIL = "gmail"
     CALENDAR = "calendar"
+    CUSTOMER = "customer"  # CRM, support, contracts — the Customer Judgment Engine
     UNKNOWN = "unknown"
 
 
@@ -69,6 +70,27 @@ class SignalType(str, Enum):
     INCIDENT = "incident"
     DEPLOYMENT = "deployment"
     RELEASE = "release"
+
+    # Customer Judgment Engine — CRM, support, contracts, commitments.
+    # These are organizational relationship signals, not personal research.
+    # Every type models a relationship event (who interacted with which
+    # customer account, what commitment was made, what stage the relationship
+    # moved to). The actor is always an internal employee; the customer is
+    # always in metadata.customer.
+    CUSTOMER_MEETING = "customer.meeting"            # internal × customer meeting completed
+    CUSTOMER_EMAIL = "customer.email"                # internal × customer email exchanged
+    CUSTOMER_STAGE_CHANGE = "customer.stage_change"  # pipeline stage transition (relationship milestone)
+    CUSTOMER_COMMITMENT_MADE = "customer.commitment_made"   # a promise was made to the customer
+    CUSTOMER_COMMITMENT_KEPT = "customer.commitment_kept"   # a promise was fulfilled
+    CUSTOMER_COMMITMENT_BROKEN = "customer.commitment_broken"  # a promise was missed
+    CUSTOMER_SUPPORT_TICKET = "customer.support_ticket"     # support interaction
+    CUSTOMER_CONTRACT_SIGNED = "customer.contract_signed"   # legal milestone
+    CUSTOMER_CONTRACT_RENEWED = "customer.contract_renewed"
+    CUSTOMER_CONTRACT_CHURNED = "customer.contract_churned"
+    CUSTOMER_DECISION = "customer.decision"          # the customer made a buying/renewal decision
+    CUSTOMER_OBJECTION = "customer.objection"        # the customer raised a concern
+    CUSTOMER_CHAMPION_ACTIVE = "customer.champion_active"   # champion is engaged
+    CUSTOMER_CHAMPION_QUIET = "customer.champion_quiet"     # champion has gone silent (drift signal)
 
 
 class ExecutionSignal(BaseModel):
