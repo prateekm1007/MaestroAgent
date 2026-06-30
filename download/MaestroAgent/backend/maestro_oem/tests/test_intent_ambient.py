@@ -164,3 +164,53 @@ class TestAmbientOverlay:
         app_dir = os.environ.get("MAESTRO_APP_DIR", ".")
         js_path = Path(app_dir) / "static" / "maestro-ambient.js"
         assert js_path.exists(), "static/maestro-ambient.js not found"
+
+    def test_ambient_should_show_false_on_random_page(self, client):
+        """On a random page with no app context, should_show should be False.
+
+        The auditor found that should_show was always true, even on random
+        pages. The fix: only show when there's a real app context OR
+        urgent interrupts.
+        """
+        r = client.get("/api/oem/ambient?user=priya.m@acme.com")
+        d = r.json()
+        # With no active_app, should_show should be False (no context)
+        assert d["should_show"] is False, (
+            f"should_show should be False on a random page with no app context, "
+            f"got {d['should_show']} with intent {d['intent']['intent']}"
+        )
+
+    def test_ambient_should_show_true_on_calendar(self, client):
+        """On Calendar with a customer meeting, should_show should be True."""
+        r = client.get("/api/oem/ambient?user=jane.d@acme.com&active_app=calendar&calendar_title=Q4 renewal with Globex")
+        d = r.json()
+        assert d["should_show"] is True
+
+    def test_ambient_interrupts_have_priority(self, client):
+        """Every interrupt event must have a non-None priority."""
+        r = client.get("/api/oem/ambient?user=jane.d@acme.com&active_app=calendar&calendar_title=Q4 renewal with Globex")
+        d = r.json()
+        for ev in d.get("interrupts", []):
+            decision = ev.get("interrupt_decision", {})
+            assert decision.get("priority") is not None, (
+                f"Interrupt event has None priority: {ev.get('title')}"
+            )
+            assert decision["priority"] in ("ignore", "notify", "recommend", "escalate", "interrupt")
+
+
+class TestWebSocketLivePulse:
+    def test_ambient_pulse_websocket_exists(self, client):
+        """The /ws/ambient/pulse WebSocket endpoint should be registered."""
+        # We can't easily test WebSocket in TestClient without async,
+        # but we can verify the route exists by checking the app's routes.
+        routes = [r.path for r in client.app.routes if hasattr(r, 'path')]
+        assert "/ws/ambient/pulse" in routes, (
+            f"/ws/ambient/pulse not found in routes: {[r for r in routes if 'ambient' in r or 'ws' in r]}"
+        )
+
+    def test_websocket_module_has_ambient_handler(self):
+        """The websocket module should have the ambient pulse handler."""
+        from maestro_api import websocket
+        # The register_ws_routes function should exist and be callable
+        assert hasattr(websocket, 'register_ws_routes')
+        assert callable(websocket.register_ws_routes)

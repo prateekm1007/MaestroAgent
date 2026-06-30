@@ -78,3 +78,68 @@ def register_ws_routes(app: FastAPI) -> None:
             logger.exception("WS error for run %s: %s", run_id, exc)
         finally:
             unsub()
+
+    # ─── Ambient live pulse WebSocket ────────────────────────────────────
+    # Layer 3 of the ambient prompt: "maintain a continuously updating
+    # model, nothing waits for refresh." This endpoint pushes the
+    # organizational pulse + executive feed to connected clients every
+    # 30 seconds, so the dashboard feels alive without polling.
+    @app.websocket("/ws/ambient/pulse")
+    async def stream_ambient_pulse(websocket: WebSocket) -> None:
+        await websocket.accept()
+        logger.info("Ambient pulse WS connected")
+
+        try:
+            # Send an initial pulse immediately
+            await _send_ambient_update(websocket)
+
+            # Then push every 30 seconds
+            while True:
+                await asyncio.sleep(30)
+                await _send_ambient_update(websocket)
+        except WebSocketDisconnect:
+            logger.info("Ambient pulse WS disconnected")
+        except Exception as exc:
+            logger.exception("Ambient pulse WS error: %s", exc)
+
+    async def _send_ambient_update(websocket: WebSocket) -> None:
+        """Compute and send the current pulse + feed summary."""
+        try:
+            from maestro_api.oem_state import oem_state
+            from maestro_oem.pulse import OrganizationalPulse
+            from maestro_oem.feed import ExecutiveFeed
+
+            oem_state.initialize()
+            model = oem_state.model
+            signals = oem_state.signals
+
+            pulse = OrganizationalPulse(model, signals)
+            pulse_state = pulse.compute()
+
+            feed = ExecutiveFeed(model, signals)
+            events = feed.generate(limit=5)
+
+            await websocket.send_json({
+                "type": "ambient_update",
+                "timestamp": pulse_state["timestamp"],
+                "pulse": {
+                    "state": pulse_state["state"],
+                    "temperature": pulse_state["temperature"],
+                    "momentum": pulse_state["momentum"],
+                    "alignment": pulse_state["alignment"],
+                    "trust": pulse_state["trust"],
+                    "knowledge_mobility": pulse_state["knowledge_mobility"],
+                    "decision_speed": pulse_state["decision_speed"],
+                    "narrative": pulse_state["narrative"],
+                },
+                "feed_events": [
+                    {
+                        "event_type": e["event_type"],
+                        "title": e["title"],
+                        "priority": e.get("confidence", 0),
+                    }
+                    for e in events
+                ],
+            })
+        except Exception as exc:
+            logger.warning("Ambient update failed: %s", exc)

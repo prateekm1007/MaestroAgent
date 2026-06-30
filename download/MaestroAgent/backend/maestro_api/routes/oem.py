@@ -2249,6 +2249,7 @@ def get_ambient_state(
     # Get interrupt decisions
     r = get_interrupt_decisions(user=user, active_app=active_app)
     interrupts = r if isinstance(r, dict) else {}
+    interrupt_events = interrupts.get("events_needing_attention", [])
 
     # Get user cognitive load
     gps = OrganizationalGPS(oem_state.model, oem_state.signals, oem_state.decisions)
@@ -2257,24 +2258,53 @@ def get_ambient_state(
 
     # Decide what to whisper
     whisper = intent.get("recommended_whisper")
+    intent_confidence = intent.get("confidence", 0)
 
     # Should we show anything at all?
+    # Be conservative: only show when there's real value.
+    # - Don't show if the user is overloaded (respect their attention)
+    # - Don't show if the intent is "unknown" (no context detected)
+    # - Don't show if no active_app was provided (no context = no whisper)
+    # - Show if there are escalate/interrupt priority events
+    # - Show if the intent confidence is high (>0.5) AND there's a whisper
+    has_urgent_interrupts = any(
+        ev.get("interrupt_decision", {}).get("priority") in ("escalate", "interrupt")
+        for ev in interrupt_events
+    )
+    intent_is_unknown = intent.get("intent") == "unknown"
+    has_context = bool(active_app)  # No app = no context = don't show
+
     should_show = (
-        whisper is not None
-        or len(interrupts.get("events_needing_attention", [])) > 0
-    ) and user_cl.get("level") != "overloaded"
+        not intent_is_unknown
+        and user_cl.get("level") != "overloaded"
+        and has_context  # Must have detected an app context
+        and (
+            has_urgent_interrupts
+            or (intent_confidence >= 0.5 and whisper is not None)
+        )
+    )
+
+    # Ensure every interrupt event has a priority (defensive — auditor found None)
+    safe_interrupts = []
+    for ev in interrupt_events[:3]:
+        safe_ev = dict(ev)
+        if "interrupt_decision" not in safe_ev or safe_ev["interrupt_decision"] is None:
+            safe_ev["interrupt_decision"] = {"priority": "notify", "delivery": "badge"}
+        elif safe_ev["interrupt_decision"].get("priority") is None:
+            safe_ev["interrupt_decision"]["priority"] = "notify"
+        safe_interrupts.append(safe_ev)
 
     return {
         "should_show": should_show,
         "intent": intent,
-        "whisper": whisper,
+        "whisper": whisper if should_show else None,
         "pulse": {
             "state": pulse_state["state"],
             "temperature": pulse_state["temperature"],
             "momentum": pulse_state["momentum"],
             "narrative": pulse_state["narrative"],
         },
-        "interrupts": interrupts.get("events_needing_attention", [])[:3],
+        "interrupts": safe_interrupts,
         "cognitive_load": user_cl,
         "timestamp": datetime.now(timezone.utc).isoformat() if True else None,
     }
