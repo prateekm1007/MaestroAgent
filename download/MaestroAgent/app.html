@@ -252,18 +252,45 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
   .sidebar { position: fixed; z-index: 50; height: 100%; transform: translateX(-100%); transition: transform var(--transition); }
   .sidebar.mobile-open { transform: translateX(0); }
 }
+
+/* WCAG 2.1: Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* WCAG 2.1: Skip-to-content link — visible on focus only */
+.skip-link {
+  position: absolute; top: -40px; left: 0; z-index: 10000;
+  background: #7c5cff; color: #fff; padding: 8px 16px;
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  border-radius: 0 0 8px 0; transition: top 0.2s;
+}
+.skip-link:focus { top: 0; }
+
+/* WCAG 2.1: Visible focus indicator on all interactive elements */
+*:focus-visible {
+  outline: 2px solid #7c5cff !important;
+  outline-offset: 2px;
+}
 </style>
 <link rel="preload" as="fetch" href="/api/oem/ceo-briefing" crossorigin>
 <link rel="preload" as="fetch" href="/api/oem/dashboard" crossorigin>
 </head>
 <body>
+<!-- WCAG 2.1: Skip-to-content link for keyboard users -->
+<a href="#main-content" class="skip-link">Skip to content</a>
 <!-- Demo-mode banner — unmistakable visual indicator when demo seed is active -->
-<div id="demo-banner" style="display:none; background:#f59e0b; color:#000; font-size:11px; font-weight:700; text-align:center; padding:4px 8px; letter-spacing:0.05em; text-transform:uppercase; position:sticky; top:0; z-index:9999;">
+<div id="demo-banner" role="alert" style="display:none; background:#f59e0b; color:#000; font-size:11px; font-weight:700; text-align:center; padding:4px 8px; letter-spacing:0.05em; text-transform:uppercase; position:sticky; top:0; z-index:9999;">
   ⚠ Demo Mode — Showing synthetic acme-corp sample data. Connect real providers via Settings to see live signals.
 </div>
 <div class="app-shell" id="app">
   <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
     <div class="p-4 border-b border-white/[0.06]">
       <div class="flex items-center gap-2">
         <div class="w-8 h-8 rounded-lg bg-brand-purple/15 flex items-center justify-center text-brand-purple font-bold text-sm">M</div>
@@ -321,7 +348,8 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
     </header>
 
     <!-- Main scroll area -->
-    <main class="main-scroll" id="main-scroll">
+    <main class="main-scroll" id="main-scroll" role="main" aria-label="Main content" tabindex="-1">
+      <div id="main-content">
 
       <!-- ============================================================ -->
       <!-- SURFACE: HOME -->
@@ -939,6 +967,7 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
         </div>
       </section>
 
+      </div><!-- /main-content -->
     </main>
   </div>
 </div>

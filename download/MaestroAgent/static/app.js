@@ -53,6 +53,14 @@ function navTo(surface) {
   document.getElementById('bc-detail').textContent = '';
   document.getElementById('main-scroll').scrollTop = 0;
   closeMobileSidebar();
+
+  // WCAG 2.1: Move focus to main content for screen reader users
+  const mainContent = document.getElementById('main-content');
+  if (mainContent) {
+    mainContent.setAttribute('tabindex', '-1');
+    mainContent.focus({ preventScroll: true });
+  }
+
   loadSurfaceData(surface);
 }
 

@@ -59,9 +59,30 @@ def _demo_seed_enabled() -> bool:
     Honors MAESTRO_DEMO_SEED env var. Defaults to True (demo on) so the
     product is evaluable without OAuth credentials. Set MAESTRO_DEMO_SEED=false
     to start with an empty OEM — useful for tests and production deployments.
+
+    In production (MAESTRO_ENV=production), defaults to False — a production
+    deployment must never silently load synthetic data. If demo seed is
+    explicitly enabled in production, a warning is logged.
     """
-    val = os.environ.get("MAESTRO_DEMO_SEED", "true").strip().lower()
-    return val not in ("false", "0", "no", "off")
+    val = os.environ.get("MAESTRO_DEMO_SEED", "").strip().lower()
+    is_production = os.environ.get("MAESTRO_ENV", "development") == "production"
+
+    if val:
+        # Explicitly set — honor it
+        enabled = val not in ("false", "0", "no", "off")
+        if enabled and is_production:
+            logger.warning(
+                "MAESTRO_DEMO_SEED=true in production (MAESTRO_ENV=production). "
+                "Synthetic demo data will be loaded. This is NOT recommended for "
+                "production deployments — set MAESTRO_DEMO_SEED=false."
+            )
+        return enabled
+
+    # Not explicitly set — use environment-aware default
+    if is_production:
+        logger.info("MAESTRO_DEMO_SEED not set in production — defaulting to false (no demo data)")
+        return False
+    return True  # Development default: demo on
 
 
 class OEMState:

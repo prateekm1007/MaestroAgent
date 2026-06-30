@@ -11,6 +11,9 @@ subscriber pushes it to the WebSocket.
 
 Backpressure: if a client is slow, events queue up in memory. v0.2 will
 add a bounded queue + drop policy. For now, we warn and keep going.
+
+Scaling: for multi-instance deployments, the message broker (Redis or
+in-process) handles cross-instance broadcast. See message_broker.py.
 """
 
 from __future__ import annotations
@@ -22,14 +25,26 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 
+from maestro_api.message_broker import get_message_broker
+
 logger = logging.getLogger(__name__)
 
 ws_router = APIRouter()
+
+# Connection limit for graceful degradation. When exceeded, new connections
+# receive a 1013 (try again later) close code instead of crashing the server.
+MAX_WS_CONNECTIONS = 1000
+_active_connections = 0
 
 
 def register_ws_routes(app: FastAPI) -> None:
     @app.websocket("/ws/{run_id}")
     async def stream_events(websocket: WebSocket, run_id: str) -> None:
+        global _active_connections
+        if _active_connections >= MAX_WS_CONNECTIONS:
+            await websocket.close(code=1013, reason="Server overloaded — try again later")
+            return
+
         # Auth: if enabled, check the token query param (browsers can't
         # set custom headers on WS connections).
         state: Any = app.state.maestro
@@ -47,6 +62,7 @@ def register_ws_routes(app: FastAPI) -> None:
                     return
 
         await websocket.accept()
+        _active_connections += 1
         bus = state.get_or_create_bus(run_id)
 
         # Queue to push events to this client.
@@ -78,68 +94,114 @@ def register_ws_routes(app: FastAPI) -> None:
             logger.exception("WS error for run %s: %s", run_id, exc)
         finally:
             unsub()
+            _active_connections -= 1
 
-    # ─── Ambient live pulse WebSocket ────────────────────────────────────
+    # ─── Ambient live pulse WebSocket (with message broker) ─────────────
     # Layer 3 of the ambient prompt: "maintain a continuously updating
     # model, nothing waits for refresh." This endpoint pushes the
     # organizational pulse + executive feed to connected clients every
     # 30 seconds, so the dashboard feels alive without polling.
+    #
+    # Uses the message broker for cross-instance broadcast: if multiple
+    # server instances are running (with Redis), a pulse computed on
+    # instance A is received by WebSocket clients on instance B.
     @app.websocket("/ws/ambient/pulse")
     async def stream_ambient_pulse(websocket: WebSocket) -> None:
+        global _active_connections
+        if _active_connections >= MAX_WS_CONNECTIONS:
+            await websocket.close(code=1013, reason="Server overloaded — try again later")
+            return
+
         await websocket.accept()
-        logger.info("Ambient pulse WS connected")
+        _active_connections += 1
+        broker = get_message_broker()
+        logger.info("Ambient pulse WS connected (total: %d)", _active_connections)
 
         try:
             # Send an initial pulse immediately
             await _send_ambient_update(websocket)
 
-            # Then push every 30 seconds
-            while True:
-                await asyncio.sleep(30)
-                await _send_ambient_update(websocket)
+            # Subscribe to the broker for cross-instance updates
+            async for message in broker.subscribe("ambient:pulse"):
+                await websocket.send_json(message)
         except WebSocketDisconnect:
             logger.info("Ambient pulse WS disconnected")
         except Exception as exc:
             logger.exception("Ambient pulse WS error: %s", exc)
+        finally:
+            _active_connections -= 1
+            logger.info("Ambient pulse WS closed (total: %d)", _active_connections)
 
-    async def _send_ambient_update(websocket: WebSocket) -> None:
-        """Compute and send the current pulse + feed summary."""
-        try:
-            from maestro_api.oem_state import oem_state
-            from maestro_oem.pulse import OrganizationalPulse
-            from maestro_oem.feed import ExecutiveFeed
+    # ─── Background task: publish pulse every 30 seconds ────────────────
+    @app.on_event("startup")
+    async def start_pulse_publisher() -> None:
+        """Background task that computes the pulse every 30 seconds and
+        publishes it to the message broker. All WebSocket subscribers
+        across all instances receive the update.
+        """
+        async def _publish_loop():
+            broker = get_message_broker()
+            while True:
+                await asyncio.sleep(30)
+                try:
+                    message = await _compute_ambient_message()
+                    if message:
+                        await broker.publish("ambient:pulse", message)
+                except Exception as e:
+                    logger.warning("Pulse publish failed: %s", e)
 
-            oem_state.initialize()
-            model = oem_state.model
-            signals = oem_state.signals
+        asyncio.create_task(_publish_loop())
 
-            pulse = OrganizationalPulse(model, signals)
-            pulse_state = pulse.compute()
 
-            feed = ExecutiveFeed(model, signals)
-            events = feed.generate(limit=5)
+async def _send_ambient_update(websocket: WebSocket) -> None:
+    """Compute and send the current pulse + feed summary directly to a client."""
+    try:
+        message = await _compute_ambient_message()
+        if message:
+            await websocket.send_json(message)
+    except Exception as exc:
+        logger.warning("Ambient update failed: %s", exc)
 
-            await websocket.send_json({
-                "type": "ambient_update",
-                "timestamp": pulse_state["timestamp"],
-                "pulse": {
-                    "state": pulse_state["state"],
-                    "temperature": pulse_state["temperature"],
-                    "momentum": pulse_state["momentum"],
-                    "alignment": pulse_state["alignment"],
-                    "trust": pulse_state["trust"],
-                    "knowledge_mobility": pulse_state["knowledge_mobility"],
-                    "decision_speed": pulse_state["decision_speed"],
-                    "narrative": pulse_state["narrative"],
-                },
-                "feed_events": [
-                    {
-                        "event_type": e["event_type"],
-                        "title": e["title"],
-                        "priority": e.get("confidence", 0),
-                    }
-                    for e in events
-                ],
-            })
-        except Exception as exc:
-            logger.warning("Ambient update failed: %s", exc)
+
+async def _compute_ambient_message() -> dict[str, Any] | None:
+    """Compute the ambient pulse message (shared between direct send and broker publish)."""
+    try:
+        from maestro_api.oem_state import oem_state
+        from maestro_oem.pulse import OrganizationalPulse
+        from maestro_oem.feed import ExecutiveFeed
+
+        oem_state.initialize()
+        model = oem_state.model
+        signals = oem_state.signals
+
+        pulse = OrganizationalPulse(model, signals)
+        pulse_state = pulse.compute()
+
+        feed = ExecutiveFeed(model, signals)
+        events = feed.generate(limit=5)
+
+        return {
+            "type": "ambient_update",
+            "timestamp": pulse_state["timestamp"],
+            "pulse": {
+                "state": pulse_state["state"],
+                "temperature": pulse_state["temperature"],
+                "momentum": pulse_state["momentum"],
+                "alignment": pulse_state["alignment"],
+                "trust": pulse_state["trust"],
+                "knowledge_mobility": pulse_state["knowledge_mobility"],
+                "decision_speed": pulse_state["decision_speed"],
+                "narrative": pulse_state["narrative"],
+            },
+            "feed_events": [
+                {
+                    "event_type": e["event_type"],
+                    "title": e["title"],
+                    "priority": e.get("confidence", 0),
+                }
+                for e in events
+            ],
+        }
+    except Exception as exc:
+        logger.warning("Ambient computation failed: %s", exc)
+        return None
