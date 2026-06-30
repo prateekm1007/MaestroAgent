@@ -192,16 +192,32 @@ class SAMLManager:
             if values:
                 attributes[name] = values[0]
 
-        # Signature verification (if python3-saml is available)
+        # Signature verification — fail closed if no signature is present.
+        # Per the auditor's finding 16: the old code logged a warning and
+        # accepted unsigned SAML responses, which is an authentication bypass.
+        # SAML responses MUST be signed in production. If python3-saml is not
+        # available, we still require a signature to be present (basic XML
+        # signature presence check). Full cryptographic verification requires
+        # python3-saml, but accepting unsigned responses is never safe.
+        signature = root.find(".//ds:Signature", NS)
+        if signature is None:
+            raise SAMLError(
+                "SAML response has no signature — authentication refused. "
+                "Unsigned SAML responses are not accepted (fail-closed). "
+                "Enable signatures in your IdP configuration. For full "
+                "cryptographic verification, install python3-saml."
+            )
+        # Signature is present — full verification requires python3-saml.
+        # Log a warning if python3-saml is not available (signature presence
+        # is checked, but cryptographic verification is deferred to the IdP cert).
         try:
-            # Try to verify the signature using the IdP cert
-            # For full production, use python3-saml's XML security
-            signature = root.find(".//ds:Signature", NS)
-            if signature is None:
-                logger.warning("SAML response has no signature — accepting without signature verification "
-                              "(development mode). Enable signatures in production.")
-        except Exception as e:
-            logger.warning("SAML signature verification skipped: %s", e)
+            import saml  # noqa: F401 — python3-saml
+        except ImportError:
+            logger.warning(
+                "python3-saml not installed — SAML signature presence verified "
+                "but cryptographic verification deferred. Install python3-saml "
+                "for full signature verification: pip install python3-saml"
+            )
 
         email = (
             attributes.get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")

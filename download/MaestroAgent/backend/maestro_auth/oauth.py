@@ -1,9 +1,14 @@
 """OAuth provider stubs (Supabase, Auth0).
 
 v1.0 ships the interface + stubs. Full integration (token verification,
-user management, multi-tenant) is v1.1. The stubs let users configure
-`MAESTRO_OAUTH_PROVIDER=supabase` today and get a clear "not yet
-implemented" error rather than silent breakage.
+user management, multi-tenant) is v1.1. The stubs RAISE
+OAuthNotImplementedError so configuring `MAESTRO_OAUTH_PROVIDER=supabase`
+produces a clear error rather than silent fallback or confusion.
+
+SECURITY NOTE: The stubs do NOT authenticate users. They raise rather
+than return None, so auth fails closed. If you need Supabase or Auth0
+SSO before v1.1, use the OIDC provider (oidc.py) which IS fully
+implemented with signature verification via PyJWT.
 """
 
 from __future__ import annotations
@@ -46,8 +51,22 @@ class OAuthProvider(ABC):
         ...
 
 
+class OAuthNotImplementedError(NotImplementedError):
+    """Raised when a stub OAuth provider is invoked.
+
+    This is a fail-closed error — the user is NOT authenticated. The
+    error message directs the user to the OIDC provider (which IS
+    implemented) as the alternative.
+    """
+
+
 class SupabaseProvider(OAuthProvider):
-    """Supabase OAuth provider (stub for v1.0)."""
+    """Supabase OAuth provider (stub — NOT IMPLEMENTED in v1.0).
+
+    Raises OAuthNotImplementedError on any auth attempt. Use the OIDC
+    provider (oidc.py) for Supabase SSO — it's fully implemented with
+    signature verification via PyJWT.
+    """
 
     name = "supabase"
 
@@ -58,10 +77,13 @@ class SupabaseProvider(OAuthProvider):
         self.base_url = base_url or "https://your-project.supabase.co"
 
     async def verify_token(self, token: str) -> OAuthUser | None:
-        # TODO(v1.1): call Supabase's /auth/v1/user endpoint with the JWT.
-        # For v1.0, log a warning and return None (auth falls back to API key).
-        logger.warning("Supabase OAuth not yet implemented in v1.0; use API key auth")
-        return None
+        raise OAuthNotImplementedError(
+            "Supabase OAuth is not implemented in v1.0. "
+            "Use the OIDC provider (oidc.py) for Supabase SSO — it's fully "
+            "implemented with PyJWT signature verification. Set "
+            "MAESTRO_OIDC_ISSUER=https://<your-project>.supabase.co/auth/v1 "
+            "and MAESTRO_OIDC_CLIENT_ID=<your-client-id>."
+        )
 
     async def get_authorize_url(self, state: str) -> str:
         return (
@@ -73,13 +95,19 @@ class SupabaseProvider(OAuthProvider):
         )
 
     async def exchange_code(self, code: str) -> tuple[str, OAuthUser] | None:
-        # TODO(v1.1): POST to Supabase's /auth/v1/token?grant_type=authorization_code
-        logger.warning("Supabase OAuth code exchange not yet implemented in v1.0")
-        return None
+        raise OAuthNotImplementedError(
+            "Supabase OAuth code exchange is not implemented in v1.0. "
+            "Use the OIDC provider (oidc.py) instead."
+        )
 
 
 class Auth0Provider(OAuthProvider):
-    """Auth0 OAuth provider (stub for v1.0)."""
+    """Auth0 OAuth provider (stub — NOT IMPLEMENTED in v1.0).
+
+    Raises OAuthNotImplementedError on any auth attempt. Use the OIDC
+    provider (oidc.py) for Auth0 SSO — it's fully implemented with
+    signature verification via PyJWT.
+    """
 
     name = "auth0"
 
@@ -90,9 +118,13 @@ class Auth0Provider(OAuthProvider):
         self.domain = domain
 
     async def verify_token(self, token: str) -> OAuthUser | None:
-        # TODO(v1.1): verify the JWT against Auth0's JWKS.
-        logger.warning("Auth0 OAuth not yet implemented in v1.0; use API key auth")
-        return None
+        raise OAuthNotImplementedError(
+            "Auth0 OAuth is not implemented in v1.0. "
+            "Use the OIDC provider (oidc.py) for Auth0 SSO — it's fully "
+            "implemented with PyJWT signature verification. Set "
+            "MAESTRO_OIDC_ISSUER=https://<your-domain>.auth0.com/ "
+            "and MAESTRO_OIDC_CLIENT_ID=<your-client-id>."
+        )
 
     async def get_authorize_url(self, state: str) -> str:
         return (
@@ -105,9 +137,10 @@ class Auth0Provider(OAuthProvider):
         )
 
     async def exchange_code(self, code: str) -> tuple[str, OAuthUser] | None:
-        # TODO(v1.1): POST to https://<domain>/oauth/token
-        logger.warning("Auth0 OAuth code exchange not yet implemented in v1.0")
-        return None
+        raise OAuthNotImplementedError(
+            "Auth0 OAuth code exchange is not implemented in v1.0. "
+            "Use the OIDC provider (oidc.py) instead."
+        )
 
 
 def make_provider(config: Any) -> OAuthProvider | None:

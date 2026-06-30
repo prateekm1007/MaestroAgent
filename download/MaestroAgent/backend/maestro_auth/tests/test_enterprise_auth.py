@@ -58,6 +58,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_AUTH_ENABLED", "true")
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test-admin-pass")
+    # Set MAESTRO_APP_DIR so the frontend can find app.html
+    import pathlib
+    app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root
+    monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
 
     import_state._initialized = False
     import_state.store = None

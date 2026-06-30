@@ -69,6 +69,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test-admin-pass")
     monkeypatch.setenv("MAESTRO_TRUSTED_PROXIES", "127.0.0.1,::1")
+    # Set MAESTRO_APP_DIR so the frontend can find app.html
+    import pathlib
+    app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root
+    monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
     # High rate limit for tests (otherwise SOC2 endpoint tests hit the limit)
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
 
