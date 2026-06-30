@@ -229,11 +229,19 @@ class TestWCAGCompliance:
         assert 'role="main"' in html, "Main landmark missing"
 
     def test_prefers_reduced_motion_supported(self, client):
-        """app.html must respect prefers-reduced-motion."""
+        """app.html or app.css must respect prefers-reduced-motion.
+
+        The CSS was moved from an inline <style> block to /static/app.css
+        during the Anthropic restyling. The media query may live in either
+        location — check both.
+        """
         import os
         app_dir = os.environ.get("MAESTRO_APP_DIR", ".")
         html = Path(app_dir).joinpath("app.html").read_text()
-        assert "prefers-reduced-motion" in html, "Reduced motion support missing"
+        css_path = Path(app_dir).joinpath("static", "app.css")
+        css = css_path.read_text() if css_path.exists() else ""
+        assert "prefers-reduced-motion" in html or "prefers-reduced-motion" in css, \
+            "Reduced motion support missing from both app.html and app.css"
 
     def test_focus_visible_style_exists(self, client):
         """app.html must have visible focus indicators."""

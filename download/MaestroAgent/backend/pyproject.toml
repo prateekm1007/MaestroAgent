@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "maestroagent"
 version = "0.1.0"
 description = "MaestroAgent — the ultimate conductor for AI agents. Local-first, model-agnostic, hybrid LangGraph + CrewAI orchestration with advanced loops, dynamic sub-agents, and verifiable autonomy."
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "MaestroAgent contributors" }]

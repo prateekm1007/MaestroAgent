@@ -197,10 +197,16 @@ class TestHomepageCEOUX:
 
     def test_homepage_one_thing_has_investigate_button(self, client):
         """The 'one thing' section should have an 'Investigate this' button."""
-        # Check the external JS file (openDrilldown is defined there now)
-        js_resp = client.get("/static/app.js")
-        js = js_resp.text if js_resp.status_code == 200 else ""
-        assert "openDrilldown" in js, "openDrilldown not found in JS"
+        # Check the external JS files (frontend was modularized into /static/js/*.js)
+        html = client.get("/app.html").text
+        import re
+        js_files = re.findall(r'<script[^>]*src="(/static/js/[^"]+)"', html)
+        combined = html
+        for js_path in js_files:
+            js_resp = client.get(js_path)
+            if js_resp.status_code == 200:
+                combined += "\n" + js_resp.text
+        assert "openDrilldown" in combined, "openDrilldown not found in JS"
 
     def test_homepage_every_section_has_loading_state(self, client):
         """Every CEO question panel should have a loading state (no blank waits)."""
@@ -215,11 +221,15 @@ class TestHomepageCEOUX:
 
     def test_homepage_every_card_is_clickable(self, client):
         """Every card in the CEO briefing must be clickable (no dead-ends)."""
-        # Check both app.html and the external JS file
+        # Check both app.html and all external JS files (modularized into /static/js/*.js)
         html = client.get("/app.html").text
-        js_resp = client.get("/static/app.js")
-        js = js_resp.text if js_resp.status_code == 200 else ""
-        combined = html + "\n" + js
+        import re
+        js_files = re.findall(r'<script[^>]*src="(/static/js/[^"]+)"', html)
+        combined = html
+        for js_path in js_files:
+            js_resp = client.get(js_path)
+            if js_resp.status_code == 200:
+                combined += "\n" + js_resp.text
         assert "openDrilldown" in combined
         assert "cursor-pointer" in combined
 

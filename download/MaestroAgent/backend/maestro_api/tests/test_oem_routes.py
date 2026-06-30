@@ -19,6 +19,13 @@ from maestro_api.main import create_app
 @pytest.fixture(scope="module")
 def client():
     """Build the FastAPI app with the OEM initialized."""
+    import os
+    import pathlib
+    # Set MAESTRO_APP_DIR so the frontend can find app.html
+    app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root
+    os.environ.setdefault("MAESTRO_APP_DIR", app_dir)
+    os.environ.setdefault("MAESTRO_AUTH_DB", "/tmp/maestro_test_oem_auth.db")
+    os.environ.setdefault("MAESTRO_ADMIN_PASSWORD", "test")
     app = create_app(db_path=":memory:")
     with TestClient(app) as c:
         yield c

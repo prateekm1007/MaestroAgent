@@ -25,7 +25,7 @@ def _start_server():
     import uvicorn
     from maestro_api.main import create_app
 
-    # Point to the app directory so /static/app.css and /static/app.js are served
+    # Point to the app directory so /static/app.css and /static/js/*.js are served
         # Resolve app dir relative to this test file (works on any clone)
     import pathlib
     app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root

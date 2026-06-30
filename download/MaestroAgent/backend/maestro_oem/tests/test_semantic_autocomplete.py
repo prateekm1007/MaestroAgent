@@ -449,9 +449,13 @@ def test_autocomplete_html_has_aria_roles(client):
     """The autocomplete dropdown must have ARIA roles for accessibility."""
     # JS is now external — check both HTML and JS
     html = client.get("/").text
-    js_resp = client.get("/static/app.js")
-    js = js_resp.text if js_resp.status_code == 200 else ""
-    combined = html + "\n" + js
+    import re
+    js_files = re.findall(r'<script[^>]*src="(/static/js/[^"]+)"', html)
+    combined = html
+    for js_path in js_files:
+        js_resp = client.get(js_path)
+        if js_resp.status_code == 200:
+            combined += "\n" + js_resp.text
     assert "listbox" in combined
     assert "option" in combined
 
@@ -459,9 +463,13 @@ def test_autocomplete_html_has_aria_roles(client):
 def test_autocomplete_has_keyboard_handlers(client):
     """The autocomplete must handle ArrowUp/ArrowDown/Enter/Escape."""
     html = client.get("/").text
-    js_resp = client.get("/static/app.js")
-    js = js_resp.text if js_resp.status_code == 200 else ""
-    combined = html + "\n" + js
+    import re
+    js_files = re.findall(r'<script[^>]*src="(/static/js/[^"]+)"', html)
+    combined = html
+    for js_path in js_files:
+        js_resp = client.get(js_path)
+        if js_resp.status_code == 200:
+            combined += "\n" + js_resp.text
     assert "ArrowDown" in combined
     assert "ArrowUp" in combined
     assert "Escape" in combined
@@ -470,18 +478,26 @@ def test_autocomplete_has_keyboard_handlers(client):
 def test_autocomplete_has_aria_selected(client):
     """The autocomplete items must support aria-selected."""
     html = client.get("/").text
-    js_resp = client.get("/static/app.js")
-    js = js_resp.text if js_resp.status_code == 200 else ""
-    combined = html + "\n" + js
+    import re
+    js_files = re.findall(r'<script[^>]*src="(/static/js/[^"]+)"', html)
+    combined = html
+    for js_path in js_files:
+        js_resp = client.get(js_path)
+        if js_resp.status_code == 200:
+            combined += "\n" + js_resp.text
     assert "aria-selected" in combined
 
 
 def test_autocomplete_has_scroll_into_view(client):
     """Keyboard navigation should scroll the selected item into view."""
     html = client.get("/").text
-    js_resp = client.get("/static/app.js")
-    js = js_resp.text if js_resp.status_code == 200 else ""
-    combined = html + "\n" + js
+    import re
+    js_files = re.findall(r'<script[^>]*src="(/static/js/[^"]+)"', html)
+    combined = html
+    for js_path in js_files:
+        js_resp = client.get(js_path)
+        if js_resp.status_code == 200:
+            combined += "\n" + js_resp.text
     assert "scrollIntoView" in combined
 
 

@@ -94,7 +94,17 @@ def create_app(
         _learning_db = _os2.environ.get("MAESTRO_LEARNING_DB", get_db_url_for_learning())
 
         async def _weekly_snapshot_loop():
-            """Capture a snapshot on startup, then weekly thereafter."""
+            """Capture a snapshot on startup, then weekly thereafter.
+
+            Guards against running in test fixtures where oem_state may not
+            be fully initialized — the snapshot is a pilot-production feature,
+            not needed for unit tests.
+            """
+            # Skip if OEM state isn't initialized (test fixtures)
+            if not oem_state._initialized:
+                logger.debug("Pilot instrumentation: skipping snapshot (oem_state not initialized)")
+                return
+
             # Initial snapshot on startup (data point #1)
             try:
                 from maestro_oem.instrumentation import (

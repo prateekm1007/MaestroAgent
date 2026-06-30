@@ -16,7 +16,7 @@ Specifically checks:
   - All risk cards call openDrilldown
   - All knowledge-flow cards call openDrilldown
   - All audit receipts call openDrilldown
-  - The drill-down modal exists with 8 tabs
+  - The drill-down modal exists with 9 tabs (8 original + Perspectives)
   - The drill-down endpoint returns all 8 sections
 """
 
@@ -37,7 +37,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("maestro_api.oem_state._IMPORT_DB_PATH", test_db)
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test-admin-pass")
-    # Point to the app directory so /static/app.js is served
+    # Point to the app directory so /static/js/*.js files are served
         # Resolve app dir relative to this test file (works on any clone)
     import pathlib
     app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root
@@ -65,12 +65,25 @@ class TestNoDeadCards:
 
     @staticmethod
     def _get_all_js(client):
-        """Get app.html + external JS combined (JS is now in /static/app.js)."""
+        """Get app.html + all external JS files combined.
+
+        The frontend was modularized in round 17 from a single app.js into
+        19 files in /static/js/. This method fetches app.html plus every
+        JS file referenced via <script defer src="/static/js/..."> tags.
+        """
         html = client.get("/app.html").text
-        # Also fetch the external JS file
-        js_resp = client.get("/static/app.js")
-        js = js_resp.text if js_resp.status_code == 200 else ""
-        return html + "\n" + js
+
+        # Extract all /static/js/*.js script srcs from app.html
+        import re
+        js_files = re.findall(r'<script[^>]*src="(/static/js/[^"]+)"', html)
+
+        combined = html
+        for js_path in js_files:
+            js_resp = client.get(js_path)
+            if js_resp.status_code == 200:
+                combined += "\n" + js_resp.text
+
+        return combined
 
     def test_metric_tiles_are_clickable(self, client):
         """All 6 metric tiles on Home must have the metric-clickable class."""
@@ -83,11 +96,17 @@ class TestNoDeadCards:
         html = resp.text
         assert 'id="drilldown-modal"' in html, "Drill-down modal not found"
 
-    def test_drilldown_modal_has_8_tabs(self, client):
-        """The drill-down modal must have 8 tabs (Why/Where/Evidence/Timeline/People/Prediction/Simulation/Recommendation)."""
+    def test_drilldown_modal_has_tabs(self, client):
+        """The drill-down modal must have all required tabs.
+
+        9 tabs: Why/Where/Evidence/Timeline/People/Prediction/Simulation/
+        Recommendation/Perspectives. (Perspectives was added in the
+        cognitive-model UI commit for the 6-team translation view.)
+        """
         resp = client.get("/app.html")
         html = resp.text
-        tabs = ["why", "where", "evidence", "timeline", "people", "prediction", "simulation", "recommendation"]
+        tabs = ["why", "where", "evidence", "timeline", "people",
+                "prediction", "simulation", "recommendation", "perspectives"]
         for tab in tabs:
             assert f'data-tab="{tab}"' in html, f"Missing drill-down tab: {tab}"
 
