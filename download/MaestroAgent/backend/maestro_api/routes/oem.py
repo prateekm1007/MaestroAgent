@@ -2812,8 +2812,11 @@ def resolve_market_prediction(
     ok = market.resolve(prediction_id, bool(actual))
     if not ok:
         raise HTTPException(404, f"Prediction {prediction_id} not found")
+    # Return the full prediction object so brier_score is unambiguous
     pred = market.get(prediction_id)
-    return {"ok": True, "prediction_id": prediction_id, "brier_score": pred["brier_score"]}
+    return {"ok": True, "prediction_id": prediction_id, "brier_score": pred["brier_score"],
+            "status": "resolved", "actual_outcome": pred["actual_outcome"],
+            "probability": pred["probability"]}
 
 
 @router.get("/predictions/market/calibration")
