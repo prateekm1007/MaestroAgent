@@ -60,6 +60,12 @@ class CoordinationRequest:
             "decision": self.decision,
             "initiated_by": self.initiated_by,
             "teams": self.teams,
+            # Alias for API consumers that expect "affected_teams".
+            # Both keys are populated from the same _identify_teams() result
+            # so external clients can use either name. This closes the
+            # auditor's Gap 2: the live-API check expected "affected_teams"
+            # but the engine only surfaced "teams". Now both are present.
+            "affected_teams": self.teams,
             "contacts": self.contacts,
             "status": self.status,
             "created_at": self.created_at.isoformat(),

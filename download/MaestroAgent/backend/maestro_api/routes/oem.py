@@ -2793,7 +2793,13 @@ def submit_market_prediction(payload: dict[str, Any]) -> dict[str, Any]:
         intent_id=payload.get("intent_id", ""),
         notes=payload.get("notes", ""),
     )
-    return {"ok": True, "prediction_id": pid}
+    # Echo the stored prediction object so callers can verify hypothesis_id
+    # and intent_id were persisted. Closes the auditor's Gap 3: the engine
+    # was storing the fields correctly, but the route only returned
+    # {ok, prediction_id}, leaving no way for an API consumer to confirm
+    # the linking took. Now the full prediction is returned.
+    pred = market.get(pid)
+    return {"ok": True, "prediction_id": pid, "prediction": pred}
 
 
 @router.post("/predictions/market/{prediction_id}/resolve")
@@ -2838,6 +2844,24 @@ def get_predictor_profile(email: str) -> dict[str, Any]:
     if not profile:
         raise HTTPException(404, f"No profile for {email}")
     return profile
+
+
+@router.get("/predictions/market/{prediction_id}")
+def get_market_prediction(prediction_id: str) -> dict[str, Any]:
+    """Fetch a single personal prediction by ID.
+
+    Returns the full prediction object including hypothesis_id and intent_id
+    so callers can verify cognitive-model linking. Registered AFTER
+    /predictions/market/calibration and /predictions/market/profile/{email}
+    so those literal routes win over the {prediction_id} wildcard. Without
+    this ordering, GET /predictions/market/calibration would be captured as
+    prediction_id="calibration" and 404.
+    """
+    market = _get_prediction_market()
+    pred = market.get(prediction_id)
+    if not pred:
+        raise HTTPException(404, f"Prediction {prediction_id} not found")
+    return pred
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -349,3 +349,200 @@ class TestAPIWiringFixes:
         # is that the submit accepted hypothesis_id and intent_id without
         # error — which it did (status 200, ok: True).
         # The linking is verified by the engine's internal state.
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LIVE-API WIRING — auditor's commit 7368d36 follow-up
+# ═══════════════════════════════════════════════════════════════════════════
+# The auditor's review of commit 7368d36 found that the existing
+# TestAPIWiringFixes tests passed but the live API still had gaps:
+#   Gap 2: POST /coordinate returned `teams` but not `affected_teams`
+#          (the auditor's live-API client expected `affected_teams`)
+#   Gap 3: POST /predictions/market accepted hypothesis_id + intent_id
+#          but the response didn't echo them, and there was no
+#          GET /predictions/market/{id} route to verify persistence
+#
+# These tests verify the ACTUAL API response contract (not engine
+# internals) so they would have caught the auditor's live-API failures.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestLiveAPIWiringCommit7368d36:
+    """Live-API contract tests for the wiring gaps the auditor found
+    in commit 7368d36's review.
+
+    These tests assert on the API response SHAPE, not the engine internals.
+    If the route serializes the wrong key name or omits a field, these
+    tests fail — even if the engine computes the right value.
+    """
+
+    def test_coordinate_response_includes_affected_teams_alias(self, client):
+        """Gap 2 (live API): POST /coordinate must surface affected_teams.
+
+        The auditor's live-API client checked `affected_teams`, but the
+        engine's to_dict() only emitted `teams`. The response must now
+        include BOTH keys so any client (using either name) sees the
+        populated list.
+        """
+        r = client.post("/api/oem/coordinate", json={
+            "decision": "Standardize OAuth across all services",
+            "initiated_by": "ceo@acme.com",
+        })
+        assert r.status_code == 200
+        data = r.json()
+
+        # Both keys must be present and populated
+        assert "teams" in data, "response missing 'teams' key"
+        assert "affected_teams" in data, (
+            "response missing 'affected_teams' key — auditor's live-API "
+            "client expects this alias"
+        )
+
+        # Both keys must hold the same populated list
+        assert data["teams"] == data["affected_teams"], (
+            "teams and affected_teams must be aliases of the same list"
+        )
+        assert "security" in data["affected_teams"], (
+            f"security team not identified for OAuth decision; "
+            f"got affected_teams={data['affected_teams']}"
+        )
+        assert len(data["affected_teams"]) >= 1
+
+    def test_coordinate_affected_teams_populated_for_compliance(self, client):
+        """Gap 2 (live API): compliance decisions populate affected_teams."""
+        r = client.post("/api/oem/coordinate", json={
+            "decision": "Ensure GDPR compliance for EU customers",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        # The auditor's key must be present and contain 'legal'
+        assert "affected_teams" in data
+        assert "legal" in data["affected_teams"], (
+            f"legal team not identified for GDPR decision; "
+            f"got affected_teams={data['affected_teams']}"
+        )
+
+    def test_submit_response_echoes_hypothesis_and_intent_id(self, client):
+        """Gap 3 (live API): POST /predictions/market must echo the linked IDs.
+
+        The auditor found that submit accepted hypothesis_id + intent_id
+        (200 OK) but the response body didn't include them — leaving no
+        way for an API client to confirm the linking took. The response
+        must now include the full prediction object with the stored fields.
+        """
+        # Create an intent + hypothesis to link against
+        r = client.post("/api/oem/intents", json={
+            "goal": "Echo test intent",
+        })
+        intent_id = r.json()["intent_id"]
+
+        r = client.post("/api/oem/hypotheses", json={
+            "statement": "Echo test hypothesis",
+            "intent_id": intent_id,
+        })
+        hypothesis_id = r.json()["hypothesis_id"]
+
+        # Submit a prediction linked to both
+        r = client.post("/api/oem/predictions/market", json={
+            "predictor": "echo@acme.com",
+            "event": "Echo test event",
+            "probability": 0.55,
+            "hypothesis_id": hypothesis_id,
+            "intent_id": intent_id,
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["ok"] is True
+        assert "prediction_id" in data
+
+        # The response must include the full prediction object so callers
+        # can verify the linking persisted — not just {ok, prediction_id}.
+        assert "prediction" in data, (
+            "submit response must include the full prediction object so "
+            "callers can verify hypothesis_id + intent_id were stored"
+        )
+        pred = data["prediction"]
+        assert pred["hypothesis_id"] == hypothesis_id, (
+            f"hypothesis_id not echoed correctly; "
+            f"expected {hypothesis_id}, got {pred.get('hypothesis_id')!r}"
+        )
+        assert pred["intent_id"] == intent_id, (
+            f"intent_id not echoed correctly; "
+            f"expected {intent_id}, got {pred.get('intent_id')!r}"
+        )
+
+    def test_get_single_market_prediction_returns_stored_linking(self, client):
+        """Gap 3 (live API): GET /predictions/market/{id} must return stored fields.
+
+        The auditor found that querying the prediction after submit showed
+        the linking fields as MISSING. This was because there was no
+        GET /predictions/market/{id} route — the auditor was hitting
+        GET /predictions/{id} (the OEM lifecycle route) which returns a
+        different object type. The market-specific GET route must exist
+        and return the stored hypothesis_id + intent_id.
+        """
+        # Create intent + hypothesis
+        r = client.post("/api/oem/intents", json={
+            "goal": "GET-route test intent",
+        })
+        intent_id = r.json()["intent_id"]
+
+        r = client.post("/api/oem/hypotheses", json={
+            "statement": "GET-route test hypothesis",
+            "intent_id": intent_id,
+        })
+        hypothesis_id = r.json()["hypothesis_id"]
+
+        # Submit a prediction linked to both
+        r = client.post("/api/oem/predictions/market", json={
+            "predictor": "getroute@acme.com",
+            "event": "GET-route test event",
+            "probability": 0.4,
+            "hypothesis_id": hypothesis_id,
+            "intent_id": intent_id,
+        })
+        pid = r.json()["prediction_id"]
+
+        # Fetch the prediction back via the market-specific GET route
+        r = client.get(f"/api/oem/predictions/market/{pid}")
+        assert r.status_code == 200, (
+            f"GET /predictions/market/{{id}} must return 200; got {r.status_code}. "
+            f"If 404, the route is missing or shadowed by /predictions/{{id}}."
+        )
+        pred = r.json()
+        assert pred["prediction_id"] == pid
+        assert pred["hypothesis_id"] == hypothesis_id, (
+            f"stored hypothesis_id missing or wrong; "
+            f"expected {hypothesis_id}, got {pred.get('hypothesis_id')!r}"
+        )
+        assert pred["intent_id"] == intent_id, (
+            f"stored intent_id missing or wrong; "
+            f"expected {intent_id}, got {pred.get('intent_id')!r}"
+        )
+
+    def test_get_single_market_prediction_404_for_unknown_id(self, client):
+        """GET /predictions/market/{id} must 404 for unknown IDs."""
+        r = client.get("/api/oem/predictions/market/pp-doesnotexist")
+        assert r.status_code == 404
+
+    def test_market_routes_not_shadowed_by_oem_prediction_wildcard(self, client):
+        """Route-ordering regression: /predictions/market/calibration and
+        /predictions/market/profile/{email} must NOT be captured by the
+        /predictions/market/{prediction_id} wildcard.
+
+        If the wildcard is registered before the literal routes, GET
+        /predictions/market/calibration would 404 (treating "calibration"
+        as a prediction_id). This test guards against that regression.
+        """
+        # calibration must hit the calibration route, not the wildcard
+        r = client.get("/api/oem/predictions/market/calibration")
+        assert r.status_code == 200
+        assert "predictors" in r.json()
+
+        # profile route must hit the profile route, not the wildcard
+        # (use a non-existent email — should 404 from the profile route,
+        # not 404 from the wildcard with a "prediction not found" message)
+        r = client.get("/api/oem/predictions/market/profile/nope@acme.com")
+        assert r.status_code == 404
+        # The profile route's 404 message mentions "profile"
+        assert "profile" in r.json().get("detail", "").lower()
+
