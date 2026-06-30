@@ -105,6 +105,21 @@ _DEFAULT_ENDPOINTS = {
             "prompt": "consent",
         },
     },
+    "customer": {
+        # Salesforce Connected App OAuth 2.0 Web Server Flow.
+        # Requires a Connected App registered at Salesforce with:
+        #   - Callback URL: <redirect_uri_base>/api/oauth/callback?provider=customer
+        #   - Scopes: api, refresh_token, web
+        # Env vars: MAESTRO_CUSTOMER_CLIENT_ID, MAESTRO_CUSTOMER_CLIENT_SECRET
+        "auth_url": "https://login.salesforce.com/services/oauth2/authorize",
+        "token_url": "https://login.salesforce.com/services/oauth2/token",
+        "scopes": ["api", "refresh_token", "web"],
+        "extra": {
+            "display": "page",
+            "immediate": "false",
+            "prompt": "consent",
+        },
+    },
 }
 
 
@@ -449,9 +464,9 @@ class OAuthManager:
     # ─── Status ───
 
     def status(self) -> list[dict[str, Any]]:
-        """Return connection status for all 5 providers."""
+        """Return connection status for all 6 providers (5 + customer/Salesforce)."""
         out = []
-        for p in ("github", "jira", "slack", "confluence", "gmail"):
+        for p in ("github", "jira", "slack", "confluence", "gmail", "customer"):
             cfg = self.get_config(p)
             conn = self.store.get_connection(p)
             creds = self.store.load_credentials(p)

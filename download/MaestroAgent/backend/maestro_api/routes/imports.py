@@ -56,10 +56,13 @@ async def oauth_status() -> dict[str, Any]:
 
 @router.get("/api/oauth/{provider}/start")
 async def oauth_start(provider: str) -> dict[str, Any]:
-    """Get the authorization URL for a provider. UI should redirect the user here."""
+    """Get the authorization URL for a provider. UI should redirect the user here.
+
+    Supports: github, jira, slack, confluence, gmail, customer (Salesforce).
+    """
     _ensure_initialized()
     assert import_state.connections is not None
-    if provider not in ("github", "jira", "slack", "confluence", "gmail"):
+    if provider not in ("github", "jira", "slack", "confluence", "gmail", "customer"):
         raise HTTPException(404, f"Unknown provider: {provider}")
     try:
         url, state = import_state.connections.get_authorization_url(provider)

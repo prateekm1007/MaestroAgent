@@ -60,10 +60,13 @@ def server_url():
 
 @pytest.fixture(scope="module")
 def browser_context(server_url):
-    """Launch browser and open the app."""
+    """Launch browser and open the app.
+
+    has_touch=True enables touch events so page.tap() works for touch tests.
+    """
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
+        context = browser.new_context(has_touch=True)
         page = context.new_page()
         errors: list[str] = []
         page_errors: list[str] = []
@@ -263,6 +266,81 @@ class TestNavigation:
         assert len(buttons) >= 3, (
             f"Expected >= 3 one-click action buttons in morning brief, got {len(buttons)}"
         )
+
+    def test_customer_surface_touch_tap(self, browser_context):
+        """The Customer Judgment surface must respond to touch events (tap).
+
+        The master prompt explicitly required Touch testing. Playwright's
+        page.tap() simulates a touch tap on an element. We verify that tapping
+        a customer card in the morning brief opens the brief panel — the same
+        behavior as a mouse click.
+        """
+        page, _, _ = browser_context
+        # Navigate to home first to reset state from prior tests
+        page.click('.sidebar-link[data-surface="home"]')
+        page.wait_for_selector("#surface-home.active", timeout=5000)
+        # Now navigate to customer
+        page.click('.sidebar-link[data-surface="customer"]')
+        page.wait_for_selector("#surface-customer.active", timeout=5000)
+        _wait_for_loading_done(page, "customer-morning", 20)
+        # Wait for the morning brief to stabilize (prior tests may have
+        # triggered a re-render). Re-query the card right before tapping.
+        import time as _t
+        _t.sleep(0.5)
+        first_card = page.query_selector("#customer-morning > div")
+        assert first_card is not None, "No customer card found to tap"
+        # If the card is detached, wait and re-query once more
+        try:
+            first_card.tap()
+        except Exception:
+            _t.sleep(1.0)
+            first_card = page.query_selector("#customer-morning > div")
+            assert first_card is not None, "No customer card found after retry"
+            first_card.tap()
+        # The brief panel should become visible (same as click)
+        page.wait_for_selector("#customer-brief-panel:not([style*='display: none'])", timeout=5000)
+        _wait_for_loading_done(page, "customer-brief-body", 20)
+        text = page.text_content("#customer-brief-body")
+        assert "Loading" not in text, "Brief body still loading after touch tap"
+
+    def test_customer_ask_input_touch_focus(self, browser_context):
+        """The ask input must be focusable via touch and accept input."""
+        page, _, _ = browser_context
+        page.click('.sidebar-link[data-surface="customer"]')
+        page.wait_for_selector("#surface-customer.active", timeout=5000)
+        ask_input = page.query_selector("#customer-ask-input")
+        assert ask_input is not None, "Customer ask input not found"
+        # Tap the input (touch focus)
+        ask_input.tap()
+        # Type a query
+        ask_input.fill("Who influences Globex?")
+        ask_input.press("Enter")
+        # Answer should appear
+        page.wait_for_selector("#customer-ask-answer:not([style*='display: none'])", timeout=10000)
+        import time as _t
+        for _ in range(20):
+            text = page.text_content("#customer-ask-text") or ""
+            if text and "Thinking" not in text:
+                break
+            _t.sleep(0.5)
+        text = page.text_content("#customer-ask-text")
+        assert text and "Thinking" not in text, "Ask did not return after touch + type"
+
+    def test_customer_twin_scenario_button_touch(self, browser_context):
+        """The twin scenario buttons must respond to touch taps."""
+        page, _, _ = browser_context
+        page.click('.sidebar-link[data-surface="customer"]')
+        page.wait_for_selector("#surface-customer.active", timeout=5000)
+        # Wait for scenario buttons to load
+        page.wait_for_selector("#customer-twin-scenarios button", timeout=10000)
+        buttons = page.query_selector_all("#customer-twin-scenarios button")
+        assert len(buttons) >= 3, f"Expected >= 3 twin scenario buttons, got {len(buttons)}"
+        # Tap the first scenario button (touch)
+        buttons[0].tap()
+        # The form should appear
+        page.wait_for_selector("#customer-twin-form:not([style*='display: none'])", timeout=5000)
+        form_text = page.text_content("#customer-twin-form")
+        assert form_text and "Scenario:" in form_text, "Twin form did not open after touch tap"
 
     def test_navigate_to_simulator(self, browser_context):
         page, _, _ = browser_context
