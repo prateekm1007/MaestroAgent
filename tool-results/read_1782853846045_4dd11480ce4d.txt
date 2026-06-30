@@ -1,0 +1,929 @@
+     1→"""
+     2→Semantic Organizational Autocomplete Engine.
+     3→
+     4→The real autocomplete — no hardcoded suggestions. Every result is derived
+     5→from the live OEM state across ALL data sources:
+     6→
+     7→  - Learning Objects (patterns, experts, bottlenecks, departure risks, etc.)
+     8→  - Patterns (detected organizational patterns)
+     9→  - Receipts (signal history)
+    10→  - Laws (induced organizational laws)
+    11→  - Evidence (evidence graph nodes + edges)
+    12→  - Knowledge Graph (hidden experts, concentration risks, collaboration)
+    13→  - Execution Model (health metrics, approval network, risks)
+    14→  - Recommendations (active decision recommendations)
+    15→  - Context (current screen, user, organization)
+    16→  - History (contradiction feedback log — feedback learning)
+    17→
+    18→For each query, returns rich results with:
+    19→  - completion: the suggested text
+    20→  - reason: why this suggestion is relevant
+    21→  - expected_outcome: what the OEM predicts will happen
+    22→  - confidence: 0.0–1.0 Bayesian confidence
+    23→  - evidence: supporting evidence chain
+    24→  - similar_executions: past similar decisions/patterns
+    25→  - citations: law codes, LO ids, receipt ids
+    26→
+    27→Ranking factors:
+    28→  - Recency: more recent evidence scores higher
+    29→  - Authority: entities with higher influence score higher
+    30→  - Outcome weighting: laws with more validated runtimes score higher
+    31→  - Feedback learning: laws/LOs that received 'agree' score higher,
+    32→    'reject' scores lower (uses the ContradictionLog)
+    33→
+    34→Typing "We should..." produces completely different results for every
+    35→company because the underlying LOs, laws, experts, and recommendations
+    36→are all derived from that company's actual signal history.
+    37→"""
+    38→
+    39→from __future__ import annotations
+    40→
+    41→import math
+    42→import re
+    43→from collections import defaultdict
+    44→from dataclasses import dataclass, field
+    45→from datetime import datetime, timedelta, timezone
+    46→from typing import Any
+    47→
+    48→from maestro_oem import OEMEngine, DecisionEngine, EvidenceGraph
+    49→
+    50→
+    51→# ─── Synonyms / concept expansion ───
+    52→
+    53→# Maps common keywords to OEM concept types. This is NOT hardcoded
+    54→# suggestions — it's a semantic expansion layer that maps natural language
+    55→# to OEM entity types. The actual results still come from the live OEM.
+    56→_CONCEPT_SYNONYMS: dict[str, set[str]] = {
+    57→    "hire": {"hiring", "recruit", "onboarding", "staffing", "headcount"},
+    58→    "fire": {"departure", "resign", "quit", "attrition", "leaving"},
+    59→    "bottleneck": {"blocker", "blockage", "gate", "impediment", "stuck"},
+    60→    "risk": {"danger", "threat", "hazard", "exposure", "vulnerability"},
+    61→    "expert": {"specialist", "knowledgeable", "go-to", "authority"},
+    62→    "law": {"rule", "pattern", "regularity", "invariant"},
+    63→    "drift": {"change", "shift", "deviation", "regression"},
+    64→    "approve": {"approval", "consent", "sign-off", "authorize"},
+    65→    "delay": {"late", "slow", "lag", "behind", "overdue"},
+    66→    "duplicate": {"redundant", "repeated", "overlap", "duplication"},
+    67→    "velocity": {"speed", "throughput", "cadence", "pace"},
+    68→    "incident": {"outage", "bug", "failure", "p1", "p2", "sev"},
+    69→    "payment": {"billing", "invoice", "charge", "subscription"},
+    70→    "security": {"vulnerability", "cve", "breach", "auth"},
+    71→    "legal": {"compliance", "contract", "policy", "regulation"},
+    72→    "launch": {"release", "ship", "deploy", "rollout"},
+    73→    "roadmap": {"plan", "schedule", "timeline", "milestone"},
+    74→    "pricing": {"price", "cost", "tier", "monetization"},
+    75→    "promote": {"promotion", "advancement", "elevation"},
+    76→    "oauth": {"auth", "sso", "identity", "token"},
+    77→    "platform": {"infrastructure", "infra", "platform", "foundation"},
+    78→    "engineering": {"dev", "developer", "eng", "swe"},
+    79→    # Customer Judgment Engine concepts — map NL queries to customer LOs/laws.
+    80→    "customer": {"account", "client", "prospect", "buyer"},
+    81→    "champion": {"advocate", "supporter", "ally"},
+    82→    "renewal": {"renew", "extend", "continue"},
+    83→    "churn": {"left", "departed", "cancelled", "lost"},
+    84→    "objection": {"concern", "pushback", "hesitation", "resistance"},
+    85→    "committee": {"buying committee", "decision committee", "stakeholders"},
+    86→    "commitment": {"promise", "pledge", "guarantee", "commitments"},
+    87→    "globex": {"globex"},
+    88→    "initech": {"initech"},
+    89→    "hooli": {"hooli"},
+    90→}
+    91→
+    92→# Maps keywords to OEM LearningObject types
+    93→_LO_TYPE_TRIGGERS: dict[str, str] = {
+    94→    "bottleneck": "bottleneck",
+    95→    "blocker": "bottleneck",
+    96→    "blockage": "bottleneck",
+    97→    "expert": "hidden_expert",
+    98→    "specialist": "hidden_expert",
+    99→    "departure": "departure_risk",
+   100→    "leaving": "departure_risk",
+   101→    "resign": "departure_risk",
+   102→    "attrition": "departure_risk",
+   103→    "duplicate": "duplicate_work",
+   104→    "redundant": "duplicate_work",
+   105→    "overlap": "duplicate_work",
+   106→    "knowledge death": "knowledge_death",
+   107→    "handoff": "handoff_delay",
+   108→    "delay": "handoff_delay",
+   109→    "approval": "approval_gate",
+   110→    "gate": "approval_gate",
+   111→    "incident": "incident_pattern",
+   112→    "p1": "incident_pattern",
+   113→    "outage": "incident_pattern",
+   114→    "velocity": "velocity_drop",
+   115→    "slowdown": "velocity_drop",
+   116→    "release": "release_pattern",
+   117→    "review": "review_pattern",
+   118→    "decision": "decision_pattern",
+   119→    # Customer Judgment Engine LO types
+   120→    "champion": "customer_committee_role",
+   121→    "committee": "customer_committee_role",
+   122→    "buyer": "customer_committee_role",
+   123→    "commitment": "customer_commitment",
+   124→    "promise": "customer_commitment",
+   125→    "pledge": "customer_commitment",
+   126→    "objection": "customer_risk",
+   127→    "churn": "customer_risk",
+   128→    "drift": "customer_drift",
+   129→    "renewal": "customer_decision_pattern",
+   130→    "customer_decision": "customer_decision_pattern",
+   131→}
+   132→
+   133→
+   134→@dataclass
+   135→class AutocompleteSuggestion:
+   136→    """A single autocomplete suggestion with full provenance."""
+   137→    completion: str                          # The text to complete
+   138→    query: str                               # The query to execute
+   139→    reason: str                              # Why this is relevant
+   140→    expected_outcome: str                    # What the OEM predicts
+   141→    confidence: float                        # 0.0–1.0
+   142→    evidence: list[dict[str, Any]]           # Supporting evidence
+   143→    similar_executions: list[dict[str, Any]] # Past similar patterns
+   144→    citations: list[str]                     # Law codes, LO ids, etc.
+   145→    source_type: str                         # law|expert|pattern|recommendation|...
+   146→    source_id: str                           # ID of the source entity
+   147→    rank_score: float = 0.0                  # Composite ranking score
+   148→    metadata: dict[str, Any] = field(default_factory=dict)
+   149→
+   150→    def to_dict(self) -> dict[str, Any]:
+   151→        return {
+   152→            "completion": self.completion,
+   153→            "query": self.query,
+   154→            "reason": self.reason,
+   155→            "expected_outcome": self.expected_outcome,
+   156→            "confidence": round(self.confidence, 4),
+   157→            "evidence": self.evidence[:5],  # Top 5 evidence items
+   158→            "similar_executions": self.similar_executions[:3],
+   159→            "citations": self.citations,
+   160→            "source_type": self.source_type,
+   161→            "source_id": self.source_id,
+   162→            "rank_score": round(self.rank_score, 4),
+   163→            "metadata": self.metadata,
+   164→        }
+   165→
+   166→
+   167→class SemanticAutocompleteEngine:
+   168→    """
+   169→    Real semantic autocomplete over the live OEM.
+   170→
+   171→    Usage:
+   172→        engine = SemanticAutocompleteEngine(model, graph, decisions, contradiction_log)
+   173→        result = engine.suggest(
+   174→            query="We should hire more engineers",
+   175→            context={"surface": "ask", "user": "ceo@acme.com", "org": "acme"},
+   176→            limit=10,
+   177→        )
+   178→    """
+   179→
+   180→    def __init__(
+   181→        self,
+   182→        model: Any,
+   183→        graph: EvidenceGraph,
+   184→        decisions: DecisionEngine,
+   185→        contradiction_log: Any = None,
+   186→        signals: list | None = None,
+   187→    ) -> None:
+   188→        self.model = model
+   189→        self.graph = graph
+   190→        self.decisions = decisions
+   191→        self.contradiction_log = contradiction_log
+   192→        self.signals = signals or []
+   193→        self._now = datetime.now(timezone.utc)
+   194→
+   195→        # Build feedback-learning index: entity_id → (agree_count, reject_count)
+   196→        self._feedback_index = self._build_feedback_index()
+   197→
+   198→        # Build adjacency map from edge list for fast lookup
+   199→        self._adjacency: dict[str, list[str]] = defaultdict(list)
+   200→        for edge in (graph.edges or []):
+   201→            src = getattr(edge, "source", "")
+   202→            tgt = getattr(edge, "target", "")
+   203→            if src and tgt:
+   204→                self._adjacency[src].append(tgt)
+   205→                self._adjacency[tgt].append(src)
+   206→
+   207→    # ─── Public API ───
+   208→
+   209→    def suggest(
+   210→        self,
+   211→        query: str,
+   212→        context: dict[str, Any] | None = None,
+   213→        limit: int = 10,
+   214→    ) -> dict[str, Any]:
+   215→        """Return semantic autocomplete suggestions for a query.
+   216→
+   217→        Args:
+   218→            query: The partial text typed by the user (e.g. "We should...")
+   219→            context: {surface, user, org} — used for context-aware ranking
+   220→            limit: Max suggestions to return
+   221→
+   222→        Returns: {query, suggestions, total, context, ranking_explanation}
+   223→        """
+   224→        context = context or {}
+   225→        query_lower = query.lower().strip()
+   226→        tokens = self._tokenize(query_lower)
+   227→        expanded = self._expand_concepts(tokens)
+   228→        lo_types = self._match_lo_types(query_lower)
+   229→
+   230→        candidates: list[AutocompleteSuggestion] = []
+   231→
+   232→        # 1. Mine recommendations
+   233→        candidates.extend(self._mine_recommendations(query_lower, tokens, expanded, context))
+   234→
+   235→        # 2. Mine laws
+   236→        candidates.extend(self._mine_laws(query_lower, tokens, expanded, context))
+   237→
+   238→        # 3. Mine learning objects (by type trigger + keyword match)
+   239→        candidates.extend(self._mine_learning_objects(query_lower, tokens, expanded, lo_types, context))
+   240→
+   241→        # 4. Mine hidden experts (from knowledge graph)
+   242→        candidates.extend(self._mine_experts(query_lower, tokens, expanded, context))
+   243→
+   244→        # 5. Mine concentration risks
+   245→        candidates.extend(self._mine_risks(query_lower, tokens, expanded, context))
+   246→
+   247→        # 6. Mine evidence graph (for similar executions)
+   248→        candidates.extend(self._mine_evidence_graph(query_lower, tokens, expanded, context))
+   249→
+   250→        # Rank all candidates
+   251→        ranked = self._rank(candidates, context)
+   252→
+   253→        # Deduplicate by source_id, keeping highest-ranked
+   254→        seen: set[str] = set()
+   255→        seen_completions: set[str] = set()  # Also dedup by completion text
+   256→        deduped: list[AutocompleteSuggestion] = []
+   257→        for c in ranked:
+   258→            key = f"{c.source_type}:{c.source_id}"
+   259→            comp_key = c.completion.strip().lower()
+   260→            if key in seen or comp_key in seen_completions:
+   261→                continue
+   262→            seen.add(key)
+   263→            seen_completions.add(comp_key)
+   264→            deduped.append(c)
+   265→
+   266→        return {
+   267→            "query": query,
+   268→            "context": context,
+   269→            "suggestions": [s.to_dict() for s in deduped[:limit]],
+   270→            "total": len(deduped),
+   271→            "ranking_factors": {
+   272→                "recency": "Newer evidence scores higher (90-day half-life)",
+   273→                "authority": "Entities with higher influence score higher",
+   274→                "outcome": "Laws with more validated runtimes score higher",
+   275→                "feedback": "Agreed entities score higher, rejected score lower",
+   276→            },
+   277→            "semantic_expansion": {
+   278→                "tokens": tokens,
+   279→                "expanded_concepts": list(expanded),
+   280→                "matched_lo_types": lo_types,
+   281→            },
+   282→        }
+   283→
+   284→    # ─── Tokenization & expansion ───
+   285→
+   286→    @staticmethod
+   287→    def _tokenize(text: str) -> list[str]:
+   288→        """Split into lowercase tokens, filtering stopwords and short words."""
+   289→        stopwords = {
+   290→            "the", "a", "an", "is", "are", "was", "were", "be", "been",
+   291→            "have", "has", "had", "do", "does", "did", "will", "would",
+   292→            "could", "should", "may", "might", "must", "can", "of", "to",
+   293→            "in", "on", "at", "by", "for", "with", "about", "as", "into",
+   294→            "like", "through", "after", "over", "between", "out", "against",
+   295→            "during", "without", "before", "under", "around", "among",
+   296→            "we", "i", "you", "they", "it", "this", "that", "these", "those",
+   297→            "and", "or", "but", "if", "then", "else", "when", "where",
+   298→            "why", "how", "all", "each", "every", "both", "few", "more",
+   299→            "most", "other", "some", "such", "no", "not", "only", "own",
+   300→            "same", "so", "than", "too", "very", "just", "now",
+   301→        }
+   302→        tokens = re.findall(r"[a-z0-9]+", text)
+   303→        return [t for t in tokens if len(t) > 1 and t not in stopwords]
+   304→
+   305→    @staticmethod
+   306→    def _expand_concepts(tokens: list[str]) -> set[str]:
+   307→        """Expand tokens using synonym map. Returns the full concept set."""
+   308→        expanded = set(tokens)
+   309→        for token in tokens:
+   310→            if token in _CONCEPT_SYNONYMS:
+   311→                expanded.update(_CONCEPT_SYNONYMS[token])
+   312→        # Also check if any token IS a synonym of a concept
+   313→        for concept, syns in _CONCEPT_SYNONYMS.items():
+   314→            for token in tokens:
+   315→                if token in syns:
+   316→                    expanded.add(concept)
+   317→                    expanded.update(syns)
+   318→        return expanded
+   319→
+   320→    @staticmethod
+   321→    def _match_lo_types(query_lower: str) -> set[str]:
+   322→        """Determine which LO types are relevant based on the query."""
+   323→        matched = set()
+   324→        for keyword, lo_type in _LO_TYPE_TRIGGERS.items():
+   325→            if keyword in query_lower:
+   326→                matched.add(lo_type)
+   327→        return matched
+   328→
+   329→    # ─── Mining functions ───
+   330→
+   331→    def _mine_recommendations(
+   332→        self, query_lower: str, tokens: list[str], expanded: set[str], context: dict
+   333→    ) -> list[AutocompleteSuggestion]:
+   334→        """Mine active recommendations for suggestions."""
+   335→        results = []
+   336→        # If the query is just stopwords ("we should", "what is"), surface
+   337→        # all recommendations — the user is asking an open question.
+   338→        surface_all = not tokens
+   339→        for rec in self.decisions.get_recommendations():
+   340→            text = (rec.title + " " + rec.description + " " + rec.recommendation).lower()
+   341→            # Score by token overlap
+   342→            score = self._text_overlap(text, tokens, expanded)
+   343→            if not surface_all and score == 0 and query_lower:
+   344→                continue
+   345→
+   346→            # Build the completion
+   347→            completion = f"We should {rec.recommendation.lower().rstrip('.')}"
+   348→            if not query_lower or surface_all or score > 0:
+   349→                results.append(AutocompleteSuggestion(
+   350→                    completion=completion,
+   351→                    query=f"Should we {rec.recommendation.lower().rstrip('.')}?",
+   352→                    reason=f"Active recommendation from OEM (urgency: {rec.urgency}). "
+   353→                           f"{('Matches ' + str(score) + ' concept(s) in your query.') if score > 0 else 'Surfaced as an open recommendation.'}",
+   354→                    expected_outcome=rec.impact or rec.description,
+   355→                    confidence=rec.confidence,
+   356→                    evidence=self._build_evidence_from_rec(rec),
+   357→                    similar_executions=self._find_similar_executions(rec.linked_laws or []),
+   358→                    citations=(rec.linked_laws or []) + [rec.rec_id],
+   359→                    source_type="recommendation",
+   360→                    source_id=rec.rec_id,
+   361→                    metadata={
+   362→                        "urgency": rec.urgency,
+   363→                        "evidence_strength": rec.evidence_strength,
+   364→                        "title": rec.title,
+   365→                    },
+   366→                ))
+   367→        return results
+   368→
+   369→    def _mine_laws(
+   370→        self, query_lower: str, tokens: list[str], expanded: set[str], context: dict
+   371→    ) -> list[AutocompleteSuggestion]:
+   372→        """Mine laws for suggestions."""
+   373→        results = []
+   374→        surface_all = not tokens
+   375→        for law in self.model.laws.values():
+   376→            text = (law.statement + " " + law.condition + " " + law.outcome).lower()
+   377→            score = self._text_overlap(text, tokens, expanded)
+   378→            if not surface_all and score == 0 and query_lower:
+   379→                continue
+   380→
+   381→            completion = f"We should respect {law.code}: {law.statement[:80]}"
+   382→            if not query_lower or surface_all or score > 0:
+   383→                results.append(AutocompleteSuggestion(
+   384→                    completion=completion,
+   385→                    query=f"What does {law.code} say?",
+   386→                    reason=f"Organizational law {law.code} (status: {law.status.value if hasattr(law.status, 'value') else law.status}). "
+   387→                           f"Validated {law.validated_runtimes} times across {len(law.providers)} providers.",
+   388→                    expected_outcome=f"If {law.condition}, then {law.outcome}",
+   389→                    confidence=law.confidence,
+   390→                    evidence=self._build_evidence_from_law(law),
+   391→                    similar_executions=self._find_similar_executions([law.code]),
+   392→                    citations=[law.code] + (law.pattern_ids or []),
+   393→                    source_type="law",
+   394→                    source_id=law.code,
+   395→                    metadata={
+   396→                        "status": law.status.value if hasattr(law.status, "value") else str(law.status),
+   397→                        "validated_runtimes": law.validated_runtimes,
+   398→                        "failed_runtimes": law.failed_runtimes,
+   399→                        "evidence_count": law.evidence_count,
+   400→                        "providers": list(law.providers or []),
+   401→                    },
+   402→                ))
+   403→        return results
+   404→
+   405→    def _mine_learning_objects(
+   406→        self, query_lower: str, tokens: list[str], expanded: set[str],
+   407→        lo_types: set[str], context: dict
+   408→    ) -> list[AutocompleteSuggestion]:
+   409→        """Mine learning objects for suggestions."""
+   410→        results = []
+   411→        surface_all = not tokens and not lo_types
+   412→        for lo in self.model.learning_objects.values():
+   413→            lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+   414→            # Match by type trigger or by text overlap
+   415→            type_match = lo_type in lo_types
+   416→            text = (lo.title + " " + lo.description).lower()
+   417→            score = self._text_overlap(text, tokens, expanded)
+   418→            if not surface_all and not type_match and score == 0 and query_lower:
+   419→                continue
+   420→
+   421→            # Build completion based on LO type
+   422→            completion = self._build_lo_completion(lo, lo_type)
+   423→            reason = self._build_lo_reason(lo, lo_type, score, type_match)
+   424→            expected = self._build_lo_outcome(lo, lo_type)
+   425→
+   426→            results.append(AutocompleteSuggestion(
+   427→                completion=completion,
+   428→                query=self._build_lo_query(lo, lo_type),
+   429→                reason=reason,
+   430→                expected_outcome=expected,
+   431→                confidence=lo.confidence,
+   432→                evidence=self._build_evidence_from_lo(lo),
+   433→                similar_executions=[],
+   434→                citations=[lo.lo_id] + (lo.entities or []),
+   435→                source_type=f"lo:{lo_type}",
+   436→                source_id=str(lo.lo_id),
+   437→                metadata={
+   438→                    "type": lo_type,
+   439→                    "entities": lo.entities,
+   440→                    "evidence_count": lo.evidence_count,
+   441→                    "providers": list(lo.providers or []),
+   442→                },
+   443→            ))
+   444→        return results
+   445→
+   446→    def _mine_experts(
+   447→        self, query_lower: str, tokens: list[str], expanded: set[str], context: dict
+   448→    ) -> list[AutocompleteSuggestion]:
+   449→        """Mine hidden experts from the knowledge graph."""
+   450→        results = []
+   451→        for expert in self.model.knowledge.get_hidden_experts():
+   452→            entity = expert.get("entity", "")
+   453→            domains = expert.get("domains", [])
+   454→            influence = expert.get("influence", 0.0)
+   455→            text = (entity + " " + " ".join(domains)).lower()
+   456→            score = self._text_overlap(text, tokens, expanded)
+   457→            # If query mentions "who" or "expert", surface all experts
+   458→            if score == 0 and not any(w in query_lower for w in ("who", "expert", "know")):
+   459→                continue
+   460→
+   461→            domain_str = domains[0] if domains else "this domain"
+   462→            results.append(AutocompleteSuggestion(
+   463→                completion=f"We should consult {entity} about {domain_str}",
+   464→                query=f"Who knows the most about {domain_str}?",
+   465→                reason=f"{entity} is a hidden expert with influence {influence:.2f} "
+   466→                       f"across {len(domains)} domain(s). Not formally recognized but "
+   467→                       f"consistently referenced in {expert.get('evidence_count', 0)} signals.",
+   468→                expected_outcome=f"Consulting {entity} on {domain_str} will surface "
+   469→                                 f"organizational knowledge not captured in formal roles.",
+   470→                confidence=min(1.0, influence / 2.0),
+   471→                evidence=[{
+   472→                    "type": "expert_profile",
+   473→                    "entity": entity,
+   474→                    "influence": round(influence, 4),
+   475→                    "domains": domains,
+   476→                }],
+   477→                similar_executions=[],
+   478→                citations=[entity] + domains,
+   479→                source_type="expert",
+   480→                source_id=entity,
+   481→                metadata={
+   482→                    "influence": round(influence, 4),
+   483→                    "domains": domains,
+   484→                },
+   485→            ))
+   486→        return results
+   487→
+   488→    def _mine_risks(
+   489→        self, query_lower: str, tokens: list[str], expanded: set[str], context: dict
+   490→    ) -> list[AutocompleteSuggestion]:
+   491→        """Mine concentration risks."""
+   492→        results = []
+   493→        for domain, score_val in self.model.knowledge.get_concentration_risk().items():
+   494→            text = domain.lower()
+   495→            score = self._text_overlap(text, tokens, expanded)
+   496→            if score == 0 and not any(w in query_lower for w in ("risk", "concentration", "exposure")):
+   497→                continue
+   498→
+   499→            results.append(AutocompleteSuggestion(
+   500→                completion=f"We should address the concentration risk in {domain}",
+   501→                query=f"What are the concentration risks in {domain}?",
+   502→                reason=f"Domain '{domain}' has a concentration score of {score_val:.2f}, "
+   503→                       f"indicating knowledge is held by too few people.",
+   504→                expected_outcome=f"Reducing concentration in {domain} will lower "
+   505→                                 f"bus-factor risk and improve resilience.",
+   506→                confidence=min(1.0, score_val / 10.0),
+   507→                evidence=[{
+   508→                    "type": "concentration_risk",
+   509→                    "domain": domain,
+   510→                    "score": round(score_val, 4),
+   511→                }],
+   512→                similar_executions=[],
+   513→                citations=[domain],
+   514→                source_type="risk",
+   515→                source_id=f"risk:{domain}",
+   516→                metadata={"domain": domain, "score": round(score_val, 4)},
+   517→            ))
+   518→        return results
+   519→
+   520→    def _mine_evidence_graph(
+   521→        self, query_lower: str, tokens: list[str], expanded: set[str], context: dict
+   522→    ) -> list[AutocompleteSuggestion]:
+   523→        """Mine the evidence graph for related patterns."""
+   524→        results = []
+   525→        # Look for nodes whose labels match the query
+   526→        for node_id, node in list(self.graph.nodes.items())[:200]:  # Cap for perf
+   527→            label = (node.label or "").lower()
+   528→            if not label:
+   529→                continue
+   530→            score = self._text_overlap(label, tokens, expanded)
+   531→            if score == 0:
+   532→                continue
+   533→
+   534→            node_type = node_id.split(":")[0] if ":" in node_id else "unknown"
+   535→            neighbor_count = len(self._adjacency.get(node_id, []))
+   536→            results.append(AutocompleteSuggestion(
+   537→                completion=f"We should investigate: {node.label}",
+   538→                query=f"What is the evidence for {node.label}?",
+   539→                reason=f"Evidence graph node of type '{node_type}'. "
+   540→                       f"Connected to {neighbor_count} other entities.",
+   541→                expected_outcome=f"Tracing the evidence chain for {node.label} will "
+   542→                                 f"reveal the signal provenance.",
+   543→                confidence=0.5,
+   544→                evidence=[{
+   545→                    "type": "evidence_node",
+   546→                    "node_id": node_id,
+   547→                    "label": node.label,
+   548→                    "node_type": node_type,
+   549→                    "connected_count": neighbor_count,
+   550→                }],
+   551→                similar_executions=[],
+   552→                citations=[node_id],
+   553→                source_type="evidence",
+   554→                source_id=node_id,
+   555→                metadata={"node_type": node_type},
+   556→            ))
+   557→        return results[:5]  # Cap evidence-graph suggestions
+   558→
+   559→    # ─── Ranking ───
+   560→
+   561→    def _rank(
+   562→        self, candidates: list[AutocompleteSuggestion], context: dict[str, Any]
+   563→    ) -> list[AutocompleteSuggestion]:
+   564→        """Rank candidates by composite score: recency + authority + outcome + feedback."""
+   565→
+   566→        # Get max influence for normalization
+   567→        max_influence = max(
+   568→            (self.model.knowledge.influence.get(e, 0.0)
+   569→             for e in self.model.knowledge.expertise),
+   570→            default=1.0,
+   571→        ) or 1.0
+   572→
+   573→        for c in candidates:
+   574→            # Base score from confidence
+   575→            base = c.confidence
+   576→
+   577→            # Recency: use the most recent evidence timestamp
+   578→            recency = self._recency_score(c)
+   579→
+   580→            # Authority: for experts, use influence; for laws, use evidence_count
+   581→            authority = self._authority_score(c, max_influence)
+   582→
+   583→            # Outcome: for laws, use validated_runtimes ratio
+   584→            outcome = self._outcome_score(c)
+   585→
+   586→            # Feedback: agreed → boost, rejected → penalize
+   587→            feedback = self._feedback_score(c)
+   588→
+   589→            # Context boost: if the suggestion's source was recently viewed, boost
+   590→            context_boost = self._context_score(c, context)
+   591→
+   592→            # Composite (weights sum to ~1.0)
+   593→            c.rank_score = (
+   594→                base * 0.25
+   595→                + recency * 0.20
+   596→                + authority * 0.15
+   597→                + outcome * 0.20
+   598→                + feedback * 0.15
+   599→                + context_boost * 0.05
+   600→            )
+   601→
+   602→        return sorted(candidates, key=lambda c: c.rank_score, reverse=True)
+   603→
+   604→    def _recency_score(self, c: AutocompleteSuggestion) -> float:
+   605→        """Score based on how recent the evidence is. 0.0–1.0."""
+   606→        # Try to find the most recent timestamp in the evidence
+   607→        latest: datetime | None = None
+   608→        for ev in c.evidence:
+   609→            ts = ev.get("timestamp")
+   610→            if ts:
+   611→                try:
+   612→                    if isinstance(ts, str):
+   613→                        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+   614→                    else:
+   615→                        dt = ts
+   616→                    if dt.tzinfo is None:
+   617→                        dt = dt.replace(tzinfo=timezone.utc)
+   618→                    if latest is None or dt > latest:
+   619→                        latest = dt
+   620→                except (ValueError, TypeError):
+   621→                    pass
+   622→
+   623→        if latest is None:
+   624→            return 0.3  # Neutral if no timestamp
+   625→
+   626→        # 90-day half-life: evidence older than 90 days scores 0.5, older than 1 year scores ~0.25
+   627→        age_days = (self._now - latest).days
+   628→        if age_days <= 0:
+   629→            return 1.0
+   630→        return max(0.1, 0.5 ** (age_days / 90.0))
+   631→
+   632→    @staticmethod
+   633→    def _authority_score(c: AutocompleteSuggestion, max_influence: float) -> float:
+   634→        """Score based on entity authority. 0.0–1.0."""
+   635→        if c.source_type == "expert":
+   636→            influence = c.metadata.get("influence", 0.0)
+   637→            return min(1.0, influence / max(max_influence, 0.01))
+   638→        if c.source_type == "law":
+   639→            # Laws with more evidence are more authoritative
+   640→            ec = c.metadata.get("evidence_count", 0)
+   641→            return min(1.0, ec / 20.0)
+   642→        if c.source_type == "recommendation":
+   643→            return c.metadata.get("evidence_strength", 0.5)
+   644→        if c.source_type.startswith("lo:"):
+   645→            ec = c.metadata.get("evidence_count", 0)
+   646→            return min(1.0, ec / 10.0)
+   647→        return 0.4
+   648→
+   649→    @staticmethod
+   650→    def _outcome_score(c: AutocompleteSuggestion) -> float:
+   651→        """Score based on validated outcomes. 0.0–1.0."""
+   652→        if c.source_type == "law":
+   653→            vr = c.metadata.get("validated_runtimes", 0)
+   654→            fr = c.metadata.get("failed_runtimes", 0)
+   655→            total = vr + fr
+   656→            if total == 0:
+   657→                return 0.3
+   658→            return vr / total
+   659→        if c.source_type == "recommendation":
+   660→            return c.confidence
+   661→        return 0.4
+   662→
+   663→    def _feedback_score(self, c: AutocompleteSuggestion) -> float:
+   664→        """Score based on contradiction feedback. 0.0–1.0.
+   665→
+   666→        Uses the ContradictionLog to learn from past feedback:
+   667→          - AGREE → boost (up to 1.0)
+   668→          - REJECT → penalize (down to 0.0)
+   669→          - MODIFY → neutral (0.5)
+   670→          - No feedback → neutral (0.5)
+   671→        """
+   672→        agree_count = 0
+   673→        reject_count = 0
+   674→        for eid in [c.source_id] + c.citations:
+   675→            fb = self._feedback_index.get(str(eid), (0, 0))
+   676→            agree_count += fb[0]
+   677→            reject_count += fb[1]
+   678→
+   679→        total = agree_count + reject_count
+   680→        if total == 0:
+   681→            return 0.5  # Neutral
+   682→
+   683→        # Weighted: agree boosts, reject penalizes
+   684→        return max(0.0, min(1.0, 0.5 + (agree_count - reject_count) / max(total, 1)))
+   685→
+   686→    @staticmethod
+   687→    def _context_score(c: AutocompleteSuggestion, context: dict[str, Any]) -> float:
+   688→        """Boost score if the suggestion is contextually relevant to the current screen."""
+   689→        surface = context.get("surface", "")
+   690→        # If we're on the "physics" surface, boost law suggestions
+   691→        if surface == "physics" and c.source_type == "law":
+   692→            return 1.0
+   693→        if surface == "hayek" and c.source_type == "expert":
+   694→            return 1.0
+   695→        if surface == "inbox" and c.source_type == "recommendation":
+   696→            return 1.0
+   697→        return 0.5
+   698→
+   699→    # ─── Feedback learning ───
+   700→
+   701→    def _build_feedback_index(self) -> dict[str, tuple[int, int]]:
+   702→        """Build an index: entity_id → (agree_count, reject_count).
+   703→
+   704→        Uses the contradiction log to learn from past feedback.
+   705→        """
+   706→        index: dict[str, tuple[int, int]] = {}
+   707→        if not self.contradiction_log:
+   708→            return index
+   709→
+   710→        # The contradiction log stores ContradictionEvents
+   711→        events = getattr(self.contradiction_log, "events", [])
+   712→        if not events and hasattr(self.contradiction_log, "_events"):
+   713→            events = self.contradiction_log._events
+   714→
+   715→        from maestro_oem.contradiction import FeedbackAction
+   716→        for event in events:
+   717→            target_id = getattr(event, "target_id", "")
+   718→            action = getattr(event, "action", None)
+   719→            if not target_id or not action:
+   720→                continue
+   721→
+   722→            agree = 1 if action == FeedbackAction.AGREE else 0
+   723→            reject = 1 if action == FeedbackAction.REJECT else 0
+   724→
+   725→            current = index.get(str(target_id), (0, 0))
+   726→            index[str(target_id)] = (current[0] + agree, current[1] + reject)
+   727→
+   728→            # Also index affected laws
+   729→            for law_code in getattr(event, "affected_laws", []):
+   730→                current = index.get(str(law_code), (0, 0))
+   731→                index[str(law_code)] = (current[0] + agree, current[1] + reject)
+   732→
+   733→        return index
+   734→
+   735→    # ─── Text matching ───
+   736→
+   737→    @staticmethod
+   738→    def _text_overlap(text: str, tokens: list[str], expanded: set[str]) -> int:
+   739→        """Count how many query tokens (or their expanded concepts) appear in text."""
+   740→        if not tokens:
+   741→            return 0
+   742→        count = 0
+   743→        for token in tokens:
+   744→            if token in text:
+   745→                count += 2  # Direct match is worth 2
+   746→        for concept in expanded:
+   747→            if concept in text and concept not in tokens:
+   748→                count += 1  # Expanded match is worth 1
+   749→        return count
+   750→
+   751→    # ─── Evidence builders ───
+   752→
+   753→    def _build_evidence_from_rec(self, rec) -> list[dict[str, Any]]:
+   754→        """Build evidence list from a recommendation."""
+   755→        evidence = []
+   756→        # Linked laws
+   757→        for code in (rec.linked_laws or [])[:3]:
+   758→            law = self.model.laws.get(code)
+   759→            if law:
+   760→                evidence.append({
+   761→                    "type": "law",
+   762→                    "code": law.code,
+   763→                    "statement": law.statement[:120],
+   764→                    "confidence": round(law.confidence, 4),
+   765→                    "timestamp": law.last_validated or law.first_inferred,
+   766→                })
+   767→        # Provenance chain
+   768→        for p in (rec.provenance or [])[:3]:
+   769→            evidence.append({
+   770→                "type": "provenance",
+   771→                "label": p.get("oem_change") or p.get("gate") or p.get("entity") or "evidence",
+   772→                "provider": p.get("provider", ""),
+   773→            })
+   774→        return evidence
+   775→
+   776→    def _build_evidence_from_law(self, law) -> list[dict[str, Any]]:
+   777→        """Build evidence list from a law."""
+   778→        evidence = []
+   779→        # Sample signals that fed this law
+   780→        signal_ids = law.signal_ids or []
+   781→        for sig_id in signal_ids[:5]:
+   782→            sig = self._find_signal(str(sig_id))
+   783→            if sig:
+   784→                evidence.append({
+   785→                    "type": "signal",
+   786→                    "signal_id": str(sig.signal_id),
+   787→                    "signal_type": sig.type.value if hasattr(sig.type, "value") else str(sig.type),
+   788→                    "actor": sig.actor,
+   789→                    "artifact": sig.artifact,
+   790→                    "provider": sig.provider.value if hasattr(sig.provider, "value") else str(sig.provider),
+   791→                    "timestamp": sig.timestamp.isoformat() if hasattr(sig.timestamp, "isoformat") else str(sig.timestamp),
+   792→                })
+   793→        # Patterns
+   794→        for pid in (law.pattern_ids or [])[:2]:
+   795→            evidence.append({
+   796→                "type": "pattern",
+   797→                "pattern_id": str(pid),
+   798→            })
+   799→        return evidence
+   800→
+   801→    def _build_evidence_from_lo(self, lo) -> list[dict[str, Any]]:
+   802→        """Build evidence list from a learning object."""
+   803→        evidence = []
+   804→        signal_ids = lo.signal_ids or []
+   805→        for sig_id in signal_ids[:3]:
+   806→            sig = self._find_signal(str(sig_id))
+   807→            if sig:
+   808→                evidence.append({
+   809→                    "type": "signal",
+   810→                    "signal_id": str(sig.signal_id),
+   811→                    "signal_type": sig.type.value if hasattr(sig.type, "value") else str(sig.type),
+   812→                    "actor": sig.actor,
+   813→                    "timestamp": sig.timestamp.isoformat() if hasattr(sig.timestamp, "isoformat") else str(sig.timestamp),
+   814→                })
+   815→        evidence.append({
+   816→            "type": "learning_object",
+   817→            "lo_id": str(lo.lo_id),
+   818→            "title": lo.title,
+   819→            "evidence_count": lo.evidence_count,
+   820→        })
+   821→        return evidence
+   822→
+   823→    def _find_signal(self, sig_id: str):
+   824→        """Find a signal by ID from the signals list."""
+   825→        for sig in self.signals:
+   826→            if str(sig.signal_id) == sig_id:
+   827→                return sig
+   828→        return None
+   829→
+   830→    def _find_similar_executions(self, law_codes: list[str]) -> list[dict[str, Any]]:
+   831→        """Find past executions (signals) that relate to the given laws."""
+   832→        similar = []
+   833→        for law_code in law_codes:
+   834→            law = self.model.laws.get(law_code)
+   835→            if not law:
+   836→                continue
+   837→            # Sample a few signals
+   838→            for sig_id in (law.signal_ids or [])[:2]:
+   839→                sig = self._find_signal(str(sig_id))
+   840→                if sig:
+   841→                    similar.append({
+   842→                        "law_code": law_code,
+   843→                        "signal_type": sig.type.value if hasattr(sig.type, "value") else str(sig.type),
+   844→                        "actor": sig.actor,
+   845→                        "artifact": sig.artifact,
+   846→                        "timestamp": sig.timestamp.isoformat() if hasattr(sig.timestamp, "isoformat") else str(sig.timestamp),
+   847→                        "outcome": "validated" if law.validated_runtimes > 0 else "unknown",
+   848→                    })
+   849→        return similar
+   850→
+   851→    # ─── Completion builders ───
+   852→
+   853→    @staticmethod
+   854→    def _build_lo_completion(lo, lo_type: str) -> str:
+   855→        """Build a natural-language completion for an LO."""
+   856→        title = lo.title or lo_type
+   857→        if lo_type == "bottleneck":
+   858→            entity = lo.entities[0] if lo.entities else "someone"
+   859→            return f"We should address the bottleneck: {entity}"
+   860→        if lo_type == "hidden_expert":
+   861→            entity = lo.entities[0] if lo.entities else "an expert"
+   862→            return f"We should recognize {entity} as a domain expert"
+   863→        if lo_type == "departure_risk":
+   864→            entity = lo.entities[0] if lo.entities else "someone"
+   865→            return f"We should retain {entity} — departure risk detected"
+   866→        if lo_type == "duplicate_work":
+   867→            return f"We should eliminate duplicate work: {title[:60]}"
+   868→        if lo_type == "knowledge_death":
+   869→            return f"We should document before knowledge is lost: {title[:60]}"
+   870→        if lo_type == "approval_gate":
+   871→            entity = lo.entities[0] if lo.entities else "the approver"
+   872→            return f"We should streamline approvals through {entity}"
+   873→        if lo_type == "incident_pattern":
+   874→            return f"We should prevent recurring incidents: {title[:60]}"
+   875→        if lo_type == "velocity_drop":
+   876→            return f"We should investigate the velocity drop: {title[:60]}"
+   877→        # Customer Judgment Engine LO types — judgment, not investigation
+   878→        if lo_type == "customer_committee_role":
+   879→            customer = lo.metadata.get("customer", "this customer")
+   880→            contact = lo.metadata.get("contact", "a contact")
+   881→            role = lo.metadata.get("role", "a role")
+   882→            return f"We should engage {contact} ({role}) at {customer} — committee signal detected"
+   883→        if lo_type == "customer_commitment":
+   884→            customer = lo.metadata.get("customer", "this customer")
+   885→            commitment = lo.metadata.get("commitment", "a commitment")
+   886→            status = lo.metadata.get("status", "open")
+   887→            if status == "broken":
+   888→                return f"We should repair trust with {customer} — broken commitment: {commitment[:50]}"
+   889→            if status == "kept":
+   890→                return f"We should leverage the kept commitment to {customer}: {commitment[:50]}"
+   891→            return f"We should fulfill our commitment to {customer}: {commitment[:50]}"
+   892→        if lo_type == "customer_drift":
+   893→            customer = lo.metadata.get("customer", "this customer")
+   894→            contact = lo.metadata.get("contact", "the champion")
+   895→            return f"We should re-engage {contact} at {customer} — drift signal detected"
+   896→        if lo_type == "customer_risk":
+   897→            customer = lo.metadata.get("customer", "this customer")
+   898→            obj_type = lo.metadata.get("objection_type", "a risk")
+   899→            return f"We should address the {obj_type} concern raised by {customer}"
+   900→        if lo_type == "customer_decision_pattern":
+   901→            customer = lo.metadata.get("customer", "this customer")
+   902→            outcome = lo.metadata.get("outcome", "a decision")
+   903→            return f"We should learn from {customer}'s decision: {outcome}"
+   904→        return f"We should address: {title[:60]}"
+   905→
+   906→    @staticmethod
+   907→    def _build_lo_reason(lo, lo_type: str, score: int, type_match: bool) -> str:
+   908→        """Build a reason string for an LO suggestion."""
+   909→        parts = [f"Learning object of type '{lo_type}'"]
+   910→        if type_match:
+   911→            parts.append("matched by concept type")
+   912→        if score > 0:
+   913→            parts.append(f"matched {score} concept(s) in your query")
+   914→        parts.append(f"with {lo.evidence_count} evidence signals")
+   915→        if lo.entities:
+   916→            parts.append(f"involving: {', '.join(lo.entities[:3])}")
+   917→        return ". ".join(parts) + "."
+   918→
+   919→    @staticmethod
+   920→    def _build_lo_outcome(lo, lo_type: str) -> str:
+   921→        """Build an expected outcome string for an LO."""
+   922→        return lo.description or f"Addressing this {lo_type} will improve organizational execution."
+   923→
+   924→    @staticmethod
+   925→    def _build_lo_query(lo, lo_type: str) -> str:
+   926→        """Build the query to execute when this suggestion is selected."""
+   927→        title = lo.title or lo_type
+   928→        return f"Tell me about: {title[:80]}"
+   929→
