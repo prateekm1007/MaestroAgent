@@ -967,6 +967,16 @@ class ExecutionModel(BaseModel):
         delta: ModelDelta,
     ) -> None:
         """Add a receipt to the delta and the chain."""
+        # For customer signals, carry the customer/contact metadata into the
+        # receipt so the evidence graph can render human-readable labels.
+        change_data: dict[str, Any] = {}
+        if signal.provider == SignalProvider.CUSTOMER:
+            change_data = {
+                "customer": signal.metadata.get("customer", ""),
+                "contact": signal.metadata.get("contact", ""),
+                "role": signal.metadata.get("role", ""),
+                "arr_impact": signal.metadata.get("arr_impact", 0),
+            }
         receipt = Receipt(
             signal_id=signal.signal_id,
             signal_type=signal.type.value,
@@ -976,6 +986,7 @@ class ExecutionModel(BaseModel):
             signal_artifact=signal.artifact,
             oem_change=change,
             oem_target=target,
+            change_data=change_data,
         )
         delta.receipts.append(receipt)
 

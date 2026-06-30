@@ -195,6 +195,75 @@ class TestNavigation:
         list_text = page.text_content("#customer-list")
         assert "Loading" not in list_text
 
+    def test_customer_surface_keyboard_navigation(self, browser_context):
+        """The Customer Judgment surface must be reachable via keyboard hotkey.
+
+        Cmd/Ctrl+8 navigates to the 8th surface in the list (customer).
+        """
+        page, _, _ = browser_context
+        # Navigate to home first (ensure we're not already on customer)
+        page.click('.sidebar-link[data-surface="home"]')
+        page.wait_for_selector("#surface-home.active", timeout=10000)
+        # Press Cmd/Ctrl+8 to navigate to customer (8th in the surfaces list)
+        page.keyboard.press("Control+8")
+        # Should now be on the customer surface
+        page.wait_for_selector("#surface-customer.active", timeout=10000)
+        assert page.query_selector("#surface-customer.active") is not None, (
+            "Ctrl+8 did not navigate to the Customer surface"
+        )
+
+    def test_customer_brief_click_opens_drilldown(self, browser_context):
+        """Clicking a customer in the morning brief must open the brief panel."""
+        page, _, _ = browser_context
+        page.click('.sidebar-link[data-surface="customer"]')
+        page.wait_for_selector("#surface-customer.active", timeout=5000)
+        _wait_for_loading_done(page, "customer-morning", 20)
+        # Click the first customer card in the morning brief
+        page.click("#customer-morning > div")
+        # The brief panel should become visible and load
+        page.wait_for_selector("#customer-brief-panel:not([style*='display: none'])", timeout=5000)
+        _wait_for_loading_done(page, "customer-brief-body", 20)
+        text = page.text_content("#customer-brief-body")
+        assert "Loading" not in text, "Customer brief body still loading after click"
+        # Should contain a recommended outcome
+        assert "Recommended outcome" in text or "recommendation" in text.lower(), (
+            f"Brief body missing recommendation: {text[:200]}"
+        )
+
+    def test_customer_ask_flow(self, browser_context):
+        """Typing a question and pressing Enter must return an answer."""
+        page, _, _ = browser_context
+        page.click('.sidebar-link[data-surface="customer"]')
+        page.wait_for_selector("#surface-customer.active", timeout=5000)
+        # Type a question
+        ask_input = page.query_selector("#customer-ask-input")
+        assert ask_input is not None, "Customer ask input not found"
+        ask_input.fill("Why is Initech slowing down?")
+        ask_input.press("Enter")
+        # Answer should appear
+        page.wait_for_selector("#customer-ask-answer:not([style*='display: none'])", timeout=10000)
+        import time as _t
+        for _ in range(20):
+            text = page.text_content("#customer-ask-text") or ""
+            if text and "Thinking" not in text:
+                break
+            _t.sleep(0.5)
+        text = page.text_content("#customer-ask-text")
+        assert text and "Thinking" not in text, "Ask did not return an answer"
+        assert "Initech" in text, f"Answer should mention Initech: {text[:200]}"
+
+    def test_customer_morning_brief_has_one_click_actions(self, browser_context):
+        """Each morning brief card must have one-click action buttons (Open/Ask/Simulate)."""
+        page, _, _ = browser_context
+        page.click('.sidebar-link[data-surface="customer"]')
+        page.wait_for_selector("#surface-customer.active", timeout=5000)
+        _wait_for_loading_done(page, "customer-morning", 20)
+        # Each card should have buttons with aria-labels
+        buttons = page.query_selector_all("#customer-morning button[aria-label]")
+        assert len(buttons) >= 3, (
+            f"Expected >= 3 one-click action buttons in morning brief, got {len(buttons)}"
+        )
+
     def test_navigate_to_simulator(self, browser_context):
         page, _, _ = browser_context
         page.click('.sidebar-link[data-surface="simulator"]')

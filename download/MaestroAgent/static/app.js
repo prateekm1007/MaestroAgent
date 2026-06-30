@@ -2385,6 +2385,11 @@ async function loadCustomerMorning() {
         <div class="text-xs text-fg-400 mb-1">${escapeHtml(r.why)}</div>
         <div class="text-xs text-fg-300"><strong>Recommendation:</strong> ${escapeHtml(r.recommendation)}</div>
         <div class="text-[10px] text-fg-500 mt-1">Expected value: ${escapeHtml(r.expected_value)} · Risk: ${formatConfidence(r.escalation_risk)} · Champion: ${escapeHtml(r.champion_health)}</div>
+        <div class="flex gap-1.5 mt-2">
+          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); selectCustomer('${escapeHtml(r.customer)}')" aria-label="Open full brief for ${escapeHtml(r.customer)}">Open brief</button>
+          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); quickCustomerAsk('${escapeHtml(r.customer)}')" aria-label="Ask about ${escapeHtml(r.customer)}">Ask</button>
+          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); runDefaultTwinScenario('${escapeHtml(r.customer)}', '${escapeHtml(r.champion_health)}')" aria-label="Simulate ${escapeHtml(r.customer)}">Simulate</button>
+        </div>
       </div>
     `).join('');
   } catch (e) {
@@ -2621,4 +2626,30 @@ async function runCustomerTwin(payload) {
   } catch (e) {
     resultEl.innerHTML = `<div class="empty-state">Simulation failed: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+// ─── One-click actions from the morning brief ─────────────────────────────
+
+async function quickCustomerAsk(customer) {
+  // Navigate to customer surface, populate the ask input, and submit
+  navTo('customer');
+  await new Promise(r => setTimeout(r, 300)); // Let the surface load
+  const input = document.getElementById('customer-ask-input');
+  if (input) {
+    const q = `What should I know about ${customer} right now?`;
+    input.value = q;
+    submitCustomerAsk(q);
+  }
+}
+
+async function runDefaultTwinScenario(customer, championHealth) {
+  // Pick a scenario based on the customer's state
+  navTo('customer');
+  await new Promise(r => setTimeout(r, 300));
+  // If champion is quiet, simulate champion_leaves (highest urgency)
+  // Otherwise simulate pricing (most common question)
+  const scenario = championHealth === 'quiet'
+    ? { type: 'champion_leaves', customer }
+    : { type: 'pricing', customer, increase_pct: 10 };
+  runCustomerTwin(scenario);
 }

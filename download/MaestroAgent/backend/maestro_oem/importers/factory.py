@@ -14,6 +14,7 @@ from maestro_oem.importers.jira_importer import JiraPageFetcher
 from maestro_oem.importers.slack_importer import SlackPageFetcher
 from maestro_oem.importers.confluence_importer import ConfluencePageFetcher
 from maestro_oem.importers.gmail_importer import GmailPageFetcher
+from maestro_oem.importers.salesforce_importer import SalesforcePageFetcher
 from maestro_oem.ingestion import PageFetcher
 from maestro_oem.oauth_manager import OAuthManager
 
@@ -26,6 +27,7 @@ _FETCHER_CLASSES = {
     "slack": SlackPageFetcher,
     "confluence": ConfluencePageFetcher,
     "gmail": GmailPageFetcher,
+    "customer": SalesforcePageFetcher,  # Customer Judgment Engine — Salesforce CRM
 }
 
 

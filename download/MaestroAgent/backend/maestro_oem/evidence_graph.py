@@ -382,7 +382,23 @@ class EvidenceGraph:
                             sig_node = self.nodes[signal_node_id]
                             sig_node.artifact_ref = receipt.signal_artifact
                             sig_node.provider = receipt.signal_provider
-                            sig_node.label = f"{receipt.signal_provider}:{receipt.signal_type}"
+                            # Build a human-readable label. For customer signals,
+                            # include the customer account + contact so the evidence
+                            # graph reads as relationship judgment, not raw types.
+                            if receipt.signal_provider == "customer":
+                                cd = receipt.change_data or {}
+                                customer = cd.get("customer", "")
+                                contact = cd.get("contact", "")
+                                # Make the signal type readable: "customer.meeting" → "meeting"
+                                stype_short = receipt.signal_type.replace("customer.", "").replace("_", " ")
+                                if customer and contact:
+                                    sig_node.label = f"{customer} — {stype_short} ({contact})"
+                                elif customer:
+                                    sig_node.label = f"{customer} — {stype_short}"
+                                else:
+                                    sig_node.label = f"{receipt.signal_provider}:{receipt.signal_type}"
+                            else:
+                                sig_node.label = f"{receipt.signal_provider}:{receipt.signal_type}"
 
         # 3. Add pattern nodes and connect to LOs
         for pattern in model.pattern_detector.patterns:

@@ -252,12 +252,16 @@ class SemanticAutocompleteEngine:
 
         # Deduplicate by source_id, keeping highest-ranked
         seen: set[str] = set()
+        seen_completions: set[str] = set()  # Also dedup by completion text
         deduped: list[AutocompleteSuggestion] = []
         for c in ranked:
             key = f"{c.source_type}:{c.source_id}"
-            if key not in seen:
-                seen.add(key)
-                deduped.append(c)
+            comp_key = c.completion.strip().lower()
+            if key in seen or comp_key in seen_completions:
+                continue
+            seen.add(key)
+            seen_completions.add(comp_key)
+            deduped.append(c)
 
         return {
             "query": query,
@@ -870,6 +874,33 @@ class SemanticAutocompleteEngine:
             return f"We should prevent recurring incidents: {title[:60]}"
         if lo_type == "velocity_drop":
             return f"We should investigate the velocity drop: {title[:60]}"
+        # Customer Judgment Engine LO types — judgment, not investigation
+        if lo_type == "customer_committee_role":
+            customer = lo.metadata.get("customer", "this customer")
+            contact = lo.metadata.get("contact", "a contact")
+            role = lo.metadata.get("role", "a role")
+            return f"We should engage {contact} ({role}) at {customer} — committee signal detected"
+        if lo_type == "customer_commitment":
+            customer = lo.metadata.get("customer", "this customer")
+            commitment = lo.metadata.get("commitment", "a commitment")
+            status = lo.metadata.get("status", "open")
+            if status == "broken":
+                return f"We should repair trust with {customer} — broken commitment: {commitment[:50]}"
+            if status == "kept":
+                return f"We should leverage the kept commitment to {customer}: {commitment[:50]}"
+            return f"We should fulfill our commitment to {customer}: {commitment[:50]}"
+        if lo_type == "customer_drift":
+            customer = lo.metadata.get("customer", "this customer")
+            contact = lo.metadata.get("contact", "the champion")
+            return f"We should re-engage {contact} at {customer} — drift signal detected"
+        if lo_type == "customer_risk":
+            customer = lo.metadata.get("customer", "this customer")
+            obj_type = lo.metadata.get("objection_type", "a risk")
+            return f"We should address the {obj_type} concern raised by {customer}"
+        if lo_type == "customer_decision_pattern":
+            customer = lo.metadata.get("customer", "this customer")
+            outcome = lo.metadata.get("outcome", "a decision")
+            return f"We should learn from {customer}'s decision: {outcome}"
         return f"We should address: {title[:60]}"
 
     @staticmethod
