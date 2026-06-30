@@ -18,7 +18,7 @@ async function loadLaws(statusFilter) {
 function renderLawCardDetailed(l) {
   const statusTag = l.status === 'validated' ? 'tag-cyan' : l.status === 'stressed' ? 'tag-amber' : l.status === 'invalidated' ? 'tag-rose' : l.status === 'unknown_to_leadership' ? 'tag-purple' : 'tag-gray';
   const chain = l.evidence_chain && l.evidence_chain.chain ? l.evidence_chain.chain : [];
-  return `<div class="card mb-3 cursor-pointer" data-law-code="${escapeHtml(l.code)}" onclick="openDrilldown('law', '${escapeHtml(l.code)}')">
+  return `<div class="card mb-3 cursor-pointer" data-law-code="${escapeHtml(l.code)}" onclick="openDrilldown('law', '${escapeJs(l.code)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="flex items-center gap-2 mb-1">
@@ -55,10 +55,10 @@ function renderLawCardDetailed(l) {
     ` : ''}
     <div class="mt-3 pt-3 border-t border-white/[0.05] flex items-center gap-2" onclick="event.stopPropagation()">
       <div class="text-[10px] uppercase text-fg-500 mr-2">Feedback:</div>
-      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'agree')">Agree</button>
-      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'reject')">Reject</button>
-      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'modify')">Modify</button>
-      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeHtml(l.code)}', 'ignore')">Ignore</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeJs(l.code)}', 'agree')">Agree</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeJs(l.code)}', 'reject')">Reject</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeJs(l.code)}', 'modify')">Modify</button>
+      <button class="btn btn-ghost text-[10px]" onclick="event.stopPropagation(); contradictLaw('${escapeJs(l.code)}', 'ignore')">Ignore</button>
     </div>
   </div>`;
 }

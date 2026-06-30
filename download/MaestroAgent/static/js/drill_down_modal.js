@@ -75,7 +75,7 @@ function renderDrilldownTab(tab) {
       ? '<div class="empty-state">No evidence available.</div>'
       : `<div class="text-[10px] text-fg-500 mb-3">${ev.length} evidence item(s)</div>
          <div class="space-y-2">${ev.map(e => `
-           <div class="drilldown-evidence-item" onclick="${e.signal_id ? `openDrilldown('signal', '${escapeHtml(e.signal_id)}')` : ''}">
+           <div class="drilldown-evidence-item" onclick="${e.signal_id ? `openDrilldown('signal', '${escapeJs(e.signal_id)}')` : ''}">
              <div class="flex items-center justify-between">
                <span class="text-xs font-semibold text-fg-200">${escapeHtml(e.type)}${e.signal_type ? ': ' + escapeHtml(e.signal_type) : ''}</span>
                ${e.provider ? `<span class="tag tag-gray">${escapeHtml(e.provider)}</span>` : ''}
@@ -101,7 +101,7 @@ function renderDrilldownTab(tab) {
     body.innerHTML = ppl.length === 0
       ? '<div class="empty-state">No people data.</div>'
       : `<div class="space-y-1">${ppl.map(p => `
-         <div class="drilldown-person" onclick="openDrilldown('expert', '${escapeHtml(p.name)}')">
+         <div class="drilldown-person" onclick="openDrilldown('expert', '${escapeJs(p.name)}')">
            <div class="w-8 h-8 rounded-full bg-brand-violet/20 flex items-center justify-center text-xs font-bold text-brand-violet">${escapeHtml(p.name.charAt(0).toUpperCase())}</div>
            <div class="flex-1">
              <div class="text-xs font-semibold text-fg-200">${escapeHtml(p.name)}</div>

@@ -76,8 +76,8 @@ function renderDangerousAssumptions(container, assumptions) {
 
         ${status === 'open' ? `
           <div class="ds-row" style="gap:6px;">
-            <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveAssumption('${escapeHtml(a.assumption_id)}', 'validated')">Mark as validated</button>
-            <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveAssumption('${escapeHtml(a.assumption_id)}', 'invalidated')">Invalidate</button>
+            <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'validated')">Mark as validated</button>
+            <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'invalidated')">Invalidate</button>
             <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View in cascade</button>
           </div>
         ` : ''}

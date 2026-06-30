@@ -253,7 +253,18 @@ class DecisionEngine:
         Answer a natural-language question using the OEM.
 
         This is the "Ask the Organization" backend.
-        It searches the model for relevant evidence and synthesizes an answer.
+
+        HONESTY NOTE: The current matching algorithm is lexical keyword
+        search — it checks if any word (>3 chars) from the question appears
+        in a law, signal, or risk statement. This is NOT natural-language
+        understanding. A question sharing a single common word with an
+        unrelated law will surface that law as "relevant evidence."
+
+        This is documented honestly because the product's pitch mentions
+        "Ask the Organization" as a feature. The pilot will determine
+        whether lexical search is sufficient or whether NLU (e.g., embedding
+        similarity) is needed. Until then, the answer quality is bounded
+        by keyword overlap.
         """
         q_lower = question.lower()
 

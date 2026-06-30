@@ -130,8 +130,8 @@ function renderAllMarketPredictions(container, predictions) {
             </div>
             ${status === 'open' ? `
               <div class="ds-row" style="gap:6px;margin-top:10px;">
-                <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveMarketPrediction('${escapeHtml(p.prediction_id)}', true)">Resolve: happened</button>
-                <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveMarketPrediction('${escapeHtml(p.prediction_id)}', false)">Resolve: didn't</button>
+                <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveMarketPrediction('${escapeJs(p.prediction_id)}', true)">Resolve: happened</button>
+                <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveMarketPrediction('${escapeJs(p.prediction_id)}', false)">Resolve: didn't</button>
               </div>
             ` : ''}
           </div>

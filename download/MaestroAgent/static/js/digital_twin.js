@@ -104,7 +104,7 @@ function renderTwinReport(report) {
         <div>
           <div class="text-[10px] uppercase text-fg-500 font-semibold mb-2">Overloaded People (${report.overloaded_people.length})</div>
           ${report.overloaded_people.map(p => `
-            <div class="flex items-center gap-2 p-2 rounded-lg bg-brand-rose/[0.04] border border-brand-rose/10 mb-1 cursor-pointer" onclick="openDrilldown('expert', '${escapeHtml(p.person)}')">
+            <div class="flex items-center gap-2 p-2 rounded-lg bg-brand-rose/[0.04] border border-brand-rose/10 mb-1 cursor-pointer" onclick="openDrilldown('expert', '${escapeJs(p.person)}')">
               <span class="text-xs font-semibold text-fg-200">${escapeHtml(p.person)}</span>
               <span class="text-[10px] text-brand-rose">+${p.workload_increase} workload</span>
               <span class="text-[10px] text-fg-600">${p.domains.join(', ')}</span>
@@ -115,7 +115,7 @@ function renderTwinReport(report) {
         <div>
           <div class="text-[10px] uppercase text-fg-500 font-semibold mb-2">Knowledge Loss (${report.knowledge_loss.length})</div>
           ${report.knowledge_loss.map(kl => `
-            <div class="p-2 rounded-lg bg-brand-amber/[0.04] border border-brand-amber/10 mb-1 cursor-pointer" onclick="openDrilldown('risk', '${escapeHtml(kl.domain)}')">
+            <div class="p-2 rounded-lg bg-brand-amber/[0.04] border border-brand-amber/10 mb-1 cursor-pointer" onclick="openDrilldown('risk', '${escapeJs(kl.domain)}')">
               <span class="text-xs font-semibold text-fg-200">${escapeHtml(kl.domain)}</span>
               <span class="text-[10px] text-brand-amber ml-2">${kl.people_before} → ${kl.people_after} people</span>
               <div class="text-[10px] text-fg-600">${escapeHtml(kl.description)}</div>
@@ -136,7 +136,7 @@ function renderTwinReport(report) {
         <div>
           <div class="text-[10px] uppercase text-fg-500 font-semibold mb-2">Law Violations (${report.law_violations.length})</div>
           ${report.law_violations.map(lv => `
-            <div class="p-2 rounded-lg bg-brand-rose/[0.04] border border-brand-rose/10 mb-1 cursor-pointer" onclick="openDrilldown('law', '${escapeHtml(lv.law_code)}')">
+            <div class="p-2 rounded-lg bg-brand-rose/[0.04] border border-brand-rose/10 mb-1 cursor-pointer" onclick="openDrilldown('law', '${escapeJs(lv.law_code)}')">
               <span class="text-xs font-semibold text-fg-200">${escapeHtml(lv.law_code)}</span>
               <span class="text-[10px] text-fg-600 ml-2">${escapeHtml(lv.description)}</span>
             </div>`).join('')}

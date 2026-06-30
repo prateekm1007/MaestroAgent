@@ -123,7 +123,7 @@ function renderEnrichedRec(r, opts = {}) {
   const evidenceCount = r.evidence_count || (r.provenance || []).length || 0;
   const linkedLaws = r.linked_laws || [];
   const compact = opts.compact;
-  return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" onclick="openDrilldown('recommendation', '${escapeHtml(r.title)}')">
+  return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" onclick="openDrilldown('recommendation', '${escapeJs(r.title)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="text-sm font-semibold text-white mb-1">${escapeHtml(r.title)}</div>
@@ -169,7 +169,7 @@ function renderECCAttention(briefing) {
           <span class="text-[10px] text-fg-500">confidence</span>
         </div>
         <div class="text-[11px] text-fg-300 mt-2">${escapeHtml(ot.impact)}</div>
-        ${ot.rec_id ? `<button class="btn btn-primary text-[11px] mt-2" onclick="event.stopPropagation(); openDrilldown('recommendation', '${escapeHtml(ot.title)}')">Investigate →</button>` : ''}
+        ${ot.rec_id ? `<button class="btn btn-primary text-[11px] mt-2" onclick="event.stopPropagation(); openDrilldown('recommendation', '${escapeJs(ot.title)}')">Investigate →</button>` : ''}
       </div>
       ${decisions.decisions.length > 0 ? `
         <div>
@@ -178,7 +178,7 @@ function renderECCAttention(briefing) {
             ${decisions.decisions.map(d => {
               const drillType = d.type === 'urgent_decision' ? 'recommendation' : d.type === 'retention' ? 'pattern' : 'law';
               const drillId = d.linked_laws && d.linked_laws.length ? d.linked_laws[0] : d.title;
-              return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-purple/[0.04] border border-brand-purple/10 cursor-pointer hover:bg-brand-purple/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(drillId)}')">
+              return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-purple/[0.04] border border-brand-purple/10 cursor-pointer hover:bg-brand-purple/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeJs(drillId)}')">
                 <div class="w-7 h-7 rounded-md bg-brand-purple/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-purple text-sm font-bold">!</span></div>
                 <div class="flex-1">
                   <div class="text-[12px] font-semibold text-fg-100">${escapeHtml(d.title)}</div>
@@ -214,7 +214,7 @@ function renderECCOvernight(briefing) {
         const sevColor = c.severity === 'urgent' ? 'rose' : c.severity === 'warning' ? 'amber' : 'cyan';
         const drillType = c.type === 'hidden_expert' ? 'expert' : c.type === 'bottleneck' ? 'pattern' : c.type === 'concentration_risk' ? 'risk' : 'pattern';
         const drillId = c.entity || c.domain || c.title || c.detail;
-        return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-${sevColor}/[0.04] border border-brand-${sevColor}/10 cursor-pointer hover:bg-brand-${sevColor}/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeHtml(drillId)}')">
+        return `<div class="flex items-start gap-3 p-3 rounded-lg bg-brand-${sevColor}/[0.04] border border-brand-${sevColor}/10 cursor-pointer hover:bg-brand-${sevColor}/[0.08] transition-colors" onclick="openDrilldown('${drillType}', '${escapeJs(drillId)}')">
           <div class="w-7 h-7 rounded-md bg-brand-${sevColor}/15 flex items-center justify-center flex-shrink-0"><span class="text-brand-${sevColor} text-sm font-bold">${c.type === 'hidden_expert' ? '?' : c.type === 'bottleneck' ? '!' : c.type === 'departure_risk' ? 'x' : 'v'}</span></div>
           <div class="flex-1"><div class="text-[12px] font-semibold text-fg-100">${escapeHtml(c.title)}</div><div class="text-[10px] text-fg-500 mt-0.5">${escapeHtml(c.detail)}</div></div>
           <span class="tag tag-${sevColor}">${escapeHtml(c.severity)}</span>
@@ -231,7 +231,7 @@ function renderECCHayek(knowledge) {
   document.getElementById('ecc-hayek-count').textContent = `${risks.length} risk${risks.length !== 1 ? 's' : ''}`;
   if (risks.length === 0) { emptyHTML(el, 'No concentration risks detected.'); return; }
   el.innerHTML = `<div class="space-y-2">${risks.map(r => `
-    <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('risk', '${escapeHtml(r.domain)}')">
+    <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('risk', '${escapeJs(r.domain)}')">
       <div class="text-sm font-semibold text-white">${escapeHtml(r.domain)}</div>
       <div class="text-[11px] text-fg-400 mt-1">Concentration: <span class="mono text-brand-rose">${r.score.toFixed(2)}</span></div>
       <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${Math.min(r.score*10,100)}%;background:#ff5577;"></div></div></div>
@@ -248,13 +248,13 @@ function renderECCFlow(knowledge) {
   if (dups.length === 0 && deaths.length === 0) { emptyHTML(el, 'No duplicate work or knowledge death detected.'); return; }
   el.innerHTML = `
     ${dups.length > 0 ? `<div class="mb-3"><div class="text-[10px] uppercase text-fg-500 mb-2">Duplicate Work (${dups.length})</div>${dups.map(d => `
-      <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeHtml(d.title || d.description)}')">
+      <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeJs(d.title || d.description)}')">
         <div class="text-sm font-semibold text-white">${escapeHtml(d.title)}</div>
         <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(d.description)}</div>
         <div class="text-[10px] text-fg-600 mt-1">Domain: ${escapeHtml(d.domain)} · ${d.providers.join(', ')}</div>
       </div>`).join('')}</div>` : ''}
     ${deaths.length > 0 ? `<div><div class="text-[10px] uppercase text-fg-500 mb-2">Knowledge Death (${deaths.length})</div>${deaths.map(k => `
-      <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeHtml(k.title || k.description)}')">
+      <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeJs(k.title || k.description)}')">
         <div class="text-sm font-semibold text-white">${escapeHtml(k.title)}</div>
         <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(k.description)}</div>
         <div class="text-[10px] text-fg-600 mt-1">Boundary: ${escapeHtml(k.boundary)} · conf ${formatConfidence(k.confidence)}</div>
@@ -269,7 +269,7 @@ function renderECCExperts(knowledge) {
   document.getElementById('ecc-experts-count').textContent = `${experts.length} expert${experts.length !== 1 ? 's' : ''}`;
   if (experts.length === 0) { emptyHTML(el, 'No hidden experts detected.'); return; }
   el.innerHTML = `<div class="space-y-2">${experts.map(e => `
-    <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('expert', '${escapeHtml(e.entity)}')">
+    <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('expert', '${escapeJs(e.entity)}')">
       <div class="flex items-center gap-3">
         <div class="w-8 h-8 rounded-full bg-brand-purple/20 flex items-center justify-center text-xs font-bold text-brand-purple">${escapeHtml(e.entity.charAt(0).toUpperCase())}</div>
         <div class="flex-1">
@@ -382,7 +382,7 @@ async function onECCAskInput(value) {
     const suggestions = data.suggestions || [];
     if (suggestions.length === 0) { dropdown.innerHTML = '<div class="exec-ac-header">No matches in OEM</div>'; dropdown.classList.add('active'); return; }
     dropdown.innerHTML = '<div class="exec-ac-header">From live OEM · ranked by recency, authority, outcome, feedback</div>' +
-      suggestions.map((s, i) => `<div class="exec-ac-item" onclick="document.getElementById('ecc-ask-input').value='${escapeHtml(s.query)}'; document.getElementById('ecc-ask-autocomplete').classList.remove('active'); submitECCAsk('${escapeHtml(s.query)}')">
+      suggestions.map((s, i) => `<div class="exec-ac-item" onclick="document.getElementById('ecc-ask-input').value='${escapeJs(s.query)}'; document.getElementById('ecc-ask-autocomplete').classList.remove('active'); submitECCAsk('${escapeJs(s.query)}')">
         <div class="exec-ac-completion"><span class="completed">${escapeHtml(s.completion)}</span></div>
         <div class="text-[9px] text-fg-600 mt-0.5">${escapeHtml(s.source_type)} · conf ${(s.confidence*100).toFixed(0)}% · ${s.citations.length} citations</div>
       </div>`).join('');

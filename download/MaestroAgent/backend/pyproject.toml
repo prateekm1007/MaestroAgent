@@ -54,6 +54,10 @@ dependencies = [
     "keyring>=25.2",
     "python-multipart>=0.0.9",
     "cryptography>=42.0",
+    # Auth — PyJWT is REQUIRED for OIDC signature verification (fail-closed)
+    "PyJWT>=2.8",
+    # Redis client for multi-instance WebSocket message broker (optional but recommended)
+    "redis>=4.6",
 ]
 
 [project.optional-dependencies]

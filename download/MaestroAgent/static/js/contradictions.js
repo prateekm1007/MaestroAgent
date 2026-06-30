@@ -80,7 +80,7 @@ function renderContradictions(container, contradictions) {
 
         ${!acknowledged ? `
           <div class="ds-row" style="gap:6px;">
-            <button class="ds-btn ds-btn-primary ds-btn-small" onclick="acknowledgeContradiction('${escapeHtml(c.contradiction_id)}')">Acknowledge</button>
+            <button class="ds-btn ds-btn-primary ds-btn-small" onclick="acknowledgeContradiction('${escapeJs(c.contradiction_id)}')">Acknowledge</button>
           </div>
         ` : ''}
       </div>

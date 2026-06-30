@@ -69,7 +69,7 @@ async function loadFeed() {
         : e.event_type.includes('drift') || e.event_type.includes('risk') || e.event_type.includes('overloaded') ? 'border-l-yellow-400'
         : 'border-l-cyan-400';
       return `
-        <div class="border-l-2 ${color} pl-3 py-1.5 mb-1.5 cursor-pointer hover:bg-white/[0.02]" onclick="openFeedEvent('${escapeHtml(e.event_type)}', '${escapeHtml(e.entity_id)}')">
+        <div class="border-l-2 ${color} pl-3 py-1.5 mb-1.5 cursor-pointer hover:bg-white/[0.02]" onclick="openFeedEvent('${escapeJs(e.event_type)}', '${escapeJs(e.entity_id)}')">
           <div class="flex items-center justify-between">
             <div class="text-xs font-semibold text-white">${escapeHtml(e.title)}</div>
             <div class="text-[9px] text-fg-500">${formatTimestamp(e.timestamp)}</div>

@@ -43,7 +43,7 @@ function renderIntentList(container, intents) {
     const isExpanded = _intentCascadeExpanded.has(intent.intent_id);
     return `
       <div class="ds-card" data-intent-id="${escapeHtml(intent.intent_id)}">
-        <div class="ds-row-between" style="cursor:pointer;" onclick="toggleIntentCascade('${escapeHtml(intent.intent_id)}')">
+        <div class="ds-row-between" style="cursor:pointer;" onclick="toggleIntentCascade('${escapeJs(intent.intent_id)}')">
           <div style="flex:1;min-width:0;">
             <div class="ds-row" style="margin-bottom:6px;">
               <span class="ds-tag ds-tag-${intentStatusTagClass(intent.status)}">${escapeHtml(intent.status || 'active')}</span>
@@ -214,8 +214,8 @@ function renderHypothesisInline(h) {
       ${h.predicted_value != null ? `<div class="ds-meta">Predicted: <span class="ds-meta-strong">${escapeHtml(String(h.predicted_value))}</span></div>` : ''}
       ${canResolve ? `
         <div class="ds-row" style="margin-top:8px;gap:6px;">
-          <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveHypothesisFromCascade('${escapeHtml(h.hypothesis_id)}','validated')">Mark validated</button>
-          <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveHypothesisFromCascade('${escapeHtml(h.hypothesis_id)}','invalidated')">Mark invalidated</button>
+          <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveHypothesisFromCascade('${escapeJs(h.hypothesis_id)}','validated')">Mark validated</button>
+          <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveHypothesisFromCascade('${escapeJs(h.hypothesis_id)}','invalidated')">Mark invalidated</button>
         </div>
       ` : ''}
     </div>
@@ -235,8 +235,8 @@ function renderPreparationInline(p) {
       ${p.summary ? `<div style="font-size:12.5px;color:var(--ds-text-secondary);line-height:1.55;">${escapeHtml(p.summary)}</div>` : ''}
       ${isReady ? `
         <div class="ds-row" style="margin-top:8px;gap:6px;">
-          <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparationFromCascade('${escapeHtml(p.preparation_id)}')">Approve</button>
-          <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparationFromCascade('${escapeHtml(p.preparation_id)}')">Reject</button>
+          <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparationFromCascade('${escapeJs(p.preparation_id)}')">Approve</button>
+          <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparationFromCascade('${escapeJs(p.preparation_id)}')">Reject</button>
         </div>
       ` : ''}
     </div>

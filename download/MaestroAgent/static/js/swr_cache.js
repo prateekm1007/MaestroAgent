@@ -225,4 +225,27 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// escapeJs — escape a string for safe interpolation into a JS string literal
+// inside an inline onclick="..." handler.
+//
+// The auditor found that escapeHtml() is insufficient for this context:
+// the browser decodes HTML entities (like &#39;) BEFORE passing the string
+// to the JS engine, so a single quote in the data decodes back to ' and
+// breaks out of the JS string literal. This is an XSS vector when the
+// data comes from attacker-influenceable sources (signal titles, customer
+// names, etc.).
+//
+// escapeJs() escapes for JS string context: replaces ' with \\', " with \\",
+// \ with \\\\, and strips newlines. Used in onclick="fn('${escapeJs(x)}')"
+// patterns. For HTML content (not inside JS strings), escapeHtml() is correct.
+function escapeJs(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════

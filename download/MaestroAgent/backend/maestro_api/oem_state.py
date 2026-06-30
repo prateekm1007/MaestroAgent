@@ -207,12 +207,21 @@ class OEMState:
         determined are resolved and confidence is recalibrated. This is the
         "auto" in "predictions auto-resolve" — without this wire, the loop
         only fires when someone manually hits POST /api/oem/predictions/resolve.
+
+        DEMO SEED PURGING: If the OEM was initialized with demo seed data
+        and this is the first batch of real signals, the demo signals are
+        purged first to prevent synthetic + real data contamination (the
+        auditor's HIGH 5 finding). The purge is logged.
         """
         if not new_signals:
             return
         if not self._initialized:
             self.initialize()
         with self._lock:
+            # Purge demo seed data when the first real signals arrive
+            if self._demo_seeded and self._live_signals_ingested == 0:
+                self._purge_demo_seed_locked()
+
             assert self.engine is not None
             for sig in new_signals:
                 try:
@@ -225,6 +234,22 @@ class OEMState:
             # Close the loop: resolve predictions that the new signals
             # (or earlier CEO feedback) can now settle.
             self._trigger_learning_resolution_locked()
+
+    def _purge_demo_seed_locked(self) -> None:
+        """Purge demo seed signals from the OEM state.
+
+        Called when the first real signals arrive via live_ingest(). Rebuilds
+        the engine from scratch (without the demo seed) to ensure only real
+        data remains. This closes the auditor's HIGH 5: demo signals were
+        silently coexisting with real signals after OAuth connection.
+        """
+        logger.info("Purging demo seed data — real signals detected, preventing data contamination")
+        # Rebuild the engine from scratch (no demo seed)
+        self.engine = OEMEngine()
+        self.signals = []
+        self._demo_seeded = False
+        # Note: we do NOT reset _live_signals_ingested here — it stays at 0
+        # so the purge only happens once (on the first real signal batch).
 
     def _refresh_downstream(self) -> None:
         """Rebuild the decision engine + evidence graph from the current model.
@@ -335,6 +360,40 @@ class OEMState:
             self.initialize()
         assert self.evidence_graph is not None
         return self.evidence_graph
+
+    def check_tenant_access(self) -> None:
+        """Enforce multi-tenant isolation at the route level.
+
+        In multi-tenant mode (MAESTRO_MULTI_TENANT=true), the OEM state is
+        scoped to a single org (set via MAESTRO_ORG_ID at startup). If a
+        request's TenantContext.org_id doesn't match, this raises 403.
+
+        In single-tenant mode (default), this is a no-op — the OEM serves
+        all requests from one shared state.
+
+        This guard is called by the OEM route dependency (_require_tenant_access)
+        to prevent cross-tenant data leakage. True multi-tenancy (per-org OEM
+        state) requires keying OEMState by org_id — a future architectural
+        change. For now, this guard prevents the route-level bypass the auditor
+        identified.
+        """
+        import os
+        is_multi_tenant = os.environ.get("MAESTRO_MULTI_TENANT", "false").lower() == "true"
+        if not is_multi_tenant:
+            return  # Single-tenant mode: no isolation needed
+
+        from maestro_auth.security import TenantContext
+        request_org = TenantContext.get_org_id()
+        state_org = os.environ.get("MAESTRO_ORG_ID", "")
+
+        if request_org and state_org and request_org != state_org:
+            from fastapi import HTTPException
+            raise HTTPException(
+                403,
+                f"Cross-tenant access denied: request org '{request_org}' does not match "
+                f"this instance's org '{state_org}'. Each tenant requires a dedicated "
+                f"deployment or per-org OEM state (not yet implemented)."
+            )
 
 
 # Module-level singleton — imported by the route handlers.

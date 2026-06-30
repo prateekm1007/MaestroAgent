@@ -18,7 +18,7 @@ async function loadCustomerMorning() {
       return;
     }
     el.innerHTML = data.relationships.map(r => `
-      <div class="border border-white/[0.05] rounded-lg p-3 mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="selectCustomer('${escapeHtml(r.customer)}')">
+      <div class="border border-white/[0.05] rounded-lg p-3 mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="selectCustomer('${escapeJs(r.customer)}')">
         <div class="flex items-center justify-between mb-1">
           <div class="font-semibold text-white">${escapeHtml(r.customer)}</div>
           <div class="flex gap-2">
@@ -30,9 +30,9 @@ async function loadCustomerMorning() {
         <div class="text-xs text-fg-300"><strong>Recommendation:</strong> ${escapeHtml(r.recommendation)}</div>
         <div class="text-[10px] text-fg-500 mt-1">Expected value: ${escapeHtml(r.expected_value)} · Risk: ${formatConfidence(r.escalation_risk)} · Champion: ${escapeHtml(r.champion_health)}</div>
         <div class="flex gap-1.5 mt-2">
-          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); selectCustomer('${escapeHtml(r.customer)}')" aria-label="Open full brief for ${escapeHtml(r.customer)}">Open brief</button>
-          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); quickCustomerAsk('${escapeHtml(r.customer)}')" aria-label="Ask about ${escapeHtml(r.customer)}">Ask</button>
-          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); runDefaultTwinScenario('${escapeHtml(r.customer)}', '${escapeHtml(r.champion_health)}')" aria-label="Simulate ${escapeHtml(r.customer)}">Simulate</button>
+          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); selectCustomer('${escapeJs(r.customer)}')" aria-label="Open full brief for ${escapeHtml(r.customer)}">Open brief</button>
+          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); quickCustomerAsk('${escapeJs(r.customer)}')" aria-label="Ask about ${escapeHtml(r.customer)}">Ask</button>
+          <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); runDefaultTwinScenario('${escapeJs(r.customer)}', '${escapeJs(r.champion_health)}')" aria-label="Simulate ${escapeHtml(r.customer)}">Simulate</button>
         </div>
       </div>
     `).join('');
@@ -52,7 +52,7 @@ async function loadCustomerList() {
     el.innerHTML = `
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         ${data.customers.map(c => `
-          <div class="border border-white/[0.05] rounded-lg p-3 cursor-pointer hover:bg-white/[0.02]" onclick="selectCustomer('${escapeHtml(c.name)}')">
+          <div class="border border-white/[0.05] rounded-lg p-3 cursor-pointer hover:bg-white/[0.02]" onclick="selectCustomer('${escapeJs(c.name)}')">
             <div class="flex items-center justify-between mb-2">
               <div class="font-semibold text-white">${escapeHtml(c.name)}</div>
               <span class="tag ${c.state === 'negative' ? 'tag-red' : c.state === 'positive' ? 'tag-green' : 'tag-gray'}">${escapeHtml(c.state)}</span>

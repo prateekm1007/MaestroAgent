@@ -22,13 +22,25 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 
 from maestro_api.oem_state import oem_state
 from maestro_db.db_helper import get_db_url_for_learning
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+
+
+# ─── Tenant isolation guard ──────────────────────────────────────────────────
+# Runs on EVERY OEM route. In multi-tenant mode (MAESTRO_MULTI_TENANT=true),
+# rejects cross-tenant access with 403. In single-tenant mode (default), no-op.
+# This closes the auditor's CRITICAL 4c: the TenantIsolationMiddleware set
+# org_id but no route read it. Now every route checks it via this dependency.
+def _require_tenant_access():
+    oem_state.check_tenant_access()
+    return True
+
+
+router = APIRouter(dependencies=[Depends(_require_tenant_access)])
 
 
 # ─── Helper: serialize a law to a UI-friendly dict ──────────────────────────
@@ -1258,7 +1270,8 @@ def get_ceo_briefing() -> dict[str, Any]:
                 "title": lo.title,
                 "detail": lo.description,
                 "entities": lo.entities,
-                "estimated_cost": f"~{lo.evidence_count * 2}h/week lost in approval delays",
+                "estimated_cost": f"{lo.evidence_count} signals — impact estimate requires time-tracking integration",
+                "cost_basis": "signal_count",
                 "severity": "high" if lo.evidence_count > 5 else "medium",
             })
         elif lo_type == "duplicate_work":
@@ -1267,7 +1280,8 @@ def get_ceo_briefing() -> dict[str, Any]:
                 "title": lo.title,
                 "detail": lo.description,
                 "entities": lo.entities,
-                "estimated_cost": f"~{lo.evidence_count}h/week wasted on duplicate effort",
+                "estimated_cost": f"{lo.evidence_count} signals — impact estimate requires time-tracking integration",
+                "cost_basis": "signal_count",
                 "severity": "medium",
             })
         elif lo_type == "incident_pattern":
@@ -1276,7 +1290,8 @@ def get_ceo_briefing() -> dict[str, Any]:
                 "title": lo.title,
                 "detail": lo.description,
                 "entities": lo.entities,
-                "estimated_cost": f"~{lo.evidence_count}h/week in incident response",
+                "estimated_cost": f"{lo.evidence_count} signals — impact estimate requires incident-tracking integration",
+                "cost_basis": "signal_count",
                 "severity": "high" if lo.evidence_count > 3 else "medium",
             })
         elif lo_type == "velocity_drop":
@@ -1285,7 +1300,8 @@ def get_ceo_briefing() -> dict[str, Any]:
                 "title": lo.title,
                 "detail": lo.description,
                 "entities": lo.entities,
-                "estimated_cost": "Delayed releases = delayed revenue",
+                "estimated_cost": "Velocity drop detected — revenue impact requires business context",
+                "cost_basis": "qualitative",
                 "severity": "high",
             })
 

@@ -14,7 +14,7 @@ async function loadEngAudit() {
       <div class="text-[10px] text-fg-500 mb-3">${data.total} receipts · showing latest ${data.receipts.length}</div>
       <div class="space-y-1">
         ${data.receipts.map(r => `
-          <div class="text-[11px] p-2 rounded bg-white/[0.02] border border-white/[0.04] grid grid-cols-12 gap-2 items-center hover:bg-white/[0.04] cursor-pointer" onclick="openDrilldown('signal', '${escapeHtml(r.receipt_id)}')">
+          <div class="text-[11px] p-2 rounded bg-white/[0.02] border border-white/[0.04] grid grid-cols-12 gap-2 items-center hover:bg-white/[0.04] cursor-pointer" onclick="openDrilldown('signal', '${escapeJs(r.receipt_id)}')">
             <span class="mono text-brand-purple col-span-2" title="${escapeHtml(r.receipt_id)}">${escapeHtml(r.receipt_id.substring(0, 8))}</span>
             <span class="text-fg-500 col-span-2">${formatTimestamp(r.timestamp)}</span>
             <span class="tag tag-gray col-span-1">${escapeHtml(r.provider)}</span>
@@ -74,7 +74,7 @@ async function loadOAuthAdminConfigs() {
             ${p.has_secret ? ' · <span style="color:#22c55e">Secret: encrypted</span>' : ''}
           </div>
           <div class="flex gap-1.5 mt-2">
-            <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${p.provider}', '${escapeHtml(p.label)}', '${escapeHtml(p.client_id)}')" aria-label="Configure ${escapeHtml(p.label)}">Configure</button>
+            <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${p.provider}', '${escapeJs(p.label)}', '${escapeJs(p.client_id)}')" aria-label="Configure ${escapeHtml(p.label)}">Configure</button>
             ${p.configured_via === 'database' ? `<button class="tag tag-gray cursor-pointer text-[10px] hover:bg-red-500/10" onclick="deleteOAuthProvider('${p.provider}')" aria-label="Remove ${escapeHtml(p.label)} config">Remove</button>` : ''}
             ${p.configured ? `<button class="tag tag-cyan cursor-pointer text-[10px]" onclick="window.open('${(MAESTRO_API || '') + '/api/oauth/' + p.provider + '/start'}')" aria-label="Connect ${escapeHtml(p.label)}">Connect</button>` : ''}
           </div>

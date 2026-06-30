@@ -250,14 +250,22 @@ class TestCEOBriefingQuality:
             assert "linked_laws" in ot
 
     def test_money_losses_have_specific_costs(self, client):
-        """Each money loss should have a specific estimated cost, not just 'money lost'."""
+        """Each money loss should have an estimated_cost field (honest about basis).
+
+        Per the auditor's HIGH 9 finding, the old formula fabricated cost
+        figures (evidence_count * 2 h/week) with no time-tracking input.
+        The new format honestly states the signal count and notes that
+        impact estimation requires integration. The test verifies the field
+        exists and includes either a signal count or a qualitative note.
+        """
         resp = client.get("/api/oem/ceo-briefing")
         money = resp.json()["money"]
         for loss in money["losses"]:
-            # The estimated_cost should contain a specific unit (h/week, revenue, etc.)
+            assert "estimated_cost" in loss, "Money loss missing estimated_cost field"
             cost = loss["estimated_cost"].lower()
-            assert any(unit in cost for unit in ["h/week", "revenue", "cost", "delay", "lost", "wasted"]), \
-                f"Money loss has no specific cost unit: {loss['estimated_cost']}"
+            # Must contain either a signal count or a qualitative impact note
+            assert any(term in cost for term in ["signal", "impact", "velocity", "revenue", "delay", "lost", "wasted", "requires"]), \
+                f"Money loss has no honest cost basis: {loss['estimated_cost']}"
 
     def test_knowledge_traps_have_specific_risks(self, client):
         """Each knowledge trap should have a specific risk, not just 'risk'."""

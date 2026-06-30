@@ -307,25 +307,31 @@ class OIDCManager:
         if expected_nonce and payload.get("nonce") != expected_nonce:
             raise OIDCError("id_token nonce mismatch")
 
-        # Verify signature via JWKS
+        # Verify signature via JWKS — fail closed if PyJWT is not installed.
+        # PyJWT + cryptography are required dependencies (see pyproject.toml).
+        # If PyJWT is somehow unavailable, we MUST NOT accept the token —
+        # accepting an unverified token is an authentication bypass.
         kid = header.get("kid")
         jwks = self._fetch_jwks(cfg.jwks_url)
         key = self._find_key(jwks, kid)
         if not key:
             raise OIDCError(f"No matching key found in JWKS for kid={kid}")
 
-        # Note: For full production, verify the signature cryptographically.
-        # We use PyJWT if available; otherwise we trust the TLS-secured JWKS fetch
-        # (the JWKS endpoint is fetched over HTTPS from the issuer).
         try:
             import jwt as pyjwt
+        except ImportError:
+            # Fail closed: do NOT accept the token if we can't verify its signature.
+            # This is a deployment misconfiguration — PyJWT must be installed.
+            raise OIDCError(
+                "PyJWT is not installed — id_token signature cannot be verified. "
+                "This is a deployment misconfiguration. Install with: pip install PyJWT cryptography. "
+                "Authentication is refused (fail-closed)."
+            )
+
+        try:
             public_key = pyjwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key))
             pyjwt.decode(id_token, key=public_key, algorithms=[header.get("alg", "RS256")],
                          audience=cfg.client_id, issuer=cfg.issuer, options={"verify_aud": True})
-        except ImportError:
-            # PyJWT not installed — log a warning and trust the TLS-fetched JWKS
-            logger.warning("PyJWT not installed — id_token signature not cryptographically verified. "
-                          "Install with: pip install PyJWT cryptography")
         except Exception as e:
             raise OIDCError(f"id_token signature verification failed: {e}")
 

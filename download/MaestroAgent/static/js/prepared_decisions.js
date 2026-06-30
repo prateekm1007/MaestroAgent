@@ -70,15 +70,15 @@ function renderPreparedDecisions(container, preps) {
 
         ${p.content ? `
           <div style="margin-bottom:10px;">
-            <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="togglePrepContent('${escapeHtml(p.preparation_id)}')">Review content</button>
+            <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="togglePrepContent('${escapeJs(p.preparation_id)}')">Review content</button>
             <div id="prep-content-${escapeHtml(p.preparation_id)}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--ds-surface-2);border-radius:6px;font-size:12.5px;color:var(--ds-text-secondary);line-height:1.55;white-space:pre-wrap;">${escapeHtml(p.content)}</div>
           </div>
         ` : ''}
 
         ${isReady ? `
           <div class="ds-row" style="gap:6px;">
-            <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparedDecision('${escapeHtml(p.preparation_id)}')">Approve</button>
-            <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparedDecision('${escapeHtml(p.preparation_id)}')">Reject</button>
+            <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparedDecision('${escapeJs(p.preparation_id)}')">Approve</button>
+            <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparedDecision('${escapeJs(p.preparation_id)}')">Reject</button>
             ${p.intent_id ? `<button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View cascade</button>` : ''}
           </div>
         ` : status === 'approved' ? `
