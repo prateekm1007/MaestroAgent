@@ -39,7 +39,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("maestro_api.oem_state._IMPORT_DB_PATH", test_db)
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test-admin-pass")
-    monkeypatch.setenv("MAESTRO_APP_DIR", "/home/z/my-project/MaestroAgent/download/MaestroAgent")
+        # Resolve app dir relative to this test file (works on any clone)
+    import pathlib
+    app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root
+    monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
 
     import_state._initialized = False

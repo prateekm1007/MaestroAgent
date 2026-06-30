@@ -26,7 +26,10 @@ def _start_server():
     from maestro_api.main import create_app
 
     # Point to the app directory so /static/app.css and /static/app.js are served
-    os.environ["MAESTRO_APP_DIR"] = "/home/z/my-project/MaestroAgent/download/MaestroAgent"
+        # Resolve app dir relative to this test file (works on any clone)
+    import pathlib
+    app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root
+    os.environ["MAESTRO_APP_DIR"] = app_dir
     os.environ.setdefault("MAESTRO_AUTH_DB", "/tmp/maestro_test_auth.db")
 
     app = create_app(db_path=":memory:")

@@ -33,7 +33,12 @@ def client(tmp_path, monkeypatch):
     """Test client with isolated import_state DB."""
     test_db = str(tmp_path / "test_import.db")
     monkeypatch.setattr("maestro_api.oem_state._IMPORT_DB_PATH", test_db)
-    monkeypatch.setenv("MAESTRO_APP_DIR", "/home/z/my-project/MaestroAgent/download/MaestroAgent")
+    # Resolve app dir relative to this test file (works on any clone)
+    # test file is at: backend/maestro_oem/tests/test_semantic_autocomplete.py
+    # parents[0]=tests, [1]=maestro_oem, [2]=backend, [3]=app root
+    import pathlib
+    app_dir = str(pathlib.Path(__file__).resolve().parents[3])
+    monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
     import_state._initialized = False
     import_state.store = None
     import_state.oauth = None

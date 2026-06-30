@@ -90,9 +90,24 @@ def _rec_to_dict(rec: Any) -> dict[str, Any]:
 
 @router.get("/state")
 def get_oem_state() -> dict[str, Any]:
-    """Top-level OEM state — signal counts, law counts, health metrics."""
+    """Top-level OEM state — signal counts, law counts, health metrics.
+
+    The 'connected' field on each provider reflects REAL OAuth state
+    (from OAuthManager), NOT whether the OEM has seed data for that provider.
+    This fixes the contradiction where the Signals page said 'connected'
+    but the Settings page said 'not configured'.
+    """
     model = oem_state.model
     summary = model.get_summary()
+
+    # Check real OAuth state for each provider
+    from maestro_api.oem_state import import_state
+    try:
+        import_state.ensure_initialized()
+        real_connections = {c["provider"]: c["connected"] for c in import_state.oauth.status()}
+    except Exception:
+        real_connections = {}
+
     # Add provider detail for the Signals page
     providers = []
     provider_names = sorted(model.connected_providers)
@@ -106,10 +121,13 @@ def get_oem_state() -> dict[str, Any]:
     for p in provider_names:
         meta = provider_meta.get(p, {"label": p, "artifact_label": "items"})
         signal_count = sum(1 for s in oem_state.signals if s.provider.value == p)
+        # Use real OAuth state, not seed data presence
+        real_connected = real_connections.get(p, False)
         providers.append({
             "provider": p,
             "label": meta["label"],
-            "connected": True,
+            "connected": real_connected,
+            "demo_data": signal_count > 0 and not real_connected,  # Flag seed data
             "signal_count": signal_count,
             "artifact_label": meta["artifact_label"],
         })
@@ -344,26 +362,39 @@ def get_simulator() -> dict[str, Any]:
 
 @router.post("/simulator")
 def run_simulator(payload: dict[str, Any]) -> dict[str, Any]:
-    """Run a what-if simulation. Payload: {inputs: {...}}."""
+    """Run a what-if simulation. Payload: {inputs: {...}}.
+
+    This endpoint is used by the dedicated Simulator page in the sidebar.
+    It shares the same confidence computation as POST /api/oem/simulate
+    (used by the Home page widget) to avoid inconsistent confidence values.
+    """
     inputs = payload.get("inputs", {})
     model = oem_state.model
-    # Compute predicted outcomes from the model's actual health + laws
-    # The simulator uses the OEM's p1_cluster_risk and incident_rate as base
     base_p1 = model.health.p1_cluster_risk
     base_incident = model.health.incident_rate
-    # Adjust based on user inputs (e.g., hire_count)
+    base_velocity = model.health.decision_velocity_days
+    base_release = model.health.release_frequency
+
     hire_count = inputs.get("hire_count", 0)
-    # More hires → slightly lower P1 risk (more capacity)
     adjusted_p1 = max(0.0, base_p1 - (hire_count * 0.02))
-    # Confidence from how many laws support this prediction
-    linked_laws = [l for l in model.laws.values() if "velocity" in l.statement.lower()
-                   or "incident" in l.statement.lower()]
-    confidence = sum(l.confidence for l in linked_laws) / max(len(linked_laws), 1)
+    adjusted_velocity = max(0.5, base_velocity - (hire_count * 0.1))
+
+    # Link to ALL laws (not just those containing "velocity"/"incident")
+    # so confidence is non-zero when laws exist.
+    # The old filter ("velocity" in statement) matched 0 seed laws → confidence 0.0.
+    linked_laws = list(model.laws.values())
+    if linked_laws:
+        confidence = sum(l.confidence for l in linked_laws) / len(linked_laws)
+    else:
+        confidence = 0.0
+
     return {
         "inputs": inputs,
         "predicted": {
             "p1_cluster_risk": round(adjusted_p1, 4),
             "incident_rate": base_incident,
+            "decision_velocity_days": round(adjusted_velocity, 2),
+            "release_frequency": round(base_release, 2),
             "hire_count": hire_count,
         },
         "confidence": round(confidence, 4),
@@ -371,6 +402,8 @@ def run_simulator(payload: dict[str, Any]) -> dict[str, Any]:
         "base_health": {
             "p1_cluster_risk": round(base_p1, 4),
             "incident_rate": base_incident,
+            "decision_velocity_days": round(base_velocity, 2),
+            "release_frequency": round(base_release, 2),
         },
     }
 
@@ -1130,6 +1163,15 @@ def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         if rec:
             linked_laws = rec.linked_laws or []
 
+    # Compute confidence from linked laws (same as /simulator endpoint)
+    # If specific law_code/rec_id given, use those; otherwise use all laws
+    if linked_laws:
+        law_objs = [model.laws[lc] for lc in linked_laws if lc in model.laws]
+    else:
+        law_objs = list(model.laws.values())
+    confidence = sum(l.confidence for l in law_objs) / max(len(law_objs), 1) if law_objs else 0.0
+    all_linked = [l.code for l in law_objs]
+
     return {
         "base_health": {
             "p1_cluster_risk": round(base_p1, 4),
@@ -1143,8 +1185,8 @@ def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
             "decision_velocity_days": round(adjusted_velocity, 2),
             "release_frequency": round(base_release, 2),
         },
-        "confidence": 0.7,
-        "linked_laws": linked_laws,
+        "confidence": round(confidence, 4),
+        "linked_laws": all_linked,
         "inputs_applied": inputs,
     }
 

@@ -1,14 +1,17 @@
 """
-OEM application state — a singleton OEMEngine + DecisionEngine + EvidenceGraph
-seeded with REAL signal data from all 5 providers.
+OEM application state — a singleton OEMEngine + DecisionEngine + EvidenceGraph.
+
+DEMO MODE: The OEM is seeded at startup with demo signal data (acme-corp)
+so the product is evaluable without OAuth credentials. This data is clearly
+labeled as demo. When real providers are connected via OAuth, real signals
+are ingested on top via live_ingest(). The demo seed is NOT removed
+automatically — use POST /api/oem/reset (if implemented) or restart
+without the seed to see only real data.
+
+To disable demo seeding: set MAESTRO_DEMO_SEED=false in env.
 
 This is the bridge between maestro_oem (the inference engine) and maestro_api
-(the HTTP layer). The OEM is built once at server startup, then continuously
-updated as the HistoricalImportEngine streams in real signals from connected
-providers (GitHub, Jira, Slack, Confluence, Gmail).
-
-The OEM is also wired to a CheckpointStore, OAuthManager, ConnectionManager,
-ProgressTracker, and HistoricalImportEngine — see `import_state` below.
+(the HTTP layer).
 """
 
 from __future__ import annotations

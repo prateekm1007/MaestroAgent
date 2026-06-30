@@ -38,7 +38,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test-admin-pass")
     # Point to the app directory so /static/app.js is served
-    monkeypatch.setenv("MAESTRO_APP_DIR", "/home/z/my-project/MaestroAgent/download/MaestroAgent")
+        # Resolve app dir relative to this test file (works on any clone)
+    import pathlib
+    app_dir = str(pathlib.Path(__file__).resolve().parents[3])  # backend/../../ = app root
+    monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
 
     import_state._initialized = False
     import_state.store = None
