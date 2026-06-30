@@ -1,9 +1,10 @@
 // DRILL-DOWN MODAL — every card/metric/insight is clickable
-// Answers: Why? Where? Evidence? Timeline? People? Prediction? Simulation? Recommendation?
+// Answers: Why? Where? Evidence? Timeline? People? Prediction? Simulation? Recommendation? Perspectives?
 // ═══════════════════════════════════════════════════════════════════════════
 
 let drilldownData = null;
 let drilldownActiveTab = 'why';
+let _drilldownPerspectivesCache = null;
 
 async function openDrilldown(entityType, entityId) {
   const modal = document.getElementById('drilldown-modal');
@@ -153,7 +154,118 @@ function renderDrilldownTab(tab) {
            </div>
          </div>
        `).join('')}</div>`;
+  } else if (tab === 'perspectives') {
+    // Surface 4: Perspectives — translate this event into 6 team-specific views.
+    // Calls /api/oem/perspectives?event_type=... The event type is inferred
+    // from the entity type (recommendation, signal, customer event, etc.).
+    body.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Translating into team perspectives…</div>';
+    renderPerspectivesTab(body);
   }
+}
+
+// ─── Surface 4: Perspectives ─────────────────────────────────────────────────
+// Translates the current drilldown entity into 6 team-specific perspectives:
+// engineering, legal, finance, sales, support, leadership.
+// The same event means different things to different teams.
+
+async function renderPerspectivesTab(bodyEl) {
+  if (!drilldownData) {
+    bodyEl.innerHTML = '<div class="ds-empty">No entity loaded.</div>';
+    return;
+  }
+
+  // Map the drilldown entity type to a perspective event_type.
+  // The PerspectiveEngine supports ~10 event types; we infer the closest match.
+  const eventType = inferPerspectiveEventType(drilldownData);
+  const customer = drilldownData.where?.customer || drilldownData.customer || '';
+  const arr = drilldownData.where?.arr || 0;
+  const commitment = drilldownData.commitment || drilldownData.where?.commitment || '';
+
+  if (!eventType) {
+    bodyEl.innerHTML = `<div class="ds-empty">
+      <div style="font-size:13.5px;color:var(--ds-text-secondary);margin-bottom:6px;">No perspectives available for this entity.</div>
+      <div>The Perspective Engine supports specific event types (customer commitment broken, objection raised, etc.). This entity doesn't map to a supported event type.</div>
+    </div>`;
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      event_type: eventType,
+      customer: customer,
+      arr: String(arr),
+      commitment: commitment,
+    });
+    const data = await api.getOEM(`/perspectives?${params.toString()}`);
+    _drilldownPerspectivesCache = data;
+    renderPerspectiveGrid(bodyEl, data);
+  } catch (e) {
+    bodyEl.innerHTML = `<div class="ds-error">Failed to load perspectives: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function inferPerspectiveEventType(data) {
+  // The PerspectiveEngine supports these event types (from /perspectives/types):
+  // customer.commitment_broken, customer.objection_raised, customer.champion_departed,
+  // customer.security_incident, customer.procurement_pressure, customer.legal_threat,
+  // decision.deadline_slipped, decision.scope_changed, team.bottleneck_formed, team.knowledge_lost
+  const type = (data.type || data.entity_type || '').toLowerCase();
+  const title = (data.title || data.why || '').toLowerCase();
+  const text = JSON.stringify(data).toLowerCase();
+
+  if (type.includes('customer') || text.includes('commitment_broken')) {
+    if (text.includes('objection')) return 'customer.objection_raised';
+    if (text.includes('champion') && text.includes('depart')) return 'customer.champion_departed';
+    if (text.includes('security')) return 'customer.security_incident';
+    if (text.includes('procurement')) return 'customer.procurement_pressure';
+    if (text.includes('legal')) return 'customer.legal_threat';
+    return 'customer.commitment_broken';
+  }
+  if (text.includes('bottleneck')) return 'team.bottleneck_formed';
+  if (text.includes('knowledge') && text.includes('lost')) return 'team.knowledge_lost';
+  if (text.includes('deadline') && text.includes('slip')) return 'decision.deadline_slipped';
+  if (text.includes('scope') && text.includes('chang')) return 'decision.scope_changed';
+  // Default: treat as a customer commitment event (most common in demo data)
+  if (text.includes('customer') || text.includes('initech') || text.includes('globex') || text.includes('hooli')) {
+    return 'customer.commitment_broken';
+  }
+  return null;
+}
+
+function renderPerspectiveGrid(bodyEl, data) {
+  const perspectives = data.perspectives || {};
+  const teams = ['engineering', 'legal', 'finance', 'sales', 'support', 'leadership'];
+  const teamLabels = {
+    engineering: 'Engineering',
+    legal: 'Legal',
+    finance: 'Finance',
+    sales: 'Sales',
+    support: 'Support',
+    leadership: 'Leadership',
+  };
+
+  const rows = teams.map(team => {
+    const text = perspectives[team];
+    if (!text) return '';
+    return `
+      <div class="ds-perspective-team">${teamLabels[team]}</div>
+      <div class="ds-perspective-text">${escapeHtml(text)}</div>
+    `;
+  }).filter(Boolean).join('');
+
+  if (!rows) {
+    bodyEl.innerHTML = `<div class="ds-empty">No perspectives returned for event type <code>${escapeHtml(data.event_type)}</code>.</div>`;
+    return;
+  }
+
+  bodyEl.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div class="ds-cascade-label">Event type</div>
+      <div style="font-family:var(--ds-font-mono);font-size:12.5px;color:var(--ds-secondary);">${escapeHtml(data.event_type)}</div>
+    </div>
+    <div class="ds-perspective-grid">${rows}</div>
+    <div class="ds-meta" style="margin-top:14px;">Same event, six implications. Each team sees a different risk surface — coordination happens before the decision, not after.</div>
+  `;
 }
 
 async function runDrilldownSimulation() {

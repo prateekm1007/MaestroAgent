@@ -1,0 +1,394 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   MAESTRO DESIGN SYSTEM
+   Adopted per the strict UI guidelines: colors, typography, spacing, sparklines.
+   Loaded AFTER app.html's inline <style> so cognitive-model surfaces inherit
+   these tokens. Existing surfaces keep working — this file only ADDS tokens
+   and a few cognitive-model-specific component classes.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Palette (per strict guidelines) */
+  --ds-bg: #0A0A0F;
+  --ds-surface: #111113;
+  --ds-surface-2: #16161a;
+  --ds-divider: #2A2A32;
+  --ds-accent: #7C5CFF;
+  --ds-secondary: #00D4AA;
+  --ds-text-primary: #F0F0F5;
+  --ds-text-secondary: #A1A1AA;
+  --ds-text-muted: #6B6B75;
+  --ds-positive: #22C55E;
+  --ds-warning: #F59E0B;
+  --ds-risk: #EF4444;
+
+  /* Typography */
+  --ds-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --ds-font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  --ds-h1: 28px;
+  --ds-h2: 22px;
+  --ds-body: 15.5px;
+  --ds-small: 13.5px;
+  --ds-mono: 14px;
+  --ds-leading-body: 1.75;
+  --ds-leading-small: 1.6;
+
+  /* Spacing (24-32px panel padding, 16-24px between sections) */
+  --ds-pad-panel: 28px;
+  --ds-pad-panel-tight: 20px;
+  --ds-gap-section: 20px;
+  --ds-gap-card: 12px;
+  --ds-radius: 12px;
+  --ds-radius-tight: 8px;
+
+  /* Motion — calm, this is an executive tool */
+  --ds-ease: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Cognitive-model surface primitives ───────────────────────────────────── */
+
+.ds-surface-page {
+  padding: 28px 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+  color: var(--ds-text-primary);
+  font-family: var(--ds-font-sans);
+  font-size: var(--ds-body);
+  line-height: var(--ds-leading-body);
+}
+
+.ds-page-title {
+  font-size: var(--ds-h1);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ds-text-primary);
+  margin: 0 0 6px 0;
+}
+
+.ds-section-title {
+  font-size: var(--ds-h2);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ds-text-primary);
+  margin: 24px 0 14px;
+}
+
+.ds-subtitle {
+  font-size: var(--ds-small);
+  color: var(--ds-text-secondary);
+  margin: 0 0 24px;
+  line-height: var(--ds-leading-small);
+}
+
+.ds-card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-divider);
+  border-radius: var(--ds-radius);
+  padding: var(--ds-pad-panel-tight);
+  transition: border-color var(--ds-ease), transform var(--ds-ease);
+}
+
+.ds-card:hover {
+  border-color: rgba(124, 92, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.ds-card-interactive {
+  cursor: pointer;
+}
+
+.ds-card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: var(--ds-accent);
+}
+
+.ds-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-gap-card);
+}
+
+.ds-stack-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-gap-section);
+}
+
+.ds-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ds-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ─── Status tags for cognitive-model entities ─────────────────────────────── */
+
+.ds-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 4px;
+  font-family: var(--ds-font-mono);
+  font-size: 11px;
+  font-weight: 450;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.ds-tag-open { background: rgba(245, 158, 11, 0.12); color: var(--ds-warning); border: 1px solid rgba(245, 158, 11, 0.25); }
+.ds-tag-ready { background: rgba(0, 212, 170, 0.12); color: var(--ds-secondary); border: 1px solid rgba(0, 212, 170, 0.25); }
+.ds-tag-approved { background: rgba(34, 197, 94, 0.12); color: var(--ds-positive); border: 1px solid rgba(34, 197, 94, 0.25); }
+.ds-tag-rejected { background: rgba(239, 68, 68, 0.12); color: var(--ds-risk); border: 1px solid rgba(239, 68, 68, 0.25); }
+.ds-tag-pending { background: rgba(124, 92, 255, 0.12); color: var(--ds-accent); border: 1px solid rgba(124, 92, 255, 0.25); }
+.ds-tag-validated { background: rgba(34, 197, 94, 0.12); color: var(--ds-positive); border: 1px solid rgba(34, 197, 94, 0.25); }
+.ds-tag-invalidated { background: rgba(239, 68, 68, 0.12); color: var(--ds-risk); border: 1px solid rgba(239, 68, 68, 0.25); }
+.ds-tag-uncertain { background: rgba(245, 158, 11, 0.12); color: var(--ds-warning); border: 1px solid rgba(245, 158, 11, 0.25); }
+.ds-tag-high { background: rgba(239, 68, 68, 0.15); color: var(--ds-risk); border: 1px solid rgba(239, 68, 68, 0.3); }
+.ds-tag-medium { background: rgba(245, 158, 11, 0.12); color: var(--ds-warning); border: 1px solid rgba(245, 158, 11, 0.25); }
+.ds-tag-low { background: rgba(161, 161, 170, 0.1); color: var(--ds-text-secondary); border: 1px solid rgba(161, 161, 170, 0.2); }
+
+/* ─── Cognitive-model action buttons ───────────────────────────────────────── */
+
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--ds-radius-tight);
+  font-family: var(--ds-font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--ds-ease);
+  white-space: nowrap;
+}
+
+.ds-btn:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+
+.ds-btn-primary { background: var(--ds-accent); color: #fff; }
+.ds-btn-primary:hover { background: #6b4cef; transform: translateY(-1px); }
+
+.ds-btn-positive { background: rgba(34, 197, 94, 0.14); color: var(--ds-positive); border-color: rgba(34, 197, 94, 0.3); }
+.ds-btn-positive:hover { background: rgba(34, 197, 94, 0.22); }
+
+.ds-btn-risk { background: rgba(239, 68, 68, 0.14); color: var(--ds-risk); border-color: rgba(239, 68, 68, 0.3); }
+.ds-btn-risk:hover { background: rgba(239, 68, 68, 0.22); }
+
+.ds-btn-ghost { background: transparent; color: var(--ds-text-secondary); border-color: var(--ds-divider); }
+.ds-btn-ghost:hover { background: rgba(255, 255, 255, 0.04); color: var(--ds-text-primary); }
+
+.ds-btn-small { padding: 4px 10px; font-size: 11.5px; }
+
+/* ─── Cognitive-model layout: cascade tree ─────────────────────────────────── */
+
+.ds-cascade {
+  border-left: 2px solid var(--ds-divider);
+  margin-left: 12px;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ds-cascade-leaf {
+  position: relative;
+}
+
+.ds-cascade-leaf::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 14px;
+  width: 14px;
+  height: 1px;
+  background: var(--ds-divider);
+}
+
+.ds-cascade-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-text-muted);
+  margin-bottom: 4px;
+}
+
+/* ─── Calibration ranking ──────────────────────────────────────────────────── */
+
+.ds-rank-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ds-divider);
+  transition: background var(--ds-ease);
+}
+
+.ds-rank-row:last-child { border-bottom: none; }
+.ds-rank-row:hover { background: rgba(124, 92, 255, 0.04); }
+
+.ds-rank-num {
+  font-family: var(--ds-font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+}
+
+.ds-rank-email {
+  font-family: var(--ds-font-mono);
+  font-size: 13px;
+  color: var(--ds-text-primary);
+}
+
+.ds-brier-badge {
+  font-family: var(--ds-font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.ds-brier-excellent { background: rgba(34, 197, 94, 0.15); color: var(--ds-positive); }
+.ds-brier-well { background: rgba(0, 212, 170, 0.15); color: var(--ds-secondary); }
+.ds-brier-moderate { background: rgba(245, 158, 11, 0.15); color: var(--ds-warning); }
+.ds-brier-poor { background: rgba(239, 68, 68, 0.15); color: var(--ds-risk); }
+
+/* ─── Perspectives grid ────────────────────────────────────────────────────── */
+
+.ds-perspective-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 1px;
+  background: var(--ds-divider);
+  border: 1px solid var(--ds-divider);
+  border-radius: var(--ds-radius);
+  overflow: hidden;
+}
+
+.ds-perspective-team {
+  background: var(--ds-surface-2);
+  padding: 14px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.ds-perspective-text {
+  background: var(--ds-surface);
+  padding: 14px 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ds-text-primary);
+}
+
+/* ─── Confidence bar (cognitive-model specific, lighter weight) ────────────── */
+
+.ds-conf-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--ds-divider);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ds-conf-bar-fill {
+  height: 100%;
+  background: var(--ds-secondary);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+
+/* ─── Sparkline container (Tufte-style: thin line, no axes, subtle dots) ────
+   Per guidelines: "Add the sparkline container now, but populate it from
+   the pilot data later. Don't fake a trend line."
+   So this container renders EMPTY until the pilot provides time-series data. */
+
+.ds-sparkline {
+  display: inline-block;
+  width: 80px;
+  height: 18px;
+  vertical-align: middle;
+  position: relative;
+}
+
+.ds-sparkline-empty {
+  border-bottom: 1px dashed var(--ds-divider);
+  height: 17px;
+}
+
+.ds-sparkline-empty::after {
+  content: '—';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--ds-text-muted);
+  font-family: var(--ds-font-mono);
+}
+
+/* ─── Loading / empty / error states (cognitive-model surfaces) ────────────── */
+
+.ds-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-small);
+}
+
+.ds-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-small);
+  line-height: 1.6;
+}
+
+.ds-error {
+  padding: 18px;
+  color: var(--ds-risk);
+  font-size: var(--ds-small);
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: var(--ds-radius-tight);
+}
+
+/* ─── Inline meta line ─────────────────────────────────────────────────────── */
+
+.ds-meta {
+  font-size: 11.5px;
+  color: var(--ds-text-muted);
+  font-family: var(--ds-font-mono);
+  letter-spacing: 0.01em;
+}
+
+.ds-meta-strong {
+  color: var(--ds-text-secondary);
+}
+
+/* ─── WCAG: respect reduced motion for ds-* transitions ───────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-card, .ds-card-interactive, .ds-btn, .ds-rank-row, .ds-conf-bar-fill {
+    transition: none !important;
+    transform: none !important;
+  }
+}

@@ -11,6 +11,10 @@ async function loadDashboard() {
   loadFeed();
   loadCognitiveLoad();
 
+  // ── Cognitive-model surface: Prepared Decisions (renders into #ecc-prepared) ──
+  // Sits ABOVE Today's Attention. Calls /api/oem/preparations directly.
+  loadPreparedDecisions();
+
   // OEM State (reference) — fetch independently (fast)
   api.getOEM('/dashboard').then(data => {
     const m = data.metrics;

@@ -24,6 +24,10 @@ const pageNames = {
   ask: 'Ask the Organization', customer: 'Customer Judgment',
   physics: 'Organizational Physics', debate: 'Debate',
   live: 'Live Meeting',
+  intents: 'Intent Cascade',
+  contradictions: 'Contradictions',
+  predictions: 'Prediction Market',
+  assumptions: 'Dangerous Assumptions',
   'eng-signals': 'Signals', 'eng-oem': 'OEM Builder',
   'eng-audit': 'Audit Log', 'eng-settings': 'Settings',
 };

@@ -24,6 +24,7 @@
 <title>Maestro — Executive Cognition Center</title>
 <meta name="description" content="Maestro — Organizational Judgment Infrastructure. Every insight derived from real execution signals.">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/css/design-system.css">
 
 <!-- ============================================================ -->
 <!-- DRILL-DOWN MODAL — answers Why? Where? Evidence? Timeline?  -->
@@ -50,6 +51,7 @@
       <button class="drilldown-tab" data-tab="prediction" onclick="switchDrilldownTab('prediction')">Prediction</button>
       <button class="drilldown-tab" data-tab="simulation" onclick="switchDrilldownTab('simulation')">Simulation</button>
       <button class="drilldown-tab" data-tab="recommendation" onclick="switchDrilldownTab('recommendation')">Recommendation</button>
+      <button class="drilldown-tab" data-tab="perspectives" onclick="switchDrilldownTab('perspectives')">Perspectives</button>
     </div>
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-6" id="drilldown-body">
@@ -314,6 +316,12 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
       <div class="sidebar-link" data-surface="debate" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>Debate</div>
       <div class="sidebar-link" data-surface="live" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>Live Meeting</div>
 
+      <div class="sidebar-section-label">Cognitive Model</div>
+      <div class="sidebar-link" data-surface="intents" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Intent Cascade</div>
+      <div class="sidebar-link" data-surface="contradictions" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>Contradictions</div>
+      <div class="sidebar-link" data-surface="predictions" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Prediction Market</div>
+      <div class="sidebar-link" data-surface="assumptions" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>Dangerous Assumptions</div>
+
       <div class="sidebar-section-label">Engineering</div>
       <div class="sidebar-link" data-surface="eng-signals" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Signals</div>
       <div class="sidebar-link" data-surface="eng-oem" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>OEM Builder</div>
@@ -394,6 +402,17 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
             <div class="panel-header"><span>Organizational Cognitive Load</span><span class="text-[10px] text-fg-500" id="ocl-level">—</span></div>
             <div class="panel-body" id="ocl-body">
               <div class="loading-state"><span class="spinner"></span> Measuring...</div>
+            </div>
+          </div>
+
+          <!-- 0. Prepared Decisions (cognitive-model surface — replaces "you should do X" with "X is ready. Approve?") -->
+          <div class="panel" style="border: 1px solid rgba(0,212,170,0.2); background: rgba(0,212,170,0.03);">
+            <div class="panel-header">
+              <span style="color: #00d4aa;">Prepared Decisions — ready for approval</span>
+              <span id="ecc-prepared-count" class="tag tag-cyan">—</span>
+            </div>
+            <div class="panel-body" id="ecc-prepared">
+              <div class="loading-state"><span class="spinner"></span> Assembling prepared decisions…</div>
             </div>
           </div>
 
@@ -780,6 +799,79 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
       </section>
 
       <!-- ============================================================ -->
+      <!-- SURFACE: INTENT CASCADE — the OEM's root view -->
+      <!-- ============================================================ -->
+      <section class="surface" id="surface-intents">
+        <div class="ds-surface-page">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Organizational Cognitive Model</div>
+            <h1 class="ds-page-title">Intent Cascade</h1>
+            <p class="ds-subtitle">The OEM's root query: "tell me about this intent." Click any intent to expand the full cascade — assumptions, hypotheses, preparations, and evidence in one view.</p>
+          </div>
+          <div class="ds-stack-section" id="intent-cascade-list">
+            <div class="ds-loading"><span class="spinner"></span> Loading intents…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- SURFACE: CONTRADICTIONS — gaps between beliefs and behavior -->
+      <!-- ============================================================ -->
+      <section class="surface" id="surface-contradictions">
+        <div class="ds-surface-page">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Organizational Cognitive Model</div>
+            <h1 class="ds-page-title">Contradictions</h1>
+            <p class="ds-subtitle">Where stated beliefs diverge from observed behavior. The OEM detects law violations, assumption invalidations, commitment integrity gaps, and bottleneck contradictions automatically.</p>
+          </div>
+          <div class="ds-stack-section" id="contradictions-list">
+            <div class="ds-loading"><span class="spinner"></span> Detecting contradictions…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- SURFACE: PREDICTION MARKET — calibration ranking -->
+      <!-- ============================================================ -->
+      <section class="surface" id="surface-predictions">
+        <div class="ds-surface-page">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Organizational Cognitive Model</div>
+            <h1 class="ds-page-title">Prediction Market</h1>
+            <p class="ds-subtitle">Calibration ranking — not hierarchy. Each predictor gets a Brier score when their predictions resolve. Lower is better: 0 = perfect, 0.25 = random, 1 = always wrong.</p>
+          </div>
+          <div id="prediction-market-ranking">
+            <div class="ds-loading"><span class="spinner"></span> Computing calibration…</div>
+          </div>
+          <div id="prediction-market-all" style="display:none;"></div>
+          <div id="prediction-market-submit" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- SURFACE: ASSUMPTIONS — what are we assuming that might be wrong? -->
+      <!-- ============================================================ -->
+      <section class="surface" id="surface-assumptions">
+        <div class="ds-surface-page">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Organizational Cognitive Model</div>
+            <h1 class="ds-page-title">Dangerous Assumptions</h1>
+            <p class="ds-subtitle">Open, high-stakes, unvalidated assumptions — the ones that could bankrupt a project if wrong. No enterprise product has this view.</p>
+          </div>
+          <div class="ds-row-between" style="margin-bottom:16px;">
+            <div class="ds-row" style="gap:6px;">
+              <button class="ds-btn ds-btn-primary ds-btn-small" onclick="setAssumptionsView('dangerous')">Dangerous</button>
+              <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="setAssumptionsView('accuracy')">Accuracy report</button>
+            </div>
+          </div>
+          <div id="assumptions-dangerous">
+            <div class="ds-loading"><span class="spinner"></span> Surfacing dangerous assumptions…</div>
+          </div>
+          <div id="assumptions-accuracy" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
       <!-- SURFACE: PHYSICS (Execution Laws) -->
       <!-- ============================================================ -->
       <section class="surface" id="surface-physics">
@@ -1063,5 +1155,11 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
 <script defer src="/static/js/drill_down_modal.js"></script>
 <script defer src="/static/js/digital_twin.js"></script>
 <script defer src="/static/js/customer_judgment_engine.js"></script>
+<!-- Cognitive-model surfaces — built per strict UI guidelines -->
+<script defer src="/static/js/prepared_decisions.js"></script>
+<script defer src="/static/js/intent_cascade.js"></script>
+<script defer src="/static/js/contradictions.js"></script>
+<script defer src="/static/js/prediction_market.js"></script>
+<script defer src="/static/js/assumptions.js"></script>
 </body>
 </html>

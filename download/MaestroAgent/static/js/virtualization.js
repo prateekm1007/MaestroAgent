@@ -77,6 +77,11 @@ function loadSurfaceData(surface) {
     case 'physics': loadLaws(''); break;
     case 'debate': loadDebate(); break;
     case 'customer': loadCustomerJudgment(); break;
+    // Cognitive-model surfaces
+    case 'intents': loadIntentCascade(); break;
+    case 'contradictions': loadContradictions(); break;
+    case 'predictions': loadPredictionMarket(); break;
+    case 'assumptions': loadAssumptions(); break;
     case 'eng-signals': loadEngSignals(); break;
     case 'eng-oem': loadEngOEM(); break;
     case 'eng-audit': loadEngAudit(); break;
