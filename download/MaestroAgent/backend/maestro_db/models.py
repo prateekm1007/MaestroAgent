@@ -91,7 +91,7 @@ class PredictionOutcome(Base):
     predicted_at = Column(String, nullable=False)
     resolved_at = Column(Text)
     entity_id = Column(Text)
-    metadata = Column(Text)  # JSON
+    metadata_json = Column("metadata", Text)  # JSON
 
 
 class CalibrationHistory(Base):
@@ -175,7 +175,7 @@ class ImportJob(Base):
     signals_produced = Column(Integer, default=0)
     errors = Column(Integer, default=0)
     error_message = Column(Text)
-    metadata = Column(Text)  # JSON
+    metadata_json = Column("metadata", Text)  # JSON
 
 
 class ImportCheckpoint(Base):
@@ -210,7 +210,7 @@ class OAuthCredential(Base):
     token_type = Column(String, default="Bearer")
     expires_at = Column(Text)
     scopes = Column(Text)  # JSON array
-    metadata = Column(Text)  # JSON
+    metadata_json = Column("metadata", Text)  # JSON
     created_at = Column(String)
     updated_at = Column(String)
 
@@ -222,7 +222,7 @@ class ProviderConnection(Base):
     connected = Column(Boolean, default=False)
     connected_at = Column(Text)
     org_id = Column(Text)
-    metadata = Column(Text)  # JSON
+    metadata_json = Column("metadata", Text)  # JSON
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -311,7 +311,7 @@ class AuditEvent(Base):
     resource_id = Column(String)
     ip_address = Column(String)
     user_agent = Column(Text)
-    metadata = Column(Text)  # JSON
+    metadata_json = Column("metadata", Text)  # JSON
     hash_prev = Column(Text)
     hash_current = Column(Text, nullable=False)
 

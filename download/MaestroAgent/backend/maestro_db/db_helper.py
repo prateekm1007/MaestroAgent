@@ -181,9 +181,8 @@ def close_all_engines() -> None:
 def get_db_url_for_learning() -> str:
     """Get the database URL/path for the learning database.
 
-    Replaces the broken pattern:
-        str(Path(os.environ.get("DATABASE_URL", "file:maestro.db")
-                .replace("file:", "")).parent / "learning.db")
+    Replaces the old file-path-based pattern which was broken for
+    PostgreSQL connection strings.
     """
     from maestro_db.base import get_db_path_for_file_db
     return get_db_path_for_file_db("learning.db")

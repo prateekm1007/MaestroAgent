@@ -154,10 +154,9 @@ def get_db_path_for_file_db(db_name: str) -> str:
     the main database, for backward compatibility with the existing
     multi-file SQLite setup.
 
-    This replaces the old pattern:
-        str(Path(os.environ.get("DATABASE_URL", "file:maestro.db")
-                .replace("file:", "")).parent / "learning.db")
-    which was broken for PostgreSQL.
+    This replaces the old file-path-based pattern which was broken for
+    PostgreSQL connection strings. See get_db_url_for_learning() for
+    the proper implementation.
     """
     url = os.environ.get("DATABASE_URL", "")
     if url and not url.startswith("file:") and "sqlite" not in url:
