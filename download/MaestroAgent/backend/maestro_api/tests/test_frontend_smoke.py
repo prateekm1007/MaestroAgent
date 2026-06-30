@@ -107,6 +107,9 @@ class TestAppLoads:
 
     def test_home_surface_visible(self, browser_context):
         page, _, _ = browser_context
+        # Constitution v2: default surface is 'today', navigate to 'home' for this test
+        page.click('.sidebar-link[data-surface="home"]')
+        page.wait_for_selector("#surface-home.active", timeout=5000)
         surface = page.query_selector("#surface-home")
         assert surface is not None
         assert "active" in surface.get_attribute("class")
@@ -126,6 +129,9 @@ def _wait_for_loading_done(page, element_id, timeout_sec=20):
 class TestOEMDataLoads:
     def test_dashboard_loads_real_data(self, browser_context):
         page, _, _ = browser_context
+        # Constitution v2: default surface is 'today', navigate to 'home' first
+        page.click('.sidebar-link[data-surface="home"]')
+        page.wait_for_selector("#surface-home.active", timeout=5000)
         # OEM State is in a <details> element — expand it first
         page.click("summary")
         page.wait_for_selector("#home-oem-state .metric-value", timeout=15000)
@@ -137,6 +143,9 @@ class TestOEMDataLoads:
 
     def test_overnight_changes_load(self, browser_context):
         page, _, _ = browser_context
+        # Constitution v2: navigate to 'home' first
+        page.click('.sidebar-link[data-surface="home"]')
+        page.wait_for_selector("#surface-home.active", timeout=5000)
         page.wait_for_selector("#ecc-overnight", timeout=15000)
         # Wait for loading to finish
         _wait_for_loading_done(page, "ecc-overnight", 20)
@@ -145,6 +154,9 @@ class TestOEMDataLoads:
 
     def test_recommendations_load(self, browser_context):
         page, _, _ = browser_context
+        # Constitution v2: navigate to 'home' first
+        page.click('.sidebar-link[data-surface="home"]')
+        page.wait_for_selector("#surface-home.active", timeout=5000)
         page.wait_for_selector("#ecc-attention", timeout=15000)
         _wait_for_loading_done(page, "ecc-attention", 20)
         text = page.text_content("#ecc-attention")

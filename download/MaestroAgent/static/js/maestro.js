@@ -19,6 +19,9 @@ const MAESTRO_API = window.MAESTRO_API || '';
 
 // ─── Navigation map (the only hardcoded data — labels, not insights) ────────
 const pageNames = {
+  // Constitution v2 — 4 meta-surfaces
+  today: 'Today', work: 'Work', 'ask-v2': 'Ask', learn: 'Learn',
+  // Deep capabilities (existing surfaces)
   home: 'Home', inbox: 'Inbox', simulator: 'Decision Simulator',
   hayek: 'Hayek Lens', flow: 'Knowledge Flow', memory: 'Memory Replay',
   ask: 'Ask the Organization', customer: 'Customer Judgment',
@@ -85,14 +88,19 @@ window.addEventListener('hashchange', () => {
 });
 window.addEventListener('DOMContentLoaded', () => {
   const hash = window.location.hash.slice(1);
-  navTo(hash && document.getElementById('surface-' + hash) ? hash : 'home');
+  // Constitution v2: default to TODAY (the morning brief)
+  const validHash = hash && document.getElementById('surface-' + hash);
+  navTo(validHash ? hash : 'today');
+  // Initialize the Organizational Dot
+  initOrgDot();
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
     e.preventDefault();
-    const surfaces = ['home','inbox','simulator','hayek','flow','memory','ask','customer','physics','debate'];
+    // Constitution v2: Ctrl+1-4 = meta-surfaces, Ctrl+5-9 = deep capabilities
+    const surfaces = ['today','work','ask-v2','learn','home','inbox','simulator','customer','physics'];
     const idx = parseInt(e.key) - 1;
     if (surfaces[idx]) navTo(surfaces[idx]);
   }

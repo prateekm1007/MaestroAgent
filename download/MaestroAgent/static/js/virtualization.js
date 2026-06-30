@@ -68,6 +68,12 @@ function emptyHTML(el, msg) {
 
 function loadSurfaceData(surface) {
   switch (surface) {
+    // Constitution v2 — 4 meta-surfaces
+    case 'today': loadToday(); break;
+    case 'work': loadWork(); break;
+    case 'ask-v2': loadAskV2(); break;
+    case 'learn': loadLearn(); break;
+    // Deep capabilities (existing surfaces)
     case 'home': loadDashboard(); break;
     case 'inbox': loadInbox(); break;
     case 'simulator': loadSimulator(); break;
