@@ -330,8 +330,35 @@ class OIDCManager:
 
         try:
             public_key = pyjwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key))
-            pyjwt.decode(id_token, key=public_key, algorithms=[header.get("alg", "RS256")],
+            # SECURITY: hardcode algorithms=["RS256"] — do NOT take the algorithm
+            # from the JWT header (algorithm injection attack).
+            #
+            # The old code passed algorithms=[header.get("alg", "RS256")], which
+            # reads the algorithm from the UNVERIFIED JWT header. An attacker who
+            # forges a JWT with alg=HS256 in the header and signs with HMAC using
+            # the server's public RSA key (available via JWKS) could bypass
+            # verification. Modern PyJWT has partial mitigations, but the correct
+            # defense is to hardcode the expected algorithm and reject anything else.
+            #
+            # OIDC id_tokens from enterprise providers (Azure AD, Okta, Google,
+            # Auth0, Supabase) use RS256. If a provider uses a different algorithm,
+            # it must be explicitly configured via MAESTRO_OIDC_ALGORITHMS env var.
+            import os
+            allowed_algorithms = os.environ.get(
+                "MAESTRO_OIDC_ALGORITHMS", "RS256"
+            ).split(",")
+            token_alg = header.get("alg", "RS256")
+            if token_alg not in allowed_algorithms:
+                raise OIDCError(
+                    f"id_token algorithm '{token_alg}' not in allowed list "
+                    f"{allowed_algorithms}. This may indicate an algorithm "
+                    f"injection attempt. If your IdP uses a non-RS256 algorithm, "
+                    f"set MAESTRO_OIDC_ALGORITHMS env var."
+                )
+            pyjwt.decode(id_token, key=public_key, algorithms=allowed_algorithms,
                          audience=cfg.client_id, issuer=cfg.issuer, options={"verify_aud": True})
+        except OIDCError:
+            raise
         except Exception as e:
             raise OIDCError(f"id_token signature verification failed: {e}")
 

@@ -74,8 +74,8 @@ async function loadOAuthAdminConfigs() {
             ${p.has_secret ? ' · <span style="color:#22c55e">Secret: encrypted</span>' : ''}
           </div>
           <div class="flex gap-1.5 mt-2">
-            <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${p.provider}', '${escapeJs(p.label)}', '${escapeJs(p.client_id)}')" aria-label="Configure ${escapeHtml(p.label)}">Configure</button>
-            ${p.configured_via === 'database' ? `<button class="tag tag-gray cursor-pointer text-[10px] hover:bg-red-500/10" onclick="deleteOAuthProvider('${p.provider}')" aria-label="Remove ${escapeHtml(p.label)} config">Remove</button>` : ''}
+            <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${escapeJs(p.provider)}', '${escapeJs(p.label)}', '${escapeJs(p.client_id)}')" aria-label="Configure ${escapeHtml(p.label)}">Configure</button>
+            ${p.configured_via === 'database' ? `<button class="tag tag-gray cursor-pointer text-[10px] hover:bg-red-500/10" onclick="deleteOAuthProvider('${escapeJs(p.provider)}')" aria-label="Remove ${escapeHtml(p.label)} config">Remove</button>` : ''}
             ${p.configured ? `<button class="tag tag-cyan cursor-pointer text-[10px]" onclick="window.open('${(MAESTRO_API || '') + '/api/oauth/' + p.provider + '/start'}')" aria-label="Connect ${escapeHtml(p.label)}">Connect</button>` : ''}
           </div>
         </div>
@@ -164,8 +164,8 @@ async function loadProviderStatus() {
           ? `<span class="tag tag-gray">Not connected</span>`
           : `<span class="tag tag-amber" title="Set MAESTRO_OAUTH_${p.provider.toUpperCase()}_CLIENT_ID and _SECRET env vars">Not configured</span>`;
       const actionButton = p.connected
-        ? `<button class="btn btn-ghost text-[11px]" onclick="disconnectProvider('${p.provider}')">Disconnect</button>`
-        : `<button class="btn btn-primary text-[11px]" ${p.configured ? '' : 'disabled'} onclick="connectProvider('${p.provider}')">Connect</button>`;
+        ? `<button class="btn btn-ghost text-[11px]" onclick="disconnectProvider('${escapeJs(p.provider)}')">Disconnect</button>`
+        : `<button class="btn btn-primary text-[11px]" ${p.configured ? '' : 'disabled'} onclick="connectProvider('${escapeJs(p.provider)}')">Connect</button>`;
       return `
         <div class="flex items-center justify-between p-3 rounded-lg bg-ink-800/60 border border-ink-700">
           <div class="flex items-center gap-3">
@@ -231,7 +231,7 @@ async function loadImportJobs() {
           </div>
           <div class="flex items-center gap-2">
             <span class="tag tag-${statusColor}">${job.status}</span>
-            ${job.status === 'running' ? `<button class="btn btn-ghost text-[10px]" onclick="cancelImport('${job.job_id}')">Cancel</button>` : ''}
+            ${job.status === 'running' ? `<button class="btn btn-ghost text-[10px]" onclick="cancelImport('${escapeJs(job.job_id)}')">Cancel</button>` : ''}
           </div>
         </div>`;
     }).join('');

@@ -772,12 +772,13 @@ class TamperEvidentAuditLog:
         from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.store.db_path)
         try:
+            conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT detail FROM audit_events ORDER BY timestamp DESC, id DESC LIMIT 1"
             ).fetchone()
             if not row:
                 return "0" * 64  # Genesis hash
-            detail = json.loads(row[0] or "{}")
+            detail = json.loads(row["detail"] or "{}")
             return detail.get("_chain_hash", "0" * 64)
         finally:
             conn.close()
@@ -833,6 +834,7 @@ class TamperEvidentAuditLog:
         from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.store.db_path)
         try:
+            conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT id, detail FROM audit_events ORDER BY timestamp ASC, id ASC"
             ).fetchall()
@@ -840,7 +842,9 @@ class TamperEvidentAuditLog:
             conn.close()
 
         prev_hash = "0" * 64
-        for row_id, row_detail in rows:
+        for row in rows:
+            row_id = row["id"]
+            row_detail = row["detail"]
             detail = json.loads(row_detail or "{}")
             stored_hash = detail.get("_chain_hash")
             stored_prev = detail.get("_prev_hash")
@@ -1009,6 +1013,7 @@ class SOC2Monitor:
         from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.auth_store.db_path)
         try:
+            conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """SELECT s.id, s.user_id, u.email, s.ip_address, s.user_agent,
                           s.created_at, s.last_used_at, s.expires_at
@@ -1022,14 +1027,14 @@ class SOC2Monitor:
                 "active_sessions": len(rows),
                 "sessions": [
                     {
-                        "session_id": r[0][:8] + "...",
-                        "user_id": r[1],
-                        "email": r[2],
-                        "ip_address": r[3],
-                        "user_agent": r[4],
-                        "created_at": r[5],
-                        "last_used_at": r[6],
-                        "expires_at": r[7],
+                        "session_id": r["id"][:8] + "...",
+                        "user_id": r["user_id"],
+                        "email": r["email"],
+                        "ip_address": r["ip_address"],
+                        "user_agent": r["user_agent"],
+                        "created_at": r["created_at"],
+                        "last_used_at": r["last_used_at"],
+                        "expires_at": r["expires_at"],
                     }
                     for r in rows
                 ],

@@ -208,7 +208,7 @@ async function loadCustomerTwinScenarios() {
   try {
     const data = await api.getOEM('/customer/twin/scenarios');
     el.innerHTML = data.scenarios.map(s => `
-      <button class="tag tag-gray cursor-pointer text-left p-2 hover:bg-white/[0.05]" onclick="loadCustomerTwinForm('${s.type}', ${JSON.stringify(s.example).replace(/"/g, '&quot;')})">
+      <button class="tag tag-gray cursor-pointer text-left p-2 hover:bg-white/[0.05]" onclick="loadCustomerTwinForm('${escapeJs(s.type)}', ${JSON.stringify(s.example).replace(/"/g, '&quot;')})">
         <div class="text-xs font-semibold">${escapeHtml(s.title)}</div>
         <div class="text-[10px] text-fg-500">${escapeHtml(s.type)}</div>
       </button>
