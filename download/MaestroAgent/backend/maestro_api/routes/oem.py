@@ -2309,3 +2309,155 @@ def get_ambient_state(
         "cognitive_load": user_cl,
         "timestamp": datetime.now(timezone.utc).isoformat() if True else None,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 19. PREPARATION ENGINE — "X is ready. Approve?"
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _preparation_engine():
+    from maestro_oem.preparation import PreparationEngine
+    engine = PreparationEngine(oem_state.model, oem_state.signals, oem_state.decisions)
+    engine.prepare_all()  # Generate preparations once
+    return engine
+
+# Cache preparations so they persist across requests within the same session
+_cached_preparations: list[dict[str, Any]] = []
+
+def _get_preparations():
+    global _cached_preparations
+    if not _cached_preparations:
+        engine = _preparation_engine()
+        _cached_preparations = engine.list_preparations()
+    return _cached_preparations
+
+
+@router.get("/preparations")
+def get_preparations(status: str | None = Query(None)) -> dict[str, Any]:
+    """List all prepared work packets.
+
+    Each preparation is assembled from OEM data — not LLM-generated.
+    The CEO sees 'X is ready' instead of 'X is needed'.
+    """
+    preps = _get_preparations()
+    if status:
+        preps = [p for p in preps if p["status"] == status]
+    return {"preparations": preps, "total": len(preps)}
+
+
+@router.get("/preparations/{preparation_id}")
+def get_preparation(preparation_id: str) -> dict[str, Any]:
+    """Get a single preparation with full content and evidence."""
+    preps = _get_preparations()
+    prep = next((p for p in preps if p["preparation_id"] == preparation_id), None)
+    if not prep:
+        raise HTTPException(404, f"Preparation {preparation_id} not found")
+    return prep
+
+
+@router.post("/preparations/{preparation_id}/approve")
+def approve_preparation(
+    preparation_id: str,
+    approved_by: str = Query("ceo", description="Who approved"),
+) -> dict[str, Any]:
+    """Approve a prepared work packet.
+
+    In production, this triggers execution (create Jira ticket, send
+    Slack message, etc.). The decision is Approve/Reject, not Think.
+    """
+    global _cached_preparations
+    preps = _get_preparations()
+    for p in preps:
+        if p["preparation_id"] == preparation_id:
+            p["status"] = "approved"
+            p["approved_by"] = approved_by
+            return {"ok": True, "preparation_id": preparation_id, "status": "approved", "approved_by": approved_by}
+    raise HTTPException(404, f"Preparation {preparation_id} not found")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 20. ASSUMPTION GRAPH — "What are we assuming that might be wrong?"
+# ═══════════════════════════════════════════════════════════════════════════
+
+_assumption_graph = None
+
+def _get_assumption_graph():
+    global _assumption_graph
+    if _assumption_graph is None:
+        from maestro_oem.assumption import AssumptionGraph
+        _assumption_graph = AssumptionGraph()
+        # Infer assumptions from current recommendations
+        try:
+            recs = oem_state.decisions.get_recommendations()
+            _assumption_graph.infer_from_recommendations(recs)
+        except Exception:
+            pass
+    return _assumption_graph
+
+
+@router.get("/assumptions")
+def list_assumptions(status: str | None = Query(None)) -> dict[str, Any]:
+    """List all tracked assumptions, optionally filtered by status.
+
+    Every decision is based on assumptions. This is the 'what are we
+    assuming?' view — evidence-backed, tracked over time.
+    """
+    graph = _get_assumption_graph()
+    return {"assumptions": graph.list_assumptions(status), "total": len(graph.list_assumptions())}
+
+
+@router.post("/assumptions")
+def create_assumption(payload: dict[str, Any]) -> dict[str, Any]:
+    """Create an explicit assumption.
+
+    Payload: {
+        statement: str (required),
+        context: str,
+        stakes: "low" | "medium" | "high" | "critical",
+        made_by: str,
+    }
+    """
+    graph = _get_assumption_graph()
+    statement = payload.get("statement", "")
+    if not statement:
+        raise HTTPException(400, "statement is required")
+    assumption_id = graph.create(
+        statement=statement,
+        made_by=payload.get("made_by", "user"),
+        context=payload.get("context", ""),
+        stakes=payload.get("stakes", "medium"),
+    )
+    return {"ok": True, "assumption_id": assumption_id}
+
+
+@router.get("/assumptions/dangerous")
+def get_dangerous_assumptions() -> dict[str, Any]:
+    """The killer view: assumptions that are open, high-stakes, and unvalidated.
+
+    These are the assumptions that could bankrupt a project if wrong.
+    No enterprise product has this.
+    """
+    graph = _get_assumption_graph()
+    dangerous = graph.get_dangerous_assumptions()
+    return {"dangerous_assumptions": dangerous, "total": len(dangerous)}
+
+
+@router.get("/assumptions/accuracy")
+def get_assumption_accuracy() -> dict[str, Any]:
+    """Accuracy report: which assumptions came true?
+
+    After 90 days: '47% of our assumptions were correct. These 3 cost
+    us the most when they turned out wrong.'
+    """
+    graph = _get_assumption_graph()
+    return graph.get_accuracy_report()
+
+
+@router.get("/assumptions/{assumption_id}")
+def get_assumption(assumption_id: str) -> dict[str, Any]:
+    """Get a single assumption with full evidence chain."""
+    graph = _get_assumption_graph()
+    a = graph.get_assumption(assumption_id)
+    if not a:
+        raise HTTPException(404, f"Assumption {assumption_id} not found")
+    return a
