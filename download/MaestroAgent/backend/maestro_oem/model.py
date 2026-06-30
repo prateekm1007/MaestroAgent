@@ -154,6 +154,18 @@ class KnowledgeGraph(BaseModel):
                 risks[domain] = self.influence.get(entity, 0)
         return risks
 
+    def domain_holders_to_domains(self, entity: str) -> set[str]:
+        """Return the set of domains this entity holds.
+
+        The inverse of domain_holders (domain → set of people).
+        Used by the CapabilityImpactQuery to answer "what does person X know?"
+        """
+        domains: set[str] = set()
+        for domain, holders in self.domain_holders.items():
+            if entity in holders:
+                domains.add(domain)
+        return domains
+
 
 class ApprovalNetwork(BaseModel):
     """Who approves what, and where the gates are."""

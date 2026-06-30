@@ -2364,6 +2364,9 @@ def approve_preparation(
 
     In production, this triggers execution (create Jira ticket, send
     Slack message, etc.). The decision is Approve/Reject, not Think.
+
+    The decision is also appended to the decision_log table — the raw
+    material for the Principle extraction engine after the 90-day pilot.
     """
     global _cached_preparations
     preps = _get_preparations()
@@ -2371,6 +2374,24 @@ def approve_preparation(
         if p["preparation_id"] == preparation_id:
             p["status"] = "approved"
             p["approved_by"] = approved_by
+            # Append to decision log (instrumentation for Principle extraction)
+            decision = "rejected" if "rejected" in approved_by else "approved"
+            try:
+                log = _get_decision_log()
+                log.log_decision(
+                    preparation_id=preparation_id,
+                    decision=decision,
+                    decided_by=approved_by.replace("-rejected", ""),
+                    preparation_type=p.get("preparation_type", ""),
+                    title=p.get("title", ""),
+                    intent_id=p.get("intent_id", ""),
+                    linked_assumption_ids=p.get("linked_assumption_ids", []),
+                    linked_hypothesis_ids=p.get("linked_hypothesis_ids", []),
+                    linked_evidence_count=len(p.get("evidence", [])),
+                    confidence_at_decision=p.get("confidence", 0.0),
+                )
+            except Exception as e:
+                logger.warning("Decision log append failed: %s", e)
             return {"ok": True, "preparation_id": preparation_id, "status": "approved", "approved_by": approved_by}
     raise HTTPException(404, f"Preparation {preparation_id} not found")
 
@@ -2952,3 +2973,123 @@ def synthesize_coordination(request_id: str) -> dict[str, Any]:
     if not result:
         raise HTTPException(404, f"Coordination request {request_id} not found")
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 27. PILOT INSTRUMENTATION — weekly snapshots, decision log, capability impact
+# ═══════════════════════════════════════════════════════════════════════════
+# Per the advisor's directive: "instrument the system so that, after 90 days,
+# you can derive Principles, Genome, Gravity, and Fragility from customer
+# data." These 3 surfaces capture the data WITHOUT building the capabilities.
+# ═══════════════════════════════════════════════════════════════════════════
+
+_snapshot_store = None
+_decision_log = None
+
+def _get_snapshot_store():
+    global _snapshot_store
+    if _snapshot_store is None:
+        from maestro_oem.instrumentation import SnapshotStore
+        _snapshot_store = SnapshotStore(_learning_db_path())
+    return _snapshot_store
+
+def _get_decision_log():
+    global _decision_log
+    if _decision_log is None:
+        from maestro_oem.instrumentation import DecisionLog
+        _decision_log = DecisionLog(_learning_db_path())
+    return _decision_log
+
+
+@router.get("/snapshots")
+def list_snapshots(limit: int = Query(52, ge=1, le=520)) -> dict[str, Any]:
+    """Weekly snapshot history — the 'does it get smarter every week?' chart.
+
+    Each row is a point-in-time capture of: prediction count, resolution
+    rate, Brier score, calibration error, hypothesis accuracy, assumption
+    validation rate. The pilot's success metric is whether Brier converges
+    over time.
+    """
+    store = _get_snapshot_store()
+    snapshots = store.list_snapshots(limit=limit)
+    return {"snapshots": snapshots, "total": len(snapshots)}
+
+
+@router.post("/snapshots/collect")
+def collect_snapshot_now() -> dict[str, Any]:
+    """Manually trigger a snapshot collection (for testing + immediate data).
+
+    The weekly scheduler calls this automatically. Exposed as a POST so
+    the pilot can capture a snapshot on-demand (e.g., after a major
+    ingestion milestone).
+    """
+    from maestro_oem.instrumentation import collect_snapshot_metrics, SnapshotStore
+    metrics = collect_snapshot_metrics(oem_state, _learning_db_path())
+    store = _get_snapshot_store()
+    row = store.record_snapshot(metrics)
+    return {"ok": True, "snapshot": row}
+
+
+@router.get("/decision-log")
+def list_decision_log(
+    limit: int = Query(100, ge=1, le=1000),
+    decision: str | None = Query(None),
+    intent_id: str | None = Query(None),
+) -> dict[str, Any]:
+    """Append-only log of approved/rejected Prepared Decisions.
+
+    After 90 days, this log is the raw material for the Principle extraction
+    engine: 'we decided X based on assumptions A,B,C and the outcome was Y.'
+    """
+    log = _get_decision_log()
+    decisions = log.list_decisions(limit=limit, decision_filter=decision, intent_id=intent_id)
+    summary = log.get_decision_summary()
+    return {"decisions": decisions, "summary": summary, "total": len(decisions)}
+
+
+@router.post("/decision-log/{preparation_id}/resolve")
+def resolve_decision_log_entry(
+    preparation_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Record the outcome of a previously-logged decision.
+
+    Payload: {outcome: str, notes: str}
+    This is what feeds Principle extraction — the actual outcome vs the
+    predicted outcome, with the assumptions that were held at decision time.
+    """
+    log = _get_decision_log()
+    outcome = payload.get("outcome", "")
+    notes = payload.get("notes", "")
+    if not outcome:
+        raise HTTPException(400, "outcome is required")
+    ok = log.resolve_decision(preparation_id, outcome, notes)
+    if not ok:
+        raise HTTPException(404, f"No decision log entry for preparation {preparation_id}")
+    return {"ok": True, "preparation_id": preparation_id, "outcome": outcome}
+
+
+@router.get("/capabilities/impact")
+def get_capability_impact(
+    person: str | None = Query(None, description="Person email to analyze. If omitted, returns high-impact people list."),
+    limit: int = Query(10, ge=1, le=50),
+) -> dict[str, Any]:
+    """What would collapse if person X disappeared?
+
+    This is the data the Gravity UI will eventually surface. We capture
+    the query now; we build the UI after the pilot proves the cognitive
+    model works on real data.
+
+    If person is provided: returns the full blast-radius analysis for that
+    person (domains orphaned, laws losing evidence, recommendations weakened).
+    If person is omitted: returns the top N high-impact people by blast radius.
+    """
+    from maestro_oem.instrumentation import CapabilityImpactQuery
+    query = CapabilityImpactQuery(oem_state.model, oem_state.signals, oem_state.decisions)
+
+    if person:
+        result = query.analyze_person(person)
+        return {"person": person, "impact": result}
+    else:
+        people = query.list_high_impact_people(limit=limit)
+        return {"high_impact_people": people, "total": len(people)}

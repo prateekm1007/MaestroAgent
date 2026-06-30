@@ -79,9 +79,56 @@ def create_app(
                 logger.info("Resumed %d incomplete import job(s) after restart", len(resumed))
         except Exception as e:
             logger.warning("Failed to resume incomplete jobs: %s", e)
+
+        # ── Pilot instrumentation: weekly snapshot scheduler ──────────────
+        # Per the advisor's directive: "instrument the system so that,
+        # after 90 days, you can derive Principles, Genome, Gravity, and
+        # Fragility from customer data." This scheduler captures a weekly
+        # snapshot of learning-loop metrics (Brier score, resolution rate,
+        # calibration error) so the pilot can answer "does it get smarter
+        # every week?" The snapshot also runs once on startup so there's
+        # immediate data point #1.
+        import asyncio
+        import os as _os2
+        from maestro_db.db_helper import get_db_url_for_learning
+        _learning_db = _os2.environ.get("MAESTRO_LEARNING_DB", get_db_url_for_learning())
+
+        async def _weekly_snapshot_loop():
+            """Capture a snapshot on startup, then weekly thereafter."""
+            # Initial snapshot on startup (data point #1)
+            try:
+                from maestro_oem.instrumentation import (
+                    collect_snapshot_metrics, SnapshotStore,
+                )
+                metrics = collect_snapshot_metrics(oem_state, _learning_db)
+                store = SnapshotStore(_learning_db)
+                store.record_snapshot(metrics)
+                logger.info("Pilot instrumentation: initial snapshot recorded")
+            except Exception as e:
+                logger.warning("Pilot instrumentation: initial snapshot failed: %s", e)
+
+            # Weekly loop (7 days). In production, use a real cron scheduler;
+            # this in-process loop is sufficient for single-instance pilots.
+            while True:
+                await asyncio.sleep(7 * 24 * 60 * 60)  # 7 days
+                try:
+                    metrics = collect_snapshot_metrics(oem_state, _learning_db)
+                    store = SnapshotStore(_learning_db)
+                    store.record_snapshot(metrics)
+                    logger.info("Pilot instrumentation: weekly snapshot recorded")
+                except Exception as e:
+                    logger.warning("Pilot instrumentation: weekly snapshot failed: %s", e)
+
+        _snapshot_task = asyncio.create_task(_weekly_snapshot_loop())
+
         try:
             yield
         finally:
+            _snapshot_task.cancel()
+            try:
+                await _snapshot_task
+            except asyncio.CancelledError:
+                pass
             await app.state.maestro.stop()
 
     app = FastAPI(
