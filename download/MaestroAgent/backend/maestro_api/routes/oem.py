@@ -226,12 +226,41 @@ def get_dashboard() -> dict[str, Any]:
 
 @router.get("/recommendations")
 def get_recommendations(urgency: str | None = Query(None)) -> dict[str, Any]:
-    """All active recommendations with full evidence chains."""
+    """All active recommendations with full evidence chains.
+
+    Each recommendation automatically creates a prediction for tracking.
+    Every recommendation includes explainable confidence.
+    """
     recs = oem_state.decisions.get_recommendations()
     if urgency:
         recs = [r for r in recs if r.urgency == urgency]
+
+    # Auto-create predictions for each recommendation (closes the learning loop)
+    from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
+    import os as _os
+    from pathlib import Path as _Path
+    _learning_db = _os.environ.get("MAESTRO_LEARNING_DB",
+                                    str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+    _Path(_learning_db).parent.mkdir(parents=True, exist_ok=True)
+    try:
+        manager = ClosedLoopLearningManager(_learning_db, oem_state.model, oem_state.signals)
+        for rec in recs:
+            manager.on_recommendation_surfaced(rec, oem_state.model)
+    except Exception as e:
+        logger.warning("Prediction recording failed: %s", e)
+
+    rec_dicts = [_rec_to_dict(r) for r in recs]
+
+    # Enrich with explainable confidence
+    try:
+        for r in rec_dicts:
+            explanation = manager.explain_confidence(r.get("title", ""), r.get("confidence", 0.5), "recommendation")
+            r["confidence_explanation"] = explanation
+    except Exception:
+        pass  # Don't fail the API if explanation fails
+
     return {
-        "recommendations": [_rec_to_dict(r) for r in recs],
+        "recommendations": rec_dicts,
         "total": len(recs),
     }
 
@@ -362,50 +391,12 @@ def get_simulator() -> dict[str, Any]:
 
 @router.post("/simulator")
 def run_simulator(payload: dict[str, Any]) -> dict[str, Any]:
-    """Run a what-if simulation. Payload: {inputs: {...}}.
+    """Run a what-if simulation. DEPRECATED — use POST /api/oem/simulate instead.
 
-    This endpoint is used by the dedicated Simulator page in the sidebar.
-    It shares the same confidence computation as POST /api/oem/simulate
-    (used by the Home page widget) to avoid inconsistent confidence values.
+    This endpoint is kept for backward compatibility but delegates to
+    the unified /simulate endpoint. Both return identical results.
     """
-    inputs = payload.get("inputs", {})
-    model = oem_state.model
-    base_p1 = model.health.p1_cluster_risk
-    base_incident = model.health.incident_rate
-    base_velocity = model.health.decision_velocity_days
-    base_release = model.health.release_frequency
-
-    hire_count = inputs.get("hire_count", 0)
-    adjusted_p1 = max(0.0, base_p1 - (hire_count * 0.02))
-    adjusted_velocity = max(0.5, base_velocity - (hire_count * 0.1))
-
-    # Link to ALL laws (not just those containing "velocity"/"incident")
-    # so confidence is non-zero when laws exist.
-    # The old filter ("velocity" in statement) matched 0 seed laws → confidence 0.0.
-    linked_laws = list(model.laws.values())
-    if linked_laws:
-        confidence = sum(l.confidence for l in linked_laws) / len(linked_laws)
-    else:
-        confidence = 0.0
-
-    return {
-        "inputs": inputs,
-        "predicted": {
-            "p1_cluster_risk": round(adjusted_p1, 4),
-            "incident_rate": base_incident,
-            "decision_velocity_days": round(adjusted_velocity, 2),
-            "release_frequency": round(base_release, 2),
-            "hire_count": hire_count,
-        },
-        "confidence": round(confidence, 4),
-        "linked_laws": [l.code for l in linked_laws],
-        "base_health": {
-            "p1_cluster_risk": round(base_p1, 4),
-            "incident_rate": base_incident,
-            "decision_velocity_days": round(base_velocity, 2),
-            "release_frequency": round(base_release, 2),
-        },
-    }
+    return simulate_scenario(payload)
 
 
 # ─── 8. GET /api/oem/provenance/{id} ───────────────────────────────────────
@@ -1702,3 +1693,91 @@ def get_available_scenarios() -> dict[str, Any]:
             },
         ]
     }
+
+
+# ─── 19. Prediction Lifecycle — closed learning loop ───────────────────────
+
+@router.get("/predictions")
+def get_predictions(
+    status: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Get predictions (all, or filtered by status).
+
+    Predictions are automatically created when recommendations are surfaced
+    and automatically resolved when future signals arrive.
+    """
+    from maestro_oem.prediction_lifecycle import PredictionRecorder
+    recorder = PredictionRecorder(_learning_db_path())
+    preds = recorder.list_predictions(status=status, limit=limit)
+    return {"predictions": preds, "count": len(preds)}
+
+
+@router.get("/predictions/{prediction_id}")
+def get_prediction(prediction_id: str) -> dict[str, Any]:
+    """Get a single prediction by ID."""
+    from maestro_oem.prediction_lifecycle import PredictionRecorder
+    recorder = PredictionRecorder(_learning_db_path())
+    pred = recorder.get_prediction(prediction_id)
+    if not pred:
+        raise HTTPException(404, f"Prediction {prediction_id} not found")
+    return pred
+
+
+@router.post("/predictions/resolve")
+def resolve_predictions() -> dict[str, Any]:
+    """Manually trigger prediction resolution.
+
+    Checks all pending predictions against current model state and
+    resolves those that can be determined. Expired predictions are
+    marked as expired.
+    """
+    from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
+    from maestro_oem.learning import CalibrationEngine
+    cal = CalibrationEngine(_learning_db_path())
+    manager = ClosedLoopLearningManager(_learning_db_path(), oem_state.model, oem_state.signals, cal)
+    result = manager.on_signals_ingested(oem_state.signals, oem_state.model)
+    return result
+
+
+@router.get("/improvement")
+def get_improvement_report() -> dict[str, Any]:
+    """The Organization Improvement Dashboard.
+
+    Proves that Maestro's recommendations get better over time by showing:
+      - Total predictions made
+      - Resolution rate
+      - Accuracy rate (correct / resolved)
+      - Brier score (lower = better)
+      - Calibration error (lower = better)
+      - Confidence trend over time
+      - Recent predictions with outcomes
+    """
+    from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
+    from maestro_oem.learning import CalibrationEngine
+    cal = CalibrationEngine(_learning_db_path())
+    manager = ClosedLoopLearningManager(_learning_db_path(), oem_state.model, oem_state.signals, cal)
+    return manager.get_improvement_report()
+
+
+@router.get("/confidence/explain")
+def explain_confidence(
+    entity_id: str = Query(...),
+    confidence: float = Query(0.5),
+    entity_type: str = Query("law"),
+) -> dict[str, Any]:
+    """Get an explainable confidence report for any entity.
+
+    Instead of returning 'confidence: 0.87', returns:
+    'Confidence is HIGH because:
+      42 similar predictions tracked
+      37 succeeded
+      5 failed
+      Prediction calibration error 0.08
+      Last validated 3 days ago.'
+    """
+    from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
+    from maestro_oem.learning import CalibrationEngine
+    cal = CalibrationEngine(_learning_db_path())
+    manager = ClosedLoopLearningManager(_learning_db_path(), oem_state.model, oem_state.signals, cal)
+    return manager.explain_confidence(entity_id, confidence, entity_type)
