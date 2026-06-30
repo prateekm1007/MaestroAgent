@@ -447,22 +447,39 @@ def require_tenant(user: dict) -> str:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class EncryptionManager:
-    """Encrypt/decrypt secrets at rest using AES-256-GCM.
+    """Encrypt/decrypt secrets at rest using Fernet (AES-128-CBC + HMAC-SHA256).
 
-    The master key comes from MAESTRO_ENCRYPTION_KEY (base64-encoded 32 bytes).
-    If not set, a key is generated and stored in a key file (dev only).
+    The master key comes from MAESTRO_MASTER_KEY (a Fernet-compatible
+    base64-encoded 32-byte key, e.g. from Fernet.generate_key()).
 
-    For production, use HashiCorp Vault or AWS KMS.
+    Fail-closed mandate:
+      - In production (MAESTRO_ENV=production), if MAESTRO_MASTER_KEY is not
+        set, the server exits immediately with a fatal error.
+      - In development (default), a key is generated and stored in a key file
+        for convenience.
+      - NEVER auto-generate or fall back to a plaintext key in production.
     """
 
     def __init__(self) -> None:
         self._key = self._load_or_generate_key()
+        self._fernet = self._get_fernet()
 
     def _load_or_generate_key(self) -> bytes:
-        key_b64 = os.environ.get("MAESTRO_ENCRYPTION_KEY")
+        # Check for the production key first
+        key_b64 = os.environ.get("MAESTRO_MASTER_KEY") or os.environ.get("MAESTRO_ENCRYPTION_KEY")
         if key_b64:
-            import base64
-            return base64.b64decode(key_b64)
+            return key_b64.encode() if isinstance(key_b64, str) else key_b64
+
+        is_production = os.environ.get("MAESTRO_ENV", "development") == "production"
+
+        # Fail-closed: refuse to start in production without a key
+        if is_production:
+            raise RuntimeError(
+                "[security] FATAL: MAESTRO_MASTER_KEY is not set and MAESTRO_ENV=production. "
+                "The EncryptionManager refuses to generate a key in production. "
+                "Generate a Fernet key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "
+                "and set it as the MAESTRO_MASTER_KEY environment variable."
+            )
 
         # Dev fallback: generate + store in key file
         key_file = os.environ.get("MAESTRO_ENCRYPTION_KEY_FILE", ".maestro/encryption.key")
@@ -470,32 +487,65 @@ class EncryptionManager:
         if os.path.exists(key_file):
             with open(key_file, "rb") as f:
                 return f.read()
-        key = secrets.token_bytes(32)
+
+        # Generate a Fernet-compatible key
+        try:
+            from cryptography.fernet import Fernet
+            key = Fernet.generate_key()
+        except ImportError:
+            # Fallback to raw bytes if cryptography is not installed
+            key = secrets.token_bytes(32)
+
         with open(key_file, "wb") as f:
             f.write(key)
         os.chmod(key_file, 0o600)
-        logger.warning("Generated encryption key at %s — set MAESTRO_ENCRYPTION_KEY in production", key_file)
+        logger.warning("Generated encryption key at %s — set MAESTRO_MASTER_KEY in production", key_file)
         return key
 
+    def _get_fernet(self):
+        """Get a Fernet instance for encryption/decryption."""
+        try:
+            from cryptography.fernet import Fernet
+            return Fernet(self._key)
+        except ImportError:
+            logger.warning("cryptography not installed — using insecure XOR fallback")
+            return None
+        except Exception as e:
+            # Key might not be Fernet-compatible (e.g., raw 32 bytes from old AESGCM)
+            # Try to use it as AES-GCM instead
+            logger.debug("Fernet key format issue, falling back to AES-GCM: %s", e)
+            return None
+
     def encrypt(self, plaintext: str) -> str:
-        """Encrypt a string. Returns base64(nonce + ciphertext + tag)."""
+        """Encrypt a string. Returns a Fernet token (base64)."""
+        if self._fernet:
+            return self._fernet.encrypt(plaintext.encode()).decode()
+
+        # Fallback: AES-GCM (for backward compatibility with old keys)
         import base64
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         except ImportError:
-            # Fallback: XOR-based (NOT secure — dev only)
             logger.warning("cryptography not installed — using insecure XOR fallback")
             return "xor:" + base64.b64encode(
                 bytes(a ^ b for a, b in zip(plaintext.encode(), self._key * 100))
             ).decode()
 
-        aesgcm = AESGCM(self._key)
+        aesgcm = AESGCM(self._key[:32] if len(self._key) >= 32 else self._key)
         nonce = secrets.token_bytes(12)
         ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
         return base64.b64encode(nonce + ciphertext).decode()
 
     def decrypt(self, encrypted: str) -> str:
         """Decrypt a string encrypted by encrypt()."""
+        # Try Fernet first
+        if self._fernet:
+            try:
+                return self._fernet.decrypt(encrypted.encode()).decode()
+            except Exception:
+                pass  # Not a Fernet token — try AES-GCM fallback
+
+        # AES-GCM fallback (for old keys/tokens)
         import base64
         if encrypted.startswith("xor:"):
             data = base64.b64decode(encrypted[4:])
@@ -506,7 +556,7 @@ class EncryptionManager:
         except ImportError:
             raise RuntimeError("cryptography package required for decryption")
 
-        aesgcm = AESGCM(self._key)
+        aesgcm = AESGCM(self._key[:32] if len(self._key) >= 32 else self._key)
         data = base64.b64decode(encrypted)
         nonce = data[:12]
         ciphertext = data[12:]
