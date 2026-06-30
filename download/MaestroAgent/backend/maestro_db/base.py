@@ -60,6 +60,12 @@ def get_database_url() -> str:
         if url.startswith("file:"):
             path = url.replace("file:", "")
             url = f"sqlite:///{path}"
+        # Normalize: SQLAlchemy 2.0 removed the "postgres://" dialect alias.
+        # Many ops teams write "postgres://" out of habit (Heroku, AWS docs).
+        # Without this normalization, create_engine() fails with
+        # "NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres".
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
         return url
 
     # No DATABASE_URL set
