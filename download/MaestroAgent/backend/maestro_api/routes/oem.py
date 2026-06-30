@@ -2735,3 +2735,193 @@ def get_perspective_types() -> dict[str, Any]:
         "perspectives": engine.list_perspectives(),
         "supported_events": engine.list_supported_events(),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 25. PREDICTION MARKET — calibrate individual prediction accuracy
+# ═══════════════════════════════════════════════════════════════════════════
+
+_prediction_market = None
+
+def _get_prediction_market():
+    global _prediction_market
+    if _prediction_market is None:
+        from maestro_oem.prediction_market import PredictionMarket
+        _prediction_market = PredictionMarket()
+    return _prediction_market
+
+
+@router.get("/predictions/market")
+def list_market_predictions(
+    status: str | None = Query(None),
+    predictor: str | None = Query(None),
+) -> dict[str, Any]:
+    """List personal predictions from the prediction market."""
+    market = _get_prediction_market()
+    return {"predictions": market.list_predictions(status=status, predictor=predictor),
+            "total": len(market.list_predictions())}
+
+# Register BEFORE /predictions/{prediction_id} — FastAPI matches the first
+# route that matches the path. /predictions/market must be registered before
+# the wildcard /predictions/{prediction_id} route.
+
+
+@router.post("/predictions/market")
+def submit_market_prediction(payload: dict[str, Any]) -> dict[str, Any]:
+    """Submit a personal prediction.
+
+    Payload: {predictor, event, probability, resolution_window, hypothesis_id, intent_id, notes}
+    """
+    market = _get_prediction_market()
+    predictor = payload.get("predictor", "")
+    event = payload.get("event", "")
+    probability = payload.get("probability", 0.5)
+    if not predictor or not event:
+        raise HTTPException(400, "predictor and event are required")
+    try:
+        probability = float(probability)
+        if not 0.0 <= probability <= 1.0:
+            raise HTTPException(400, f"probability must be 0.0-1.0, got {probability}")
+    except (TypeError, ValueError):
+        raise HTTPException(400, "probability must be a number 0.0-1.0")
+    pid = market.submit(
+        predictor=predictor,
+        event=event,
+        probability=probability,
+        resolution_window=payload.get("resolution_window", ""),
+        hypothesis_id=payload.get("hypothesis_id", ""),
+        intent_id=payload.get("intent_id", ""),
+        notes=payload.get("notes", ""),
+    )
+    return {"ok": True, "prediction_id": pid}
+
+
+@router.post("/predictions/market/{prediction_id}/resolve")
+def resolve_market_prediction(
+    prediction_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve a prediction with the actual outcome.
+
+    Payload: {actual_outcome: bool}
+    """
+    market = _get_prediction_market()
+    actual = payload.get("actual_outcome")
+    if actual is None:
+        raise HTTPException(400, "actual_outcome (bool) is required")
+    ok = market.resolve(prediction_id, bool(actual))
+    if not ok:
+        raise HTTPException(404, f"Prediction {prediction_id} not found")
+    pred = market.get(prediction_id)
+    return {"ok": True, "prediction_id": prediction_id, "brier_score": pred["brier_score"]}
+
+
+@router.get("/predictions/market/calibration")
+def get_calibration_ranking() -> dict[str, Any]:
+    """Ranked list of predictors by calibration accuracy.
+
+    Not hierarchy. Accuracy. This is the internal trust network.
+    """
+    market = _get_prediction_market()
+    ranking = market.calibration_ranking()
+    return {"predictors": ranking, "total": len(ranking)}
+
+
+@router.get("/predictions/market/profile/{email}")
+def get_predictor_profile(email: str) -> dict[str, Any]:
+    """Get a single predictor's calibration profile."""
+    market = _get_prediction_market()
+    profile = market.get_profile(email)
+    if not profile:
+        raise HTTPException(404, f"No profile for {email}")
+    return profile
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 26. COORDINATION ENGINE — quietly coordinate teams without meetings
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.post("/coordinate")
+def initiate_coordination(payload: dict[str, Any]) -> dict[str, Any]:
+    """Initiate a coordination request for a decision.
+
+    Maestro identifies affected teams, finds the right contacts, and
+    prepares to collect their input. The CEO didn't schedule a meeting.
+
+    Payload: {decision, initiated_by, intent_id}
+    """
+    from maestro_oem.coordination import CoordinationEngine
+    global _coordination_engine
+    if _coordination_engine is None:
+        _coordination_engine = CoordinationEngine(oem_state.model, oem_state.signals)
+    decision = payload.get("decision", "")
+    if not decision:
+        raise HTTPException(400, "decision is required")
+    request = _coordination_engine.initiate(
+        decision=decision,
+        initiated_by=payload.get("initiated_by", ""),
+        intent_id=payload.get("intent_id", ""),
+    )
+    return request
+
+_coordination_engine = None
+
+@router.get("/coordinate")
+def list_coordination_requests(status: str | None = Query(None)) -> dict[str, Any]:
+    """List coordination requests."""
+    global _coordination_engine
+    if _coordination_engine is None:
+        from maestro_oem.coordination import CoordinationEngine
+        _coordination_engine = CoordinationEngine(oem_state.model, oem_state.signals)
+    return {"requests": _coordination_engine.list_requests(status=status)}
+
+@router.get("/coordinate/{request_id}")
+def get_coordination_request(request_id: str) -> dict[str, Any]:
+    """Get a coordination request with responses and synthesis."""
+    global _coordination_engine
+    if _coordination_engine is None:
+        from maestro_oem.coordination import CoordinationEngine
+        _coordination_engine = CoordinationEngine(oem_state.model, oem_state.signals)
+    request = _coordination_engine.get(request_id)
+    if not request:
+        raise HTTPException(404, f"Coordination request {request_id} not found")
+    return request
+
+@router.post("/coordinate/{request_id}/respond")
+def add_coordination_response(
+    request_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Add a response from a team contact.
+
+    Payload: {responder, team, response, stance}
+    """
+    global _coordination_engine
+    if _coordination_engine is None:
+        from maestro_oem.coordination import CoordinationEngine
+        _coordination_engine = CoordinationEngine(oem_state.model, oem_state.signals)
+    ok = _coordination_engine.add_response(
+        request_id,
+        responder=payload.get("responder", ""),
+        team=payload.get("team", ""),
+        response=payload.get("response", ""),
+        stance=payload.get("stance", "neutral"),
+    )
+    if not ok:
+        raise HTTPException(404, f"Coordination request {request_id} not found")
+    return {"ok": True, "request_id": request_id}
+
+@router.post("/coordinate/{request_id}/synthesize")
+def synthesize_coordination(request_id: str) -> dict[str, Any]:
+    """Synthesize a multi-perspective answer from all responses.
+
+    The CEO gets one answer with each team's position. No meeting needed.
+    """
+    global _coordination_engine
+    if _coordination_engine is None:
+        from maestro_oem.coordination import CoordinationEngine
+        _coordination_engine = CoordinationEngine(oem_state.model, oem_state.signals)
+    result = _coordination_engine.synthesize(request_id)
+    if not result:
+        raise HTTPException(404, f"Coordination request {request_id} not found")
+    return result
