@@ -276,3 +276,140 @@ async def import_progress_ws(websocket: WebSocket, job_id: str) -> None:
             await websocket.close()
         except Exception:
             pass
+
+
+# ─── Enterprise OAuth Self-Service: Admin API ──────────────────────────────
+# Allows admins to configure OAuth providers (GitHub, Jira, Slack, etc.)
+# through the UI without setting environment variables. Client secrets
+# are encrypted at rest using the existing KMS/EncryptionManager.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# All supported providers
+SUPPORTED_OAUTH_PROVIDERS = ("github", "jira", "slack", "confluence", "gmail", "customer")
+
+
+@router.get("/api/oauth/admin/providers")
+async def list_oauth_provider_configs() -> dict[str, Any]:
+    """List all configured OAuth providers (without secrets).
+
+    Returns provider name, client_id (not secret), scopes, and whether
+    the provider is configured via DB or env vars.
+    """
+    from maestro_oem.oauth_config_store import get_oauth_config_store
+    from maestro_oem.oauth_manager import _load_config, _DEFAULT_ENDPOINTS
+
+    store = get_oauth_config_store()
+    db_providers = {p["provider"]: p for p in store.list_providers()}
+
+    result = []
+    for provider in SUPPORTED_OAUTH_PROVIDERS:
+        # Check DB
+        db_config = db_providers.get(provider)
+        # Check env
+        import os as _os
+        env_prefix = f"MAESTRO_OAUTH_{provider.upper()}_"
+        env_client_id = _os.environ.get(f"{env_prefix}CLIENT_ID", "")
+        has_env = bool(env_client_id)
+
+        result.append({
+            "provider": provider,
+            "label": _provider_label(provider),
+            "configured": bool(db_config) or has_env,
+            "configured_via": "database" if db_config else ("env" if has_env else "none"),
+            "client_id": db_config["client_id"] if db_config else env_client_id,
+            "has_secret": db_config["has_secret"] if db_config else bool(_os.environ.get(f"{env_prefix}CLIENT_SECRET")),
+            "scopes": db_config["scopes"] if db_config else _DEFAULT_ENDPOINTS.get(provider, {}).get("scopes", []),
+            "redirect_uri": db_config["redirect_uri"] if db_config else "",
+            "configured_at": db_config["configured_at"] if db_config else None,
+            "endpoints": {
+                "auth_url": _DEFAULT_ENDPOINTS.get(provider, {}).get("auth_url", ""),
+                "token_url": _DEFAULT_ENDPOINTS.get(provider, {}).get("token_url", ""),
+            },
+        })
+
+    return {"providers": result, "total": len(result)}
+
+
+@router.post("/api/oauth/admin/providers/{provider}")
+async def save_oauth_provider_config(
+    provider: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Save OAuth provider configuration (Client ID + Secret).
+
+    The client_secret is encrypted with AES-256-GCM before storage.
+    It is NEVER stored in plain text. When the OAuth flow initiates,
+    the secret is decrypted in memory, used for the token exchange,
+    and immediately discarded.
+
+    Payload: {
+        client_id: str (required),
+        client_secret: str (required),
+        scopes?: list[str],
+        redirect_uri?: str,
+    }
+    """
+    if provider not in SUPPORTED_OAUTH_PROVIDERS:
+        raise HTTPException(400, f"Unsupported provider: {provider}. Supported: {SUPPORTED_OAUTH_PROVIDERS}")
+
+    client_id = payload.get("client_id", "").strip()
+    client_secret = payload.get("client_secret", "").strip()
+
+    if not client_id or not client_secret:
+        raise HTTPException(400, "client_id and client_secret are required")
+
+    from maestro_oem.oauth_config_store import get_oauth_config_store
+    store = get_oauth_config_store()
+
+    store.save_provider(
+        provider=provider,
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=payload.get("scopes"),
+        redirect_uri=payload.get("redirect_uri", ""),
+        configured_by=payload.get("configured_by", "admin"),
+    )
+
+    return {
+        "ok": True,
+        "provider": provider,
+        "client_id": client_id,
+        "secret_stored": "encrypted",
+        "message": f"OAuth provider '{provider}' configured. Client secret encrypted at rest.",
+    }
+
+
+@router.delete("/api/oauth/admin/providers/{provider}")
+async def delete_oauth_provider_config(provider: str) -> dict[str, Any]:
+    """Disable an OAuth provider configuration (DB-stored).
+
+    Does NOT remove environment variables — those persist for backward
+    compatibility. Only removes the DB-stored configuration.
+    """
+    if provider not in SUPPORTED_OAUTH_PROVIDERS:
+        raise HTTPException(400, f"Unsupported provider: {provider}")
+
+    from maestro_oem.oauth_config_store import get_oauth_config_store
+    store = get_oauth_config_store()
+
+    deleted = store.delete_provider(provider)
+    if not deleted:
+        raise HTTPException(404, f"Provider '{provider}' not configured in DB")
+
+    return {
+        "ok": True,
+        "provider": provider,
+        "message": f"OAuth provider '{provider}' disabled. Env var fallback still active if set.",
+    }
+
+
+def _provider_label(provider: str) -> str:
+    labels = {
+        "github": "GitHub",
+        "jira": "Jira (Atlassian)",
+        "slack": "Slack",
+        "confluence": "Confluence (Atlassian)",
+        "gmail": "Gmail / Google Workspace",
+        "customer": "Salesforce (Customer CRM)",
+    }
+    return labels.get(provider, provider.title())

@@ -1855,6 +1855,99 @@ async function loadEngSettings() {
   }
   await loadProviderStatus();
   await loadImportJobs();
+  loadOAuthAdminConfigs();
+}
+
+// ─── Enterprise OAuth Self-Service ────────────────────────────────────────
+
+let _editingOAuthProvider = '';
+
+async function loadOAuthAdminConfigs() {
+  const el = document.getElementById('oauth-admin-list');
+  if (!el) return;
+  try {
+    const resp = await fetch((MAESTRO_API || '') + '/api/oauth/admin/providers');
+    const data = await resp.json();
+    el.innerHTML = data.providers.map(p => {
+      const statusBadge = p.configured
+        ? `<span class="tag ${p.configured_via === 'database' ? 'tag-green' : 'tag-yellow'}">${p.configured_via}</span>`
+        : '<span class="tag tag-gray">not configured</span>';
+      return `
+        <div class="border border-white/[0.05] rounded-lg p-3">
+          <div class="flex items-center justify-between mb-1">
+            <div class="font-semibold text-white text-sm">${escapeHtml(p.label)}</div>
+            ${statusBadge}
+          </div>
+          <div class="text-[10px] text-fg-400">
+            ${p.client_id ? `Client ID: <code>${escapeHtml(p.client_id)}</code>` : 'No Client ID set'}
+            ${p.has_secret ? ' · <span style="color:#22c55e">Secret: encrypted</span>' : ''}
+          </div>
+          <div class="flex gap-1.5 mt-2">
+            <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${p.provider}', '${escapeHtml(p.label)}', '${escapeHtml(p.client_id)}')" aria-label="Configure ${escapeHtml(p.label)}">Configure</button>
+            ${p.configured_via === 'database' ? `<button class="tag tag-gray cursor-pointer text-[10px] hover:bg-red-500/10" onclick="deleteOAuthProvider('${p.provider}')" aria-label="Remove ${escapeHtml(p.label)} config">Remove</button>` : ''}
+            ${p.configured ? `<button class="tag tag-cyan cursor-pointer text-[10px]" onclick="window.open('${(MAESTRO_API || '') + '/api/oauth/' + p.provider + '/start'}')" aria-label="Connect ${escapeHtml(p.label)}">Connect</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state">Failed to load OAuth configs: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function openOAuthConfigForm(provider, label, existingClientId) {
+  _editingOAuthProvider = provider;
+  document.getElementById('oauth-form-title').textContent = `Configure ${label}`;
+  document.getElementById('oauth-client-id').value = existingClientId || '';
+  document.getElementById('oauth-client-secret').value = '';
+  document.getElementById('oauth-redirect-uri').value = '';
+  document.getElementById('oauth-config-form').style.display = '';
+  document.getElementById('oauth-client-id').focus();
+}
+
+async function saveOAuthProvider() {
+  const provider = _editingOAuthProvider;
+  if (!provider) return;
+  const clientId = document.getElementById('oauth-client-id').value.trim();
+  const clientSecret = document.getElementById('oauth-client-secret').value.trim();
+  const redirectUri = document.getElementById('oauth-redirect-uri').value.trim();
+
+  if (!clientId || !clientSecret) {
+    alert('Client ID and Client Secret are required.');
+    return;
+  }
+
+  try {
+    const resp = await fetch((MAESTRO_API || '') + `/api/oauth/admin/providers/${provider}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, redirect_uri: redirectUri }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      document.getElementById('oauth-config-form').style.display = 'none';
+      loadOAuthAdminConfigs();
+    } else {
+      alert(data.detail || 'Failed to save OAuth config');
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function deleteOAuthProvider(provider) {
+  if (!confirm(`Remove ${provider} configuration? Environment variable fallback will remain if set.`)) return;
+  try {
+    const resp = await fetch((MAESTRO_API || '') + `/api/oauth/admin/providers/${provider}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.ok) {
+      loadOAuthAdminConfigs();
+    } else {
+      alert(data.detail || 'Failed to remove');
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
 }
 
 // ─── Signal provider connection UI ─────────────────────────────────────────

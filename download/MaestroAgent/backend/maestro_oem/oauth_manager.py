@@ -124,7 +124,15 @@ _DEFAULT_ENDPOINTS = {
 
 
 def _load_config(provider: str, redirect_uri_base: str | None = None) -> OAuthProviderConfig:
-    """Load OAuth config from env vars.
+    """Load OAuth config from DB first, then env vars.
+
+    Resolution order:
+      1. Database (OAuthConfigStore) — admin-configured via UI
+      2. Environment variables — backward compatibility with Docker Compose
+
+    This allows enterprise customers to configure OAuth providers through
+    the Settings → Integrations page without setting environment variables,
+    while maintaining backward compatibility for existing deployments.
 
     Env var naming convention:
       MAESTRO_OAUTH_{PROVIDER}_CLIENT_ID
@@ -136,6 +144,28 @@ def _load_config(provider: str, redirect_uri_base: str | None = None) -> OAuthPr
       MAESTRO_OAUTH_GITHUB_CLIENT_SECRET=...
       MAESTRO_OAUTH_REDIRECT_URI=http://localhost:8765/api/oauth/callback
     """
+    # Default endpoints (always needed)
+    endpoints = _DEFAULT_ENDPOINTS[provider]
+
+    # ─── 1. Try DB-stored config (admin UI) ────────────────────────────
+    db_config = _load_config_from_db(provider)
+    if db_config:
+        redirect_uri = db_config.get("redirect_uri") or (
+            os.environ.get("MAESTRO_OAUTH_REDIRECT_URI")
+            or (f"{redirect_uri_base}/api/oauth/callback" if redirect_uri_base else "")
+        )
+        return OAuthProviderConfig(
+            name=provider,
+            client_id=db_config["client_id"],
+            client_secret=db_config["client_secret"],
+            scopes=db_config.get("scopes") or endpoints["scopes"],
+            auth_url=endpoints["auth_url"],
+            token_url=endpoints["token_url"],
+            redirect_uri=redirect_uri,
+            extra_params=endpoints["extra"],
+        )
+
+    # ─── 2. Fall back to env vars ───────────────────────────────────────
     env_prefix = f"MAESTRO_OAUTH_{provider.upper()}_"
     client_id = os.environ.get(f"{env_prefix}CLIENT_ID", "")
     client_secret = os.environ.get(f"{env_prefix}CLIENT_SECRET", "")
@@ -143,7 +173,6 @@ def _load_config(provider: str, redirect_uri_base: str | None = None) -> OAuthPr
         os.environ.get("MAESTRO_OAUTH_REDIRECT_URI")
         or (f"{redirect_uri_base}/api/oauth/callback" if redirect_uri_base else "")
     )
-    endpoints = _DEFAULT_ENDPOINTS[provider]
     return OAuthProviderConfig(
         name=provider,
         client_id=client_id,
@@ -154,6 +183,21 @@ def _load_config(provider: str, redirect_uri_base: str | None = None) -> OAuthPr
         redirect_uri=redirect_uri,
         extra_params=endpoints["extra"],
     )
+
+
+def _load_config_from_db(provider: str) -> dict[str, Any] | None:
+    """Load OAuth config from the encrypted DB store.
+
+    Returns None if the DB is not available or the provider is not
+    configured in the DB. This is the enterprise self-service path.
+    """
+    try:
+        from maestro_oem.oauth_config_store import get_oauth_config_store
+        store = get_oauth_config_store()
+        return store.get_provider(provider)
+    except Exception as e:
+        logger.debug("DB OAuth config not available for %s: %s", provider, e)
+        return None
 
 
 # ─── State tokens (CSRF protection) ───

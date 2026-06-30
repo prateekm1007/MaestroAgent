@@ -958,6 +958,44 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
             </div>
           </div>
 
+          <!-- Enterprise OAuth Self-Service: Admin Integration Configuration -->
+          <div class="panel" style="border: 1px solid rgba(124,92,255,0.15);">
+            <div class="panel-header">
+              <span style="color:#7c5cff;">OAuth Integration Configuration</span>
+              <span class="text-[10px] text-fg-500">Admin-only · Secrets encrypted at rest</span>
+            </div>
+            <div class="panel-body space-y-3" id="oauth-admin-list">
+              <div class="loading-state"><span class="spinner"></span> Loading OAuth configurations…</div>
+            </div>
+          </div>
+
+          <!-- OAuth config form (hidden by default) -->
+          <div class="panel" id="oauth-config-form" style="display:none;">
+            <div class="panel-header">
+              <span id="oauth-form-title">Configure Provider</span>
+              <button class="btn btn-ghost text-[10px]" onclick="document.getElementById('oauth-config-form').style.display='none'">Cancel</button>
+            </div>
+            <div class="panel-body space-y-3">
+              <div>
+                <div class="text-xs text-fg-400 mb-1">Client ID</div>
+                <input type="text" id="oauth-client-id" class="ask-input" style="font-size:12px;" placeholder="e.g. Iv1.abc123" aria-label="OAuth Client ID">
+              </div>
+              <div>
+                <div class="text-xs text-fg-400 mb-1">Client Secret</div>
+                <input type="password" id="oauth-client-secret" class="ask-input" style="font-size:12px;" placeholder="Encrypted at rest with AES-256-GCM" aria-label="OAuth Client Secret">
+              </div>
+              <div>
+                <div class="text-xs text-fg-400 mb-1">Redirect URI (optional — defaults to server config)</div>
+                <input type="text" id="oauth-redirect-uri" class="ask-input" style="font-size:12px;" placeholder="https://your-domain/api/oauth/callback">
+              </div>
+              <div class="text-[10px] text-fg-500">
+                The secret is encrypted before storage and decrypted only during the OAuth token exchange.
+                It is never logged, never returned by any API, and never stored in plain text.
+              </div>
+              <button class="btn btn-primary text-xs" onclick="saveOAuthProvider()">Save Configuration</button>
+            </div>
+          </div>
+
           <div class="panel">
             <div class="panel-header"><span>Import Jobs</span></div>
             <div class="panel-body space-y-2" id="import-jobs-list">
