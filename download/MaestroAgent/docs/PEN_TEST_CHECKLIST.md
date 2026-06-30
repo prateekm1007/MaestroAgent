@@ -1,5 +1,8 @@
 # Penetration Test Checklist
 
+> ⚠️ **SELF-GRADED — NOT INDEPENDENTLY VERIFIED.** This document was produced by the build process, not an external auditor. A subsequent external audit found issues (including a committed encryption key) that this report did not catch. Treat all claims as unverified until independently checked. See root README.md for the current product state.
+
+
 ## 1. Authentication
 
 - [ ] **Password brute force**: Send 100 login attempts with wrong passwords → all blocked after 10 (rate limit)

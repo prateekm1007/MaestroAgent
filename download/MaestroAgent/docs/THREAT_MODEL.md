@@ -1,5 +1,8 @@
 # Threat Model — Maestro
 
+> ⚠️ **SELF-GRADED — NOT INDEPENDENTLY VERIFIED.** This document was produced by the build process, not an external auditor. A subsequent external audit found issues (including a committed encryption key) that this report did not catch. Treat all claims as unverified until independently checked. See root README.md for the current product state.
+
+
 ## System Boundaries
 
 ```

@@ -1,4 +1,25 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     DISCLAIMER — added after external audit (commit 54b47a6)
+
+     This report was self-graded by the build process BEFORE an external
+     audit found a committed encryption master key in the same repo. The
+     Security score of 9.8/10 below was awarded by the same process that
+     wrote the code — it does NOT reflect independent verification.
+
+     Do NOT cite the scores in this report externally without independent
+     verification first. The report is kept for historical reference only.
+
+     For the current state of the codebase, see the root README.md.
+     ═══════════════════════════════════════════════════════════════════════ -->
+
 # Fortune 100 Readiness Report — Maestro v1.0
+
+> ⚠️ **SELF-GRADED — NOT INDEPENDENTLY VERIFIED.**
+> This report was produced by the build process, not an external auditor.
+> A subsequent external audit found a committed encryption key in this
+> repo, which the Security score of 9.8/10 below did not catch. Treat
+> all scores as unverified until independently checked. See root README.md
+> for the current product state.
 
 ## Executive Summary
 
