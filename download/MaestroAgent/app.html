@@ -334,6 +334,41 @@ body { background: #06060d; color: #eaeaef; font-family: 'Inter', sans-serif; fo
             <p class="text-xs text-fg-500 mt-1" id="home-briefing-timestamp">Every section below is derived from your live execution signals. No fake data.</p>
           </div>
 
+          <!-- Ambient: Organizational Pulse + Narrative -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="panel lg:col-span-1">
+              <div class="panel-header"><span>Organizational Pulse</span><span class="text-[10px] text-fg-500" id="pulse-state">—</span></div>
+              <div class="panel-body" id="pulse-body">
+                <div class="loading-state"><span class="spinner"></span> Measuring...</div>
+              </div>
+            </div>
+            <div class="panel lg:col-span-2">
+              <div class="panel-header"><span>Today's Story</span><span class="text-[10px] text-fg-500" id="narrative-date">—</span></div>
+              <div class="panel-body" id="narrative-body">
+                <div class="loading-state"><span class="spinner"></span> Composing narrative...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ambient: Executive Feed (live event stream) -->
+          <div class="panel">
+            <div class="panel-header">
+              <span>Executive Feed</span>
+              <span class="text-[10px] text-fg-500">Meaningful events only — noise filtered</span>
+            </div>
+            <div class="panel-body" id="feed-body" style="max-height: 300px; overflow-y: auto;">
+              <div class="loading-state"><span class="spinner"></span> Streaming...</div>
+            </div>
+          </div>
+
+          <!-- Ambient: Cognitive Load -->
+          <div class="panel">
+            <div class="panel-header"><span>Organizational Cognitive Load</span><span class="text-[10px] text-fg-500" id="ocl-level">—</span></div>
+            <div class="panel-body" id="ocl-body">
+              <div class="loading-state"><span class="spinner"></span> Measuring...</div>
+            </div>
+          </div>
+
           <!-- 1. Today's Attention -->
           <div class="panel" style="border: 1px solid rgba(124,92,255,0.2); background: rgba(124,92,255,0.03);">
             <div class="panel-header">

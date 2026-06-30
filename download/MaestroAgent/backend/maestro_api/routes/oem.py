@@ -2000,3 +2000,123 @@ def customer_twin_scenarios() -> dict[str, Any]:
             },
         ]
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 18. AMBIENT ORGANIZATIONAL JUDGMENT — Pulse, Feed, GPS, Time Machine,
+#     Cognitive Load, Narrative, Whisper
+# ═══════════════════════════════════════════════════════════════════════════
+# These are the ambient layers that make Maestro feel alive — not a
+# destination, but a continuously-updating organizational judgment layer.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/pulse")
+def get_organizational_pulse() -> dict[str, Any]:
+    """Organizational Pulse — living metrics that make the org feel alive.
+
+    Returns: temperature, momentum, alignment, trust, knowledge_mobility,
+    decision_speed (each 0-100), plus a qualitative state and narrative.
+
+    Like an Apple Watch for companies.
+    """
+    from maestro_oem.pulse import OrganizationalPulse
+    pulse = OrganizationalPulse(oem_state.model, oem_state.signals)
+    return pulse.compute()
+
+
+@router.get("/feed")
+def get_executive_feed(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
+    """Executive Feed — a live stream of meaningful organizational events.
+
+    NOT notifications. NOT a log. A Bloomberg-terminal-style feed of only
+    the events that matter: law strengthened, customer drifting, commitment
+    broken, prediction resolved, expert overloaded, etc.
+
+    Each event includes: what, why it matters, business impact, recommended
+    action, confidence.
+    """
+    from maestro_oem.feed import ExecutiveFeed
+    feed = ExecutiveFeed(oem_state.model, oem_state.signals)
+    events = feed.generate(limit=limit)
+    return {"events": events, "total": len(events)}
+
+
+@router.get("/time-machine")
+def time_machine_search(
+    entity_id: str = Query("", description="Entity to find history for"),
+    entity_type: str = Query("", description="Type of entity"),
+    q: str = Query("", description="Natural-language query"),
+    limit: int = Query(10, ge=1, le=50),
+) -> dict[str, Any]:
+    """Time Machine — 'Have we been here before?'
+
+    Searches organizational history for similar past situations and returns:
+    what happened, what was recommended, what actually happened, what was
+    learned.
+    """
+    from maestro_oem.time_machine import TimeMachine
+    tm = TimeMachine(oem_state.model, oem_state.signals)
+    return tm.search(entity_id=entity_id, entity_type=entity_type, query=q, limit=limit)
+
+
+@router.get("/gps")
+def organizational_gps(
+    user: str = Query("", description="User email to locate"),
+) -> dict[str, Any]:
+    """Organizational GPS — where am I, what's blocking, who knows, what's next.
+
+    Like Google Maps for organizational execution. Personalized per user.
+    """
+    from maestro_oem.gps import OrganizationalGPS
+    if not user:
+        # Default to the first actor in the signals
+        user = oem_state.signals[0].actor if oem_state.signals else "unknown"
+    gps = OrganizationalGPS(oem_state.model, oem_state.signals, oem_state.decisions)
+    return gps.locate(user)
+
+
+@router.get("/cognitive-load")
+def get_cognitive_load() -> dict[str, Any]:
+    """Cognitive Load Engine — measure organizational cognitive load (OCL).
+
+    Measures: decision fatigue, context switching, meeting overhead,
+    knowledge hunting, duplicate thinking, information latency, attention
+    fragmentation. Returns a score (0-100), level, and recommendations.
+
+    OCL is a board-level metric. Every release should lower it.
+    """
+    from maestro_oem.cognitive_load import CognitiveLoadEngine
+    engine = CognitiveLoadEngine(oem_state.model, oem_state.signals)
+    return engine.compute()
+
+
+@router.get("/narrative")
+def get_daily_narrative() -> dict[str, Any]:
+    """Organizational Narrative — the daily company story.
+
+    NOT a dashboard. A narrative: what changed, why it matters, what to
+    watch for. Executives think in stories, not metrics.
+    """
+    from maestro_oem.narrative import NarrativeEngine
+    engine = NarrativeEngine(oem_state.model, oem_state.signals)
+    return engine.daily()
+
+
+@router.get("/whisper")
+def organizational_whisper(
+    context: str = Query("", description="meeting|proposal|decision|email|review"),
+    entity: str = Query("", description="Entity being discussed"),
+    topic: str = Query("", description="Topic (pricing, security, timeline, etc.)"),
+    user: str = Query("", description="Current user email"),
+) -> dict[str, Any]:
+    """Organizational Whisper — what the org knows but hasn't said.
+
+    Surfaces things your organization already knows that are relevant to
+    the current context: commitments made, objections raised, decisions
+    taken, relevant laws, cross-team knowledge.
+
+    Like Cluely, but for organizations instead of individuals.
+    """
+    from maestro_oem.whisper import OrganizationalWhisper
+    w = OrganizationalWhisper(oem_state.model, oem_state.signals)
+    return w.for_context(context=context, entity=entity, topic=topic, user=user)
