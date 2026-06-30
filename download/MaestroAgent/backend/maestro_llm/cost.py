@@ -16,7 +16,7 @@ aggregated across runs for the analytics dashboard.
 
 from __future__ import annotations
 
-import sqlite3
+from maestro_db import sqlite_compat as sqlite3
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone

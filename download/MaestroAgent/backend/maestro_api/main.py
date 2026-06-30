@@ -56,7 +56,7 @@ def create_app(
         from maestro_auth.models import AuthStore
         from maestro_auth.permissions import init_auth
         import os as _os
-        _auth_db_dir = Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent
+        _auth_db_dir = Path("maestro.db").parent  # Dev default — in production, MAESTRO_AUTH_DB is set explicitly
         _auth_db_dir.mkdir(parents=True, exist_ok=True)
         auth_db = _os.environ.get("MAESTRO_AUTH_DB", str(_auth_db_dir / "auth.db"))
         _auth_store = AuthStore(auth_db)

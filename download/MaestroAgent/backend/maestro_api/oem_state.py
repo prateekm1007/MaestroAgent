@@ -30,6 +30,7 @@ from maestro_oem import (
     ExecutionSignal,
 )
 from maestro_oem.checkpoint_store import CheckpointStore
+from maestro_db.db_helper import get_db_url_for_learning
 from maestro_oem.oauth_manager import OAuthManager
 from maestro_oem.connection_manager import ConnectionManager
 from maestro_oem.progress_tracker import ProgressTracker
@@ -266,7 +267,7 @@ class OEMState:
 
             db_path = _os.environ.get(
                 "MAESTRO_LEARNING_DB",
-                str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"),
+                get_db_url_for_learning(),
             )
             _Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 

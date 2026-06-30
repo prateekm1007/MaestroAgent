@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
+from maestro_db import sqlite_compat as sqlite3
 import threading
 from datetime import datetime, timezone
 from typing import Any

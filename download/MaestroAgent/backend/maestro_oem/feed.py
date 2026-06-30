@@ -310,7 +310,7 @@ class ExecutiveFeed:
 
             db_path = os.environ.get(
                 "MAESTRO_LEARNING_DB",
-                str(Path(os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"),
+                get_db_url_for_learning(),
             )
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
             cal = CalibrationEngine(db_path)

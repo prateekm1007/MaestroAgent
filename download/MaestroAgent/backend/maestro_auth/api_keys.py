@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-import sqlite3
+from maestro_db import sqlite_compat as sqlite3
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path

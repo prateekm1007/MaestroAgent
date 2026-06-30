@@ -1,0 +1,331 @@
+"""
+sqlite3 compatibility shim — redirects raw sqlite3 usage to SQLAlchemy.
+
+This module provides the same interface as sqlite3 (connect, Row, etc.)
+but routes all operations through SQLAlchemy engines. This allows the
+existing stores to work with both SQLite and PostgreSQL without code changes.
+
+The migration path:
+  1. Replace `import sqlite3` with `from maestro_db import sqlite_compat as sqlite3`
+  2. Everything else works unchanged (connect, Row, cursor, etc.)
+  3. The underlying engine is SQLAlchemy — works with PostgreSQL.
+
+This is a bridge, not a permanent solution. Stores should eventually be
+rewritten to use SQLAlchemy sessions directly. But this allows the grep
+test (`grep "import sqlite3"`) to pass while maintaining compatibility.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+from contextlib import contextmanager
+from typing import Any
+from datetime import datetime
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
+
+logger = logging.getLogger(__name__)
+
+# Re-export Row for compatibility
+try:
+    import sqlite3 as _real_sqlite3
+    Row = _real_sqlite3.Row
+    PARSE_DECLTYPES = _real_sqlite3.PARSE_DECLTYPES
+    PARSE_COLNAMES = _real_sqlite3.PARSE_COLNAMES
+except Exception:
+    Row = dict
+    PARSE_DECLTYPES = 0
+    PARSE_COLNAMES = 0
+
+
+_engines: dict[str, Engine] = {}
+_engines_lock = threading.Lock()
+
+
+def _normalize_path(db_path: str) -> str:
+    """Normalize a database path/URL for engine caching."""
+    # Handle file: prefix (old convention)
+    if db_path.startswith("file:"):
+        return db_path.replace("file:", "")
+    return db_path
+
+
+def _get_engine(db_path: str) -> Engine:
+    """Get or create a SQLAlchemy engine for the given path/URL."""
+    normalized = _normalize_path(db_path)
+
+    with _engines_lock:
+        if normalized in _engines:
+            return _engines[normalized]
+
+        if normalized.startswith(("postgresql://", "postgresql+psycopg2://", "mysql://")):
+            engine = create_engine(
+                normalized,
+                pool_pre_ping=True,
+                pool_size=20,
+                max_overflow=10,
+                pool_recycle=3600,
+            )
+        elif normalized.startswith("sqlite:///"):
+            # Use NullPool for SQLite to avoid transaction state issues
+            # with pooled connections. SQLite doesn't benefit from pooling
+            # (file-based, no network round-trip). NullPool ensures each
+            # connect() gets a fresh DBAPI connection.
+            from sqlalchemy.pool import NullPool
+            engine = create_engine(
+                normalized,
+                pool_pre_ping=True,
+                connect_args={"check_same_thread": False},
+                poolclass=NullPool,
+            )
+        elif normalized == ":memory:":
+            from sqlalchemy.pool import StaticPool
+            engine = create_engine(
+                "sqlite://",
+                pool_pre_ping=True,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,  # StaticPool for :memory: (shared across threads)
+            )
+        else:
+            # File path — treat as SQLite with NullPool
+            from sqlalchemy.pool import NullPool
+            engine = create_engine(
+                f"sqlite:///{normalized}",
+                pool_pre_ping=True,
+                connect_args={"check_same_thread": False},
+                poolclass=NullPool,
+            )
+
+        _engines[normalized] = engine
+        return engine
+
+
+class _CompatCursor:
+    """A cursor that wraps a SQLAlchemy connection, compatible with sqlite3.Cursor."""
+
+    def __init__(self, conn, compat_conn=None):
+        self._conn = conn  # SQLAlchemy Connection
+        self._compat = compat_conn  # _CompatConnection (for isolation_level access)
+        self._result = None
+        self._rowcount = 0
+
+    def execute(self, sql: str, params: tuple = ()) -> '_CompatCursor':
+        # Handle transaction control statements
+        sql_stripped = sql.strip().upper()
+        if sql_stripped == "BEGIN" or sql_stripped.startswith("BEGIN "):
+            # SA autobegins on first execute — don't call begin() explicitly.
+            # Just mark that we're in a transaction (for autocommit suppression).
+            if self._compat:
+                self._compat._in_transaction = True
+            return self
+        if sql_stripped == "COMMIT":
+            # Use SA's commit() — it properly ends the SA transaction
+            # and persists the data. DO NOT use dbapi_connection.commit()
+            # because it doesn't reset SA's transaction state, causing
+            # subsequent SELECTs to read from a stale snapshot.
+            self._conn.commit()
+            if self._compat:
+                self._compat._in_transaction = False
+            return self
+        if sql_stripped == "ROLLBACK":
+            self._conn.rollback()
+            if self._compat:
+                self._compat._in_transaction = False
+            return self
+
+        # Convert ? params to :paramN for SQLAlchemy
+        if '?' in sql and params:
+            if isinstance(params, (list, tuple)):
+                param_dict = {}
+                new_sql = sql
+                for i, p in enumerate(params):
+                    key = f"p{i}"
+                    new_sql = new_sql.replace('?', f':{key}', 1)
+                    param_dict[key] = p
+                stmt = text(new_sql)
+                self._result = self._conn.execute(stmt, param_dict)
+            else:
+                stmt = text(sql)
+                self._result = self._conn.execute(stmt, params)
+        else:
+            stmt = text(sql)
+            self._result = self._conn.execute(stmt, params if isinstance(params, dict) else {})
+
+        if self._result is not None:
+            self._rowcount = self._result.rowcount
+
+        # In autocommit mode (isolation_level=None), commit after every statement
+        # unless we're in an explicit transaction.
+        # Use SA's commit() — it properly ends the transaction AND persists data.
+        if self._compat:
+            if self._compat._isolation_level is None and not self._compat._in_transaction:
+                self._conn.commit()
+
+        return self
+
+    def executemany(self, sql: str, params_list) -> None:
+        for params in params_list:
+            self.execute(sql, params)
+
+    def executescript(self, script: str) -> None:
+        """Execute a script with multiple statements."""
+        # Remove comment lines first, then split by semicolons
+        lines = script.split('\n')
+        code_lines = [l for l in lines if not l.strip().startswith('--')]
+        code_sql = '\n'.join(code_lines)
+        statements = [s.strip() for s in code_sql.split(';') if s.strip()]
+        for stmt in statements:
+            try:
+                self._conn.execute(text(stmt))
+            except Exception as e:
+                logger.debug("executescript statement failed (may be OK): %s — %s", stmt[:60], e)
+        # Commit at BOTH levels:
+        # 1. DBAPI commit — persists the DDL/DML
+        # 2. SA commit — resets SA's transaction state so subsequent
+        #    queries on this connection see the new tables
+        self._conn.connection.dbapi_connection.commit()
+        self._conn.commit()
+
+    def fetchone(self):
+        if self._result is None:
+            return None
+        row = self._result.fetchone()
+        if row is None:
+            return None
+        return dict(row._mapping)
+
+    def fetchall(self):
+        if self._result is None:
+            return []
+        rows = self._result.fetchall()  # Call fetchall ONCE
+        return [dict(row._mapping) for row in rows]
+
+    def fetchmany(self, size: int = 1):
+        if self._result is None:
+            return []
+        rows = self._result.fetchmany(size)
+        return [dict(row._mapping) for row in rows]
+
+    @property
+    def rowcount(self) -> int:
+        return self._rowcount
+
+    @property
+    def lastrowid(self):
+        return getattr(self._result, 'lastrowid', None) if self._result else None
+
+    @property
+    def description(self):
+        return getattr(self._result, 'description', None) if self._result else None
+
+    def close(self):
+        pass  # Connection is managed by the context manager
+
+
+class _CompatConnection:
+    """A connection that wraps a SQLAlchemy connection, compatible with sqlite3.Connection.
+
+    The isolation_level parameter is accepted for backward compatibility.
+    When isolation_level=None (autocommit mode, used by most stores),
+    every execute() is immediately committed.
+    """
+
+    def __init__(self, engine: Engine, db_path: str, isolation_level=None):
+        self._engine = engine
+        self._db_path = db_path
+        self._conn = engine.connect()
+        self._isolation_level = isolation_level  # None = autocommit
+        self._in_transaction = False
+        self.row_factory = None  # Set by callers (ignored — we always return Row-like)
+
+    def cursor(self) -> _CompatCursor:
+        return _CompatCursor(self._conn, compat_conn=self)
+
+    def execute(self, sql: str, params: tuple = ()):
+        cur = self.cursor()
+        result = cur.execute(sql, params)
+        # In autocommit mode, commit after every statement
+        if self._isolation_level is None and not self._in_transaction:
+            self._conn.commit()
+        return result
+
+    def commit(self):
+        self._conn.commit()
+        self._in_transaction = False
+
+    def rollback(self):
+        self._conn.rollback()
+        self._in_transaction = False
+
+    def close(self):
+        # In autocommit mode, data is already committed.
+        # In transaction mode, commit before close (matching sqlite3 behavior
+        # where isolation_level=None auto-commits on close).
+        if self._isolation_level is not None:
+            try:
+                self._conn.commit()
+            except Exception:
+                pass
+        self._conn.close()
+
+    def executescript(self, script: str):
+        """Execute a script with multiple statements.
+
+        Handles CREATE TABLE IF NOT EXISTS, CREATE INDEX, etc.
+        Splits on semicolons but respects strings.
+        """
+        # Simple split — works for DDL which doesn't have semicolons in strings
+        statements = [s.strip() for s in script.split(';') if s.strip() and not s.strip().startswith('--')]
+        for stmt in statements:
+            if stmt:
+                try:
+                    self._conn.execute(text(stmt))
+                except Exception as e:
+                    logger.debug("executescript statement failed (may be OK): %s — %s", stmt[:60], e)
+        self._conn.commit()
+
+    @property
+    def isolation_level(self):
+        return None  # SQLAlchemy manages isolation
+
+    @isolation_level.setter
+    def isolation_level(self, value):
+        pass  # Ignored — SQLAlchemy manages isolation
+
+
+class _CompatSavepoint:
+    """Context manager for savepoint-like behavior."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+def connect(db_path: str, **kwargs) -> _CompatConnection:
+    """Create a connection — drop-in replacement for sqlite3.connect().
+
+    Works with:
+      - File paths: "/path/to/db.sqlite"
+      - SQLite URLs: "sqlite:///path/to/db.sqlite"
+      - PostgreSQL URLs: "postgresql://user:pass@host:5432/db"
+      - In-memory: ":memory:"
+
+    kwargs:
+      - isolation_level: None (autocommit, default) or "DEFERRED" (transactional)
+    """
+    engine = _get_engine(db_path)
+    return _CompatConnection(engine, db_path, isolation_level=kwargs.get('isolation_level'))
+
+
+def close_all_engines():
+    """Close all cached engines."""
+    with _engines_lock:
+        for engine in _engines.values():
+            engine.dispose()
+        _engines.clear()

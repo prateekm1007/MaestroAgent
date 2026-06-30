@@ -25,6 +25,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from maestro_api.oem_state import oem_state
+from maestro_db.db_helper import get_db_url_for_learning
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -241,7 +242,7 @@ def get_recommendations(urgency: str | None = Query(None)) -> dict[str, Any]:
     import os as _os
     from pathlib import Path as _Path
     _learning_db = _os.environ.get("MAESTRO_LEARNING_DB",
-                                    str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+                                    get_db_url_for_learning())
     _Path(_learning_db).parent.mkdir(parents=True, exist_ok=True)
     try:
         manager = ClosedLoopLearningManager(
@@ -796,7 +797,7 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
     import os as _os
     from pathlib import Path as _Path
     _learning_db = _os.environ.get("MAESTRO_LEARNING_DB",
-                                    str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+                                    get_db_url_for_learning())
     try:
         _Path(_learning_db).parent.mkdir(parents=True, exist_ok=True)
         from maestro_oem.learning import ContinuousLearningEngine
@@ -1439,7 +1440,7 @@ def _learning_db_path() -> str:
     """Get the learning DB path, ensuring the directory exists."""
     import os as _os
     db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+                               get_db_url_for_learning())
     _Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     return db_path
 
@@ -1459,7 +1460,7 @@ def get_learning_report() -> dict[str, Any]:
     """
     import os as _os
     db_path = _os.environ.get("MAESTRO_LEARNING_DB",
-                               str(_Path(_os.environ.get("DATABASE_URL", "file:maestro.db").replace("file:", "")).parent / "learning.db"))
+                               get_db_url_for_learning())
     # Ensure directory exists
     _Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 

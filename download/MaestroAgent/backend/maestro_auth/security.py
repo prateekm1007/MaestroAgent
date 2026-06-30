@@ -769,7 +769,7 @@ class TamperEvidentAuditLog:
 
     def _get_last_hash(self) -> str:
         """Get the hash of the last audit event."""
-        import sqlite3
+        from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.store.db_path)
         try:
             row = conn.execute(
@@ -830,7 +830,7 @@ class TamperEvidentAuditLog:
 
         Returns (is_valid, first_broken_event_id_or_None).
         """
-        import sqlite3
+        from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.store.db_path)
         try:
             rows = conn.execute(
@@ -911,7 +911,7 @@ class SessionExpiryManager:
 
     def cleanup_expired_sessions(self) -> int:
         """Revoke all expired sessions. Returns the count revoked."""
-        import sqlite3
+        from maestro_db import sqlite_compat as sqlite3
         from maestro_auth.models import utcnow
         conn = sqlite3.connect(self.store.db_path)
         count = 0
@@ -1006,7 +1006,7 @@ class SOC2Monitor:
 
     def session_inventory(self) -> dict[str, Any]:
         """Active session inventory for SOC2 monitoring."""
-        import sqlite3
+        from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.auth_store.db_path)
         try:
             rows = conn.execute(

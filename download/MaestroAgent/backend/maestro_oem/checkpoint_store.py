@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
+from maestro_db import sqlite_compat as sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone

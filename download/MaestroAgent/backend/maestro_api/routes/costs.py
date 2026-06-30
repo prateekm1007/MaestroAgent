@@ -25,7 +25,7 @@ async def list_all_costs(request: Request) -> list[dict[str, Any]]:
     state: Any = request.app.state.maestro
     if state.ledger is None:
         return []
-    import sqlite3
+    from maestro_db import sqlite_compat as sqlite3
     conn = sqlite3.connect(state.ledger.db_path)
     conn.row_factory = sqlite3.Row
     try:

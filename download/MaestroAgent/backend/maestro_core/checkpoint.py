@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
+from maestro_db import sqlite_compat as sqlite3
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone

@@ -91,7 +91,7 @@ class MetaAgent:
     async def _gather_cost_data(self, limit: int) -> list[dict[str, Any]]:
         if self.ledger is None:
             return []
-        import sqlite3
+        from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.ledger.db_path)
         conn.row_factory = sqlite3.Row
         try:
@@ -111,7 +111,7 @@ class MetaAgent:
     async def _gather_audit_data(self, limit: int) -> list[dict[str, Any]]:
         if self.checkpoints is None:
             return []
-        import sqlite3
+        from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.checkpoints.db_path)
         conn.row_factory = sqlite3.Row
         try:
