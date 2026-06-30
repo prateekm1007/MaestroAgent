@@ -28,6 +28,21 @@ const KMS_PROVIDER = process.env.KMS_PROVIDER || 'local';
 const KMS_MASTER_KEY_ID = process.env.KMS_MASTER_KEY_ID || '';
 const KMS_REGION = process.env.KMS_REGION || 'us-east-1';
 const KMS_LOCAL_KEY_DIR = process.env.KMS_LOCAL_KEY_DIR || './keys';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Fail-closed: the local KMS provider generates an unrotatable file-based
+// key that must NEVER be used in production. If NODE_ENV is production and
+// KMS_PROVIDER is not explicitly 'aws', refuse to start rather than silently
+// falling back to an insecure key. This prevents a deployment from accidentally
+// running with a file-based master key that could be committed to git.
+if (NODE_ENV === 'production' && KMS_PROVIDER !== 'aws') {
+  throw new Error(
+    '[kms] REFUSING TO START: KMS_PROVIDER is not set to "aws" in production. ' +
+    'The local file-based KMS is for development only and must not be used ' +
+    'in production. Set KMS_PROVIDER=aws and KMS_MASTER_KEY_ID=<your-arn> ' +
+    'to start in production.'
+  );
+}
 
 let kmsClient = null;
 

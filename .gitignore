@@ -1,2 +1,19 @@
 skills/
 node_modules/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+keys/
+**/keys/*.json
+
+# Build artifacts
+dist/
+build/
+*.pyc
+__pycache__/
+.pytest_cache/
+*.db

@@ -2352,7 +2352,35 @@ function renderTwinReport(report) {
 
 window.addEventListener('load', () => {
   setTimeout(checkForRunningImports, 1000);
+  checkDemoMode();
 });
+
+// ─── Demo-mode banner ─────────────────────────────────────────────────────
+// Check if the OEM is running with demo seed data and show a prominent
+// banner if so. This makes demo mode unmistakable — not just a flag in
+// settings that a careful reader could find.
+async function checkDemoMode() {
+  try {
+    const data = await api.getOEM('/dashboard');
+    // The dashboard response includes the connected providers. If the demo
+    // seed is active, the OEM has signals from the demo providers (github,
+    // jira, slack, confluence, gmail, customer) but no real OAuth connections.
+    // We check /api/oauth/status to see if ANY provider is really connected.
+    const oauthResp = await fetch((MAESTRO_API || '') + '/api/oauth/status');
+    const oauthData = await oauthResp.json();
+    const providers = oauthData.providers || [];
+    const anyConnected = providers.some(p => p.connected);
+    // If no real OAuth connection exists AND the OEM has signals, the data
+    // must be from the demo seed.
+    const hasSignals = data.metrics && data.metrics.signals_processed > 0;
+    if (hasSignals && !anyConnected) {
+      const banner = document.getElementById('demo-banner');
+      if (banner) banner.style.display = 'block';
+    }
+  } catch (e) {
+    // If the check fails, don't show the banner — fail open (the app still works).
+  }
+}
 // ═══════════════════════════════════════════════════════════════════════════
 // CUSTOMER JUDGMENT ENGINE — another OEM surface
 // ═══════════════════════════════════════════════════════════════════════════

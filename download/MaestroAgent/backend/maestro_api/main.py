@@ -158,15 +158,40 @@ def create_app(
     # WebSocket for live event streaming.
     register_ws_routes(app)
 
-    # Serve the PWA bundle if frontend_dist is set and exists.
-    dist_path = (
-        Path(frontend_dist)
-        if frontend_dist
-        else Path(os.environ.get("MAESTRO_FRONTEND_DIST", "frontend/dist"))
-    )
-    if dist_path.exists() and (dist_path / "index.html").exists():
+    # ─── Static-file routing — one explicit mode, no fallthrough ──────────
+    # Previous versions had three conditional branches that could each
+    # register a route for `/`, with no explicit assertion of which one
+    # wins. This caused ambiguity: depending on the filesystem, a visitor
+    # could land on the executive app, an old PWA build, or nothing.
+    #
+    # Now there is ONE env var: MAESTRO_FRONTEND_MODE
+    #   - "app" (default): serve app.html + static/ from MAESTRO_APP_DIR
+    #   - "dist": serve a built frontend bundle from MAESTRO_FRONTEND_DIST
+    #   - "none": API-only mode (no frontend served)
+    #
+    # In production (MAESTRO_ENV=production), the mode MUST be set
+    # explicitly — we fail closed rather than guessing.
+
+    frontend_mode = os.environ.get("MAESTRO_FRONTEND_MODE", "app")
+    is_production = os.environ.get("MAESTRO_ENV", "development") == "production"
+
+    if is_production and frontend_mode not in ("app", "dist", "none"):
+        raise RuntimeError(
+            f"MAESTRO_FRONTEND_MODE={frontend_mode!r} is invalid in production. "
+            f"Must be one of: 'app', 'dist', 'none'."
+        )
+
+    if frontend_mode == "dist":
+        # Serve a built PWA bundle.
+        dist_path = Path(
+            frontend_dist or os.environ.get("MAESTRO_FRONTEND_DIST", "frontend/dist")
+        )
+        if not dist_path.exists() or not (dist_path / "index.html").exists():
+            raise RuntimeError(
+                f"MAESTRO_FRONTEND_MODE=dist but frontend bundle not found at {dist_path}. "
+                f"Build the frontend first or set MAESTRO_FRONTEND_MODE=app."
+            )
         app.mount("/assets", StaticFiles(directory=dist_path / "assets"), name="assets")
-        static_files_dir = dist_path
         for static_file in ["manifest.webmanifest", "sw.js", "registerSW.js", "favicon.ico"]:
             f = dist_path / static_file
             if f.exists():
@@ -177,49 +202,44 @@ def create_app(
 
         @app.get("/{full_path:path}")
         async def spa_fallback(full_path: str):
-            # Don't intercept API, WS, or status paths.
             if full_path.startswith("api/") or full_path.startswith("ws/") or full_path == "status":
                 return {"detail": "Not Found"}
-            candidate = static_files_dir / full_path
+            candidate = dist_path / full_path
             if candidate.is_file():
                 return FileResponse(candidate)
-            return FileResponse(static_files_dir / "index.html")
+            return FileResponse(dist_path / "index.html")
 
-        logger.info("Serving PWA bundle from %s", dist_path)
-    else:
-        # Serve static assets (compiled CSS, JS) from the app directory.
-        app_static_dir = Path(os.environ.get("MAESTRO_APP_DIR", ".")).resolve() / "static"
-        if app_static_dir.exists():
-            app.mount("/static", StaticFiles(directory=app_static_dir), name="static")
-            logger.info("Serving static assets from %s", app_static_dir)
+        logger.info("Serving PWA bundle from %s (MAESTRO_FRONTEND_MODE=dist)", dist_path)
 
-        # Serve app.html at root if it exists.
-        app_html = Path(os.environ.get("MAESTRO_APP_DIR", ".")).resolve() / "app.html"
-        if app_html.exists():
-            @app.get("/")
-            async def serve_app():
-                return FileResponse(app_html)
+    elif frontend_mode == "app":
+        # Serve app.html + static/ — the live executive UI.
+        app_dir = Path(os.environ.get("MAESTRO_APP_DIR", ".")).resolve()
+        app_html = app_dir / "app.html"
+        static_dir = app_dir / "static"
 
-            @app.get("/app.html")
-            async def serve_app_html():
-                return FileResponse(app_html)
-        logger.info(
-            "Frontend dist not found at %s — API-only mode. "
-            "Run `cd frontend && pnpm build` to enable self-host mode.",
-            dist_path,
-        )
+        if not app_html.exists():
+            raise RuntimeError(
+                f"MAESTRO_FRONTEND_MODE=app but app.html not found at {app_html}. "
+                f"Set MAESTRO_APP_DIR to the directory containing app.html."
+            )
 
-    # Serve the executive app (app.html) from the repo root if it exists.
-    # This lets users visit http://localhost:8765/app.html to see the OEM-wired UI.
-    app_html_path = Path(__file__).resolve().parent.parent.parent / "app.html"
-    if app_html_path.exists():
-        @app.get("/app.html")
-        async def serve_app_html():
-            return FileResponse(app_html_path, media_type="text/html")
+        if static_dir.exists():
+            app.mount("/static", StaticFiles(directory=static_dir), name="static")
+            logger.info("Serving static assets from %s", static_dir)
+
         @app.get("/")
         async def serve_root():
-            return FileResponse(app_html_path, media_type="text/html")
-        logger.info("Serving executive app from %s", app_html_path)
+            return FileResponse(app_html, media_type="text/html")
+
+        @app.get("/app.html")
+        async def serve_app_html():
+            return FileResponse(app_html, media_type="text/html")
+
+        logger.info("Serving executive app from %s (MAESTRO_FRONTEND_MODE=app)", app_html)
+
+    else:
+        # MAESTRO_FRONTEND_MODE=none — API-only, no frontend served.
+        logger.info("API-only mode (MAESTRO_FRONTEND_MODE=none). No frontend served.")
 
     return app
 
