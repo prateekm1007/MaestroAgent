@@ -3262,6 +3262,93 @@ def get_unknowns(
     return filtered
 
 
+@router.post("/curiosity/follow-up")
+def curiosity_follow_up(payload: dict[str, Any]) -> dict[str, Any]:
+    """Process a user's answer in a curiosity conversation.
+
+    V8 Upgrade #3 — Conversational Curiosity. Maestro asks a question,
+    the user answers, Maestro asks a context-aware follow-up (referencing
+    the answer), the user answers again, and after at most 3 turns Maestro
+    says "Thank you. Understanding updated." and creates a human_context
+    signal that feeds into the model.
+
+    Payload:
+        question_id: str (required) — the stable ID from GET /curiosity
+        answer: str (required) — the user's answer to the current question
+        original_question: str — the first question (required on turn 1,
+                                  ignored on subsequent turns)
+        question_type: str — the question type (required on turn 1)
+        domain: str — the domain (required on turn 1)
+
+    Returns one of:
+        {
+            "follow_up_question": str,
+            "turn": int,                    # the NEXT turn number (2 or 3)
+            "question_id": str,
+            "understanding_updated": false,
+            "signal_created": false
+        }
+        OR
+        {
+            "understanding_updated": true,
+            "signal_created": true,
+            "signal_id": str,
+            "turn": 3,
+            "question_id": str,
+            "summary": str,
+            "domain": str,
+            "question_type": str
+        }
+
+    The conversation is bounded at 3 turns — Maestro does not interrogate.
+    After turn 3, the accumulated Q&A becomes a DECISION_SIGNAL with
+    metadata.kind="human_context" that is ingested into the model via
+    live_ingest. The signal captures the full conversation so the model
+    can learn from human knowledge that wasn't in the signal stream.
+    """
+    from maestro_oem.curiosity import CuriosityEngine
+    question_id = payload.get("question_id", "")
+    answer = payload.get("answer", "")
+    if not question_id or not answer or not answer.strip():
+        raise HTTPException(400, "question_id and answer are required")
+
+    engine = CuriosityEngine(oem_state.model, oem_state.signals)
+    result = engine.follow_up(
+        question_id=question_id,
+        answer=answer,
+        original_question=payload.get("original_question", ""),
+        question_type=payload.get("question_type", ""),
+        domain=payload.get("domain", ""),
+    )
+
+    # If the conversation closed and a signal was created, ingest it into
+    # the model so it becomes part of the organizational knowledge.
+    # NOTE: we do NOT use live_ingest() here because live_ingest() purges
+    # the demo seed on the first real signal (HIGH 5 fix). The human_context
+    # signal is organizational knowledge, not a provider signal — it should
+    # augment the model, not replace the demo seed. We ingest directly into
+    # the engine and append to the signals list, then refresh downstream.
+    if result.get("signal_created") and result.get("signal"):
+        sig = result["signal"]
+        try:
+            with oem_state._lock:
+                assert oem_state.engine is not None
+                oem_state.engine.ingest([sig])
+                oem_state.signals.append(sig)
+            oem_state._refresh_downstream()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to ingest human_context signal: %s", e
+            )
+        # Don't return the raw signal object (not JSON-serializable —
+        # ExecutionSignal is a Pydantic model but the metadata contains
+        # nested structures). The signal_id is sufficient for the client.
+        del result["signal"]
+
+    return result
+
+
 @router.get("/skepticism")
 def get_skepticism() -> dict[str, Any]:
     """Challenge fossilized beliefs.

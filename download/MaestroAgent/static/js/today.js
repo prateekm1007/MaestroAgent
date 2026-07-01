@@ -289,16 +289,28 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     `;
   }
 
-  // V4 Organ #2 — Curiosity: questions the org has never asked
+  // V4 Organ #2 → V8 Upgrade #3 — Conversational Curiosity.
+  // Maestro asks a question, the user answers, Maestro asks a context-aware
+  // follow-up, the user answers again, and after at most 3 turns Maestro
+  // says "Thank you. Understanding updated." The answer becomes a
+  // human_context signal that feeds into the model.
   if (curiosity && curiosity.questions && curiosity.questions.length > 0) {
     html += `
       <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
-        <div class="brief-label" style="color:var(--accent);">Maestro is curious</div>
+        <div class="brief-label" style="color:var(--accent);">Maestro has questions</div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(curiosity.summary))}</div>
         ${curiosity.questions.slice(0, 3).map((q, i) => `
-          <div class="brief-item" data-curiosity-idx="${i}" style="border-bottom:1px solid var(--divider);">
-            <div class="brief-context" style="color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(q.question))}</div>
-            <div class="brief-provenance">${escapeHtml(humanize(q.evidence))}</div>
+          <div class="curiosity-conversation" data-curiosity-idx="${i}" style="border-bottom:1px solid var(--divider);padding:12px 0;">
+            <div class="curiosity-question" style="color:var(--text-primary);font-weight:500;margin-bottom:8px;">${escapeHtml(humanize(q.question))}</div>
+            <div class="curiosity-evidence ds-meta" style="margin-bottom:8px;">${escapeHtml(humanize(q.evidence))}</div>
+            <div class="curiosity-conversation-area" id="curiosity-conv-${i}" data-question-id="${escapeHtml(q.question_id || '')}" data-question-type="${escapeHtml(q.type || '')}" data-domain="${escapeHtml(q.domain || '')}" data-original-question="${escapeHtml(q.question || '')}" data-turn="1">
+              <input type="text" class="curiosity-answer-input" id="curiosity-input-${i}"
+                     placeholder="Type your answer…"
+                     style="width:100%;padding:8px 12px;background:var(--surface-2);border:1px solid var(--divider);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
+                     onkeydown="if(event.key==='Enter') submitCuriosityAnswer(${i})"
+                     aria-label="Answer Maestro's question" />
+              <button class="ds-btn ds-btn-ghost ds-btn-small" style="margin-top:6px;" onclick="submitCuriosityAnswer(${i})">Answer</button>
+            </div>
           </div>
         `).join('')}
       </div>
@@ -418,6 +430,102 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       itemEl.addEventListener('click', item.action);
     }
   });
+}
+
+// V8 Upgrade #3 — Conversational Curiosity submission handler.
+// Called when the user types an answer and hits Enter or clicks "Answer".
+// Sends the answer to POST /api/oem/curiosity/follow-up, then either
+// renders the follow-up question (turn 2 or 3) or shows the
+// "Thank you. Understanding updated." closing message (after turn 3).
+async function submitCuriosityAnswer(idx) {
+  const inputEl = document.getElementById(`curiosity-input-${idx}`);
+  if (!inputEl) return;
+  const answer = inputEl.value.trim();
+  if (!answer) return;
+
+  const convEl = document.getElementById(`curiosity-conv-${idx}`);
+  if (!convEl) return;
+
+  const questionId = convEl.dataset.questionId || '';
+  const questionType = convEl.dataset.questionType || '';
+  const domain = convEl.dataset.domain || '';
+  const originalQuestion = convEl.dataset.originalQuestion || '';
+  const currentTurn = parseInt(convEl.dataset.turn || '1', 10);
+
+  // Disable the input while we wait for the response
+  inputEl.disabled = true;
+  inputEl.value = '';
+
+  // Show the user's answer as a chat bubble (right-aligned)
+  const chatArea = convEl;
+  chatArea.insertAdjacentHTML('beforebegin', `
+    <div class="curiosity-chat-bubble curiosity-chat-user" style="margin:8px 0 8px 40px;padding:8px 12px;background:var(--accent);color:var(--on-accent,#fff);border-radius:12px 12px 2px 12px;font-size:13px;">
+      ${escapeHtml(answer)}
+    </div>
+  `);
+
+  // Show a loading indicator
+  chatArea.insertAdjacentHTML('beforebegin', `
+    <div class="curiosity-loading" id="curiosity-loading-${idx}" style="margin:8px 0;color:var(--text-muted);font-size:12px;font-style:italic;">Maestro is thinking…</div>
+  `);
+
+  try {
+    const payload = {
+      question_id: questionId,
+      answer: answer,
+    };
+    // On turn 1, include the original question + type + domain so the
+    // backend can start a new conversation. On subsequent turns, these
+    // are ignored (the backend has the conversation state).
+    if (currentTurn === 1) {
+      payload.original_question = originalQuestion;
+      payload.question_type = questionType;
+      payload.domain = domain;
+    }
+
+    const data = await api.postOEM('/curiosity/follow-up', payload);
+
+    // Remove the loading indicator
+    const loadingEl = document.getElementById(`curiosity-loading-${idx}`);
+    if (loadingEl) loadingEl.remove();
+
+    if (data.understanding_updated) {
+      // Conversation closed — show the closing message
+      chatArea.insertAdjacentHTML('beforebegin', `
+        <div class="curiosity-chat-bubble curiosity-chat-maestro curiosity-chat-closing" style="margin:8px 0;padding:10px 14px;background:var(--surface-2);border:1px solid var(--accent);border-radius:12px;font-size:13px;color:var(--text-primary);">
+          <span style="color:var(--accent);font-weight:500;">${escapeHtml(humanize(data.summary || 'Thank you. Understanding updated.'))}</span>
+        </div>
+      `);
+      // Remove the input area — the conversation is done
+      chatArea.remove();
+    } else if (data.follow_up_question) {
+      // Show the follow-up question as a chat bubble (left-aligned)
+      chatArea.insertAdjacentHTML('beforebegin', `
+        <div class="curiosity-chat-bubble curiosity-chat-maestro" style="margin:8px 40px 8px 0;padding:10px 14px;background:var(--surface-2);border:1px solid var(--divider);border-radius:12px 12px 12px 2px;font-size:13px;color:var(--text-primary);">
+          ${escapeHtml(humanize(data.follow_up_question))}
+        </div>
+      `);
+      // Update the turn counter and re-enable the input
+      convEl.dataset.turn = String(data.turn || (currentTurn + 1));
+      inputEl.disabled = false;
+      inputEl.placeholder = `Turn ${data.turn || (currentTurn + 1)} of 3 — type your answer…`;
+      inputEl.focus();
+    } else {
+      // Unexpected response — re-enable input and show error
+      inputEl.disabled = false;
+      chatArea.insertAdjacentHTML('beforebegin', `
+        <div style="margin:8px 0;color:var(--risk,#DC2626);font-size:12px;">Something went wrong. Try again.</div>
+      `);
+    }
+  } catch (e) {
+    // Remove the loading indicator and re-enable input
+    const loadingEl = document.getElementById(`curiosity-loading-${idx}`);
+    if (loadingEl) loadingEl.remove();
+    inputEl.disabled = false;
+    chatArea.insertAdjacentHTML('beforebegin', `
+      <div style="margin:8px 0;color:var(--risk,#DC2626);font-size:12px;">Failed: ${escapeHtml(e.message)}</div>
+    `);
+  }
 }
 
 function determineDotColor(briefing, contradictionsOrPulse) {

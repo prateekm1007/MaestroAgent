@@ -67,6 +67,13 @@ class CuriosityEngine:
         # 4. Repeated bottlenecks
         questions.extend(self._find_repeated_bottlenecks())
 
+        # Assign stable question_ids (V8 #3 — Conversational Curiosity needs
+        # a stable ID to track conversation state across turns). The ID is
+        # deterministic from type+domain so the same question always gets
+        # the same ID within a session.
+        for i, q in enumerate(questions):
+            q["question_id"] = f"cq-{q.get('type', 'unknown')}-{q.get('domain', 'unknown')}-{i}"
+
         # Sort by urgency
         questions.sort(key=lambda q: {"high": 0, "medium": 1, "low": 2}.get(q.get("urgency", "low"), 2))
 
@@ -308,6 +315,261 @@ class CuriosityEngine:
         if eu > 0:
             summary += f" {eu} {'area is' if eu == 1 else 'areas are'} emerging — new and uncategorized."
         return summary
+
+    # ================================================================
+    # V8 Upgrade #3 — Conversational Curiosity
+    # ================================================================
+
+    # Max turns per topic. After turn 3, Maestro stops asking and creates
+    # a human_context signal from the accumulated answers. This prevents
+    # interrogation — the org teaches Maestro through a bounded conversation,
+    # not an endless one.
+    _MAX_TURNS = 3
+
+    # In-memory conversation state, keyed by question_id. Each value is:
+    #   {
+    #     question_id: str,
+    #     original_question: str,
+    #     question_type: str,         # untested_assumption, unmeasured_domain, etc.
+    #     domain: str,
+    #     turns: list[{question: str, answer: str}],
+    #     turn_count: int,
+    #   }
+    # This is intentionally in-memory (not persisted) — conversations are
+    # ephemeral. The *signal* they produce IS persisted (via the caller's
+    # live_ingest). If the server restarts mid-conversation, the user
+    # re-answers; the cost is low and the simplicity is worth it.
+    _conversations: dict[str, dict[str, Any]] = {}
+
+    def follow_up(self, question_id: str, answer: str, original_question: str = "",
+                  question_type: str = "", domain: str = "") -> dict[str, Any]:
+        """Process a user's answer and either ask a follow-up or close the conversation.
+
+        Args:
+            question_id: The stable ID from generate() (e.g. "cq-unmeasured_domain-payments-0")
+            answer: The user's answer to the current question
+            original_question: The first question in the conversation (needed to
+                               start a new conversation; ignored on subsequent turns)
+            question_type: The question type (needed to start a new conversation)
+            domain: The domain the question is about (needed to start a new conversation)
+
+        Returns one of:
+          - {"follow_up_question": str, "turn": int, "question_id": str, "understanding_updated": false}
+          - {"understanding_updated": true, "signal_created": true, "signal_id": str, "turn": int, "question_id": str, "summary": str}
+
+        The conversation is bounded at _MAX_TURNS (3). After the 3rd answer,
+        Maestro creates a human_context signal from the accumulated Q&A and
+        returns understanding_updated=true.
+
+        Follow-up questions are context-aware — they reference the user's
+        previous answer, not generic templates. This is the V8 litmus: the
+        org teaches Maestro through conversation, building trust.
+        """
+        if not question_id or not answer or not answer.strip():
+            return {
+                "understanding_updated": False,
+                "signal_created": False,
+                "error": "question_id and answer are required",
+            }
+
+        answer = answer.strip()
+
+        # Start or continue the conversation
+        convo = self._conversations.get(question_id)
+        if convo is None:
+            # New conversation — must have original_question + type + domain
+            if not original_question:
+                return {
+                    "understanding_updated": False,
+                    "signal_created": False,
+                    "error": "original_question is required to start a new conversation",
+                }
+            convo = {
+                "question_id": question_id,
+                "original_question": original_question,
+                "question_type": question_type or "unknown",
+                "domain": domain or "unknown",
+                "turns": [],
+                "turn_count": 0,
+            }
+            self._conversations[question_id] = convo
+
+        # Record this turn
+        current_turn_num = convo["turn_count"] + 1
+        current_question = (
+            convo["original_question"] if current_turn_num == 1
+            else convo["turns"][-1]["question"]
+        )
+        convo["turns"].append({
+            "turn": current_turn_num,
+            "question": current_question,
+            "answer": answer,
+        })
+        convo["turn_count"] = current_turn_num
+
+        # If we've reached the max turns, close the conversation and create
+        # the human_context signal.
+        if current_turn_num >= self._MAX_TURNS:
+            return self._close_conversation(convo)
+
+        # Otherwise, generate a context-aware follow-up
+        follow_up_question = self._generate_follow_up(convo)
+        return {
+            "follow_up_question": follow_up_question,
+            "turn": current_turn_num + 1,  # the NEXT turn number
+            "question_id": question_id,
+            "understanding_updated": False,
+            "signal_created": False,
+        }
+
+    def _generate_follow_up(self, convo: dict[str, Any]) -> str:
+        """Generate a context-aware follow-up question.
+
+        The follow-up references the user's previous answer(s) so the
+        conversation feels like Maestro is actually listening. The
+        generation is template-based per question_type, with the user's
+        answer interpolated.
+        """
+        q_type = convo["question_type"]
+        domain = convo["domain"]
+        last_answer = convo["turns"][-1]["answer"]
+        # Truncate the answer for interpolation (avoid giant questions)
+        answer_snippet = last_answer[:120].rsplit(" ", 1)[0] if len(last_answer) > 120 else last_answer
+        turn_num = convo["turn_count"]
+
+        # Turn 2: dig deeper into the answer. Turn 3: ask for the
+        # consequence/implication (this sets up the signal creation).
+        if turn_num == 1:
+            # First follow-up — clarify the answer
+            if q_type == "unmeasured_domain":
+                return (
+                    f"You mentioned {answer_snippet}. Is that because nobody has time to "
+                    f"measure the {domain} domain, or because the tools aren't in place to "
+                    f"capture it? What would it take to start measuring?"
+                )
+            elif q_type == "untested_assumption":
+                return (
+                    f"Given that {answer_snippet}, do you think the assumption still holds, "
+                    f"or has it drifted? When was the last time someone actually checked?"
+                )
+            elif q_type == "unexplained_pattern":
+                return (
+                    f"You said {answer_snippet}. Have you noticed any conditions that seem "
+                    f"to trigger the pattern — time of quarter, team composition, specific "
+                    f"types of work? What's your hypothesis?"
+                )
+            elif q_type == "repeated_bottleneck":
+                return (
+                    f"Given {answer_snippet}, is this person aware they're the bottleneck? "
+                    f"Is it a knowledge gap (they're the only one who knows how), a process "
+                    f"gap (everything routes to them), or a capacity gap (too much work)?"
+                )
+            else:
+                return (
+                    f"Interesting — {answer_snippet}. Can you say more about why that is? "
+                    f"What's the underlying cause as you see it?"
+                )
+        else:
+            # Turn 3 — ask about the consequence/implication. This answer
+            # becomes the "so what" of the human_context signal.
+            if q_type == "unmeasured_domain":
+                return (
+                    f"If the {domain} domain stays unmeasured, what's the risk? What could "
+                    f"go wrong that we wouldn't see coming? And what would change if we "
+                    f"started measuring it tomorrow?"
+                )
+            elif q_type == "untested_assumption":
+                return (
+                    f"If the assumption turns out to be wrong, what breaks? Who is affected? "
+                    f"And if it's still right, what would confirm it so we can stop wondering?"
+                )
+            elif q_type == "unexplained_pattern":
+                return (
+                    f"If your hypothesis is correct, what should we do about it? And if it's "
+                    f"wrong, what's the alternative explanation we should investigate?"
+                )
+            elif q_type == "repeated_bottleneck":
+                return (
+                    f"What would it take to unblock this — cross-training, process change, "
+                    f"or hiring? And what happens if we do nothing (how long until it becomes "
+                    f"critical)?"
+                )
+            else:
+                return (
+                    f"Given what you've shared, what should the organization do differently? "
+                    f"And what's the cost of not acting on this?"
+                )
+
+    def _close_conversation(self, convo: dict[str, Any]) -> dict[str, Any]:
+        """Close the conversation and create a human_context signal.
+
+        The signal is a DECISION_SIGNAL with metadata.kind="human_context".
+        It captures the full Q&A so the model can learn from it. The signal
+        is added to the engine via the caller (the API route calls
+        oem_state.live_ingest with the signal).
+        """
+        from maestro_oem.signal import ExecutionSignal, SignalType, SignalProvider
+        from datetime import datetime, timezone
+
+        # Build a human-readable summary of the conversation
+        turns = convo["turns"]
+        q_type = convo["question_type"]
+        domain = convo["domain"]
+
+        # The signal's artifact is a stable identifier for this conversation
+        artifact = f"human-context:{convo['question_id']}"
+
+        # The metadata captures the full conversation so it's auditable
+        # and the model can reference it later.
+        metadata = {
+            "kind": "human_context",
+            "question_id": convo["question_id"],
+            "question_type": q_type,
+            "domain": domain,
+            "original_question": convo["original_question"],
+            "turns": [
+                {"turn": t["turn"], "question": t["question"], "answer": t["answer"]}
+                for t in turns
+            ],
+            "turn_count": len(turns),
+            # The "understanding" is the concatenation of answers — this is
+            # what the model learns from. It's the human knowledge that
+            # wasn't in the signal stream before.
+            "understanding": " | ".join(t["answer"] for t in turns),
+        }
+
+        signal = ExecutionSignal(
+            type=SignalType.DECISION_SIGNAL,
+            timestamp=datetime.now(timezone.utc),
+            actor="human-context@maestro",
+            artifact=artifact,
+            decision=True,  # This is a human-provided decision/knowledge
+            confidence=1.0,  # Human-provided context is treated as verified
+            metadata=metadata,
+            provider=SignalProvider.UNKNOWN,
+        )
+
+        # Clean up the conversation state
+        del self._conversations[convo["question_id"]]
+
+        # Build a summary for the response
+        summary = (
+            f"Thank you. Understanding updated. "
+            f"Maestro learned {len(turns)} things about the {domain} domain from this conversation. "
+            f"The knowledge is now part of the organizational model."
+        )
+
+        return {
+            "understanding_updated": True,
+            "signal_created": True,
+            "signal_id": str(signal.signal_id),
+            "signal": signal,  # The caller (API route) ingests this into the model
+            "turn": len(turns),
+            "question_id": convo["question_id"],
+            "summary": summary,
+            "domain": domain,
+            "question_type": q_type,
+        }
 
     # ================================================================
     # Original curiosity question generators (unchanged)
