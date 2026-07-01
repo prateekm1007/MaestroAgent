@@ -119,7 +119,7 @@ function renderDrilldownTab(tab) {
          ${pred.outcome ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Predicted Outcome</div><div class="text-sm text-brand-cyan">${escapeHtml(humanize(pred.outcome))}</div></div>` : ''}
          ${pred.detail ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Detail</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.detail))}</div></div>` : ''}
          ${pred.impact ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Impact</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.impact))}</div></div>` : ''}
-         ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" style="width:200px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${pred.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(pred.confidence)}</span></div></div>` : ''}
+         ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" style="width:200px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${pred.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(pred.confidence, { entity: 'prediction', title: pred.outcome })}</span></div></div>` : ''}
          ${pred.risk ? `<div><span class="tag tag-rose">${escapeHtml(pred.risk)}</span></div>` : ''}
        </div>`;
   } else if (tab === 'simulation') {
@@ -333,7 +333,7 @@ async function runDrilldownSimulation() {
           <div class="text-[10px] text-fg-600">Base: ${data.base_health.decision_velocity_days}d</div>
         </div>
       </div>
-      <div class="mt-3 text-[10px] text-fg-500">Confidence: ${formatConfidence(data.confidence)}</div>
+      <div class="mt-3 text-[10px] text-fg-500">Confidence: ${formatConfidenceWithWhy(data.confidence, { entity: 'recommendation' })}</div>
     `;
   } catch (e) {
     resultEl.innerHTML = `<div class="error-state">${escapeHtml(e.message)}</div>`;

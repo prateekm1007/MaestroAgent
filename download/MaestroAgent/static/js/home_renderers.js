@@ -136,7 +136,7 @@ function renderRecCard(r) {
     </div>
     ${provChain ? `<div class="prov-chain mt-2 mb-2">${provChain}</div>` : ''}
     <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2">
-      <div class="conf-bar" style="width:120px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${r.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(r.confidence)}</span></div>
+      <div class="conf-bar" style="width:120px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${r.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(r.confidence, { entity: 'recommendation', title: r.title })}</span></div>
       <span>·</span>
       <span>${r.evidence_count || 0} evidence</span>
       ${r.linked_laws && r.linked_laws.length ? `<span>·</span><span>Laws: ${r.linked_laws.join(', ')}</span>` : ''}
@@ -198,7 +198,7 @@ function renderLawCard(l) {
       </div>
     </div>
     <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2">
-      <div class="conf-bar" style="width:120px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${l.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(l.confidence)}</span></div>
+      <div class="conf-bar" style="width:120px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${l.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(l.confidence, { entity: 'law', title: l.statement })}</span></div>
       <span>·</span>
       <span>${l.evidence_count} evidence</span>
       <span>·</span>

@@ -434,3 +434,96 @@
 /* Light-mode perspective grid surface */
 :root[data-theme="light"] .ds-perspective-team { background: var(--ds-surface-2); }
 :root[data-theme="light"] .ds-perspective-text { background: var(--ds-surface); }
+
+/* ─── V8 Upgrade #1 — Explanation chain (ASK v2 "why" rendering) ──────────── */
+
+.explanation-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 8px;
+}
+
+.explanation-step {
+  display: flex;
+  gap: 14px;
+  position: relative;
+  padding-bottom: 20px;
+}
+
+/* Vertical connector line between steps (not on the last step) */
+.explanation-step:not(.explanation-step-last)::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 32px;
+  bottom: 0;
+  width: 2px;
+  background: var(--ds-divider, var(--divider, #2A2A32));
+  opacity: 0.6;
+}
+
+.explanation-step-marker {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ds-surface-2, var(--surface-2, #1A1A1F));
+  border: 2px solid var(--ds-accent, var(--accent, #7C5CFF));
+  color: var(--ds-accent, var(--accent, #7C5CFF));
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--ds-font-mono, monospace);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.explanation-step-body {
+  flex: 1;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.explanation-step-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ds-text-primary, var(--text-primary, #F0F0F5));
+  margin-bottom: 4px;
+}
+
+.explanation-step-narrative {
+  font-size: 13.5px;
+  color: var(--ds-text-secondary, var(--text-secondary, #A1A1AA));
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+
+.explanation-step-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.explanation-sources summary {
+  list-style: none;
+  user-select: none;
+}
+.explanation-sources summary::-webkit-details-marker { display: none; }
+.explanation-sources summary::before {
+  content: '▸ ';
+  color: var(--ds-text-muted, var(--text-muted, #6B6B75));
+  font-size: 10px;
+}
+.explanation-sources[open] summary::before { content: '▾ '; }
+
+/* Light-mode explanation chain adjustments */
+:root[data-theme="light"] .explanation-step-marker {
+  background: var(--ds-surface-2, #F0F0F0);
+  border-color: var(--ds-accent, #7C5CFF);
+  color: var(--ds-accent, #7C5CFF);
+}
+:root[data-theme="light"] .explanation-step:not(.explanation-step-last)::before {
+  background: var(--ds-divider, #E4E4E7);
+}

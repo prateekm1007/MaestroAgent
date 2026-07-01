@@ -69,6 +69,28 @@ async function submitAskV2(question) {
   _askIntentionMode = false;
   const qLower = question.toLowerCase();
 
+  // V8 Upgrade #1 — route "why" questions to the Explanation engine.
+  // A "why" question is one that starts with "why" or contains "why" as a
+  // standalone word, OR starts with "explain why". These get a multi-step
+  // causal chain rendered as a visual sequence.
+  const trimmedLower = qLower.trim();
+  const isWhyQuestion = (
+    trimmedLower.startsWith('why') ||
+    trimmedLower.startsWith('explain why') ||
+    /\bwhy\b/.test(trimmedLower)
+  );
+  if (isWhyQuestion) {
+    answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Composing causal explanation…</div>';
+    answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+      const data = await api.getOEM(`/explain?q=${encodeURIComponent(question)}`);
+      renderExplanationAnswer(answerEl, question, data);
+    } catch (e) {
+      answerEl.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
+    }
+    return;
+  }
+
   // V5 Spec #5 — route "what if" questions to Imagination engine
   if (qLower.includes('what if') || qLower.includes('what would happen') || qLower.includes('imagine')) {
     answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Imagining consequences…</div>';
@@ -195,4 +217,71 @@ function renderRecallAnswer(el, question, data) {
   el.innerHTML = html;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// V8 Upgrade #1 — render an Explanation as a visual causal chain.
+// Each step is a card with: step number, label, narrative, evidence count,
+// confidence bar, and source-entity references. Steps are connected by a
+// vertical line so the chain is visible.
+function renderExplanationAnswer(el, question, data) {
+  // Empty / honest-limitation case
+  if (!data.steps || data.steps.length === 0) {
+    el.innerHTML = `<div class="story-card">
+      <div class="story-narrative">${escapeHtml(humanize(data.honest_limitation || data.summary || 'Maestro cannot explain this yet.'))}</div>
+      <div class="story-evidence" style="margin-top:8px;">Connect more providers (GitHub, Jira, Slack, Confluence) so Maestro can observe the pattern and compose a causal chain.</div>
+    </div>
+    <button class="intention-prompt" onclick="loadAskV2()" style="margin-top:16px;">Ask another question</button>`;
+    return;
+  }
+
+  // Header — the question + overall confidence + total evidence
+  const overallPct = Math.round((data.overall_confidence || 0) * 100);
+  let html = `<div class="story-card">
+    <div class="story-narrative" style="font-weight:500;color:var(--accent);margin-bottom:8px;">${escapeHtml(humanize(question))}</div>
+    <div class="ds-meta" style="margin-bottom:16px;">
+      ${data.step_count} step${data.step_count === 1 ? '' : 's'} · ${data.total_evidence} evidence signals · overall confidence ${overallPct}%
+    </div>
+    <div class="explanation-chain">`;
+
+  // Steps — each is a card connected by a vertical line
+  for (let i = 0; i < data.steps.length; i++) {
+    const step = data.steps[i];
+    const isLast = i === data.steps.length - 1;
+    const confPct = Math.round((step.confidence || 0) * 100);
+    // Confidence color: high (>=70%) = accent, medium (40-69%) = secondary, low (<40%) = muted
+    const confColor = confPct >= 70 ? 'var(--accent)' : confPct >= 40 ? 'var(--secondary)' : 'var(--text-muted)';
+    html += `
+      <div class="explanation-step${isLast ? ' explanation-step-last' : ''}">
+        <div class="explanation-step-marker">${step.step}</div>
+        <div class="explanation-step-body">
+          <div class="explanation-step-label">${escapeHtml(humanize(step.label || ''))}</div>
+          <div class="explanation-step-narrative">${escapeHtml(humanize(step.narrative || ''))}</div>
+          <div class="explanation-step-meta">
+            <span class="ds-meta">${step.evidence_count} evidence</span>
+            <span class="ds-meta" style="margin-left:12px;">confidence ${confPct}%</span>
+          </div>
+          <div class="explanation-conf-bar" style="background:var(--divider);height:3px;border-radius:2px;margin-top:6px;overflow:hidden;">
+            <div style="background:${confColor};height:100%;width:${confPct}%;transition:width 0.4s ease;"></div>
+          </div>
+          ${step.sources && step.sources.length > 0 ? `
+            <details class="explanation-sources">
+              <summary class="ds-meta" style="cursor:pointer;margin-top:6px;">${step.sources.length} source${step.sources.length === 1 ? '' : 's'}</summary>
+              <div style="margin-top:6px;">
+                ${step.sources.map(s => `<div class="ds-meta" style="padding:2px 0;">${escapeHtml(s)}</div>`).join('')}
+              </div>
+            </details>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+
+  // Honest limitation (if any) — shown as a footnote
+  if (data.honest_limitation) {
+    html += `<div class="story-evidence" style="margin-top:16px;font-style:italic;">${escapeHtml(humanize(data.honest_limitation))}</div>`;
+  }
+
+  html += `</div>`;
+  html += `<button class="intention-prompt" onclick="loadAskV2()" style="margin-top:16px;">Ask another question</button>`;
+  el.innerHTML = html;
+}

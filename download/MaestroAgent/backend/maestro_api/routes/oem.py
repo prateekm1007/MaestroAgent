@@ -3490,3 +3490,27 @@ def get_autobiography() -> dict[str, Any]:
     from maestro_oem.evolution_narrative import EvolutionNarrative
     engine = EvolutionNarrative(oem_state.model, oem_state.signals)
     return engine.write()
+
+
+@router.get("/explain")
+def explain(
+    q: str = Query(..., description="A 'why' question, e.g. 'Why are engineering estimates always wrong?'"),
+) -> dict[str, Any]:
+    """Explain why — a multi-step causal chain.
+
+    V8 Upgrade #1 — Organizational Explanations. Maestro transforms from
+    producing outputs (recommendations, laws) to producing explanations.
+
+    Given a 'why' question, the engine synthesizes a 3-7 step causal chain
+    where each step references real model data (PR counts, domain holders,
+    influence scores, validated laws, health metrics) with evidence_count
+    and confidence. The chain is honest: if model data is insufficient,
+    the engine says so rather than fabricating.
+
+    The ASK v2 surface routes 'why' questions here and renders the chain
+    as a visual sequence. Every confidence display in the UI also gets a
+    'Why?' link that opens this endpoint with a context-derived question.
+    """
+    from maestro_oem.explanations import ExplanationEngine
+    engine = ExplanationEngine(oem_state.model, oem_state.signals, oem_state.decisions)
+    return engine.explain(q)
