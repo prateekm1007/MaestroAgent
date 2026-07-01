@@ -190,6 +190,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     </div>`;
   } else {
     items.forEach((item, i) => {
+      const prepareBtn = item.label === 'One decision' ? `<button class="ds-btn ds-btn-primary ds-btn-small" style="margin-top:10px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
       html += `
         <div class="brief-item" data-idx="${i}">
           <div class="brief-label">${escapeHtml(item.label)}</div>
@@ -197,6 +198,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
           ${item.context ? `<div class="brief-context">${escapeHtml(humanize(item.context))}</div>` : ''}
           ${item.provenance ? `<div class="brief-provenance">${escapeHtml(humanize(item.provenance))}</div>` : ''}
           ${item.sowhat ? `<div class="brief-context" style="margin-top:8px;color:var(--accent);font-weight:500;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
+          ${prepareBtn}
         </div>
       `;
     });
@@ -284,6 +286,54 @@ function determineWeather(pulse, briefing) {
     forecast: 'Stable conditions.',
     detail: 'The organization is operating normally.',
   };
+}
+
+// V5 Spec #2 — Executive Function: Prepare an execution plan
+async function prepareExecution(title) {
+  // Open the drill-down modal with the execution plan
+  openDrilldown('recommendation', title);
+  // Switch to the So What? tab first (which has the consequence),
+  // then the user can click "Prepare" to see the full plan
+  setTimeout(async () => {
+    const body = document.getElementById('drilldown-body');
+    if (!body) return;
+    body.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Preparing execution plan…</div>';
+    try {
+      const plan = await api.getOEM(`/execute?recommendation_id=${encodeURIComponent(title)}`);
+      body.innerHTML = `
+        <div class="ds-stack">
+          <div>
+            <div class="ds-cascade-label">Execution plan</div>
+            <div style="font-size:15px;color:var(--text-primary);margin-bottom:16px;">${escapeHtml(humanize(plan.summary || ''))}</div>
+          </div>
+          ${plan.steps ? plan.steps.map(s => `
+            <div class="ds-card" style="padding:14px;">
+              <div class="ds-row-between" style="margin-bottom:6px;">
+                <span class="ds-tag ds-tag-pending">Step ${s.step}</span>
+                <span class="ds-meta">${escapeHtml(s.estimated_time || '')}</span>
+              </div>
+              <div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:4px;">${escapeHtml(humanize(s.title || ''))}</div>
+              <div style="font-size:13px;color:var(--text-secondary);">${escapeHtml(humanize(s.detail || ''))}</div>
+              <div class="ds-meta" style="margin-top:6px;">Owner: ${escapeHtml(humanize(s.owner || ''))}${s.prerequisite ? ' · After: ' + escapeHtml(humanize(s.prerequisite)) : ''}</div>
+            </div>
+          `).join('') : ''}
+          <div>
+            <div class="ds-cascade-label">Drafted briefing</div>
+            <div style="padding:14px;background:var(--surface-2);border-radius:8px;font-size:13px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.6;">${escapeHtml(humanize(plan.drafted_briefing || ''))}</div>
+          </div>
+          <div>
+            <div class="ds-cascade-label">Follow-through</div>
+            <div style="font-size:13px;color:var(--text-secondary);">
+              Check-in: ${escapeHtml(plan.follow_through?.check_in_date || '')}<br>
+              Success: ${escapeHtml(humanize(plan.follow_through?.success_metric || ''))}
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (e) {
+      body.innerHTML = `<div class="ds-error">Failed to prepare: ${escapeHtml(e.message)}</div>`;
+    }
+  }, 500);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

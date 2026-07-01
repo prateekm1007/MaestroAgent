@@ -3296,3 +3296,39 @@ def get_consciousness() -> dict[str, Any]:
     from maestro_oem.consciousness import ConsciousnessEngine
     engine = ConsciousnessEngine(oem_state.model, oem_state.signals)
     return engine.state_vector()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 30. CONSTITUTION V5 — THE INVISIBLE LAYER
+# ═══════════════════════════════════════════════════════════════════════════
+# V5 Law: "Every release must make Maestro feel simpler, even if it
+# becomes dramatically more intelligent internally."
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/execute")
+def get_execution_plan(
+    recommendation_id: str = Query("", description="Recommendation title to plan execution for"),
+    context: str = Query("", description="Decision context"),
+) -> dict[str, Any]:
+    """Prepare an execution plan for a recommendation.
+
+    V5 Spec #2 — Executive Function. Maestro doesn't just advise — it
+    plans, sequences, and drafts actions. Returns steps, drafted briefing,
+    and follow-through plan.
+    """
+    from maestro_oem.executive_function import ExecutiveFunctionEngine
+    engine = ExecutiveFunctionEngine(oem_state.model, oem_state.signals, oem_state.decisions)
+    return engine.plan(recommendation_title=recommendation_id, context=context)
+
+
+@router.get("/attention")
+def get_attention() -> dict[str, Any]:
+    """Where should the organization's attention be?
+
+    V5 Spec #3 — Attention Allocation. Consciousness knows where attention
+    IS. This engine decides where it SHOULD BE — including what's stealing
+    focus and what to deprioritize.
+    """
+    from maestro_oem.attention import AttentionEngine
+    engine = AttentionEngine(oem_state.model, oem_state.signals)
+    return engine.allocate()
