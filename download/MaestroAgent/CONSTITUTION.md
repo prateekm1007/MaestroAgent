@@ -1,68 +1,105 @@
 # MAESTRO CONSTITUTION v3
+
 ## The Living Intelligence Layer for Organizations
 
 ---
 
-## THE NORTH STAR
-
-> **Every day an organization should become wiser than it was yesterday.**
-
-Not faster. Not more productive. Not more automated.
-
-**Wiser.**
-
-Wisdom is the compounding of judgment through experience, reflection, and learning. Organizations do not compound wisdom today — they fragment it across Slack, Jira, email, meetings, and the memories of people who leave. Maestro is the layer that makes wisdom compound.
+> **The purpose of Maestro is not to help organizations do more work. The purpose of Maestro is to help organizations become wiser over time.**
 
 ---
 
 ## THE MISSION
 
-> **Increase the Intelligence of Organizations.**
+Maestro is **not**:
 
-Organizational Intelligence is:
+- a dashboard
+- a workflow tool
+- a CRM
+- a meeting assistant
+- a project manager
+- a search engine
+- another AI copilot
 
-> **The collective ability of an organization to perceive reality accurately, make good decisions under uncertainty, coordinate effectively, learn from outcomes, and continuously improve.**
+Maestro is becoming:
 
-This is not AI. Not automation. Not productivity. Not a copilot. It is a category that does not yet exist: **the continuous evolution of an organization's capacity to make better decisions.**
+> **The Living Intelligence Layer for Organizations.**
 
----
+Its purpose is to continuously transform organizational experience into organizational judgment.
 
-## THE FUNDAMENTAL LAW
-
-> **Every increase in Maestro's internal intelligence must reduce the amount of interface exposed to the customer.**
-
-And its corollary:
-
-> **Every interaction must create a memory the user cannot afford to lose.**
-
-These two laws are in tension. The first says: less interface. The second says: more value per interaction. The resolution is **compression** — Google Maps compresses global geography into "turn left." Maestro compresses organizational complexity into judgment.
+Everything else is implementation.
 
 ---
 
-## THE SEVEN PROPERTIES OF A LIVING ORGANIZATION
+## THE NORTH STAR
 
-A living organization has seven properties. Every Maestro capability must serve one or more of these properties. If a feature does not serve any, it is waste.
+Every day an organization generates thousands of tiny experiences.
 
-### 1. It Remembers
-Not documents. Not files. It remembers **why** — every important decision, every tradeoff, every lesson, every assumption that was wrong, every prediction that came true or didn't. Memory is not storage; it is the accumulated reasoning that makes future decisions better.
+Most software stores them. Maestro learns from them.
 
-### 2. It Understands
-Not information. **Meaning.** Context, intent, relationships, dependencies, tensions, patterns. The organization sees not just what happened but what it means and why it matters.
+Over months, those experiences become knowledge.
+Knowledge becomes understanding.
+Understanding becomes judgment.
+Judgment becomes wisdom.
+Wisdom becomes organizational evolution.
 
-### 3. It Judges
-Not predicts. **Judges.** It knows what matters, what doesn't, where risk lives, where opportunity exists, when to act, when to wait. Judgment is the application of understanding to a specific decision under uncertainty.
+That evolution is the product.
 
-### 4. It Reflects
-Every night. Every week. Every quarter. It asks: "What did we misunderstand? What did we assume that was wrong? What pattern are we ignoring?" Reflection is the engine of learning. Without it, experience accumulates but wisdom does not compound.
+---
 
-### 5. It Learns
-Not machine learning. **Organizational learning.** One person's experience improves everyone's future decisions. A mistake made once is a lesson that prevents the next hundred. Learning is the mechanism by which memory becomes wisdom.
+## THE TEN LAWS
 
-### 6. It Evolves
-The organization literally changes. Decision quality improves. Knowledge mobility improves. Coordination improves. Trust improves. Prediction improves. Evolution is the observable, measurable trajectory of an organization becoming more intelligent over time.
+Every future feature, refactor, and commit must obey these laws.
 
-### 7. It Prepares
-Before humans ask. Before meetings begin. Before crises occur. Preparation is ambient — the organization is always ready for the next decision before the decision arrives.
+### Law One: Software disappears. Understanding remains.
+The interface should shrink as intelligence grows. Every increase in intelligence should remove interface. Never expose internal complexity.
+
+### Law Two: The organization should feel alive.
+The CEO should never feel like they opened software. They should feel like they entered the mind of their company.
+
+### Law Three: Everything has memory.
+Nothing is stateless. Every recommendation, every preparation, every simulation, every conversation, every interruption, every meeting, every decision must become memory.
+
+### Law Four: Memory alone is worthless.
+Memory must continuously evolve into judgment.
+
+### Law Five: Every increase in internal complexity must reduce external complexity.
+This law is absolute. Reject any PR violating it.
+
+### Law Six: Organizations evolve. Maestro must evolve with them.
+Nothing inside Maestro is static. Everything learns.
+
+### Law Seven: Never show machinery.
+Never expose: OEM, Learning Objects, Receipts, Organizational Laws, Pattern IDs, Internal confidence, Prediction IDs, Receipt IDs, Evidence IDs.
+
+Instead expose: Stories, Understanding, Recommendations, Prepared Decisions, Historical context, Organizational memory.
+
+### Law Eight: Everything must answer "So what?"
+No metric exists without meaning. No graph exists without consequence. No insight exists without action.
+
+### Law Nine: Every feature must reduce thinking while increasing judgment.
+If it only automates work — reject it. If it improves judgment — ship it.
+
+### Law Ten: The organization should become progressively smarter.
+Not merely faster. Smarter.
+
+---
+
+## COGNITIVE ORGANS
+
+Internally, Maestro is not a collection of features. It is a set of cognitive organs, each with a biological purpose:
+
+| Organ | Purpose | Existing engines that map here |
+|---|---|---|
+| **Perception** | Observes organizational reality | Signal ingestion (GitHub, Jira, Slack, Confluence, Gmail, Customer) |
+| **Memory** | Stores organizational experience | Decision Log, Weekly Snapshots, Evidence Graph, Memory Replay |
+| **Understanding** | Discovers relationships | OEM, Evidence Graph, Knowledge Graph, Signal Classes |
+| **Reasoning** | Builds explanations | Ask the Organization, Perspective Engine |
+| **Judgment** | Recommends actions | Decision Engine, Recommendations, Contradictions |
+| **Preparation** | Prepares execution | Preparation Engine, Coordination Engine |
+| **Reflection** | Learns from outcomes | Learning Loop, Calibration Engine, Brier scoring |
+| **Evolution** | Improves forever | Prediction Market, Hypothesis Layer, Assumption Graph |
+
+**Do not rewrite. Refactor gradually.** Every existing engine maps into one of these organs. The mapping is conceptual — the code doesn't need to be reorganized today. But every NEW capability must declare which organ it serves.
 
 ---
 
@@ -71,31 +108,8 @@ Before humans ask. Before meetings begin. Before crises occur. Preparation is am
 Everything Maestro does flows through one cycle:
 
 ```
-        Reality
-           ↓
-        Signals
-           ↓
-      Understanding
-           ↓
-        Judgment
-           ↓
-       Preparation
-           ↓
-        Decision
-           ↓
-       Execution
-           ↓
-        Evidence
-           ↓
-       Reflection
-           ↓
-        Learning
-           ↓
-       Principles
-           ↓
-        Identity
-           ↓
-        Reality  ← the organization changes reality
+Reality → Signals → Understanding → Judgment → Preparation → Decision
+→ Execution → Evidence → Reflection → Learning → Principles → Identity → Reality
 ```
 
 Reality appears twice. The organization changes reality. Reality changes the organization. That is evolution.
@@ -106,22 +120,17 @@ Reality appears twice. The organization changes reality. Reality changes the org
 
 ## THE FOUR FLYWHEELS
 
-Instead of building modules, Maestro builds four compounding flywheels. These are the capabilities that make Maestro indispensable — the things an organization cannot afford to lose.
-
 ### Flywheel 1 — Organizational Memory
-```
 Signal → Decision → Outcome → Lesson → Principle → Future Decision
-```
-Every interaction improves future decisions. Not just stores history — actively makes the next decision better by carrying forward what was learned.
 
 ### Flywheel 2 — Organizational Awareness
-Maestro knows what is happening across the organization without being asked. Engineering is waiting. Finance already approved. Procurement changed yesterday. Customer champion is leaving. Legal discovered a blocker. Nobody asked. Maestro noticed.
+Maestro knows what is happening across the organization without being asked.
 
 ### Flywheel 3 — Organizational Preparation
-Say "Launch Germany." Ten minutes later: engineering dependencies identified, legal assumptions listed, security review drafted, RFC generated, customer rollout staged, board risks summarized, Slack announcement prepared, executive FAQ generated. Everything is prepared. Nothing executed. You approve.
+Everything prepared. Nothing executed. You approve.
 
 ### Flywheel 4 — Organizational Evolution
-Every Friday the CEO sees: decision quality ↑, knowledge reuse ↑, prediction accuracy ↑, review latency ↓, confusion ↓. The organization is measurably becoming more intelligent. That is addictive.
+Measurable improvement every week. The organization is becoming more intelligent.
 
 ---
 
@@ -129,52 +138,41 @@ Every Friday the CEO sees: decision quality ↑, knowledge reuse ↑, prediction
 
 > **Organizations cannot improve the parts they cannot see.**
 
-Maestro's first job is **visibility**.
-Second, **understanding**.
-Third, **judgment**.
-Fourth, **preparation**.
-Only fifth, **automation**.
-
-This is a radically different order from almost every AI startup. Most AI products start with automation. Maestro starts with perception. The organization must see itself before it can improve itself.
+Maestro's first job is visibility. Second, understanding. Third, judgment. Fourth, preparation. Only fifth, automation.
 
 ---
 
 ## THE COMPRESSION PRINCIPLE
 
-The products that become billion-dollar platforms win because they **compress impossible complexity into something obvious**.
-
-- Google Maps compresses global geography into "turn left."
-- Bloomberg compresses the world's financial markets into a handful of terminals.
-- Apple compresses billions of transistors into one tap.
-- Maestro compresses **organizational complexity into judgment**.
-
 Never show:
-- Prediction Engine, Hypothesis, Law, Confidence, Learning Object, Evidence Graph, OEM, Signal, Receipt
+Prediction Engine, Hypothesis, Law, Confidence, Learning Object, Evidence Graph, OEM, Signal, Receipt
 
 Always show:
-- "We've seen this before. Here's what usually happens. Here's why. Here's what I'd prepare. Approve?"
+"We've seen this before. Here's what usually happens. Here's why. Here's what I'd prepare. Approve?"
+
+### Replace dashboards with narratives
+Never display "Knowledge Flow 73%". Instead: "Engineering discovered something yesterday. Finance has not benefited yet. Three projects will likely repeat the same mistake. Here is the conversation that prevents it."
+
+### Replace reports with understanding
+Instead of 15 charts, display one explanation.
+
+### Replace search with conversation
+Instead of opening Simulator, Physics, Pulse, Knowledge Graph — the CEO asks "Why are releases slowing?" and Maestro answers.
+
+### Make time visible
+Every insight should exist across past, present, future. Not just current state.
 
 ---
 
-## THE ORGANIZATIONAL NERVOUS SYSTEM
+## THE SEVEN PROPERTIES OF A LIVING ORGANIZATION
 
-Maestro is not a tool. It is closer to biology.
-
-```
-Eyes (GitHub, Slack, Salesforce, Jira, Email, Calendar, Meetings)
-  ↓
-Brain (OEM, Judgment Graph, Preparation, Prediction, Reflection)
-  ↓
-Nervous System (Ambient overlays, Whispers, Morning Brief, Autocomplete)
-  ↓
-Muscles (Humans — who decide and act)
-  ↓
-Sensors (Evidence, Outcomes, Feedback)
-  ↓
-Back to the Brain
-```
-
-The brain processes. The nervous system delivers. The muscles act. The sensors feed back. This is a living system, not a software product.
+1. **It Remembers** — not documents, but WHY
+2. **It Understands** — not information, but MEANING
+3. **It Judges** — not predicts, but JUDGES
+4. **It Reflects** — every night, every quarter
+5. **It Learns** — organizational learning, not machine learning
+6. **It Evolves** — the organization literally changes
+7. **It Prepares** — before humans ask
 
 ---
 
@@ -182,8 +180,7 @@ The brain processes. The nervous system delivers. The muscles act. The sensors f
 
 Maestro's ultimate purpose is to **increase Organizational IQ over years**, just as education increases human IQ over a lifetime.
 
-Organizational IQ is not a vanity score. It is a composite built from measurable dimensions:
-
+Composite dimensions:
 - Decision quality improvement over time
 - Prediction calibration (Brier score convergence)
 - Knowledge reuse rate
@@ -193,20 +190,37 @@ Organizational IQ is not a vanity score. It is a composite built from measurable
 - Learning velocity
 - Recovery time after mistakes
 
-The important part is not the score itself. The important part is that **Maestro's purpose becomes increasing Organizational IQ** — and that this is measurable, compounding, and impossible to replicate without years of observed organizational behavior.
+---
+
+## THE THREE HORIZONS
+
+### Horizon 1 (next 12 months): Build the product people can buy.
+Exceptional execution around ambient assistance, preparation, organizational memory, and decision support. The 90-day pilot proves the learning loop closes. The first design partners see their Brier scores converge.
+
+### Horizon 2 (years 2–3): Let real customer data produce emergent capabilities.
+Principles, Organizational Genome, Gravity, Fragility, Blind Spots, Evolution metrics. These emerge from evidence — they are NOT designed upfront.
+
+### Horizon 3 (5+ years): Reflection, Dreams, Identity, Wisdom, Legacy.
+These become possible because they are grounded in years of observed organizational behavior, not because they are designed upfront.
 
 ---
 
-## THE THREE HORIZIONS
+## ENGINEERING ACCEPTANCE CRITERIA
 
-### Horizon 1 (next 12 months): Build the product people can buy.
-Exceptional execution around ambient assistance, preparation, organizational memory, and decision support. The 90-day pilot proves the learning loop closes. The first design partners see their Brier scores converge. The morning brief becomes the first thing they check.
+Before merging any pull request, ask:
 
-### Horizon 2 (years 2–3): Let real customer data produce emergent capabilities.
-Principles, Organizational Genome, Gravity, Fragility, Blind Spots, Evolution metrics. These emerge from evidence — they are NOT designed upfront. The instrumentation built today (weekly snapshots, decision log, capability impact) becomes the raw material.
+1. Does this increase organizational understanding?
+2. Does this improve future judgment?
+3. Does this become part of long-term organizational intelligence?
+4. Does it simplify the customer experience?
+5. Does it reduce interface?
+6. Does it eliminate one click?
+7. Does it replace a dashboard with a story?
+8. Does it replace a metric with an explanation?
+9. Does it replace searching with understanding?
+10. Does it make Maestro feel more alive?
 
-### Horizon 3 (5+ years): Reflection, Dreams, Identity, Wisdom, Legacy.
-These become possible because they are grounded in years of observed organizational behavior, not because they are designed upfront. The grand vision is clear from day one, but the deepest capabilities emerge from evidence, not aspiration.
+If any answer is "no", redesign the solution.
 
 ---
 
@@ -214,13 +228,11 @@ These become possible because they are grounded in years of observed organizatio
 
 > **Vision far ahead. Implementation grounded in customer evidence.**
 
-Every roadmap item must answer three questions:
+Every roadmap item must answer YES to all three:
 
-1. **Does this make the organization perceive reality more accurately?**
-2. **Does this improve the quality of future decisions?**
-3. **Does this become part of the organization's long-term intelligence rather than just completing today's task?**
-
-If the answer to all three is "yes," it belongs in Maestro.
+1. Does this make the organization perceive reality more accurately?
+2. Does this improve the quality of future decisions?
+3. Does this become part of the organization's long-term intelligence rather than just completing today's task?
 
 If it's just another useful capability, it's a feature — but not part of the enduring moat.
 
@@ -232,9 +244,18 @@ Not orchestration. Not agents. Not AI. Not the UI.
 
 > **Compounding organizational judgment.**
 
-The moat is the accumulation of an organization's memory, learning, and wisdom inside Maestro over years. A competitor can replicate the architecture. They cannot replicate the years of observed organizational behavior, the calibrated predictions, the validated principles, the accumulated lessons.
-
 After three years with Maestro, an organization cannot leave — not because of lock-in, but because leaving means losing their organizational mind.
+
+---
+
+## THE ULTIMATE DESIGN PRINCIPLE
+
+> Every month the codebase may become more sophisticated. The product must become simpler.
+>
+> Internal intelligence ↑
+> External complexity ↓
+>
+> This relationship must hold forever.
 
 ---
 

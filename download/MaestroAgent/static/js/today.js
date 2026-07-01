@@ -48,11 +48,13 @@ function renderMorningBrief(el, briefing, pulse, contradictions) {
   const knowledge = briefing.knowledge || {};
 
   // Pick one decision, one opportunity, one risk, one learning, one prediction
+  // Each item answers the Constitution's implicit questions:
+  //   Why now? Why me? What happens if ignored? How do we know?
   const decision = ot.title ? {
     label: 'One decision',
     title: ot.title,
     context: ot.why || ot.recommendation || '',
-    provenance: ot.rec_id ? `Based on organizational patterns` : '',
+    provenance: ot.rec_id ? `Why now: ${ot.urgency || 'this pattern is active'}. Why you: only the CEO can unblock this. If ignored: the pattern will repeat. How we know: ${ot.impact || 'organizational memory'}.` : '',
     action: () => { if (ot.title) openDrilldown('recommendation', ot.title); },
   } : null;
 
@@ -60,7 +62,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions) {
     label: 'One opportunity',
     title: money.losses[0].title,
     context: money.losses[0].detail || '',
-    provenance: money.losses[0].estimated_cost || '',
+    provenance: money.losses[0].estimated_cost ? `So what: ${humanize(money.losses[0].estimated_cost)}. If addressed: the pattern won't repeat.` : '',
     action: () => { navTo('home'); },
   } : null;
 
@@ -69,7 +71,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions) {
     label: risk.severity === 'urgent' ? 'One risk' : 'One thing changed overnight',
     title: risk.title || risk.detail || '',
     context: risk.detail || '',
-    provenance: risk.entity || risk.domain || '',
+    provenance: risk.entity || risk.domain ? `Where: ${humanize(risk.entity || risk.domain || '')}. So what: this shifted the organizational pattern.` : '',
     action: () => { navTo('home'); },
   } : null;
 

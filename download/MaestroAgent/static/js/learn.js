@@ -106,8 +106,8 @@ function renderLearnStories(el, learning, improvement, calibration) {
     stories.forEach((s, i) => {
       html += `
         <div class="story-card" data-idx="${i}">
-          <div class="story-narrative">${escapeHtml(s.narrative)}</div>
-          <div class="story-evidence">${escapeHtml(s.evidence)}</div>
+          <div class="story-narrative">${escapeHtml(humanize(s.narrative))}</div>
+          <div class="story-evidence">${escapeHtml(humanize(s.evidence))}</div>
         </div>
       `;
     });
