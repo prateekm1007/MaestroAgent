@@ -278,3 +278,64 @@ Every decision improves judgment.
 Every outcome refines wisdom.
 Every employee contributes to a shared organizational mind.
 Every day the organization becomes more capable than it was yesterday.
+
+---
+
+## CONSTITUTIONAL AMENDMENT: PERSONAL MODE (Round 36)
+
+> **The person becomes more capable, not more dependent — in work and in life.**
+
+The organizational constitution covers work life. Personal Mode extends
+Maestro's cognitive aid to personal life — memory, decisions, habits,
+and self-knowledge. This amendment governs that extension.
+
+### Four Guardrails
+
+**1. Self-facing only by default.**
+Maestro processes the user's own data to help the user think. Maestro
+does not analyze third parties to help the user "win" against them.
+The user's own calendar, the user's own notes, the user's own goals —
+these are legitimate. Scraping a third party's social media to generate
+messages to them is not.
+
+**2. Consent is bilateral.**
+Maestro processes a third party's data only when that third party has
+explicitly opted in. The user's consent to analyze a third party is not
+sufficient. If Sarah has not opted in to being analyzed by Maestro,
+Maestro cannot analyze Sarah — even if the user typed in Sarah's name.
+
+**3. Indispensable, not addictive.**
+Every feature must pass the withdrawal test: the user could stop using
+it for a week without harm. Features that create dependency are rejected.
+A memory aid you could replace with a notebook passes. A flirt-line
+generator you cannot message without fails. The word "addictive" and
+its synonyms are forbidden in code, docs, and commits.
+
+**4. Mode separation.**
+Work Mode and Personal Mode are strictly partitioned. Cross-mode data
+sharing requires explicit user action per item. A work colleague who is
+also a friend gets TWO separate profiles. They are never merged without
+explicit user action, and the merge is logged.
+
+### Features That Are Rejected Absolutely
+
+These features violate the amendment. They are not deferrable, not
+conditional, not "build later." They must never be built.
+
+- Dating/flirt line generation from third-party profile analysis
+- Style mirroring to match another person's tone (deception)
+- Compatibility scoring from public data (surveillance framing)
+- Relationship health monitoring (intimate-partner surveillance)
+- Court records access
+- Mood analysis from a third party's posts
+- Any feature that analyzes a non-consenting third party
+
+### The Bright Line
+
+**Maestro helps YOU think better. Maestro does NOT help you manipulate,
+surveil, or "win" against another person.**
+
+The moment Maestro analyzes a third party to help you craft a message
+to them, it has become a weapon. The moment Maestro monitors a third
+party's behavior to assess your "relationship health," it has become a
+stalker. These are not features. They are category errors.
