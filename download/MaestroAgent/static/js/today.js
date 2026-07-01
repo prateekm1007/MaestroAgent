@@ -223,31 +223,42 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     `;
   }
 
-  // Brief items
+  // Brief items — Bumble swipe-card pattern.
+  // Each insight is a card. Bold, focused, decisive.
   if (items.length === 0) {
-    html += `<div class="calm-empty">
-      <div>Nothing requires your attention right now.</div>
-      <div style="margin-top:8px;font-size:13px;">Maestro is watching. You'll know when something matters.</div>
+    html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
+      <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">Nothing needs you right now.</div>
+      <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro is watching. You'll know when something matters.</div>
     </div>`;
   } else {
+    // Render as Bumble-style cards (not swipe — the briefing scrolls, but each item is a bold card)
     items.forEach((item, i) => {
-      const prepareBtn = item.label === 'One decision' ? `<button class="ds-btn ds-btn-primary ds-btn-small" style="margin-top:10px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
-      const whyLink = `<a class="why-link" style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;text-decoration-style:dotted;margin-top:6px;display:inline-block;" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
-      // V8 P0-3 — One-tap write-back buttons on actionable items.
-      // Two taps max: (1) preview, (2) approve. Never one tap to send.
+      const prepareBtn = item.label === 'One decision' ? `<button class="maestro-btn maestro-btn-full" style="margin-top:12px;font-size:14px;min-height:44px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
+      const whyLink = `<a class="why-link" style="font-size:13px;color:var(--maestro-yellow-dark,#F0B500);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block;font-family:'Montserrat',sans-serif;" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
+      // V8 P0-3 — One-tap write-back buttons (Bumble pill style)
       const actionBtns = item.label === 'One decision' || item.label === 'One opportunity'
-        ? `<div style="display:flex;gap:6px;margin-top:8px;">
-             <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
-             <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;" onclick="quickWriteBack('slack','post_message',{channel:'general',text:'${escapeJs(item.title).replace(/'/g,"\\'")}'},${i})">Send message</button>
+        ? `<div style="display:flex;gap:8px;margin-top:12px;">
+             <button class="maestro-btn maestro-btn-secondary" style="flex:1;font-size:13px;min-height:44px;padding:10px 16px;" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
+             <button class="maestro-btn maestro-btn-secondary" style="flex:1;font-size:13px;min-height:44px;padding:10px 16px;" onclick="quickWriteBack('slack','post_message',{channel:'general',text:'${escapeJs(item.title).replace(/'/g,"\\'")}'},${i})">Send message</button>
            </div>`
         : '';
+      // Category label with Bumble-style colored badge
+      const categoryColors = {
+        'One decision': 'decision',
+        'One opportunity': 'decision',
+        'One risk': 'due',
+        'One thing changed overnight': 'unknown',
+        'One thing learned': 'habit',
+        'One prediction': 'unknown',
+      };
+      const categoryClass = categoryColors[item.label] || 'decision';
       html += `
-        <div class="brief-item" data-idx="${i}">
-          <div class="brief-label">${escapeHtml(item.label)}</div>
-          <div class="brief-title">${escapeHtml(humanize(item.title))}</div>
-          ${item.context ? `<div class="brief-context">${escapeHtml(humanize(item.context))}</div>` : ''}
-          ${item.provenance ? `<div class="brief-provenance">${escapeHtml(humanize(item.provenance))}</div>` : ''}
-          ${item.sowhat ? `<div class="brief-context" style="margin-top:8px;color:var(--accent);font-weight:500;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
+        <div class="maestro-card brief-item" data-idx="${i}" style="margin-bottom:16px;">
+          <div class="swipe-card-category ${categoryClass}" style="margin-bottom:12px;">${escapeHtml(item.label.toUpperCase())}</div>
+          <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.3;margin-bottom:8px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(item.title))}</div>
+          ${item.context ? `<div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:8px;">${escapeHtml(humanize(item.context))}</div>` : ''}
+          ${item.provenance ? `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:8px;">${escapeHtml(humanize(item.provenance))}</div>` : ''}
+          ${item.sowhat ? `<div style="margin-top:8px;padding:10px 14px;background:var(--maestro-yellow-light,#FFF4D1);border-radius:12px;font-size:13px;color:var(--maestro-black,var(--text-primary));font-weight:700;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
           ${prepareBtn}
           ${actionBtns}
           ${whyLink}
@@ -316,9 +327,9 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   if (commitments && commitments.commitments && commitments.commitments.length > 0) {
     window._currentBriefingCommitments = commitments.commitments;
     html += `
-      <div style="margin-top:24px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid ${commitments.overdue_count > 0 ? 'rgba(239,68,68,0.2)' : 'var(--divider)'};">
-        <div class="brief-label" style="color:${commitments.overdue_count > 0 ? 'var(--risk)' : 'var(--warning)'};">Commitments due today</div>
-        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">${escapeHtml(humanize(commitments.summary || ''))}</div>
+      <div class="maestro-card" style="margin-top:16px;border-left:4px solid ${commitments.overdue_count > 0 ? 'var(--maestro-error,#FF1744)' : 'var(--maestro-warning,#FF9800)'};">
+        <div class="swipe-card-category ${commitments.overdue_count > 0 ? 'contradiction' : 'due'}" style="margin-bottom:12px;">Commitments due today</div>
+        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));margin-bottom:12px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(commitments.summary || ''))}</div>
         ${commitments.commitments.map((c, i) => `
           <div class="brief-item" style="border-bottom:1px solid var(--divider);padding:10px 0;">
             <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">

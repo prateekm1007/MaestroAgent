@@ -43,10 +43,11 @@ function renderAskIntention(el) {
       `).join('')}
 
       <div style="margin-top:32px;">
-        <input type="text" class="ask-input" id="ask-v2-input"
-               placeholder="Or type your own intention…"
+        <input type="text" class="maestro-input" id="ask-v2-input"
+               placeholder="Ask me anything…"
                onkeydown="if(event.key==='Enter') submitAskV2(this.value)"
-               aria-label="Ask the organization">
+               aria-label="Ask the organization"
+               style="font-size:16px;font-family:'Montserrat',sans-serif;font-weight:600;" />
       </div>
 
       <div id="ask-v2-answer" style="margin-top:32px;"></div>
@@ -131,7 +132,7 @@ async function submitAskV2(question) {
 }
 
 function renderAskV2Answer(el, question, data) {
-  // V8 P0-4 — Synthesized answer as primary; evidence detail as collapsible.
+  // V8 P0-4 + Bumble — Synthesized answer as a bold card with swipe-to-rate.
   const synthesized = data.synthesized_answer || data.answer || 'Maestro is still learning about this.';
   const evidenceDetail = data.evidence_detail || '';
   const confidence = data.confidence;
@@ -139,35 +140,57 @@ function renderAskV2Answer(el, question, data) {
   const humanAnswer = humanize(synthesized);
 
   let html = `
-    <div class="story-card">
-      <div class="story-narrative">${escapeHtml(humanAnswer)}</div>
+    <div class="maestro-card" style="max-width:420px;margin:0 auto;">
+      <div class="swipe-card-category answer" style="margin-bottom:12px;">Answer</div>
+      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.35;margin-bottom:12px;font-family:'Montserrat',sans-serif;">
+        ${escapeHtml(humanAnswer)}
+      </div>
   `;
 
   // Collapsible evidence detail (Apple's progressive disclosure)
   if (evidenceDetail) {
-    html += `<details style="margin-top:12px;">
-      <summary style="cursor:pointer;font-size:12px;color:var(--accent);font-weight:500;">Show evidence</summary>
-      <div style="margin-top:8px;padding:12px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.5;">${escapeHtml(humanize(evidenceDetail))}</div>
+    html += `<details style="margin-top:8px;margin-bottom:12px;">
+      <summary style="cursor:pointer;font-size:13px;color:var(--maestro-yellow-dark,#F0B500);font-weight:700;font-family:'Montserrat',sans-serif;">Show evidence</summary>
+      <div style="margin-top:8px;padding:12px;background:var(--maestro-gray-bg,#F5F5F5);border-radius:12px;font-size:12px;color:var(--maestro-gray-dark,var(--text-secondary));white-space:pre-wrap;line-height:1.5;">${escapeHtml(humanize(evidenceDetail))}</div>
     </details>`;
   }
 
-  // Confidence as a story, not a percentage
+  // Confidence as a bold label (Bumble style)
   if (confidence != null) {
-    if (confidence > 0.8) {
-      html += `<div class="story-evidence">We've seen this pattern consistently.</div>`;
-    } else if (confidence > 0.5) {
-      html += `<div class="story-evidence">This pattern appears frequently, but not always.</div>`;
-    } else {
-      html += `<div class="story-evidence">This is a emerging pattern — still forming.</div>`;
-    }
+    let confLabel = 'Emerging pattern';
+    let confColor = 'var(--maestro-gray-mid)';
+    if (confidence > 0.8) { confLabel = 'Strongly supported'; confColor = 'var(--maestro-success,#00C853)'; }
+    else if (confidence > 0.5) { confLabel = 'Well-supported'; confColor = 'var(--maestro-warning,#FF9800)'; }
+    html += `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:700;font-family:'Montserrat',sans-serif;margin-bottom:12px;">${confLabel}</div>`;
   }
+
+  // Swipe-to-rate hint (feeds attention signals P1-5)
+  html += `
+    <div class="swipe-card-hint" style="margin-top:auto;">
+      <span style="color:var(--maestro-gray-mid);">← Not useful</span>
+      <span style="color:var(--maestro-success);">Useful →</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="maestro-btn maestro-btn-secondary" style="flex:1;font-size:13px;min-height:40px;" onclick="rateAskAnswer(false)">Not useful</button>
+      <button class="maestro-btn" style="flex:1;font-size:13px;min-height:40px;" onclick="rateAskAnswer(true)">Useful</button>
+    </div>
+  `;
 
   html += `</div>`;
 
-  // "Ask another question" prompt
-  html += `<button class="intention-prompt" onclick="loadAskV2()" style="margin-top:16px;">Ask another question</button>`;
+  // "Ask another question" — Bumble pill style
+  html += `<button class="maestro-btn maestro-btn-ghost maestro-btn-full" style="margin-top:16px;max-width:420px;" onclick="loadAskV2()">Ask another question</button>`;
 
   el.innerHTML = html;
+}
+
+// V8 P1-5 — Rate the answer (feeds attention signals).
+async function rateAskAnswer(useful) {
+  try {
+    await api.postOEM('/attention/record', { item_type: 'ask_answer', item_id: useful ? 'useful' : 'not_useful' });
+  } catch (e) {
+    // Non-fatal — rating is best-effort
+  }
 }
 
 function renderImaginationAnswer(el, question, data) {
