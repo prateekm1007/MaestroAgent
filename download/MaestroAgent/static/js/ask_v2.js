@@ -155,13 +155,23 @@ function renderAskV2Answer(el, question, data) {
     </details>`;
   }
 
-  // Confidence as a bold label (Bumble style)
+  // P0-4: Bold confidence labels — VERIFIED / CONFIDENT / EXPLORING
   if (confidence != null) {
-    let confLabel = 'Emerging pattern';
-    let confColor = 'var(--maestro-gray-mid)';
-    if (confidence > 0.8) { confLabel = 'Strongly supported'; confColor = 'var(--maestro-success,#00C853)'; }
-    else if (confidence > 0.5) { confLabel = 'Well-supported'; confColor = 'var(--maestro-warning,#FF9800)'; }
-    html += `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:700;font-family:'Montserrat',sans-serif;margin-bottom:12px;">${confLabel}</div>`;
+    // Check if the law is human-verified (Rule D2)
+    const isVerified = data.laws && data.laws.length > 0 && data.laws[0].verified_by;
+    let confLabel = 'EXPLORING';
+    let confColor = 'var(--maestro-gray-mid,#999999)';
+    if (isVerified) {
+      confLabel = 'VERIFIED';
+      confColor = 'var(--maestro-success,#00C853)';
+    } else if (confidence >= 0.8) {
+      confLabel = 'CONFIDENT';
+      confColor = 'var(--maestro-success,#00C853)';
+    } else if (confidence >= 0.5) {
+      confLabel = 'CONFIDENT';
+      confColor = 'var(--maestro-warning,#FF9800)';
+    }
+    html += `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:'Montserrat',sans-serif;margin-bottom:12px;letter-spacing:0.5px;">${confLabel}</div>`;
   }
 
   // Swipe-to-rate hint (feeds attention signals P1-5)

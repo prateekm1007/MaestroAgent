@@ -223,41 +223,116 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     `;
   }
 
-  // Brief items — Bumble swipe-card pattern.
-  // Each insight is a card. Bold, focused, decisive.
+  // Brief items — Bumble true swipe-card deck (P0-1 through P0-4).
+  // One card at a time. Swipe right to act, left to defer.
+  // Withdrawal path: user can switch to scrollable list via "See all."
   if (items.length === 0) {
     html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
       <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">Nothing needs you right now.</div>
       <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro is watching. You'll know when something matters.</div>
     </div>`;
   } else {
-    // Render as Bumble-style cards (not swipe — the briefing scrolls, but each item is a bold card)
+    // P0-3: Build the swipe deck — max 7 cards, prioritized.
+    // Priority: commitments due → contradictions → decisions → unknowns → everything else.
+    const categoryColors = {
+      'One decision': 'decision',
+      'One opportunity': 'decision',
+      'One risk': 'due',
+      'One thing changed overnight': 'unknown',
+      'One thing learned': 'habit',
+      'One prediction': 'unknown',
+    };
+
+    // P0-3: Collect all card data from the briefing sections.
+    const deckCards = [];
+
+    // Add commitments as cards (highest priority)
+    if (commitments && commitments.commitments) {
+      commitments.commitments.forEach(c => {
+        deckCards.push({
+          category: 'COMMITMENT',
+          categoryClass: 'due',
+          judgment: c.description || c.who_committed + ' committed to something',
+          evidence: `Due: ${c.due_date || 'today'}${c.is_overdue ? ' — OVERDUE' : ''}`,
+          rightLabel: 'REMIND',
+          leftLabel: 'DEFER',
+          swipeRightAction: () => sendCommitmentReminder(deckCards.indexOf(c)),
+          isCommitment: true,
+          commitmentIdx: commitments.commitments.indexOf(c),
+        });
+      });
+    }
+
+    // Add brief items as cards
+    items.forEach((item, i) => {
+      const categoryClass = categoryColors[item.label] || 'decision';
+      const canAct = item.label === 'One decision' || item.label === 'One opportunity';
+      deckCards.push({
+        category: item.label.toUpperCase(),
+        categoryClass: categoryClass,
+        judgment: item.title,
+        evidence: item.context || item.provenance || '',
+        sowhat: item.sowhat || '',
+        rightLabel: canAct ? 'ACT NOW' : 'ACKNOWLEDGE',
+        leftLabel: 'DEFER',
+        swipeRightAction: canAct ? () => {
+          openActionSheet('Take action', [
+            { label: 'Create ticket', onclick: `quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})` },
+            { label: 'Send message', onclick: `quickWriteBack('slack','post_message',{channel:'general',text:'${escapeJs(item.title).replace(/'/g,"\\'")}'},${i})` },
+          ]);
+        } : () => { /* acknowledge — no action needed */ },
+        whyCallback: `showInlineWhy('${escapeJs(item.title)}', ${i})`,
+        itemIdx: i,
+        canAct: canAct,
+      });
+    });
+
+    // Limit to 7 cards (P0-3 constraint)
+    const deck = deckCards.slice(0, 7);
+    const remaining = deck.length;
+
+    // Render the swipe deck container
+    html += `
+      <div id="swipe-deck-container" style="position:relative;min-height:440px;max-width:420px;margin:0 auto;">
+      </div>
+      <div id="swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:'Montserrat',sans-serif;">
+        ${remaining} ${remaining === 1 ? 'card' : 'cards'}
+      </div>
+      <div style="text-align:center;margin-top:8px;">
+        <button class="maestro-btn maestro-btn-ghost" style="font-size:13px;min-height:36px;padding:6px 16px;" onclick="toggleSwipeDeckView()">See all</button>
+      </div>
+      <div id="swipe-deck-summary" style="display:none;text-align:center;padding:24px;">
+        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">That's your morning.</div>
+        <div id="swipe-deck-counts" style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:8px;"></div>
+      </div>
+    `;
+
+    // Also render the scrollable fallback (hidden by default)
+    html += `<div id="swipe-deck-list" style="display:none;">`;
     items.forEach((item, i) => {
       const prepareBtn = item.label === 'One decision' ? `<button class="maestro-btn maestro-btn-full" style="margin-top:12px;font-size:14px;min-height:44px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
       const whyLink = `<a class="why-link" style="font-size:13px;color:var(--maestro-yellow-dark,#F0B500);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block;font-family:'Montserrat',sans-serif;" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
-      // V8 P0-3 — One-tap write-back buttons (Bumble pill style)
       const actionBtns = item.label === 'One decision' || item.label === 'One opportunity'
         ? `<div style="display:flex;gap:8px;margin-top:12px;">
              <button class="maestro-btn maestro-btn-secondary" style="flex:1;font-size:13px;min-height:44px;padding:10px 16px;" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
              <button class="maestro-btn maestro-btn-secondary" style="flex:1;font-size:13px;min-height:44px;padding:10px 16px;" onclick="quickWriteBack('slack','post_message',{channel:'general',text:'${escapeJs(item.title).replace(/'/g,"\\'")}'},${i})">Send message</button>
            </div>`
         : '';
-      // Category label with Bumble-style colored badge
-      const categoryColors = {
-        'One decision': 'decision',
-        'One opportunity': 'decision',
-        'One risk': 'due',
-        'One thing changed overnight': 'unknown',
-        'One thing learned': 'habit',
-        'One prediction': 'unknown',
-      };
       const categoryClass = categoryColors[item.label] || 'decision';
+      // P0-4: Bold confidence labels
+      const confLabel = item.confidence != null
+        ? (item.confidence >= 0.8 ? 'VERIFIED' : item.confidence >= 0.5 ? 'CONFIDENT' : 'EXPLORING')
+        : null;
+      const confColor = confLabel === 'VERIFIED' ? 'var(--maestro-success,#00C853)'
+                      : confLabel === 'CONFIDENT' ? 'var(--maestro-warning,#FF9800)'
+                      : 'var(--maestro-gray-mid,#999999)';
       html += `
         <div class="maestro-card brief-item" data-idx="${i}" style="margin-bottom:16px;">
           <div class="swipe-card-category ${categoryClass}" style="margin-bottom:12px;">${escapeHtml(item.label.toUpperCase())}</div>
           <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.3;margin-bottom:8px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(item.title))}</div>
           ${item.context ? `<div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:8px;">${escapeHtml(humanize(item.context))}</div>` : ''}
           ${item.provenance ? `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:8px;">${escapeHtml(humanize(item.provenance))}</div>` : ''}
+          ${confLabel ? `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:'Montserrat',sans-serif;margin-bottom:8px;">${confLabel}</div>` : ''}
           ${item.sowhat ? `<div style="margin-top:8px;padding:10px 14px;background:var(--maestro-yellow-light,#FFF4D1);border-radius:12px;font-size:13px;color:var(--maestro-black,var(--text-primary));font-weight:700;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
           ${prepareBtn}
           ${actionBtns}
@@ -267,6 +342,13 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         </div>
       `;
     });
+    html += `</div>`;
+
+    // Store deck state for the swipe handlers
+    window._swipeDeck = deck;
+    window._swipeDeckIdx = 0;
+    window._swipeDeckActed = 0;
+    window._swipeDeckDeferred = 0;
   }
 
   // V6 Spec #3 — Background Loop: "Maestro noticed this while you were away"
@@ -523,6 +605,9 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       itemEl.addEventListener('click', item.action);
     }
   });
+
+  // V8 P0-1: Initialize the swipe deck after rendering
+  initSwipeDeck();
 }
 
 // V8 Upgrade #3 — Conversational Curiosity submission handler.
@@ -747,6 +832,136 @@ async function approveCommitmentReminder(actionId, idx) {
     }
   } catch (e) {
     el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// V8 P0-1: Initialize the swipe deck after the briefing renders.
+// Called after el.innerHTML is set — finds the container and renders the first card.
+function initSwipeDeck() {
+  const container = document.getElementById('swipe-deck-container');
+  if (!container || !window._swipeDeck || window._swipeDeck.length === 0) return;
+
+  window._swipeDeckIdx = 0;
+  window._swipeDeckActed = 0;
+  window._swipeDeckDeferred = 0;
+
+  renderSwipeCard();
+}
+
+function renderSwipeCard() {
+  const container = document.getElementById('swipe-deck-container');
+  if (!container) return;
+
+  const deck = window._swipeDeck || [];
+  const idx = window._swipeDeckIdx || 0;
+
+  // Check if deck is complete
+  if (idx >= deck.length) {
+    showSwipeDeckSummary();
+    return;
+  }
+
+  const cardData = deck[idx];
+  container.innerHTML = '';
+
+  // Use createSwipeCard from swipe-cards.js
+  if (typeof createSwipeCard !== 'function') return;
+
+  const card = createSwipeCard({
+    category: cardData.category,
+    category_class: cardData.categoryClass,
+    judgment: cardData.judgment,
+    evidence: cardData.evidence,
+    right_label: cardData.rightLabel,
+    left_label: cardData.leftLabel,
+    why_link: cardData.whyCallback ? true : false,
+    why_callback: cardData.whyCallback || '',
+  });
+
+  // Style the card for the deck (absolute positioning within container)
+  card.style.position = 'relative';
+  container.appendChild(card);
+
+  // Initialize the SwipeCard class on this element
+  const swipeHandler = new SwipeCard(card,
+    // Swipe right callback
+    () => {
+      window._swipeDeckActed++;
+      if (cardData.swipeRightAction) cardData.swipeRightAction();
+      advanceSwipeDeck();
+    },
+    // Swipe left callback
+    () => {
+      window._swipeDeckDeferred++;
+      advanceSwipeDeck();
+    }
+  );
+
+  // Update progress
+  updateSwipeDeckProgress();
+}
+
+function advanceSwipeDeck() {
+  window._swipeDeckIdx = (window._swipeDeckIdx || 0) + 1;
+  setTimeout(() => renderSwipeCard(), 350);
+}
+
+function updateSwipeDeckProgress() {
+  const progress = document.getElementById('swipe-deck-progress');
+  if (!progress) return;
+  const deck = window._swipeDeck || [];
+  const idx = window._swipeDeckIdx || 0;
+  const remaining = deck.length - idx;
+  if (remaining > 0) {
+    progress.textContent = `${remaining} ${remaining === 1 ? 'card' : 'cards'}`;
+  } else {
+    progress.textContent = '';
+  }
+}
+
+function showSwipeDeckSummary() {
+  const container = document.getElementById('swipe-deck-container');
+  if (container) container.innerHTML = '';
+  const progress = document.getElementById('swipe-deck-progress');
+  if (progress) progress.style.display = 'none';
+  const summary = document.getElementById('swipe-deck-summary');
+  if (summary) {
+    summary.style.display = 'block';
+    const counts = document.getElementById('swipe-deck-counts');
+    if (counts) {
+      const acted = window._swipeDeckActed || 0;
+      const deferred = window._swipeDeckDeferred || 0;
+      counts.textContent = `${acted} ${acted === 1 ? 'action' : 'actions'} taken, ${deferred} ${deferred === 1 ? 'item' : 'items'} deferred. Have a good day.`;
+    }
+  }
+}
+
+// V8 P0-1: Toggle between swipe deck and scrollable list view.
+function toggleSwipeDeckView() {
+  const deck = document.getElementById('swipe-deck-container');
+  const progress = document.getElementById('swipe-deck-progress');
+  const list = document.getElementById('swipe-deck-list');
+  const summary = document.getElementById('swipe-deck-summary');
+  const btn = event ? event.target : null;
+
+  if (deck && deck.style.display !== 'none') {
+    // Switch to list view
+    deck.style.display = 'none';
+    if (progress) progress.style.display = 'none';
+    if (summary) summary.style.display = 'none';
+    if (list) list.style.display = 'block';
+    if (btn) btn.textContent = 'Swipe view';
+  } else {
+    // Switch to swipe view
+    if (deck) deck.style.display = 'block';
+    if (progress) progress.style.display = 'block';
+    if (list) list.style.display = 'none';
+    if (btn) btn.textContent = 'See all';
+    if (window._swipeDeckIdx >= (window._swipeDeck || []).length) {
+      showSwipeDeckSummary();
+    } else {
+      renderSwipeCard();
+    }
   }
 }
 
