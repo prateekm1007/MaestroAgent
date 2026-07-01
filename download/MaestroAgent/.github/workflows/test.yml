@@ -64,6 +64,15 @@ jobs:
             -v \
             --timeout=120
 
+      - name: Personal Mode Guardrails
+        working-directory: backend
+        run: |
+          python -m pytest \
+            maestro_personal/tests/ \
+            --tb=short \
+            -v \
+            --timeout=60
+
       - name: Verify learning loop is closed
         run: |
           python scripts/verify_loop_closed.py

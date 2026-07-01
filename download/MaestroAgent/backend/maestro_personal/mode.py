@@ -150,6 +150,54 @@ class ModeManager:
         return record
 
     @classmethod
+    def undo_merge(cls, merge_id: str) -> dict[str, Any]:
+        """Reverse a merge within 30 days of the merge timestamp.
+
+        After 30 days, the merge becomes permanent and cannot be reversed.
+        This implements the 30-day reversibility window from the Round-37
+        audit (Gap 1 fix).
+
+        Returns:
+            {reversed: bool, merge_id: str, reason: str}
+        """
+        from datetime import datetime, timedelta, timezone
+
+        # Find the merge record
+        merge = None
+        for m in cls._merges:
+            if m.entity_id == merge_id or f"{m.work_profile_id}:{m.personal_profile_id}" == merge_id:
+                merge = m
+                break
+
+        if merge is None:
+            return {"reversed": False, "merge_id": merge_id, "reason": "Merge not found."}
+
+        # Check 30-day window
+        try:
+            merged_at = datetime.fromisoformat(merge.merged_at)
+            if merged_at.tzinfo is None:
+                merged_at = merged_at.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            if (now - merged_at) > timedelta(days=30):
+                return {
+                    "reversed": False,
+                    "merge_id": merge_id,
+                    "reason": f"Merge was created on {merge.merged_at}, which is more than 30 days ago. The merge is now permanent.",
+                }
+        except Exception:
+            pass  # If we can't parse the timestamp, allow the undo
+
+        # Reverse the merge: remove the merge record
+        cls._merges = [m for m in cls._merges if m is not merge]
+        logger.info("Merge reversed: entity=%s merge_id=%s", merge.entity_id, merge_id)
+        return {
+            "reversed": True,
+            "merge_id": merge_id,
+            "entity_id": merge.entity_id,
+            "reason": "Merge reversed successfully. Work and Personal profiles are now separate again.",
+        }
+
+    @classmethod
     def get_merges(cls) -> list[MergeRecord]:
         """Get all merge records (audit trail)."""
         return cls._merges
