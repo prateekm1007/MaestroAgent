@@ -1,12 +1,10 @@
-// THE INVISIBLE MAESTRO — WORK surface
+// THE INVISIBLE MAESTRO — WORK surface (Bumble-redesigned)
 // ═══════════════════════════════════════════════════════════════════════════
 // WORK never looks like software. Maestro follows the user into existing
 // tools. The user never opens Maestro. Maestro quietly appears.
 //
-// This surface shows:
-//   1. Ambient integrations — what Maestro sees in your tools
-//   2. Contextual whispers — max 2 sentences, disappear after ack
-//   3. Compressed access to deep capabilities (inbox, simulator, etc.)
+// Bumble design: bold cards, pill buttons, Montserrat typography.
+// Each whisper and ambient integration is a maestro-card.
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function loadWork() {
@@ -23,9 +21,9 @@ async function loadWork() {
 
     renderWorkSurface(el, briefing, contradictions, dashboard);
   } catch (e) {
-    el.innerHTML = `<div class="calm-empty">
-      <div>Maestro is connecting to your tools.</div>
-      <div style="margin-top:8px;font-size:13px;">Configure signal sources in Settings to see ambient intelligence here.</div>
+    el.innerHTML = `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
+      <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">Maestro is connecting to your tools.</div>
+      <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Configure signal sources in Settings to see ambient intelligence here.</div>
     </div>`;
   }
 }
@@ -59,7 +57,7 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
   // Generate ambient integration cards from REAL data (not hardcoded)
   const ambientCards = [];
 
-  // GitHub card — uses real signal count from dashboard
+  // GitHub card
   const githubConnected = providers.includes('github');
   ambientCards.push({
     tool: 'GitHub',
@@ -69,7 +67,7 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
     action: () => navTo('eng-signals'),
   });
 
-  // Slack card — uses real contradiction count
+  // Slack card
   ambientCards.push({
     tool: 'Slack',
     message: providers.includes('slack')
@@ -80,7 +78,7 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
     action: () => navTo('contradictions'),
   });
 
-  // Jira card — uses real signal count
+  // Jira card
   ambientCards.push({
     tool: 'Jira',
     message: providers.includes('jira')
@@ -89,7 +87,7 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
     action: () => navTo('eng-signals'),
   });
 
-  // Outlook card — bookmarklet prompt
+  // Outlook card
   ambientCards.push({
     tool: 'Outlook',
     message: 'Install the Maestro bookmarklet to see organizational context inside your email.',
@@ -104,41 +102,41 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
     { label: 'Live meeting intelligence', surface: 'live', count: 0 },
   ];
 
-  let html = `<div class="meta-surface">`;
+  // ─── Bumble design: bold cards, Montserrat, pill buttons ──────────
+  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
 
-  // Whispers
+  // Whispers — Bumble cards with amber accent
   if (whispers.length > 0) {
-    html += `<div class="intention-label">Whispers</div>`;
+    html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;font-family:'Montserrat',sans-serif;">Whispers</div>`;
     whispers.forEach((w, i) => {
       html += `
-        <div class="whisper" data-idx="${i}">
-          ${escapeHtml(humanize(w.text))}
-          <div class="whisper-source">via ${escapeHtml(w.source)}</div>
+        <div class="maestro-card whisper" data-idx="${i}" style="margin-bottom:12px;border-left:4px solid var(--maestro-warning,#FF9800);cursor:pointer;">
+          <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;">${escapeHtml(humanize(w.text))}</div>
+          <div style="font-size:12px;font-weight:600;color:var(--maestro-gray-mid,var(--text-muted));margin-top:6px;">via ${escapeHtml(w.source)}</div>
         </div>
       `;
     });
   }
 
-  // Ambient integrations
-  html += `<div class="intention-label" style="margin-top:32px;">In your tools</div>`;
+  // Ambient integrations — Bumble cards with tool badges
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-top:24px;margin-bottom:12px;font-family:'Montserrat',sans-serif;">In your tools</div>`;
   ambientCards.forEach((a, i) => {
     html += `
-      <div class="ambient-card" data-idx="${i}">
-        <div class="ambient-tool">${escapeHtml(a.tool)}</div>
-        <div class="ambient-message">${escapeHtml(a.message)}</div>
+      <div class="maestro-card ambient-card" data-idx="${i}" style="margin-bottom:12px;cursor:pointer;">
+        <div style="display:inline-block;padding:4px 12px;border-radius:999px;background:var(--maestro-yellow-light,#FFF4D1);color:var(--maestro-yellow-dark,#F0B500);font-size:12px;font-weight:800;margin-bottom:8px;">${escapeHtml(a.tool)}</div>
+        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;">${escapeHtml(a.message)}</div>
       </div>
     `;
   });
 
-  // Deep capabilities
-  html += `<div class="intention-label" style="margin-top:32px;">Deep capabilities</div>`;
-  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
+  // Deep capabilities — Bumble pill buttons
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-top:24px;margin-bottom:12px;font-family:'Montserrat',sans-serif;">Deep capabilities</div>`;
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
   deepCaps.forEach(cap => {
-    if (cap.count > 0) {
-      html += `<button class="intention-prompt" onclick="navTo('${cap.surface}')">${escapeHtml(humanize(cap.label))} · ${cap.count}</button>`;
-    } else {
-      html += `<button class="intention-prompt" onclick="navTo('${cap.surface}')">${escapeHtml(humanize(cap.label))}</button>`;
-    }
+    const label = cap.count > 0
+      ? `${escapeHtml(humanize(cap.label))} · ${cap.count}`
+      : escapeHtml(humanize(cap.label));
+    html += `<button class="maestro-btn maestro-btn-secondary" style="font-size:14px;min-height:44px;padding:10px 16px;" onclick="navTo('${cap.surface}')">${label}</button>`;
   });
   html += `</div>`;
 
@@ -148,7 +146,8 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
   // Wire up whisper dismiss + ambient card clicks
   el.querySelectorAll('.whisper').forEach((wEl, i) => {
     wEl.addEventListener('click', () => {
-      wEl.classList.add('dismissed');
+      wEl.style.opacity = '0';
+      wEl.style.transform = 'translateX(100%)';
       setTimeout(() => wEl.remove(), 300);
       if (whispers[i] && whispers[i].action) whispers[i].action();
     });
