@@ -155,7 +155,7 @@ function openCommandPalette() {
                style="width:100%;padding:16px 20px;background:transparent;border:none;border-bottom:1px solid var(--divider);color:var(--text-primary);font-size:15px;outline:none;font-family:var(--font-sans);"
                aria-label="Search surfaces"
                oninput="filterCommandPalette(this.value)"
-               onkeydown="if(event.key==='Escape'){closeCommandPalette();} if(event.key==='Enter'){selectFirstPaletteResult();}">
+               onkeydown="handlePaletteKeydown(event)">
         <div id="command-palette-results" style="flex:1;overflow-y:auto;padding:8px;"></div>
       </div>
     `;
@@ -178,18 +178,6 @@ function closeCommandPalette() {
   if (palette) palette.style.display = 'none';
 }
 
-function filterCommandPalette(query) {
-  const q = query.toLowerCase().trim();
-  if (!q) {
-    renderPaletteResults(_hiddenSurfaces);
-    return;
-  }
-  const filtered = _hiddenSurfaces.filter(s =>
-    s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)
-  );
-  renderPaletteResults(filtered);
-}
-
 function renderPaletteResults(surfaces) {
   const results = document.getElementById('command-palette-results');
   if (!results) return;
@@ -208,6 +196,62 @@ function renderPaletteResults(surfaces) {
 function selectFirstPaletteResult() {
   const first = document.querySelector('.palette-result');
   if (first) first.click();
+}
+
+// Arrow-key navigation for the command palette (Linear/Raycast-style)
+let _paletteSelectedIdx = -1;
+
+function handlePaletteKeydown(event) {
+  const results = document.querySelectorAll('.palette-result');
+  if (results.length === 0) return;
+
+  if (event.key === 'Escape') {
+    closeCommandPalette();
+    return;
+  }
+  if (event.key === 'Enter') {
+    if (_paletteSelectedIdx >= 0 && results[_paletteSelectedIdx]) {
+      results[_paletteSelectedIdx].click();
+    } else if (results[0]) {
+      results[0].click();
+    }
+    return;
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    _paletteSelectedIdx = Math.min(_paletteSelectedIdx + 1, results.length - 1);
+    updatePaletteSelection(results);
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    _paletteSelectedIdx = Math.max(_paletteSelectedIdx - 1, 0);
+    updatePaletteSelection(results);
+  }
+}
+
+function updatePaletteSelection(results) {
+  results.forEach((r, i) => {
+    if (i === _paletteSelectedIdx) {
+      r.style.background = 'var(--accent-soft)';
+      r.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else {
+      r.style.background = 'transparent';
+    }
+  });
+}
+
+// Reset selection when filtering
+function filterCommandPalette(query) {
+  _paletteSelectedIdx = -1;
+  const q = query.toLowerCase().trim();
+  if (!q) {
+    renderPaletteResults(_hiddenSurfaces);
+    return;
+  }
+  const filtered = _hiddenSurfaces.filter(s =>
+    s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)
+  );
+  renderPaletteResults(filtered);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
