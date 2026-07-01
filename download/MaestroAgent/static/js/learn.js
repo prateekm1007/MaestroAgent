@@ -12,13 +12,14 @@ async function loadLearn() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Recalling what your organization learned…</div>';
 
   try {
-    const [learning, improvement, calibration] = await Promise.all([
+    const [learning, improvement, calibration, identity] = await Promise.all([
       api.getOEM('/learning').catch(() => null),
       api.getOEM('/improvement').catch(() => null),
       api.getOEM('/predictions/market/calibration').catch(() => null),
+      api.getOEM('/identity').catch(() => null),
     ]);
 
-    renderLearnStories(el, learning, improvement, calibration);
+    renderLearnStories(el, learning, improvement, calibration, identity);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization is still gathering experience.</div>
@@ -27,7 +28,7 @@ async function loadLearn() {
   }
 }
 
-function renderLearnStories(el, learning, improvement, calibration) {
+function renderLearnStories(el, learning, improvement, calibration, identity) {
   const stories = [];
 
   // Story 1: "Your organization became smarter" (from improvement report)
@@ -114,6 +115,22 @@ function renderLearnStories(el, learning, improvement, calibration) {
   }
 
   // Deep capabilities
+  // V4 Organ #1 — Identity: does the org know itself?
+  if (identity && identity.beliefs && identity.beliefs.length > 0) {
+    html += `
+      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+        <div class="intention-label" style="margin:0 0 12px 0;color:var(--accent);">Who your organization is</div>
+        <div style="font-size:15px;color:var(--text-primary);line-height:1.6;margin-bottom:16px;">${escapeHtml(humanize(identity.summary))}</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">
+          <strong>Strongest alignment:</strong> ${escapeHtml(humanize(identity.strongest_alignment || ''))}
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);">
+          <strong>Largest gap:</strong> ${escapeHtml(humanize(identity.largest_gap || ''))}
+        </div>
+      </div>
+    `;
+  }
+
   html += `<div class="intention-label" style="margin-top:32px;">Explore deeper</div>`;
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
   html += `<button class="intention-prompt" onclick="navTo('predictions')">Prediction calibration</button>`;

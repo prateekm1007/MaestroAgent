@@ -3177,3 +3177,36 @@ def get_evolution_report(
     from maestro_oem.evolution_report import EvolutionReportEngine
     engine = EvolutionReportEngine(oem_state.model, oem_state.signals, _learning_db_path())
     return engine.generate(window=window)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 29. CONSTITUTION V4 — COGNITIVE ORGANS
+# ═══════════════════════════════════════════════════════════════════════════
+# V4 Law: "Every interaction with Maestro must leave the organization
+# slightly wiser than it was before."
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/identity")
+def get_identity() -> dict[str, Any]:
+    """Does the organization match what it believes about itself?
+
+    V4 Organ #1 — Identity. Compares stated beliefs against observed
+    behavior. Computes Identity Drift score (0.0 = knows itself, 1.0 =
+    completely deluded about its own nature).
+    """
+    from maestro_oem.identity import IdentityEngine
+    engine = IdentityEngine(oem_state.model, oem_state.signals)
+    return engine.compute()
+
+
+@router.get("/curiosity")
+def get_curiosity() -> dict[str, Any]:
+    """What questions has the organization never asked?
+
+    V4 Organ #2 — Curiosity. Finds untested assumptions, unmeasured
+    domains, unexplained patterns, repeated bottlenecks. Maestro asks
+    the questions the org doesn't know it should ask.
+    """
+    from maestro_oem.curiosity import CuriosityEngine
+    engine = CuriosityEngine(oem_state.model, oem_state.signals)
+    return engine.generate()

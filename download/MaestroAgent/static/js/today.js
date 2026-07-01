@@ -51,7 +51,15 @@ async function loadToday() {
       }
     }
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData);
+    // Fetch curiosity questions (V4 Organ #2)
+    let curiosity = null;
+    try {
+      curiosity = await api.getOEM('/curiosity');
+    } catch (e) {
+      // Curiosity engine may not be available
+    }
+
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -61,7 +69,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -179,6 +187,22 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         </div>
       `;
     });
+  }
+
+  // V4 Organ #2 — Curiosity: questions the org has never asked
+  if (curiosity && curiosity.questions && curiosity.questions.length > 0) {
+    html += `
+      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+        <div class="brief-label" style="color:var(--accent);">Maestro is curious</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(curiosity.summary))}</div>
+        ${curiosity.questions.slice(0, 3).map((q, i) => `
+          <div class="brief-item" data-curiosity-idx="${i}" style="border-bottom:1px solid var(--divider);">
+            <div class="brief-context" style="color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(q.question))}</div>
+            <div class="brief-provenance">${escapeHtml(humanize(q.evidence))}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   html += `</div>`;
