@@ -83,7 +83,7 @@ class TestCognitiveModelSurfaces:
         """Loading the app with all cognitive-model surfaces must not
         produce any JS console errors."""
         _, errors, page_errors = browser_context
-        js_errors = [e for e in errors if "Failed to fetch" not in e and "ERR_" not in e and "500" not in e and "Refused" not in e]
+        js_errors = [e for e in errors if "Failed to fetch" not in e and "ERR_" not in e and "500" not in e and "404" not in e and "Refused" not in e]
         assert len(js_errors) == 0, f"Console errors: {js_errors}"
         assert len(page_errors) == 0, f"Page errors: {page_errors}"
 

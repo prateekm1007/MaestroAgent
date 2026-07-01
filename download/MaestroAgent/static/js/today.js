@@ -31,7 +31,27 @@ async function loadToday() {
     ]);
     const contradictions = contradictionsResp.contradictions || [];
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality);
+    // Fetch time-axis for a relevant domain (try 'engineering' as default —
+    // the demo seed has engineering signals)
+    let timeAxis = null;
+    try {
+      timeAxis = await api.getOEM('/time-axis?domain=engineering');
+    } catch (e) {
+      // 404 is honest — not enough data for this domain
+    }
+
+    // Fetch "so what?" for the top recommendation (if one exists)
+    let sowhatData = null;
+    const ot = briefing.one_thing || {};
+    if (ot.title) {
+      try {
+        sowhatData = await api.getOEM(`/sowhat?entity_type=recommendation&entity_id=${encodeURIComponent(ot.title)}`);
+      } catch (e) {
+        // Fallback — use the hardcoded provenance
+      }
+    }
+
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -41,7 +61,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -56,6 +76,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality) {
     title: ot.title,
     context: ot.why || ot.recommendation || '',
     provenance: ot.rec_id ? `Why now: ${ot.urgency || 'this pattern is active'}. Why you: only the CEO can unblock this. If ignored: the pattern will repeat. How we know: ${ot.impact || 'organizational memory'}.` : '',
+    sowhat: sowhatData ? sowhatData.consequence_if_ignored : '',
     action: () => { if (ot.title) openDrilldown('recommendation', ot.title); },
   } : null;
 
@@ -80,9 +101,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality) {
     label: 'One thing learned',
     title: knowledge.traps[0].title || knowledge.traps[0].risk || '',
     context: knowledge.traps[0].detail || '',
-    provenance: 'From organizational patterns',
+    provenance: timeAxis && timeAxis.future ? `Trajectory: ${humanize(timeAxis.future.prediction)}` : 'From organizational patterns',
     action: () => { navTo('assumptions'); },
-  } : null;
+  } : (timeAxis ? {
+    label: 'One thing learned',
+    title: timeAxis.present ? timeAxis.present.state : 'Organizational pattern detected',
+    context: timeAxis.past ? timeAxis.past.summary : '',
+    provenance: timeAxis.future ? `Trajectory: ${humanize(timeAxis.future.prediction)}` : '',
+    action: () => { navTo('physics'); },
+  } : null);
 
   // Prediction that changed — from the learning report
   const predictionChanged = briefing.improvement || null;

@@ -97,7 +97,7 @@ class PersonalityEngine:
             label = "slowly"
             basis = f"only {count} issue transitions — decisions appear bottlenecked"
 
-        return {"score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
+        return {"value": round(score, 2), "score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
 
     def _infer_risk_appetite(self) -> dict[str, Any]:
         """How much risk does the org tolerate? Based on PR merge patterns."""
@@ -125,7 +125,7 @@ class PersonalityEngine:
                 label = "low"
                 basis = f"{len(merged)} of {count} PRs merged — cautious approach"
 
-        return {"score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
+        return {"value": round(score, 2), "score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
 
     def _infer_knowledge_mobility(self) -> dict[str, Any]:
         """How easily does knowledge cross team boundaries?"""
@@ -159,7 +159,7 @@ class PersonalityEngine:
                 label = "with difficulty"
                 basis = f"only {shared} of {total} domains are shared — knowledge is siloed"
 
-        return {"score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
+        return {"value": round(score, 2), "score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
 
     def _infer_meeting_dependency(self) -> dict[str, Any]:
         """How much does the org rely on meetings vs async?"""
@@ -184,7 +184,7 @@ class PersonalityEngine:
             label = "lightly"
             basis = f"{count} messages/threads — async-first culture"
 
-        return {"score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
+        return {"value": round(score, 2), "score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
 
     def _infer_review_discipline(self) -> dict[str, Any]:
         """How consistently does the org review work?"""
@@ -212,7 +212,7 @@ class PersonalityEngine:
                 label = "inconsistently"
                 basis = f"{len(reviews)} reviews for {len(opened)} PRs — review gaps"
 
-        return {"score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
+        return {"value": round(score, 2), "score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
 
     def _infer_learning_velocity(self) -> dict[str, Any]:
         """How fast does the org learn from outcomes?"""
@@ -244,4 +244,4 @@ class PersonalityEngine:
                 label = "slowly"
                 basis = f"{validated} of {laws_count} patterns validated — early stage"
 
-        return {"score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}
+        return {"value": round(score, 2), "score": round(score, 2), "label": label, "evidence_count": count, "basis": basis}

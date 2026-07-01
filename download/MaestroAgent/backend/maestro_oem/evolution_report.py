@@ -54,17 +54,18 @@ class EvolutionReportEngine:
             "prediction_accuracy": self._evolution_prediction_accuracy(),
         }
 
-        # Synthesize overall
+        # Synthesize overall — be accurate about all three counts
         improving = sum(1 for d in dims.values() if d["direction"] == "improving")
         declining = sum(1 for d in dims.values() if d["direction"] == "declining")
         stable = sum(1 for d in dims.values() if d["direction"] == "stable")
+        emerging = sum(1 for d in dims.values() if d["direction"] == "emerging")
 
-        if improving > declining:
-            overall = f"Your organization is becoming smarter. {improving} of 5 dimensions are improving."
+        if improving > declining and improving >= stable:
+            overall = f"Your organization is becoming smarter. {improving} of 5 dimensions improving, {declining} declining, {stable} stable."
         elif declining > improving:
-            overall = f"Your organization needs attention. {declining} of 5 dimensions are declining."
+            overall = f"Your organization needs attention. {declining} of 5 dimensions declining, {improving} improving, {stable} stable."
         else:
-            overall = f"Your organization is stable. {stable} of 5 dimensions are holding steady."
+            overall = f"Your organization is mixed. {improving} improving, {declining} declining, {stable} stable{', ' + str(emerging) + ' emerging' if emerging else ''}."
 
         return {
             "window": window,

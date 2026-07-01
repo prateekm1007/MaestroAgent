@@ -85,8 +85,9 @@ class TestAppLoads:
 
     def test_no_console_errors(self, browser_context):
         _, errors, page_errors = browser_context
-        # Filter out network errors, 500 errors (slow OEM init), and CSP warnings
-        js_errors = [e for e in errors if "Failed to fetch" not in e and "ERR_" not in e and "500" not in e and "Refused" not in e]
+        # Filter out network errors, 500/404 errors (slow OEM init, honest API
+        # 404s from time-axis when domain has insufficient data), and CSP warnings
+        js_errors = [e for e in errors if "Failed to fetch" not in e and "ERR_" not in e and "500" not in e and "404" not in e and "Refused" not in e]
         assert len(js_errors) == 0, f"Console errors: {js_errors}"
         assert len(page_errors) == 0, f"Page errors: {page_errors}"
 
