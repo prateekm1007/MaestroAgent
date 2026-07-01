@@ -1,0 +1,437 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAESTRO × BUMBLE DESIGN SYSTEM
+   Bold, confident, one-card-at-a-time. Yellow brand, pill buttons,
+   swipe cards, mode tabs. Adapted for Maestro's Work/Personal/Both modes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap');
+
+:root {
+  /* Bumble Yellow — signature brand color */
+  --maestro-yellow: #FFC629;
+  --maestro-yellow-dark: #F0B500;
+  --maestro-yellow-light: #FFF4D1;
+
+  /* High-contrast neutrals */
+  --maestro-black: #000000;
+  --maestro-white: #FFFFFF;
+  --maestro-gray-bg: #F5F5F5;
+  --maestro-gray-light: #E5E5E5;
+  --maestro-gray-mid: #999999;
+  --maestro-gray-dark: #3A3A3A;
+
+  /* Mode colors */
+  --mode-work: #0066FF;
+  --mode-personal: #FF6B6B;
+  --mode-both: #FFC629;
+
+  /* Semantic */
+  --maestro-success: #00C853;
+  --maestro-warning: #FF9800;
+  --maestro-error: #FF1744;
+
+  /* Shadows */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-yellow: 0 4px 16px rgba(255, 198, 41, 0.3);
+
+  /* Radii */
+  --radius-card: 20px;
+  --radius-button: 999px;
+  --radius-input: 12px;
+  --radius-tab: 999px;
+
+  /* Spacing (8px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+
+.text-hero    { font-size: 36px; font-weight: 900; line-height: 1.15; letter-spacing: -0.5px; }
+.text-title   { font-size: 22px; font-weight: 800; line-height: 1.25; }
+.text-body    { font-size: 16px; font-weight: 400; line-height: 1.55; }
+.text-label   { font-size: 14px; font-weight: 700; line-height: 1.3; }
+.text-caption { font-size: 12px; font-weight: 600; line-height: 1.3; }
+
+/* ─── Card ───────────────────────────────────────────────────────────────── */
+
+.maestro-card {
+  background: var(--maestro-white);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+  border: none;
+  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  position: relative;
+  overflow: hidden;
+}
+.maestro-card:active { transform: scale(0.97); }
+
+/* ─── Button (pill, bold yellow) ─────────────────────────────────────────── */
+
+.maestro-btn {
+  background: var(--maestro-yellow);
+  color: var(--maestro-black);
+  border: none;
+  border-radius: var(--radius-button);
+  padding: var(--space-4) var(--space-6);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  min-height: 54px;
+  box-shadow: var(--shadow-yellow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+  text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.maestro-btn:active { transform: scale(0.95); box-shadow: var(--shadow-card); }
+.maestro-btn-secondary { background: var(--maestro-white); color: var(--maestro-black); box-shadow: var(--shadow-card); }
+.maestro-btn-ghost { background: transparent; color: var(--maestro-black); box-shadow: none; }
+.maestro-btn:disabled { background: var(--maestro-gray-light); color: var(--maestro-gray-mid); box-shadow: none; cursor: not-allowed; }
+.maestro-btn-full { width: 100%; max-width: 420px; }
+.maestro-btn-inverted { background: var(--maestro-black); color: var(--maestro-yellow); box-shadow: var(--shadow-card); }
+
+/* ─── Mode Tab Switcher (Bumble Date/BFF/Bizz pattern) ───────────────────── */
+
+.mode-tabs {
+  display: flex;
+  background: var(--maestro-white);
+  border-radius: var(--radius-tab);
+  padding: 4px;
+  box-shadow: var(--shadow-card);
+  margin: var(--space-4) auto;
+  max-width: 360px;
+}
+.mode-tab {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-tab);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--maestro-gray-mid);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.mode-tab.active {
+  background: var(--maestro-yellow);
+  color: var(--maestro-black);
+}
+
+/* ─── Swipe Card ─────────────────────────────────────────────────────────── */
+
+.swipe-card {
+  background: var(--maestro-white);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-elevated);
+  width: 100%;
+  max-width: 420px;
+  min-height: 440px;
+  position: relative;
+  cursor: grab;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.swipe-card.swiping { transition: none; cursor: grabbing; }
+.swipe-card.swipe-right { transform: translateX(150%) rotate(20deg); opacity: 0; }
+.swipe-card.swipe-left { transform: translateX(-150%) rotate(-20deg); opacity: 0; }
+
+.swipe-action-right {
+  position: absolute; top: 24px; right: 24px;
+  border: 3px solid var(--maestro-success);
+  color: var(--maestro-success);
+  padding: 8px 16px; border-radius: 12px;
+  font-weight: 900; font-size: 24px;
+  transform: rotate(15deg);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+  pointer-events: none;
+}
+.swipe-action-left {
+  position: absolute; top: 24px; left: 24px;
+  border: 3px solid var(--maestro-gray-mid);
+  color: var(--maestro-gray-mid);
+  padding: 8px 16px; border-radius: 12px;
+  font-weight: 900; font-size: 24px;
+  transform: rotate(-15deg);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.swipe-card-category {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-button);
+  display: inline-block;
+  margin-bottom: var(--space-4);
+}
+.swipe-card-category.due { background: rgba(255,152,0,0.15); color: var(--maestro-warning); }
+.swipe-card-category.contradiction { background: rgba(255,23,68,0.1); color: var(--maestro-error); }
+.swipe-card-category.unknown { background: rgba(153,153,153,0.15); color: var(--maestro-gray-mid); }
+.swipe-card-category.decision { background: var(--maestro-yellow-light); color: var(--maestro-yellow-dark); }
+.swipe-card-category.habit { background: rgba(0,200,83,0.1); color: var(--maestro-success); }
+.swipe-card-category.answer { background: var(--maestro-yellow-light); color: var(--maestro-yellow-dark); }
+
+.swipe-card-body {
+  flex: 1;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+}
+.swipe-card-judgment {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--maestro-black);
+  line-height: 1.3;
+  margin-bottom: var(--space-3);
+}
+.swipe-card-evidence {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--maestro-gray-mid);
+  margin-bottom: var(--space-4);
+}
+.swipe-card-hint {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--maestro-gray-mid);
+  border-top: 1px solid var(--maestro-gray-light);
+}
+.swipe-card-hint .left-hint { color: var(--maestro-gray-mid); }
+.swipe-card-hint .right-hint { color: var(--maestro-success); }
+
+/* ─── Toggle (bold, yellow when ON) ──────────────────────────────────────── */
+
+.maestro-toggle {
+  width: 52px; height: 30px;
+  background: var(--maestro-gray-light);
+  border-radius: var(--radius-button);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+.maestro-toggle.on { background: var(--maestro-yellow); }
+.maestro-toggle::after {
+  content: ''; width: 22px; height: 22px;
+  background: white; border-radius: 50%;
+  position: absolute; top: 4px; left: 4px;
+  transition: transform 0.2s ease;
+  box-shadow: var(--shadow-card);
+}
+.maestro-toggle.on::after { transform: translateX(22px); }
+
+/* ─── Input ──────────────────────────────────────────────────────────────── */
+
+.maestro-input {
+  background: var(--maestro-gray-bg);
+  border: 2px solid transparent;
+  border-radius: var(--radius-input);
+  padding: var(--space-4);
+  font-size: 16px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  width: 100%;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  color: var(--maestro-black);
+  box-sizing: border-box;
+}
+.maestro-input:focus { border-color: var(--maestro-yellow); background: white; outline: none; }
+.maestro-input::placeholder { color: var(--maestro-gray-mid); }
+
+/* ─── Bottom Nav (mobile, 4 items) ───────────────────────────────────────── */
+
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--maestro-white);
+  display: flex; justify-content: space-around;
+  padding: var(--space-2) 0 var(--space-3);
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+  z-index: 100;
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center;
+  padding: var(--space-2);
+  color: var(--maestro-gray-mid);
+  font-size: 11px; font-weight: 700;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  font-family: 'Montserrat', sans-serif;
+  border: none;
+  background: none;
+}
+.nav-item.active { color: var(--maestro-black); }
+.nav-item .icon { font-size: 24px; margin-bottom: 4px; }
+.nav-item.active .icon { color: var(--maestro-yellow); }
+
+/* ─── Action Sheet (bottom sheet for swipe-right actions) ────────────────── */
+
+.action-sheet {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--maestro-white);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  padding: var(--space-5);
+  box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
+  z-index: 200;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+.action-sheet.open { transform: translateY(0); }
+.action-sheet-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 150;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.action-sheet-overlay.open { opacity: 1; pointer-events: auto; }
+
+/* ─── Onboarding ─────────────────────────────────────────────────────────── */
+
+.onboarding-screen {
+  min-height: 100vh;
+  background: var(--maestro-gray-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  font-family: 'Montserrat', sans-serif;
+}
+.onboarding-screen.yellow-bg { background: var(--maestro-yellow); }
+.onboarding-logo {
+  width: 120px; height: 120px;
+  background: var(--maestro-yellow);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 56px; font-weight: 900; color: var(--maestro-black);
+  margin-bottom: var(--space-6);
+  box-shadow: var(--shadow-yellow);
+}
+.onboarding-logo.black-on-yellow { background: var(--maestro-black); color: var(--maestro-yellow); }
+.onboarding-card {
+  background: var(--maestro-white);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 420px;
+  margin-bottom: var(--space-4);
+}
+.onboarding-mode-card {
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+  position: relative;
+}
+.onboarding-mode-card:active { transform: scale(0.98); }
+.onboarding-mode-card.selected-work { border-color: var(--mode-work); }
+.onboarding-mode-card.selected-personal { border-color: var(--mode-personal); }
+.onboarding-mode-card.selected-both { border-color: var(--mode-both); }
+.onboarding-mode-card .checkmark {
+  position: absolute; top: var(--space-3); right: var(--space-3);
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--maestro-yellow);
+  color: var(--maestro-black);
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 900;
+}
+.onboarding-mode-card.selected-work .checkmark,
+.onboarding-mode-card.selected-personal .checkmark,
+.onboarding-mode-card.selected-both .checkmark { display: flex; }
+
+.onboarding-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--maestro-gray-light);
+}
+.onboarding-toggle-row:last-child { border-bottom: none; }
+
+/* ─── Incognito indicator ────────────────────────────────────────────────── */
+
+.incognito-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-button);
+  background: var(--maestro-gray-dark);
+  color: var(--maestro-white);
+  font-size: 11px;
+  font-weight: 700;
+}
+.incognito-indicator.active { background: var(--maestro-yellow); color: var(--maestro-black); }
+
+/* ─── Chip (suggestion pill) ─────────────────────────────────────────────── */
+
+.maestro-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-button);
+  background: var(--maestro-yellow-light);
+  color: var(--maestro-black);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Montserrat', sans-serif;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.maestro-chip:active { transform: scale(0.95); }
+.maestro-chip:hover { background: var(--maestro-yellow); }
+
+/* ─── Progress dots ──────────────────────────────────────────────────────── */
+
+.progress-dots {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-top: var(--space-4);
+}
+.progress-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--maestro-gray-light);
+  transition: background 0.2s ease;
+}
+.progress-dot.active { background: var(--maestro-yellow); }
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+
+@media (min-width: 768px) {
+  .bottom-nav { display: none; }
+}
+@media (max-width: 767px) {
+  .desktop-sidebar { display: none; }
+}

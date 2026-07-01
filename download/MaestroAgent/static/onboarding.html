@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maestro — Get Started</title>
+  <link rel="stylesheet" href="/static/css/maestro-bumble.css">
+  <style>
+    body { margin: 0; font-family: 'Montserrat', sans-serif; background: var(--maestro-gray-bg); }
+    #onboarding-container { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="onboarding-container">
+    <div class="onboarding-screen">
+      <div class="onboarding-logo">M</div>
+      <div class="text-hero" style="text-align:center;margin-bottom:var(--space-3);">Make the first move.</div>
+      <div class="text-body" style="text-align:center;color:var(--maestro-gray-dark);max-width:320px;margin-bottom:var(--space-6);">
+        I'm Maestro — your cognitive companion for work and life.
+      </div>
+      <button class="maestro-btn maestro-btn-full" onclick="showOnboardingScreen(2)">Get Started</button>
+      <div class="progress-dots">
+        <div class="progress-dot active"></div>
+        <div class="progress-dot"></div>
+        <div class="progress-dot"></div>
+        <div class="progress-dot"></div>
+        <div class="progress-dot"></div>
+        <div class="progress-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/swr_cache.js"></script>
+  <script src="/static/js/humanize.js"></script>
+  <script src="/static/js/onboarding.js"></script>
+  <script src="/static/js/swipe-cards.js"></script>
+</body>
+</html>
