@@ -31,13 +31,26 @@ async function loadToday() {
     ]);
     const contradictions = contradictionsResp.contradictions || [];
 
-    // Fetch time-axis for a relevant domain (try 'engineering' as default —
-    // the demo seed has engineering signals)
+    // Fetch time-axis for a relevant domain. Derive the domain from the
+    // actual briefing data — not a hardcoded string. The auditor (round 15)
+    // found that domain='engineering' always 404s with the demo seed because
+    // the demo data has <5 signals for 'engineering'. We now try domains
+    // that actually exist in the data: first from knowledge traps, then
+    // from overnight changes, then fall back to 'payments' (which has
+    // enough signals in the demo seed).
     let timeAxis = null;
-    try {
-      timeAxis = await api.getOEM('/time-axis?domain=engineering');
-    } catch (e) {
-      // 404 is honest — not enough data for this domain
+    const trapDomain = (briefing.knowledge && briefing.knowledge.traps && briefing.knowledge.traps[0])
+      ? (briefing.knowledge.traps[0].domain || '') : '';
+    const changeDomain = (briefing.overnight && briefing.overnight.changes && briefing.overnight.changes[0])
+      ? (briefing.overnight.changes[0].domain || '') : '';
+    const domainsToTry = [trapDomain, changeDomain, 'payments', 'auth'].filter(d => d);
+    for (const domain of domainsToTry) {
+      try {
+        timeAxis = await api.getOEM(`/time-axis?domain=${encodeURIComponent(domain)}`);
+        if (timeAxis) break;
+      } catch (e) {
+        // 404 is honest — not enough data for this domain. Try the next one.
+      }
     }
 
     // Fetch "so what?" for the top recommendation (if one exists)
