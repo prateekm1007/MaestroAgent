@@ -90,7 +90,15 @@ function renderAskV2Answer(el, question, data) {
     .replace(/evidence graph/gi, 'organizational memory')
     .replace(/receipt/gi, 'signal')
     .replace(/law\b/gi, 'pattern')
-    .replace(/OEM/gi, 'Maestro');
+    .replace(/OEM/gi, 'Maestro')
+    // Strip law codes like "L-0001", "L-0002" — internal identifiers
+    .replace(/\bL-\d{4}\b/g, '')
+    // Strip confidence numbers like "(confidence: 1.00)" — Constitution: never expose alone
+    .replace(/\(confidence:\s*[\d.]+\)/gi, '')
+    .replace(/\bconfidence:\s*[\d.]+\b/gi, '')
+    // Clean up any double spaces left by the replacements
+    .replace(/\s+/g, ' ')
+    .trim();
 
   let html = `
     <div class="story-card">

@@ -15,12 +15,13 @@ async function loadWork() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Listening to your tools…</div>';
 
   try {
-    const [briefing, contradictions] = await Promise.all([
+    const [briefing, contradictions, dashboard] = await Promise.all([
       api.getOEM('/ceo-briefing'),
       api.getOEM('/contradictions').catch(() => ({ contradictions: [] })),
+      api.getOEM('/dashboard').catch(() => null),
     ]);
 
-    renderWorkSurface(el, briefing, contradictions);
+    renderWorkSurface(el, briefing, contradictions, dashboard);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Maestro is connecting to your tools.</div>
@@ -29,10 +30,12 @@ async function loadWork() {
   }
 }
 
-function renderWorkSurface(el, briefing, contradictions) {
+function renderWorkSurface(el, briefing, contradictions, dashboard) {
   const decisions = briefing.decisions || { decisions: [] };
   const overnight = briefing.overnight || { changes: [] };
   const Contradictions = contradictions.contradictions || [];
+  const metrics = dashboard ? dashboard.metrics || {} : {};
+  const providers = dashboard ? dashboard.providers_connected || [] : [];
 
   // Generate whispers from contradictions and overnight changes
   const whispers = [];
@@ -53,33 +56,45 @@ function renderWorkSurface(el, briefing, contradictions) {
     });
   });
 
-  // Generate ambient integration cards
-  const ambientCards = [
-    {
-      tool: 'GitHub',
-      message: decisions.decisions.length > 0
-        ? `${decisions.decisions.length} ${decisions.decisions.length === 1 ? 'decision needs' : 'decisions need'} your attention before the next release.`
-        : 'Your repositories are calm. No blocked PRs detected.',
-      action: () => navTo('eng-signals'),
-    },
-    {
-      tool: 'Slack',
-      message: Contradictions.length > 0
+  // Generate ambient integration cards from REAL data (not hardcoded)
+  const ambientCards = [];
+
+  // GitHub card — uses real signal count from dashboard
+  const githubConnected = providers.includes('github');
+  ambientCards.push({
+    tool: 'GitHub',
+    message: githubConnected
+      ? `${metrics.signals_processed || 0} signals processed from your repositories. ${decisions.decisions.length > 0 ? `${decisions.decisions.length} ${decisions.decisions.length === 1 ? 'decision needs' : 'decisions need'} attention.` : 'No blocked PRs detected.'}`
+      : 'GitHub is not connected. Configure it in Settings to see repository intelligence here.',
+    action: () => navTo('eng-signals'),
+  });
+
+  // Slack card — uses real contradiction count
+  ambientCards.push({
+    tool: 'Slack',
+    message: providers.includes('slack')
+      ? (Contradictions.length > 0
         ? `${Contradictions.length} ${Contradictions.length === 1 ? 'cross-team tension was' : 'cross-team tensions were'} detected in recent conversations.`
-        : 'Conversations are flowing normally. No tensions detected.',
-      action: () => navTo('contradictions'),
-    },
-    {
-      tool: 'Jira',
-      message: 'Maestro is watching your issue transitions for patterns.',
-      action: () => navTo('eng-signals'),
-    },
-    {
-      tool: 'Outlook',
-      message: 'Install the Maestro bookmarklet to see organizational context inside your email.',
-      action: () => navTo('eng-settings'),
-    },
-  ];
+        : 'Conversations are flowing normally. No tensions detected.')
+      : 'Slack is not connected. Configure it in Settings to see conversation intelligence.',
+    action: () => navTo('contradictions'),
+  });
+
+  // Jira card — uses real signal count
+  ambientCards.push({
+    tool: 'Jira',
+    message: providers.includes('jira')
+      ? `${metrics.learning_objects || 0} patterns inferred from issue transitions. ${metrics.laws_inferred || 0} organizational patterns validated.`
+      : 'Jira is not connected. Configure it in Settings to see issue-transition intelligence.',
+    action: () => navTo('eng-signals'),
+  });
+
+  // Outlook card — bookmarklet prompt
+  ambientCards.push({
+    tool: 'Outlook',
+    message: 'Install the Maestro bookmarklet to see organizational context inside your email.',
+    action: () => navTo('eng-settings'),
+  });
 
   // Deep capabilities (compressed)
   const deepCaps = [

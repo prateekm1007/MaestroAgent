@@ -107,8 +107,8 @@ class TestAppLoads:
 
     def test_home_surface_visible(self, browser_context):
         page, _, _ = browser_context
-        # Constitution v2: default surface is 'today', navigate to 'home' for this test
-        page.click('.sidebar-link[data-surface="home"]')
+        # Constitution v2: 'home' is not in the sidebar anymore — navigate via navTo()
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         surface = page.query_selector("#surface-home")
         assert surface is not None
@@ -130,7 +130,7 @@ class TestOEMDataLoads:
     def test_dashboard_loads_real_data(self, browser_context):
         page, _, _ = browser_context
         # Constitution v2: default surface is 'today', navigate to 'home' first
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         # OEM State is in a <details> element — expand it first
         page.click("summary")
@@ -144,7 +144,7 @@ class TestOEMDataLoads:
     def test_overnight_changes_load(self, browser_context):
         page, _, _ = browser_context
         # Constitution v2: navigate to 'home' first
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         page.wait_for_selector("#ecc-overnight", timeout=15000)
         # Wait for loading to finish
@@ -155,7 +155,7 @@ class TestOEMDataLoads:
     def test_recommendations_load(self, browser_context):
         page, _, _ = browser_context
         # Constitution v2: navigate to 'home' first
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         page.wait_for_selector("#ecc-attention", timeout=15000)
         _wait_for_loading_done(page, "ecc-attention", 20)
@@ -217,7 +217,7 @@ class TestNavigation:
         """
         page, _, _ = browser_context
         # Navigate to home first (ensure we're not already on customer)
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=10000)
         # Press Cmd/Ctrl+8 to navigate to customer (8th in the surfaces list)
         page.keyboard.press("Control+8")
@@ -289,7 +289,7 @@ class TestNavigation:
         """
         page, _, _ = browser_context
         # Navigate to home first to reset state from prior tests
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         # Now navigate to customer
         page.click('.sidebar-link[data-surface="customer"]')
@@ -373,7 +373,7 @@ class TestNavigation:
 
     def test_breadcrumbs_update(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         bc = page.text_content("#bc-page")
         assert bc == "Home"

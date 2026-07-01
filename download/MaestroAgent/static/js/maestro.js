@@ -106,7 +106,108 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape') {
     document.getElementById('exec-autocomplete').classList.remove('active');
+    const palette = document.getElementById('command-palette');
+    if (palette) palette.classList.add('hidden');
+  }
+  // Ctrl+K opens command palette
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    openCommandPalette();
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMAND PALETTE — access to the 22 deep surfaces without sidebar clutter
+// ═══════════════════════════════════════════════════════════════════════════
+
+const _hiddenSurfaces = [
+  { id: 'home', label: 'Home — live dashboard', group: 'CEO Product' },
+  { id: 'inbox', label: 'Inbox — decisions I owe', group: 'CEO Product' },
+  { id: 'simulator', label: 'Decision Simulator', group: 'CEO Product' },
+  { id: 'hayek', label: 'Hayek Lens — influence graph', group: 'CEO Product' },
+  { id: 'flow', label: 'Knowledge Flow', group: 'CEO Product' },
+  { id: 'memory', label: 'Memory Replay', group: 'CEO Product' },
+  { id: 'ask', label: 'Ask the Organization (legacy)', group: 'CEO Product' },
+  { id: 'customer', label: 'Customer Judgment', group: 'CEO Product' },
+  { id: 'physics', label: 'Organizational Physics — patterns', group: 'CEO Product' },
+  { id: 'debate', label: 'Debate — laws unknown to leadership', group: 'CEO Product' },
+  { id: 'live', label: 'Live Meeting intelligence', group: 'CEO Product' },
+  { id: 'intents', label: 'Intent Cascade', group: 'Cognitive Model' },
+  { id: 'contradictions', label: 'Contradictions', group: 'Cognitive Model' },
+  { id: 'predictions', label: 'Prediction Market — calibration', group: 'Cognitive Model' },
+  { id: 'assumptions', label: 'Dangerous Assumptions', group: 'Cognitive Model' },
+  { id: 'eng-signals', label: 'Signals — connected sources', group: 'Engineering' },
+  { id: 'eng-oem', label: 'OEM Builder — inference pipeline', group: 'Engineering' },
+  { id: 'eng-audit', label: 'Audit Log — receipt chain', group: 'Engineering' },
+  { id: 'eng-settings', label: 'Settings — configuration', group: 'Engineering' },
+];
+
+function openCommandPalette() {
+  let palette = document.getElementById('command-palette');
+  if (!palette) {
+    palette = document.createElement('div');
+    palette.id = 'command-palette';
+    palette.className = 'fixed inset-0 z-50';
+    palette.style.cssText = 'display:flex;align-items:flex-start;justify-content:center;padding-top:120px;background:rgba(0,0,0,0.5);';
+    palette.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--divider);border-radius:12px;width:480px;max-height:400px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <input type="text" id="command-palette-input" placeholder="Search surfaces…"
+               style="width:100%;padding:16px 20px;background:transparent;border:none;border-bottom:1px solid var(--divider);color:var(--text-primary);font-size:15px;outline:none;font-family:var(--font-sans);"
+               aria-label="Search surfaces"
+               oninput="filterCommandPalette(this.value)"
+               onkeydown="if(event.key==='Escape'){closeCommandPalette();} if(event.key==='Enter'){selectFirstPaletteResult();}">
+        <div id="command-palette-results" style="flex:1;overflow-y:auto;padding:8px;"></div>
+      </div>
+    `;
+    palette.addEventListener('click', (e) => {
+      if (e.target === palette) closeCommandPalette();
+    });
+    document.body.appendChild(palette);
+  }
+  palette.classList.remove('hidden');
+  palette.style.display = 'flex';
+  renderPaletteResults(_hiddenSurfaces);
+  setTimeout(() => {
+    const input = document.getElementById('command-palette-input');
+    if (input) input.focus();
+  }, 50);
+}
+
+function closeCommandPalette() {
+  const palette = document.getElementById('command-palette');
+  if (palette) palette.style.display = 'none';
+}
+
+function filterCommandPalette(query) {
+  const q = query.toLowerCase().trim();
+  if (!q) {
+    renderPaletteResults(_hiddenSurfaces);
+    return;
+  }
+  const filtered = _hiddenSurfaces.filter(s =>
+    s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)
+  );
+  renderPaletteResults(filtered);
+}
+
+function renderPaletteResults(surfaces) {
+  const results = document.getElementById('command-palette-results');
+  if (!results) return;
+  if (surfaces.length === 0) {
+    results.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:14px;">No surfaces found</div>';
+    return;
+  }
+  let currentGroup = '';
+  results.innerHTML = surfaces.map(s => {
+    const groupHeader = s.group !== currentGroup ? `<div style="padding:8px 16px 4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">${escapeHtml(s.group)}</div>` : '';
+    currentGroup = s.group;
+    return groupHeader + `<div class="palette-result" style="padding:10px 16px;cursor:pointer;border-radius:6px;font-size:14px;color:var(--text-primary);transition:background 150ms;" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='transparent'" onclick="navTo('${escapeJs(s.id)}');closeCommandPalette();">${escapeHtml(s.label)}</div>`;
+  }).join('');
+}
+
+function selectFirstPaletteResult() {
+  const first = document.querySelector('.palette-result');
+  if (first) first.click();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════

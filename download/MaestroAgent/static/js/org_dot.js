@@ -55,8 +55,12 @@ function initOrgDot() {
 
 async function pollOrgDotStatus() {
   try {
-    const briefing = await api.getOEM('/ceo-briefing');
-    const color = determineDotColor(briefing, null);
+    const [briefing, contradictionsResp] = await Promise.all([
+      api.getOEM('/ceo-briefing'),
+      api.getOEM('/contradictions').catch(() => ({ contradictions: [] })),
+    ]);
+    const contradictions = contradictionsResp.contradictions || [];
+    const color = determineDotColor(briefing, contradictions);
     updateOrgDot(color);
   } catch (e) {
     // Keep the current dot state if the API fails

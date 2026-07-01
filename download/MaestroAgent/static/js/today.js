@@ -23,12 +23,14 @@ async function loadToday() {
 
   try {
     // Compose the brief from existing API endpoints — no new backend needed
-    const [briefing, pulse] = await Promise.all([
+    const [briefing, pulse, contradictionsResp] = await Promise.all([
       api.getOEM('/ceo-briefing'),
       api.getOEM('/pulse').catch(() => null),
+      api.getOEM('/contradictions').catch(() => ({ contradictions: [] })),
     ]);
+    const contradictions = contradictionsResp.contradictions || [];
 
-    renderMorningBrief(el, briefing, pulse);
+    renderMorningBrief(el, briefing, pulse, contradictions);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -38,7 +40,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse) {
+function renderMorningBrief(el, briefing, pulse, contradictions) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -50,7 +52,7 @@ function renderMorningBrief(el, briefing, pulse) {
     label: 'One decision',
     title: ot.title,
     context: ot.why || ot.recommendation || '',
-    provenance: ot.rec_id ? `Based on ${ot.confidence ? Math.round(ot.confidence * 100) + '% confidence' : 'organizational patterns'}` : '',
+    provenance: ot.rec_id ? `Based on organizational patterns` : '',
     action: () => { if (ot.title) openDrilldown('recommendation', ot.title); },
   } : null;
 
@@ -92,7 +94,7 @@ function renderMorningBrief(el, briefing, pulse) {
   const items = [decision, opportunity, riskItem, learning, predictionItem].filter(Boolean);
 
   // Determine the organizational dot color
-  const dotColor = determineDotColor(briefing, pulse);
+  const dotColor = determineDotColor(briefing, contradictions);
   updateOrgDot(dotColor);
 
   // Determine the weather forecast
@@ -151,11 +153,19 @@ function renderMorningBrief(el, briefing, pulse) {
   });
 }
 
-function determineDotColor(briefing, pulse) {
+function determineDotColor(briefing, contradictionsOrPulse) {
   // Red: urgent decision needed
   if (briefing.one_thing && briefing.one_thing.urgency === 'urgent') return 'red';
-  // Orange: cross-functional impact (contradictions or coordination needed)
-  if (briefing.contradictions && briefing.contradictions.length > 0) return 'orange';
+  // Orange: cross-functional impact (contradictions detected)
+  // The contradictions parameter can be an array (from /contradictions API)
+  // or an object with a .contradictions array (from the briefing)
+  let contradictions = [];
+  if (Array.isArray(contradictionsOrPulse)) {
+    contradictions = contradictionsOrPulse;
+  } else if (contradictionsOrPulse && contradictionsOrPulse.contradictions) {
+    contradictions = contradictionsOrPulse.contradictions;
+  }
+  if (contradictions.length > 0) return 'orange';
   // Yellow: opportunity or overnight change
   if (briefing.overnight && briefing.overnight.changes && briefing.overnight.changes.length > 0) return 'yellow';
   // Green: nothing requires attention
