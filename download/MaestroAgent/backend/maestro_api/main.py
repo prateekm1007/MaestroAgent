@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports
+from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports, personal
 from maestro_auth.routes import router as enterprise_auth_router, scim_router as scim_router_v2
 from maestro_api.websocket import register_ws_routes
 from maestro_api.state import AppState
@@ -208,6 +208,7 @@ def create_app(
     app.include_router(meta.router, prefix="/api/meta", tags=["meta"])
     app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
     app.include_router(oem.router, prefix="/api/oem", tags=["oem"])
+    app.include_router(personal.router, tags=["personal-mode"])
     app.include_router(imports.router, tags=["imports", "oauth"])
     # Status dashboard (HTML at /status — NOT part of /api).
     app.include_router(status.router, tags=["status"])

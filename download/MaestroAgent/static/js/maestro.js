@@ -25,6 +25,7 @@ const pageNames = {
   cognition: 'Cognitive Organs',
   autobiography: "Your Organization's Story",
   playbook: 'Role Playbooks',
+  personal: 'Personal Mode',
   // Deep capabilities (existing surfaces)
   home: 'Home', inbox: 'Inbox', simulator: 'Decision Simulator',
   hayek: 'Hayek Lens', flow: 'Knowledge Flow', memory: 'Memory Replay',
@@ -148,6 +149,7 @@ const _hiddenSurfaces = [
   { id: 'cognition', label: 'Cognitive Organs — skepticism, wisdom, metacognition, principles, consciousness', group: 'Constitution v4' },
   { id: 'autobiography', label: 'Your Organization\u2019s Story — the autobiography', group: 'Constitution v6' },
   { id: 'playbook', label: 'Role Playbooks — Sales, Marketing, Product', group: 'Daily Work' },
+  { id: 'personal', label: 'Personal Mode — your life, your memory, your decisions', group: 'Personal' },
 ];
 
 function openCommandPalette() {
