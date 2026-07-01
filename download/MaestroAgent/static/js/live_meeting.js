@@ -50,7 +50,7 @@ async function analyzeTranscript() {
   const transcriptHtml = transcript.map((line, i) => `<div class="flex gap-3 p-2 rounded-md bg-white/[0.02] mb-1">
       <span class="text-[10px] text-fg-500 mono w-12">${String(i+1).padStart(2,'0')}</span>
       <span class="text-xs font-semibold text-brand-cyan w-20">${escapeHtml(line.speaker)}</span>
-      <span class="text-xs text-fg-200 flex-1">${escapeHtml(line.text)}</span>
+      <span class="text-xs text-fg-200 flex-1">${escapeHtml(humanize(line.text))}</span>
     </div>`).join('');
   transcriptArea.innerHTML = transcriptHtml;
 
@@ -77,7 +77,7 @@ async function analyzeTranscript() {
       : data.objections.map(o => `
         <div class="p-2 rounded-md bg-brand-rose/[0.06] border-l-2 border-brand-rose mb-1">
           <div class="text-brand-rose font-semibold text-[11px]">${escapeHtml(o.speaker)} dissents</div>
-          <div class="text-[10px] text-fg-500">${escapeHtml(o.text)}</div>
+          <div class="text-[10px] text-fg-500">${escapeHtml(humanize(o.text))}</div>
           ${o.law_code ? `<div class="text-[10px] text-fg-600 mt-1">Linked: <span class="source-cite">${escapeHtml(o.law_code)}</span></div>` : ''}
         </div>
       `).join('');
@@ -87,7 +87,7 @@ async function analyzeTranscript() {
       : data.actions.map(a => `
         <div class="flex items-center gap-2 text-[11px] py-1">
           <div class="w-3 h-3 border border-white/20 rounded-sm"></div>
-          <span class="text-fg-200 flex-1">${escapeHtml(a.text)}</span>
+          <span class="text-fg-200 flex-1">${escapeHtml(humanize(a.text))}</span>
           <span class="text-fg-500">@${escapeHtml(a.owner)}</span>
         </div>
       `).join('');
@@ -122,7 +122,7 @@ async function loadEngSignals() {
         ${data.providers.map(p => `
           <div class="card">
             <div class="flex items-center justify-between mb-2">
-              <div class="text-sm font-semibold text-white">${escapeHtml(p.label)}</div>
+              <div class="text-sm font-semibold text-white">${escapeHtml(humanize(p.label))}</div>
               <span class="tag tag-cyan">connected</span>
             </div>
             <div class="text-[11px] text-fg-400">${escapeHtml(p.provider)}</div>

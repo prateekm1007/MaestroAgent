@@ -26,8 +26,8 @@ async function loadCustomerMorning() {
             <span class="tag tag-cyan">${formatConfidence(r.confidence)}</span>
           </div>
         </div>
-        <div class="text-xs text-fg-400 mb-1">${escapeHtml(r.why)}</div>
-        <div class="text-xs text-fg-300"><strong>Recommendation:</strong> ${escapeHtml(r.recommendation)}</div>
+        <div class="text-xs text-fg-400 mb-1">${escapeHtml(humanize(r.why))}</div>
+        <div class="text-xs text-fg-300"><strong>Recommendation:</strong> ${escapeHtml(humanize(r.recommendation))}</div>
         <div class="text-[10px] text-fg-500 mt-1">Expected value: ${escapeHtml(r.expected_value)} · Risk: ${formatConfidence(r.escalation_risk)} · Champion: ${escapeHtml(r.champion_health)}</div>
         <div class="flex gap-1.5 mt-2">
           <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="event.stopPropagation(); selectCustomer('${escapeJs(r.customer)}')" aria-label="Open full brief for ${escapeHtml(r.customer)}">Open brief</button>
@@ -209,7 +209,7 @@ async function loadCustomerTwinScenarios() {
     const data = await api.getOEM('/customer/twin/scenarios');
     el.innerHTML = data.scenarios.map(s => `
       <button class="tag tag-gray cursor-pointer text-left p-2 hover:bg-white/[0.05]" onclick="loadCustomerTwinForm('${escapeJs(s.type)}', ${JSON.stringify(s.example).replace(/"/g, '&quot;')})">
-        <div class="text-xs font-semibold">${escapeHtml(s.title)}</div>
+        <div class="text-xs font-semibold">${escapeHtml(humanize(s.title))}</div>
         <div class="text-[10px] text-fg-500">${escapeHtml(s.type)}</div>
       </button>
     `).join('');
@@ -248,18 +248,18 @@ async function runCustomerTwin(payload) {
             <span class="tag tag-cyan">${formatConfidence(data.confidence)}</span>
           </div>
         </div>
-        <div class="text-xs text-fg-300">${escapeHtml(data.description)}</div>
+        <div class="text-xs text-fg-300">${escapeHtml(humanize(data.description))}</div>
         <div class="border-t border-white/[0.05] pt-2">
           <div class="text-[10px] uppercase text-fg-500 font-semibold mb-1">Business impact</div>
           <div class="text-xs text-fg-300">${Object.entries(data.business_impact).map(([k,v]) => `${escapeHtml(k)}: ${escapeHtml(String(v))}`).join(' · ')}</div>
         </div>
         <div class="border-t border-white/[0.05] pt-2">
           <div class="text-[10px] uppercase text-fg-500 font-semibold mb-1">Supporting evidence</div>
-          <ul class="text-xs text-fg-300 space-y-1">${data.supporting_evidence.map(e => `<li>• ${escapeHtml(e.detail)}</li>`).join('')}</ul>
+          <ul class="text-xs text-fg-300 space-y-1">${data.supporting_evidence.map(e => `<li>• ${escapeHtml(humanize(e.detail))}</li>`).join('')}</ul>
         </div>
         <div class="border-t border-white/[0.05] pt-2">
           <div class="text-[10px] uppercase text-amber-400 font-semibold mb-1">Counter-evidence</div>
-          <ul class="text-xs text-fg-400 space-y-1">${data.counter_evidence.map(e => `<li>• ${escapeHtml(e.detail)}</li>`).join('')}</ul>
+          <ul class="text-xs text-fg-400 space-y-1">${data.counter_evidence.map(e => `<li>• ${escapeHtml(humanize(e.detail))}</li>`).join('')}</ul>
         </div>
         <div class="border-t border-white/[0.05] pt-2">
           <div class="text-[10px] uppercase text-fg-500 font-semibold mb-1">Alternative actions</div>

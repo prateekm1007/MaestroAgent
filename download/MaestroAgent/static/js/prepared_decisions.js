@@ -58,9 +58,9 @@ function renderPreparedDecisions(container, preps) {
           ${p.confidence != null ? `<span class="ds-meta">conf <span class="ds-meta-strong">${formatConfidence(p.confidence)}</span></span>` : ''}
         </div>
 
-        <div style="font-size:14.5px;font-weight:500;color:var(--ds-text-primary);margin-bottom:6px;">${escapeHtml(p.title)}</div>
+        <div style="font-size:14.5px;font-weight:500;color:var(--ds-text-primary);margin-bottom:6px;">${escapeHtml(humanize(p.title))}</div>
 
-        ${p.summary ? `<div style="font-size:13px;color:var(--ds-text-secondary);line-height:1.55;margin-bottom:10px;">${escapeHtml(p.summary)}</div>` : ''}
+        ${p.summary ? `<div style="font-size:13px;color:var(--ds-text-secondary);line-height:1.55;margin-bottom:10px;">${escapeHtml(humanize(p.summary))}</div>` : ''}
 
         <div class="ds-row" style="gap:14px;margin-bottom:10px;flex-wrap:wrap;">
           ${assumptionCount > 0 ? `<span class="ds-meta">${assumptionCount} assumption${assumptionCount === 1 ? '' : 's'}</span>` : ''}

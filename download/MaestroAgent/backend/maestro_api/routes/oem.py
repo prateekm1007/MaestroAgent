@@ -3109,3 +3109,71 @@ def get_capability_impact(
     else:
         people = query.list_high_impact_people(limit=limit)
         return {"high_impact_people": people, "total": len(people)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 28. CONSTITUTION V3 COGNITIVE ENGINES
+# ═══════════════════════════════════════════════════════════════════════════
+# V3 Law 8: Everything answers "so what?"
+# V3 Law 6: Organizations evolve; infer personality
+# V3: Make time visible
+# V3 Law 10: Organization becomes progressively smarter
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/sowhat")
+def get_sowhat(
+    entity_type: str = Query(..., description="recommendation | law | contradiction | risk | prediction"),
+    entity_id: str = Query(..., description="The entity's identifier"),
+) -> dict[str, Any]:
+    """What happens if this is ignored? What action to take? When does it matter?
+
+    V3 Law 8: Everything must answer 'so what?'
+    Every insight gets a synthesized consequence.
+    """
+    from maestro_oem.sowhat import SoWhatEngine
+    engine = SoWhatEngine(oem_state.model, oem_state.signals, oem_state.decisions)
+    result = engine.synthesize(entity_type, entity_id)
+    return result
+
+
+@router.get("/personality")
+def get_personality() -> dict[str, Any]:
+    """Infer organizational personality from behavioral signals.
+
+    V3 Law 6: Organizations evolve. Never survey — infer.
+    6 dimensions, each 0.0-1.0 with human label + evidence + basis.
+    """
+    from maestro_oem.personality import PersonalityEngine
+    engine = PersonalityEngine(oem_state.model, oem_state.signals)
+    return engine.infer()
+
+
+@router.get("/time-axis")
+def get_time_axis(
+    domain: str = Query(..., description="Knowledge domain to analyze (e.g., payments, auth)"),
+) -> dict[str, Any]:
+    """Show a domain across past, present, and future.
+
+    V3: Make time visible. Every insight exists across time.
+    Returns 404 if <5 signals for the domain (honest, not fabricated).
+    """
+    from maestro_oem.time_axis import TimeAxisEngine
+    engine = TimeAxisEngine(oem_state.model, oem_state.signals)
+    result = engine.analyze(domain)
+    if not result:
+        raise HTTPException(404, f"Insufficient data for domain '{domain}'. Need at least 5 signals; found fewer.")
+    return result
+
+
+@router.get("/evolution")
+def get_evolution_report(
+    window: str = Query("90d", description="Time window: 30d, 90d, 180d"),
+) -> dict[str, Any]:
+    """How has the organization changed?
+
+    V3 Law 10: The organization should become progressively smarter.
+    5 dimensions with delta + direction + narrative + evidence_count.
+    """
+    from maestro_oem.evolution_report import EvolutionReportEngine
+    engine = EvolutionReportEngine(oem_state.model, oem_state.signals, _learning_db_path())
+    return engine.generate(window=window)

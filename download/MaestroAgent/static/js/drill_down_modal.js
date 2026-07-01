@@ -115,10 +115,10 @@ function renderDrilldownTab(tab) {
     body.innerHTML = !pred
       ? '<div class="empty-state">No prediction available.</div>'
       : `<div class="space-y-3">
-         ${pred.condition ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Condition</div><div class="text-sm text-fg-200">${escapeHtml(pred.condition)}</div></div>` : ''}
-         ${pred.outcome ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Predicted Outcome</div><div class="text-sm text-brand-cyan">${escapeHtml(pred.outcome)}</div></div>` : ''}
-         ${pred.detail ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Detail</div><div class="text-sm text-fg-300">${escapeHtml(pred.detail)}</div></div>` : ''}
-         ${pred.impact ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Impact</div><div class="text-sm text-fg-300">${escapeHtml(pred.impact)}</div></div>` : ''}
+         ${pred.condition ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Condition</div><div class="text-sm text-fg-200">${escapeHtml(humanize(pred.condition))}</div></div>` : ''}
+         ${pred.outcome ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Predicted Outcome</div><div class="text-sm text-brand-cyan">${escapeHtml(humanize(pred.outcome))}</div></div>` : ''}
+         ${pred.detail ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Detail</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.detail))}</div></div>` : ''}
+         ${pred.impact ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Impact</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.impact))}</div></div>` : ''}
          ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" style="width:200px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${pred.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(pred.confidence)}</span></div></div>` : ''}
          ${pred.risk ? `<div><span class="tag tag-rose">${escapeHtml(pred.risk)}</span></div>` : ''}
        </div>`;
@@ -146,7 +146,7 @@ function renderDrilldownTab(tab) {
       ? '<div class="empty-state">No recommendations linked to this entity.</div>'
       : `<div class="space-y-2">${rec.items.map(r => `
          <div class="card mb-2 cursor-pointer" onclick="navTo('simulator')">
-           <div class="text-sm font-semibold text-white">${escapeHtml(r.title)}</div>
+           <div class="text-sm font-semibold text-white">${escapeHtml(humanize(r.title))}</div>
            <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(r.recommendation || '')}</div>
            <div class="flex items-center gap-2 mt-2 text-[10px] text-fg-500">
              ${r.urgency ? `<span class="tag ${r.urgency === 'urgent' ? 'tag-rose' : 'tag-amber'}">${escapeHtml(r.urgency)}</span>` : ''}

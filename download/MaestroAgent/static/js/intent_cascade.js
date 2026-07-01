@@ -135,8 +135,8 @@ function renderIntentCascade(cascade) {
                 <span class="ds-tag ds-tag-${assumptionStatusTagClass(a.status)}">${escapeHtml(a.status || 'open')}</span>
                 ${a.stakes ? `<span class="ds-tag ds-tag-${a.stakes === 'critical' || a.stakes === 'high' ? 'high' : a.stakes === 'medium' ? 'medium' : 'low'}">${escapeHtml(a.stakes)}</span>` : ''}
               </div>
-              <div style="font-size:13px;color:var(--ds-text-primary);line-height:1.55;">${escapeHtml(a.statement)}</div>
-              ${a.context ? `<div class="ds-meta" style="margin-top:6px;">${escapeHtml(a.context)}</div>` : ''}
+              <div style="font-size:13px;color:var(--ds-text-primary);line-height:1.55;">${escapeHtml(humanize(a.statement))}</div>
+              ${a.context ? `<div class="ds-meta" style="margin-top:6px;">${escapeHtml(humanize(a.context))}</div>` : ''}
               ${a.made_by ? `<div class="ds-meta" style="margin-top:4px;">By <span class="ds-meta-strong">${escapeHtml(a.made_by)}</span></div>` : ''}
             </div>
           `).join('')}
@@ -173,7 +173,7 @@ function renderIntentCascade(cascade) {
   if (evidence.length) {
     sections.push(`
       <div class="ds-cascade-leaf">
-        <div class="ds-cascade-label">Evidence (${evidence.length} receipt${evidence.length === 1 ? '' : 's'})</div>
+        <div class="ds-cascade-label">Evidence (${evidence.length} signal${evidence.length === 1 ? '' : 's'})</div>
         <div class="ds-stack">
           ${evidence.slice(0, 12).map(ev => `
             <div class="ds-card" style="padding:10px 14px;">
@@ -209,7 +209,7 @@ function renderHypothesisInline(h) {
         <span class="ds-tag ds-tag-${hypothesisStatusTagClass(status)}">${escapeHtml(status)}</span>
         ${h.confidence != null ? `<span class="ds-meta">conf <span class="ds-meta-strong">${formatConfidence(h.confidence)}</span></span>` : ''}
       </div>
-      <div style="font-size:13px;color:var(--ds-text-primary);line-height:1.55;margin-bottom:6px;">${escapeHtml(h.statement)}</div>
+      <div style="font-size:13px;color:var(--ds-text-primary);line-height:1.55;margin-bottom:6px;">${escapeHtml(humanize(h.statement))}</div>
       ${h.prediction ? `<div class="ds-meta" style="margin-bottom:4px;">Prediction: <span class="ds-meta-strong">${escapeHtml(h.prediction)}</span></div>` : ''}
       ${h.predicted_value != null ? `<div class="ds-meta">Predicted: <span class="ds-meta-strong">${escapeHtml(String(h.predicted_value))}</span></div>` : ''}
       ${canResolve ? `
@@ -231,8 +231,8 @@ function renderPreparationInline(p) {
         <span class="ds-tag ds-tag-${preparationStatusTagClass(status)}">${escapeHtml(status)}</span>
         <span class="ds-meta">${escapeHtml(p.preparation_type || 'preparation')}</span>
       </div>
-      <div style="font-size:13px;font-weight:500;color:var(--ds-text-primary);margin-bottom:4px;">${escapeHtml(p.title)}</div>
-      ${p.summary ? `<div style="font-size:12.5px;color:var(--ds-text-secondary);line-height:1.55;">${escapeHtml(p.summary)}</div>` : ''}
+      <div style="font-size:13px;font-weight:500;color:var(--ds-text-primary);margin-bottom:4px;">${escapeHtml(humanize(p.title))}</div>
+      ${p.summary ? `<div style="font-size:12.5px;color:var(--ds-text-secondary);line-height:1.55;">${escapeHtml(humanize(p.summary))}</div>` : ''}
       ${isReady ? `
         <div class="ds-row" style="margin-top:8px;gap:6px;">
           <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparationFromCascade('${escapeJs(p.preparation_id)}')">Approve</button>

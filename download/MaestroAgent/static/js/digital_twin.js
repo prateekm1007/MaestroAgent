@@ -90,7 +90,7 @@ function renderTwinReport(report) {
       <div class="p-3 rounded-lg bg-brand-${riskColor}/[0.06] border border-brand-${riskColor}/15">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-sm font-semibold text-white">${escapeHtml(report.description)}</div>
+            <div class="text-sm font-semibold text-white">${escapeHtml(humanize(report.description))}</div>
             <div class="text-[10px] text-fg-500 mt-1">Scenario: ${escapeHtml(report.scenario_type)} · ${escapeHtml(report.timestamp)}</div>
           </div>
           <div class="text-right">
@@ -118,7 +118,7 @@ function renderTwinReport(report) {
             <div class="p-2 rounded-lg bg-brand-amber/[0.04] border border-brand-amber/10 mb-1 cursor-pointer" onclick="openDrilldown('risk', '${escapeJs(kl.domain)}')">
               <span class="text-xs font-semibold text-fg-200">${escapeHtml(kl.domain)}</span>
               <span class="text-[10px] text-brand-amber ml-2">${kl.people_before} → ${kl.people_after} people</span>
-              <div class="text-[10px] text-fg-600">${escapeHtml(kl.description)}</div>
+              <div class="text-[10px] text-fg-600">${escapeHtml(humanize(kl.description))}</div>
             </div>`).join('')}
         </div>` : ''}
 
@@ -128,7 +128,7 @@ function renderTwinReport(report) {
           ${report.new_bottlenecks.map(nb => `
             <div class="p-2 rounded-lg bg-brand-purple/[0.04] border border-brand-purple/10 mb-1">
               <span class="text-xs font-semibold text-fg-200">${escapeHtml(nb.person || nb.description)}</span>
-              <div class="text-[10px] text-fg-600">${escapeHtml(nb.description)}</div>
+              <div class="text-[10px] text-fg-600">${escapeHtml(humanize(nb.description))}</div>
             </div>`).join('')}
         </div>` : ''}
 
@@ -138,7 +138,7 @@ function renderTwinReport(report) {
           ${report.law_violations.map(lv => `
             <div class="p-2 rounded-lg bg-brand-rose/[0.04] border border-brand-rose/10 mb-1 cursor-pointer" onclick="openDrilldown('law', '${escapeJs(lv.law_code)}')">
               <span class="text-xs font-semibold text-fg-200">${escapeHtml(lv.law_code)}</span>
-              <span class="text-[10px] text-fg-600 ml-2">${escapeHtml(lv.description)}</span>
+              <span class="text-[10px] text-fg-600 ml-2">${escapeHtml(humanize(lv.description))}</span>
             </div>`).join('')}
         </div>` : ''}
 

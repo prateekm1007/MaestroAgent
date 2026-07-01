@@ -65,7 +65,7 @@ function renderContradictions(container, contradictions) {
         ` : ''}
 
         ${c.description && c.title ? `
-          <div style="font-size:12.5px;color:var(--ds-text-secondary);line-height:1.55;margin-bottom:8px;">${escapeHtml(c.description)}</div>
+          <div style="font-size:12.5px;color:var(--ds-text-secondary);line-height:1.55;margin-bottom:8px;">${escapeHtml(humanize(c.description))}</div>
         ` : ''}
 
         ${c.evidence && c.evidence.length ? `

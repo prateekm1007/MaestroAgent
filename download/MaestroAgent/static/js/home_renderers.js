@@ -129,8 +129,8 @@ function renderRecCard(r) {
   return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" onclick="openDrilldown('recommendation', '${escapeJs(r.title)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
-        <div class="text-sm font-semibold text-white mb-1">${escapeHtml(r.title)}</div>
-        <div class="text-[11px] text-fg-400 leading-relaxed">${escapeHtml(r.description)}</div>
+        <div class="text-sm font-semibold text-white mb-1">${escapeHtml(humanize(r.title))}</div>
+        <div class="text-[11px] text-fg-400 leading-relaxed">${escapeHtml(humanize(r.description))}</div>
       </div>
       <span class="tag ${urgencyTag} ml-3">${escapeHtml(r.urgency)}</span>
     </div>
@@ -141,7 +141,7 @@ function renderRecCard(r) {
       <span>${r.evidence_count || 0} evidence</span>
       ${r.linked_laws && r.linked_laws.length ? `<span>·</span><span>Laws: ${r.linked_laws.join(', ')}</span>` : ''}
     </div>
-    <div class="mt-2 text-[11px] text-fg-300">${escapeHtml(r.impact)}</div>
+    <div class="mt-2 text-[11px] text-fg-300">${escapeHtml(humanize(r.impact))}</div>
   </div>`;
 }
 
@@ -192,9 +192,9 @@ function renderLawCard(l) {
           <span class="mono text-[10px] text-brand-purple">${escapeHtml(l.code)}</span>
           <span class="tag ${statusTag}">${escapeHtml(l.status)}</span>
         </div>
-        <div class="text-sm font-semibold text-white">${escapeHtml(l.statement)}</div>
-        <div class="text-[11px] text-fg-400 mt-1">If: ${escapeHtml(l.condition)}</div>
-        <div class="text-[11px] text-fg-300 mt-1">Then: ${escapeHtml(l.outcome)}</div>
+        <div class="text-sm font-semibold text-white">${escapeHtml(humanize(l.statement))}</div>
+        <div class="text-[11px] text-fg-400 mt-1">If: ${escapeHtml(humanize(l.condition))}</div>
+        <div class="text-[11px] text-fg-300 mt-1">Then: ${escapeHtml(humanize(l.outcome))}</div>
       </div>
     </div>
     <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2">
@@ -225,13 +225,13 @@ async function loadSimulator() {
       <div class="space-y-3">
         <div>
           <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-1">Scenario</div>
-          <div class="text-sm font-semibold text-white">${escapeHtml(s.title)}</div>
-          <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(s.description)}</div>
+          <div class="text-sm font-semibold text-white">${escapeHtml(humanize(s.title))}</div>
+          <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(humanize(s.description))}</div>
         </div>
         <div class="grid grid-cols-2 gap-4 pt-3 border-t border-white/[0.05]">
           <div>
             <div class="text-[10px] uppercase text-fg-500">Recommendation</div>
-            <div class="text-sm text-brand-cyan mt-1">${escapeHtml(s.recommendation)}</div>
+            <div class="text-sm text-brand-cyan mt-1">${escapeHtml(humanize(s.recommendation))}</div>
           </div>
           <div>
             <div class="text-[10px] uppercase text-fg-500">Confidence</div>
@@ -357,8 +357,8 @@ async function loadKnowledge() {
       ? '<div class="empty-state">No knowledge death detected.</div>'
       : data.knowledge_death.map(k => `
         <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeJs(k.title || k.description || 'knowledge_death')}')">
-          <div class="text-sm font-semibold text-white">${escapeHtml(k.title)}</div>
-          <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(k.description)}</div>
+          <div class="text-sm font-semibold text-white">${escapeHtml(humanize(k.title))}</div>
+          <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(humanize(k.description))}</div>
           <div class="text-[10px] text-fg-500 mt-1">Boundary: ${escapeHtml(k.boundary)} · Confidence ${formatConfidence(k.confidence)}</div>
         </div>
       `).join('');
@@ -366,8 +366,8 @@ async function loadKnowledge() {
       ? '<div class="empty-state">No duplicate work detected.</div>'
       : data.duplicate_work.map(d => `
         <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeJs(d.title || d.description || 'duplicate_work')}')">
-          <div class="text-sm font-semibold text-white">${escapeHtml(d.title)}</div>
-          <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(d.description)}</div>
+          <div class="text-sm font-semibold text-white">${escapeHtml(humanize(d.title))}</div>
+          <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(humanize(d.description))}</div>
           <div class="text-[10px] text-fg-500 mt-1">Domain: ${escapeHtml(d.domain)} · ${d.providers.join(', ')}</div>
         </div>
       `).join('');

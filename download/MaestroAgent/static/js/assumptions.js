@@ -55,9 +55,9 @@ function renderDangerousAssumptions(container, assumptions) {
           ${a.created_at ? `<span class="ds-meta">${formatTimestamp(a.created_at)}</span>` : ''}
         </div>
 
-        <div style="font-size:14px;color:var(--ds-text-primary);line-height:1.55;margin-bottom:10px;">${escapeHtml(a.statement)}</div>
+        <div style="font-size:14px;color:var(--ds-text-primary);line-height:1.55;margin-bottom:10px;">${escapeHtml(humanize(a.statement))}</div>
 
-        ${a.context ? `<div class="ds-meta" style="margin-bottom:10px;">${escapeHtml(a.context)}</div>` : ''}
+        ${a.context ? `<div class="ds-meta" style="margin-bottom:10px;">${escapeHtml(humanize(a.context))}</div>` : ''}
 
         ${a.intent_id ? `<div class="ds-meta" style="margin-bottom:10px;">Supports: <span class="ds-meta-strong">intent ${escapeHtml(a.intent_id.substring(0, 16))}…</span></div>` : ''}
 
@@ -165,7 +165,7 @@ function renderAssumptionAccuracy(container, report) {
           <div class="ds-stack" style="margin-top:8px;">
             ${report.most_costly_when_wrong.slice(0, 5).map(a => `
               <div class="ds-card" style="padding:10px 12px;">
-                <div style="font-size:13px;color:var(--ds-text-primary);">${escapeHtml(a.statement)}</div>
+                <div style="font-size:13px;color:var(--ds-text-primary);">${escapeHtml(humanize(a.statement))}</div>
                 <div class="ds-meta" style="margin-top:4px;">${escapeHtml(a.stakes || 'medium')} stakes · ${escapeHtml(a.status || 'resolved')}</div>
               </div>
             `).join('')}
