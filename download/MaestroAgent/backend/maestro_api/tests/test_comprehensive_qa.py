@@ -214,7 +214,14 @@ class TestEveryInteractiveElement:
         assert "Escape" in combined
         assert "e.key >= '1'" in combined or "e.key >= '1'" in combined
 
-    def test_all_sidebar_links_exist(self, client):
+    def test_all_surfaces_exist_in_dom(self, client):
+        """All surfaces must exist in the DOM (as <section id="surface-X">).
+
+        Constitution v2: the 19 deep surfaces are NOT in the sidebar (they
+        were collapsed to a command palette), but they MUST remain in the DOM
+        for navTo() + deep links to work. This test verifies the surfaces
+        exist as <section> elements, not as sidebar links.
+        """
         html = client.get("/app.html").text
         surfaces = [
             "home", "inbox", "simulator", "hayek", "flow", "memory",
@@ -222,7 +229,24 @@ class TestEveryInteractiveElement:
             "eng-signals", "eng-oem", "eng-audit", "eng-settings",
         ]
         for s in surfaces:
-            assert f'data-surface="{s}"' in html, f"Sidebar link '{s}' not found"
+            assert f'id="surface-{s}"' in html, (
+                f"Surface '{s}' not found in DOM as <section id='surface-{s}'>. "
+                f"All surfaces must remain in the DOM for command-palette access."
+            )
+
+    def test_meta_surfaces_in_sidebar(self, client):
+        """Constitution v2: the 4 meta-surfaces must be in the sidebar.
+
+        The sidebar was collapsed from 23 to 5 items (4 meta-surfaces + More…).
+        This test verifies the 4 meta-surfaces have sidebar links.
+        """
+        html = client.get("/app.html").text
+        meta_surfaces = ["today", "work", "ask-v2", "learn"]
+        for s in meta_surfaces:
+            assert f'data-surface="{s}"' in html, (
+                f"Meta-surface '{s}' not found in sidebar. "
+                f"The 4 Constitution v2 surfaces must have sidebar links."
+            )
 
     def test_csrf_token_in_login_response(self, auth_client):
         """Login must return a CSRF token."""

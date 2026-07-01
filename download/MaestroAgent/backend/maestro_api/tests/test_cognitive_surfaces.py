@@ -91,7 +91,7 @@ class TestCognitiveModelSurfaces:
         """The new Prepared Decisions panel must render on Home with real
         data from /api/oem/preparations."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         _wait_no_loading(page, "ecc-prepared", 15)
         text = page.text_content("#ecc-prepared")
@@ -103,7 +103,7 @@ class TestCognitiveModelSurfaces:
         """The Intent Cascade surface must be reachable from the sidebar
         and render intents from /api/oem/intents."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="intents"]')
+        page.evaluate("navTo('intents')")
         page.wait_for_selector("#surface-intents.active", timeout=5000)
         _wait_no_loading(page, "intent-cascade-list", 15)
         text = page.text_content("#intent-cascade-list")
@@ -112,7 +112,7 @@ class TestCognitiveModelSurfaces:
     def test_contradictions_surface_navigates(self, browser_context):
         """The Contradictions surface must render from /api/oem/contradictions."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="contradictions"]')
+        page.evaluate("navTo('contradictions')")
         page.wait_for_selector("#surface-contradictions.active", timeout=5000)
         _wait_no_loading(page, "contradictions-list", 15)
         text = page.text_content("#contradictions-list")
@@ -122,7 +122,7 @@ class TestCognitiveModelSurfaces:
         """The Prediction Market surface must render the calibration ranking
         from /api/oem/predictions/market/calibration."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="predictions"]')
+        page.evaluate("navTo('predictions')")
         page.wait_for_selector("#surface-predictions.active", timeout=5000)
         _wait_no_loading(page, "prediction-market-ranking", 15)
         text = page.text_content("#prediction-market-ranking")
@@ -132,7 +132,7 @@ class TestCognitiveModelSurfaces:
         """The Dangerous Assumptions surface must render from
         /api/oem/assumptions/dangerous."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="assumptions"]')
+        page.evaluate("navTo('assumptions')")
         page.wait_for_selector("#surface-assumptions.active", timeout=5000)
         _wait_no_loading(page, "assumptions-dangerous", 15)
         text = page.text_content("#assumptions-dangerous")
@@ -143,7 +143,7 @@ class TestCognitiveModelSurfaces:
         it must call /api/oem/perspectives and render the 6 team views."""
         page, _, _ = browser_context
         # Navigate to home and open any drilldown
-        page.click('.sidebar-link[data-surface="home"]')
+        page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         # Wait for the dashboard to load, then click the first metric
         page.click("summary")

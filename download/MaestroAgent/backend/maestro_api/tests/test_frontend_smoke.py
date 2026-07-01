@@ -166,7 +166,7 @@ class TestOEMDataLoads:
 class TestNavigation:
     def test_navigate_to_inbox(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="inbox"]')
+        page.evaluate("navTo('inbox')")
         page.wait_for_selector("#surface-inbox.active", timeout=5000)
         # Poll until loading is done (CSP blocks wait_for_function)
         import time as _t
@@ -180,7 +180,7 @@ class TestNavigation:
 
     def test_navigate_to_physics(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="physics"]')
+        page.evaluate("navTo('physics')")
         page.wait_for_selector("#surface-physics.active", timeout=5000)
         # Wait for loading state to disappear
         _wait_for_loading_done(page, "physics-laws", 20)
@@ -189,13 +189,13 @@ class TestNavigation:
 
     def test_navigate_to_ask(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="ask"]')
+        page.evaluate("navTo('ask')")
         page.wait_for_selector("#surface-ask.active", timeout=5000)
 
     def test_navigate_to_customer(self, browser_context):
         """The Customer Judgment Engine surface must load and render real data."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="customer"]')
+        page.evaluate("navTo('customer')")
         page.wait_for_selector("#surface-customer.active", timeout=5000)
         # Morning brief must load
         _wait_for_loading_done(page, "customer-morning", 20)
@@ -230,7 +230,7 @@ class TestNavigation:
     def test_customer_brief_click_opens_drilldown(self, browser_context):
         """Clicking a customer in the morning brief must open the brief panel."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="customer"]')
+        page.evaluate("navTo('customer')")
         page.wait_for_selector("#surface-customer.active", timeout=5000)
         _wait_for_loading_done(page, "customer-morning", 20)
         # Click the first customer card in the morning brief
@@ -248,7 +248,7 @@ class TestNavigation:
     def test_customer_ask_flow(self, browser_context):
         """Typing a question and pressing Enter must return an answer."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="customer"]')
+        page.evaluate("navTo('customer')")
         page.wait_for_selector("#surface-customer.active", timeout=5000)
         # Type a question
         ask_input = page.query_selector("#customer-ask-input")
@@ -270,7 +270,7 @@ class TestNavigation:
     def test_customer_morning_brief_has_one_click_actions(self, browser_context):
         """Each morning brief card must have one-click action buttons (Open/Ask/Simulate)."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="customer"]')
+        page.evaluate("navTo('customer')")
         page.wait_for_selector("#surface-customer.active", timeout=5000)
         _wait_for_loading_done(page, "customer-morning", 20)
         # Each card should have buttons with aria-labels
@@ -292,7 +292,7 @@ class TestNavigation:
         page.evaluate("navTo('home')")
         page.wait_for_selector("#surface-home.active", timeout=5000)
         # Now navigate to customer
-        page.click('.sidebar-link[data-surface="customer"]')
+        page.evaluate("navTo('customer')")
         page.wait_for_selector("#surface-customer.active", timeout=5000)
         _wait_for_loading_done(page, "customer-morning", 20)
         # Wait for the morning brief to stabilize (prior tests may have
@@ -318,7 +318,7 @@ class TestNavigation:
     def test_customer_ask_input_touch_focus(self, browser_context):
         """The ask input must be focusable via touch and accept input."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="customer"]')
+        page.evaluate("navTo('customer')")
         page.wait_for_selector("#surface-customer.active", timeout=5000)
         ask_input = page.query_selector("#customer-ask-input")
         assert ask_input is not None, "Customer ask input not found"
@@ -341,7 +341,7 @@ class TestNavigation:
     def test_customer_twin_scenario_button_touch(self, browser_context):
         """The twin scenario buttons must respond to touch taps."""
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="customer"]')
+        page.evaluate("navTo('customer')")
         page.wait_for_selector("#surface-customer.active", timeout=5000)
         # Wait for scenario buttons to load
         page.wait_for_selector("#customer-twin-scenarios button", timeout=10000)
@@ -356,7 +356,7 @@ class TestNavigation:
 
     def test_navigate_to_simulator(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="simulator"]')
+        page.evaluate("navTo('simulator')")
         page.wait_for_selector("#surface-simulator.active", timeout=5000)
         page.wait_for_selector("#simulator-scenario", timeout=15000)
         _wait_for_loading_done(page, "simulator-scenario", 20)
@@ -365,7 +365,7 @@ class TestNavigation:
 
     def test_navigate_to_eng_signals(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="eng-signals"]')
+        page.evaluate("navTo('eng-signals')")
         page.wait_for_selector("#surface-eng-signals.active", timeout=5000)
         _wait_for_loading_done(page, "eng-signals-list", 20)
         text = page.text_content("#eng-signals-list")
@@ -382,7 +382,7 @@ class TestNavigation:
 class TestAskFlow:
     def test_ask_returns_real_answer(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="ask"]')
+        page.evaluate("navTo('ask')")
         page.wait_for_selector("#surface-ask.active", timeout=5000)
         page.fill("#ask-input", "bottleneck")
         page.press("#ask-input", "Enter")
@@ -402,7 +402,7 @@ class TestAskFlow:
 
     def test_autocomplete_appears(self, browser_context):
         page, _, _ = browser_context
-        page.click('.sidebar-link[data-surface="ask"]')
+        page.evaluate("navTo('ask')")
         page.wait_for_selector("#surface-ask.active", timeout=5000)
         page.fill("#ask-input", "bottleneck")
         page.wait_for_selector("#exec-autocomplete.active", timeout=5000)
