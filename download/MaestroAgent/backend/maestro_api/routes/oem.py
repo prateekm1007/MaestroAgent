@@ -3332,3 +3332,71 @@ def get_attention() -> dict[str, Any]:
     from maestro_oem.attention import AttentionEngine
     engine = AttentionEngine(oem_state.model, oem_state.signals)
     return engine.allocate()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 31. CONSTITUTION V5 — PHASE 2-3 (Deeper Cognition + Ambient + Institutional)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/trajectories")
+def get_trajectories() -> dict[str, Any]:
+    """Temporal trajectories for all organizational dimensions.
+
+    V5 Spec #7 — org-wide trend memory. All 7 consciousness dimensions
+    get trend + slope + duration + narrative. "Trust has fallen for 8 weeks."
+    """
+    from maestro_oem.trajectories import TrajectoryEngine
+    engine = TrajectoryEngine(oem_state.model, oem_state.signals)
+    return engine.compute()
+
+
+@router.get("/causal")
+def get_causal() -> dict[str, Any]:
+    """Discover causal chains from organizational history.
+
+    V5 Spec #6 — move from correlation to causation. A caused B because
+    N interventions produced the same sequence.
+    """
+    from maestro_oem.causal import CausalEngine
+    engine = CausalEngine(oem_state.model, oem_state.signals)
+    return engine.discover()
+
+
+@router.get("/forgetting")
+def get_forgetting() -> dict[str, Any]:
+    """Identify events the organization should forget.
+
+    V5 Spec #4 — archive zero-predictive-value events. Not deletion —
+    deprioritization. Events with low predictive value are noise.
+    """
+    from maestro_oem.forgetting import ForgettingEngine
+    engine = ForgettingEngine(oem_state.model, oem_state.signals)
+    return engine.assess()
+
+
+@router.get("/imagine")
+def get_imagination(
+    scenario: str = Query("", description="Counterfactual scenario: 'legal', 'platform', 'engineering', or a person's email"),
+) -> dict[str, Any]:
+    """Generate counterfactual consequences.
+
+    V5 Spec #5 — imagination. "What would happen if Legal disappeared?"
+    Uses causal chains + historical analogues.
+    """
+    from maestro_oem.imagination import ImaginationEngine
+    engine = ImaginationEngine(oem_state.model, oem_state.signals)
+    return engine.imagine(scenario=scenario)
+
+
+@router.get("/recall")
+def get_recall(
+    situation: str = Query("", description="Current situation to find analogues for"),
+) -> dict[str, Any]:
+    """When have we been here before?
+
+    V5 Spec #8 — institutional memory recall. Retrieves top 3 similar
+    past moments from organizational history. Not documents — memories.
+    """
+    from maestro_oem.recall import RecallEngine
+    engine = RecallEngine(oem_state.model, oem_state.signals)
+    return engine.recall(situation=situation)

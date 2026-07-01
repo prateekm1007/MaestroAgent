@@ -13,7 +13,7 @@ async function loadCognition() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Engaging cognitive organs…</div>';
 
   try {
-    const [skepticism, wisdom, metacognition, principles, compression, consciousness, attention] = await Promise.all([
+    const [skepticism, wisdom, metacognition, principles, compression, consciousness, attention, trajectories, causal, forgetting] = await Promise.all([
       api.getOEM('/skepticism').catch(() => null),
       api.getOEM('/wisdom').catch(() => null),
       api.getOEM('/metacognition').catch(() => null),
@@ -21,9 +21,12 @@ async function loadCognition() {
       api.getOEM('/compression').catch(() => null),
       api.getOEM('/consciousness').catch(() => null),
       api.getOEM('/attention').catch(() => null),
+      api.getOEM('/trajectories').catch(() => null),
+      api.getOEM('/causal').catch(() => null),
+      api.getOEM('/forgetting').catch(() => null),
     ]);
 
-    renderCognition(el, skepticism, wisdom, metacognition, principles, compression, consciousness, attention);
+    renderCognition(el, skepticism, wisdom, metacognition, principles, compression, consciousness, attention, trajectories, causal, forgetting);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>The cognitive organs are still calibrating.</div>
@@ -32,7 +35,7 @@ async function loadCognition() {
   }
 }
 
-function renderCognition(el, skepticism, wisdom, metacognition, principles, compression, consciousness, attention) {
+function renderCognition(el, skepticism, wisdom, metacognition, principles, compression, consciousness, attention, trajectories, causal, forgetting) {
   let html = `<div class="meta-surface">`;
   html += `<div class="meta-surface greeting">How your organization thinks</div>`;
   html += `<div class="meta-surface sub-greeting">What it knows, what it questions, and how it judges.</div>`;
@@ -72,6 +75,21 @@ function renderCognition(el, skepticism, wisdom, metacognition, principles, comp
     html += renderCompression(compression);
   }
 
+  // V5 Spec #7 — Temporal Trajectories
+  if (trajectories && trajectories.trajectories) {
+    html += renderTrajectories(trajectories);
+  }
+
+  // V5 Spec #6 — Causal Cognition
+  if (causal && causal.chains) {
+    html += renderCausal(causal);
+  }
+
+  // V5 Spec #4 — Forgetting Engine
+  if (forgetting && forgetting.candidates) {
+    html += renderForgetting(forgetting);
+  }
+
   html += `</div>`;
   el.innerHTML = html;
 }
@@ -93,6 +111,72 @@ function renderAttention(a) {
     for (const ign of a.should_ignore) {
       html += `<div style="font-size:13px;color:var(--text-muted);padding:4px 0;">${escapeHtml(humanize(ign.domain || ''))} — ${escapeHtml(humanize(ign.reason || ''))}</div>`;
     }
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderTrajectories(t) {
+  const trajs = t.trajectories || {};
+  let html = `
+    <div class="story-card" style="margin-bottom:16px;">
+      <div class="intention-label" style="color:var(--accent);margin-bottom:8px;">Where things are heading</div>
+      <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(t.summary || ''))}</div>
+  `;
+  for (const [name, traj] of Object.entries(trajs)) {
+    const trend = traj.trend || 'stable';
+    const arrow = trend === 'improving' ? '↑' : trend === 'declining' ? '↓' : '→';
+    const color = trend === 'improving' ? 'var(--positive)' : trend === 'declining' ? 'var(--risk)' : 'var(--text-muted)';
+    html += `
+      <div style="padding:10px 0;border-bottom:1px solid var(--divider);">
+        <div class="ds-row" style="gap:8px;">
+          <span style="color:${color};font-size:16px;">${arrow}</span>
+          <span style="font-size:13px;font-weight:500;color:var(--text-primary);text-transform:capitalize;">${escapeHtml(name.replace(/_/g, ' '))}</span>
+          <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">${escapeHtml(traj.slope || '')} · ${escapeHtml(traj.duration || '')}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${escapeHtml(humanize(traj.narrative || ''))}</div>
+      </div>
+    `;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderCausal(c) {
+  if (!c.chains || c.chains.length === 0) return '';
+  let html = `
+    <div class="story-card" style="margin-bottom:16px;">
+      <div class="intention-label" style="color:var(--accent);margin-bottom:8px;">What causes what</div>
+      <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(c.summary || ''))}</div>
+  `;
+  for (const chain of c.chains.slice(0, 3)) {
+    html += `
+      <div style="padding:12px 0;border-bottom:1px solid var(--divider);">
+        <div style="font-size:13px;color:var(--text-primary);"><strong>When:</strong> ${escapeHtml(humanize(chain.cause || ''))}</div>
+        <div style="font-size:13px;color:var(--text-primary);margin-top:4px;"><strong>Then:</strong> ${escapeHtml(humanize(chain.effect || ''))}</div>
+        <div class="ds-meta" style="margin-top:4px;">Observed ${chain.sequence_count} times · ${escapeHtml(chain.confidence || '')} confidence</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${escapeHtml(humanize(chain.narrative || ''))}</div>
+      </div>
+    `;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderForgetting(f) {
+  if (!f.candidates || f.candidates.length === 0) return '';
+  let html = `
+    <div class="story-card" style="margin-bottom:16px;">
+      <div class="intention-label" style="color:var(--accent);margin-bottom:8px;">What to stop tracking</div>
+      <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(f.summary || ''))}</div>
+  `;
+  for (const c of f.candidates.slice(0, 3)) {
+    html += `
+      <div style="padding:10px 0;border-bottom:1px solid var(--divider);">
+        <div style="font-size:13px;color:var(--text-primary);">${escapeHtml(humanize(c.entity_id || ''))}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${escapeHtml(humanize(c.narrative || ''))}</div>
+      </div>
+    `;
   }
   html += `</div>`;
   return html;

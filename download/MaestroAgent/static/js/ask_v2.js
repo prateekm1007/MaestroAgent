@@ -15,6 +15,8 @@ const _intentionPrompts = [
   { label: 'Check assumptions', text: 'What are we assuming that might be wrong?' },
   { label: 'Review predictions', text: 'What predictions have been confirmed or disproven?' },
   { label: 'Prepare customer', text: 'What does the organization know about this customer?' },
+  { label: 'Imagine', text: 'What would happen if Legal disappeared?' },
+  { label: 'Recall', text: 'When have we been here before?' },
 ];
 
 let _askIntentionMode = true; // true = show prompts, false = show answer
@@ -65,6 +67,34 @@ async function submitAskV2(question) {
   if (!answerEl) return;
 
   _askIntentionMode = false;
+  const qLower = question.toLowerCase();
+
+  // V5 Spec #5 — route "what if" questions to Imagination engine
+  if (qLower.includes('what if') || qLower.includes('what would happen') || qLower.includes('imagine')) {
+    answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Imagining consequences…</div>';
+    answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+      const data = await api.getOEM(`/imagine?scenario=${encodeURIComponent(question)}`);
+      renderImaginationAnswer(answerEl, question, data);
+    } catch (e) {
+      answerEl.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
+    }
+    return;
+  }
+
+  // V5 Spec #8 — route "when have we" questions to Recall engine
+  if (qLower.includes('when have we') || qLower.includes('been here before') || qLower.includes('recall') || qLower.includes('last time')) {
+    answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Searching organizational memory…</div>';
+    answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+      const data = await api.getOEM(`/recall?situation=${encodeURIComponent(question)}`);
+      renderRecallAnswer(answerEl, question, data);
+    } catch (e) {
+      answerEl.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
+    }
+    return;
+  }
+
   answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Consulting your organization\u2019s memory…</div>';
 
   // Scroll to answer
@@ -113,6 +143,55 @@ function renderAskV2Answer(el, question, data) {
   // "Ask another question" prompt
   html += `<button class="intention-prompt" onclick="loadAskV2()" style="margin-top:16px;">Ask another question</button>`;
 
+  el.innerHTML = html;
+}
+
+function renderImaginationAnswer(el, question, data) {
+  let html = `<div class="story-card">
+    <div class="story-narrative" style="font-weight:500;color:var(--accent);margin-bottom:12px;">${escapeHtml(humanize(data.scenario || question))}</div>
+  `;
+  if (data.consequences && data.consequences.length) {
+    for (const c of data.consequences) {
+      html += `<div style="padding:10px 0;border-bottom:1px solid var(--divider);">
+        <div style="font-size:14px;color:var(--text-primary);">${escapeHtml(humanize(c.effect || ''))}</div>
+        <div class="ds-meta" style="margin-top:4px;">Because: ${escapeHtml(humanize(c.cause || ''))}</div>
+        <div class="ds-meta">Confidence: ${escapeHtml(humanize(c.confidence || ''))}</div>
+      </div>`;
+    }
+  }
+  if (data.historical_analogue) {
+    html += `<div style="margin-top:12px;padding:12px;background:var(--surface-2);border-radius:8px;font-size:13px;color:var(--text-secondary);"><strong>Last time something similar happened:</strong> ${escapeHtml(humanize(data.historical_analogue))}</div>`;
+  }
+  if (data.recommendation) {
+    html += `<div style="margin-top:8px;font-size:14px;color:var(--accent);font-weight:500;">${escapeHtml(humanize(data.recommendation))}</div>`;
+  }
+  html += `</div>`;
+  html += `<button class="intention-prompt" onclick="loadAskV2()" style="margin-top:16px;">Ask another question</button>`;
+  el.innerHTML = html;
+}
+
+function renderRecallAnswer(el, question, data) {
+  if (data.novel || !data.moments || data.moments.length === 0) {
+    el.innerHTML = `<div class="story-card">
+      <div class="story-narrative">${escapeHtml(humanize(data.summary || 'No similar past moments found.'))}</div>
+      <div class="story-evidence" style="margin-top:8px;">This may be a novel situation for the organization.</div>
+    </div>
+    <button class="intention-prompt" onclick="loadAskV2()" style="margin-top:16px;">Ask another question</button>`;
+    return;
+  }
+  let html = `<div class="story-card">
+    <div class="story-narrative" style="font-weight:500;color:var(--accent);margin-bottom:12px;">${escapeHtml(humanize(data.summary || ''))}</div>
+  `;
+  for (const m of data.moments) {
+    html += `<div style="padding:12px 0;border-bottom:1px solid var(--divider);">
+      <div class="ds-meta" style="margin-bottom:4px;">${escapeHtml(humanize(m.when || ''))}</div>
+      <div style="font-size:14px;color:var(--text-primary);">${escapeHtml(humanize(m.situation || ''))}</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">What we did: ${escapeHtml(humanize(m.what_we_did || ''))}</div>
+      <div style="font-size:13px;color:var(--text-secondary);">What we learned: ${escapeHtml(humanize(m.what_we_learned || ''))}</div>
+    </div>`;
+  }
+  html += `</div>`;
+  html += `<button class="intention-prompt" onclick="loadAskV2()" style="margin-top:16px;">Ask another question</button>`;
   el.innerHTML = html;
 }
 
