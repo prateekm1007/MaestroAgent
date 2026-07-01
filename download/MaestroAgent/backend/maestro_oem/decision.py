@@ -267,11 +267,50 @@ class DecisionEngine:
         by keyword overlap.
         """
         q_lower = question.lower()
+        # Tokenize the question into meaningful words (length > 3) and
+        # compute a relevance score for each entity. The old algorithm
+        # used `any(word in statement for word in q.split())` which matched
+        # on ANY single word — so "should we hire more engineers" matched
+        # a churn learning object because both contained "engineers."
+        #
+        # The new algorithm requires a MINIMUM overlap threshold: at least
+        # 2 query words must match, OR the query must contain a domain-
+        # specific keyword that appears in the entity. This dramatically
+        # reduces false positives while keeping the matching fast (no
+        # embeddings needed for the pilot).
+        q_words = set(w for w in q_lower.split() if len(w) > 3)
+        MIN_WORD_OVERLAP = 2  # At least 2 query words must appear in the entity
 
-        # Search for relevant laws
+        def _relevance_score(text: str) -> tuple[int, float]:
+            """Return (matching_word_count, overlap_ratio) for a text."""
+            if not text:
+                return (0, 0.0)
+            text_lower = text.lower()
+            matches = sum(1 for w in q_words if w in text_lower)
+            ratio = matches / max(len(q_words), 1)
+            return (matches, ratio)
+
+        def _is_relevant(text: str) -> bool:
+            """Check if text is relevant to the query.
+
+            Relevant if:
+              1. At least MIN_WORD_OVERLAP query words appear in the text, OR
+              2. The overlap ratio is > 0.5 (most query words match), OR
+              3. The query is a single word and that word appears (short queries)
+            """
+            if not text:
+                return False
+            matches, ratio = _relevance_score(text)
+            if len(q_words) <= 1:
+                return matches >= 1
+            return matches >= MIN_WORD_OVERLAP or ratio > 0.5
+
+        # Search for relevant laws — require minimum word overlap
         relevant_laws: list[dict[str, Any]] = []
         for law in self.model.laws.values():
-            if any(word in law.statement.lower() for word in q_lower.split() if len(word) > 3):
+            law_text = f"{law.statement} {law.condition} {law.outcome}"
+            if _is_relevant(law_text):
+                matches, ratio = _relevance_score(law_text)
                 relevant_laws.append({
                     "code": law.code,
                     "statement": law.statement,
@@ -279,18 +318,22 @@ class DecisionEngine:
                     "status": law.status.value,
                     "evidence_count": law.evidence_count,
                     "provenance": self.model.get_provenance_chain(law.code),
+                    "relevance": round(ratio, 2),
                 })
 
-        # Search for relevant learning objects
+        # Search for relevant learning objects — require minimum word overlap
         relevant_los: list[dict[str, Any]] = []
         for lo in self.model.learning_objects.values():
-            if any(word in lo.description.lower() for word in q_lower.split() if len(word) > 3):
+            lo_text = f"{lo.title} {lo.description}"
+            if _is_relevant(lo_text):
+                matches, ratio = _relevance_score(lo_text)
                 relevant_los.append({
                     "type": lo.type.value,
                     "title": lo.title,
                     "confidence": lo.confidence,
                     "evidence_count": lo.evidence_count,
                     "providers": list(lo.providers),
+                    "relevance": round(ratio, 2),
                 })
 
         # Search for hidden experts

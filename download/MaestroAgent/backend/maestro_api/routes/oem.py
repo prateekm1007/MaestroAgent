@@ -1188,8 +1188,17 @@ def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     """
     from maestro_oem.simulation import SimulationEngine
     engine = SimulationEngine(oem_state.model, oem_state.decisions)
+    # Accept both {inputs: {hire_count: N}} (canonical) and {hire_count: N}
+    # (flat) — the auditor's round-4 test sent the flat shape and got
+    # inputs_applied: {hire_count: 0} because the route only checked the
+    # nested key. Now we merge flat keys into inputs if inputs is absent.
+    inputs = payload.get("inputs", {})
+    if not inputs:
+        # Flat payload — treat all non-meta keys as inputs
+        meta_keys = {"law_code", "recommendation_id", "inputs"}
+        inputs = {k: v for k, v in payload.items() if k not in meta_keys}
     return engine.simulate(
-        inputs=payload.get("inputs", {}),
+        inputs=inputs,
         law_code=payload.get("law_code"),
         recommendation_id=payload.get("recommendation_id"),
     )

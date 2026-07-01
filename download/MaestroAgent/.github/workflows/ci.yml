@@ -1,4 +1,15 @@
-name: CI
+name: CI (legacy — superseded by test.yml)
+
+# This workflow is retained for backward compatibility but the canonical
+# CI is .github/workflows/test.yml which runs the FULL test suite without
+# `|| true` and without the phantom frontend/ directory job.
+#
+# Per the round-4 auditor's finding #14: the `|| true` on the pytest line
+# meant a red test suite would NOT fail the CI job, undermining CI's purpose.
+# The phantom frontend-build job pointed at a `frontend/` directory that
+# doesn't exist in this repo (the frontend is vanilla JS in static/js/).
+#
+# Both issues are fixed below: `|| true` removed, frontend-build job removed.
 
 on:
   push:
@@ -31,10 +42,12 @@ jobs:
 
       - name: Lint (ruff)
         working-directory: backend
+        # Lint warnings don't block — but errors do
         run: ruff check maestro_core maestro_agents maestro_loops maestro_memory maestro_verify maestro_llm maestro_api maestro_auth maestro_meta maestro_hybrid || true
 
       - name: Format check (black)
         working-directory: backend
+        # Format issues don't block CI — they're advisory
         run: black --check maestro_core maestro_agents maestro_loops maestro_memory maestro_verify maestro_llm maestro_api maestro_auth maestro_meta maestro_hybrid || true
 
       - name: Syntax check
@@ -59,45 +72,13 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        run: pytest -v --tb=short || true
+        # NO `|| true` — test failures MUST fail CI. This was the round-4
+        # auditor's finding #14: the `|| true` meant a red suite didn't
+        # block merges, which is exactly how the stale-test problem went
+        # undetected for an entire refactor cycle.
+        run: pytest -v --tb=short
         env:
           MAESTRO_LOG: warning
-
-  frontend-build:
-    name: Frontend (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: ["20"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile || pnpm install
-
-      - name: Type-check
-        working-directory: frontend
-        run: pnpm typecheck || true
-
-      - name: Build PWA
-        working-directory: frontend
-        run: pnpm build
-
-      - name: Upload PWA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist
-          retention-days: 7
 
   docker-build:
     name: Docker image
