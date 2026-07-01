@@ -33,13 +33,16 @@ def client():
 def _clear_stores():
     from maestro_oem.trust_ledger import TrustLedger
     from maestro_oem.attention_signals import AttentionSignalStore
+    from maestro_oem.user_settings import UserSettings
     from maestro_oem.writeback import WriteBackStore
     TrustLedger.clear()
     AttentionSignalStore.clear()
+    UserSettings.clear()
     WriteBackStore.clear()
     yield
     TrustLedger.clear()
     AttentionSignalStore.clear()
+    UserSettings.clear()
     WriteBackStore.clear()
 
 
@@ -132,11 +135,15 @@ class TestProgressiveTrust:
         assert data["auto"] is False
 
     def test_auto_execute_after_10_approvals(self, client) -> None:
-        """After 10 successful approvals, auto-execute is eligible."""
+        """After 10 successful approvals + opt-in, auto-execute fires."""
         from maestro_oem.trust_ledger import TrustLedger
+        from maestro_oem.user_settings import UserSettings
         TrustLedger.clear()
+        UserSettings.clear()
         for i in range(10):
             TrustLedger.record("aid", "slack", "post_message", "ceo@acme.com", "success")
+        # Must also opt-in (Round-35 fix)
+        UserSettings.set_auto_execute("ceo@acme.com", "slack", "post_message", True)
         r = client.post("/api/oem/writeback/auto-execute", json={
             "provider": "slack", "action_type": "post_message",
             "params": {"channel": "general", "text": "auto test"},
@@ -151,9 +158,13 @@ class TestProgressiveTrust:
     def test_undo_endpoint(self, client) -> None:
         """POST /writeback/{id}/undo must roll back and record in ledger."""
         from maestro_oem.trust_ledger import TrustLedger
+        from maestro_oem.user_settings import UserSettings
         TrustLedger.clear()
+        UserSettings.clear()
         for i in range(10):
             TrustLedger.record("aid", "slack", "post_message", "ceo@acme.com", "success")
+        # Must also opt-in (Round-35 fix)
+        UserSettings.set_auto_execute("ceo@acme.com", "slack", "post_message", True)
         # Auto-execute
         r1 = client.post("/api/oem/writeback/auto-execute", json={
             "provider": "slack", "action_type": "post_message",

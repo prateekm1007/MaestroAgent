@@ -4073,14 +4073,17 @@ def get_trust_score(
 
 @router.post("/writeback/auto-execute")
 def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
-    """Auto-execute a write-back if the user has earned trust.
+    """Auto-execute a write-back if the user has earned trust AND opted in.
 
-    V8 P1-2 — Progressive Trust. After a user has approved 10+ write-backs
-    of the same (provider, action_type) with 0 rollbacks, that action type
-    becomes eligible for auto-execute. The customer must explicitly enable
-    auto-execute per action type in settings.
+    V8 P1-2 — Progressive Trust. Auto-execute requires BOTH:
+      1. Eligibility: trust_score >= 10 AND rolled_back == 0 (TrustLedger)
+      2. Explicit opt-in: the customer must enable auto-execute per action
+         type via POST /settings/auto-execute
 
-    Auto-execute is opt-in. The default is always manual preview + approve.
+    Default: all auto-execute disabled. The customer must explicitly enable
+    each (provider, action_type) pair. Even after enabling, the eligibility
+    check must still pass.
+
     The first auto-executed action shows a 60-second undo window.
 
     Payload:
@@ -4090,10 +4093,12 @@ def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
         user: str (required — the user requesting auto-execute)
 
     Returns:
-        If eligible + enabled: {status: "executed", auto: true, undo_until: ISO}
+        If eligible + opted-in: {status: "executed", auto: true, undo_until: ISO}
         If not eligible: {status: "requires_manual_approval", auto: false}
+        If eligible but not opted-in: {status: "requires_opt_in", auto: false}
     """
     from maestro_oem.trust_ledger import TrustLedger
+    from maestro_oem.user_settings import UserSettings
     from maestro_oem.writeback import WriteBackService
 
     provider = payload.get("provider", "")
@@ -4104,7 +4109,7 @@ def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
     if not provider or not action_type or not user:
         raise HTTPException(400, "provider, action_type, and user are required")
 
-    # Check if auto-execute is eligible
+    # Check 1: Is auto-execute eligible? (trust_score >= 10, 0 rollbacks)
     eligible = TrustLedger.is_auto_execute_eligible(user, provider, action_type)
     if not eligible:
         score = TrustLedger.compute_trust_score(user, provider, action_type)
@@ -4116,7 +4121,18 @@ def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
             "message": f"Trust score {score} is below threshold 10. Manual approval required.",
         }
 
-    # Auto-execute: preview + immediately approve
+    # Check 2: Has the customer explicitly opted in? (Round-35 fix)
+    opted_in = UserSettings.is_auto_execute_enabled(user, provider, action_type)
+    if not opted_in:
+        return {
+            "status": "requires_opt_in",
+            "auto": False,
+            "trust_score": TrustLedger.compute_trust_score(user, provider, action_type),
+            "eligible": True,
+            "message": f"Auto-execute is eligible but not enabled. Enable via POST /settings/auto-execute with provider={provider}, action_type={action_type}, enabled=true.",
+        }
+
+    # Both checks passed — auto-execute
     svc = WriteBackService()
     preview = svc.preview(provider, action_type, params)
     result = svc.approve(preview["action_id"], approved_by=user, auto_execute=True)
@@ -4160,6 +4176,196 @@ def undo_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     action.status = "rolled_back"
     return action.to_dict()
+
+
+# ─── V8 P1-2 Fix — Auto-Execute Opt-In Settings ────────────────────────────
+
+@router.post("/settings/auto-execute")
+def set_auto_execute_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    """Enable or disable auto-execute per action type.
+
+    V8 P1-2 Fix (Round-35 audit) — the customer must explicitly enable
+    auto-execute per (provider, action_type) pair. Even after enabling,
+    the eligibility check (trust_score >= 10, 0 rollbacks) must still pass.
+
+    Payload:
+        provider: str (required)
+        action_type: str (required)
+        enabled: bool (required — True to enable, False to disable)
+
+    Returns the updated settings with eligibility info.
+    """
+    from maestro_oem.user_settings import UserSettings
+    provider = payload.get("provider", "")
+    action_type = payload.get("action_type", "")
+    enabled = payload.get("enabled", False)
+    user = payload.get("user", "default")
+
+    if not provider or not action_type:
+        raise HTTPException(400, "provider and action_type are required")
+
+    return UserSettings.set_auto_execute(user, provider, action_type, enabled)
+
+
+@router.get("/settings/auto-execute")
+def get_auto_execute_settings(
+    user: str = Query("default", description="User email."),
+) -> dict[str, Any]:
+    """Get auto-execute settings with eligibility info per action type.
+
+    Returns each enabled action type with:
+      - enabled: whether the customer opted in
+      - trust_score: current trust score
+      - eligible: whether trust_score >= 10 and 0 rollbacks
+      - active: enabled AND eligible (auto-execute will fire)
+    """
+    from maestro_oem.user_settings import UserSettings
+    settings = UserSettings.get_auto_execute_settings(user)
+    settings["action_types"] = UserSettings.get_auto_execute_with_eligibility(user)
+    return settings
+
+
+# ─── V8 P2-3 — Customer-Initiated Teaching ─────────────────────────────────
+
+@router.post("/teach")
+def teach_maestro(payload: dict[str, Any]) -> dict[str, Any]:
+    """Let the customer teach Maestro something in free text.
+
+    V8 P2-3 — Customer-Initiated Teaching. The customer types free text
+    ("Legal always slows down OAuth approvals because Sarah needs to
+    review every scope change"). Maestro processes this as a human_context
+    signal, extracts entities + patterns, and returns a confirmation the
+    customer can edit. This is the Amazon principle: the customer is the
+    best source of truth. Maestro should make it effortless to inject
+    human knowledge into the model.
+
+    Payload:
+        text: str (required — free text from the customer)
+        actor: str (optional — who is teaching, defaults to "user")
+
+    Returns:
+        {
+            learned: dict,  # what Maestro extracted
+            signal_id: str,  # the created signal ID
+            confirmation: str,  # human-readable confirmation
+            editable: bool,  # True — the customer can edit
+        }
+    """
+    text = payload.get("text", "")
+    actor = payload.get("actor", "user")
+
+    if not text or not text.strip():
+        raise HTTPException(400, "text is required")
+
+    text = text.strip()
+
+    # Extract entities + patterns from the free text
+    learned = _extract_knowledge_from_text(text)
+
+    # Create a human_context signal (same pattern as Conversational Curiosity)
+    from maestro_oem.signal import ExecutionSignal, SignalType, SignalProvider
+    from datetime import datetime, timezone
+
+    signal = ExecutionSignal(
+        type=SignalType.DECISION_SIGNAL,
+        timestamp=datetime.now(timezone.utc),
+        actor=actor,
+        artifact=f"human-teach:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        decision=True,
+        confidence=1.0,
+        metadata={
+            "kind": "human_context",
+            "source": "customer_teaching",
+            "text": text,
+            "learned": learned,
+            "taught_by": actor,
+        },
+        provider=SignalProvider.UNKNOWN,
+    )
+
+    # Ingest directly into the engine (not via live_ingest — this is
+    # organizational knowledge, not a provider signal. Same pattern as
+    # the Conversational Curiosity follow-up endpoint.)
+    try:
+        with oem_state._lock:
+            assert oem_state.engine is not None
+            oem_state.engine.ingest([signal])
+            oem_state.signals.append(signal)
+        oem_state._refresh_downstream()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Failed to ingest teach signal: %s", e)
+
+    confirmation = (
+        f"Got it. I learned: {learned.get('summary', text[:120])}. "
+        f"Is this correct? You can edit this knowledge or teach me more."
+    )
+
+    return {
+        "learned": learned,
+        "signal_id": str(signal.signal_id),
+        "confirmation": confirmation,
+        "editable": True,
+        "text": text,
+    }
+
+
+def _extract_knowledge_from_text(text: str) -> dict[str, Any]:
+    """Extract entities + patterns from free-text teaching.
+
+    Rule-based extraction for the pilot. In production, the LLM handles
+    this with entity recognition + relationship extraction.
+    """
+    import re
+
+    # Extract email addresses (potential people)
+    emails = re.findall(r'[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}', text)
+
+    # Extract domain keywords
+    domain_keywords = {
+        "legal", "compliance", "oauth", "security", "payments", "architecture",
+        "engineering", "qa", "testing", "deployment", "incident", "customer",
+        "sales", "marketing", "product", "design", "devops", "frontend",
+        "backend", "database", "infrastructure",
+    }
+    text_lower = text.lower()
+    found_domains = [d for d in domain_keywords if d in text_lower]
+
+    # Extract causal patterns ("because", "since", "due to", "leads to")
+    causal_patterns = []
+    for pattern in [r'because\s+(.+?)(?=[.;]|\n|$)', r'since\s+(.+?)(?=[.;]|\n|$)',
+                     r'due to\s+(.+?)(?=[.;]|\n|$)', r'leads to\s+(.+?)(?=[.;]|\n|$)',
+                     r'always\s+(.+?)(?=[.;]|\n|$)', r'never\s+(.+?)(?=[.;]|\n|$)']:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        causal_patterns.extend(matches[:2])
+
+    # Extract action patterns
+    action_patterns = []
+    for pattern in [r'should\s+(.+?)(?=[.;]|\n|$)', r'must\s+(.+?)(?=[.;]|\n|$)',
+                     r'needs? to\s+(.+?)(?=[.;]|\n|$)', r'have to\s+(.+?)(?=[.;]|\n|$)']:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        action_patterns.extend(matches[:2])
+
+    # Build a summary
+    summary_parts = []
+    if found_domains:
+        summary_parts.append(f"domains: {', '.join(found_domains[:3])}")
+    if emails:
+        summary_parts.append(f"people: {', '.join(emails[:3])}")
+    if causal_patterns:
+        summary_parts.append(f"patterns: {'; '.join(causal_patterns[:2])}")
+    if action_patterns:
+        summary_parts.append(f"actions: {'; '.join(action_patterns[:2])}")
+    summary = " | ".join(summary_parts) if summary_parts else text[:120]
+
+    return {
+        "summary": summary,
+        "domains": found_domains,
+        "people": emails,
+        "causal_patterns": causal_patterns,
+        "action_patterns": action_patterns,
+        "full_text": text,
+    }
 
 
 # ─── V8 P1-3 — Unknown-to-Action Pipeline ──────────────────────────────────
