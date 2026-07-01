@@ -53,6 +53,7 @@
       <button class="drilldown-tab" data-tab="simulation" onclick="switchDrilldownTab('simulation')">Simulation</button>
       <button class="drilldown-tab" data-tab="recommendation" onclick="switchDrilldownTab('recommendation')">Recommendation</button>
       <button class="drilldown-tab" data-tab="perspectives" onclick="switchDrilldownTab('perspectives')">Perspectives</button>
+      <button class="drilldown-tab" data-tab="sowhat" onclick="switchDrilldownTab('sowhat')">So what?</button>
     </div>
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-6" id="drilldown-body">
@@ -260,6 +261,13 @@
       <section class="surface" id="surface-learn">
         <div id="learn-content">
           <div class="ds-loading"><span class="spinner"></span> Recalling what your organization learned…</div>
+        </div>
+      </section>
+
+      <!-- SURFACE: EVOLUTION — quarterly evolution report (V3 Law 10) -->
+      <section class="surface" id="surface-evolution">
+        <div id="evolution-content">
+          <div class="ds-loading"><span class="spinner"></span> Measuring how your organization has evolved…</div>
         </div>
       </section>
 
@@ -1076,5 +1084,6 @@
 <script defer src="/static/js/work.js"></script>
 <script defer src="/static/js/ask_v2.js"></script>
 <script defer src="/static/js/learn.js"></script>
+<script defer src="/static/js/evolution.js"></script>
 </body>
 </html>

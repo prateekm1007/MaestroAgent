@@ -156,10 +156,49 @@ function renderDrilldownTab(tab) {
        `).join('')}</div>`;
   } else if (tab === 'perspectives') {
     // Surface 4: Perspectives — translate this event into 6 team-specific views.
-    // Calls /api/oem/perspectives?event_type=... The event type is inferred
-    // from the entity type (recommendation, signal, customer event, etc.).
     body.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Translating into team perspectives…</div>';
     renderPerspectivesTab(body);
+  } else if (tab === 'sowhat') {
+    // V3 Law 8: Everything answers 'so what?'
+    body.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Analyzing consequences…</div>';
+    renderSoWhatTab(body);
+  }
+}
+
+// ─── V3: So What? tab ──────────────────────────────────────────────────────
+async function renderSoWhatTab(bodyEl) {
+  if (!drilldownData) {
+    bodyEl.innerHTML = '<div class="ds-empty">No entity loaded.</div>';
+    return;
+  }
+  // Infer entity type from the drilldown data
+  const entityType = drilldownData.type || drilldownData.entity_type || 'recommendation';
+  const entityId = drilldownData.title || drilldownData.why || drilldownData.entity_id || '';
+
+  try {
+    const data = await api.getOEM(`/sowhat?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`);
+    bodyEl.innerHTML = `
+      <div class="ds-stack">
+        <div>
+          <div class="ds-cascade-label">If ignored</div>
+          <div style="font-size:14px;color:var(--text-primary);line-height:1.6;">${escapeHtml(humanize(data.consequence_if_ignored || ''))}</div>
+        </div>
+        <div>
+          <div class="ds-cascade-label">What to do</div>
+          <div style="font-size:14px;color:var(--text-primary);line-height:1.6;">${escapeHtml(humanize(data.recommended_action || ''))}</div>
+        </div>
+        <div>
+          <div class="ds-cascade-label">When it matters</div>
+          <div style="font-size:14px;color:var(--text-primary);">${escapeHtml(humanize(data.time_horizon || ''))}</div>
+        </div>
+        <div>
+          <div class="ds-cascade-label">How we know</div>
+          <div style="font-size:13px;color:var(--text-secondary);">${escapeHtml(humanize(data.confidence_in_consequence || ''))} · ${data.evidence_count || 0} signals</div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    bodyEl.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
   }
 }
 

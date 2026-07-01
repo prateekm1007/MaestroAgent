@@ -20,7 +20,7 @@ async function loadPulse() {
           return `<div><div class="text-[10px] text-fg-500 uppercase">${label}</div><div class="font-bold ${color}">${Math.round(val)}</div></div>`;
         }).join('')}
       </div>
-      <div class="mt-3 pt-3 border-t border-white/[0.05] text-xs text-fg-300">${escapeHtml(p.narrative)}</div>
+      <div class="mt-3 pt-3 border-t border-white/[0.05] text-xs text-fg-300">${escapeHtml(humanize(p.narrative))}</div>
     `;
   } catch (e) {
     body.innerHTML = `<div class="empty-state">Pulse unavailable: ${escapeHtml(e.message)}</div>`;
@@ -35,13 +35,13 @@ async function loadNarrative() {
     const n = await api.getOEM('/narrative');
     dateEl.textContent = n.date;
     body.innerHTML = `
-      <div class="text-sm font-semibold text-white mb-2">${escapeHtml(n.title)}</div>
-      <div class="text-xs text-fg-300 whitespace-pre-line mb-3">${escapeHtml(n.body)}</div>
+      <div class="text-sm font-semibold text-white mb-2">${escapeHtml(humanize(n.title))}</div>
+      <div class="text-xs text-fg-300 whitespace-pre-line mb-3">${escapeHtml(humanize(n.body))}</div>
       ${n.highlights && n.highlights.length > 0 ? `
         <div class="space-y-1">
           ${n.highlights.slice(0, 5).map(h => {
             const color = h.impact === 'positive' ? 'text-green-400' : h.impact === 'negative' ? 'text-red-400' : h.impact === 'warning' ? 'text-yellow-400' : 'text-fg-400';
-            return `<div class="text-[11px] ${color}">• ${escapeHtml(h.text)}</div>`;
+            return `<div class="text-[11px] ${color}">• ${escapeHtml(humanize(h.text))}</div>`;
           }).join('')}
         </div>
       ` : ''}
@@ -71,7 +71,7 @@ async function loadFeed() {
       return `
         <div class="border-l-2 ${color} pl-3 py-1.5 mb-1.5 cursor-pointer hover:bg-white/[0.02]" onclick="openFeedEvent('${escapeJs(e.event_type)}', '${escapeJs(e.entity_id)}')">
           <div class="flex items-center justify-between">
-            <div class="text-xs font-semibold text-white">${escapeHtml(e.title)}</div>
+            <div class="text-xs font-semibold text-white">${escapeHtml(humanize(e.title))}</div>
             <div class="text-[9px] text-fg-500">${formatTimestamp(e.timestamp)}</div>
           </div>
           <div class="text-[10px] text-fg-400 mt-0.5">${escapeHtml(e.why_it_matters)}</div>
@@ -98,10 +98,10 @@ async function loadCognitiveLoad() {
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         ${topFactors.map(([name, f]) => {
           const fc = f.score > 60 ? 'text-red-400' : f.score > 40 ? 'text-yellow-400' : 'text-green-400';
-          return `<div><div class="text-[10px] text-fg-500 uppercase">${name.replace(/_/g, ' ')}</div><div class="font-bold ${fc}">${Math.round(f.score)}</div><div class="text-[9px] text-fg-400">${escapeHtml(f.detail)}</div></div>`;
+          return `<div><div class="text-[10px] text-fg-500 uppercase">${name.replace(/_/g, ' ')}</div><div class="font-bold ${fc}">${Math.round(f.score)}</div><div class="text-[9px] text-fg-400">${escapeHtml(humanize(f.detail))}</div></div>`;
         }).join('')}
       </div>
-      <div class="mt-3 pt-3 border-t border-white/[0.05] text-xs text-fg-300">${escapeHtml(ocl.narrative)}</div>
+      <div class="mt-3 pt-3 border-t border-white/[0.05] text-xs text-fg-300">${escapeHtml(humanize(ocl.narrative))}</div>
       ${ocl.recommendations && ocl.recommendations.length > 0 ? `
         <div class="mt-2 text-[10px] text-cyan-400">→ ${escapeHtml(ocl.recommendations[0].recommendation)}</div>
       ` : ''}

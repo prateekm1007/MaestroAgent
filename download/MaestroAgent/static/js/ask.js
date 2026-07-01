@@ -147,7 +147,7 @@ async function submitAsk(query) {
   answerDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   try {
     const data = await api.getOEM('/ask?q=' + encodeURIComponent(q));
-    document.getElementById('ask-answer-text').innerHTML = escapeHtml(data.answer).replace(/\n/g, '<br>');
+    document.getElementById('ask-answer-text').innerHTML = escapeHtml(humanize(data.answer)).replace(/\n/g, '<br>');
     const sources = data.sources || [];
     document.getElementById('ask-citations').innerHTML = sources.length === 0
       ? '<span class="text-[11px] text-fg-500">No sources cited (insufficient evidence).</span>'

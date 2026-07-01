@@ -84,7 +84,7 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
   ambientCards.push({
     tool: 'Jira',
     message: providers.includes('jira')
-      ? `${metrics.learning_objects || 0} patterns inferred from issue transitions. ${metrics.laws_inferred || 0} organizational patterns validated.`
+      ? `${metrics.patterns_inferred || 0} patterns inferred from issue transitions. ${metrics.patterns_validated || 0} organizational patterns validated.`
       : 'Jira is not connected. Configure it in Settings to see issue-transition intelligence.',
     action: () => navTo('eng-signals'),
   });
@@ -112,7 +112,7 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
     whispers.forEach((w, i) => {
       html += `
         <div class="whisper" data-idx="${i}">
-          ${escapeHtml(w.text)}
+          ${escapeHtml(humanize(w.text))}
           <div class="whisper-source">via ${escapeHtml(w.source)}</div>
         </div>
       `;
@@ -135,9 +135,9 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
   deepCaps.forEach(cap => {
     if (cap.count > 0) {
-      html += `<button class="intention-prompt" onclick="navTo('${cap.surface}')">${escapeHtml(cap.label)} · ${cap.count}</button>`;
+      html += `<button class="intention-prompt" onclick="navTo('${cap.surface}')">${escapeHtml(humanize(cap.label))} · ${cap.count}</button>`;
     } else {
-      html += `<button class="intention-prompt" onclick="navTo('${cap.surface}')">${escapeHtml(cap.label)}</button>`;
+      html += `<button class="intention-prompt" onclick="navTo('${cap.surface}')">${escapeHtml(humanize(cap.label))}</button>`;
     }
   });
   html += `</div>`;

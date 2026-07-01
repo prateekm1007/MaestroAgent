@@ -21,6 +21,7 @@ const MAESTRO_API = window.MAESTRO_API || '';
 const pageNames = {
   // Constitution v2 — 4 meta-surfaces
   today: 'Today', work: 'Work', 'ask-v2': 'Ask', learn: 'Learn',
+  evolution: 'Evolution Report',
   // Deep capabilities (existing surfaces)
   home: 'Home', inbox: 'Inbox', simulator: 'Decision Simulator',
   hayek: 'Hayek Lens', flow: 'Knowledge Flow', memory: 'Memory Replay',
@@ -138,8 +139,9 @@ const _hiddenSurfaces = [
   { id: 'assumptions', label: 'Dangerous Assumptions', group: 'Cognitive Model' },
   { id: 'eng-signals', label: 'Signals — connected sources', group: 'Engineering' },
   { id: 'eng-oem', label: 'OEM Builder — inference pipeline', group: 'Engineering' },
-  { id: 'eng-audit', label: 'Audit Log — receipt chain', group: 'Engineering' },
+  { id: 'eng-audit', label: 'Audit Log — signal history', group: 'Engineering' },
   { id: 'eng-settings', label: 'Settings — configuration', group: 'Engineering' },
+  { id: 'evolution', label: 'Evolution Report — how has the organization changed?', group: 'Constitution v3' },
 ];
 
 function openCommandPalette() {

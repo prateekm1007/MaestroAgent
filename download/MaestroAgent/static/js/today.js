@@ -23,14 +23,15 @@ async function loadToday() {
 
   try {
     // Compose the brief from existing API endpoints — no new backend needed
-    const [briefing, pulse, contradictionsResp] = await Promise.all([
+    const [briefing, pulse, contradictionsResp, personality] = await Promise.all([
       api.getOEM('/ceo-briefing'),
       api.getOEM('/pulse').catch(() => null),
       api.getOEM('/contradictions').catch(() => ({ contradictions: [] })),
+      api.getOEM('/personality').catch(() => null),
     ]);
     const contradictions = contradictionsResp.contradictions || [];
 
-    renderMorningBrief(el, briefing, pulse, contradictions);
+    renderMorningBrief(el, briefing, pulse, contradictions, personality);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -40,7 +41,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -114,6 +115,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions) {
       </div>
   `;
 
+  // Organizational personality one-liner (V3 Law 6)
+  if (personality && personality.summary) {
+    html += `
+      <div style="padding:12px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--divider);margin-bottom:20px;font-size:13px;color:var(--text-secondary);line-height:1.5;">
+        ${escapeHtml(humanize(personality.summary))}
+      </div>
+    `;
+  }
+
   // Organizational weather
   if (weather) {
     html += `
@@ -135,9 +145,10 @@ function renderMorningBrief(el, briefing, pulse, contradictions) {
       html += `
         <div class="brief-item" data-idx="${i}">
           <div class="brief-label">${escapeHtml(item.label)}</div>
-          <div class="brief-title">${escapeHtml(item.title)}</div>
-          ${item.context ? `<div class="brief-context">${escapeHtml(item.context)}</div>` : ''}
-          ${item.provenance ? `<div class="brief-provenance">${escapeHtml(item.provenance)}</div>` : ''}
+          <div class="brief-title">${escapeHtml(humanize(item.title))}</div>
+          ${item.context ? `<div class="brief-context">${escapeHtml(humanize(item.context))}</div>` : ''}
+          ${item.provenance ? `<div class="brief-provenance">${escapeHtml(humanize(item.provenance))}</div>` : ''}
+          ${item.sowhat ? `<div class="brief-context" style="margin-top:8px;color:var(--accent);font-weight:500;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
         </div>
       `;
     });

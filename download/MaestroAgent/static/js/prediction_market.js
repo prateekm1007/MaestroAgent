@@ -118,12 +118,12 @@ function renderAllMarketPredictions(container, predictions) {
         return `
           <div class="ds-card" style="padding:14px 16px;">
             <div class="ds-row-between" style="margin-bottom:6px;">
-              <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(status)}</span>
+              <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(humanize(status))}</span>
               <span class="ds-meta">${formatTimestamp(p.made_at)}</span>
             </div>
-            <div style="font-size:13.5px;color:var(--ds-text-primary);margin-bottom:6px;">${escapeHtml(p.event)}</div>
+            <div style="font-size:13.5px;color:var(--ds-text-primary);margin-bottom:6px;">${escapeHtml(humanize(p.event))}</div>
             <div class="ds-row" style="gap:14px;">
-              <span class="ds-meta">predictor <span class="ds-meta-strong">${escapeHtml(p.predictor)}</span></span>
+              <span class="ds-meta">predictor <span class="ds-meta-strong">${escapeHtml(humanize(p.predictor))}</span></span>
               <span class="ds-meta">prob <span class="ds-meta-strong">${(p.probability * 100).toFixed(0)}%</span></span>
               ${p.brier_score != null ? `<span class="ds-meta">brier <span class="ds-meta-strong">${p.brier_score.toFixed(3)}</span></span>` : ''}
               ${p.hypothesis_id ? `<span class="ds-meta">linked hypothesis</span>` : ''}

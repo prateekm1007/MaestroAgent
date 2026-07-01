@@ -73,6 +73,7 @@ function loadSurfaceData(surface) {
     case 'work': loadWork(); break;
     case 'ask-v2': loadAskV2(); break;
     case 'learn': loadLearn(); break;
+    case 'evolution': loadEvolution(); break;
     // Deep capabilities (existing surfaces)
     case 'home': loadDashboard(); break;
     case 'inbox': loadInbox(); break;

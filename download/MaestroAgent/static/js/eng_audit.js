@@ -1,19 +1,19 @@
-// ENG: AUDIT — structured receipts (NO JSON.stringify)
+// ENG: AUDIT — structured signals (NO JSON.stringify)
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function loadEngAudit() {
   const el = document.getElementById('eng-audit-list');
   loadingHTML(el, 'Loading signal history…');
   try {
-    const data = await api.getOEM('/receipts?limit=100');
-    if (data.receipts.length === 0) {
+    const data = await api.getOEM('/signals?limit=100');
+    if (data.signals.length === 0) {
       emptyHTML(el, 'No signal history yet. Events appear as signals flow into Maestro.');
       return;
     }
     el.innerHTML = `
-      <div class="text-[10px] text-fg-500 mb-3">${data.total} signals · showing latest ${data.receipts.length}</div>
+      <div class="text-[10px] text-fg-500 mb-3">${data.total} signals · showing latest ${data.signals.length}</div>
       <div class="space-y-1">
-        ${data.receipts.map(r => `
+        ${data.signals.map(r => `
           <div class="text-[11px] p-2 rounded bg-white/[0.02] border border-white/[0.04] grid grid-cols-12 gap-2 items-center hover:bg-white/[0.04] cursor-pointer" onclick="openDrilldown('signal', '${escapeJs(r.receipt_id)}')">
             <span class="mono text-brand-purple col-span-2" title="${escapeHtml(r.receipt_id)}">${escapeHtml(r.receipt_id.substring(0, 8))}</span>
             <span class="text-fg-500 col-span-2">${formatTimestamp(r.timestamp)}</span>
@@ -66,7 +66,7 @@ async function loadOAuthAdminConfigs() {
       return `
         <div class="border border-white/[0.05] rounded-lg p-3">
           <div class="flex items-center justify-between mb-1">
-            <div class="font-semibold text-white text-sm">${escapeHtml(p.label)}</div>
+            <div class="font-semibold text-white text-sm">${escapeHtml(humanize(p.label))}</div>
             ${statusBadge}
           </div>
           <div class="text-[10px] text-fg-400">
@@ -74,9 +74,9 @@ async function loadOAuthAdminConfigs() {
             ${p.has_secret ? ' · <span style="color:#22c55e">Secret: encrypted</span>' : ''}
           </div>
           <div class="flex gap-1.5 mt-2">
-            <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${escapeJs(p.provider)}', '${escapeJs(p.label)}', '${escapeJs(p.client_id)}')" aria-label="Configure ${escapeHtml(p.label)}">Configure</button>
-            ${p.configured_via === 'database' ? `<button class="tag tag-gray cursor-pointer text-[10px] hover:bg-red-500/10" onclick="deleteOAuthProvider('${escapeJs(p.provider)}')" aria-label="Remove ${escapeHtml(p.label)} config">Remove</button>` : ''}
-            ${p.configured ? `<button class="tag tag-cyan cursor-pointer text-[10px]" onclick="window.open('${(MAESTRO_API || '') + '/api/oauth/' + p.provider + '/start'}')" aria-label="Connect ${escapeHtml(p.label)}">Connect</button>` : ''}
+            <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${escapeJs(p.provider)}', '${escapeJs(p.label)}', '${escapeJs(p.client_id)}')" aria-label="Configure ${escapeHtml(humanize(p.label))}">Configure</button>
+            ${p.configured_via === 'database' ? `<button class="tag tag-gray cursor-pointer text-[10px] hover:bg-red-500/10" onclick="deleteOAuthProvider('${escapeJs(p.provider)}')" aria-label="Remove ${escapeHtml(humanize(p.label))} config">Remove</button>` : ''}
+            ${p.configured ? `<button class="tag tag-cyan cursor-pointer text-[10px]" onclick="window.open('${(MAESTRO_API || '') + '/api/oauth/' + p.provider + '/start'}')" aria-label="Connect ${escapeHtml(humanize(p.label))}">Connect</button>` : ''}
           </div>
         </div>
       `;
@@ -172,7 +172,7 @@ async function loadProviderStatus() {
             <div class="text-xl">${meta.icon}</div>
             <div>
               <div class="text-sm font-semibold text-white">${meta.name}</div>
-              <div class="text-[10px] text-fg-500">${escapeHtml(meta.description)}</div>
+              <div class="text-[10px] text-fg-500">${escapeHtml(humanize(meta.description))}</div>
             </div>
           </div>
           <div class="flex items-center gap-3">
