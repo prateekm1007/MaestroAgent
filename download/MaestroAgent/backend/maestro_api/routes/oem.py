@@ -3210,3 +3210,80 @@ def get_curiosity() -> dict[str, Any]:
     from maestro_oem.curiosity import CuriosityEngine
     engine = CuriosityEngine(oem_state.model, oem_state.signals)
     return engine.generate()
+
+
+@router.get("/skepticism")
+def get_skepticism() -> dict[str, Any]:
+    """Challenge fossilized beliefs.
+
+    V4 Organ #3 — Skepticism. Finds beliefs the organization holds without
+    recent validation and challenges them with evidence.
+    """
+    from maestro_oem.skepticism import SkepticismEngine
+    engine = SkepticismEngine(oem_state.model, oem_state.signals)
+    return engine.challenge()
+
+
+@router.get("/wisdom")
+def get_wisdom(
+    context: str = Query("", description="Decision context: launch, hiring, architecture, etc."),
+) -> dict[str, Any]:
+    """Synthesize competing values into balanced judgment.
+
+    V4 Organ #4 — Wisdom. Intelligence knows. Wisdom chooses. This engine
+    synthesizes competing organizational values into a recommendation
+    based on what has worked before.
+    """
+    from maestro_oem.wisdom import WisdomEngine
+    engine = WisdomEngine(oem_state.model, oem_state.signals)
+    return engine.synthesize(context=context)
+
+
+@router.get("/metacognition")
+def get_metacognition() -> dict[str, Any]:
+    """The organization thinking about its own thinking.
+
+    V4 Organ #5 — Metacognition. Computes the meta-gap between team-level
+    quality and org-level quality. When teams are smart but the org isn't,
+    the problem is in coordination.
+    """
+    from maestro_oem.metacognition import MetacognitionEngine
+    engine = MetacognitionEngine(oem_state.model, oem_state.signals)
+    return engine.analyze()
+
+
+@router.get("/principles")
+def get_principles() -> dict[str, Any]:
+    """Laws that have graduated to organizational wisdom.
+
+    V4 Organ #6 — Principles. Patterns validated so consistently, for so
+    long, that they have graduated from 'pattern' to 'organizational wisdom.'
+    """
+    from maestro_oem.principles import PrinciplesEngine
+    engine = PrinciplesEngine(oem_state.model, oem_state.signals)
+    return engine.discover()
+
+
+@router.get("/compression")
+def get_compression() -> dict[str, Any]:
+    """Compress organizational memory into a few truths.
+
+    V4 Organ #7 — Memory Compression. Millions of signals → a few truths,
+    habits, mistakes, interventions. Memory becomes understanding.
+    """
+    from maestro_oem.memory_compression import MemoryCompressionEngine
+    engine = MemoryCompressionEngine(oem_state.model, oem_state.signals)
+    return engine.compress()
+
+
+@router.get("/consciousness")
+def get_consciousness() -> dict[str, Any]:
+    """Real-time organizational state vector.
+
+    V4 Organ #8 — Consciousness. Always knows where attention, knowledge,
+    trust, conflict, energy, uncertainty, and learning are. The
+    Organizational Dot draws from this state vector.
+    """
+    from maestro_oem.consciousness import ConsciousnessEngine
+    engine = ConsciousnessEngine(oem_state.model, oem_state.signals)
+    return engine.state_vector()
