@@ -197,7 +197,7 @@ class WriteBackService:
             "message": "Preview generated. Call POST /api/oem/writeback/{action_id}/approve to execute.",
         }
 
-    def approve(self, action_id: str, approved_by: str = "user") -> dict[str, Any]:
+    def approve(self, action_id: str, approved_by: str = "user", auto_execute: bool = False) -> dict[str, Any]:
         """Execute a previously-previewed write-back action.
 
         Args:
@@ -235,6 +235,19 @@ class WriteBackService:
                 "Write-back executed: provider=%s action=%s action_id=%s approved_by=%s",
                 action.provider, action.action_type, action_id, approved_by,
             )
+            # V8 P1-1 — Record in trust ledger
+            try:
+                from maestro_oem.trust_ledger import TrustLedger
+                TrustLedger.record(
+                    action_id=action_id,
+                    provider=action.provider,
+                    action_type=action.action_type,
+                    approver=approved_by,
+                    outcome="success",
+                    auto=auto_execute,
+                )
+            except Exception:
+                pass
         except Exception as e:
             action.status = "failed"
             action.error = str(e)
@@ -243,6 +256,19 @@ class WriteBackService:
                 "Write-back failed: provider=%s action=%s action_id=%s error=%s",
                 action.provider, action.action_type, action_id, e,
             )
+            # V8 P1-1 — Record failure in trust ledger
+            try:
+                from maestro_oem.trust_ledger import TrustLedger
+                TrustLedger.record(
+                    action_id=action_id,
+                    provider=action.provider,
+                    action_type=action.action_type,
+                    approver=approved_by,
+                    outcome="failure",
+                    auto=auto_execute,
+                )
+            except Exception:
+                pass
 
         return action.to_dict()
 

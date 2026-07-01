@@ -259,6 +259,17 @@ class OEMState:
             except Exception as e:
                 logger.debug("Task extraction failed (non-fatal): %s", e)
 
+            # V8 P1-4 — Auto-Completion Detection.
+            # Check if the newly-ingested signals complete any open tasks.
+            try:
+                from maestro_oem.task_extraction import auto_complete_tasks
+                model = self.engine.get_model()
+                completed = auto_complete_tasks(model, new_signals)
+                if completed:
+                    logger.info("Auto-completion: %d task(s) completed by matching signals", completed)
+            except Exception as e:
+                logger.debug("Auto-completion failed (non-fatal): %s", e)
+
             self._refresh_downstream_locked()
             # Close the loop: resolve predictions that the new signals
             # (or earlier CEO feedback) can now settle.

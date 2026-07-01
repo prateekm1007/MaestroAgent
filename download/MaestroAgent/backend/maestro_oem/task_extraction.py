@@ -375,3 +375,54 @@ def get_tasks(model: Any, assignee: str = "", domain: str = "", priority: str = 
         t["due_date"] or "9999-12-31",
     ))
     return tasks
+
+
+def auto_complete_tasks(model: Any, new_signals: list[Any]) -> int:
+    """V8 P1-4 — Auto-completion detection.
+
+    During live_ingest, when a new signal arrives that matches an open
+    task (same artifact, same actor, completion-type signal like
+    pr.merged or issue.transitioned to 'done'), mark the task as 'kept'.
+
+    Returns the number of tasks auto-completed.
+    """
+    from maestro_oem.signal import SignalType
+    from datetime import datetime, timezone
+
+    completion_types = {
+        SignalType.PR_MERGED, SignalType.PR_CLOSED,
+        SignalType.ISSUE_TRANSITIONED, SignalType.SPRINT_COMPLETED,
+        SignalType.CUSTOMER_COMMITMENT_KEPT,
+        SignalType.DEPLOYMENT, SignalType.RELEASE,
+    }
+
+    completed = 0
+    for sig in new_signals:
+        if sig.type not in completion_types:
+            continue
+        # Check if this signal matches any open task
+        for lo in model.learning_objects.values():
+            lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+            if lo_type != "task":
+                continue
+            if lo.metadata.get("status") != "open":
+                continue
+            # Match by artifact or actor
+            if sig.artifact and sig.artifact in lo.artifacts:
+                lo.metadata["status"] = "kept"
+                lo.metadata["auto_completed"] = True
+                lo.metadata["completed_by_signal"] = str(sig.signal_id) if hasattr(sig, "signal_id") else ""
+                lo.metadata["completed_at"] = datetime.now(timezone.utc).isoformat()
+                completed += 1
+                logger.info("Task auto-completed: %s by signal %s", lo.description[:50], sig.type)
+            elif sig.actor and sig.actor in lo.entities:
+                # Only auto-complete if the signal type is a strong completion signal
+                if sig.type in (SignalType.PR_MERGED, SignalType.CUSTOMER_COMMITMENT_KEPT, SignalType.RELEASE):
+                    lo.metadata["status"] = "kept"
+                    lo.metadata["auto_completed"] = True
+                    lo.metadata["completed_by_signal"] = str(sig.signal_id) if hasattr(sig, "signal_id") else ""
+                    lo.metadata["completed_at"] = datetime.now(timezone.utc).isoformat()
+                    completed += 1
+                    logger.info("Task auto-completed: %s by signal %s", lo.description[:50], sig.type)
+
+    return completed

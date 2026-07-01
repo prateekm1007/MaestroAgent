@@ -4020,6 +4020,291 @@ def deliver_push() -> dict[str, Any]:
     return svc.deliver_briefing(briefing_data=briefing)
 
 
+# ─── V8 P1-1 — Trust Ledger ────────────────────────────────────────────────
+
+@router.get("/trust/ledger")
+def get_trust_ledger(
+    user: str = Query("", description="Filter by approver email."),
+    provider: str = Query("", description="Filter by provider."),
+    action_type: str = Query("", description="Filter by action type."),
+) -> dict[str, Any]:
+    """Get the trust ledger — records every write-back action.
+
+    V8 P1-1 — Progressive Trust Ledger. The safety infrastructure for
+    P1-2 (auto-execute). Records every write-back action: action_id,
+    provider, action_type, approver, trust_score_at_execution, outcome
+    (success/failure/rolled_back), auto (True if auto-executed), timestamp.
+    """
+    from maestro_oem.trust_ledger import TrustLedger
+    entries = TrustLedger.get_entries(user_id=user, provider=provider, action_type=action_type)
+    summary = TrustLedger.get_summary(user_id=user)
+    return {
+        "entries": [e.to_dict() for e in entries],
+        "count": len(entries),
+        "summary": summary,
+    }
+
+
+@router.get("/trust/score")
+def get_trust_score(
+    user: str = Query(..., description="User email."),
+    provider: str = Query(..., description="Provider name."),
+    action_type: str = Query(..., description="Action type."),
+) -> dict[str, Any]:
+    """Get the trust score for a (user, provider, action_type) pair.
+
+    Returns the trust score and whether auto-execute is eligible.
+    Auto-execute eligibility: trust_score >= 10 AND rolled_back == 0.
+    """
+    from maestro_oem.trust_ledger import TrustLedger
+    score = TrustLedger.compute_trust_score(user, provider, action_type)
+    eligible = TrustLedger.is_auto_execute_eligible(user, provider, action_type)
+    return {
+        "user": user,
+        "provider": provider,
+        "action_type": action_type,
+        "trust_score": score,
+        "auto_execute_eligible": eligible,
+        "threshold": 10,
+    }
+
+
+# ─── V8 P1-2 — Progressive Trust (Auto-Execute) ────────────────────────────
+
+@router.post("/writeback/auto-execute")
+def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
+    """Auto-execute a write-back if the user has earned trust.
+
+    V8 P1-2 — Progressive Trust. After a user has approved 10+ write-backs
+    of the same (provider, action_type) with 0 rollbacks, that action type
+    becomes eligible for auto-execute. The customer must explicitly enable
+    auto-execute per action type in settings.
+
+    Auto-execute is opt-in. The default is always manual preview + approve.
+    The first auto-executed action shows a 60-second undo window.
+
+    Payload:
+        provider: str (required)
+        action_type: str (required)
+        params: dict (required)
+        user: str (required — the user requesting auto-execute)
+
+    Returns:
+        If eligible + enabled: {status: "executed", auto: true, undo_until: ISO}
+        If not eligible: {status: "requires_manual_approval", auto: false}
+    """
+    from maestro_oem.trust_ledger import TrustLedger
+    from maestro_oem.writeback import WriteBackService
+
+    provider = payload.get("provider", "")
+    action_type = payload.get("action_type", "")
+    params = payload.get("params", {})
+    user = payload.get("user", "")
+
+    if not provider or not action_type or not user:
+        raise HTTPException(400, "provider, action_type, and user are required")
+
+    # Check if auto-execute is eligible
+    eligible = TrustLedger.is_auto_execute_eligible(user, provider, action_type)
+    if not eligible:
+        score = TrustLedger.compute_trust_score(user, provider, action_type)
+        return {
+            "status": "requires_manual_approval",
+            "auto": False,
+            "trust_score": score,
+            "threshold": 10,
+            "message": f"Trust score {score} is below threshold 10. Manual approval required.",
+        }
+
+    # Auto-execute: preview + immediately approve
+    svc = WriteBackService()
+    preview = svc.preview(provider, action_type, params)
+    result = svc.approve(preview["action_id"], approved_by=user, auto_execute=True)
+
+    # 60-second undo window
+    from datetime import datetime, timedelta, timezone
+    undo_until = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+
+    result["auto"] = True
+    result["undo_until"] = undo_until
+    result["undo_message"] = f"Auto-executed: {preview['preview'][:80]}. Undo within 60 seconds."
+    return result
+
+
+@router.post("/writeback/{action_id}/undo")
+def undo_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Undo an auto-executed write-back (within the 60-second window).
+
+    Records the undo in the trust ledger as outcome="rolled_back".
+    This decrements the trust score for the (user, provider, action_type) pair.
+    """
+    from maestro_oem.trust_ledger import TrustLedger
+    from maestro_oem.writeback import WriteBackStore
+
+    action = WriteBackStore.get(action_id)
+    if action is None:
+        raise HTTPException(404, f"Action not found: {action_id}")
+    if action.status != "executed":
+        raise HTTPException(400, f"Action is not executed (status: {action.status})")
+
+    # Record the rollback in the trust ledger
+    approver = payload.get("user", action.approved_by or "user")
+    TrustLedger.record(
+        action_id=action_id,
+        provider=action.provider,
+        action_type=action.action_type,
+        approver=approver,
+        outcome="rolled_back",
+        auto=True,
+    )
+
+    action.status = "rolled_back"
+    return action.to_dict()
+
+
+# ─── V8 P1-3 — Unknown-to-Action Pipeline ──────────────────────────────────
+
+@router.get("/unknowns/actions")
+def get_unknown_actions() -> dict[str, Any]:
+    """Get suggested actions for each unknown.
+
+    V8 P1-3 — Unknown-to-Action Pipeline. Each unknown level has a
+    suggested_action:
+      - Unknown Unknown: "Connect {provider}" (suggest which integration fills the gap)
+      - Known Unknown: "Instrument" (suggest a metric to track)
+      - Emerging Unknown: "Investigate" (create a task for the team lead)
+    """
+    from maestro_oem.curiosity import CuriosityEngine
+    engine = CuriosityEngine(oem_state.model, oem_state.signals)
+    unknowns = engine.classify_unknowns()
+
+    actions: list[dict[str, Any]] = []
+
+    # Suggest "Connect" for Unknown Unknowns
+    for item in unknowns.get("unknown_unknowns", []):
+        domain = item.get("area", "")
+        # Suggest which provider would fill this gap
+        suggested_provider = "github"  # default
+        if domain in ("qa", "testing", "testing"):
+            suggested_provider = "jira"
+        elif domain in ("docs", "documentation", "knowledge"):
+            suggested_provider = "confluence"
+        elif domain in ("legal", "compliance"):
+            suggested_provider = "gmail"
+        elif domain in ("customer", "sales", "crm"):
+            suggested_provider = "customer"
+        actions.append({
+            "area": domain,
+            "level": "unknown_unknown",
+            "action": "connect",
+            "suggested_provider": suggested_provider,
+            "label": f"Connect {suggested_provider}",
+            "reason": f"The {domain} domain has {item.get('signal_count', 0)} signals. Connecting {suggested_provider} would fill this blind spot.",
+        })
+
+    # Suggest "Instrument" for Known Unknowns
+    for item in unknowns.get("known_unknowns", []):
+        domain = item.get("area", "")
+        actions.append({
+            "area": domain,
+            "level": "known_unknown",
+            "action": "instrument",
+            "label": f"Instrument {domain}",
+            "reason": f"The {domain} domain has {item.get('signal_count', 0)} signals ({item.get('coverage', 0):.0%} coverage). Adding a metric would improve visibility.",
+        })
+
+    # Suggest "Investigate" for Emerging Unknowns
+    for item in unknowns.get("emerging_unknowns", []):
+        area = item.get("area", "")
+        actions.append({
+            "area": area,
+            "level": "emerging_unknown",
+            "action": "investigate",
+            "label": f"Investigate {area}",
+            "reason": item.get("reason", ""),
+            "detected_at": item.get("detected_at"),
+        })
+
+    return {
+        "actions": actions,
+        "count": len(actions),
+        "summary": f"{len(actions)} suggested actions from the unknowns map.",
+    }
+
+
+# ─── V8 P1-4 — Auto-Completion Detection ───────────────────────────────────
+# Implemented in task_extraction.py — during live_ingest, when a new signal
+# matches an open task (same artifact, same actor, completion-type signal),
+# the task is marked as "kept". See oem_state.py live_ingest() for the call.
+
+@router.get("/tasks/auto-completed")
+def get_auto_completed_tasks() -> dict[str, Any]:
+    """Get tasks that were auto-completed by matching completion signals.
+
+    V8 P1-4 — Auto-Completion Detection. During live_ingest, when a new
+    signal arrives that matches an open task (same artifact, same actor,
+    completion-type signal like pr.merged or issue.transitioned to 'done'),
+    the task is marked as 'kept'. This endpoint returns those tasks.
+    """
+    model = oem_state.model
+    auto_completed: list[dict[str, Any]] = []
+    for lo in model.learning_objects.values():
+        lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+        if lo_type != "task":
+            continue
+        if lo.metadata.get("status") != "kept":
+            continue
+        if not lo.metadata.get("auto_completed"):
+            continue  # only show auto-completed, not manually completed
+        auto_completed.append({
+            "id": str(lo.lo_id),
+            "description": lo.description,
+            "assignee": lo.metadata.get("assignee", ""),
+            "completed_by_signal": lo.metadata.get("completed_by_signal", ""),
+            "completed_at": lo.metadata.get("completed_at", ""),
+            "domain": lo.metadata.get("domain", ""),
+        })
+    return {
+        "tasks": auto_completed,
+        "count": len(auto_completed),
+        "summary": f"{len(auto_completed)} task{'s' if len(auto_completed) != 1 else ''} auto-completed.",
+    }
+
+
+# ─── V8 P1-5 — The Briefing Learns (Attention Signals) ─────────────────────
+
+@router.post("/attention/record")
+def record_attention(payload: dict[str, Any]) -> dict[str, Any]:
+    """Record an attention signal — which briefing item the CEO clicked.
+
+    V8 P1-5 — The Briefing Learns. Every click on a briefing item is
+    recorded as an attention signal. Over time, the briefing ranking
+    weights items by historical attention. If the CEO consistently clicks
+    "commitments" first, commitments move to the top. If they never click
+    "risks", risks move to the bottom (but are never hidden — Radical Honesty).
+
+    Payload:
+        item_type: str (e.g. "commitments", "one_thing", "money", "knowledge")
+        item_id: str (optional — specific item identifier)
+
+    Attention signals never hide information; they only reorder it.
+    """
+    from maestro_oem.attention_signals import AttentionSignalStore
+    item_type = payload.get("item_type", "")
+    item_id = payload.get("item_id", "")
+    if not item_type:
+        raise HTTPException(400, "item_type is required")
+    AttentionSignalStore.record(item_type=item_type, item_id=item_id)
+    return {"recorded": True, "item_type": item_type}
+
+
+@router.get("/attention/summary")
+def get_attention_summary() -> dict[str, Any]:
+    """Get the attention signal summary — which briefing item types get clicked most."""
+    from maestro_oem.attention_signals import AttentionSignalStore
+    return AttentionSignalStore.get_summary()
+
+
 # ─── V8 Competitor Analysis Feature E — Commitment Tracker ─────────────────
 
 @router.get("/commitments")
