@@ -1475,7 +1475,209 @@ def get_ceo_briefing() -> dict[str, Any]:
         "money": money_answer,
         "knowledge": knowledge_answer,
         "decisions": decisions_answer,
+        "drafted_artifacts": _generate_drafted_artifacts(one_thing, money_losses, knowledge_traps, ceo_decisions, model),
     }
+
+
+def _generate_drafted_artifacts(
+    one_thing: dict[str, Any],
+    money_losses: list[dict[str, Any]],
+    knowledge_traps: list[dict[str, Any]],
+    ceo_decisions: list[dict[str, Any]],
+    model: Any,
+) -> list[dict[str, Any]]:
+    """V8 Daily Work #3 — Proactive Daily Briefing (upgraded).
+
+    Each actionable brief item gets a DRAFTED artifact — not just
+    "address the bottleneck" but a drafted email to the decision owner
+    with evidence citations. The CEO opens Maestro and gets actionable
+    drafts, not just descriptions.
+
+    Each drafted artifact:
+      - type: "email" | "doc" | "ticket"
+      - to: the recipient (decision owner or team)
+      - subject: a drafted subject line
+      - body: a drafted body with evidence citations
+      - evidence: list of evidence references (law codes, signal counts)
+      - source_item: which brief item this draft is for
+    """
+    drafts: list[dict[str, Any]] = []
+
+    # ─── Draft 1: Email for the "one thing" recommendation ───
+    if one_thing and one_thing.get("rec_id"):
+        title = one_thing.get("title", "")
+        recommendation = one_thing.get("recommendation", "")
+        why = one_thing.get("why", "")
+        impact = one_thing.get("impact", "")
+        confidence = one_thing.get("confidence", 0)
+        linked_laws = one_thing.get("linked_laws", [])
+
+        # Find the decision owner — the person with the most influence
+        # in the domains related to this recommendation
+        owner = "the team lead"
+        try:
+            influence = model.knowledge.influence
+            if influence:
+                owner = max(influence, key=influence.get)
+        except Exception:
+            pass
+
+        evidence_refs = []
+        if linked_laws:
+            evidence_refs.append(f"Validated patterns: {', '.join(linked_laws[:3])}")
+        evidence_refs.append(f"Confidence: {confidence:.0%}")
+        if impact:
+            evidence_refs.append(f"Impact: {impact}")
+
+        drafts.append({
+            "type": "email",
+            "to": owner,
+            "subject": f"Action needed: {title[:60]}",
+            "body": (
+                f"Hi,\n\n"
+                f"Maestro flagged this as the most important thing to address today:\n\n"
+                f"  {title}\n\n"
+                f"Recommendation: {recommendation}\n\n"
+                f"Why this matters: {why}\n\n"
+                f"Evidence:\n"
+                + "\n".join(f"  - {ref}" for ref in evidence_refs) + "\n\n"
+                f"Can you take a look and let me know if you can address it this week?\n\n"
+                f"— Drafted by Maestro"
+            ),
+            "evidence": evidence_refs,
+            "source_item": "one_thing",
+        })
+
+    # ─── Draft 2: Email for the top money loss ───
+    if money_losses:
+        loss = money_losses[0]
+        loss_type = loss.get("type", "")
+        title = loss.get("title", "")
+        detail = loss.get("detail", "")
+        entities = loss.get("entities", [])
+        severity = loss.get("severity", "medium")
+
+        recipient = entities[0] if entities else "the team lead"
+        evidence_refs = [
+            f"Loss type: {loss_type}",
+            f"Severity: {severity}",
+            f"Entities involved: {', '.join(entities[:3]) if entities else 'unknown'}",
+        ]
+
+        drafts.append({
+            "type": "email",
+            "to": recipient,
+            "subject": f"Cost drain: {title[:60]}",
+            "body": (
+                f"Hi,\n\n"
+                f"Maestro detected a cost drain in your area:\n\n"
+                f"  {title}\n\n"
+                f"Details: {detail}\n\n"
+                f"This is rated {severity} severity. "
+                f"Can we schedule a quick call to discuss how to address it?\n\n"
+                f"Evidence:\n"
+                + "\n".join(f"  - {ref}" for ref in evidence_refs) + "\n\n"
+                f"— Drafted by Maestro"
+            ),
+            "evidence": evidence_refs,
+            "source_item": "money",
+        })
+
+    # ─── Draft 3: Doc for the top knowledge trap (hidden expert or concentration risk) ───
+    if knowledge_traps:
+        trap = knowledge_traps[0]
+        trap_type = trap.get("type", "")
+        if trap_type == "hidden_expert":
+            entity = trap.get("entity", "")
+            domains = trap.get("domains", [])
+            influence = trap.get("influence", 0)
+            evidence_refs = [
+                f"Person: {entity}",
+                f"Domains: {', '.join(domains[:3]) if domains else 'unknown'}",
+                f"Influence score: {influence:.1f}",
+            ]
+            drafts.append({
+                "type": "doc",
+                "to": "engineering-leadership",
+                "subject": f"Hidden expert: {entity}",
+                "body": (
+                    f"# Hidden Expert: {entity}\n\n"
+                    f"## Why this matters\n"
+                    f"{entity} has an influence score of {influence:.1f} across "
+                    f"{len(domains)} domain(s): {', '.join(domains[:5])}.\n"
+                    f"Their expertise is not formally documented — if they leave, "
+                    f"knowledge is lost.\n\n"
+                    f"## Recommended action\n"
+                    f"1. Schedule a knowledge-transfer session with {entity}\n"
+                    f"2. Document their expertise in Confluence\n"
+                    f"3. Cross-train at least one other person in their key domains\n\n"
+                    f"## Evidence\n"
+                    + "\n".join(f"- {ref}" for ref in evidence_refs) + "\n"
+                ),
+                "evidence": evidence_refs,
+                "source_item": "knowledge",
+            })
+        elif trap_type == "concentration_risk":
+            domain = trap.get("domain", "")
+            score = trap.get("score", 0)
+            evidence_refs = [
+                f"Domain: {domain}",
+                f"Concentration score: {score:.1f}",
+            ]
+            drafts.append({
+                "type": "doc",
+                "to": "engineering-leadership",
+                "subject": f"Concentration risk: {domain}",
+                "body": (
+                    f"# Concentration Risk: {domain}\n\n"
+                    f"## Why this matters\n"
+                    f"Knowledge in the '{domain}' domain is concentrated in too few people. "
+                    f"Concentration score: {score:.1f} (higher = more concentrated).\n\n"
+                    f"## Recommended action\n"
+                    f"1. Identify who holds this domain knowledge\n"
+                    f"2. Cross-train additional team members\n"
+                    f"3. Document critical procedures\n\n"
+                    f"## Evidence\n"
+                    + "\n".join(f"- {ref}" for ref in evidence_refs) + "\n"
+                ),
+                "evidence": evidence_refs,
+                "source_item": "knowledge",
+            })
+
+    # ─── Draft 4: Email for the top CEO-only decision ───
+    if ceo_decisions:
+        decision = ceo_decisions[0]
+        dec_type = decision.get("type", "")
+        title = decision.get("title", "")
+        question = decision.get("question", "")
+        recommendation = decision.get("recommendation", "")
+        confidence = decision.get("confidence", 0)
+        linked_laws = decision.get("linked_laws", [])
+
+        evidence_refs = [f"Decision type: {dec_type}", f"Confidence: {confidence:.0%}"]
+        if linked_laws:
+            evidence_refs.append(f"Related patterns: {', '.join(linked_laws[:3])}")
+
+        drafts.append({
+            "type": "email",
+            "to": "ceo",
+            "subject": f"Decision needed: {title[:60]}",
+            "body": (
+                f"Hi,\n\n"
+                f"Maestro flagged a decision that requires your authority:\n\n"
+                f"  {title}\n\n"
+                f"Question: {question}\n\n"
+                f"Recommendation: {recommendation}\n\n"
+                f"Evidence:\n"
+                + "\n".join(f"  - {ref}" for ref in evidence_refs) + "\n\n"
+                f"Can you review and decide by end of week?\n\n"
+                f"— Drafted by Maestro"
+            ),
+            "evidence": evidence_refs,
+            "source_item": "decisions",
+        })
+
+    return drafts
 
 
 def _get_dashboard_data() -> dict[str, Any]:
@@ -3320,6 +3522,143 @@ def get_unknowns(
     filtered["summary"] = full["summary"]
     filtered["level_counts"] = full["level_counts"]
     return filtered
+
+
+@router.get("/timeline")
+def get_timeline(
+    limit: int = Query(50, ge=1, le=500, description="Number of signals to return (1-500, default 50)."),
+    offset: int = Query(0, ge=0, description="Pagination offset (default 0)."),
+    provider: str = Query("", description="Filter by provider: github, jira, slack, confluence, gmail, calendar, customer, unknown. Comma-separated for multiple."),
+    signal_type: str = Query("", description="Filter by signal type (e.g. pr.opened, issue.transitioned). Comma-separated for multiple."),
+    domain: str = Query("", description="Filter by domain (from signal metadata). Comma-separated for multiple."),
+    actor: str = Query("", description="Filter by actor (email). Comma-separated for multiple."),
+    since: str = Query("", description="ISO timestamp — only signals after this time."),
+    until: str = Query("", description="ISO timestamp — only signals before this time."),
+) -> dict[str, Any]:
+    """Organizational Timeline — paginated, filterable chronological view of ALL signals.
+
+    V8 Daily Work #1 — Organizational Timeline. The data already exists
+    (every signal has a timestamp); this API exposes it as a paginated,
+    filterable timeline so the customer can see "what happened" without
+    hunting across 5 provider dashboards.
+
+    Filters:
+      - provider: comma-separated provider names (github, jira, slack, ...)
+      - signal_type: comma-separated signal types (pr.opened, issue.transitioned, ...)
+      - domain: comma-separated domains (from signal metadata.domain)
+      - actor: comma-separated actor emails
+      - since/until: ISO timestamp range
+
+    Returns:
+      {
+        signals: list[{signal_id, type, provider, timestamp, actor, artifact, domain, metadata}],
+        pagination: {limit, offset, total, has_more},
+        filters_applied: {provider, signal_type, domain, actor, since, until},
+      }
+
+    Signals are sorted by timestamp DESCENDING (most recent first).
+    """
+    from datetime import datetime, timezone
+
+    # Parse filters into sets
+    providers_filter = {p.strip() for p in provider.split(",") if p.strip()} if provider else set()
+    types_filter = {t.strip() for t in signal_type.split(",") if t.strip()} if signal_type else set()
+    domains_filter = {d.strip() for d in domain.split(",") if d.strip()} if domain else set()
+    actors_filter = {a.strip() for a in actor.split(",") if a.strip()} if actor else set()
+
+    # Parse since/until
+    since_dt = None
+    until_dt = None
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            if since_dt.tzinfo is None:
+                since_dt = since_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            pass
+    if until:
+        try:
+            until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+            if until_dt.tzinfo is None:
+                until_dt = until_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            pass
+
+    # Filter signals
+    filtered = []
+    for sig in oem_state.signals:
+        # Provider filter
+        if providers_filter:
+            sig_provider = sig.provider.value if hasattr(sig.provider, "value") else str(sig.provider)
+            if sig_provider not in providers_filter:
+                continue
+        # Type filter
+        if types_filter:
+            sig_type = sig.type.value if hasattr(sig.type, "value") else str(sig.type)
+            if sig_type not in types_filter:
+                continue
+        # Domain filter
+        if domains_filter:
+            sig_domain = sig.metadata.get("domain", "")
+            if sig_domain not in domains_filter:
+                continue
+        # Actor filter
+        if actors_filter:
+            if sig.actor not in actors_filter:
+                continue
+        # Time range filter
+        sig_time = sig.timestamp
+        if sig_time.tzinfo is None:
+            sig_time = sig_time.replace(tzinfo=timezone.utc)
+        if since_dt and sig_time < since_dt:
+            continue
+        if until_dt and sig_time > until_dt:
+            continue
+
+        filtered.append(sig)
+
+    # Sort by timestamp descending (most recent first)
+    filtered.sort(key=lambda s: s.timestamp if s.timestamp.tzinfo else s.timestamp.replace(tzinfo=timezone.utc), reverse=True)
+
+    # Paginate
+    total = len(filtered)
+    paginated = filtered[offset:offset + limit]
+    has_more = (offset + limit) < total
+
+    # Serialize
+    signals_data = []
+    for sig in paginated:
+        sig_type = sig.type.value if hasattr(sig.type, "value") else str(sig.type)
+        sig_provider = sig.provider.value if hasattr(sig.provider, "value") else str(sig.provider)
+        signals_data.append({
+            "signal_id": str(sig.signal_id),
+            "type": sig_type,
+            "provider": sig_provider,
+            "timestamp": sig.timestamp.isoformat() if sig.timestamp.tzinfo else sig.timestamp.replace(tzinfo=timezone.utc).isoformat(),
+            "actor": sig.actor,
+            "artifact": sig.artifact,
+            "domain": sig.metadata.get("domain", ""),
+            "decision": sig.decision,
+            "metadata": dict(sig.metadata) if sig.metadata else {},
+        })
+
+    return {
+        "signals": signals_data,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+            "has_more": has_more,
+        },
+        "filters_applied": {
+            "provider": list(providers_filter) if providers_filter else None,
+            "signal_type": list(types_filter) if types_filter else None,
+            "domain": list(domains_filter) if domains_filter else None,
+            "actor": list(actors_filter) if actors_filter else None,
+            "since": since if since_dt else None,
+            "until": until if until_dt else None,
+        },
+    }
 
 
 @router.post("/curiosity/follow-up")
