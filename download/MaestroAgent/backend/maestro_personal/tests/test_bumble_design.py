@@ -117,17 +117,23 @@ class TestOnboarding:
         assert "renderOnboardingWelcome" in source, "Screen 1 (welcome) not found"
         assert "renderOnboardingName" in source, "Screen 2 (name) not found"
         assert "renderOnboardingAbout" in source, "Screen 3 (about) not found"
-        assert "renderOnboardingMode" in source, "Screen 4 (mode) not found"
-        assert "renderOnboardingConnect" in source, "Screen 5 (connect) not found"
+        # Round 46: Screen 4 is now Work Tools (was Mode Choice), Screen 5 is Personal Tools (was Connect)
+        assert "renderOnboardingWorkTools" in source, "Screen 4 (work tools) not found"
+        assert "renderOnboardingPersonalTools" in source, "Screen 5 (personal tools) not found"
         assert "renderOnboardingDone" in source, "Screen 6 (done) not found"
 
     def test_onboarding_mode_cards(self, client) -> None:
+        """Round 46: the mode cards are REMOVED. Work + personal tool screens replace them."""
         app_dir = os.environ.get("MAESTRO_APP_DIR", "")
         path = os.path.join(app_dir, "static", "js", "onboarding.js")
         source = open(path).read()
-        assert "mode-card-work" in source, "Work mode card not found"
-        assert "mode-card-personal" in source, "Personal mode card not found"
-        assert "mode-card-both" in source, "Both mode card not found"
+        # Round 46: mode cards are gone
+        assert "mode-card-work" not in source, "Work mode card should be removed (Round 46)"
+        assert "mode-card-personal" not in source, "Personal mode card should be removed (Round 46)"
+        assert "mode-card-both" not in source, "Both mode card should be removed (Round 46)"
+        # Round 46: work tools + personal tools screens exist
+        assert "renderOnboardingWorkTools" in source, "Work tools screen must exist"
+        assert "renderOnboardingPersonalTools" in source, "Personal tools screen must exist"
 
     def test_onboarding_toggles_off_by_default(self, client) -> None:
         """Source toggles must default to OFF (false)."""
@@ -203,20 +209,31 @@ class TestModeTabsAndNav:
         assert "switchMode" in source, "switchMode not found"
 
     def test_bottom_nav_4_items(self, client) -> None:
+        """Round 46: the nav is UNIFIED. _unifiedNavItems has 4 items (Today/Memory/Ask/More)."""
         app_dir = os.environ.get("MAESTRO_APP_DIR", "")
         path = os.path.join(app_dir, "static", "js", "mode-tabs.js")
         source = open(path).read()
         assert "renderBottomNav" in source, "renderBottomNav not found"
-        assert "_workNavItems" in source, "Work nav items not found"
-        assert "_personalNavItems" in source, "Personal nav items not found"
-        # Each should have exactly 4 items
-        assert source.count("{ id: '") >= 8, "Should have at least 8 nav items total (4 work + 4 personal)"
+        # Round 46: _unifiedNavItems replaces _workNavItems + _personalNavItems
+        assert "_unifiedNavItems" in source, "_unifiedNavItems not found (Round 46)"
+        # The unified nav should have exactly 4 items
+        import re
+        match = re.search(r"_unifiedNavItems\s*=\s*\[(.*?)\]", source, re.DOTALL)
+        assert match, "_unifiedNavItems array must exist"
+        items_block = match.group(1)
+        item_count = len(re.findall(r"\{\s*id:", items_block))
+        assert item_count == 4, f"Unified nav must have 4 items; got {item_count}"
 
     def test_nav_calls_api(self, client) -> None:
+        """Round 46: the nav no longer calls /api/personal/mode (mode is deprecated).
+        It calls /api/personal/today with a filter parameter instead."""
         app_dir = os.environ.get("MAESTRO_APP_DIR", "")
         path = os.path.join(app_dir, "static", "js", "mode-tabs.js")
         source = open(path).read()
-        assert "/api/personal/mode" in source, "mode-tabs.js doesn't call /api/personal/mode"
+        # Round 46: the filter pill uses setCurrentFilter, not /api/personal/mode
+        assert "setCurrentFilter" in source, "mode-tabs.js must have setCurrentFilter (Round 46)"
+        assert "_currentFilter" in source, "mode-tabs.js must have _currentFilter state (Round 46)"
+        assert "'all'" in source, "Default filter must be 'all'"
 
 
 # ============================================================
@@ -227,7 +244,13 @@ class TestConstitutionalConstraints:
     """The Bumble aesthetic must NOT override the constitution."""
 
     def test_no_dating_ui(self, client) -> None:
-        """No 'swipe to match', no profile photos, no compatibility %."""
+        """No 'swipe to match', no profile photos, no compatibility scoring.
+
+        Round 46 note: the word 'compatibility' may appear in code comments
+        ('backward compatibility') — that is a software engineering term,
+        not a dating feature. We check for 'compatibility score' (the
+        forbidden dating feature) and 'swipe to match', not the bare word.
+        """
         app_dir = os.environ.get("MAESTRO_APP_DIR", "")
         for js_file in ["swipe-cards.js", "mode-tabs.js", "onboarding.js"]:
             path = os.path.join(app_dir, "static", "js", js_file)
@@ -235,7 +258,8 @@ class TestConstitutionalConstraints:
                 continue
             source = open(path).read().lower()
             assert "swipe to match" not in source, f"{js_file} contains 'swipe to match'"
-            assert "compatibility" not in source, f"{js_file} contains 'compatibility'"
+            assert "compatibility score" not in source, f"{js_file} contains 'compatibility score'"
+            assert "compatibility %" not in source, f"{js_file} contains 'compatibility %'"
 
     def test_no_addictive_framing(self, client) -> None:
         """No 'streak broken', 'don't lose progress', red notification dots."""

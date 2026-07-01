@@ -1,75 +1,131 @@
-// V8 Maestro × Bumble — Mode Tab Switcher + Bottom Nav.
-// Bumble's Date/BFF/Bizz pattern adapted for Work/Personal/Both.
-// The mode tabs reconfigure the entire experience instantly.
+// V8 Maestro × Bumble — Filter Pill + Bottom Nav (Round 46).
+// Round 46: The mode tabs (Work/Personal/BOTH switcher) are REMOVED from
+// the default experience. The user does not "switch modes." The user
+// opens Maestro and sees their whole life. The "mode" is a FILTER, not
+// a switch.
+//
+// The filter pill is a subtle Bumble pill in the top-right of the Today
+// surface: [ All | Work | Personal ]. Default is "All." The user can
+// tap "Work" to filter to work cards only, or "Personal" to filter to
+// personal cards only. This is a VIEW filter — the underlying data does
+// not change.
+//
+// The bottom nav is UNIFIED — always the same 4 items regardless of
+// filter: Today / Memory / Ask / More. (Phase 2 will wire this fully;
+// for now the bottom nav stays at 4 items and does not switch based on
+// mode.)
 
-// ─── Mode Tab Switcher ─────────────────────────────────────────────────────
+// ─── Filter state (Round 46) ───────────────────────────────────────────────
+// The filter is a VIEW parameter. Default: 'all'. It is NOT stored as
+// user state — it is a transient UI filter that resets to 'all' on page
+// load. The user can change it for the current session.
+let _currentFilter = 'all';  // 'all' | 'work' | 'personal'
 
-function renderModeTabs(currentMode) {
-  // Only show in "both" mode
-  if (currentMode !== 'both') return '';
+function getCurrentFilter() {
+  return _currentFilter;
+}
 
-  return `
-    <div class="mode-tabs" id="mode-tabs">
-      <button class="mode-tab ${currentMode === 'work' ? 'active' : ''}" onclick="switchMode('work')">
-        Work
-      </button>
-      <button class="mode-tab ${currentMode === 'personal' ? 'active' : ''}" onclick="switchMode('personal')">
-        Personal
-      </button>
+function setCurrentFilter(filter) {
+  const valid = ['all', 'work', 'personal'];
+  _currentFilter = valid.includes(filter) ? filter : 'all';
+  // Persist for the session (not as user state — just UI convenience)
+  try { sessionStorage.setItem('maestro-filter', _currentFilter); } catch (e) {}
+  // Re-render the filter pill to reflect the new active state
+  renderFilterPill();
+  // Reload the current surface so the filter takes effect
+  if (window._currentSurface === 'today' && typeof loadToday === 'function') {
+    loadToday();
+  }
+}
+
+function _loadInitialFilter() {
+  try {
+    const saved = sessionStorage.getItem('maestro-filter');
+    if (saved && ['all', 'work', 'personal'].includes(saved)) {
+      _currentFilter = saved;
+    }
+  } catch (e) { /* default to 'all' */ }
+}
+
+// ─── Filter Pill renderer (Round 46) ──────────────────────────────────────
+// The filter pill is a subtle Bumble pill with 3 options. The active
+// option gets the Bumble yellow background; inactive options are ghost.
+// It renders in the top-right of the Today surface (or wherever the
+// caller injects it).
+
+function renderFilterPill(containerId) {
+  // If a container ID is provided, render into it. Otherwise, find or
+  // create the pill in the today-content header.
+  let container = containerId ? document.getElementById(containerId) : null;
+  if (!container) {
+    // Try to find an existing filter-pill-container in the today surface
+    container = document.getElementById('filter-pill-container');
+  }
+  if (!container) return;  // no container — the pill is not rendered
+
+  const options = [
+    { value: 'all', label: 'All' },
+    { value: 'work', label: 'Work' },
+    { value: 'personal', label: 'Personal' },
+  ];
+
+  container.innerHTML = `
+    <div style="display:flex;gap:4px;padding:4px;background:var(--maestro-gray-light,#F5F5F5);border-radius:999px;font-family:'Montserrat',sans-serif;">
+      ${options.map(opt => `
+        <button class="maestro-btn ${_currentFilter === opt.value ? '' : 'maestro-btn-ghost'}"
+                style="font-size:12px;min-height:30px;padding:4px 14px;border-radius:999px;font-weight:700;"
+                onclick="setCurrentFilter('${opt.value}')"
+                aria-pressed="${_currentFilter === opt.value}">
+          ${escapeHtml(opt.label)}
+        </button>
+      `).join('')}
     </div>
   `;
 }
 
-async function switchMode(mode) {
-  try {
-    await fetch('/api/personal/mode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: mode, user: 'default' }),
-    });
-  } catch (e) {
-    // Non-fatal — mode switch is optimistic
-  }
+// ─── DEPRECATED: Mode Tab Switcher (Round 46) ──────────────────────────────
+// The mode tabs (Work/Personal/BOTH switcher) are DEPRECATED. The
+// renderModeTabs() function now returns an empty string — it does not
+// render anything. The mode concept is replaced by the filter pill.
+//
+// This function is kept for backward compatibility with any caller that
+// still invokes it. It will be removed once all callers are migrated.
 
-  // Update tab styles
-  document.querySelectorAll('.mode-tab').forEach(tab => {
-    tab.classList.remove('active');
-  });
-  const activeTab = document.querySelector(`.mode-tab[onclick*="${mode}"]`);
-  if (activeTab) activeTab.classList.add('active');
-
-  // Reconfigure nav
-  renderBottomNav(mode);
-
-  // Reload current surface
-  if (mode === 'work') {
-    if (typeof loadToday === 'function') loadToday();
-  } else if (mode === 'personal') {
-    if (typeof loadPersonalMode === 'function') loadPersonalMode();
-  }
+function renderModeTabs(currentMode) {
+  // Round 46: mode tabs are removed. Return empty string.
+  // The filter pill (renderFilterPill) replaces this.
+  return '';
 }
 
-// ─── Bottom Nav ────────────────────────────────────────────────────────────
+async function switchMode(mode) {
+  // Round 46: switchMode is DEPRECATED. The user does not switch modes.
+  // This function is kept for backward compatibility — it now just
+  // sets the filter (which is the new mental model) and reloads.
+  console.warn('switchMode() is deprecated (Round 46). Use setCurrentFilter() instead.');
+  // Map old mode values to new filter values
+  const filterMap = { work: 'work', personal: 'personal', both: 'all' };
+  const filter = filterMap[mode] || 'all';
+  setCurrentFilter(filter);
+}
 
-const _workNavItems = [
+// ─── Bottom Nav (UNIFIED — Round 46) ──────────────────────────────────────
+// The bottom nav is ALWAYS the same 4 items regardless of filter:
+// Today / Memory / Ask / More. It does NOT switch based on mode.
+
+const _unifiedNavItems = [
   { id: 'today', label: 'Today', icon: '☀️' },
-  { id: 'work', label: 'Work', icon: '💼' },
+  { id: 'memory', label: 'Memory', icon: '🧠' },
   { id: 'ask-v2', label: 'Ask', icon: '💬' },
   { id: 'more', label: 'More', icon: '⋯' },
 ];
 
-const _personalNavItems = [
-  { id: 'personal-today', label: 'Today', icon: '☀️' },
-  { id: 'personal-memory', label: 'Memory', icon: '🧠' },
-  { id: 'personal-decide', label: 'Decide', icon: '⚖️' },
-  { id: 'personal-reflect', label: 'Reflect', icon: '📝' },
-];
-
 function renderBottomNav(mode) {
+  // Round 46: the 'mode' parameter is IGNORED. The bottom nav is always
+  // the same 4 unified items.
   let existing = document.querySelector('.bottom-nav');
   if (existing) existing.remove();
 
-  const items = mode === 'personal' ? _personalNavItems : _workNavItems;
+  const items = _unifiedNavItems;
   const nav = document.createElement('nav');
   nav.className = 'bottom-nav';
 
@@ -79,9 +135,7 @@ function renderBottomNav(mode) {
     btn.innerHTML = `<span class="icon">${item.icon}</span><span>${escapeHtml(item.label)}</span>`;
     btn.onclick = () => {
       if (item.id === 'more') {
-        openMoreMenu(mode);
-      } else if (item.id.startsWith('personal-')) {
-        navPersonalSurface(item.id);
+        openMoreMenu();
       } else {
         navTo(item.id);
       }
@@ -93,31 +147,62 @@ function renderBottomNav(mode) {
 }
 
 function openMoreMenu(mode) {
-  const actions = mode === 'personal' ? [
+  // Round 46: the 'mode' parameter is IGNORED. The More menu is unified.
+  const actions = [
     { label: 'What Maestro Knows', onclick: 'showWhatMaestroKnows()', style: '' },
     { label: 'Incognito Toggle', onclick: 'toggleIncognito()', style: 'maestro-btn-secondary' },
-  ] : [
-    { label: 'Role Playbooks', onclick: "navTo('playbook')", style: '' },
+    { label: 'Personal Context in Work', onclick: 'showIntegrationToggle()', style: 'maestro-btn-secondary' },
+    { label: 'Role Playbooks', onclick: "navTo('playbook')", style: 'maestro-btn-secondary' },
     { label: 'Cognitive Organs', onclick: "navTo('cognition')", style: 'maestro-btn-secondary' },
-    { label: 'Organizational Story', onclick: "navTo('autobiography')", style: 'maestro-btn-secondary' },
-    { label: 'Personal Mode', onclick: "navTo('personal')", style: 'maestro-btn-secondary' },
+    { label: "Organizational Story", onclick: "navTo('autobiography')", style: 'maestro-btn-secondary' },
   ];
   openActionSheet('More', actions);
+}
+
+// Round 46 — the integration toggle is reachable from the More menu.
+function showIntegrationToggle() {
+  const el = document.getElementById('main-content') || document.getElementById('personal-main');
+  if (!el) return;
+  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading integration settings…</div>';
+  api.getPersonal('/settings/personal-context-in-work?user=default').then(data => {
+    const enabled = data.personal_context_in_work;
+    el.innerHTML = `
+      <div style="max-width:500px;margin:40px auto;padding:24px;font-family:'Montserrat',sans-serif;">
+        <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;">Personal Context in Work</div>
+        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:20px;">
+          When enabled, your own personal state (sleep, energy, calendar conflicts) appears in Work Mode.
+          Maestro never surfaces intelligence about a third party. You can disable this at any time.
+        </div>
+        <div style="padding:16px;background:var(--maestro-gray-light,#F5F5F5);border-radius:12px;margin-bottom:20px;">
+          <div style="font-size:13px;font-weight:700;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;">Current state: ${enabled ? 'ON' : 'OFF (default)'}</div>
+          <button class="maestro-btn ${enabled ? 'maestro-btn-ghost' : ''}" style="width:100%;font-size:14px;min-height:44px;" onclick="toggleIntegration(${!enabled})">
+            ${enabled ? 'Disable' : 'Enable'}
+          </button>
+        </div>
+        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" style="font-size:13px;" onclick="navTo('today')">Back to Today</button>
+      </div>
+    `;
+  }).catch(() => {
+    el.innerHTML = '<div class="ds-error">Failed to load integration settings.</div>';
+  });
+}
+
+async function toggleIntegration(enable) {
+  try {
+    await api.postPersonal('/settings/personal-context-in-work', { enabled: enable, user: 'default' });
+    showIntegrationToggle(); // reload
+  } catch (e) {
+    alert('Toggle failed: ' + e.message);
+  }
 }
 
 // ─── Initialize on page load ───────────────────────────────────────────────
 
 function initBumbleNav() {
-  // Check current mode
-  fetch('/api/personal/mode?user=default')
-    .then(r => r.json())
-    .then(data => {
-      const mode = data.mode || 'work';
-      renderBottomNav(mode);
-    })
-    .catch(() => {
-      renderBottomNav('work'); // default
-    });
+  // Round 46: load the initial filter from sessionStorage (default 'all').
+  _loadInitialFilter();
+  // The bottom nav is unified — always the same 4 items.
+  renderBottomNav('all');  // the 'all' arg is ignored (kept for compat)
 }
 
 // Auto-init on DOM ready

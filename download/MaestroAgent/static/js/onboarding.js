@@ -1,6 +1,14 @@
-// V8 Maestro × Bumble — Onboarding Flow (6 screens).
+// V8 Maestro × Bumble — Onboarding Flow (Round 46 — 6 screens, no mode choice).
 // One bold question per screen. Big yellow CTAs. Confident, not a form.
 // Stores data via PersonalDataStore + ConsentStore + ModeManager + PersonalKG.
+//
+// Round 46: Screen 4 (the mode choice) is REMOVED. The user is never
+// asked to choose Work, Personal, or Both. Instead:
+//   Screen 4: "Connect your work tools" (optional — Jira, Slack, GitHub, Gmail, Calendar).
+//   Screen 5: "Connect your personal tools" (optional — personal calendar, personal email, photos).
+//   Screen 6: "You're in."
+// The user connects what they want, and Maestro figures out the rest.
+// The "mode" is inferred from the data. The filter pill lets them focus.
 
 let _onboardingStep = 1;
 let _onboardingData = {};
@@ -20,8 +28,8 @@ function showOnboardingScreen(step) {
     1: renderOnboardingWelcome,
     2: renderOnboardingName,
     3: renderOnboardingAbout,
-    4: renderOnboardingMode,
-    5: renderOnboardingConnect,
+    4: renderOnboardingWorkTools,    // Round 46 — was renderOnboardingMode
+    5: renderOnboardingPersonalTools, // Round 46 — was renderOnboardingConnect
     6: renderOnboardingDone,
   };
 
@@ -64,7 +72,7 @@ function renderOnboardingName() {
       <div class="text-title" style="margin-bottom:var(--space-5);">What's your name?</div>
       <div style="width:100%;max-width:420px;">
         <input type="text" class="maestro-input" id="onboard-name" placeholder="First name"
-               oninput="document.getElementById('onboard-name-btn').disabled = !this.value.trim()"
+               oninput="document.getElementById('onboard-name-btn').disabled = !this.value.trim"
                style="margin-bottom:var(--space-4);" autofocus />
         <div class="text-caption" style="color:var(--maestro-gray-mid);margin-bottom:var(--space-5);">
           This is how I'll greet you.
@@ -83,7 +91,6 @@ function saveOnboardingName() {
   const name = document.getElementById('onboard-name').value.trim();
   if (!name) return;
   _onboardingData.name = name;
-  // Store via API
   api.postPersonal('/kg/entity', {
     user: 'default',
     entity_type: 'person',
@@ -125,7 +132,6 @@ function saveOnboardingAbout() {
   _onboardingData.age = document.getElementById('onboard-age')?.value || '';
   _onboardingData.role = document.getElementById('onboard-role')?.value || '';
   _onboardingData.company = document.getElementById('onboard-company')?.value || '';
-  // Store as KG entities
   if (_onboardingData.role) {
     api.postPersonal('/kg/entity', {
       user: 'default', entity_type: 'interest',
@@ -136,82 +142,30 @@ function saveOnboardingAbout() {
   showOnboardingScreen(4);
 }
 
-// ─── Screen 4: Mode Choice ────────────────────────────────────────────────
+// ─── Screen 4: Connect Work Tools (Round 46 — replaces the mode choice) ───
+// The user is NOT asked to choose a mode. They connect work tools (all
+// OFF by default). Maestro infers "work context" from the data.
 
-let _selectedMode = '';
+let _workToolToggles = { jira: false, slack: false, github: false, gmail: false, calendar: false };
 
-function renderOnboardingMode() {
-  return `
-    <div class="onboarding-screen">
-      <div class="text-title" style="margin-bottom:var(--space-5);">What's this for?</div>
-      <div style="width:100%;max-width:420px;">
-        <div class="onboarding-card onboarding-mode-card" id="mode-card-work" onclick="selectOnboardingMode('work')">
-          <div class="checkmark">✓</div>
-          <div style="font-size:28px;margin-bottom:var(--space-2);">💼</div>
-          <div class="text-title" style="margin-bottom:var(--space-1);">Work</div>
-          <div class="text-body" style="color:var(--maestro-gray-mid);">Organizational judgment, enterprise tools</div>
-        </div>
-        <div class="onboarding-card onboarding-mode-card" id="mode-card-personal" onclick="selectOnboardingMode('personal')">
-          <div class="checkmark">✓</div>
-          <div style="font-size:28px;margin-bottom:var(--space-2);">🌱</div>
-          <div class="text-title" style="margin-bottom:var(--space-1);">Personal</div>
-          <div class="text-body" style="color:var(--maestro-gray-mid);">Life, relationships, self-growth</div>
-        </div>
-        <div class="onboarding-card onboarding-mode-card" id="mode-card-both" onclick="selectOnboardingMode('both')">
-          <div class="checkmark">✓</div>
-          <div style="font-size:28px;margin-bottom:var(--space-2);">⚡</div>
-          <div class="text-title" style="margin-bottom:var(--space-1);">Both</div>
-          <div class="text-body" style="color:var(--maestro-gray-mid);">Seamless switching, shared memory</div>
-        </div>
-        <button class="maestro-btn maestro-btn-full" id="onboard-mode-btn" disabled
-                style="margin-top:var(--space-4);" onclick="saveOnboardingMode()">Continue</button>
-      </div>
-      <div class="progress-dots">
-        ${[1,2,3,4,5,6].map(i => `<div class="progress-dot ${i === 4 ? 'active' : ''}"></div>`).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function selectOnboardingMode(mode) {
-  _selectedMode = mode;
-  // Remove all selections
-  document.querySelectorAll('.onboarding-mode-card').forEach(c => {
-    c.classList.remove('selected-work', 'selected-personal', 'selected-both');
-  });
-  // Add selection
-  document.getElementById(`mode-card-${mode}`).classList.add(`selected-${mode}`);
-  // Enable button
-  document.getElementById('onboard-mode-btn').disabled = false;
-}
-
-function saveOnboardingMode() {
-  if (!_selectedMode) return;
-  _onboardingData.mode = _selectedMode;
-  api.postPersonal('/mode', { mode: _selectedMode, user: 'default' }).catch(() => {});
-  showOnboardingScreen(5);
-}
-
-// ─── Screen 5: Connect Sources ────────────────────────────────────────────
-
-let _sourceToggles = { calendar: false, email: false, photos: false };
-
-function renderOnboardingConnect() {
-  const sources = [
-    { id: 'calendar', icon: '📅', label: 'Calendar', desc: 'So I can brief you on your day' },
-    { id: 'email', icon: '✉️', label: 'Email', desc: 'So I can surface what matters' },
-    { id: 'photos', icon: '📷', label: 'Photos', desc: 'So I can help you remember' },
+function renderOnboardingWorkTools() {
+  const tools = [
+    { id: 'jira', icon: '📋', label: 'Jira', desc: 'Issue tracking & project management' },
+    { id: 'slack', icon: '💬', label: 'Slack', desc: 'Team conversations & cross-team signals' },
+    { id: 'github', icon: '🐙', label: 'GitHub', desc: 'Code, PRs, & engineering signals' },
+    { id: 'gmail', icon: '✉️', label: 'Gmail', desc: 'Work email (read-only)' },
+    { id: 'calendar', icon: '📅', label: 'Work Calendar', desc: 'Meetings & commitments' },
   ];
 
   return `
     <div class="onboarding-screen">
-      <div class="text-title" style="margin-bottom:var(--space-2);">Let's connect some things.</div>
+      <div class="text-title" style="margin-bottom:var(--space-2);">Connect your work tools.</div>
       <div class="text-body" style="color:var(--maestro-gray-mid);margin-bottom:var(--space-5);max-width:380px;text-align:center;">
-        Skip if you want — I work either way.
+        Optional — skip if you want. I work either way.
       </div>
       <div style="width:100%;max-width:420px;">
         <div class="onboarding-card" style="margin-bottom:var(--space-4);">
-          ${sources.map(s => `
+          ${tools.map(s => `
             <div class="onboarding-toggle-row">
               <div style="display:flex;align-items:center;gap:var(--space-3);">
                 <span style="font-size:24px;">${s.icon}</span>
@@ -220,13 +174,84 @@ function renderOnboardingConnect() {
                   <div class="text-caption" style="color:var(--maestro-gray-mid);">${escapeHtml(s.desc)}</div>
                 </div>
               </div>
-              <div class="maestro-toggle" id="toggle-${s.id}" onclick="toggleSource('${s.id}')"></div>
+              <div class="maestro-toggle" id="work-toggle-${s.id}" onclick="toggleWorkTool('${s.id}')"></div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="display:flex;gap:var(--space-3);">
+          <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(5)">Skip for now</button>
+          <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingWorkTools()">Continue</button>
+        </div>
+      </div>
+      <div class="progress-dots">
+        ${[1,2,3,4,5,6].map(i => `<div class="progress-dot ${i === 4 ? 'active' : ''}"></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleWorkTool(toolId) {
+  _workToolToggles[toolId] = !_workToolToggles[toolId];
+  const toggle = document.getElementById(`work-toggle-${toolId}`);
+  if (toggle) {
+    toggle.classList.toggle('on', _workToolToggles[toolId]);
+  }
+  // Grant consent if ON. These are work sources — stored under the work
+  // namespace in PersonalDataStore. The user can revoke later via
+  // "What Maestro Knows."
+  if (_workToolToggles[toolId]) {
+    api.postPersonal('/consent/grant', {
+      user: 'default', source: `work_${toolId}`, purpose: 'store',
+    }).catch(() => {});
+    api.postPersonal('/consent/grant', {
+      user: 'default', source: `work_${toolId}`, purpose: 'retrieve',
+    }).catch(() => {});
+  }
+}
+
+function saveOnboardingWorkTools() {
+  _onboardingData.workTools = { ..._workToolToggles };
+  showOnboardingScreen(5);
+}
+
+// ─── Screen 5: Connect Personal Tools (Round 46 — separate from work) ─────
+// Personal tools are on a SEPARATE screen with SEPARATE consent toggles.
+// This enforces the consent boundary — work and personal are never
+// conflated during onboarding.
+
+let _personalToolToggles = { personal_calendar: false, personal_email: false, photos: false };
+
+function renderOnboardingPersonalTools() {
+  const tools = [
+    { id: 'personal_calendar', icon: '📆', label: 'Personal Calendar', desc: 'Your life events, appointments' },
+    { id: 'personal_email', icon: '📧', label: 'Personal Email', desc: 'Personal correspondence (read-only)' },
+    { id: 'photos', icon: '📷', label: 'Photos', desc: 'So I can help you remember' },
+  ];
+
+  return `
+    <div class="onboarding-screen">
+      <div class="text-title" style="margin-bottom:var(--space-2);">Connect your personal tools.</div>
+      <div class="text-body" style="color:var(--maestro-gray-mid);margin-bottom:var(--space-5);max-width:380px;text-align:center;">
+        Also optional. Personal data stays separate from work by default.
+      </div>
+      <div style="width:100%;max-width:420px;">
+        <div class="onboarding-card" style="margin-bottom:var(--space-4);">
+          ${tools.map(s => `
+            <div class="onboarding-toggle-row">
+              <div style="display:flex;align-items:center;gap:var(--space-3);">
+                <span style="font-size:24px;">${s.icon}</span>
+                <div>
+                  <div class="text-label">${escapeHtml(s.label)}</div>
+                  <div class="text-caption" style="color:var(--maestro-gray-mid);">${escapeHtml(s.desc)}</div>
+                </div>
+              </div>
+              <div class="maestro-toggle" id="personal-toggle-${s.id}" onclick="togglePersonalTool('${s.id}')"></div>
             </div>
           `).join('')}
         </div>
         <div style="display:flex;gap:var(--space-3);">
           <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(6)">Skip for now</button>
-          <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingConnect()">Connect</button>
+          <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingPersonalTools()">Connect</button>
         </div>
       </div>
       <div class="progress-dots">
@@ -236,25 +261,27 @@ function renderOnboardingConnect() {
   `;
 }
 
-function toggleSource(sourceId) {
-  _sourceToggles[sourceId] = !_sourceToggles[sourceId];
-  const toggle = document.getElementById(`toggle-${sourceId}`);
+function togglePersonalTool(toolId) {
+  _personalToolToggles[toolId] = !_personalToolToggles[toolId];
+  const toggle = document.getElementById(`personal-toggle-${toolId}`);
   if (toggle) {
-    toggle.classList.toggle('on', _sourceToggles[sourceId]);
+    toggle.classList.toggle('on', _personalToolToggles[toolId]);
   }
-  // Grant consent if ON, do nothing if OFF (no revoke needed during onboarding)
-  if (_sourceToggles[sourceId]) {
+  // Grant consent if ON. These are personal sources. The Work/Personal
+  // integration toggle (Round 44) still defaults to OFF — connecting
+  // personal tools does NOT auto-enable cross-context intelligence.
+  if (_personalToolToggles[toolId]) {
     api.postPersonal('/consent/grant', {
-      user: 'default', source: sourceId, purpose: 'store',
+      user: 'default', source: toolId, purpose: 'store',
     }).catch(() => {});
     api.postPersonal('/consent/grant', {
-      user: 'default', source: sourceId, purpose: 'retrieve',
+      user: 'default', source: toolId, purpose: 'retrieve',
     }).catch(() => {});
   }
 }
 
-function saveOnboardingConnect() {
-  _onboardingData.sources = { ..._sourceToggles };
+function saveOnboardingPersonalTools() {
+  _onboardingData.personalTools = { ..._personalToolToggles };
   showOnboardingScreen(6);
 }
 
@@ -266,7 +293,7 @@ function renderOnboardingDone() {
       <div class="text-hero" style="text-align:center;margin-bottom:var(--space-5);">You're in.</div>
       <div style="font-size:80px;font-weight:900;margin-bottom:var(--space-5);">✓</div>
       <div class="text-label" style="text-align:center;max-width:300px;margin-bottom:var(--space-6);">
-        I'll make the first move. You'll get a briefing tomorrow morning.
+        I'll learn what matters as you use me. You'll get a briefing tomorrow morning.
       </div>
       <button class="maestro-btn maestro-btn-inverted maestro-btn-full" onclick="finishOnboarding()">
         Open Maestro
@@ -276,6 +303,5 @@ function renderOnboardingDone() {
 }
 
 function finishOnboarding() {
-  // Redirect to main app
   window.location.href = '/app.html';
 }

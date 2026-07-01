@@ -428,7 +428,13 @@ def get_mode(user: str = Query("default")) -> dict[str, Any]:
 
 @router.post("/mode")
 def set_mode(payload: dict[str, Any]) -> dict[str, Any]:
-    """Set current mode."""
+    """Set current mode.
+
+    DEPRECATED (Round 46). The user's mode is now a view filter, not a
+    stored state. This endpoint is kept for backward compatibility with
+    onboarding.js and mode-tabs.js. New code should use the ?filter=
+    query parameter on /api/personal/today instead.
+    """
     from maestro_personal.mode import ModeManager, Mode
     mode_str = payload.get("mode", "work")
     try:
@@ -437,6 +443,218 @@ def set_mode(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(400, f"Invalid mode: {mode_str}. Use 'work', 'personal', or 'both'.")
     ModeManager.set_mode(payload.get("user", "default"), mode)
     return {"mode": mode.value}
+
+
+# ─── Round 46: Unified Today + Memory endpoints (filter, not mode) ──────────
+# The filter is a VIEW parameter. Default: ALL (the user sees everything,
+# work + personal interleaved by priority). The user can narrow to WORK
+# or PERSONAL for focus, but the underlying data does not change.
+
+@router.get("/today")
+def get_unified_today(
+    user: str = Query("default", description="User email."),
+    filter: str = Query("all", description="Filter: all, work, personal. Default: all."),
+) -> dict[str, Any]:
+    """Round 46 — the unified Today endpoint.
+
+    Returns the unified swipe deck: work cards (CEO briefing items) +
+    personal cards (personal briefing items), interleaved by priority.
+    Each card has a _mode field ('work' or 'personal') so the frontend
+    can render the blue/coral mode indicator dot.
+
+    The filter parameter narrows the view:
+      - all (default): show work + personal cards
+      - work: show only work cards
+      - personal: show only personal cards
+
+    The filter does NOT change the underlying data — it only filters
+    the view. This is the Round 46 principle: the mode is a filter, not
+    a switch.
+
+    Returns:
+        {
+            cards: list[{category, title, context, _mode, ...}],
+            filter: str,
+            counts: {all, work, personal},
+        }
+    """
+    from maestro_personal.mode import Filter
+    from maestro_personal.integration import (
+        build_personal_context_card_for_work,
+        build_work_context_card_for_personal,
+    )
+    from maestro_oem.user_settings import UserSettings
+
+    f = Filter.from_param(filter)
+    cards: list[dict[str, Any]] = []
+
+    # ─── Work cards (from CEO briefing) ──────────────────────────────
+    if f in (Filter.ALL, Filter.WORK):
+        try:
+            # Import here to avoid circular dependency at module load
+            from maestro_api.routes.oem import get_ceo_briefing
+            briefing = get_ceo_briefing()
+            ot = briefing.get("one_thing", {})
+            if ot.get("title"):
+                cards.append({
+                    "category": "ONE DECISION",
+                    "title": ot.get("title", ""),
+                    "context": ot.get("why", ""),
+                    "_mode": "work",
+                    "confidence": ot.get("confidence"),
+                    "urgency": ot.get("urgency"),
+                })
+            money = briefing.get("money", {})
+            if money.get("losses"):
+                first = money["losses"][0]
+                cards.append({
+                    "category": "ONE OPPORTUNITY",
+                    "title": first.get("title", ""),
+                    "context": first.get("detail", ""),
+                    "_mode": "work",
+                })
+            overnight = briefing.get("overnight", {})
+            if overnight.get("changes"):
+                first = overnight["changes"][0]
+                cards.append({
+                    "category": "ONE RISK",
+                    "title": first.get("title", ""),
+                    "context": first.get("detail", ""),
+                    "_mode": "work",
+                })
+        except Exception:
+            pass  # Work briefing unavailable — return personal cards only
+
+    # ─── Personal cards (from personal briefing) ─────────────────────
+    if f in (Filter.ALL, Filter.PERSONAL):
+        try:
+            from maestro_personal.briefing import PersonalBriefingEngine
+            from maestro_oem.user_settings import UserSettings
+            engine = PersonalBriefingEngine(user)
+            toggle_on = UserSettings.is_personal_context_in_work_enabled(user)
+            engine.set_toggle_state(toggle_on)
+            personal = engine.generate()
+            for item in personal.get("items", [])[:3]:
+                cards.append({
+                    "category": "PERSONAL",
+                    "title": (item.get("content", ""))[:100],
+                    "context": f"From {item.get('source', 'your calendar')}",
+                    "_mode": "personal",
+                })
+        except Exception:
+            pass  # Personal briefing unavailable — return work cards only
+
+    # ─── Counts (for the filter pill badges) ─────────────────────────
+    work_count = sum(1 for c in cards if c["_mode"] == "work")
+    personal_count = sum(1 for c in cards if c["_mode"] == "personal")
+
+    return {
+        "cards": cards,
+        "filter": f.value,
+        "counts": {
+            "all": work_count + personal_count,
+            "work": work_count,
+            "personal": personal_count,
+        },
+        "default_filter": "all",
+        "note": "Round 46 — the filter is a view parameter, not a stored mode.",
+    }
+
+
+@router.get("/memory")
+def get_unified_memory(
+    user: str = Query("default", description="User email."),
+    filter: str = Query("all", description="Filter: all, work, personal. Default: all."),
+    limit: int = Query(30, ge=1, le=100, description="Max items to return."),
+) -> dict[str, Any]:
+    """Round 46 — the unified Memory endpoint.
+
+    Returns a chronological feed of everything that happened — work
+    signals (from /timeline) and personal memories (from memory replay),
+    interleaved by time. Each item has a _mode field so the frontend
+    can render the mode indicator dot.
+
+    The filter parameter narrows the view (all/work/personal).
+    """
+    from maestro_personal.mode import Filter
+
+    f = Filter.from_param(filter)
+    items: list[dict[str, Any]] = []
+
+    # ─── Work signals (from timeline) ────────────────────────────────
+    if f in (Filter.ALL, Filter.WORK):
+        try:
+            from maestro_api.routes.oem import get_timeline
+            timeline = get_timeline(limit=limit)
+            for sig in timeline.get("signals", []):
+                items.append({
+                    "type": "work_signal",
+                    "provider": sig.get("provider", ""),
+                    "signal_type": sig.get("type", ""),
+                    "description": f"{sig.get('type', 'signal')}: {sig.get('artifact', '')}",
+                    "actor": sig.get("actor", ""),
+                    "domain": sig.get("domain", ""),
+                    "timestamp": sig.get("timestamp", ""),
+                    "_mode": "work",
+                })
+        except Exception:
+            pass
+
+    # ─── Personal memories (from KG) ─────────────────────────────────
+    if f in (Filter.ALL, Filter.PERSONAL):
+        try:
+            from maestro_personal.knowledge_graph import PersonalKG
+            memories = PersonalKG.get_entities(entity_type="memory")
+            for mem in memories[:limit]:
+                items.append({
+                    "type": "personal_memory",
+                    "description": mem.name,
+                    "actor": "",
+                    "domain": "personal",
+                    "timestamp": getattr(mem, "created_at", ""),
+                    "_mode": "personal",
+                })
+        except Exception:
+            pass
+
+    # Sort by timestamp descending (most recent first) — best effort
+    def _sort_key(item: dict[str, Any]) -> str:
+        return item.get("timestamp", "") or ""
+    items.sort(key=_sort_key, reverse=True)
+
+    work_count = sum(1 for i in items if i["_mode"] == "work")
+    personal_count = sum(1 for i in items if i["_mode"] == "personal")
+
+    return {
+        "items": items[:limit],
+        "filter": f.value,
+        "counts": {
+            "all": work_count + personal_count,
+            "work": work_count,
+            "personal": personal_count,
+        },
+        "default_filter": "all",
+    }
+
+
+# ─── Round 46: Filter validation endpoint ───────────────────────────────────
+
+@router.get("/filter/options")
+def get_filter_options() -> dict[str, Any]:
+    """Round 46 — return the available filter options for the unified UI.
+
+    The filter pill in the frontend reads this to render the three
+    options (All/Work/Personal) with their counts.
+    """
+    from maestro_personal.mode import Filter
+    return {
+        "options": [
+            {"value": f.value, "label": f.value.capitalize()}
+            for f in Filter
+        ],
+        "default": Filter.ALL.value,
+        "note": "Round 46 — the filter is a view parameter, not a stored mode.",
+    }
 
 
 # ─── Round 44: Personal Context in Work toggle ──────────────────────────────

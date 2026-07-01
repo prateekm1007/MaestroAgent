@@ -31,28 +31,30 @@ async function loadToday() {
     ]);
     const contradictions = contradictionsResp.contradictions || [];
 
-    // ─── Round 44 Phase 6: Both Mode unified deck ───────────────────
-    // Detect the current mode. If "both", also fetch the personal briefing
-    // and personal contradictions so we can interleave work and personal
-    // cards by priority in a single unified swipe deck.
-    let currentMode = 'work';
+    // ─── Round 44 Phase 6 / Round 46: Always fetch personal data ─────
+    // Round 46: The Today surface is ALWAYS the unified deck. The user
+    // does not switch modes. We always fetch the personal briefing so
+    // we can interleave work + personal cards. The filter pill (All/
+    // Work/Personal) narrows the view — it does NOT change what we fetch.
+    let currentFilter = 'all';
     let personalBriefing = null;
     let personalContradsList = [];
     try {
-      const modeResp = await fetch('/api/personal/mode?user=default').then(r => r.json());
-      currentMode = modeResp.mode || 'work';
-    } catch (e) { /* default to work */ }
+      currentFilter = (typeof getCurrentFilter === 'function') ? getCurrentFilter() : 'all';
+    } catch (e) { /* default to 'all' */ }
 
-    if (currentMode === 'both') {
-      try {
-        const [pb, pc] = await Promise.all([
-          api.getPersonal('/briefing').catch(() => null),
-          api.getPersonal('/contradictions').catch(() => ({ contradictions: [] })),
-        ]);
-        personalBriefing = pb;
-        personalContradsList = (pc && pc.contradictions) || [];
-      } catch (e) { /* personal mode unavailable — fall back to work-only */ }
-    }
+    // Always fetch personal data (Round 46 — the default is 'all', so we
+    // always need personal cards available for the unified deck). The
+    // filter is applied at RENDER time, not fetch time.
+    try {
+      const [pb, pc] = await Promise.all([
+        api.getPersonal('/briefing').catch(() => null),
+        api.getPersonal('/contradictions').catch(() => ({ contradictions: [] })),
+      ]);
+      personalBriefing = pb;
+      personalContradsList = (pc && pc.contradictions) || [];
+    } catch (e) { /* personal mode unavailable — work-only deck */ }
+    const currentMode = 'all';  // Round 46 — always 'all' (the filter is separate)
 
     // Fetch time-axis for a relevant domain. Derive the domain from the
     // actual briefing data — not a hardcoded string. The auditor (round 15)
@@ -135,7 +137,7 @@ async function loadToday() {
       // Task extraction may not be available
     }
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks, currentMode, personalBriefing, personalContradsList);
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks, currentMode, personalBriefing, personalContradsList, currentFilter);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -145,14 +147,19 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks, currentMode, personalBriefing, personalContradsList) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks, currentMode, personalBriefing, personalContradsList, currentFilter) {
   // Round 44 Phase 6 — Both Mode handling.
   // If currentMode === 'both', interleave work and personal cards by
   // priority in a single unified swipe deck. Each card has a subtle
   // mode indicator dot (blue for Work, coral for Personal). The unified
   // deck NEVER mixes third-party intelligence — work cards contain only
   // work data, personal cards contain only the user's own personal data.
-  currentMode = currentMode || 'work';
+  //
+  // Round 46 — currentMode is always 'all'. The filter pill (currentFilter)
+  // narrows the view at RENDER time. 'all' shows everything, 'work' shows
+  // only blue-dot cards, 'personal' shows only coral-dot cards.
+  currentMode = currentMode || 'all';
+  currentFilter = currentFilter || 'all';
   personalBriefing = personalBriefing || null;
   personalContradsList = personalContradsList || [];
 
@@ -218,13 +225,19 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
 
   const items = [decision, opportunity, riskItem, learning, predictionItem].filter(Boolean);
 
-  // ─── Round 44 Phase 6: Build personal cards for Both Mode ────────
+  // Round 46 — apply the filter to work items. If the filter is
+  // 'personal', exclude work items (the deck shows only personal cards).
+  const filteredItems = currentFilter === 'personal' ? [] : items;
+
+  // ─── Round 44 Phase 6 / Round 46: Build personal cards (always) ────
+  // Round 46: Always build personal cards (the default is 'all'). The
+  // filter is applied at deck-building time — 'work' excludes personal
+  // cards, 'personal' excludes work cards, 'all' includes both.
   // Personal cards contain ONLY the user's own data. Never third-party
   // intelligence. Each card is tagged with _mode='personal' so the
-  // renderer can add the coral indicator dot. Work cards are tagged
-  // _mode='work' (blue dot).
+  // renderer can add the coral indicator dot.
   let personalCards = [];
-  if (currentMode === 'both' && personalBriefing) {
+  if (currentFilter !== 'work' && personalBriefing) {
     // Personal calendar items (only the user's own)
     if (personalBriefing.items && personalBriefing.items.length > 0) {
       personalBriefing.items.slice(0, 3).forEach(item => {
@@ -276,7 +289,8 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   }
 
   // Tag work items with _mode='work' for the indicator dot
-  items.forEach(it => { it._mode = 'work'; });
+  // Round 46: use filteredItems (respects the filter pill)
+  filteredItems.forEach(it => { it._mode = 'work'; });
 
   // Determine the organizational dot color
   const dotColor = determineDotColor(briefing, contradictions);
@@ -293,9 +307,13 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       <div class="meta-surface greeting">${greeting}</div>
       <div class="meta-surface sub-greeting">
         <span class="org-heartbeat"></span>
-        ${items.length + personalCards.length > 0 ? `${items.length + personalCards.length} ${items.length + personalCards.length === 1 ? 'thing' : 'things'} deserve attention.` : 'Everything is calm. Your organization is working well.'}
+        ${filteredItems.length + personalCards.length > 0 ? `${filteredItems.length + personalCards.length} ${filteredItems.length + personalCards.length === 1 ? 'thing' : 'things'} deserve attention.` : 'Everything is calm. Your organization is working well.'}
       </div>
   `;
+
+  // Round 46 — render the filter pill in the top-right of the Today surface.
+  // The pill has 3 options (All/Work/Personal). Default is 'all'.
+  html += `<div id="filter-pill-container" style="position:absolute;top:16px;right:16px;z-index:10;"></div>`;
 
   // Organizational personality one-liner (V3 Law 6)
   if (personality && personality.summary) {
@@ -325,7 +343,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   // ('work' = blue dot, 'personal' = coral dot) so the renderer can
   // show a subtle mode indicator. Personal cards NEVER contain
   // third-party intelligence — only the user's own data.
-  const totalCardCount = items.length + personalCards.length;
+  const totalCardCount = filteredItems.length + personalCards.length;
   if (totalCardCount === 0) {
     html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
       <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">Nothing needs you right now.</div>
@@ -370,8 +388,8 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       });
     }
 
-    // Add brief items as cards — work mode
-    items.forEach((item, i) => {
+    // Add brief items as cards — work mode (Round 46: use filteredItems)
+    filteredItems.forEach((item, i) => {
       const categoryClass = categoryColors[item.label] || 'decision';
       const canAct = item.label === 'One decision' || item.label === 'One opportunity';
       deckCards.push({
@@ -435,8 +453,9 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     `;
 
     // Also render the scrollable fallback (hidden by default)
+    // Round 46: use filteredItems (respects the filter pill)
     html += `<div id="swipe-deck-list" style="display:none;">`;
-    items.forEach((item, i) => {
+    filteredItems.forEach((item, i) => {
       const prepareBtn = item.label === 'One decision' ? `<button class="maestro-btn maestro-btn-full" style="margin-top:12px;font-size:14px;min-height:44px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
       const whyLink = `<a class="why-link" style="font-size:13px;color:var(--maestro-yellow-dark,#F0B500);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block;font-family:'Montserrat',sans-serif;" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
       const actionBtns = item.label === 'One decision' || item.label === 'One opportunity'
@@ -739,12 +758,19 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   el.innerHTML = html;
 
   // Wire up click handlers
-  items.forEach((item, i) => {
+  // Round 46: use filteredItems (respects the filter pill)
+  filteredItems.forEach((item, i) => {
     const itemEl = el.querySelector(`.brief-item[data-idx="${i}"]`);
     if (itemEl && item.action) {
       itemEl.addEventListener('click', item.action);
     }
   });
+
+  // Round 46 — render the filter pill into the container we created above.
+  // This must happen AFTER el.innerHTML is set, so the container exists.
+  if (typeof renderFilterPill === 'function') {
+    renderFilterPill('filter-pill-container');
+  }
 
   // V8 P0-1: Initialize the swipe deck after rendering
   initSwipeDeck();

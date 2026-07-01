@@ -5,6 +5,20 @@ Work Mode and Personal Mode are strictly partitioned. Cross-mode data
 sharing requires explicit user action per item. A work colleague who is
 also a friend gets TWO separate profiles — one in Work, one in Personal.
 They are never merged without explicit user action, and the merge is logged.
+
+Round 46 Amendment — One App, One Person:
+The USER's mode is no longer stored as state. The user does not "switch
+modes" — they open Maestro and see their whole life (work + personal)
+interleaved by priority. The "mode" is a FILTER (a query parameter on
+endpoints: ?filter=all|work|personal), not a stored state.
+
+The dual-profile merge locking (Guideline P10) STILL holds — a contact
+can still have separate work and personal profiles that require explicit
+merging. That logic is unchanged. Only the USER's mode concept is
+deprecated.
+
+set_mode() and get_mode() are kept for backward compatibility but are
+deprecated. New code should use the filter query parameter instead.
 """
 
 from __future__ import annotations
@@ -22,6 +36,32 @@ class Mode(str, Enum):
     WORK = "work"
     PERSONAL = "personal"
     BOTH = "both"  # shows both, but data stays partitioned
+
+
+class Filter(str, Enum):
+    """Round 46 — the filter replaces the stored mode.
+
+    The filter is a VIEW parameter, not user state. It defaults to ALL
+    (the user sees everything). The user can narrow to WORK or PERSONAL
+    for focus, but the underlying data does not change.
+    """
+    ALL = "all"
+    WORK = "work"
+    PERSONAL = "personal"
+
+    @classmethod
+    def from_param(cls, value: str | None) -> "Filter":
+        """Parse a filter query parameter. Defaults to ALL.
+
+        Accepts: 'all', 'work', 'personal' (case-insensitive).
+        Anything else (including None) defaults to ALL.
+        """
+        if not value:
+            return cls.ALL
+        try:
+            return cls(value.lower())
+        except ValueError:
+            return cls.ALL
 
 
 @dataclass
@@ -65,27 +105,65 @@ class MergeRecord:
 
 
 class ModeManager:
-    """Manages strict Work/Personal mode separation.
+    """Manages strict Work/Personal mode separation for CONTACT profiles.
 
     A person who exists in both Work and Personal mode gets TWO separate
     profiles. They are NEVER merged without explicit user action.
     Every merge is logged.
+
+    Round 46: The USER's mode (set_mode/get_mode) is DEPRECATED. The user
+    does not have a stored mode — they have a view filter (the ?filter=
+    query parameter). The contact-profile separation (create_profile,
+    merge_profiles, undo_merge) is UNCHANGED — that is Guideline P10 and
+    it still holds.
     """
 
     _profiles: dict[str, list[ModeProfile]] = {}  # entity_id → list of profiles (one per mode)
     _merges: list[MergeRecord] = []
-    _current_mode: dict[str, Mode] = {}  # user_id → current mode
+    # Round 46: _current_mode is DEPRECATED. Kept for backward compat only.
+    # New code should use the Filter query parameter, not stored mode.
+    _current_mode: dict[str, Mode] = {}
+
+    # ─── DEPRECATED: User mode state (Round 46) ──────────────────────
+    # These methods are kept for backward compatibility but should not
+    # be called by new code. The user's "mode" is now a view filter
+    # (Filter enum + ?filter= query parameter), not a stored state.
 
     @classmethod
     def set_mode(cls, user_id: str, mode: Mode) -> None:
-        """Set the current mode for a user."""
+        """DEPRECATED (Round 46). Set the current mode for a user.
+
+        New code should NOT call this. The user's "mode" is a view
+        filter, not a stored state. Use the Filter enum and the ?filter=
+        query parameter on endpoints instead.
+
+        This method is kept for backward compatibility with existing
+        callers (onboarding.js, mode-tabs.js) and will be removed once
+        those callers are migrated.
+        """
+        import warnings
+        warnings.warn(
+            "ModeManager.set_mode() is deprecated (Round 46). The user's "
+            "mode is now a view filter (?filter= query parameter), not a "
+            "stored state. Use Filter.from_param() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         cls._current_mode[user_id] = mode
-        logger.info("Mode set: user=%s mode=%s", user_id, mode.value)
+        logger.info("Mode set (DEPRECATED): user=%s mode=%s", user_id, mode.value)
 
     @classmethod
     def get_mode(cls, user_id: str) -> Mode:
-        """Get the current mode for a user. Default: WORK."""
-        return cls._current_mode.get(user_id, Mode.WORK)
+        """DEPRECATED (Round 46). Get the current mode for a user.
+
+        Returns Mode.BOTH by default (the unified experience). New code
+        should use the Filter query parameter instead.
+        """
+        # Round 46: default to BOTH (unified) instead of WORK.
+        # This makes existing callers see the unified experience by default.
+        return cls._current_mode.get(user_id, Mode.BOTH)
+
+    # ─── Contact profile separation (Guideline P10 — UNCHANGED) ──────
 
     @classmethod
     def create_profile(cls, entity_id: str, mode: Mode, name: str = "", context: str = "", notes: str = "") -> ModeProfile:
@@ -93,6 +171,10 @@ class ModeManager:
 
         If a profile already exists for this (entity_id, mode) pair,
         it is returned unchanged (idempotent).
+
+        This is the contact-profile separation (Guideline P10). It is
+        NOT affected by the Round 46 mode deprecation — contacts still
+        get separate work and personal profiles until explicitly merged.
         """
         if entity_id not in cls._profiles:
             cls._profiles[entity_id] = []

@@ -400,3 +400,121 @@ appear in Personal Mode. This is not optional. A one-way flow where
 personal life serves work but work does not serve personal life is the
 instrumentalization the amendment forbids. The integration is
 bidirectional or it is rejected.
+
+---
+
+## CONSTITUTIONAL AMENDMENT: ONE APP, ONE PERSON (Round 46)
+
+> **Maestro is one app for one person. The user does not switch modes.
+> The user opens Maestro and sees their life — work and personal together,
+> interleaved by priority. The "mode" is a filter, not a switch. The
+> default is "everything." The user can filter to work or personal for
+> focus, but the underlying experience is unified. The organization and
+> the person become more capable, not more dependent — together, not
+> separately.**
+
+### The Mental Model Correction
+
+Round 44 built the backend integration — the toggle, the bidirectional
+context cards, the unified deck. But the **frontend still treated Work
+and Personal as separate apps**. The mode tabs switched between two
+experiences. The onboarding asked "What's this for?" as if the user
+must choose. The sidebar changed based on mode.
+
+This was the last architectural inconsistency. The user has one life,
+not two. Work and personal are not separate apps — they are two contexts
+in one life. Maestro must reflect that.
+
+### The Filter, Not the Switch
+
+The "mode" concept becomes a **filter**, not a state.
+
+- **Default: "All"** — the user sees everything, interleaved by priority.
+  Work cards have a blue dot. Personal cards have a coral dot. The user
+  swipes through one unified deck.
+- **Filter: "Work"** — the user sees only blue-dot cards. This is a
+  convenience for focus, not a mode switch. The underlying data does
+  not change; only the view filters.
+- **Filter: "Personal"** — the user sees only coral-dot cards. Same
+  principle.
+
+The filter is a pill in the top-right of the Today surface. It is
+subtle (Bumble pill style, gray when inactive, yellow when active). It
+does not dominate the screen. The default is "All."
+
+### The Unified Sidebar
+
+There is ONE sidebar for ONE app. Four items, always:
+
+1. **Today** — the unified swipe deck (work + personal cards interleaved
+   by priority, with blue/coral mode dots). The filter pill narrows the
+   view.
+2. **Memory** — combines the Work Timeline (V8 Daily Work #1) and
+   Personal Memory Replay. A chronological feed of everything that
+   happened — work signals and personal memories, interleaved by time.
+   The filter pill narrows the view.
+3. **Ask** — the conversational Ask surface. Already handles both work
+   and personal questions. The synthesized answer includes work laws,
+   personal memories, and (if the toggle is ON) a personal context line.
+4. **More** — Settings, "What Maestro Knows," incognito toggle, the
+   Work/Personal integration toggle, and the filter defaults. Reachable
+   via the command palette (Ctrl+K) or the sidebar.
+
+The V5 litmus holds: 4 items, period. The sidebar does not change
+based on mode. The separate Personal Mode sidebar (Today/Memory/Decide/
+Reflect) is removed. "Decide" and "Reflect" move into the Today deck as
+card types (decision cards, reflection prompt cards) and into Memory as
+historical entries.
+
+### The Unified Onboarding
+
+The onboarding no longer asks "What's this for?" as a mode choice. The
+user is never asked to choose Work, Personal, or Both. Instead:
+
+- **Screen 4: "Connect your work tools"** (optional — Jira, Slack,
+  GitHub, Gmail, Calendar). Toggles, all OFF by default.
+- **Screen 5: "Connect your personal tools"** (optional — personal
+  calendar, personal email, photos). Toggles, all OFF by default.
+- **Screen 6: "You're in. I'll learn what matters as you use me."**
+
+The user connects what they want, and Maestro figures out the rest.
+The "mode" is inferred from the data: if the user connected Jira, they
+have work data; if they connected personal calendar, they have personal
+data. The filter pill lets them focus.
+
+### The Unified Backend
+
+The backend `ModeManager.set_mode()` is deprecated. The mode is no
+longer stored as user state. Instead, the mode is a query parameter on
+endpoints: `GET /api/today?filter=all|work|personal`.
+
+The `ModeManager` still exists for the dual-profile merge locking
+(Guideline P10) — a contact can still have separate work and personal
+profiles that require explicit merging. But the USER's mode is not a
+stored state; it is a view filter.
+
+### What Does NOT Change
+
+1. **The bright line holds.** Maestro still does not analyze third
+   parties. The bright-line guard (Round 44) still scans every payload.
+   No merger weakens the bright line.
+
+2. **The dual-profile merge locking holds.** A contact who is both a
+   colleague and a friend still gets two profiles until the user
+   explicitly merges them. The merge is logged and reversible for 30
+   days. This is Guideline P10 — it does not change.
+
+3. **The consent toggle holds.** The "Personal Context in Work" toggle
+   still defaults to OFF. The user must explicitly opt into
+   cross-context intelligence. The merger does not auto-enable
+   cross-context — it just makes the UI unified.
+
+4. **The 4-item sidebar holds.** The V5 litmus is non-negotiable. The
+   merger changes WHICH 4 items are in the sidebar (Today/Memory/Ask/
+   More), but the count stays at 4.
+
+5. **The withdrawal path holds.** Every feature still has a
+   withdrawal-path paragraph. The user can filter to "work only" and
+   function without personal context. The user can filter to "personal
+   only" and function without work context. The user can close the app
+   and function without Maestro.

@@ -268,25 +268,31 @@ class TestRound45V5Litmus:
     """Round 45 — V5 litmus: no new sidebar items, no engagement tracking."""
 
     def test_no_new_sidebar_item(self) -> None:
-        """The sub-tabs are WITHIN the Work surface, not new sidebar items."""
+        """The sub-tabs are WITHIN the Work surface, not new sidebar items.
+
+        Round 46 update: the nav arrays were unified. The old _workNavItems
+        and _personalNavItems were replaced by _unifiedNavItems (Round 46
+        merger — one app, one sidebar). This test now checks _unifiedNavItems
+        has exactly 4 items (Today/Memory/Ask/More).
+        """
         import maestro_personal
         mode_tabs_js = (
             pathlib.Path(maestro_personal.__file__).resolve().parents[2]
             / "static" / "js" / "mode-tabs.js"
         )
         source = mode_tabs_js.read_text()
-        # The _workNavItems array should still have exactly 4 items (Today/Work/Ask/More)
-        # The sub-tabs are inside work.js, not in the bottom nav.
-        assert "_workNavItems" in source
-        # Count the items in _workNavItems — should be 4
+        # Round 46: _unifiedNavItems replaces _workNavItems
+        assert "_unifiedNavItems" in source, \
+            "mode-tabs.js must have _unifiedNavItems (Round 46 unified nav)"
+        # Count the items in _unifiedNavItems — should be 4
         import re
-        match = re.search(r"_workNavItems\s*=\s*\[(.*?)\]", source, re.DOTALL)
-        assert match, "_workNavItems array must exist"
+        match = re.search(r"_unifiedNavItems\s*=\s*\[(.*?)\]", source, re.DOTALL)
+        assert match, "_unifiedNavItems array must exist"
         items_block = match.group(1)
         # Count the { id: ... } entries
         item_count = len(re.findall(r"\{\s*id:", items_block))
         assert item_count == 4, \
-            f"Work nav must have exactly 4 items (V5 litmus); got {item_count}"
+            f"Unified nav must have exactly 4 items (V5 litmus); got {item_count}"
 
     def test_no_engagement_tracking_in_work_js(self) -> None:
         """No dwell time, return frequency, or engagement metrics in work.js."""

@@ -19,8 +19,10 @@ const MAESTRO_API = window.MAESTRO_API || '';
 
 // ─── Navigation map (the only hardcoded data — labels, not insights) ────────
 const pageNames = {
-  // Constitution v2 — 4 meta-surfaces
-  today: 'Today', work: 'Work', 'ask-v2': 'Ask', learn: 'Learn',
+  // Round 46 — 4 unified meta-surfaces
+  today: 'Today', memory: 'Memory', 'ask-v2': 'Ask', more: 'More',
+  // Legacy meta-surfaces (accessible via Ctrl+K)
+  work: 'Work', learn: 'Learn',
   evolution: 'Evolution Report',
   cognition: 'Cognitive Organs',
   autobiography: "Your Organization's Story",
@@ -28,7 +30,7 @@ const pageNames = {
   personal: 'Personal Mode',
   // Deep capabilities (existing surfaces)
   home: 'Home', inbox: 'Inbox', simulator: 'Decision Simulator',
-  hayek: 'Hayek Lens', flow: 'Knowledge Flow', memory: 'Memory Replay',
+  hayek: 'Hayek Lens', flow: 'Knowledge Flow',
   ask: 'Ask the Organization', customer: 'Customer Judgment',
   physics: 'Organizational Physics', debate: 'Debate',
   live: 'Live Meeting',

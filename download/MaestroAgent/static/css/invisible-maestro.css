@@ -15,6 +15,7 @@
   padding: 48px 56px;
   max-width: 720px;
   margin: 0 auto;
+  position: relative;  /* Round 46 — for the filter pill absolute positioning */
 }
 
 .meta-surface.greeting {

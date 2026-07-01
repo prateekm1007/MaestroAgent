@@ -68,10 +68,13 @@ function emptyHTML(el, msg) {
 
 function loadSurfaceData(surface) {
   switch (surface) {
-    // Constitution v2 — 4 meta-surfaces
+    // Round 46 — 4 unified meta-surfaces (Today/Memory/Ask/More)
     case 'today': loadToday(); break;
-    case 'work': loadWork(); break;
+    case 'memory': loadUnifiedMemory(); break;  // Round 46 — unified memory feed
     case 'ask-v2': loadAskV2(); break;
+    case 'more': openMoreMenu(); break;  // Round 46 — More opens the action sheet
+    // Legacy meta-surfaces (kept for backward compat, accessible via Ctrl+K)
+    case 'work': loadWork(); break;
     case 'learn': loadLearn(); break;
     case 'evolution': loadEvolution(); break;
     case 'cognition': loadCognition(); break;
@@ -84,7 +87,6 @@ function loadSurfaceData(surface) {
     case 'simulator': loadSimulator(); break;
     case 'hayek': loadHayek(); break;
     case 'flow': loadKnowledge(); break;
-    case 'memory': loadMemory(); break;
     case 'physics': loadLaws(''); break;
     case 'debate': loadDebate(); break;
     case 'customer': loadCustomerJudgment(); break;
@@ -97,6 +99,96 @@ function loadSurfaceData(surface) {
     case 'eng-oem': loadEngOEM(); break;
     case 'eng-audit': loadEngAudit(); break;
     case 'eng-settings': loadEngSettings(); break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Round 46 — UNIFIED MEMORY surface
+// Combines the Work Timeline (V8 Daily Work #1) and Personal Memory
+// Replay into one chronological feed. The filter pill narrows the view
+// (All/Work/Personal). Each item has a mode indicator dot.
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadUnifiedMemory() {
+  const el = document.getElementById('memory-content') || document.getElementById('main-content');
+  if (!el) return;
+  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading your memory…</div>';
+
+  try {
+    const filter = getCurrentFilter ? getCurrentFilter() : 'all';
+    const data = await api.getPersonal(`/memory?filter=${filter}&limit=50`);
+    const items = data.items || [];
+    const counts = data.counts || {};
+
+    let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+
+    // Header + filter pill container
+    html += `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));">Memory</div>
+          <div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:2px;">${counts.all || 0} item${(counts.all || 0) === 1 ? '' : 's'} · most recent first</div>
+        </div>
+        <div id="filter-pill-container"></div>
+      </div>
+    `;
+
+    if (items.length === 0) {
+      html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
+        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No memories yet.</div>
+        <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
+      </div>`;
+    } else {
+      items.forEach((item, i) => {
+        const mode = item._mode || 'work';
+        const dotColor = mode === 'personal' ? '#FF6B6B' : '#2196F3';
+        const dotTitle = mode === 'personal' ? 'Personal' : 'Work';
+        const provider = item.provider || '';
+        const description = item.description || '';
+        const actor = item.actor || '';
+        const domain = item.domain || '';
+        const timestamp = item.timestamp || '';
+
+        // Format timestamp
+        let timeDisplay = '';
+        if (timestamp) {
+          try {
+            const d = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - d;
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffHr = Math.floor(diffMin / 60);
+            const diffDay = Math.floor(diffHr / 24);
+            if (diffMin < 1) timeDisplay = 'just now';
+            else if (diffMin < 60) timeDisplay = `${diffMin}m ago`;
+            else if (diffHr < 24) timeDisplay = `${diffHr}h ago`;
+            else if (diffDay < 7) timeDisplay = `${diffDay}d ago`;
+            else timeDisplay = d.toLocaleDateString();
+          } catch (e) { timeDisplay = String(timestamp).slice(0, 10); }
+        }
+
+        html += `
+          <div class="maestro-card" style="margin-bottom:12px;position:relative;">
+            <div style="position:absolute;top:14px;right:14px;width:10px;height:10px;border-radius:50%;background:${dotColor};opacity:0.85;" title="${dotTitle}" aria-label="Mode: ${dotTitle}"></div>
+            ${provider ? `<div class="swipe-card-category ${mode === 'work' ? 'decision' : 'habit'}" style="margin-bottom:8px;">${escapeHtml(provider.toUpperCase())}</div>` : ''}
+            <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;">${escapeHtml(humanize(description))}</div>
+            ${actor ? `<div style="font-size:12px;font-weight:600;color:var(--maestro-gray-dark,var(--text-secondary));margin-top:4px;">by ${escapeHtml(humanize(actor))}</div>` : ''}
+            ${domain ? `<div style="font-size:11px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:2px;">${escapeHtml(humanize(domain))}</div>` : ''}
+            ${timeDisplay ? `<div style="font-size:11px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;font-weight:600;">${escapeHtml(timeDisplay)}</div>` : ''}
+          </div>
+        `;
+      });
+    }
+
+    html += `</div>`;
+    el.innerHTML = html;
+
+    // Render the filter pill into the container
+    if (typeof renderFilterPill === 'function') {
+      renderFilterPill('filter-pill-container');
+    }
+  } catch (e) {
+    el.innerHTML = `<div class="ds-error">Failed to load memory: ${escapeHtml(e.message)}</div>`;
   }
 }
 
