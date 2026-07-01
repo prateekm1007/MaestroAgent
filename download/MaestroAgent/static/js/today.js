@@ -662,12 +662,84 @@ async function prepareExecution(title) {
               Success: ${escapeHtml(humanize(plan.follow_through?.success_metric || ''))}
             </div>
           </div>
+          <div style="border-top:1px solid var(--divider);padding-top:16px;margin-top:8px;">
+            <div class="ds-cascade-label" style="margin-bottom:10px;">Execute — create tickets, drafts, messages</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="ds-btn ds-btn-primary ds-btn-small" onclick="executeWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(title).replace(/'/g,"\\'")}',description:'See execution plan',issue_type:'Task'})">Create Jira ticket</button>
+              <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="executeWriteBack('gmail','create_draft',{to:'team@acme.com',subject:'Action needed: ${escapeJs(title).replace(/'/g,"\\'")}',body:'See execution plan'})">Draft email</button>
+              <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="executeWriteBack('slack','post_message',{channel:'general',text:'Action needed: ${escapeJs(title).replace(/'/g,"\\'")}'})">Post to Slack</button>
+            </div>
+            <div id="writeback-result" style="margin-top:12px;"></div>
+          </div>
         </div>
       `;
     } catch (e) {
       body.innerHTML = `<div class="ds-error">Failed to prepare: ${escapeHtml(e.message)}</div>`;
     }
   }, 500);
+}
+
+// V8 Daily Work #4 — Write-Back to Tools.
+// Called when the user clicks "Create Jira ticket", "Draft email", or
+// "Post to Slack" in the execution plan modal. Shows a preview first,
+// then requires the user to click "Approve" to execute.
+async function executeWriteBack(provider, actionType, params) {
+  const resultEl = document.getElementById('writeback-result');
+  if (!resultEl) return;
+
+  resultEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Generating preview…</div>';
+
+  try {
+    // Step 1: Preview (NOT executed)
+    const preview = await api.postOEM('/writeback', { provider, action_type: actionType, params });
+
+    // Show preview + approve/reject buttons
+    resultEl.innerHTML = `
+      <div style="padding:14px;background:var(--surface-2);border:1px solid var(--divider);border-radius:8px;">
+        <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:8px;">Preview</div>
+        <pre style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;font-family:var(--font-mono,monospace);margin:0 0 12px 0;">${escapeHtml(preview.preview)}</pre>
+        <div style="display:flex;gap:8px;">
+          <button class="ds-btn ds-btn-primary ds-btn-small" onclick="approveWriteBack('${preview.action_id}')">Approve & Execute</button>
+          <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="rejectWriteBack('${preview.action_id}')">Reject</button>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    resultEl.innerHTML = `<div class="ds-error">Preview failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function approveWriteBack(actionId) {
+  const resultEl = document.getElementById('writeback-result');
+  if (!resultEl) return;
+  resultEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Executing…</div>';
+  try {
+    const result = await api.postOEM(`/writeback/${actionId}/approve`, { approved_by: 'ceo' });
+    if (result.status === 'executed') {
+      const r = result.result || {};
+      let detail = '';
+      if (r.provider === 'jira') detail = `Issue created: <a href="${r.issue_url || '#'}" target="_blank" style="color:var(--accent);">${escapeHtml(r.issue_key || '')}</a>`;
+      else if (r.provider === 'gmail') detail = `Draft created (NOT sent): <a href="${r.draft_url || '#'}" target="_blank" style="color:var(--accent);">Open in Gmail</a>`;
+      else if (r.provider === 'slack') detail = `Message posted to ${escapeHtml(r.channel || '')} (ts: ${escapeHtml(r.message_ts || '')})`;
+      else if (r.provider === 'github') detail = `Comment created: <a href="${r.comment_url || '#'}" target="_blank" style="color:var(--accent);">View</a>`;
+      resultEl.innerHTML = `<div style="padding:14px;background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:8px;color:var(--positive,#16A34A);font-size:13px;">Executed. ${detail}${r.mock ? ' (mock mode — no real API call)' : ''}</div>`;
+    } else {
+      resultEl.innerHTML = `<div class="ds-error">Execution failed: ${escapeHtml(result.error || 'unknown error')}</div>`;
+    }
+  } catch (e) {
+    resultEl.innerHTML = `<div class="ds-error">Execution failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function rejectWriteBack(actionId) {
+  const resultEl = document.getElementById('writeback-result');
+  if (!resultEl) return;
+  try {
+    await api.postOEM(`/writeback/${actionId}/reject`, { rejected_by: 'ceo' });
+    resultEl.innerHTML = `<div style="padding:14px;color:var(--text-muted);font-size:13px;">Action rejected.</div>`;
+  } catch (e) {
+    resultEl.innerHTML = `<div class="ds-error">Reject failed: ${escapeHtml(e.message)}</div>`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

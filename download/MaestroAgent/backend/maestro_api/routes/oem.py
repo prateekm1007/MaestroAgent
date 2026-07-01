@@ -3703,6 +3703,133 @@ def get_tasks(
     }
 
 
+# ─── V8 Daily Work #4 — Write-Back to Tools ────────────────────────────────
+# THE gap between "advises" and "does work." Create Jira tickets, draft
+# Gmail emails (NOT send), post Slack messages, create GitHub review
+# comments. All gated by approval — no autonomous execution.
+
+@router.post("/writeback")
+def create_writeback(payload: dict[str, Any]) -> dict[str, Any]:
+    """Preview a write-back action (NOT executed).
+
+    V8 Daily Work #4 — Write-Back to Tools. Accepts a provider + action_type
+    + params and returns a preview. The action is stored pending approval.
+
+    Payload:
+        provider: "jira" | "github" | "slack" | "gmail" (required)
+        action_type: the action to perform (required)
+            - jira: "create_issue"
+            - github: "create_review_comment" | "create_issue_comment"
+            - slack: "post_message"
+            - gmail: "create_draft"
+        params: provider-specific parameters (required)
+
+    Returns:
+        {
+            action_id: str,
+            provider: str,
+            action_type: str,
+            preview: str,
+            status: "pending",
+            params: dict,
+            message: str,
+        }
+
+    The action is NOT executed. Call POST /api/oem/writeback/{action_id}/approve
+    to execute it.
+    """
+    from maestro_oem.writeback import WriteBackService
+    provider = payload.get("provider", "")
+    action_type = payload.get("action_type", "")
+    params = payload.get("params", {})
+
+    if not provider or not action_type:
+        raise HTTPException(400, "provider and action_type are required")
+
+    try:
+        svc = WriteBackService()
+        return svc.preview(provider, action_type, params)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Write-back preview failed: {e}")
+
+
+@router.post("/writeback/{action_id}/approve")
+def approve_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Execute a previously-previewed write-back action.
+
+    V8 Daily Work #4 — Write-Back to Tools. Executes the action with the
+    given action_id. The action must have been previously created via
+    POST /api/oem/writeback (which returns a preview + action_id).
+
+    Payload:
+        approved_by: str (who approved — for audit, defaults to "user")
+
+    Returns:
+        {
+            action_id: str,
+            status: "executed" | "failed",
+            result: dict,  # provider-specific result
+            error: str | None,
+        }
+
+    Governance: this endpoint requires explicit approval. No autonomous
+    execution. Gmail ONLY creates drafts — never sends.
+    """
+    from maestro_oem.writeback import WriteBackService
+    approved_by = payload.get("approved_by", "user")
+
+    try:
+        svc = WriteBackService()
+        return svc.approve(action_id, approved_by)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Write-back execution failed: {e}")
+
+
+@router.post("/writeback/{action_id}/reject")
+def reject_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Reject a pending write-back action (no execution).
+
+    Payload:
+        rejected_by: str (who rejected, defaults to "user")
+    """
+    from maestro_oem.writeback import WriteBackService
+    rejected_by = payload.get("rejected_by", "user")
+
+    try:
+        svc = WriteBackService()
+        return svc.reject(action_id, rejected_by)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.get("/writeback/pending")
+def list_pending_writebacks() -> dict[str, Any]:
+    """List all pending write-back actions awaiting approval."""
+    from maestro_oem.writeback import WriteBackService
+    svc = WriteBackService()
+    pending = svc.list_pending()
+    return {
+        "pending": pending,
+        "count": len(pending),
+    }
+
+
+@router.get("/writeback/all")
+def list_all_writebacks() -> dict[str, Any]:
+    """List all write-back actions (all statuses)."""
+    from maestro_oem.writeback import WriteBackService
+    svc = WriteBackService()
+    all_actions = svc.list_all()
+    return {
+        "actions": all_actions,
+        "count": len(all_actions),
+    }
+
+
 @router.post("/curiosity/follow-up")
 def curiosity_follow_up(payload: dict[str, Any]) -> dict[str, Any]:
     """Process a user's answer in a curiosity conversation.
