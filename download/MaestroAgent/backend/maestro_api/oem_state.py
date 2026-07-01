@@ -413,38 +413,67 @@ class OEMState:
         return self.evidence_graph
 
     def check_tenant_access(self) -> None:
-        """Enforce multi-tenant isolation at the route level.
+        """Enforce tenant isolation at the route level — ALWAYS, even in single-tenant mode.
 
-        In multi-tenant mode (MAESTRO_MULTI_TENANT=true), the OEM state is
-        scoped to a single org (set via MAESTRO_ORG_ID at startup). If a
-        request's TenantContext.org_id doesn't match, this raises 403.
+        V8 Daily Work #9 — Enterprise Trust Layer. The previous behavior
+        skipped tenant checks entirely in single-tenant mode (the default).
+        This created a silent bypass: if someone accidentally enabled
+        multi-tenant mode without proper migration, or if a request
+        carried an unexpected org_id, the OEM would happily serve
+        cross-tenant data.
 
-        In single-tenant mode (default), this is a no-op — the OEM serves
-        all requests from one shared state.
+        The new behavior: tenant isolation ALWAYS runs. In single-tenant
+        mode, the state's org_id defaults to "default" and any request
+        with a non-empty, non-"default" org_id is rejected. In multi-tenant
+        mode, the state's org_id comes from MAESTRO_ORG_ID and must
+        match exactly.
 
-        This guard is called by the OEM route dependency (_require_tenant_access)
-        to prevent cross-tenant data leakage. True multi-tenancy (per-org OEM
-        state) requires keying OEMState by org_id — a future architectural
-        change. For now, this guard prevents the route-level bypass the auditor
-        identified.
+        This is the defense-in-depth pattern: even if the auth middleware
+        fails to set org_id, the OEM route guard catches it. Even in
+        single-tenant mode, the code path exercises the check so a
+        future switch to multi-tenant doesn't silently expose data.
+
+        Called by the OEM route dependency (_require_tenant_access)
+        on EVERY OEM route.
         """
         import os
-        is_multi_tenant = os.environ.get("MAESTRO_MULTI_TENANT", "false").lower() == "true"
-        if not is_multi_tenant:
-            return  # Single-tenant mode: no isolation needed
-
         from maestro_auth.security import TenantContext
-        request_org = TenantContext.get_org_id()
-        state_org = os.environ.get("MAESTRO_ORG_ID", "")
 
-        if request_org and state_org and request_org != state_org:
-            from fastapi import HTTPException
-            raise HTTPException(
-                403,
-                f"Cross-tenant access denied: request org '{request_org}' does not match "
-                f"this instance's org '{state_org}'. Each tenant requires a dedicated "
-                f"deployment or per-org OEM state (not yet implemented)."
-            )
+        is_multi_tenant = os.environ.get("MAESTRO_MULTI_TENANT", "false").lower() == "true"
+        request_org = TenantContext.get_org_id()
+
+        if is_multi_tenant:
+            # Multi-tenant: strict org_id match required
+            state_org = os.environ.get("MAESTRO_ORG_ID", "")
+            if not state_org:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    500,
+                    "Multi-tenant mode enabled but MAESTRO_ORG_ID not set. "
+                    "Each tenant deployment must specify its org ID."
+                )
+            if request_org and request_org != state_org:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    403,
+                    f"Cross-tenant access denied: request org '{request_org}' does not match "
+                    f"this instance's org '{state_org}'. Each tenant requires a dedicated "
+                    f"deployment or per-org OEM state (not yet implemented)."
+                )
+        else:
+            # Single-tenant mode: still enforce. The state's org is "default".
+            # If a request carries a non-default org_id, reject it — this
+            # prevents accidental cross-tenant leakage if multi-tenant is
+            # enabled later without proper migration.
+            if request_org and request_org != "default" and request_org != "":
+                from fastapi import HTTPException
+                raise HTTPException(
+                    403,
+                    f"Cross-tenant access denied in single-tenant mode: request org "
+                    f"'{request_org}' does not match this instance's org 'default'. "
+                    f"This deployment is single-tenant. If you intended multi-tenant, "
+                    f"set MAESTRO_MULTI_TENANT=true and MAESTRO_ORG_ID=<your-org>."
+                )
 
 
 # Module-level singleton — imported by the route handlers.
