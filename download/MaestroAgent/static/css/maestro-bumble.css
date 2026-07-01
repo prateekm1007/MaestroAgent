@@ -435,3 +435,189 @@
 @media (max-width: 767px) {
   .desktop-sidebar { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Round 47 — Block 3: Mobile Responsive (375px minimum)                       */
+/* The sidebar collapses. Swipe cards are full-width. Filter pill is top-center. */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Sidebar becomes a bottom nav on mobile — the desktop sidebar is hidden */
+  #sidebar {
+    display: none !important;
+  }
+
+  /* Main content takes full width */
+  .main-content, [class*="main-content"] {
+    margin-left: 0 !important;
+    padding: 16px !important;
+    max-width: 100% !important;
+  }
+
+  /* Meta-surface padding reduced for mobile */
+  .meta-surface {
+    padding: 24px 16px !important;
+    max-width: 100% !important;
+  }
+
+  /* Greeting font reduced */
+  .meta-surface.greeting {
+    font-size: 24px !important;
+  }
+
+  /* Swipe cards are full-width */
+  #swipe-deck-container {
+    max-width: 100% !important;
+    min-height: 380px !important;
+  }
+
+  .swipe-card {
+    max-width: 100% !important;
+  }
+
+  /* Filter pill is top-center on mobile */
+  #filter-pill-container {
+    position: static !important;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+
+  /* Canvas nodes are smaller on mobile */
+  .canvas-node {
+    transform: scale(0.8);
+    transform-origin: top left;
+  }
+
+  /* Bumble cards have reduced padding on mobile */
+  .maestro-card {
+    padding: 14px 16px !important;
+  }
+
+  /* Buttons are full-width on mobile */
+  .maestro-btn-full {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Font sizes reduced for readability */
+  .text-hero { font-size: 28px !important; }
+  .text-title { font-size: 18px !important; }
+  .text-body { font-size: 14px !important; }
+}
+
+/* Extra small screens (375px and below) */
+@media (max-width: 375px) {
+  .meta-surface.greeting {
+    font-size: 20px !important;
+  }
+
+  .swipe-card-category {
+    font-size: 10px !important;
+    padding: 3px 10px !important;
+  }
+
+  .maestro-btn {
+    font-size: 13px !important;
+    min-height: 40px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Round 47 — Block 4: Loading states use pulses, not spinners                 */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes maestro-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.maestro-pulse {
+  animation: maestro-pulse 1.5s ease-in-out infinite;
+}
+
+.maestro-skeleton-card {
+  background: var(--maestro-gray-light, #F5F5F5);
+  border-radius: 16px;
+  padding: 20px;
+  min-height: 120px;
+  animation: maestro-pulse 1.5s ease-in-out infinite;
+}
+
+.maestro-skeleton-line {
+  height: 12px;
+  background: var(--maestro-gray-light, #E5E5E5);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  animation: maestro-pulse 1.5s ease-in-out infinite;
+}
+
+.maestro-skeleton-line:last-child {
+  width: 60%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Round 47 — Block 4: Empty states are warm, not clinical                      */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.calm-empty {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.calm-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.calm-empty-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--maestro-black, var(--text-primary));
+  font-family: 'Montserrat', sans-serif;
+  margin-bottom: 8px;
+}
+
+.calm-empty-body {
+  font-size: 14px;
+  color: var(--maestro-gray-mid, var(--text-muted));
+  line-height: 1.55;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Round 47 — Block 2.3: Contradiction cards use NOTICED, not FAILED           */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.swipe-card-category.noticed {
+  background: rgba(255, 152, 0, 0.15);
+  color: var(--maestro-warning, #FF9800);
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+/* Round 47 — Block 2.2: Follow-up question chips for memory conversation */
+.follow-up-chip {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--maestro-yellow-light, #FFF4D1);
+  color: var(--maestro-yellow-dark, #F0B500);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Montserrat', sans-serif;
+  cursor: pointer;
+  margin: 4px 6px 4px 0;
+  transition: transform 150ms, box-shadow 150ms;
+  border: none;
+}
+
+.follow-up-chip:hover {
+  transform: scale(1.03);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.follow-up-chip:active {
+  transform: scale(0.97);
+}

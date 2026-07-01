@@ -27,15 +27,49 @@ function getCurrentFilter() {
 
 function setCurrentFilter(filter) {
   const valid = ['all', 'work', 'personal'];
-  _currentFilter = valid.includes(filter) ? filter : 'all';
+  const newFilter = valid.includes(filter) ? filter : 'all';
+  if (newFilter === _currentFilter) return;  // no change, no-op
+  _currentFilter = newFilter;
   // Persist for the session (not as user state — just UI convenience)
   try { sessionStorage.setItem('maestro-filter', _currentFilter); } catch (e) {}
+
+  // Round 47 Block 2.4 — OPTIMISTIC filter application.
+  // Immediately hide/show cards based on their _mode dot, WITHOUT
+  // waiting for a refetch. The deck filters instantly (no spinner).
+  // The background refetch (loadToday) updates silently if different.
+  _optimisticFilterApply();
+
+  // Record filter usage for pilot metrics (privacy-preserving — count only)
+  try {
+    api.postOEM('/pilot/metrics/filter', { filter: _currentFilter }).catch(() => {});
+  } catch (e) { /* non-fatal */ }
+
   // Re-render the filter pill to reflect the new active state
   renderFilterPill();
-  // Reload the current surface so the filter takes effect
+
+  // Background refetch — updates silently if the data is different.
+  // No loading spinner — the optimistic filter already applied.
   if (window._currentSurface === 'today' && typeof loadToday === 'function') {
     loadToday();
   }
+}
+
+function _optimisticFilterApply() {
+  // Round 47 Block 2.4 — instantly hide/show cards based on the filter.
+  // This runs BEFORE the refetch, so the user sees instant feedback.
+  const cards = document.querySelectorAll('.brief-item, .swipe-card, [data-mode]');
+  cards.forEach(card => {
+    const mode = card.dataset.mode || card.getAttribute('data-mode') || '';
+    if (_currentFilter === 'all') {
+      card.style.display = '';
+    } else if (_currentFilter === 'work' && mode === 'personal') {
+      card.style.display = 'none';
+    } else if (_currentFilter === 'personal' && mode === 'work') {
+      card.style.display = 'none';
+    } else {
+      card.style.display = '';
+    }
+  });
 }
 
 function _loadInitialFilter() {

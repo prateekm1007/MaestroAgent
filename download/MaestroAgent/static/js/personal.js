@@ -98,7 +98,7 @@ async function loadPersonalSurface(surfaceId) {
   }
 }
 
-// ─── Today: briefing + habits + contradictions ───────────────────────────
+// ─── Today: briefing + habits + contradictions (Round 47 Block 2.1: swipe cards) ──
 
 async function loadPersonalToday(el) {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading your morning briefing…</div>';
@@ -111,75 +111,213 @@ async function loadPersonalToday(el) {
 
     let html = '<div style="max-width:700px;margin:0 auto;">';
 
-    // Briefing
-    if (briefing) {
+    // Round 47 Block 2.1 — Personal briefing as swipe cards.
+    // Same Bumble pattern as the enterprise briefing. Max 7 cards.
+    // Card types: HABIT (green), CONTRADICTION (red, NOTICED not FAILED),
+    // MEMORY (yellow), REMINDER (amber). Summary card at the end.
+    const personalDeckCards = [];
+
+    // Habits → HABIT cards
+    if (habits && habits.streaks) {
+      habits.streaks.slice(0, 3).forEach(h => {
+        personalDeckCards.push({
+          category: 'HABIT',
+          categoryClass: 'habit',
+          title: h.name || 'Your habit',
+          evidence: `Streak: ${h.current_streak || 0} day${(h.current_streak || 0) === 1 ? '' : 's'}`,
+          rightLabel: 'CHECK IN',
+          leftLabel: 'SKIP',
+          _type: 'habit',
+          _habitId: h.habit_id,
+        });
+      });
+    }
+
+    // Contradictions → NOTICED cards (Round 47 Block 2.3)
+    if (contradictions && contradictions.contradictions) {
+      contradictions.contradictions.slice(0, 3).forEach(c => {
+        personalDeckCards.push({
+          category: 'NOTICED',
+          categoryClass: 'noticed',
+          title: c.description || 'A pattern was noticed',
+          evidence: c.evidence || '',
+          rightLabel: 'REFLECT',
+          leftLabel: 'DISMISS 30D',
+          _type: 'contradiction',
+          _dismissKey: c.dismiss_key,
+        });
+      });
+    }
+
+    // Briefing items → REMINDER cards
+    if (briefing && briefing.items) {
+      briefing.items.slice(0, 3).forEach(item => {
+        personalDeckCards.push({
+          category: 'REMINDER',
+          categoryClass: 'due',
+          title: (item.content || '').slice(0, 100),
+          evidence: `From ${item.source || 'your calendar'}`,
+          rightLabel: 'ACKNOWLEDGE',
+          leftLabel: 'DEFER',
+          _type: 'reminder',
+        });
+      });
+    }
+
+    // Work context card (if integration toggle is on)
+    if (briefing && briefing.work_context && briefing.work_context.enabled) {
+      const wc = briefing.work_context;
+      const wcParts = [];
+      if (wc.deadlines_today && wc.deadlines_today.length > 0) {
+        wcParts.push(`${wc.deadlines_today.length} work deadline${wc.deadlines_today.length !== 1 ? 's' : ''}`);
+      }
+      if (wc.meetings_into_personal_time && wc.meetings_into_personal_time.length > 0) {
+        wcParts.push(`${wc.meetings_into_personal_time.length} meeting${wc.meetings_into_personal_time.length !== 1 ? 's' : ''} into personal time`);
+      }
+      if (wcParts.length > 0) {
+        personalDeckCards.push({
+          category: 'WORK CONTEXT',
+          categoryClass: 'decision',
+          title: wcParts.join(' · '),
+          evidence: wc.commitments_summary || '',
+          rightLabel: 'ACKNOWLEDGE',
+          leftLabel: 'DEFER',
+          _type: 'work_context',
+        });
+      }
+    }
+
+    // Render the swipe deck (max 7 cards)
+    const deck = personalDeckCards.slice(0, 7);
+
+    if (deck.length > 0) {
       html += `
-        <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
-          <div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Good morning</div>
-          <div style="font-size:14px;color:var(--text-secondary);">${escapeHtml(briefing.message || '')}</div>
-          ${briefing.items && briefing.items.length > 0 ? briefing.items.map(item => `
-            <div style="padding:10px 0;border-bottom:1px solid var(--divider);">
-              <div style="font-size:13px;color:var(--text-primary);">${escapeHtml(humanize(item.content || ''))}</div>
-              <div class="ds-meta" style="margin-top:2px;">Source: ${escapeHtml(item.source || '')}</div>
-            </div>
-          `).join('') : ''}
+        <div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:16px;font-family:'Montserrat',sans-serif;">Your morning</div>
+        <div id="personal-swipe-deck-container" style="position:relative;min-height:400px;max-width:420px;margin:0 auto;">
+        </div>
+        <div id="personal-swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:'Montserrat',sans-serif;">
+          ${deck.length} ${deck.length === 1 ? 'card' : 'cards'}
+        </div>
+        <div id="personal-swipe-deck-summary" style="display:none;text-align:center;padding:24px;">
+          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">That's your morning.</div>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="calm-empty" style="text-align:center;padding:48px 20px;">
+          <div class="calm-empty-icon">☀️</div>
+          <div class="calm-empty-title">Good morning.</div>
+          <div class="calm-empty-body">Connect a source and I'll brief you tomorrow. I work either way.</div>
         </div>
       `;
     }
-
-    // Habits
-    if (habits && habits.streaks && habits.streaks.length > 0) {
-      html += `
-        <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
-          <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Your habits</div>
-          ${habits.streaks.map(h => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--divider);">
-              <div>
-                <div style="font-size:13px;color:var(--text-primary);">${escapeHtml(humanize(h.name || ''))}</div>
-                <div class="ds-meta">Streak: ${h.current_streak}</div>
-              </div>
-              <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="checkInHabit('${h.habit_id}')">Check in</button>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    // Contradictions
-    if (contradictions && contradictions.count > 0) {
-      html += `
-        <div style="padding:20px;background:var(--surface);border:1px solid rgba(217,119,6,0.2);border-radius:12px;margin-bottom:20px;">
-          <div style="font-size:14px;font-weight:600;color:var(--warning);margin-bottom:8px;">Patterns noticed</div>
-          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">${escapeHtml(humanize(contradictions.summary || ''))}</div>
-          ${contradictions.contradictions.map(c => `
-            <div style="padding:10px 0;border-bottom:1px solid var(--divider);">
-              <div style="font-size:13px;color:var(--text-primary);">${escapeHtml(humanize(c.description || ''))}</div>
-              <div class="ds-meta" style="margin-top:4px;">${escapeHtml(c.evidence || '')}</div>
-              <button class="ds-btn ds-btn-ghost ds-btn-small" style="margin-top:6px;font-size:11px;" onclick="dismissContradiction('${c.dismiss_key}')">Dismiss for 30 days</button>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    // Incognito toggle
-    html += `
-      <div style="padding:16px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:13px;color:var(--text-primary);font-weight:500;">Incognito mode</div>
-          <div class="ds-meta">When active, nothing is stored.</div>
-        </div>
-        <button class="ds-btn ${_incognitoActive ? 'ds-btn-primary' : 'ds-btn-ghost'} ds-btn-small" onclick="toggleIncognito()">
-          ${_incognitoActive ? 'Active — tap to end' : 'Start incognito'}
-        </button>
-      </div>
-    `;
 
     html += '</div>';
     el.innerHTML = html;
+
+    // Initialize the personal swipe deck
+    if (deck.length > 0) {
+      _initPersonalSwipeDeck(deck);
+    }
   } catch (e) {
     el.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+function _initPersonalSwipeDeck(deck) {
+  window._personalDeck = deck;
+  window._personalDeckIdx = 0;
+  window._personalDeckActed = 0;
+  window._personalDeckDeferred = 0;
+  _renderPersonalSwipeCard();
+}
+
+function _renderPersonalSwipeCard() {
+  const container = document.getElementById('personal-swipe-deck-container');
+  if (!container || !window._personalDeck) return;
+
+  const idx = window._personalDeckIdx || 0;
+  const deck = window._personalDeck;
+
+  if (idx >= deck.length) {
+    _showPersonalDeckSummary();
+    return;
+  }
+
+  const cardData = deck[idx];
+  container.innerHTML = '';
+
+  if (typeof createSwipeCard !== 'function') return;
+
+  const card = createSwipeCard({
+    category: cardData.category,
+    category_class: cardData.categoryClass,
+    judgment: cardData.title,
+    evidence: cardData.evidence,
+    right_label: cardData.rightLabel,
+    left_label: cardData.leftLabel,
+    why_link: false,
+  });
+
+  card.style.position = 'relative';
+  container.appendChild(card);
+
+  if (typeof SwipeCard !== 'undefined') {
+    const handler = new SwipeCard(card,
+      // Swipe right
+      () => {
+        window._personalDeckActed++;
+        _handlePersonalCardAction(cardData, true);
+        _advancePersonalDeck();
+      },
+      // Swipe left
+      () => {
+        window._personalDeckDeferred++;
+        _handlePersonalCardAction(cardData, false);
+        _advancePersonalDeck();
+      }
+    );
+  }
+
+  _updatePersonalDeckProgress();
+}
+
+function _handlePersonalCardAction(cardData, swipedRight) {
+  // Handle the action based on card type
+  if (cardData._type === 'habit' && swipedRight && cardData._habitId) {
+    // Check in the habit
+    api.postPersonal('/habits/checkin', { habit_id: cardData._habitId }).catch(() => {});
+  } else if (cardData._type === 'contradiction') {
+    if (swipedRight) {
+      // Reflect — could open a journaling prompt (future)
+    } else if (cardData._dismissKey) {
+      // Dismiss for 30 days
+      api.postPersonal('/contradictions/dismiss', { dismiss_key: cardData._dismissKey }).catch(() => {});
+    }
+  }
+}
+
+function _advancePersonalDeck() {
+  window._personalDeckIdx = (window._personalDeckIdx || 0) + 1;
+  setTimeout(() => _renderPersonalSwipeCard(), 350);
+}
+
+function _updatePersonalDeckProgress() {
+  const progress = document.getElementById('personal-swipe-deck-progress');
+  if (!progress) return;
+  const deck = window._personalDeck || [];
+  const idx = window._personalDeckIdx || 0;
+  const remaining = deck.length - idx;
+  progress.textContent = `${remaining} ${remaining === 1 ? 'card' : 'cards'} left`;
+}
+
+function _showPersonalDeckSummary() {
+  const container = document.getElementById('personal-swipe-deck-container');
+  const progress = document.getElementById('personal-swipe-deck-progress');
+  const summary = document.getElementById('personal-swipe-deck-summary');
+  if (container) container.style.display = 'none';
+  if (progress) progress.style.display = 'none';
+  if (summary) summary.style.display = 'block';
 }
 
 // ─── Memory: knowledge graph + memory replay + evolution report ──────────
@@ -329,15 +467,60 @@ async function doMemoryReplay(query) {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Searching memories…</div>';
   try {
     const data = await api.postPersonal('/memory/replay', { query });
-    el.innerHTML = `
-      <div style="padding:12px;background:var(--surface-2);border-radius:8px;">
-        <div style="font-size:13px;color:var(--text-primary);white-space:pre-wrap;">${escapeHtml(humanize(data.summary || ''))}</div>
-        ${data.third_party_warning ? `<div style="margin-top:8px;font-size:12px;color:var(--warning);">${escapeHtml(humanize(data.third_party_warning))}</div>` : ''}
-      </div>
-    `;
+    let html = '<div style="padding:12px;background:var(--surface-2);border-radius:8px;">';
+    html += `<div style="font-size:13px;color:var(--text-primary);white-space:pre-wrap;">${escapeHtml(humanize(data.summary || ''))}</div>`;
+    if (data.third_party_warning) {
+      html += `<div style="margin-top:8px;font-size:12px;color:var(--warning);">${escapeHtml(humanize(data.third_party_warning))}</div>`;
+    }
+    html += '</div>';
+
+    // Round 47 Block 2.2 — Follow-up question chips for memory conversation.
+    // After a memory replay answer, show 2-3 follow-up question chips
+    // (Bumble pill style). Tapping a chip asks the next question.
+    // Chips are derived from the memory graph, not generated by an LLM.
+    const followUps = _generateMemoryFollowUps(query, data);
+    if (followUps.length > 0) {
+      html += '<div style="margin-top:12px;">';
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Follow up</div>';
+      followUps.forEach(fq => {
+        html += `<button class="follow-up-chip" onclick="doMemoryReplay('${escapeJs(fq).replace(/'/g,"\\'")}')">${escapeHtml(fq)}</button>`;
+      });
+      html += '</div>';
+    }
+
+    el.innerHTML = html;
   } catch (e) {
     el.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+function _generateMemoryFollowUps(originalQuery, data) {
+  // Round 47 Block 2.2 — derive follow-up questions from the memory graph.
+  // Not LLM-generated — these are structural follow-ups based on the query
+  // and the entities/time windows in the replay result.
+  const followUps = [];
+  const q = (originalQuery || '').toLowerCase();
+
+  // If the query mentions a person, offer "Show more about {person}"
+  const personMatch = originalQuery && originalQuery.match(/(?:about|with|from)\s+([A-Z][a-z]+)/);
+  if (personMatch) {
+    followUps.push(`Show more about ${personMatch[1]}`);
+  }
+
+  // Always offer a time-based follow-up
+  followUps.push('What else happened that week?');
+
+  // If the replay returned moments, offer a decision-based follow-up
+  if (data && data.moments && data.moments.length > 0) {
+    followUps.push('What did I decide then?');
+  }
+
+  // If the replay found memories, offer a "related" follow-up
+  if (data && data.summary && !data.novel) {
+    followUps.push('What else is related?');
+  }
+
+  return followUps.slice(0, 3);  // max 3 chips
 }
 
 async function doPersonalWhy(question) {

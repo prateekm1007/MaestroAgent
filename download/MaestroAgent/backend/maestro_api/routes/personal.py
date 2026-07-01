@@ -694,3 +694,53 @@ def set_personal_context_in_work(payload: dict[str, Any]) -> dict[str, Any]:
     enabled = bool(payload.get("enabled", False))
     user = payload.get("user", "default")
     return UserSettings.set_personal_context_in_work(user, enabled)
+
+
+# ─── Round 47 — Block 1.4: API Documentation ───────────────────────────────
+
+@router.get("/docs-summary")
+def get_api_docs_summary() -> dict[str, Any]:
+    """Round 47 Block 1.4 — API documentation summary.
+
+    Returns a structured summary of all API endpoints, grouped by
+    namespace (enterprise /api/oem/ vs personal /api/personal/).
+    The personal docs emphasize consent requirements.
+    """
+    return {
+        "enterprise_endpoints": {
+            "base_url": "/api/oem/",
+            "description": "Organizational intelligence — laws, recommendations, signals, tasks, write-back, canvas, teammate, MCP.",
+            "key_endpoints": [
+                {"method": "GET", "path": "/ceo-briefing", "description": "Morning CEO briefing"},
+                {"method": "GET", "path": "/ask?q=", "description": "Ask the organization"},
+                {"method": "GET", "path": "/timeline", "description": "Organizational timeline"},
+                {"method": "GET", "path": "/tasks", "description": "Auto-extracted tasks"},
+                {"method": "POST", "path": "/writeback", "description": "Preview a write-back action"},
+                {"method": "GET", "path": "/canvas/{decision_id}", "description": "Visual decision canvas"},
+                {"method": "GET", "path": "/teammate/{email}", "description": "Per-teammate view"},
+                {"method": "GET", "path": "/mcp/tools", "description": "MCP tool list (read-only)"},
+                {"method": "GET", "path": "/pilot/metrics", "description": "Privacy-preserving pilot metrics"},
+            ],
+        },
+        "personal_endpoints": {
+            "base_url": "/api/personal/",
+            "description": "Personal Mode — your life, your memory, your decisions. All consent-gated.",
+            "consent_requirement": "Every data source requires explicit consent. Default: OFF.",
+            "key_endpoints": [
+                {"method": "GET", "path": "/briefing", "description": "Morning personal briefing (consent-gated)"},
+                {"method": "GET", "path": "/today?filter=", "description": "Unified Today deck (Round 46)"},
+                {"method": "GET", "path": "/memory?filter=", "description": "Unified Memory feed (Round 46)"},
+                {"method": "POST", "path": "/consent/grant", "description": "Grant consent for a source"},
+                {"method": "POST", "path": "/consent/revoke", "description": "Revoke consent for a source"},
+                {"method": "GET", "path": "/dashboard", "description": "What Maestro Knows — transparency"},
+                {"method": "GET", "path": "/settings/personal-context-in-work", "description": "Integration toggle (default OFF)"},
+            ],
+        },
+        "constitutional_notes": [
+            "The bright line: Maestro helps YOU think better. No third-party analysis.",
+            "Consent is opt-in: every data source defaults OFF.",
+            "Withdrawal path: every feature has one. You can stop using it without harm.",
+            "No engagement tracking: no dwell time, no return frequency.",
+            "4-item sidebar: Today / Memory / Ask / More (V5 litmus).",
+        ],
+    }

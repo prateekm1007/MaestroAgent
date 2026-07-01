@@ -5084,3 +5084,103 @@ def explain(
     from maestro_oem.explanations import ExplanationEngine
     engine = ExplanationEngine(oem_state.model, oem_state.signals, oem_state.decisions)
     return engine.explain(q)
+
+
+# ─── Round 47 — Block 1.1: Canvas — Visual Decision Mapping ────────────────
+
+@router.get("/canvas/{decision_id}")
+def get_canvas(decision_id: str) -> dict[str, Any]:
+    """Visual decision mapping — a graph of the decision and its dependencies.
+
+    Round 47 Block 1.1. The canvas is a thinking aid: the decision node,
+    linked laws, involved experts, and blocking bottlenecks, connected by
+    labeled edges. The user can rearrange nodes. No Gantt charts.
+
+    WITHDRAWAL PATH: The user can map decisions on a whiteboard.
+    """
+    from maestro_oem.canvas import build_decision_canvas
+    return build_decision_canvas(oem_state.model, decision_id)
+
+
+# ─── Round 47 — Block 1.2: Per-Teammate View ───────────────────────────────
+
+@router.get("/teammate/{email}")
+def get_teammate(email: str) -> dict[str, Any]:
+    """Per-person view: tasks, commitments, attention, trust, influence.
+
+    Round 47 Block 1.2. This is the USER'S view OF a teammate — it uses
+    only the user's own organizational data about that person. It does
+    NOT analyze the teammate's personal life. The bright line holds.
+
+    WITHDRAWAL PATH: The user can track teammates in a spreadsheet.
+    """
+    from maestro_oem.teammate import build_teammate_view
+    return build_teammate_view(oem_state.model, oem_state.signals, email)
+
+
+# ─── Round 47 — Block 1.3: MCP (Model Context Protocol) ────────────────────
+
+@router.get("/mcp/tools")
+def list_mcp_tools() -> dict[str, Any]:
+    """List all available MCP tools (read-only)."""
+    from maestro_oem.mcp_server import list_tools
+    return list_tools()
+
+@router.post("/mcp/tool/{tool_name}")
+def execute_mcp_tool(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Execute an MCP tool by name. All tools are read-only.
+
+    Round 47 Block 1.3. External AI agents (Claude, Cursor, IDE agents)
+    can query the organizational model via MCP. Verified laws are returned
+    as facts; unverified laws are labeled as candidates (Rule D2).
+    """
+    from maestro_oem.mcp_server import execute_tool
+    args = payload.get("args", payload)
+    return execute_tool(tool_name, args, oem_state.model, oem_state.decisions)
+
+
+# ─── Round 47 — Block 5: Pilot Metrics (privacy-preserving) ────────────────
+
+@router.get("/pilot/metrics")
+def get_pilot_metrics() -> dict[str, Any]:
+    """Privacy-preserving pilot metrics. Usage counts only, never content.
+
+    Round 47 Block 5. The metrics measure engagement-shaped signals
+    (usage) but NOT engagement-manipulating signals (dwell time, return
+    frequency). This is the constitutional distinction from Round 43.
+
+    Allowed: daily_active_users, cards_swiped, actions_taken, filter_usage,
+    feature_usage, brier_score_trend.
+    Forbidden: message text, decision content, personal data, dwell time,
+    return frequency, session length, scroll depth.
+    """
+    from maestro_oem.pilot_metrics import PilotMetrics
+    return PilotMetrics.get_metrics()
+
+@router.post("/pilot/metrics/card-swipe")
+def record_card_swipe(payload: dict[str, Any]) -> dict[str, Any]:
+    """Record a card swipe (count only, never the card content)."""
+    from maestro_oem.pilot_metrics import PilotMetrics
+    PilotMetrics.record_card_swipe(payload.get("direction", "right"))
+    return {"recorded": True}
+
+@router.post("/pilot/metrics/action")
+def record_pilot_action(payload: dict[str, Any]) -> dict[str, Any]:
+    """Record an action taken (count only, never the action content)."""
+    from maestro_oem.pilot_metrics import PilotMetrics
+    PilotMetrics.record_action()
+    return {"recorded": True}
+
+@router.post("/pilot/metrics/filter")
+def record_filter_usage(payload: dict[str, Any]) -> dict[str, Any]:
+    """Record filter usage (which filter, never the cards shown)."""
+    from maestro_oem.pilot_metrics import PilotMetrics
+    PilotMetrics.record_filter_usage(payload.get("filter", "all"))
+    return {"recorded": True}
+
+@router.post("/pilot/metrics/surface-open")
+def record_surface_open(payload: dict[str, Any]) -> dict[str, Any]:
+    """Record which surface was opened (surface name only, never content)."""
+    from maestro_oem.pilot_metrics import PilotMetrics
+    PilotMetrics.record_surface_open(payload.get("surface", ""))
+    return {"recorded": True}

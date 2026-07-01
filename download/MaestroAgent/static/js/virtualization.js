@@ -99,6 +99,9 @@ function loadSurfaceData(surface) {
     case 'eng-oem': loadEngOEM(); break;
     case 'eng-audit': loadEngAudit(); break;
     case 'eng-settings': loadEngSettings(); break;
+    // Round 47 — Block 1: Canvas + Per-Teammate (command-palette access)
+    case 'canvas': if (typeof loadCanvas === 'function') loadCanvas(); break;
+    case 'teammate': if (typeof loadTeammate === 'function') loadTeammate(); break;
   }
 }
 

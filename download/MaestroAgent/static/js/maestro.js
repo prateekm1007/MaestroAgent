@@ -40,6 +40,8 @@ const pageNames = {
   assumptions: 'Dangerous Assumptions',
   'eng-signals': 'Signals', 'eng-oem': 'OEM Builder',
   'eng-audit': 'Audit Log', 'eng-settings': 'Settings',
+  // Round 47 — Block 1
+  canvas: 'Decision Canvas', teammate: 'Teammate View',
 };
 
 function navTo(surface) {
@@ -152,6 +154,9 @@ const _hiddenSurfaces = [
   { id: 'autobiography', label: 'Your Organization\u2019s Story — the autobiography', group: 'Constitution v6' },
   { id: 'playbook', label: 'Role Playbooks — Sales, Marketing, Product', group: 'Daily Work' },
   { id: 'personal', label: 'Personal Mode — your life, your memory, your decisions', group: 'Personal' },
+  // Round 47 — Block 1: Canvas + Per-Teammate (command-palette only, NOT sidebar)
+  { id: 'canvas', label: 'Canvas — visual decision mapping', group: 'Round 47' },
+  { id: 'teammate', label: 'Per-Teammate view — tasks, commitments, trust', group: 'Round 47' },
 ];
 
 function openCommandPalette() {

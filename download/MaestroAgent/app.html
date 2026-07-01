@@ -145,6 +145,11 @@
 </style>
 <link rel="preload" as="fetch" href="/api/oem/ceo-briefing" crossorigin>
 <link rel="preload" as="fetch" href="/api/oem/dashboard" crossorigin>
+<!-- Round 47 Block 3: PWA manifest + service worker for installability + offline shell -->
+<link rel="manifest" href="/static/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Maestro">
 </head>
 <body>
 <!-- WCAG 2.1: Skip-to-content link for keyboard users -->
@@ -309,6 +314,21 @@
       <!-- ============================================================ -->
       <section class="surface" id="surface-personal">
         <div id="personal-content"></div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- Round 47 — Block 1: Canvas + Per-Teammate (command-palette only) -->
+      <!-- ============================================================ -->
+      <section class="surface" id="surface-canvas">
+        <div id="canvas-content">
+          <div class="ds-loading"><span class="spinner"></span> Loading canvas…</div>
+        </div>
+      </section>
+
+      <section class="surface" id="surface-teammate">
+        <div id="teammate-content">
+          <div class="ds-loading"><span class="spinner"></span> Loading teammate…</div>
+        </div>
       </section>
 
       <!-- ════════════════════════════════════════════════════════════════ -->
@@ -1132,5 +1152,18 @@
 <script defer src="/static/js/swipe-cards.js"></script>
 <script defer src="/static/js/mode-tabs.js"></script>
 <script defer src="/static/js/onboarding.js"></script>
+<!-- Round 47 — Block 1: Canvas + Per-Teammate (command-palette access, NOT sidebar items) -->
+<script defer src="/static/js/canvas.js"></script>
+<script defer src="/static/js/teammate.js"></script>
+<!-- Round 47 — Block 3: PWA service worker registration -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {
+        // Non-fatal — the app works without the service worker
+      });
+    });
+  }
+</script>
 </body>
 </html>
