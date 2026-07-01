@@ -208,13 +208,25 @@ class TestPersonalFrontend:
         assert "loadPersonalMode" in source
 
     def test_personal_routes_separate_from_oem(self) -> None:
-        """personal.py routes must NOT import from maestro_oem."""
+        """personal.py routes must NOT import from maestro_oem.
+
+        Round 44 exception: the route layer MAY import UserSettings to
+        check the personal-context-in-work toggle and inject it into
+        personal engines (dependency inversion). This is the explicit
+        bridge between modes — the route layer is allowed to span both
+        namespaces, but the personal ENGINES (briefing.py, etc.) are not.
+        """
         import maestro_api.routes.personal as mod
         source = open(mod.__file__).read()
         # Check for actual import statements (lines starting with 'from' or 'import')
         lines = source.split("\n")
+        # Round 44: the only allowed OEM import is UserSettings for the
+        # toggle check. Any other OEM import is a violation.
+        allowed_import = "from maestro_oem.user_settings import UserSettings"
         for i, line in enumerate(lines):
             stripped = line.strip()
             # Only check actual import statements
             if stripped.startswith("from maestro_oem") or stripped.startswith("import maestro_oem"):
+                if stripped == allowed_import:
+                    continue  # Round 44 dependency inversion — allowed
                 pytest.fail(f"Line {i+1} imports from maestro_oem: {stripped}")

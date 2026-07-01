@@ -482,8 +482,39 @@ def list_verified_laws() -> dict[str, Any]:
 
 @router.get("/ask")
 def ask(q: str = Query(..., description="Natural-language question")) -> dict[str, Any]:
-    """Ask the organization — NL question answered from OEM evidence."""
+    """Ask the organization — NL question answered from OEM evidence.
+
+    Round 44 (Phase 5) — Constrained personal context:
+    When the personal-context-in-work toggle is ON (default OFF), ONE
+    optional line is appended to the synthesized answer:
+        "Personal context (opt-in): {one-sentence personal state}."
+
+    Constitutional constraints:
+      - The personal context line is INFORMATIONAL, never prescriptive.
+      - It NEVER changes the work recommendation.
+      - It NEVER makes the answer conditional on personal state.
+      - It references ONLY the user's own state (energy, sleep, calendar
+        conflicts) — NEVER a third party.
+      - It is a single sentence, labeled, and dismissible.
+      - It is None when the toggle is OFF, incognito is active, or no
+        relevant state exists.
+    """
     result = oem_state.decisions.answer_question(q)
+
+    # Round 44 — append ONE optional personal-context line.
+    # The line is informational only. It never modifies the recommendation
+    # or the confidence. It appears as a separate field so the UI can
+    # render it as a dismissible aside, not part of the answer.
+    personal_context_line: str | None = None
+    try:
+        from maestro_personal.integration import build_personal_context_line_for_ask
+        from maestro_oem.user_settings import UserSettings
+        toggle_on = UserSettings.is_personal_context_in_work_enabled("default")
+        personal_context_line = build_personal_context_line_for_ask("default", q, toggle_on)
+    except Exception as e:
+        logger.debug("Personal context line build failed: %s", e)
+
+    result["personal_context_line"] = personal_context_line
     return result
 
 
@@ -1553,6 +1584,23 @@ def get_ceo_briefing() -> dict[str, Any]:
         "overdue_count": sum(1 for c in commitments_due if c.get("is_overdue")),
     }
 
+    # ─── Round 44: Personal Context card (LAST card, opt-in) ───────────
+    # Surfaces ONLY the user's own personal state (sleep, calendar conflicts,
+    # habit insight). Returns {} when the toggle is OFF (default), when
+    # incognito is active, or when the bright-line guard trips. NEVER
+    # surfaces intelligence about a third party.
+    personal_context_card: dict[str, Any] = {}
+    try:
+        from maestro_personal.integration import build_personal_context_card_for_work
+        from maestro_oem.user_settings import UserSettings
+        # Dependency inversion: the caller checks the toggle and passes
+        # the state to the integration module. The integration module
+        # does NOT import from maestro_oem (preserves namespace separation).
+        toggle_on = UserSettings.is_personal_context_in_work_enabled("default")
+        personal_context_card = build_personal_context_card_for_work("default", toggle_on)
+    except Exception as e:
+        logger.debug("Personal context card build failed: %s", e)
+
     return {
         "generated_at": model.last_updated.isoformat() if hasattr(model.last_updated, "isoformat") else str(model.last_updated),
         "overnight": overnight_answer,
@@ -1562,6 +1610,8 @@ def get_ceo_briefing() -> dict[str, Any]:
         "decisions": decisions_answer,
         "commitments": commitments_answer,
         "drafted_artifacts": _generate_drafted_artifacts(one_thing, money_losses, knowledge_traps, ceo_decisions, model),
+        # Round 44 — last card in the briefing. {} when toggle is OFF.
+        "personal_context": personal_context_card,
     }
 
 

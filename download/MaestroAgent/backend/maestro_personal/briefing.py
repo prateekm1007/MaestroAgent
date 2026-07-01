@@ -49,6 +49,26 @@ class PersonalBriefingEngine:
 
     def __init__(self, user_id: str) -> None:
         self.user_id = user_id
+        # Round 44 — the toggle state is injected by the caller (the
+        # API route) via set_toggle_state(). This preserves namespace
+        # separation: the personal namespace does not import the OEM
+        # user-settings module.
+        # Default: None (toggle not checked — caller must set it).
+        self._toggle_enabled: bool | None = None
+
+    def set_toggle_state(self, toggle_enabled: bool | None) -> None:
+        """Inject the personal-context-in-work toggle state (Round 44).
+
+        The caller (API route) checks the toggle via the OEM user-settings
+        module and passes the state here. This preserves namespace
+        separation: the personal namespace does not import the OEM module.
+
+        Args:
+            toggle_enabled: True if the user opted in to personal context
+                in Work Mode. False if explicitly disabled. None if the
+                caller has not checked (treated as False — fail safe).
+        """
+        self._toggle_enabled = toggle_enabled
 
     def generate(self) -> dict[str, Any]:
         """Generate the morning personal briefing.
@@ -59,6 +79,7 @@ class PersonalBriefingEngine:
                 missing_sources: list[str],  # sources without consent
                 message: str,  # friendly summary
                 generated_at: str,
+                work_context: dict,  # Round 44 bidirectional card ({} when toggle OFF)
             }
         """
         items: list[dict[str, Any]] = []
@@ -93,9 +114,32 @@ class PersonalBriefingEngine:
         else:
             message = f"Good morning! {len(items)} item(s) today."
 
+        # ─── Round 44: Work Context card (bidirectional balance) ───────
+        # If personal state can appear in Work Mode, work commitments MUST
+        # also appear in Personal Mode. This is the bidirectional promise.
+        # Returns {} when the toggle is OFF (default), when incognito is
+        # active, or when the bright-line guard trips. NEVER analyzes
+        # colleagues — only the user's own work data.
+        #
+        # Dependency inversion: the toggle state was injected by the API
+        # route via set_toggle_state(). The personal namespace does not
+        # import the OEM user-settings module (preserves namespace separation).
+        work_context_card: dict[str, Any] = {}
+        try:
+            from maestro_personal.integration import build_work_context_card_for_personal
+            # Fail safe: if toggle state was never injected, treat as OFF.
+            toggle_on = self._toggle_enabled is True
+            work_context_card = build_work_context_card_for_personal(
+                self.user_id, toggle_on,
+            )
+        except Exception as e:
+            logger.debug("Work context card build failed: %s", e)
+
         return {
             "items": items,
             "missing_sources": missing_sources,
             "message": message,
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            # Round 44 — bidirectional card. {} when toggle is OFF.
+            "work_context": work_context_card,
         }

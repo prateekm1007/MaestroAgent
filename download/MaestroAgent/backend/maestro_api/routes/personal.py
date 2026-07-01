@@ -2,8 +2,14 @@
 V8 Personal Mode — API Routes.
 
 All Personal Mode endpoints live under /api/personal/. They are
-completely separate from the enterprise /api/oem/ routes. The
-Personal Mode namespace does NOT import from maestro_oem.
+completely separate from the enterprise /api/oem/ routes. The Personal
+Mode engine namespace does NOT import the OEM module.
+
+Round 44 exception: the route layer (this file) MAY import UserSettings
+from the OEM module to check the personal-context-in-work toggle and
+inject the state into personal engines (dependency inversion). This is
+the explicit bridge between modes — the route layer is allowed to span
+both namespaces, but the personal ENGINES (briefing.py, etc.) are not.
 
 Every endpoint enforces:
 - ConsentStore checks (Guideline P3)
@@ -24,9 +30,21 @@ router = APIRouter(prefix="/api/personal", tags=["personal-mode"])
 
 @router.get("/briefing")
 def get_personal_briefing(user: str = Query("default")) -> dict[str, Any]:
-    """Morning personal briefing — your calendar, weather, reminders."""
+    """Morning personal briefing — your calendar, weather, reminders.
+
+    Round 44: also returns a work_context card (bidirectional balance)
+    when the personal-context-in-work toggle is ON. The toggle state is
+    injected into the briefing engine via set_toggle_state() — this
+    preserves namespace separation (the personal namespace does not
+    import the OEM module directly).
+    """
     from maestro_personal.briefing import PersonalBriefingEngine
+    from maestro_oem.user_settings import UserSettings
     engine = PersonalBriefingEngine(user)
+    # Dependency inversion: check the toggle here (in the route layer,
+    # which can import from both namespaces) and inject the state.
+    toggle_on = UserSettings.is_personal_context_in_work_enabled(user)
+    engine.set_toggle_state(toggle_on)
     return engine.generate()
 
 
@@ -419,3 +437,42 @@ def set_mode(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(400, f"Invalid mode: {mode_str}. Use 'work', 'personal', or 'both'.")
     ModeManager.set_mode(payload.get("user", "default"), mode)
     return {"mode": mode.value}
+
+
+# ─── Round 44: Personal Context in Work toggle ──────────────────────────────
+# Default: OFF. The user must explicitly opt in. When OFF, zero personal
+# data appears in Work Mode. When ON, only the user's OWN personal state
+# (sleep, energy, calendar conflicts, habit insights) appears — never
+# intelligence about a third party. See CONSTITUTION.md Round 44 amendment.
+
+@router.get("/settings/personal-context-in-work")
+def get_personal_context_in_work(
+    user: str = Query("default", description="User email."),
+) -> dict[str, Any]:
+    """Get the personal-context-in-work toggle. Default: False (OFF)."""
+    from maestro_oem.user_settings import UserSettings
+    return UserSettings.get_personal_context_in_work(user)
+
+@router.post("/settings/personal-context-in-work")
+def set_personal_context_in_work(payload: dict[str, Any]) -> dict[str, Any]:
+    """Enable or disable personal context appearing in Work Mode.
+
+    Payload:
+        enabled: bool (required — True to enable, False to disable)
+        user: str (optional — defaults to "default")
+
+    Constitutional guardrails (Round 44):
+      - Default: OFF (Guideline P3 — consent is opt-in)
+      - When ON: only the user's OWN personal state surfaces, never
+        intelligence about a third party (Round 36 bright line)
+      - The integration is bidirectional — work commitments also appear
+        in Personal Mode when this is enabled
+      - Personal context is informational only, never redirects work
+        recommendations
+      - Withdrawal path: the user can disable this at any time and Work
+        Mode returns to its default state (Guideline P9)
+    """
+    from maestro_oem.user_settings import UserSettings
+    enabled = bool(payload.get("enabled", False))
+    user = payload.get("user", "default")
+    return UserSettings.set_personal_context_in_work(user, enabled)

@@ -33,6 +33,14 @@ class UserSettings:
 
     _auto_execute_enabled: dict[str, dict[str, bool]] = {}
 
+    # Round 44 — Work/Personal Integration toggle.
+    # Default: False (OFF). The user must explicitly opt in.
+    # When OFF: zero personal data appears in Work Mode.
+    # When ON: only the user's OWN personal state (sleep, energy, calendar
+    # conflicts, habit insights) appears — never intelligence about a
+    # third party. See CONSTITUTION.md Round 44 amendment.
+    _personal_context_in_work: dict[str, bool] = {}
+
     @classmethod
     def is_auto_execute_enabled(
         cls, user_id: str, provider: str, action_type: str,
@@ -113,3 +121,59 @@ class UserSettings:
     def clear(cls) -> None:
         """Clear all settings (for testing)."""
         cls._auto_execute_enabled = {}
+        cls._personal_context_in_work = {}
+
+    # ─── Round 44: Personal Context in Work toggle ────────────────────────
+
+    @classmethod
+    def is_personal_context_in_work_enabled(cls, user_id: str) -> bool:
+        """Check if the user has opted in to personal context in Work Mode.
+
+        Returns True ONLY if the user has explicitly called
+        POST /api/personal/settings/personal-context-in-work with
+        enabled=True. Default: False (disabled).
+
+        Constitutional guardrail (Round 44, Guideline P3): the toggle is
+        OFF by default. When OFF, zero personal data appears in Work Mode.
+        """
+        return cls._personal_context_in_work.get(user_id, False)
+
+    @classmethod
+    def set_personal_context_in_work(
+        cls, user_id: str, enabled: bool,
+    ) -> dict[str, Any]:
+        """Enable or disable the personal-context-in-work integration.
+
+        The user must call this explicitly to enable the integration.
+        Even after enabling, every integration point surfaces ONLY the
+        user's own personal state — never intelligence about a third
+        party (the Round 36 bright line still applies).
+
+        Returns the updated setting with the constitutional reminder.
+        """
+        cls._personal_context_in_work[user_id] = bool(enabled)
+        logger.info(
+            "Personal-context-in-work setting: user=%s enabled=%s",
+            user_id, enabled,
+        )
+        return {
+            "user": user_id,
+            "personal_context_in_work": bool(enabled),
+            "default": False,
+            "reminder": (
+                "When enabled, only your own personal state (sleep, energy, "
+                "calendar conflicts, habit insights) appears in Work Mode. "
+                "Maestro never surfaces intelligence about a third party. "
+                "You can disable this at any time and Work Mode returns to "
+                "its default state."
+            ),
+        }
+
+    @classmethod
+    def get_personal_context_in_work(cls, user_id: str) -> dict[str, Any]:
+        """Get the personal-context-in-work setting for a user."""
+        return {
+            "user": user_id,
+            "personal_context_in_work": cls._personal_context_in_work.get(user_id, False),
+            "default": False,
+        }

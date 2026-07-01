@@ -339,3 +339,64 @@ The moment Maestro analyzes a third party to help you craft a message
 to them, it has become a weapon. The moment Maestro monitors a third
 party's behavior to assess your "relationship health," it has become a
 stalker. These are not features. They are category errors.
+
+---
+
+## CONSTITUTIONAL AMENDMENT: WORK/PERSONAL INTEGRATION (Round 44)
+
+> **Personal Mode and Work Mode are equal partners in one app. The
+> integration lets each inform the other when the user consents. The
+> organization benefits because the person shows up whole — not
+> because the person is optimized for work.**
+
+### The Corrected Framing
+
+Personal Mode is NOT a "supporting intelligence layer" for Work Mode.
+That framing instrumentalizes personal life for work productivity —
+"life in service of work" — which is the dependence pattern applied
+to the work-life boundary itself. The Round-36 amendment's load-bearing
+"and" ("in work AND in life") requires equality.
+
+The correct framing is **bidirectional**:
+
+- Personal state (sleep, energy, calendar conflicts) can contextualize
+  work decisions — when the user opts in.
+- Work commitments (deadlines, meetings) can contextualize personal
+  life — when the user opts in.
+- Both flows are gated by an explicit, default-OFF toggle named
+  `personal_context_in_work`.
+
+### The Five Bright-Line Tests for Integration
+
+Before merging any Work/Personal integration feature, the coder must
+answer these five questions in the commit message:
+
+1. **Is the toggle OFF by default?** (Guideline P3 — consent is opt-in)
+2. **Does the feature surface ONLY the user's own personal state,
+   never intelligence about a third party?** (Bright line)
+3. **Is the integration bidirectional?** (If personal state
+   contextualizes work, work commitments must contextualize personal —
+   not one-way)
+4. **Does the personal context redirect the work recommendation?**
+   (Must be informational only, never prescriptive)
+5. **Can the user function without the integration for a week?**
+   (Withdrawal path — Guideline P9)
+
+If any answer is wrong, the feature is rejected before merge.
+
+### What Must NEVER Be Built (Work/Personal Integration)
+
+| Rejected | Why |
+|---|---|
+| Personal memory about a work colleague surfaced in work context | Crosses the bright line — uses personal intelligence about a third party to optimize work interaction. The dual-profile merge locking exists to prevent exactly this. |
+| Personal context that redirects a work recommendation in Ask | Creates dependence — the user cannot make a work decision without Maestro assessing their personal state. Personal context is an informational aside, never a factor in the recommendation. |
+| Aggregate personal-state analysis of colleagues ("Your team's energy is low") | Analyzes third parties. Surfacing user-entered personal observations as work tools reframes personal relationships as work instruments. |
+| Dwell time or engagement tracking on integrated features | The constitution forbids engagement metrics. Integration compounds capability, not engagement. |
+
+### The Bidirectional Promise
+
+If Personal State can appear in Work Mode, Work Commitments MUST also
+appear in Personal Mode. This is not optional. A one-way flow where
+personal life serves work but work does not serve personal life is the
+instrumentalization the amendment forbids. The integration is
+bidirectional or it is rejected.

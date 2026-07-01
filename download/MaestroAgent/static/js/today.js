@@ -31,6 +31,29 @@ async function loadToday() {
     ]);
     const contradictions = contradictionsResp.contradictions || [];
 
+    // ─── Round 44 Phase 6: Both Mode unified deck ───────────────────
+    // Detect the current mode. If "both", also fetch the personal briefing
+    // and personal contradictions so we can interleave work and personal
+    // cards by priority in a single unified swipe deck.
+    let currentMode = 'work';
+    let personalBriefing = null;
+    let personalContradsList = [];
+    try {
+      const modeResp = await fetch('/api/personal/mode?user=default').then(r => r.json());
+      currentMode = modeResp.mode || 'work';
+    } catch (e) { /* default to work */ }
+
+    if (currentMode === 'both') {
+      try {
+        const [pb, pc] = await Promise.all([
+          api.getPersonal('/briefing').catch(() => null),
+          api.getPersonal('/contradictions').catch(() => ({ contradictions: [] })),
+        ]);
+        personalBriefing = pb;
+        personalContradsList = (pc && pc.contradictions) || [];
+      } catch (e) { /* personal mode unavailable — fall back to work-only */ }
+    }
+
     // Fetch time-axis for a relevant domain. Derive the domain from the
     // actual briefing data — not a hardcoded string. The auditor (round 15)
     // found that domain='engineering' always 404s with the demo seed because
@@ -112,7 +135,7 @@ async function loadToday() {
       // Task extraction may not be available
     }
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks);
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks, currentMode, personalBriefing, personalContradsList);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -122,7 +145,17 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks, currentMode, personalBriefing, personalContradsList) {
+  // Round 44 Phase 6 — Both Mode handling.
+  // If currentMode === 'both', interleave work and personal cards by
+  // priority in a single unified swipe deck. Each card has a subtle
+  // mode indicator dot (blue for Work, coral for Personal). The unified
+  // deck NEVER mixes third-party intelligence — work cards contain only
+  // work data, personal cards contain only the user's own personal data.
+  currentMode = currentMode || 'work';
+  personalBriefing = personalBriefing || null;
+  personalContradsList = personalContradsList || [];
+
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -185,6 +218,66 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
 
   const items = [decision, opportunity, riskItem, learning, predictionItem].filter(Boolean);
 
+  // ─── Round 44 Phase 6: Build personal cards for Both Mode ────────
+  // Personal cards contain ONLY the user's own data. Never third-party
+  // intelligence. Each card is tagged with _mode='personal' so the
+  // renderer can add the coral indicator dot. Work cards are tagged
+  // _mode='work' (blue dot).
+  let personalCards = [];
+  if (currentMode === 'both' && personalBriefing) {
+    // Personal calendar items (only the user's own)
+    if (personalBriefing.items && personalBriefing.items.length > 0) {
+      personalBriefing.items.slice(0, 3).forEach(item => {
+        personalCards.push({
+          label: 'Personal',
+          title: (item.content || '').slice(0, 100),
+          context: `From ${item.source || 'your calendar'}`,
+          provenance: '',
+          sowhat: '',
+          action: () => { navTo('personal'); },
+          _mode: 'personal',  // coral dot
+        });
+      });
+    }
+    // Personal contradictions (only the user's own patterns)
+    personalContradsList.slice(0, 2).forEach(c => {
+      personalCards.push({
+        label: 'Personal pattern',
+        title: (c.description || '').slice(0, 100),
+        context: c.evidence || '',
+        provenance: '',
+        sowhat: '',
+        action: () => { navTo('personal'); },
+        _mode: 'personal',
+      });
+    });
+    // Work Context card from the personal briefing (bidirectional)
+    if (personalBriefing.work_context && personalBriefing.work_context.enabled) {
+      const wc = personalBriefing.work_context;
+      const wcParts = [];
+      if (wc.deadlines_today && wc.deadlines_today.length > 0) {
+        wcParts.push(`${wc.deadlines_today.length} work deadline${wc.deadlines_today.length !== 1 ? 's' : ''} today`);
+      }
+      if (wc.meetings_into_personal_time && wc.meetings_into_personal_time.length > 0) {
+        wcParts.push(`${wc.meetings_into_personal_time.length} meeting${wc.meetings_into_personal_time.length !== 1 ? 's' : ''} into personal time`);
+      }
+      if (wcParts.length > 0) {
+        personalCards.push({
+          label: 'Work context',
+          title: wcParts.join(' · '),
+          context: wc.commitments_summary || '',
+          provenance: '',
+          sowhat: '',
+          action: () => { navTo('personal'); },
+          _mode: 'personal',
+        });
+      }
+    }
+  }
+
+  // Tag work items with _mode='work' for the indicator dot
+  items.forEach(it => { it._mode = 'work'; });
+
   // Determine the organizational dot color
   const dotColor = determineDotColor(briefing, contradictions);
   updateOrgDot(dotColor);
@@ -200,7 +293,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       <div class="meta-surface greeting">${greeting}</div>
       <div class="meta-surface sub-greeting">
         <span class="org-heartbeat"></span>
-        ${items.length > 0 ? `${items.length} ${items.length === 1 ? 'thing' : 'things'} deserve attention.` : 'Everything is calm. Your organization is working well.'}
+        ${items.length + personalCards.length > 0 ? `${items.length + personalCards.length} ${items.length + personalCards.length === 1 ? 'thing' : 'things'} deserve attention.` : 'Everything is calm. Your organization is working well.'}
       </div>
   `;
 
@@ -226,7 +319,14 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   // Brief items — Bumble true swipe-card deck (P0-1 through P0-4).
   // One card at a time. Swipe right to act, left to defer.
   // Withdrawal path: user can switch to scrollable list via "See all."
-  if (items.length === 0) {
+  //
+  // Round 44 Phase 6: In "both" mode, personal cards are interleaved
+  // by priority with work cards. Each card carries a _mode tag
+  // ('work' = blue dot, 'personal' = coral dot) so the renderer can
+  // show a subtle mode indicator. Personal cards NEVER contain
+  // third-party intelligence — only the user's own data.
+  const totalCardCount = items.length + personalCards.length;
+  if (totalCardCount === 0) {
     html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
       <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">Nothing needs you right now.</div>
       <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro is watching. You'll know when something matters.</div>
@@ -234,6 +334,9 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   } else {
     // P0-3: Build the swipe deck — max 7 cards, prioritized.
     // Priority: commitments due → contradictions → decisions → unknowns → everything else.
+    // Round 44: in "both" mode, personal cards interleave by priority:
+    //   commitments (work+personal) → contradictions (work+personal) →
+    //   decisions (work) → unknowns (work) → habits/personal (personal).
     const categoryColors = {
       'One decision': 'decision',
       'One opportunity': 'decision',
@@ -241,12 +344,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       'One thing changed overnight': 'unknown',
       'One thing learned': 'habit',
       'One prediction': 'unknown',
+      'Personal': 'habit',
+      'Personal pattern': 'habit',
+      'Work context': 'due',
     };
 
     // P0-3: Collect all card data from the briefing sections.
     const deckCards = [];
 
-    // Add commitments as cards (highest priority)
+    // Add commitments as cards (highest priority) — work mode
     if (commitments && commitments.commitments) {
       commitments.commitments.forEach(c => {
         deckCards.push({
@@ -259,11 +365,12 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
           swipeRightAction: () => sendCommitmentReminder(deckCards.indexOf(c)),
           isCommitment: true,
           commitmentIdx: commitments.commitments.indexOf(c),
+          _mode: 'work',  // Round 44 — blue dot
         });
       });
     }
 
-    // Add brief items as cards
+    // Add brief items as cards — work mode
     items.forEach((item, i) => {
       const categoryClass = categoryColors[item.label] || 'decision';
       const canAct = item.label === 'One decision' || item.label === 'One opportunity';
@@ -284,6 +391,26 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         whyCallback: `showInlineWhy('${escapeJs(item.title)}', ${i})`,
         itemIdx: i,
         canAct: canAct,
+        _mode: 'work',  // Round 44 — blue dot
+      });
+    });
+
+    // Round 44 Phase 6: Add personal cards (lowest priority, last in deck).
+    // Personal cards contain ONLY the user's own data. Each card has
+    // _mode='personal' so the renderer adds the coral indicator dot.
+    personalCards.forEach(item => {
+      deckCards.push({
+        category: item.label.toUpperCase(),
+        categoryClass: categoryColors[item.label] || 'habit',
+        judgment: item.title,
+        evidence: item.context || '',
+        sowhat: '',
+        rightLabel: 'ACKNOWLEDGE',
+        leftLabel: 'DEFER',
+        swipeRightAction: () => { /* acknowledge — no action needed */ },
+        itemIdx: -1,
+        canAct: false,
+        _mode: 'personal',  // Round 44 — coral dot
       });
     });
 
@@ -339,6 +466,19 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
           ${whyLink}
           <div id="inline-why-${i}" style="margin-top:8px;"></div>
           <div id="quick-wb-${i}" style="margin-top:8px;"></div>
+        </div>
+      `;
+    });
+    // Round 44 Phase 6: also render personal cards in the list view,
+    // each with a coral mode indicator dot.
+    personalCards.forEach((item, i) => {
+      const categoryClass = categoryColors[item.label] || 'habit';
+      html += `
+        <div class="maestro-card brief-item" data-idx="p${i}" style="margin-bottom:16px;position:relative;">
+          <div style="position:absolute;top:14px;right:14px;width:10px;height:10px;border-radius:50%;background:#FF6B6B;opacity:0.85;" title="Personal" aria-label="Mode: Personal"></div>
+          <div class="swipe-card-category ${categoryClass}" style="margin-bottom:12px;">${escapeHtml(item.label.toUpperCase())}</div>
+          <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.3;margin-bottom:8px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(item.title))}</div>
+          ${item.context ? `<div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:8px;">${escapeHtml(humanize(item.context))}</div>` : ''}
         </div>
       `;
     });
@@ -877,6 +1017,21 @@ function renderSwipeCard() {
     why_link: cardData.whyCallback ? true : false,
     why_callback: cardData.whyCallback || '',
   });
+
+  // Round 44 Phase 6 — Mode indicator dot.
+  // Blue dot for Work, coral dot for Personal. Subtle, in the top-right
+  // corner of the card. Only shown in "both" mode (when the deck mixes
+  // work and personal cards). In single-mode decks the dot is omitted
+  // because every card has the same mode.
+  if (cardData._mode) {
+    const dotColor = cardData._mode === 'personal' ? '#FF6B6B' : '#2196F3';  // coral / blue
+    const dotTitle = cardData._mode === 'personal' ? 'Personal' : 'Work';
+    const dot = document.createElement('div');
+    dot.style.cssText = `position:absolute;top:14px;right:14px;width:10px;height:10px;border-radius:50%;background:${dotColor};opacity:0.85;title:${dotTitle};`;
+    dot.title = dotTitle;
+    dot.setAttribute('aria-label', `Mode: ${dotTitle}`);
+    card.appendChild(dot);
+  }
 
   // Style the card for the deck (absolute positioning within container)
   card.style.position = 'relative';
