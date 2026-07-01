@@ -3400,3 +3400,35 @@ def get_recall(
     from maestro_oem.recall import RecallEngine
     engine = RecallEngine(oem_state.model, oem_state.signals)
     return engine.recall(situation=situation)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 32. CONSTITUTION V6 — PERMANENT IMPROVEMENT
+# ═══════════════════════════════════════════════════════════════════════════
+# V6 Law: "Every interaction must permanently improve the organization."
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/nudges")
+def get_nudges() -> dict[str, Any]:
+    """Adaptive restructuring suggestions based on causal evidence.
+
+    V6 Spec #1 — Maestro quietly suggests work restructuring based on
+    what has worked before. Each nudge is actionable and backed by causal
+    evidence (not just correlation).
+    """
+    from maestro_oem.adaptive_nudge import AdaptiveNudgeEngine
+    engine = AdaptiveNudgeEngine(oem_state.model, oem_state.signals)
+    return engine.generate()
+
+
+@router.get("/evolution-tracker")
+def get_evolution_tracker() -> dict[str, Any]:
+    """Track failure modes from active → resolving → eliminated.
+
+    V6 Spec #2 — "We no longer make this mistake." Tracks specific failure
+    modes and whether the organization has stopped making them. A failure
+    mode is "eliminated" when it hasn't recurred for 90+ days.
+    """
+    from maestro_oem.evolution_tracker import EvolutionTracker
+    engine = EvolutionTracker(oem_state.model, oem_state.signals)
+    return engine.track()

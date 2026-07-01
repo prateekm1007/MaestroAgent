@@ -12,14 +12,15 @@ async function loadLearn() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Recalling what your organization learned…</div>';
 
   try {
-    const [learning, improvement, calibration, identity] = await Promise.all([
+    const [learning, improvement, calibration, identity, evolutionTracker] = await Promise.all([
       api.getOEM('/learning').catch(() => null),
       api.getOEM('/improvement').catch(() => null),
       api.getOEM('/predictions/market/calibration').catch(() => null),
       api.getOEM('/identity').catch(() => null),
+      api.getOEM('/evolution-tracker').catch(() => null),
     ]);
 
-    renderLearnStories(el, learning, improvement, calibration, identity);
+    renderLearnStories(el, learning, improvement, calibration, identity, evolutionTracker);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization is still gathering experience.</div>
@@ -28,7 +29,7 @@ async function loadLearn() {
   }
 }
 
-function renderLearnStories(el, learning, improvement, calibration, identity) {
+function renderLearnStories(el, learning, improvement, calibration, identity, evolutionTracker) {
   const stories = [];
 
   // Story 1: "Your organization became smarter" (from improvement report)
@@ -127,6 +128,28 @@ function renderLearnStories(el, learning, improvement, calibration, identity) {
         <div style="font-size:13px;color:var(--text-secondary);">
           <strong>Largest gap:</strong> ${escapeHtml(humanize(identity.largest_gap || ''))}
         </div>
+      </div>
+    `;
+  }
+
+  // V6 Spec #2 — Evolution Tracker: "Mistakes your organization no longer makes"
+  if (evolutionTracker && evolutionTracker.failure_modes && evolutionTracker.failure_modes.length > 0) {
+    html += `
+      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+        <div class="intention-label" style="color:var(--accent);margin:0 0 12px 0;">Mistakes your organization no longer makes</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(evolutionTracker.summary || ''))}</div>
+        ${evolutionTracker.failure_modes.slice(0, 4).map(m => {
+          const status = m.current_status || 'active';
+          const color = status === 'eliminated' ? 'var(--positive)' : status === 'resolving' ? 'var(--warning)' : 'var(--risk)';
+          const label = status === 'eliminated' ? '✓ eliminated' : status === 'resolving' ? 'resolving' : 'active';
+          return `<div style="padding:10px 0;border-bottom:1px solid var(--divider);">
+            <div class="ds-row" style="gap:8px;">
+              <span style="color:${color};font-size:12px;font-weight:500;">${label}</span>
+              <span style="font-size:13px;color:var(--text-primary);">${escapeHtml(humanize(m.failure_mode || ''))}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${escapeHtml(humanize(m.narrative || ''))}</div>
+          </div>`;
+        }).join('')}
       </div>
     `;
   }

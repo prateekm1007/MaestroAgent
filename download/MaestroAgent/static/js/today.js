@@ -72,7 +72,15 @@ async function loadToday() {
       // Curiosity engine may not be available
     }
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity);
+    // Fetch adaptive nudges (V6 Spec #1)
+    let nudges = null;
+    try {
+      nudges = await api.getOEM('/nudges');
+    } catch (e) {
+      // Nudge engine may not be available
+    }
+
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -82,7 +90,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -202,6 +210,26 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         </div>
       `;
     });
+  }
+
+  // V6 Spec #1 — Adaptive Nudges: actionable restructuring suggestions
+  if (nudges && nudges.nudges && nudges.nudges.length > 0) {
+    html += `
+      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--accent-border);">
+        <div class="brief-label" style="color:var(--accent);">Maestro suggests a change</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(nudges.summary || ''))}</div>
+        ${nudges.nudges.slice(0, 2).map((n, i) => `
+          <div class="brief-item" data-nudge-idx="${i}" style="border-bottom:1px solid var(--divider);">
+            <div style="font-size:14px;color:var(--text-primary);font-weight:500;margin-bottom:4px;">${escapeHtml(humanize(n.intervention || ''))}</div>
+            <div class="brief-context" style="font-size:12px;">${escapeHtml(humanize(n.evidence || ''))}</div>
+            <div class="ds-row" style="gap:6px;margin-top:8px;">
+              <button class="ds-btn ds-btn-positive ds-btn-small" onclick="this.closest('.brief-item').style.opacity='0.5';this.textContent='Accepted'">Accept</button>
+              <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="this.closest('.brief-item').style.display='none'">Dismiss</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   // V4 Organ #2 — Curiosity: questions the org has never asked
