@@ -3661,6 +3661,48 @@ def get_timeline(
     }
 
 
+@router.get("/tasks")
+def get_tasks(
+    assignee: str = Query("", description="Filter by assignee (case-insensitive substring match)."),
+    domain: str = Query("", description="Filter by domain (exact match)."),
+    priority: str = Query("", description="Filter by priority: high, medium, low."),
+    status: str = Query("", description="Filter by status: open, done."),
+) -> dict[str, Any]:
+    """Tasks & action items auto-extracted from signal text during ingestion.
+
+    V8 Daily Work #2 — Task & Action-Item Intelligence. Maestro scans
+    signal text for action-item patterns ("priya to review by Friday",
+    "carlos will draft the RFC", "TODO: update docs") and creates task
+    learning objects. This feeds the constitutional layers — the model
+    learns what the org has committed to and can track completion.
+
+    Each task has: description, assignee, due_date, priority, status,
+    source_signal_id, domain, confidence.
+    """
+    from maestro_oem.task_extraction import get_tasks as _get_tasks
+    model = oem_state.model
+    tasks = _get_tasks(
+        model,
+        assignee=assignee,
+        domain=domain,
+        priority=priority,
+        status=status,
+    )
+    return {
+        "tasks": tasks,
+        "total": len(tasks),
+        "open_count": sum(1 for t in tasks if t["status"] == "open"),
+        "done_count": sum(1 for t in tasks if t["status"] == "done"),
+        "high_priority_count": sum(1 for t in tasks if t["priority"] == "high"),
+        "filters_applied": {
+            "assignee": assignee if assignee else None,
+            "domain": domain if domain else None,
+            "priority": priority if priority else None,
+            "status": status if status else None,
+        },
+    }
+
+
 @router.post("/curiosity/follow-up")
 def curiosity_follow_up(payload: dict[str, Any]) -> dict[str, Any]:
     """Process a user's answer in a curiosity conversation.

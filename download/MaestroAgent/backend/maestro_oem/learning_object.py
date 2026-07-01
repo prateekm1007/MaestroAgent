@@ -49,6 +49,9 @@ class LearningObjectType(str, Enum):
     CUSTOMER_DECISION_PATTERN = "customer_decision_pattern"  # how this customer historically decides
     CUSTOMER_DRIFT = "customer_drift"                     # relationship momentum / trust / engagement trend
     CUSTOMER_RISK = "customer_risk"                       # accumulated risk on a customer relationship
+    # V8 Daily Work #2 — Task & Action-Item Intelligence.
+    # Tasks auto-extracted from signal text during ingestion.
+    TASK = "task"
 
 
 class LearningObject(BaseModel):

@@ -104,7 +104,15 @@ async function loadToday() {
       // Unknowns engine may not be available
     }
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns);
+    // Fetch tasks (V8 Daily Work #2)
+    let tasks = null;
+    try {
+      tasks = await api.getOEM('/tasks?status=open');
+    } catch (e) {
+      // Task extraction may not be available
+    }
+
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -114,7 +122,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -310,6 +318,36 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
                      onkeydown="if(event.key==='Enter') submitCuriosityAnswer(${i})"
                      aria-label="Answer Maestro's question" />
               <button class="ds-btn ds-btn-ghost ds-btn-small" style="margin-top:6px;" onclick="submitCuriosityAnswer(${i})">Answer</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // V8 Daily Work #2 — Task & Action-Item Intelligence.
+  // Shows tasks auto-extracted from signal text during ingestion.
+  // Each task has: description, assignee, due_date, priority, status.
+  if (tasks && tasks.tasks && tasks.tasks.length > 0) {
+    const priorityColor = { high: 'var(--risk,#DC2626)', medium: 'var(--warning,#D97706)', low: 'var(--text-muted)' };
+    html += `
+      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+        <div class="brief-label" style="color:var(--accent);">Your tasks</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${tasks.total} open task${tasks.total === 1 ? '' : 's'} auto-extracted from your organization's signals.</div>
+        ${tasks.tasks.slice(0, 5).map(t => `
+          <div class="brief-item" style="border-bottom:1px solid var(--divider);padding:10px 0;">
+            <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
+              <div style="flex:1;">
+                <div class="brief-context" style="color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(t.description || ''))}</div>
+                <div class="ds-meta" style="margin-top:4px;">
+                  ${t.assignee ? `Assignee: ${escapeHtml(t.assignee)}` : 'Unassigned'}
+                  ${t.due_date ? ` · Due: ${escapeHtml(t.due_date)}` : ''}
+                  ${t.domain ? ` · Domain: ${escapeHtml(t.domain)}` : ''}
+                </div>
+              </div>
+              <span class="tag" style="background:${priorityColor[t.priority] || priorityColor.medium}20;color:${priorityColor[t.priority] || priorityColor.medium};border:1px solid ${priorityColor[t.priority] || priorityColor.medium}40;font-size:10px;padding:2px 8px;border-radius:4px;text-transform:uppercase;">
+                ${escapeHtml(t.priority || 'medium')}
+              </span>
             </div>
           </div>
         `).join('')}

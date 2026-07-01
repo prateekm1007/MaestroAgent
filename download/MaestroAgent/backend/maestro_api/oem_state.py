@@ -239,6 +239,26 @@ class OEMState:
                     self._live_signals_ingested += 1
                 except Exception as e:
                     logger.warning("Live signal ingest failed: %s", e)
+
+            # V8 Daily Work #2 — Task & Action-Item Intelligence.
+            # Extract action items from the newly-ingested signals' text
+            # and add them as learning objects (type=TASK) to the model.
+            # This feeds the constitutional layers — the model learns what
+            # the org has committed to and can track completion. Called
+            # inside the lock because it mutates model.learning_objects.
+            try:
+                from maestro_oem.task_extraction import TaskExtractor
+                model = self.engine.get_model()
+                extractor = TaskExtractor(model)
+                tasks = extractor.extract_from_signals(new_signals)
+                for task in tasks:
+                    model.learning_objects[task.lo_id] = task
+                if tasks:
+                    logger.info("Task extraction: %d task(s) extracted from %d signal(s)",
+                                len(tasks), len(new_signals))
+            except Exception as e:
+                logger.debug("Task extraction failed (non-fatal): %s", e)
+
             self._refresh_downstream_locked()
             # Close the loop: resolve predictions that the new signals
             # (or earlier CEO feedback) can now settle.
