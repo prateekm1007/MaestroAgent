@@ -22,20 +22,18 @@ function renderLawCardDetailed(l) {
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="flex items-center gap-2 mb-1">
-          <span class="mono text-[10px] text-brand-purple">${escapeHtml(l.code)}</span>
-          <span class="tag ${statusTag}">${escapeHtml(l.status)}</span>
-          ${l.drift_detected ? '<span class="tag tag-rose">DRIFT</span>' : ''}
+          <span class="tag ${statusTag}">${escapeHtml(humanize(l.status))}</span>
+          ${l.drift_detected ? '<span class="tag tag-rose">shifting</span>' : ''}
         </div>
-        <div class="text-sm font-semibold text-white">${escapeHtml(l.statement)}</div>
-        <div class="text-[11px] text-fg-400 mt-1"><strong>Condition:</strong> ${escapeHtml(l.condition)}</div>
-        <div class="text-[11px] text-fg-300 mt-1"><strong>Outcome:</strong> ${escapeHtml(l.outcome)}</div>
+        <div class="text-sm font-semibold text-white">${escapeHtml(humanize(l.statement))}</div>
+        <div class="text-[11px] text-fg-400 mt-1"><strong>Condition:</strong> ${escapeHtml(humanize(l.condition))}</div>
+        <div class="text-[11px] text-fg-300 mt-1"><strong>Outcome:</strong> ${escapeHtml(humanize(l.outcome))}</div>
       </div>
     </div>
     <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-3">
-      <div class="conf-bar" style="width:140px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${l.confidence*100}%"></div></div><span class="text-brand-cyan font-bold conf-value">${formatConfidence(l.confidence)}</span></div>
-      <span>·</span><span>${l.evidence_count} evidence</span>
-      <span>·</span><span>${l.validated_runtimes}/${l.validated_runtimes + l.failed_runtimes} runtimes</span>
-      ${l.counter_examples ? `<span>·</span><span>${l.counter_examples} counter-examples</span>` : ''}
+      <span>${l.evidence_count} signals</span>
+      <span>·</span><span>${l.validated_runtimes}/${l.validated_runtimes + l.failed_runtimes} observed</span>
+      ${l.counter_examples ? `<span>·</span><span>${l.counter_examples} exceptions</span>` : ''}
     </div>
     <div class="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-white/[0.05]">
       <div>
@@ -49,8 +47,8 @@ function renderLawCardDetailed(l) {
     </div>
     ${chain.length > 0 ? `
       <div class="mt-3 pt-3 border-t border-white/[0.05]">
-        <div class="text-[10px] uppercase text-fg-500 mb-2">Evidence Chain (${chain.length} nodes)</div>
-        <div class="flex flex-wrap gap-1">${chain.slice(0, 12).map(n => `<span class="evidence-node ${n.type}">${escapeHtml(n.label)}</span>`).join('')}</div>
+        <div class="text-[10px] uppercase text-fg-500 mb-2">Evidence Chain (${chain.length} signals)</div>
+        <div class="flex flex-wrap gap-1">${chain.slice(0, 12).map(n => `<span class="evidence-node ${n.type}">${escapeHtml(humanize(n.label))}</span>`).join('')}</div>
       </div>
     ` : ''}
     <div class="mt-3 pt-3 border-t border-white/[0.05] flex items-center gap-2" onclick="event.stopPropagation()">

@@ -126,22 +126,19 @@ function renderEnrichedRec(r, opts = {}) {
   return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" onclick="openDrilldown('recommendation', '${escapeJs(r.title)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
-        <div class="text-sm font-semibold text-white mb-1">${escapeHtml(r.title)}</div>
-        ${!compact ? `<div class="text-[11px] text-fg-400 leading-relaxed">${escapeHtml(r.description || '')}</div>` : ''}
+        <div class="text-sm font-semibold text-white mb-1">${escapeHtml(humanize(r.title))}</div>
+        ${!compact ? `<div class="text-[11px] text-fg-400 leading-relaxed">${escapeHtml(humanize(r.description || ''))}</div>` : ''}
       </div>
       <span class="tag ${urgencyTag} ml-3">${escapeHtml(r.urgency || 'normal')}</span>
     </div>
     ${provChain ? `<div class="prov-chain mt-2 mb-2">${provChain}</div>` : ''}
     <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2 flex-wrap">
-      <div class="conf-bar" style="width:120px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${(r.confidence||0)*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(r.confidence)}</span></div>
-      <span>·</span><span>${evidenceCount} evidence</span>
-      ${linkedLaws.length ? `<span>·</span><span>Laws: ${linkedLaws.join(', ')}</span>` : ''}
+      <span>${evidenceCount} signals</span>
+      ${linkedLaws.length ? `<span>·</span><span>${linkedLaws.length} ${linkedLaws.length === 1 ? 'pattern' : 'patterns'}</span>` : ''}
     </div>
-    ${!compact && r.impact ? `<div class="mt-2 text-[11px] text-fg-300"><strong>Expected impact:</strong> ${escapeHtml(r.impact)}</div>` : ''}
+    ${!compact && r.impact ? `<div class="mt-2 text-[11px] text-fg-300"><strong>Expected impact:</strong> ${escapeHtml(humanize(r.impact))}</div>` : ''}
     ${!compact ? `<div class="mt-2 pt-2 border-t border-white/[0.05] flex items-center gap-3 text-[10px] text-fg-600">
-      <span>Provenance: ${evidenceCount} signals</span>
-      <span>·</span>
-      <span>Confidence: ${formatConfidence(r.confidence)}</span>
+      <span>Based on ${evidenceCount} signals</span>
       ${r.evidence_strength ? `<span>·</span><span>Strength: ${r.evidence_strength}</span>` : ''}
       <span>·</span>
       <span class="text-brand-violet cursor-pointer hover:text-brand-cyan">Drill-down →</span>
@@ -160,15 +157,13 @@ function renderECCAttention(briefing) {
     <div class="space-y-4">
       <div class="p-3 rounded-lg bg-brand-violet/[0.06] border border-brand-violet/15">
         <div class="text-[10px] uppercase tracking-wider text-brand-violet font-semibold mb-1">If you do one thing today</div>
-        <div class="text-base font-bold text-white">${escapeHtml(ot.title)}</div>
-        <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(ot.why)}</div>
-        <div class="text-sm text-brand-violet font-medium mt-2">${escapeHtml(ot.recommendation)}</div>
+        <div class="text-base font-bold text-white">${escapeHtml(humanize(ot.title))}</div>
+        <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(humanize(ot.why))}</div>
+        <div class="text-sm text-brand-violet font-medium mt-2">${escapeHtml(humanize(ot.recommendation))}</div>
         <div class="flex items-center gap-3 pt-2">
           <span class="tag tag-${urgencyColor}">${escapeHtml(ot.urgency)}</span>
-          <div class="conf-bar" style="width:100px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${ot.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(ot.confidence)}</span></div>
-          <span class="text-[10px] text-fg-500">confidence</span>
         </div>
-        <div class="text-[11px] text-fg-300 mt-2">${escapeHtml(ot.impact)}</div>
+        <div class="text-[11px] text-fg-300 mt-2">${escapeHtml(humanize(ot.impact))}</div>
         ${ot.rec_id ? `<button class="btn btn-primary text-[11px] mt-2" onclick="event.stopPropagation(); openDrilldown('recommendation', '${escapeJs(ot.title)}')">Investigate →</button>` : ''}
       </div>
       ${decisions.decisions.length > 0 ? `
@@ -185,7 +180,7 @@ function renderECCAttention(briefing) {
                   <div class="text-[10px] text-fg-500 mt-0.5">${escapeHtml(d.question)}</div>
                   <div class="text-[10px] text-brand-violet mt-1">${escapeHtml(d.recommendation)}</div>
                 </div>
-                <span class="text-[10px] text-fg-500">conf ${formatConfidence(d.confidence)}</span>
+                <span class="text-[10px] text-fg-500">${d.evidence_count || 0} signals</span>
               </div>`;
             }).join('')}
           </div>
@@ -344,7 +339,7 @@ async function runECCSimulation() {
           <div class="text-[10px] text-fg-600">Base: ${data.base_health.decision_velocity_days}d</div>
         </div>
       </div>
-      <div class="mt-3 text-[10px] text-fg-500">Confidence: ${formatConfidence(data.confidence)} · Linked laws: ${data.linked_laws.join(', ') || 'none'}</div>
+      <div class="mt-3 text-[10px] text-fg-500">Based on ${data.linked_laws ? data.linked_laws.length : 0} ${data.linked_laws && data.linked_laws.length === 1 ? 'pattern' : 'patterns'} from organizational memory</div>
     `;
   } catch (e) { resultEl.innerHTML = `<div class="error-state">${escapeHtml(e.message)}</div>`; }
 }

@@ -3,15 +3,15 @@
 
 async function loadEngAudit() {
   const el = document.getElementById('eng-audit-list');
-  loadingHTML(el, 'Loading receipts…');
+  loadingHTML(el, 'Loading signal history…');
   try {
     const data = await api.getOEM('/receipts?limit=100');
     if (data.receipts.length === 0) {
-      emptyHTML(el, 'No receipts recorded yet. Receipts appear as signals flow into the OEM.');
+      emptyHTML(el, 'No signal history yet. Events appear as signals flow into Maestro.');
       return;
     }
     el.innerHTML = `
-      <div class="text-[10px] text-fg-500 mb-3">${data.total} receipts · showing latest ${data.receipts.length}</div>
+      <div class="text-[10px] text-fg-500 mb-3">${data.total} signals · showing latest ${data.receipts.length}</div>
       <div class="space-y-1">
         ${data.receipts.map(r => `
           <div class="text-[11px] p-2 rounded bg-white/[0.02] border border-white/[0.04] grid grid-cols-12 gap-2 items-center hover:bg-white/[0.04] cursor-pointer" onclick="openDrilldown('signal', '${escapeJs(r.receipt_id)}')">
