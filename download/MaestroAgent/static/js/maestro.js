@@ -23,6 +23,7 @@ const pageNames = {
   today: 'Today', work: 'Work', 'ask-v2': 'Ask', learn: 'Learn',
   evolution: 'Evolution Report',
   cognition: 'Cognitive Organs',
+  autobiography: "Your Organization's Story",
   // Deep capabilities (existing surfaces)
   home: 'Home', inbox: 'Inbox', simulator: 'Decision Simulator',
   hayek: 'Hayek Lens', flow: 'Knowledge Flow', memory: 'Memory Replay',
@@ -144,6 +145,7 @@ const _hiddenSurfaces = [
   { id: 'eng-settings', label: 'Settings — configuration', group: 'Engineering' },
   { id: 'evolution', label: 'Evolution Report — how has the organization changed?', group: 'Constitution v3' },
   { id: 'cognition', label: 'Cognitive Organs — skepticism, wisdom, metacognition, principles, consciousness', group: 'Constitution v4' },
+  { id: 'autobiography', label: 'Your Organization\u2019s Story — the autobiography', group: 'Constitution v6' },
 ];
 
 function openCommandPalette() {

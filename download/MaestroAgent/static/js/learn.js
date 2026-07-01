@@ -12,15 +12,16 @@ async function loadLearn() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Recalling what your organization learned…</div>';
 
   try {
-    const [learning, improvement, calibration, identity, evolutionTracker] = await Promise.all([
+    const [learning, improvement, calibration, identity, evolutionTracker, dna] = await Promise.all([
       api.getOEM('/learning').catch(() => null),
       api.getOEM('/improvement').catch(() => null),
       api.getOEM('/predictions/market/calibration').catch(() => null),
       api.getOEM('/identity').catch(() => null),
       api.getOEM('/evolution-tracker').catch(() => null),
+      api.getOEM('/dna').catch(() => null),
     ]);
 
-    renderLearnStories(el, learning, improvement, calibration, identity, evolutionTracker);
+    renderLearnStories(el, learning, improvement, calibration, identity, evolutionTracker, dna);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization is still gathering experience.</div>
@@ -29,7 +30,7 @@ async function loadLearn() {
   }
 }
 
-function renderLearnStories(el, learning, improvement, calibration, identity, evolutionTracker) {
+function renderLearnStories(el, learning, improvement, calibration, identity, evolutionTracker, dna) {
   const stories = [];
 
   // Story 1: "Your organization became smarter" (from improvement report)
@@ -127,6 +128,25 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
         </div>
         <div style="font-size:13px;color:var(--text-secondary);">
           <strong>Largest gap:</strong> ${escapeHtml(humanize(identity.largest_gap || ''))}
+        </div>
+      </div>
+    `;
+  }
+
+  // V6 Spec #5 — Organizational DNA: "Who your organization has become"
+  if (dna && dna.chromosomes) {
+    html += `
+      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+        <div class="intention-label" style="color:var(--accent);margin:0 0 12px 0;">Who your organization has become</div>
+        <div style="font-size:15px;color:var(--text-primary);margin-bottom:16px;">${escapeHtml(humanize(dna.summary || ''))}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          ${Object.entries(dna.chromosomes).map(([name, chr]) => `
+            <div style="padding:10px;border-radius:8px;background:var(--surface-2);">
+              <div style="font-size:12px;font-weight:500;color:var(--text-primary);text-transform:capitalize;">${escapeHtml(name.replace(/_/g, ' '))}</div>
+              <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(humanize(chr.label || ''))}</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(chr.basis || ''))}</div>
+            </div>
+          `).join('')}
         </div>
       </div>
     `;

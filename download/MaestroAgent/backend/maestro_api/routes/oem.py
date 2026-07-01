@@ -3432,3 +3432,52 @@ def get_evolution_tracker() -> dict[str, Any]:
     from maestro_oem.evolution_tracker import EvolutionTracker
     engine = EvolutionTracker(oem_state.model, oem_state.signals)
     return engine.track()
+
+
+@router.get("/background-loop")
+def get_background_loop() -> dict[str, Any]:
+    """What Maestro noticed while you were away.
+
+    V6 Spec #3 — Background Adaptation Loop. Runs on every signal ingest.
+    Checks for new nudges, trajectory regressions, and new contradictions.
+    """
+    from maestro_oem.background_loop import BackgroundAdaptationLoop
+    engine = BackgroundAdaptationLoop(oem_state.model, oem_state.signals)
+    return engine.run()
+
+
+@router.get("/trajectory-intervention")
+def get_trajectory_intervention() -> dict[str, Any]:
+    """Declining trajectories that need intervention.
+
+    V6 Spec #4 — weak signal → trajectory change → quiet intervention.
+    Computes time_to_failure from slope. Proposes interventions with
+    historical analogues.
+    """
+    from maestro_oem.trajectory_intervention import TrajectoryInterventionEngine
+    engine = TrajectoryInterventionEngine(oem_state.model, oem_state.signals)
+    return engine.assess()
+
+
+@router.get("/dna")
+def get_dna() -> dict[str, Any]:
+    """Your organization's DNA — 7 chromosomes.
+
+    V6 Spec #5 — Organizational DNA. Infers 7 behavioral chromosomes
+    from signals (never surveyed). Filters recommendations via wisdom.py.
+    """
+    from maestro_oem.organizational_dna import OrganizationalDNA
+    engine = OrganizationalDNA(oem_state.model, oem_state.signals)
+    return engine.sequence()
+
+
+@router.get("/autobiography")
+def get_autobiography() -> dict[str, Any]:
+    """Your organization's autobiography.
+
+    V6 Spec #6 — Evolution Narrative. Composes DNA + Evolution Tracker +
+    Identity + Principles into chapters. The organization's story.
+    """
+    from maestro_oem.evolution_narrative import EvolutionNarrative
+    engine = EvolutionNarrative(oem_state.model, oem_state.signals)
+    return engine.write()

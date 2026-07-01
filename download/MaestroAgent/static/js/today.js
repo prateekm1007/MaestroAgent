@@ -80,7 +80,23 @@ async function loadToday() {
       // Nudge engine may not be available
     }
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges);
+    // Fetch background loop notices (V6 Spec #3)
+    let backgroundLoop = null;
+    try {
+      backgroundLoop = await api.getOEM('/background-loop');
+    } catch (e) {
+      // Background loop may not be available
+    }
+
+    // Fetch trajectory interventions (V6 Spec #4)
+    let interventions = null;
+    try {
+      interventions = await api.getOEM('/trajectory-intervention');
+    } catch (e) {
+      // Trajectory intervention may not be available
+    }
+
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -90,7 +106,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -210,6 +226,39 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         </div>
       `;
     });
+  }
+
+  // V6 Spec #3 — Background Loop: "Maestro noticed this while you were away"
+  if (backgroundLoop && backgroundLoop.notices && backgroundLoop.notices.length > 0) {
+    html += `
+      <div style="margin-top:24px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+        <div class="brief-label" style="color:var(--text-muted);">While you were away</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">${escapeHtml(humanize(backgroundLoop.summary || ''))}</div>
+        ${backgroundLoop.notices.slice(0, 3).map(n => {
+          const color = n.urgency === 'high' ? 'var(--risk)' : n.urgency === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
+          return `<div style="padding:8px 0;border-bottom:1px solid var(--divider);">
+            <div style="font-size:13px;color:${color};">${escapeHtml(humanize(n.message || ''))}</div>
+            ${n.detail ? `<div class="ds-meta" style="margin-top:2px;">${escapeHtml(humanize(n.detail))}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // V6 Spec #4 — Trajectory Intervention: declining trajectories that need action
+  if (interventions && interventions.interventions && interventions.interventions.length > 0) {
+    html += `
+      <div style="margin-top:24px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid rgba(239,68,68,0.2);">
+        <div class="brief-label" style="color:var(--risk);">Needs attention</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">${escapeHtml(humanize(interventions.summary || ''))}</div>
+        ${interventions.interventions.slice(0, 2).map(iv => `
+          <div style="padding:10px 0;border-bottom:1px solid var(--divider);">
+            <div style="font-size:14px;color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(iv.intervention || ''))}</div>
+            <div class="ds-meta" style="margin-top:4px;">Time to impact: ${escapeHtml(iv.time_to_failure || '')} · Urgency: ${escapeHtml(iv.urgency || '')}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   // V6 Spec #1 — Adaptive Nudges: actionable restructuring suggestions
