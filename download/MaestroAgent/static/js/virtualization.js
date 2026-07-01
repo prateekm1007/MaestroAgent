@@ -76,6 +76,7 @@ function loadSurfaceData(surface) {
     case 'evolution': loadEvolution(); break;
     case 'cognition': loadCognition(); break;
     case 'autobiography': loadAutobiography(); break;
+    case 'playbook': loadPlaybook('sales'); break;
     // Deep capabilities (existing surfaces)
     case 'home': loadDashboard(); break;
     case 'inbox': loadInbox(); break;

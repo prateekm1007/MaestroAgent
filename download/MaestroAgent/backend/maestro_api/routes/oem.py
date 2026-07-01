@@ -3830,6 +3830,34 @@ def list_all_writebacks() -> dict[str, Any]:
     }
 
 
+# ─── V8 Daily Work #6 — Role-Specific Playbooks ────────────────────────────
+
+@router.get("/playbook/{role}")
+def get_playbook(
+    role: str,
+    context: str = Query("", description="Optional context: customer name (sales), campaign name (marketing), or feature name (product)."),
+) -> dict[str, Any]:
+    """Role-specific playbook — format the same evidence differently for each role.
+
+    V8 Daily Work #6 — Role-Specific Playbooks. Thin layers over decision.py
+    that format the same evidence differently for sales, marketing, and
+    product roles. Not new engines — just formatting.
+
+    Roles:
+      - sales: match CRM + draft outreach with talking points from transcripts
+      - marketing: unify ad-spend signals into single ROI view
+      - product: transcript → PRD outline + tickets + unresolved concerns
+
+    Each playbook returns role-specific drafted artifacts with evidence
+    citations. The intelligence is in the existing engines (decision.py,
+    customer_judgment.py); the playbook just asks "what does THIS role
+    need to see?"
+    """
+    from maestro_oem.playbooks import PlaybookEngine
+    engine = PlaybookEngine(oem_state.model, oem_state.signals, oem_state.decisions)
+    return engine.playbook(role, context)
+
+
 @router.post("/curiosity/follow-up")
 def curiosity_follow_up(payload: dict[str, Any]) -> dict[str, Any]:
     """Process a user's answer in a curiosity conversation.
