@@ -3435,15 +3435,24 @@ def get_evolution_tracker() -> dict[str, Any]:
 
 
 @router.get("/background-loop")
-def get_background_loop() -> dict[str, Any]:
+def get_background_loop(
+    fresh: bool = Query(False, description="Force a fresh run instead of returning the cached result from the last ingest."),
+) -> dict[str, Any]:
     """What Maestro noticed while you were away.
 
-    V6 Spec #3 — Background Adaptation Loop. Runs on every signal ingest.
-    Checks for new nudges, trajectory regressions, and new contradictions.
+    V6 Spec #3 — Background Adaptation Loop. Runs on every signal ingest
+    (V6 Law 2: "improves even when nobody opens Maestro"). By default this
+    endpoint returns the cached result from the last ingest; pass ?fresh=1
+    to force a fresh run.
     """
+    if not fresh and oem_state._last_background_loop_result is not None:
+        return oem_state._last_background_loop_result
     from maestro_oem.background_loop import BackgroundAdaptationLoop
     engine = BackgroundAdaptationLoop(oem_state.model, oem_state.signals)
-    return engine.run()
+    result = engine.run()
+    # Cache so a subsequent ingest-less GET returns the same result.
+    oem_state._last_background_loop_result = result
+    return result
 
 
 @router.get("/trajectory-intervention")

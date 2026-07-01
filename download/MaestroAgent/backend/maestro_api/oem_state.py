@@ -109,6 +109,15 @@ class OEMState:
         self._live_signals_ingested = 0
         self._contradiction_log = None  # Set on first contradict() call
         self._demo_seeded = False  # True after the demo seed has been loaded
+        # V6 Spec #3 — Background Adaptation Loop cache.
+        # Populated by live_ingest() so the loop runs on every signal ingest
+        # (V6 Law 2: "improves even when nobody opens Maestro"), not only when
+        # the GET /api/oem/background-loop endpoint is called. Read by the
+        # endpoint as the cached result; callers wanting a fresh run can pass
+        # ?fresh=1.
+        from datetime import datetime as _dt
+        self._last_background_loop_result: dict[str, Any] | None = None
+        self._last_background_loop_at: _dt | None = None
 
     def initialize(self) -> None:
         """Build the OEM. Idempotent.
@@ -234,6 +243,48 @@ class OEMState:
             # Close the loop: resolve predictions that the new signals
             # (or earlier CEO feedback) can now settle.
             self._trigger_learning_resolution_locked()
+
+        # V6 Spec #3 / V6 Law 2 — run the Background Adaptation Loop on every
+        # signal ingest so the organization improves even when nobody opens
+        # Maestro. This is the wire the Round-24 audit flagged as missing:
+        # previously the loop only ran when the GET /api/oem/background-loop
+        # endpoint was hit. Called OUTSIDE the lock because the loop's
+        # contradiction check calls back into oem_state via the routes layer
+        # (which would re-acquire the RLock — safe but unnecessary contention)
+        # and because a loop failure must never break ingest. The result is
+        # cached so the next GET /background-loop returns the latest run
+        # without recomputing. The call is double-wrapped: _run_background_loop
+        # swallows internal BackgroundAdaptationLoop errors, and this outer
+        # try/except swallows any other failure (e.g., a broken monkey-patch
+        # in tests, or an unexpected AttributeError). Ingest MUST survive.
+        try:
+            self._run_background_loop()
+        except Exception as e:
+            logger.warning("Background adaptation loop invocation failed: %s", e)
+
+    def _run_background_loop(self) -> None:
+        """Run the V6 Background Adaptation Loop and cache the result.
+
+        Called from live_ingest() after every signal batch. Also callable
+        directly. Failures are logged and swallowed — a background-loop
+        error must never break signal ingest (the loop is observational,
+        not transactional).
+        """
+        try:
+            from maestro_oem.background_loop import BackgroundAdaptationLoop
+            from datetime import datetime, timezone
+            assert self.engine is not None
+            model = self.engine.get_model()
+            loop = BackgroundAdaptationLoop(model, self.signals)
+            result = loop.run()
+            self._last_background_loop_result = result
+            self._last_background_loop_at = datetime.now(timezone.utc)
+            logger.debug(
+                "Background loop ran on ingest: %s notices",
+                result.get("notice_count", 0),
+            )
+        except Exception as e:
+            logger.warning("Background adaptation loop failed on ingest: %s", e)
 
     def _purge_demo_seed_locked(self) -> None:
         """Purge demo seed signals from the OEM state.
