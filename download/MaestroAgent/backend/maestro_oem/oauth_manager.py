@@ -120,6 +120,44 @@ _DEFAULT_ENDPOINTS = {
             "prompt": "consent",
         },
     },
+    # V8 Competitor Analysis Feature A — New Evidence Connectors.
+    # The Glean lesson: don't out-build search ($7.2B) — pull their answers
+    # as evidence, spend effort on reasoning. These providers are evidence
+    # sources, not tools to replace. Maestro pulls answers/cards/actions
+    # from them and treats them as signals in the OEM.
+    "glean": {
+        # Glean — enterprise search. Pull answers as evidence signals.
+        # API: https://api.glean.com/v1/search (POST, Bearer token)
+        "auth_url": "https://glean.com/api/oauth/authorize",
+        "token_url": "https://glean.com/api/oauth/token",
+        "scopes": ["search", "read"],
+        "extra": {
+            "api_base": "https://api.glean.com/v1",
+            "evidence_type": "search_answer",
+        },
+    },
+    "guru": {
+        # Guru — knowledge management. Pull cards as evidence signals.
+        # API: https://api.getguru.com/api/v1/cards (GET, Basic auth)
+        "auth_url": "https://app.getguru.com/oauth/authorize",
+        "token_url": "https://app.getguru.com/oauth/token",
+        "scopes": ["read", "card:read"],
+        "extra": {
+            "api_base": "https://api.getguru.com/api/v1",
+            "evidence_type": "knowledge_card",
+        },
+    },
+    "dust": {
+        # Dust — AI assistant platform. Pull actions as evidence signals.
+        # API: https://dust.tt/api/v1 (Bearer token)
+        "auth_url": "https://dust.tt/oauth/authorize",
+        "token_url": "https://dust.tt/oauth/token",
+        "scopes": ["read", "conversations:read"],
+        "extra": {
+            "api_base": "https://dust.tt/api/v1",
+            "evidence_type": "ai_action",
+        },
+    },
 }
 
 
@@ -510,7 +548,8 @@ class OAuthManager:
     def status(self) -> list[dict[str, Any]]:
         """Return connection status for all 6 providers (5 + customer/Salesforce)."""
         out = []
-        for p in ("github", "jira", "slack", "confluence", "gmail", "customer"):
+        for p in ("github", "jira", "slack", "confluence", "gmail", "customer",
+                  "glean", "guru", "dust"):
             cfg = self.get_config(p)
             conn = self.store.get_connection(p)
             creds = self.store.load_credentials(p)

@@ -25,6 +25,11 @@ class SignalProvider(str, Enum):
     GMAIL = "gmail"
     CALENDAR = "calendar"
     CUSTOMER = "customer"  # CRM, support, contracts — the Customer Judgment Engine
+    # V8 Competitor Analysis Feature A — New Evidence Connectors.
+    # The Glean lesson: pull their answers as evidence, spend effort on reasoning.
+    GLEAN = "glean"      # enterprise search — answers as evidence signals
+    GURU = "guru"        # knowledge management — cards as evidence signals
+    DUST = "dust"        # AI assistant — actions as evidence signals
     UNKNOWN = "unknown"
 
 

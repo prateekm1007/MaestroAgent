@@ -130,6 +130,8 @@ def _law_to_dict(law: Any) -> dict[str, Any]:
         "counter_examples": law.counter_examples,
         "providers": sorted(law.providers),
         "known_to_leadership": law.known_to_leadership,
+        "verified_by": getattr(law, "verified_by", None),
+        "verified_at": law.verified_at.isoformat() if getattr(law, "verified_at", None) else None,
         "drift_detected": law.drift_detected,
         "first_inferred": law.first_inferred.isoformat() if law.first_inferred else None,
         "last_validated": law.last_validated.isoformat() if law.last_validated else None,
@@ -425,6 +427,55 @@ def get_law(code: str) -> dict[str, Any]:
     if not law:
         raise HTTPException(status_code=404, detail=f"Law {code} not found")
     return _law_to_dict(law)
+
+
+@router.post("/laws/{code}/verify")
+def verify_law(code: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Verify an organizational law — human sign-off.
+
+    V8 Competitor Analysis Feature C — Verified Knowledge Layer. The Guru
+    lesson: verified knowledge is the differentiator. When a human verifies
+    a law, their identity and the timestamp are recorded. Only verified
+    laws are cited as "facts" in high-stakes contexts.
+
+    Payload:
+        verified_by: str (email of the verifier, required)
+
+    Returns the updated law with verified_by + verified_at set.
+    """
+    verified_by = payload.get("verified_by", "")
+    if not verified_by:
+        raise HTTPException(400, "verified_by is required")
+
+    from datetime import datetime, timezone
+    model = oem_state.model
+    law = model.laws.get(code)
+    if not law:
+        raise HTTPException(status_code=404, detail=f"Law {code} not found")
+
+    law.verified_by = verified_by
+    law.verified_at = datetime.now(timezone.utc)
+
+    return _law_to_dict(law)
+
+
+@router.get("/laws/verified/list")
+def list_verified_laws() -> dict[str, Any]:
+    """List all human-verified laws.
+
+    V8 Competitor Analysis Feature C — Verified Knowledge Layer.
+    Returns only laws that have been verified by a human (verified_by is set).
+    """
+    model = oem_state.model
+    verified = [
+        _law_to_dict(law)
+        for law in model.laws.values()
+        if getattr(law, "verified_by", None) is not None
+    ]
+    return {
+        "verified_laws": verified,
+        "count": len(verified),
+    }
 
 
 # ─── 6. GET /api/oem/ask ───────────────────────────────────────────────────
@@ -3856,6 +3907,108 @@ def get_playbook(
     from maestro_oem.playbooks import PlaybookEngine
     engine = PlaybookEngine(oem_state.model, oem_state.signals, oem_state.decisions)
     return engine.playbook(role, context)
+
+
+# ─── V8 Competitor Analysis Feature E — Commitment Tracker ─────────────────
+
+@router.get("/commitments")
+def get_commitments(
+    status: str = Query("", description="Filter by status: open, kept, broken."),
+) -> dict[str, Any]:
+    """Track commitments made in signal text. Flag broken commitments.
+
+    V8 Competitor Analysis Feature E — Commitment Tracker. The Bond lesson:
+    commitment tracking is Bond's core feature on Maestro's evidence graph.
+
+    Scans signal text for commitment patterns ("I'll get back to you",
+    "will follow up by", "promised to") and tracks their status:
+      - open: due date hasn't passed yet
+      - kept: a later completion signal from the same actor was found
+      - broken: due date has passed with no completion signal
+
+    Each commitment has: description, who_committed, to_whom, due_date,
+    source_signal_id, status.
+    """
+    from maestro_oem.commitment_tracker import CommitmentTracker
+    tracker = CommitmentTracker(oem_state.model, oem_state.signals)
+    result = tracker.track()
+
+    if status:
+        result["commitments"] = [c for c in result["commitments"] if c["status"] == status]
+        result["filtered_count"] = len(result["commitments"])
+
+    return result
+
+
+# ─── V8 Competitor Analysis Feature D — Governed Auto-Action ───────────────
+
+@router.post("/auto-action/contradictions")
+def auto_action_contradictions(payload: dict[str, Any]) -> dict[str, Any]:
+    """Auto-DRAFT Jira/Slack for open contradictions (never auto-SEND).
+
+    V8 Competitor Analysis Feature D — Governed Auto-Action. The Nerve
+    lesson: action-taking works, stay anchored. When a contradiction is
+    detected, Maestro auto-generates a DRAFT Slack message or Jira ticket
+    to address it. The user approves or rejects — no autonomous execution.
+
+    Payload:
+        provider: "jira" | "slack" (default: "slack")
+        channel: str (for Slack, default: "general")
+        project: str (for Jira, default: "ENG")
+
+    Returns:
+        {
+            previews: list of writeback previews (one per open contradiction),
+            count: int,
+        }
+
+    Each preview is a pending writeback action that must be approved via
+    POST /api/oem/writeback/{action_id}/approve before execution.
+    """
+    from maestro_oem.writeback import WriteBackService
+    from maestro_api.routes.oem import _get_assumption_graph
+    from maestro_oem.contradictions import ContradictionDetector
+
+    provider = payload.get("provider", "slack")
+    channel = payload.get("channel", "general")
+    project = payload.get("project", "ENG")
+
+    # Detect open contradictions
+    graph = _get_assumption_graph()
+    detector = ContradictionDetector(oem_state.model, oem_state.signals, graph)
+    contradictions = detector.detect_all()
+    open_contradictions = [c for c in contradictions if c.get("status") == "open"]
+
+    # Generate a writeback preview for each open contradiction
+    svc = WriteBackService()
+    previews = []
+    for contradiction in open_contradictions[:5]:  # limit to 5 to avoid spam
+        title = contradiction.get("title", "Unknown contradiction")
+        description = contradiction.get("description", "")
+        text = f"Contradiction detected: {title}. {description}"
+
+        if provider == "jira":
+            preview = svc.preview("jira", "create_issue", {
+                "project": project,
+                "summary": f"Resolve: {title[:60]}",
+                "description": text[:500],
+                "issue_type": "Task",
+            })
+        else:
+            preview = svc.preview("slack", "post_message", {
+                "channel": channel,
+                "text": f"⚠ Contradiction detected: {title}. {description[:200]}",
+            })
+
+        preview["contradiction_id"] = contradiction.get("id", "")
+        previews.append(preview)
+
+    return {
+        "previews": previews,
+        "count": len(previews),
+        "total_contradictions": len(open_contradictions),
+        "message": f"Generated {len(previews)} draft action(s). Each must be approved before execution.",
+    }
 
 
 @router.post("/curiosity/follow-up")

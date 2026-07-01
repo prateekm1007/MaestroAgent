@@ -59,6 +59,15 @@ class OrganizationalLaw(BaseModel):
     confidence: float = 0.0
     known_to_leadership: bool = False
 
+    # V8 Competitor Analysis Feature C — Verified Knowledge Layer.
+    # Human sign-off before high-confidence citation. The Guru lesson:
+    # verified knowledge is the differentiator — human-verified laws that
+    # no competitor has. When a human verifies a law, their identity and
+    # the timestamp are recorded. Only verified laws are cited as "facts"
+    # in high-stakes contexts (briefings, playbooks, write-backs).
+    verified_by: str | None = None  # email of the verifier
+    verified_at: datetime | None = None  # when the law was verified
+
     # Metadata
     first_inferred: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_validated: datetime | None = None
