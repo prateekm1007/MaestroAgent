@@ -96,7 +96,15 @@ async function loadToday() {
       // Trajectory intervention may not be available
     }
 
-    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions);
+    // Fetch 4-level unknowns (V8 Upgrade #2)
+    let unknowns = null;
+    try {
+      unknowns = await api.getOEM('/unknowns?levels=all');
+    } catch (e) {
+      // Unknowns engine may not be available
+    }
+
+    renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
@@ -106,7 +114,7 @@ async function loadToday() {
   }
 }
 
-function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions) {
+function renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns) {
   const ot = briefing.one_thing || {};
   const overnight = briefing.overnight || {};
   const changes = overnight.changes || [];
@@ -295,6 +303,109 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         `).join('')}
       </div>
     `;
+  }
+
+  // V8 Upgrade #2 — Four-Level Unknowns: what Maestro doesn't know yet.
+  // 4 epistemic levels, each with different visual treatment:
+  //   Known (green check) — measured thoroughly
+  //   Known Unknowns (amber) — the org knows it's under-measuring
+  //   Unknown Unknowns (red) — blind spots
+  //   Emerging Unknowns (purple pulse) — new and uncategorized
+  if (unknowns && (unknowns.known || unknowns.known_unknowns || unknowns.unknown_unknowns || unknowns.emerging_unknowns)) {
+    const totalCount = (unknowns.level_counts?.known || 0) + (unknowns.level_counts?.known_unknowns || 0) +
+                       (unknowns.level_counts?.unknown_unknowns || 0) + (unknowns.level_counts?.emerging_unknowns || 0);
+    if (totalCount > 0) {
+      html += `
+        <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+          <div class="brief-label" style="color:var(--text-muted);">What Maestro doesn't know yet</div>
+          <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(unknowns.summary || ''))}</div>
+      `;
+
+      // Level 1: Known — green, collapsed by default (it's the "good news")
+      if (unknowns.known && unknowns.known.length > 0) {
+        html += `
+          <details class="unknowns-level unknowns-known" style="margin-bottom:12px;">
+            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+              <span style="color:var(--positive,#16A34A);">✓</span>
+              <strong>Known</strong> — ${unknowns.known.length} area${unknowns.known.length === 1 ? '' : 's'} measured thoroughly
+            </summary>
+            <div style="padding:8px 0 8px 20px;">
+              ${unknowns.known.slice(0, 5).map(a => `
+                <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
+                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} signals · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
+                </div>
+              `).join('')}
+            </div>
+          </details>
+        `;
+      }
+
+      // Level 2: Known Unknowns — amber, expanded (actionable: instrument them)
+      if (unknowns.known_unknowns && unknowns.known_unknowns.length > 0) {
+        html += `
+          <details class="unknowns-level unknowns-known-unknowns" open style="margin-bottom:12px;">
+            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+              <span style="color:var(--warning,#D97706);">!</span>
+              <strong>Known Unknowns</strong> — ${unknowns.known_unknowns.length} area${unknowns.known_unknowns.length === 1 ? '' : 's'} the org knows it's under-measuring
+            </summary>
+            <div style="padding:8px 0 8px 20px;">
+              ${unknowns.known_unknowns.slice(0, 5).map(a => `
+                <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
+                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
+                </div>
+              `).join('')}
+            </div>
+          </details>
+        `;
+      }
+
+      // Level 3: Unknown Unknowns — red, expanded (risky: blind spots)
+      if (unknowns.unknown_unknowns && unknowns.unknown_unknowns.length > 0) {
+        html += `
+          <details class="unknowns-level unknowns-unknown-unknowns" open style="margin-bottom:12px;">
+            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+              <span style="color:var(--risk,#DC2626);">?</span>
+              <strong>Unknown Unknowns</strong> — ${unknowns.unknown_unknowns.length} blind spot${unknowns.unknown_unknowns.length === 1 ? '' : 's'} (the org doesn't know it doesn't know)
+            </summary>
+            <div style="padding:8px 0 8px 20px;">
+              ${unknowns.unknown_unknowns.slice(0, 5).map(a => `
+                <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
+                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
+                </div>
+              `).join('')}
+            </div>
+          </details>
+        `;
+      }
+
+      // Level 4: Emerging Unknowns — purple pulse, expanded (opportunities: investigate)
+      if (unknowns.emerging_unknowns && unknowns.emerging_unknowns.length > 0) {
+        html += `
+          <details class="unknowns-level unknowns-emerging" open style="margin-bottom:12px;">
+            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+              <span style="color:var(--accent,#7C5CFF);">✦</span>
+              <strong>Emerging Unknowns</strong> — ${unknowns.emerging_unknowns.length} new pattern${unknowns.emerging_unknowns.length === 1 ? '' : 's'} in the last 7 days
+            </summary>
+            <div style="padding:8px 0 8px 20px;">
+              ${unknowns.emerging_unknowns.slice(0, 5).map(a => `
+                <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
+                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} new signal${a.signal_count === 1 ? '' : 's'} · detected ${a.detected_at ? new Date(a.detected_at).toLocaleDateString() : 'recently'}</div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
+                </div>
+              `).join('')}
+            </div>
+          </details>
+        `;
+      }
+
+      html += `</div>`;
+    }
   }
 
   html += `</div>`;

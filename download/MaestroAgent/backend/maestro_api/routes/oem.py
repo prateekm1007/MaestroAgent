@@ -3221,6 +3221,47 @@ def get_curiosity() -> dict[str, Any]:
     return engine.generate()
 
 
+@router.get("/unknowns")
+def get_unknowns(
+    levels: str = Query("all", description="Which levels to return: 'all' (default) or a comma-separated subset like 'known,unknown_unknowns'."),
+) -> dict[str, Any]:
+    """The 4-level epistemic map of the organization.
+
+    V8 Upgrade #2 — Four-Level Unknowns. Classifies every organizational
+    area into 4 epistemic levels:
+      - known (coverage > 60%): measured thoroughly
+      - known_unknowns (10-60% coverage): the org knows it's under-measuring
+      - unknown_unknowns (< 10% coverage): blind spots
+      - emerging_unknowns (new signal pattern in last 7 days, no LO match)
+
+    Each item has: area, coverage, signal_count, reason. Emerging unknowns
+    also have detected_at (ISO timestamp within the last 7 days).
+
+    Pass ?levels=all (default) to get all 4 arrays. Pass a comma-separated
+    subset (e.g. ?levels=unknown_unknowns,emerging_unknowns) to filter.
+    The response always includes summary + level_counts regardless of filter.
+    """
+    from maestro_oem.curiosity import CuriosityEngine
+    engine = CuriosityEngine(oem_state.model, oem_state.signals)
+    full = engine.classify_unknowns()
+
+    if levels == "all":
+        return full
+
+    # Filter — return only requested levels, but keep summary + level_counts
+    requested = {lv.strip() for lv in levels.split(",") if lv.strip()}
+    all_levels = {"known", "known_unknowns", "unknown_unknowns", "emerging_unknowns"}
+    filtered: dict[str, Any] = {}
+    for lv in all_levels:
+        if lv in requested:
+            filtered[lv] = full[lv]
+        else:
+            filtered[lv] = []  # empty array so the shape is stable
+    filtered["summary"] = full["summary"]
+    filtered["level_counts"] = full["level_counts"]
+    return filtered
+
+
 @router.get("/skepticism")
 def get_skepticism() -> dict[str, Any]:
     """Challenge fossilized beliefs.
