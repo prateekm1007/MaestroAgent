@@ -3839,6 +3839,47 @@ def get_tasks(
     }
 
 
+@router.post("/tasks/complete")
+def complete_task(payload: dict[str, Any]) -> dict[str, Any]:
+    """Manually mark an auto-extracted task as done.
+
+    Round 45 — Work surface Bumble redesign. The Tasks sub-tab has a
+    "Mark done" button on each task card. This endpoint accepts the
+    task_id and updates the task's status to 'done' in the learning
+    objects store.
+
+    Payload:
+        task_id: str (required) — the learning object ID of the task
+
+    Returns:
+        { "task_id": str, "status": "done", "completed_at": str }
+
+    If the task_id is not found, returns 404.
+    """
+    task_id = payload.get("task_id", "")
+    if not task_id:
+        raise HTTPException(400, "task_id is required")
+
+    model = oem_state.model
+    # Find the task learning object by ID
+    for lo in model.learning_objects.values():
+        if lo.lo_id == task_id or lo.metadata.get("task_id") == task_id:
+            lo_type = lo.type.value if hasattr(lo.type, "value") else str(lo.type)
+            if lo_type != "task":
+                raise HTTPException(400, f"Learning object {task_id} is not a task")
+            lo.metadata["status"] = "done"
+            lo.metadata["manually_completed"] = True
+            from datetime import datetime, timezone
+            lo.metadata["completed_at"] = datetime.now(timezone.utc).isoformat()
+            logger.info("Task %s marked done manually", task_id)
+            return {
+                "task_id": task_id,
+                "status": "done",
+                "completed_at": lo.metadata["completed_at"],
+            }
+    raise HTTPException(404, f"Task {task_id} not found")
+
+
 # ─── V8 Daily Work #4 — Write-Back to Tools ────────────────────────────────
 # THE gap between "advises" and "does work." Create Jira tickets, draft
 # Gmail emails (NOT send), post Slack messages, create GitHub review

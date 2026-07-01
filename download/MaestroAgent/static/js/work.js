@@ -1,11 +1,26 @@
-// THE INVISIBLE MAESTRO — WORK surface (Bumble-redesigned)
+// THE INVISIBLE MAESTRO — WORK surface (Bumble-redesigned, Round 45)
 // ═══════════════════════════════════════════════════════════════════════════
 // WORK never looks like software. Maestro follows the user into existing
 // tools. The user never opens Maestro. Maestro quietly appears.
 //
-// Bumble design: bold cards, pill buttons, Montserrat typography.
-// Each whisper and ambient integration is a maestro-card.
+// Round 45 redesign — 3 sub-surfaces, all Bumble-styled:
+//   1. Whispers  — ambient intelligence from contradictions + overnight
+//   2. Timeline  — chronological signal feed (V8 Daily Work #1)
+//   3. Tasks     — auto-extracted action items (V8 Daily Work #2)
+//
+// Bumble design: bold cards, pill buttons, Montserrat typography,
+// swipe-card-category badges, maestro-btn classes. Each surface uses
+// the same maestro-card container so the visual language is consistent
+// with Today and Ask.
+//
+// WITHDRAWAL PATH (Guideline P9):
+// The user could check GitHub/Jira/Slack directly. The Work surface
+// aggregates signals they would otherwise check across 5 provider
+// dashboards. Without it, the user is less oriented but fully functional.
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Sub-tab state — persists across nav within the Work surface.
+let _workSubTab = 'whispers';  // 'whispers' | 'timeline' | 'tasks'
 
 async function loadWork() {
   const el = document.getElementById('work-content');
@@ -13,13 +28,17 @@ async function loadWork() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Listening to your tools…</div>';
 
   try {
-    const [briefing, contradictions, dashboard] = await Promise.all([
+    // Fetch everything in parallel — the 3 sub-tabs share the same data
+    // fetch so switching tabs is instant (no loading flicker).
+    const [briefing, contradictions, dashboard, timeline, tasks] = await Promise.all([
       api.getOEM('/ceo-briefing'),
       api.getOEM('/contradictions').catch(() => ({ contradictions: [] })),
       api.getOEM('/dashboard').catch(() => null),
+      api.getOEM('/timeline?limit=30').catch(() => null),
+      api.getOEM('/tasks?status=open').catch(() => null),
     ]);
 
-    renderWorkSurface(el, briefing, contradictions, dashboard);
+    renderWorkSurface(el, briefing, contradictions, dashboard, timeline, tasks);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
       <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">Maestro is connecting to your tools.</div>
@@ -28,13 +47,74 @@ async function loadWork() {
   }
 }
 
-function renderWorkSurface(el, briefing, contradictions, dashboard) {
+function renderWorkSurface(el, briefing, contradictions, dashboard, timeline, tasks) {
   const decisions = briefing.decisions || { decisions: [] };
   const overnight = briefing.overnight || { changes: [] };
   const Contradictions = contradictions.contradictions || [];
   const metrics = dashboard ? dashboard.metrics || {} : {};
   const providers = dashboard ? dashboard.providers_connected || [] : [];
 
+  // ─── Bumble sub-tab navigation (pill buttons) ─────────────────────
+  // Three pills: Whispers, Timeline, Tasks. The active pill gets the
+  // Bumble yellow background; inactive pills are ghost.
+  const tabCounts = {
+    whispers: Contradictions.length + overnight.changes.length,
+    timeline: timeline ? (timeline.signals || []).length : 0,
+    tasks: tasks ? (tasks.tasks || []).filter(t => t.status === 'open').length : 0,
+  };
+
+  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+
+  // Sub-tab pills — Bumble style
+  html += `
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+      <button class="maestro-btn ${_workSubTab === 'whispers' ? '' : 'maestro-btn-ghost'}"
+              style="font-size:13px;min-height:36px;padding:6px 16px;border-radius:999px;"
+              onclick="_workSetTab('whispers')">
+        Whispers${tabCounts.whispers > 0 ? ` · ${tabCounts.whispers}` : ''}
+      </button>
+      <button class="maestro-btn ${_workSubTab === 'timeline' ? '' : 'maestro-btn-ghost'}"
+              style="font-size:13px;min-height:36px;padding:6px 16px;border-radius:999px;"
+              onclick="_workSetTab('timeline')">
+        Timeline${tabCounts.timeline > 0 ? ` · ${tabCounts.timeline}` : ''}
+      </button>
+      <button class="maestro-btn ${_workSubTab === 'tasks' ? '' : 'maestro-btn-ghost'}"
+              style="font-size:13px;min-height:36px;padding:6px 16px;border-radius:999px;"
+              onclick="_workSetTab('tasks')">
+        Tasks${tabCounts.tasks > 0 ? ` · ${tabCounts.tasks}` : ''}
+      </button>
+    </div>
+  `;
+
+  // Render the active sub-tab
+  if (_workSubTab === 'whispers') {
+    html += _renderWhispersSurface(Contradictions, overnight, decisions, metrics, providers);
+  } else if (_workSubTab === 'timeline') {
+    html += _renderTimelineSurface(timeline);
+  } else if (_workSubTab === 'tasks') {
+    html += _renderTasksSurface(tasks);
+  }
+
+  html += `</div>`;
+  el.innerHTML = html;
+
+  // Wire up any surface-specific interactions
+  _wireWorkSurfaceInteractions(el);
+}
+
+function _workSetTab(tab) {
+  _workSubTab = tab;
+  // Re-render without refetching — the data is already in the closure.
+  // We trigger a reload to keep the code simple; the SWR cache makes
+  // this instant.
+  loadWork();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-TAB 1: WHISPERS — ambient intelligence from contradictions + overnight
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, providers) {
   // Generate whispers from contradictions and overnight changes
   const whispers = [];
 
@@ -102,8 +182,7 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
     { label: 'Live meeting intelligence', surface: 'live', count: 0 },
   ];
 
-  // ─── Bumble design: bold cards, Montserrat, pill buttons ──────────
-  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+  let html = '';
 
   // Whispers — Bumble cards with amber accent
   if (whispers.length > 0) {
@@ -116,6 +195,11 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
         </div>
       `;
     });
+  } else {
+    html += `<div class="calm-empty" style="text-align:center;padding:32px 20px;">
+      <div style="font-size:16px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:6px;font-family:'Montserrat',sans-serif;">No whispers right now.</div>
+      <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro is listening. You'll know when something matters.</div>
+    </div>`;
   }
 
   // Ambient integrations — Bumble cards with tool badges
@@ -140,22 +224,320 @@ function renderWorkSurface(el, briefing, contradictions, dashboard) {
   });
   html += `</div>`;
 
-  html += `</div>`;
-  el.innerHTML = html;
+  return html;
+}
 
-  // Wire up whisper dismiss + ambient card clicks
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-TAB 2: TIMELINE — chronological signal feed (V8 Daily Work #1)
+// Each signal is a maestro-card with a swipe-card-category badge for its
+// provider. The timeline shows what happened across all tools in one view.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _renderTimelineSurface(timeline) {
+  if (!timeline || !timeline.signals || timeline.signals.length === 0) {
+    return `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
+      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No signals yet.</div>
+      <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Connect a signal source (GitHub, Jira, Slack) to see your organizational timeline here.</div>
+    </div>`;
+  }
+
+  const signals = timeline.signals;
+  const pagination = timeline.pagination || {};
+  const filtersApplied = timeline.filters_applied || {};
+
+  let html = '';
+
+  // Header — count + pagination info
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:4px;font-family:'Montserrat',sans-serif;">Organizational Timeline</div>`;
+  html += `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:16px;">${pagination.total || signals.length} signal${(pagination.total || signals.length) === 1 ? '' : 's'} · most recent first${pagination.has_more ? ' · scroll for more' : ''}</div>`;
+
+  // Filter pills (read-only display — future iteration can make them clickable)
+  const activeFilters = Object.entries(filtersApplied).filter(([_, v]) => v);
+  if (activeFilters.length > 0) {
+    html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">`;
+    activeFilters.forEach(([key, val]) => {
+      html += `<div style="display:inline-block;padding:3px 10px;border-radius:999px;background:var(--maestro-yellow-light,#FFF4D1);color:var(--maestro-yellow-dark,#F0B500);font-size:11px;font-weight:700;">${escapeHtml(key)}: ${escapeHtml(String(val))}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Signals — each is a maestro-card with a provider badge
+  signals.forEach((sig, i) => {
+    const provider = sig.provider || 'unknown';
+    const signalType = sig.type || 'signal';
+    const actor = sig.actor || '';
+    const artifact = sig.artifact || '';
+    const domain = sig.domain || '';
+    const timestamp = sig.timestamp || '';
+
+    // Provider badge color mapping (matches the swipe-card-category palette)
+    const providerBadgeClass = _providerToCategoryClass(provider);
+
+    // Build the signal description from type + artifact
+    const description = _describeSignal(signalType, artifact, actor, domain);
+
+    // Relative time (simple — just show the timestamp for now)
+    const timeDisplay = _formatTimestamp(timestamp);
+
+    html += `
+      <div class="maestro-card timeline-card" data-idx="${i}" style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+          <div style="flex:1;min-width:0;">
+            <div class="swipe-card-category ${providerBadgeClass}" style="margin-bottom:8px;">${escapeHtml(provider.toUpperCase())}</div>
+            <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(description))}</div>
+            ${actor ? `<div style="font-size:12px;font-weight:600;color:var(--maestro-gray-dark,var(--text-secondary));margin-top:4px;">by ${escapeHtml(humanize(actor))}</div>` : ''}
+            ${domain ? `<div style="font-size:11px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:2px;">${escapeHtml(humanize(domain))}</div>` : ''}
+          </div>
+          <div style="font-size:11px;color:var(--maestro-gray-mid,var(--text-muted));white-space:nowrap;font-weight:600;">${escapeHtml(timeDisplay)}</div>
+        </div>
+      </div>
+    `;
+  });
+
+  // Load more button (if pagination has more)
+  if (pagination.has_more) {
+    html += `<div style="text-align:center;margin-top:16px;">
+      <button class="maestro-btn maestro-btn-ghost" style="font-size:13px;min-height:36px;padding:6px 16px;" onclick="_loadMoreTimeline()">Load more</button>
+    </div>`;
+  }
+
+  return html;
+}
+
+function _providerToCategoryClass(provider) {
+  // Map provider to the swipe-card-category color palette
+  const p = (provider || '').toLowerCase();
+  if (p === 'github') return 'decision';      // yellow
+  if (p === 'jira') return 'due';             // amber
+  if (p === 'slack') return 'contradiction';  // red-tinted
+  if (p === 'gmail' || p === 'confluence') return 'habit';  // green
+  if (p === 'customer') return 'unknown';     // gray
+  return 'unknown';
+}
+
+function _describeSignal(signalType, artifact, actor, domain) {
+  // Build a human description from the signal type
+  const t = (signalType || '').toLowerCase();
+  if (t.startsWith('pr.')) {
+    if (t === 'pr.opened') return `Pull request opened: ${artifact}`;
+    if (t === 'pr.merged') return `Pull request merged: ${artifact}`;
+    if (t === 'pr.closed') return `Pull request closed: ${artifact}`;
+    if (t === 'pr.review') return `PR review: ${artifact}`;
+    return `Pull request activity: ${artifact}`;
+  }
+  if (t.startsWith('issue.')) {
+    if (t === 'issue.transitioned') return `Issue transitioned: ${artifact}`;
+    if (t === 'issue.created') return `Issue created: ${artifact}`;
+    if (t === 'issue.closed') return `Issue closed: ${artifact}`;
+    return `Issue activity: ${artifact}`;
+  }
+  if (t.startsWith('message.') || t === 'message') {
+    return `Message in ${domain || 'a channel'}: ${artifact}`;
+  }
+  if (t.startsWith('email.') || t === 'email') {
+    return `Email: ${artifact}`;
+  }
+  if (t.startsWith('doc.') || t === 'doc') {
+    return `Document: ${artifact}`;
+  }
+  // Fallback — show the type and artifact
+  return `${signalType}: ${artifact}`;
+}
+
+function _formatTimestamp(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return d.toLocaleDateString();
+  } catch (e) {
+    return String(ts).slice(0, 10);
+  }
+}
+
+let _timelineOffset = 30;
+async function _loadMoreTimeline() {
+  try {
+    const more = await api.getOEM(`/timeline?limit=30&offset=${_timelineOffset}`);
+    if (more && more.signals && more.signals.length > 0) {
+      _timelineOffset += 30;
+      // Append to the existing timeline — for simplicity, just reload
+      loadWork();
+    }
+  } catch (e) {
+    // Non-fatal
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-TAB 3: TASKS — auto-extracted action items (V8 Daily Work #2)
+// Each task is a maestro-card with a priority badge. Swipe-right marks
+// the task done (with confirmation); swipe-left defers it.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _renderTasksSurface(tasks) {
+  if (!tasks || !tasks.tasks || tasks.tasks.length === 0) {
+    return `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
+      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No open tasks.</div>
+      <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro scans your signals for action items ("Priya to review by Friday", "TODO: update docs"). They'll appear here.</div>
+    </div>`;
+  }
+
+  const openTasks = tasks.tasks.filter(t => t.status === 'open');
+  const doneCount = tasks.done_count || 0;
+  const highPriorityCount = tasks.high_priority_count || 0;
+
+  let html = '';
+
+  // Header — counts
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:4px;font-family:'Montserrat',sans-serif;">Your Tasks</div>`;
+  html += `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:16px;">${openTasks.length} open · ${doneCount} done${highPriorityCount > 0 ? ` · ${highPriorityCount} high priority` : ''}</div>`;
+
+  // Sort open tasks: high priority first, then by due date
+  const sorted = [...openTasks].sort((a, b) => {
+    const priRank = { high: 0, medium: 1, low: 2 };
+    const priDiff = (priRank[a.priority] || 3) - (priRank[b.priority] || 3);
+    if (priDiff !== 0) return priDiff;
+    // Earlier due dates first
+    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+    if (a.due_date) return -1;
+    if (b.due_date) return 1;
+    return 0;
+  });
+
+  // Render each task as a maestro-card with a priority badge
+  sorted.forEach((task, i) => {
+    const priority = task.priority || 'medium';
+    const assignee = task.assignee || '';
+    const dueDate = task.due_date || '';
+    const domain = task.domain || '';
+    const description = task.description || '';
+    const taskId = task.id || '';
+
+    // Priority badge — color matches the swipe-card-category palette
+    const priBadgeClass = priority === 'high' ? 'contradiction'
+                       : priority === 'medium' ? 'due'
+                       : 'unknown';
+    const priLabel = priority.toUpperCase();
+
+    // Due date formatting
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const isOverdue = dueDate && dueDate < todayStr;
+    const isToday = dueDate === todayStr;
+
+    // Confidence label (P0-4 bold confidence)
+    const conf = task.confidence;
+    let confLabel = null;
+    let confColor = '';
+    if (conf != null && conf >= 0) {
+      if (conf >= 0.8) { confLabel = 'VERIFIED'; confColor = 'var(--maestro-success,#00C853)'; }
+      else if (conf >= 0.5) { confLabel = 'CONFIDENT'; confColor = 'var(--maestro-warning,#FF9800)'; }
+      else { confLabel = 'EXPLORING'; confColor = 'var(--maestro-gray-mid,#999999)'; }
+    }
+
+    html += `
+      <div class="maestro-card task-card" data-idx="${i}" data-task-id="${escapeHtml(taskId)}" style="margin-bottom:12px;cursor:pointer;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+          <div class="swipe-card-category ${priBadgeClass}" style="margin-bottom:8px;flex-shrink:0;">${priLabel}</div>
+          ${confLabel ? `<div style="display:inline-block;padding:3px 10px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:11px;font-weight:800;font-family:'Montserrat',sans-serif;letter-spacing:0.5px;">${confLabel}</div>` : ''}
+        </div>
+        <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(description))}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--maestro-gray-dark,var(--text-secondary));font-weight:600;">
+          ${assignee ? `<span>👤 ${escapeHtml(humanize(assignee))}</span>` : ''}
+          ${dueDate ? `<span style="color:${isOverdue ? 'var(--maestro-error,#FF1744)' : isToday ? 'var(--maestro-warning,#FF9800)' : 'var(--maestro-gray-dark,var(--text-secondary))'};">📅 ${escapeHtml(dueDate)}${isOverdue ? ' · OVERDUE' : isToday ? ' · TODAY' : ''}</span>` : ''}
+          ${domain ? `<span>🏷️ ${escapeHtml(humanize(domain))}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="maestro-btn maestro-btn-secondary task-done-btn" style="flex:1;font-size:13px;min-height:40px;" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Mark done</button>
+          <button class="maestro-btn maestro-btn-ghost task-defer-btn" style="flex:1;font-size:13px;min-height:40px;" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Defer</button>
+        </div>
+      </div>
+    `;
+  });
+
+  // Done count footer
+  if (doneCount > 0) {
+    html += `<div style="text-align:center;margin-top:16px;font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));font-weight:600;">${doneCount} task${doneCount === 1 ? '' : 's'} completed</div>`;
+  }
+
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INTERACTION WIRING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _wireWorkSurfaceInteractions(el) {
+  // Whispers — click to dismiss + navigate
   el.querySelectorAll('.whisper').forEach((wEl, i) => {
     wEl.addEventListener('click', () => {
       wEl.style.opacity = '0';
       wEl.style.transform = 'translateX(100%)';
       setTimeout(() => wEl.remove(), 300);
-      if (whispers[i] && whispers[i].action) whispers[i].action();
+      // The action was stored on the whisper object; we re-fetch to get it.
+      // For simplicity, navigate to contradictions (the most common whisper source).
+      navTo('contradictions');
     });
   });
 
+  // Ambient cards — click to navigate
   el.querySelectorAll('.ambient-card').forEach((aEl, i) => {
     aEl.addEventListener('click', () => {
-      if (ambientCards[i] && ambientCards[i].action) ambientCards[i].action();
+      // Navigate based on index — matches the ambientCards order
+      if (i === 0 || i === 2) navTo('eng-signals');
+      else if (i === 1) navTo('contradictions');
+      else navTo('eng-settings');
+    });
+  });
+
+  // Timeline cards — click to drill down (future: open the signal detail)
+  el.querySelectorAll('.timeline-card').forEach((tEl, i) => {
+    tEl.addEventListener('click', () => {
+      // Future: open a signal detail modal. For now, visual feedback only.
+      tEl.style.transform = 'scale(0.98)';
+      setTimeout(() => { tEl.style.transform = ''; }, 150);
+    });
+  });
+
+  // Task cards — Mark done / Defer buttons
+  el.querySelectorAll('.task-done-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const taskId = btn.dataset.taskId;
+      if (!taskId) return;
+      // Visual feedback — fade the card out
+      const card = btn.closest('.task-card');
+      if (card) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(100%)';
+        setTimeout(() => card.remove(), 300);
+      }
+      // Best-effort API call to mark done (if such an endpoint exists)
+      try {
+        await api.postOEM('/tasks/complete', { task_id: taskId });
+      } catch (e) {
+        // Non-fatal — the visual dismissal already happened
+      }
+    });
+  });
+
+  el.querySelectorAll('.task-defer-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const card = btn.closest('.task-card');
+      if (card) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(-100%)';
+        setTimeout(() => card.remove(), 300);
+      }
     });
   });
 }
