@@ -96,8 +96,13 @@ class CuriosityEngine:
                 if supporting == 0 and contradicting == 0:
                     statement = a.get("statement", "")
                     if len(statement) > 10:
+                        # Clean truncation: cut at word boundary, no nested quotes
+                        clean = statement.replace("'", "").replace('"', '')
+                        if len(clean) > 80:
+                            # Truncate at last space before 80 chars
+                            clean = clean[:80].rsplit(' ', 1)[0]
                         results.append({
-                            "question": f"Nobody has tested whether '{statement[:60]}...' is true. Should we?",
+                            "question": f"Nobody has tested whether this assumption is still true: {clean}. Should we investigate?",
                             "type": "untested_assumption",
                             "domain": "assumptions",
                             "evidence": "0 supporting, 0 contradicting signals",

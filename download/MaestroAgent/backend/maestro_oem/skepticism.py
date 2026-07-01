@@ -96,9 +96,13 @@ class SkepticismEngine:
                     fossilization_risk = 0.5
 
                 if fossilization_risk > 0.3 and len(statement) > 10:
+                    # Clean truncation: strip quotes, cut at word boundary
+                    clean = statement.replace("'", "").replace('"', '')
+                    if len(clean) > 80:
+                        clean = clean[:80].rsplit(' ', 1)[0]
                     results.append({
-                        "belief": statement[:80],
-                        "challenge": f"You believe '{statement[:50]}...' but nobody has tested it in {age_days} days. Is it still true?",
+                        "belief": clean,
+                        "challenge": f"This belief hasn't been tested in {age_days} days. Is it still true?",
                         "fossilization_risk": round(fossilization_risk, 2),
                         "evidence": f"{age_days} days old, {supporting} supporting, {contradicting} contradicting",
                         "type": "unvalidated_assumption",
@@ -115,7 +119,7 @@ class SkepticismEngine:
             for law in list(self.model.laws.values())[:10]:
                 if law.status and law.status.value == "stressed":
                     results.append({
-                        "belief": f"Pattern: {law.statement[:60]}..." if law.statement else "Organizational pattern",
+                        "belief": f"Pattern: {law.statement[:60].replace(chr(39), '').replace(chr(34), '')}" if law.statement else "Organizational pattern",
                         "challenge": f"This pattern is showing stress — {law.failed_runtimes} of {law.validated_runtimes + law.failed_runtimes} recent outcomes deviated. It may no longer hold.",
                         "fossilization_risk": 0.7,
                         "evidence": f"{law.evidence_count} signals, {law.failed_runtimes} failures",
