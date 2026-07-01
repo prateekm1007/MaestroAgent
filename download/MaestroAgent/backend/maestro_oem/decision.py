@@ -366,8 +366,20 @@ class DecisionEngine:
         all_confidences = [l["confidence"] for l in relevant_laws] + [lo["confidence"] for lo in relevant_los]
         overall_confidence = sum(all_confidences) / len(all_confidences) if all_confidences else 0.5
 
+        # V8 P0-4 — Synthesized natural-language answer.
+        # Instead of just bullet points, produce a 2-3 sentence paragraph
+        # that weaves the evidence into a coherent answer. Rule-based for
+        # the pilot; LLM in production. The bullet list remains as
+        # "evidence_detail" for the user who wants depth.
+        synthesized_answer = self._synthesize_answer(
+            question, relevant_laws, relevant_los, relevant_experts,
+            relevant_bottlenecks, overall_confidence,
+        )
+
         return {
-            "answer": "\n".join(answer_parts),
+            "answer": synthesized_answer,
+            "synthesized_answer": synthesized_answer,
+            "evidence_detail": "\n".join(answer_parts),
             "confidence": overall_confidence,
             "sources": sources[:10],
             "evidence_path": evidence_path,
@@ -376,3 +388,75 @@ class DecisionEngine:
             "experts": relevant_experts,
             "bottlenecks": relevant_bottlenecks,
         }
+
+    def _synthesize_answer(
+        self,
+        question: str,
+        laws: list[dict[str, Any]],
+        los: list[dict[str, Any]],
+        experts: list[dict[str, Any]],
+        bottlenecks: list[dict[str, Any]],
+        confidence: float,
+    ) -> str:
+        """Synthesize a 2-3 sentence natural-language answer from evidence.
+
+        Rule-based for the pilot. In production, this is where the LLM
+        integration happens: pass the ranked evidence to the LLM with a
+        prompt that says 'synthesize this evidence into a 3-sentence answer.
+        cite the law codes. do not hallucinate.'
+
+        The synthesis cites evidence by name, not just by code. Verified
+        laws (verified_by is set) are cited as facts; unverified laws are
+        labeled as candidates.
+        """
+        if not laws and not los and not experts and not bottlenecks:
+            return "I don't have enough evidence to answer this question. Try connecting more signal sources, or ask about a different topic."
+
+        parts: list[str] = []
+
+        # Sentence 1: The main finding
+        if laws:
+            top_law = laws[0]
+            statement = top_law.get("statement", "")
+            code = top_law.get("code", "")
+            is_verified = top_law.get("verified_by") is not None
+            trust_label = "verified" if is_verified else "candidate"
+            parts.append(
+                f"Based on {code} ({trust_label}, confidence {top_law.get('confidence', 0):.0%}), "
+                f"{statement[:120]}."
+            )
+            if len(laws) > 1:
+                parts.append(f" This is supported by {len(laws)} additional pattern{'s' if len(laws) > 2 else ''}.")
+        elif los:
+            top_lo = los[0]
+            parts.append(
+                f"Evidence from {top_lo.get('title', 'organizational data')[:100]} "
+                f"(confidence {top_lo.get('confidence', 0):.0%}) suggests a relevant pattern."
+            )
+        elif experts:
+            exp = experts[0]
+            parts.append(f"{exp.get('entity', 'Someone')} is a hidden expert with influence {exp.get('influence', 0):.1f} across {', '.join(exp.get('domains', [])[:3])}.")
+        elif bottlenecks:
+            bn = bottlenecks[0]
+            parts.append(f"{bn.get('gate', 'A process gate')} is bottlenecking {bn.get('items_gated', 0)} items.")
+
+        # Sentence 2: Supporting detail
+        if los and laws:
+            top_lo = los[0]
+            parts.append(f" This aligns with {top_lo.get('title', 'additional evidence')[:80]}.")
+        elif experts and (laws or los):
+            exp = experts[0]
+            parts.append(f" {exp.get('entity', 'A key person')} has relevant expertise but is not formally documented.")
+        elif bottlenecks and (laws or los):
+            bn = bottlenecks[0]
+            parts.append(f" {bn.get('gate', 'A bottleneck')} is gating {bn.get('items_gated', 0)} items.")
+
+        # Sentence 3: Confidence caveat
+        if confidence < 0.5:
+            parts.append(" This assessment has moderate confidence — more data would improve accuracy.")
+        elif confidence < 0.8:
+            parts.append(" This assessment is well-supported by organizational evidence.")
+        else:
+            parts.append(" This assessment is strongly supported by consistent organizational evidence.")
+
+        return "".join(parts)

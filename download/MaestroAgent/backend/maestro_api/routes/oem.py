@@ -1519,6 +1519,40 @@ def get_ceo_briefing() -> dict[str, Any]:
         "headline_question": ceo_decisions[0]["question"] if ceo_decisions else "The org is running without your intervention.",
     }
 
+    # ─── V8 P0-1: Commitments Due Today ─────────────────────────────
+    # The Bond lesson: commitments find the CEO, not vice versa.
+    # Query the CommitmentTracker for open commitments with due_date <= today.
+    commitments_due: list[dict[str, Any]] = []
+    try:
+        from maestro_oem.commitment_tracker import CommitmentTracker
+        from datetime import datetime, timezone
+        tracker = CommitmentTracker(model, oem_state.signals)
+        track_result = tracker.track()
+        today_str = datetime.now(timezone.utc).date().isoformat()
+        for c in track_result.get("commitments", []):
+            if c.get("status") != "open":
+                continue
+            due = c.get("due_date")
+            if due and due <= today_str:
+                commitments_due.append({
+                    "description": c["description"],
+                    "who_committed": c.get("who_committed", ""),
+                    "to_whom": c.get("to_whom", ""),
+                    "due_date": due,
+                    "source_signal_id": c.get("source_signal_id"),
+                    "source_artifact": c.get("source_artifact", ""),
+                    "is_overdue": due < today_str,
+                })
+    except Exception as e:
+        logger.debug("Commitment tracking in briefing failed: %s", e)
+
+    commitments_answer = {
+        "summary": f"{len(commitments_due)} commitment{'s' if len(commitments_due) != 1 else ''} due today or overdue.",
+        "commitments": commitments_due[:5],
+        "headline": commitments_due[0]["description"][:80] if commitments_due else "No commitments due today.",
+        "overdue_count": sum(1 for c in commitments_due if c.get("is_overdue")),
+    }
+
     return {
         "generated_at": model.last_updated.isoformat() if hasattr(model.last_updated, "isoformat") else str(model.last_updated),
         "overnight": overnight_answer,
@@ -1526,6 +1560,7 @@ def get_ceo_briefing() -> dict[str, Any]:
         "money": money_answer,
         "knowledge": knowledge_answer,
         "decisions": decisions_answer,
+        "commitments": commitments_answer,
         "drafted_artifacts": _generate_drafted_artifacts(one_thing, money_losses, knowledge_traps, ceo_decisions, model),
     }
 
@@ -3907,6 +3942,82 @@ def get_playbook(
     from maestro_oem.playbooks import PlaybookEngine
     engine = PlaybookEngine(oem_state.model, oem_state.signals, oem_state.decisions)
     return engine.playbook(role, context)
+
+
+# ─── V8 P0-5 — Push Delivery (Opt-In) ─────────────────────────────────────
+
+@router.get("/push/settings")
+def get_push_settings() -> dict[str, Any]:
+    """Get the current push delivery settings.
+
+    Default: disabled (channel="none", enabled=False).
+    """
+    from maestro_oem.push_delivery import PushDeliveryService
+    svc = PushDeliveryService()
+    settings = svc.get_settings()
+    return settings.to_dict()
+
+
+@router.post("/push/settings")
+def set_push_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    """Set push delivery settings. Opt-in only — never pushes without consent.
+
+    V8 P0-5 — Push Delivery. The Bond lesson: the briefing finds the CEO.
+    But push without consent is a trust violation. Default: pull (no push).
+    Push is opt-in per channel.
+
+    Payload:
+        channel: "slack" | "email" | "none" (default: "none")
+        time: HH:MM (default: "07:00")
+        enabled: bool (default: False)
+        timezone: str (default: "UTC")
+        slack_channel: str (required if channel="slack")
+        email_address: str (required if channel="email")
+
+    Never pushes to a channel the customer has not explicitly authorized.
+    Never pushes at a time the customer has not chosen.
+    """
+    from maestro_oem.push_delivery import PushDeliveryService
+    svc = PushDeliveryService()
+    try:
+        settings = svc.set_settings(
+            channel=payload.get("channel", "none"),
+            time=payload.get("time", "07:00"),
+            enabled=payload.get("enabled", False),
+            timezone=payload.get("timezone", "UTC"),
+            slack_channel=payload.get("slack_channel", ""),
+            email_address=payload.get("email_address", ""),
+        )
+        return settings.to_dict()
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/push/test")
+def test_push() -> dict[str, Any]:
+    """Send a test push to verify the channel works.
+
+    Sends a minimal test message (not the full briefing).
+    """
+    from maestro_oem.push_delivery import PushDeliveryService
+    svc = PushDeliveryService()
+    return svc.send_test_push()
+
+
+@router.post("/push/deliver")
+def deliver_push() -> dict[str, Any]:
+    """Deliver the morning briefing via push (if enabled).
+
+    This endpoint is called by the scheduler (cron/APScheduler) at the
+    user's chosen time. It can also be called manually to test delivery.
+
+    Governance: if push is not enabled, returns delivered=False.
+    """
+    from maestro_oem.push_delivery import PushDeliveryService
+    svc = PushDeliveryService()
+    # Get the briefing data
+    briefing = get_ceo_briefing()
+    return svc.deliver_briefing(briefing_data=briefing)
 
 
 # ─── V8 Competitor Analysis Feature E — Commitment Tracker ─────────────────

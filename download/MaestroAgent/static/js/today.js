@@ -128,6 +128,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   const changes = overnight.changes || [];
   const money = briefing.money || {};
   const knowledge = briefing.knowledge || {};
+  const commitments = briefing.commitments || {};
 
   // Pick one decision, one opportunity, one risk, one learning, one prediction
   // Each item answers the Constitution's implicit questions:
@@ -231,6 +232,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   } else {
     items.forEach((item, i) => {
       const prepareBtn = item.label === 'One decision' ? `<button class="ds-btn ds-btn-primary ds-btn-small" style="margin-top:10px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
+      const whyLink = `<a class="why-link" style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;text-decoration-style:dotted;margin-top:6px;display:inline-block;" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
+      // V8 P0-3 — One-tap write-back buttons on actionable items.
+      // Two taps max: (1) preview, (2) approve. Never one tap to send.
+      const actionBtns = item.label === 'One decision' || item.label === 'One opportunity'
+        ? `<div style="display:flex;gap:6px;margin-top:8px;">
+             <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
+             <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;" onclick="quickWriteBack('slack','post_message',{channel:'general',text:'${escapeJs(item.title).replace(/'/g,"\\'")}'},${i})">Send message</button>
+           </div>`
+        : '';
       html += `
         <div class="brief-item" data-idx="${i}">
           <div class="brief-label">${escapeHtml(item.label)}</div>
@@ -239,6 +249,10 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
           ${item.provenance ? `<div class="brief-provenance">${escapeHtml(humanize(item.provenance))}</div>` : ''}
           ${item.sowhat ? `<div class="brief-context" style="margin-top:8px;color:var(--accent);font-weight:500;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
           ${prepareBtn}
+          ${actionBtns}
+          ${whyLink}
+          <div id="inline-why-${i}" style="margin-top:8px;"></div>
+          <div id="quick-wb-${i}" style="margin-top:8px;"></div>
         </div>
       `;
     });
@@ -291,6 +305,36 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
               <button class="ds-btn ds-btn-positive ds-btn-small" onclick="this.closest('.brief-item').style.opacity='0.5';this.textContent='Accepted'">Accept</button>
               <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="this.closest('.brief-item').style.display='none'">Dismiss</button>
             </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // V8 P0-1 — Commitments Due Today.
+  // The Bond lesson: commitments find the CEO, not vice versa.
+  if (commitments && commitments.commitments && commitments.commitments.length > 0) {
+    window._currentBriefingCommitments = commitments.commitments;
+    html += `
+      <div style="margin-top:24px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid ${commitments.overdue_count > 0 ? 'rgba(239,68,68,0.2)' : 'var(--divider)'};">
+        <div class="brief-label" style="color:${commitments.overdue_count > 0 ? 'var(--risk)' : 'var(--warning)'};">Commitments due today</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">${escapeHtml(humanize(commitments.summary || ''))}</div>
+        ${commitments.commitments.map((c, i) => `
+          <div class="brief-item" style="border-bottom:1px solid var(--divider);padding:10px 0;">
+            <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
+              <div style="flex:1;">
+                <div class="brief-context" style="color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(c.description || ''))}</div>
+                <div class="ds-meta" style="margin-top:4px;">
+                  ${c.who_committed ? `By: ${escapeHtml(c.who_committed)}` : ''}
+                  ${c.to_whom ? ` → ${escapeHtml(c.to_whom)}` : ''}
+                  ${c.due_date ? ` · Due: ${escapeHtml(c.due_date)}` : ''}
+                  ${c.is_overdue ? ' · <span style="color:var(--risk);">OVERDUE</span>' : ''}
+                </div>
+              </div>
+              <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;white-space:nowrap;"
+                      onclick="sendCommitmentReminder(${i})">Remind</button>
+            </div>
+            <div id="commitment-reminder-${i}" style="margin-top:8px;"></div>
           </div>
         `).join('')}
       </div>
@@ -563,6 +607,135 @@ async function submitCuriosityAnswer(idx) {
     chatArea.insertAdjacentHTML('beforebegin', `
       <div style="margin:8px 0;color:var(--risk,#DC2626);font-size:12px;">Failed: ${escapeHtml(e.message)}</div>
     `);
+  }
+}
+
+// V8 P0-3 — Quick write-back from briefing items.
+// Two taps: (1) preview, (2) approve. Never one tap to send.
+async function quickWriteBack(provider, actionType, params, idx) {
+  const el = document.getElementById(`quick-wb-${idx}`);
+  if (!el) return;
+  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Preview…</div>';
+  try {
+    const preview = await api.postOEM('/writeback', { provider, action_type: actionType, params });
+    el.innerHTML = `
+      <div style="padding:10px;background:var(--surface-2);border:1px solid var(--divider);border-radius:8px;">
+        <pre style="font-size:11px;color:var(--text-secondary);white-space:pre-wrap;margin:0 0 8px 0;">${escapeHtml(preview.preview)}</pre>
+        <div style="display:flex;gap:6px;">
+          <button class="ds-btn ds-btn-primary ds-btn-small" style="font-size:11px;" onclick="approveQuickWriteBack('${preview.action_id}', ${idx})">Approve</button>
+          <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;" onclick="document.getElementById('quick-wb-${idx}').innerHTML=''">Cancel</button>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function approveQuickWriteBack(actionId, idx) {
+  const el = document.getElementById(`quick-wb-${idx}`);
+  if (!el) return;
+  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Executing…</div>';
+  try {
+    const result = await api.postOEM(`/writeback/${actionId}/approve`, { approved_by: 'ceo' });
+    if (result.status === 'executed') {
+      const r = result.result || {};
+      let detail = r.mock ? ' (mock)' : '';
+      if (r.issue_key) detail = ` Created ${r.issue_key}.`;
+      else if (r.message_ts) detail = ` Posted to Slack.`;
+      else if (r.draft_id) detail = ` Draft created (NOT sent).`;
+      el.innerHTML = `<div style="padding:8px;color:var(--positive,#16A34A);font-size:12px;">Done.${detail}</div>`;
+    } else {
+      el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(result.error || '')}</div>`;
+    }
+  } catch (e) {
+    el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// V8 P0-2 — Inline "Why?" explanation on any briefing item.
+// Fetches /explain with a context-derived question and renders the
+// explanation chain inline as a collapsible section. Apple's deference
+// principle: the explanation is hidden until the customer asks for it.
+async function showInlineWhy(title, idx) {
+  const el = document.getElementById(`inline-why-${idx}`);
+  if (!el) return;
+  if (el.innerHTML.trim()) {
+    el.innerHTML = ''; // toggle off if already shown
+    return;
+  }
+  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Composing explanation…</div>';
+  try {
+    const question = `Why is this happening: ${title}?`;
+    const data = await api.getOEM(`/explain?q=${encodeURIComponent(question)}`);
+    if (!data.steps || data.steps.length === 0) {
+      el.innerHTML = `<div style="padding:8px 12px;background:var(--surface-2);border-radius:6px;font-size:12px;color:var(--text-muted);">${escapeHtml(humanize(data.honest_limitation || 'Not enough data to explain yet.'))}</div>`;
+      return;
+    }
+    let chainHtml = '<div style="padding:8px 0;">';
+    for (const step of data.steps.slice(0, 5)) {
+      const confPct = Math.round((step.confidence || 0) * 100);
+      const confColor = confPct >= 70 ? 'var(--accent)' : confPct >= 40 ? 'var(--secondary)' : 'var(--text-muted)';
+      chainHtml += `
+        <div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--divider);">
+          <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--surface-2);border:1px solid var(--accent);color:var(--accent);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;">${step.step}</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(step.label || ''))}</div>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.4;">${escapeHtml(humanize(step.narrative || ''))}</div>
+            <div style="margin-top:2px;height:2px;background:var(--divider);border-radius:1px;overflow:hidden;"><div style="height:100%;width:${confPct}%;background:${confColor};"></div></div>
+          </div>
+        </div>
+      `;
+    }
+    chainHtml += '</div>';
+    el.innerHTML = chainHtml;
+  } catch (e) {
+    el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// V8 P0-1 — Send a commitment reminder via write-back (Slack DM draft).
+async function sendCommitmentReminder(idx) {
+  const el = document.getElementById(`commitment-reminder-${idx}`);
+  if (!el) return;
+  const commitments = (window._currentBriefingCommitments) || [];
+  const c = commitments[idx];
+  if (!c) return;
+  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Drafting reminder…</div>';
+  try {
+    const reminderText = `Gentle reminder: ${c.description} (due ${c.due_date || 'today'}). Can you provide an update?`;
+    const preview = await api.postOEM('/writeback', {
+      provider: 'slack',
+      action_type: 'post_message',
+      params: { channel: 'general', text: reminderText },
+    });
+    el.innerHTML = `
+      <div style="padding:10px;background:var(--surface-2);border:1px solid var(--divider);border-radius:8px;">
+        <pre style="font-size:11px;color:var(--text-secondary);white-space:pre-wrap;margin:0 0 8px 0;">${escapeHtml(preview.preview)}</pre>
+        <div style="display:flex;gap:6px;">
+          <button class="ds-btn ds-btn-primary ds-btn-small" style="font-size:11px;" onclick="approveCommitmentReminder('${preview.action_id}', ${idx})">Approve & Send</button>
+          <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;" onclick="document.getElementById('commitment-reminder-${idx}').innerHTML=''">Cancel</button>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function approveCommitmentReminder(actionId, idx) {
+  const el = document.getElementById(`commitment-reminder-${idx}`);
+  if (!el) return;
+  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Sending…</div>';
+  try {
+    const result = await api.postOEM(`/writeback/${actionId}/approve`, { approved_by: 'ceo' });
+    if (result.status === 'executed') {
+      el.innerHTML = `<div style="padding:8px;color:var(--positive,#16A34A);font-size:12px;">Reminder sent.</div>`;
+    } else {
+      el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(result.error || '')}</div>`;
+    }
+  } catch (e) {
+    el.innerHTML = `<div class="ds-error" style="font-size:11px;">Failed: ${escapeHtml(e.message)}</div>`;
   }
 }
 

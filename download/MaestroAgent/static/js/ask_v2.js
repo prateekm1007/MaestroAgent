@@ -131,22 +131,24 @@ async function submitAskV2(question) {
 }
 
 function renderAskV2Answer(el, question, data) {
-  // Translate the OEM response into a human narrative using the shared
-  // humanize() utility — no internal vocabulary, no law codes, no confidence numbers.
-  const answer = data.answer || data.summary || 'Maestro is still learning about this.';
-  const evidence = data.evidence || [];
+  // V8 P0-4 — Synthesized answer as primary; evidence detail as collapsible.
+  const synthesized = data.synthesized_answer || data.answer || 'Maestro is still learning about this.';
+  const evidenceDetail = data.evidence_detail || '';
   const confidence = data.confidence;
 
-  const humanAnswer = humanize(answer);
+  const humanAnswer = humanize(synthesized);
 
   let html = `
     <div class="story-card">
       <div class="story-narrative">${escapeHtml(humanAnswer)}</div>
   `;
 
-  // Provenance — "How do we know?" without exposing internal vocabulary
-  if (evidence.length > 0) {
-    html += `<div class="story-evidence">Based on ${evidence.length} ${evidence.length === 1 ? 'signal' : 'signals'} from your organization.</div>`;
+  // Collapsible evidence detail (Apple's progressive disclosure)
+  if (evidenceDetail) {
+    html += `<details style="margin-top:12px;">
+      <summary style="cursor:pointer;font-size:12px;color:var(--accent);font-weight:500;">Show evidence</summary>
+      <div style="margin-top:8px;padding:12px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.5;">${escapeHtml(humanize(evidenceDetail))}</div>
+    </details>`;
   }
 
   // Confidence as a story, not a percentage
