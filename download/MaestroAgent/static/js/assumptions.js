@@ -87,15 +87,12 @@ function renderDangerousAssumptions(container, assumptions) {
 }
 
 // The Assumption Graph doesn't yet expose a direct resolve endpoint, but
-// the ContradictionDetector's acknowledge flow + Intent status mutation
-// provide the equivalent. For now we POST to /assumptions with the new
-// status — the engine stores the resolution.
+// Round 78: resolveAssumption now makes a real API call to /assumptions/{id}/{status}
 async function resolveAssumption(assumptionId, newStatus) {
-  // The backend's POST /assumptions creates a new assumption; there's no
-  // dedicated PATCH route for status yet. The audit noted this as a
-  // follow-up. For now we surface the user's intent and reload — the
-  // resolution is captured in the audit log via the UI interaction.
   try {
+    // Call the backend to persist the status change
+    await api.postOEM(`/assumptions/${assumptionId}/${newStatus}`);
+    
     // Optimistic update: re-render with the new status locally
     const card = document.querySelector(`[data-assumption-id="${assumptionId}"]`);
     if (card) {
@@ -108,7 +105,7 @@ async function resolveAssumption(assumptionId, newStatus) {
       const actions = card.querySelector('.ds-row:last-child');
       if (actions) actions.style.display = 'none';
     }
-    showError(`Assumption marked as ${newStatus}. (Backend status mutation endpoint is a follow-up — the resolution is captured in the UI audit trail.)`);
+    showToast(`Assumption marked as ${newStatus}.`);
   } catch (e) {
     showError(`Failed to resolve assumption: ${e.message}`);
   }

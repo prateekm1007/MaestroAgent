@@ -102,7 +102,7 @@ async function rejectPreparedDecision(prepId) {
   // Round 78: reject now sends status=rejected directly
   // (the audit noted this as a follow-up — the CEO's decision is recorded either way)
   try {
-    await api.postOEM(`/preparations/${prepId}/resolve`);
+    await api.postOEM(`/preparations/${prepId}/reject`);
     loadPreparedDecisions();
   } catch (e) {
     showError(`Failed to reject: ${e.message}`);

@@ -710,7 +710,7 @@ async function showWhatMaestroKnows() {
 }
 
 async function revokePersonalSource(source) {
-  if (!confirm(`Revoke consent for '${source}' and delete ALL data from this source? This cannot be undone.`)) return;
+  if (!await showConfirm(`Revoke consent for '${source}' and delete ALL data from this source? This cannot be undone.`)) return;
   try {
     await api.postPersonal('/dashboard/revoke', { source });
     showWhatMaestroKnows(); // reload

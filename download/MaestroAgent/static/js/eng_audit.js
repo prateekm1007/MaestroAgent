@@ -127,7 +127,7 @@ async function saveOAuthProvider() {
 }
 
 async function deleteOAuthProvider(provider) {
-  if (!confirm(`Remove ${provider} configuration? Environment variable fallback will remain if set.`)) return;
+  if (!await showConfirm(`Remove ${provider} configuration? Environment variable fallback will remain if set.`)) return;
   try {
     const resp = await fetch((MAESTRO_API || '') + `/api/oauth/admin/providers/${provider}`, { method: 'DELETE' });
     const data = await resp.json();
@@ -201,8 +201,8 @@ async function connectProvider(provider) {
   }
 }
 
-async function disconnectProvider(provider) {
-  if (!confirm(`Disconnect ${provider}? Already-ingested history is preserved.`)) return;
+async async function disconnectProvider(provider) {
+  if (!await showConfirm(`Disconnect ${provider}? Already-ingested history is preserved.`)) return;
   try {
     await fetch(`${MAESTRO_API}/api/oauth/${provider}/disconnect`, { method: 'POST' });
     SWR.invalidate('oauth:status');
