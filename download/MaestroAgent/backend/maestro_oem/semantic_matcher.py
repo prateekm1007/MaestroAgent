@@ -211,18 +211,42 @@ class SemanticMatcher:
         scored.sort(key=lambda x: x[0], reverse=True)
         return scored
 
+    # Round 48: Stop words that cause false-positive n-gram matches.
+    # These common English words have low semantic content but high n-gram
+    # overlap (e.g., "should" in "should we hire" matching "should" in
+    # "Pattern should be analyzed"). Filtering them eliminates the
+    # "hire engineers" → churn false positive.
+    _STOP_WORDS = frozenset({
+        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+        'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'ought',
+        'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
+        'into', 'through', 'during', 'before', 'after', 'above', 'below',
+        'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further',
+        'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how',
+        'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+        'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
+        'than', 'too', 'very', 'just', 'also', 'now', 'we', 'us', 'our',
+        'i', 'you', 'your', 'he', 'she', 'it', 'its', 'they', 'them',
+        'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom',
+        'and', 'or', 'but', 'if', 'while', 'about', 'against', 'between',
+    })
+
     def _extract_ngrams(self, text: str) -> list[str]:
-        """Extract character n-grams from text.
+        """Extract character n-grams from text, filtering stop words.
 
         Normalizes to lowercase and removes non-alphanumeric characters
-        before extracting n-grams. This ensures "OAuth" and "oauth"
-        produce the same n-grams.
+        before extracting n-grams. Stop words are filtered to prevent
+        false-positive matches from common English words.
         """
         # Normalize: lowercase, keep only alphanumeric + spaces
         normalized = "".join(c.lower() if c.isalnum() or c.isspace() else " " for c in text)
         # Split into words, then extract n-grams from each word
         ngrams: list[str] = []
         for word in normalized.split():
+            # Round 48: skip stop words that cause false-positive n-gram matches
+            if word in self._STOP_WORDS:
+                continue
             if len(word) < self.ngram_size:
                 # Short words are included as-is (padded)
                 ngrams.append(f"#{word}#")

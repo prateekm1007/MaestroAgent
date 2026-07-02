@@ -52,10 +52,11 @@ BETA_PRIOR = 1.0
 RECENCY_HALF_LIFE_DAYS = 90.0
 
 # Evidence scale — controls how fast evidence_weight saturates
-# Justification: with ~5 pieces of evidence, weight reaches 1 - e^(-1) ≈ 0.63
-# with ~15 pieces, weight reaches 1 - e^(-3) ≈ 0.95
-# This is a saturating function, not an arbitrary multiplier.
-EVIDENCE_SCALE = 5.0
+# Round 48 FIX 5: reduced from 5.0 to 2.0 so that evidence_count=1
+# produces evidence_weight ≈ 0.39 (not 0.18), and evidence_count=3
+# produces ≈ 0.78. The old value (5.0) crushed all single-evidence
+# LOs to ~0.15, making confidence non-discriminative.
+EVIDENCE_SCALE = 2.0
 
 # Recency floor — evidence never contributes less than this fraction
 # Justification: old evidence is weaker but not worthless (historical baseline)
