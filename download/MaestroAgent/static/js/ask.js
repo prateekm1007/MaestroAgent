@@ -160,7 +160,7 @@ async function submitAsk(query) {
   document.getElementById('ask-suggestions').style.display = 'none';
   const answerDiv = document.getElementById('ask-answer');
   answerDiv.style.display = 'block';
-  document.getElementById('ask-answer-text').innerHTML = '<span class="spinner"></span> Asking the OEM…';
+  document.getElementById('ask-answer-text').innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   document.getElementById('ask-citations').innerHTML = '';
   document.getElementById('ask-path').textContent = '';
   document.getElementById('ask-confidence').textContent = '';

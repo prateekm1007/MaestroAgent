@@ -55,9 +55,9 @@ async function analyzeTranscript() {
   transcriptArea.innerHTML = transcriptHtml;
 
   // Analyze via OEM
-  document.getElementById('live-objections').innerHTML = '<span class="spinner"></span> Analyzing…';
-  document.getElementById('live-actions').innerHTML = '<span class="spinner"></span> Analyzing…';
-  document.getElementById('live-laws').innerHTML = '<span class="spinner"></span> Analyzing…';
+  document.getElementById('live-objections').innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
+  document.getElementById('live-actions').innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
+  document.getElementById('live-laws').innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const resp = await fetch(MAESTRO_API + '/api/oem/meetings/analyze', {

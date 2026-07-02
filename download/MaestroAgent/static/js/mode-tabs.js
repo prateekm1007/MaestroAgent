@@ -104,10 +104,10 @@ function renderFilterPill(containerId) {
   ];
 
   container.innerHTML = `
-    <div class="auto-flex-gap4-p4-bg-muted">
+    <div class="b-flex-gap4">
       ${options.map(opt => `
         <button class="maestro-btn ${_currentFilter === opt.value ? '' : 'maestro-btn-ghost'}"
-                class="auto-fs12-minh30-p414-rad999"
+                class="b-fs12-minh30"
                 onclick="setCurrentFilter('${opt.value}')"
                 aria-pressed="${_currentFilter === opt.value}">
           ${escapeHtml(opt.label)}
@@ -196,7 +196,7 @@ function openMoreMenu(mode) {
 function showIntegrationToggle() {
   const el = document.getElementById('main-content') || document.getElementById('personal-main');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading integration settings…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   // Round 78 CRITICAL 4: use _getCurrentUser() instead of hardcoded 'default'
   if (typeof _getCurrentUser === 'function') {
     _getCurrentUser().then(user => {
@@ -212,19 +212,19 @@ function _loadIntegrationSettings(el, user) {
   api.getPersonal('/settings/personal-context-in-work?user=' + encodeURIComponent(user)).then(data => {
     const enabled = data.personal_context_in_work;
     el.innerHTML = `
-      <div class="auto-mw500-m40auto-p24">
-        <div class="auto-fs20-fw800-text-primary-mb12">Personal Context in Work</div>
-        <div class="auto-fs14-text-secondary-lh155-mb20">
+      <div class="b-mw500-m40p24">
+        <div class="b-fs20-fw800">Personal Context in Work</div>
+        <div class="b-fs14-text-13">
           When enabled, your own personal state (sleep, energy, calendar conflicts) appears in Work Mode.
           Maestro never surfaces intelligence about a third party. You can disable this at any time.
         </div>
-        <div class="auto-p16-bg-muted-rad12-mb20">
-          <div class="auto-fs13-fw700-text-primary-mb8">Current state: ${enabled ? 'ON' : 'OFF (default)'}</div>
-          <button class="maestro-btn ${enabled ? 'maestro-btn-ghost' : ''}" class="auto-w-full-fs14-minh44" onclick="toggleIntegration(${!enabled})">
+        <div class="b-p16-bg">
+          <div class="b-fs13-fw700-2">Current state: ${enabled ? 'ON' : 'OFF (default)'}</div>
+          <button class="maestro-btn ${enabled ? 'maestro-btn-ghost' : ''}" class="b-w-full-2" onclick="toggleIntegration(${!enabled})">
             ${enabled ? 'Disable' : 'Enable'}
           </button>
         </div>
-        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" class="auto-fs13" onclick="navTo('today')">Back to Today</button>
+        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" class="fs-13" onclick="navTo('today')">Back to Today</button>
       </div>
     `;
   }).catch(() => {

@@ -67,7 +67,7 @@ async function contradictLaw(lawCode, action) {
   if (card) {
     card.style.opacity = '0.6';
     const confEl = card.querySelector('.conf-value');
-    if (confEl) confEl.innerHTML = '<span class="spinner"></span>';
+    if (confEl) confEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   }
 
   try {

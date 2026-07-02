@@ -140,7 +140,7 @@ async function loadToday() {
     renderMorningBrief(el, briefing, pulse, contradictions, personality, timeAxis, sowhatData, curiosity, nudges, backgroundLoop, interventions, unknowns, tasks, currentMode, personalBriefing, personalContradsList, currentFilter);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
-      <div class="auto-fs18-text-primary-mb8">Good morning.</div>
+      <div class="b-fs18-text">Good morning.</div>
       <div>We couldn't prepare your brief right now. The organization is still learning.</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" class="space-4" onclick="loadToday()">Try again</button>
     </div>`;
@@ -313,12 +313,12 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
 
   // Round 46 — render the filter pill in the top-right of the Today surface.
   // The pill has 3 options (All/Work/Personal). Default is 'all'.
-  html += `<div id="filter-pill-container" class="auto-pos-absolute-u-6287-u-6559-z10"></div>`;
+  html += `<div id="filter-pill-container" class="b-pos-absolute-2"></div>`;
 
   // Organizational personality one-liner (V3 Law 6)
   if (personality && personality.summary) {
     html += `
-      <div class="auto-p1216-rad8-bg-surface-border-default">
+      <div class="b-p1216-rad8">
         ${escapeHtml(humanize(personality.summary))}
       </div>
     `;
@@ -345,9 +345,9 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   // third-party intelligence — only the user's own data.
   const totalCardCount = filteredItems.length + personalCards.length;
   if (totalCardCount === 0) {
-    html += `<div class="calm-empty" class="auto-text-center-p4820">
+    html += `<div class="calm-empty" class="b-text-center-9">
       <div class="empty-state"><div class="empty-state-icon"><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="36" r="12" stroke="#FFC629" stroke-width="2.5" fill="#FFF4D1"/><path d="M12 48 L52 48" stroke="#999999" stroke-width="2" stroke-linecap="round"/><path d="M20 42 L20 48 M32 38 L32 48 M44 42 L44 48" stroke="#FFC629" stroke-width="2" stroke-linecap="round"/></svg></div><div class="empty-state-title">You're all caught up.</div><div class="empty-state-body">No decisions need you right now. We'll surface them here the moment they arrive.</div></div>
-      <div class="auto-fs14-text-muted">Maestro is watching. You'll know when something matters.</div>
+      <div class="meta-text">Maestro is watching. You'll know when something matters.</div>
     </div>`;
   } else {
     // P0-3: Build the swipe deck — max 7 cards, prioritized.
@@ -438,30 +438,30 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
 
     // Render the swipe deck container
     html += `
-      <div id="swipe-deck-container" class="auto-pos-relative-minh440-mw420-m0auto">
+      <div id="swipe-deck-container" class="b-pos-relative-2">
       </div>
-      <div id="swipe-deck-progress" class="auto-text-center-mt16-fs13-fw700">
+      <div id="swipe-deck-progress" class="b-text-center-5">
         ${remaining} ${remaining === 1 ? 'card' : 'cards'}
       </div>
-      <div class="auto-text-center-mt8">
-        <button class="maestro-btn maestro-btn-ghost" class="auto-fs13-minh36-p616" onclick="toggleSwipeDeckView()">See all</button>
+      <div class="b-text-center-6">
+        <button class="maestro-btn maestro-btn-ghost" class="b-fs13-minh36-2" onclick="toggleSwipeDeckView()">See all</button>
       </div>
-      <div id="swipe-deck-summary" class="auto-hidden-text-center-p24">
-        <div class="auto-fs18-fw800-text-primary-2">That's your morning.</div>
-        <div id="swipe-deck-counts" class="auto-fs14-text-muted-mt8"></div>
+      <div id="swipe-deck-summary" class="b-hidden-text">
+        <div class="b-fs18-fw800-2">That's your morning.</div>
+        <div id="swipe-deck-counts" class="b-fs14-text-3"></div>
       </div>
     `;
 
     // Also render the scrollable fallback (hidden by default)
     // Round 46: use filteredItems (respects the filter pill)
-    html += `<div id="swipe-deck-list" class="auto-hidden">`;
+    html += `<div id="swipe-deck-list" class="d-none">`;
     filteredItems.forEach((item, i) => {
-      const prepareBtn = item.label === 'One decision' ? `<button class="maestro-btn maestro-btn-full" class="auto-mt12-fs14-minh44" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
-      const whyLink = `<a class="why-link" class="auto-fs13-text-accent-cursor-pointer-fw700-2" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
+      const prepareBtn = item.label === 'One decision' ? `<button class="maestro-btn maestro-btn-full" class="b-mt12-fs14" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
+      const whyLink = `<a class="why-link" class="b-fs13-text-2" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
       const actionBtns = item.label === 'One decision' || item.label === 'One opportunity'
-        ? `<div class="auto-flex-gap8-mt12">
-             <button class="maestro-btn maestro-btn-secondary" class="auto-flex-1-fs13-minh44-p1016" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
-             <button class="maestro-btn maestro-btn-secondary" class="auto-flex-1-fs13-minh44-p1016" onclick="quickWriteBack('slack','post_message',{channel:'general',text:'${escapeJs(item.title).replace(/'/g,"\\'")}'},${i})">Send message</button>
+        ? `<div class="b-flex-gap8-2">
+             <button class="maestro-btn maestro-btn-secondary" class="b-flex-fs13-2" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
+             <button class="maestro-btn maestro-btn-secondary" class="b-flex-fs13-2" onclick="quickWriteBack('slack','post_message',{channel:'general',text:'${escapeJs(item.title).replace(/'/g,"\\'")}'},${i})">Send message</button>
            </div>`
         : '';
       const categoryClass = categoryColors[item.label] || 'decision';
@@ -476,10 +476,10 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         <div class="maestro-card brief-item" data-idx="${i}" class="mb-16">
           <div class="swipe-card-category ${categoryClass}" class="mb-12">${escapeHtml(item.label.toUpperCase())}</div>
           <div class="brief-card-title">${escapeHtml(humanize(item.title))}</div>
-          ${item.context ? `<div class="auto-fs14-text-secondary-lh155-mb8">${escapeHtml(humanize(item.context))}</div>` : ''}
-          ${item.provenance ? `<div class="auto-fs12-text-muted-mb8">${escapeHtml(humanize(item.provenance))}</div>` : ''}
-          ${confLabel ? `<div class="auto-inline-block-p412-rad999-bg-7d51-2">${confLabel}</div>` : ''}
-          ${item.sowhat ? `<div class="auto-mt8-p1014-bg-accent-rad12">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
+          ${item.context ? `<div class="b-fs14-text-14">${escapeHtml(humanize(item.context))}</div>` : ''}
+          ${item.provenance ? `<div class="b-fs12-text-4">${escapeHtml(humanize(item.provenance))}</div>` : ''}
+          ${confLabel ? `<div class="b-inline-block-6">${confLabel}</div>` : ''}
+          ${item.sowhat ? `<div class="b-mt8-p1014">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
           ${prepareBtn}
           ${actionBtns}
           ${whyLink}
@@ -493,11 +493,11 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     personalCards.forEach((item, i) => {
       const categoryClass = categoryColors[item.label] || 'habit';
       html += `
-        <div class="maestro-card brief-item" data-idx="p${i}" class="auto-mb16-pos-relative">
-          <div class="auto-pos-absolute-u-853f-u-2f11-w10" title="Personal" aria-label="Mode: Personal"></div>
+        <div class="maestro-card brief-item" data-idx="p${i}" class="b-mb16-pos">
+          <div class="b-pos-absolute-3" title="Personal" aria-label="Mode: Personal"></div>
           <div class="swipe-card-category ${categoryClass}" class="mb-12">${escapeHtml(item.label.toUpperCase())}</div>
           <div class="brief-card-title">${escapeHtml(humanize(item.title))}</div>
-          ${item.context ? `<div class="auto-fs14-text-secondary-lh155-mb8">${escapeHtml(humanize(item.context))}</div>` : ''}
+          ${item.context ? `<div class="b-fs14-text-14">${escapeHtml(humanize(item.context))}</div>` : ''}
         </div>
       `;
     });
@@ -513,13 +513,13 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   // V6 Spec #3 — Background Loop: "Maestro noticed this while you were away"
   if (backgroundLoop && backgroundLoop.notices && backgroundLoop.notices.length > 0) {
     html += `
-      <div class="auto-mt24-p20-rad12-bg-surface-2">
-        <div class="brief-label" class="auto-text-muted-2">While you were away</div>
-        <div class="auto-fs14-text-secondary-mb12-2">${escapeHtml(humanize(backgroundLoop.summary || ''))}</div>
+      <div class="b-mt24-p20-2">
+        <div class="brief-label" class="b-text-muted">While you were away</div>
+        <div class="b-fs14-text-16">${escapeHtml(humanize(backgroundLoop.summary || ''))}</div>
         ${backgroundLoop.notices.slice(0, 3).map(n => {
           const color = n.urgency === 'high' ? 'var(--risk)' : n.urgency === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
-          return `<div class="auto-p80-u-4300">
-            <div class="auto-fs13-clr-6419">${escapeHtml(humanize(n.message || ''))}</div>
+          return `<div class="b-p80-u">
+            <div class="b-fs13-clr">${escapeHtml(humanize(n.message || ''))}</div>
             ${n.detail ? `<div class="ds-meta" class="mt-2">${escapeHtml(humanize(n.detail))}</div>` : ''}
           </div>`;
         }).join('')}
@@ -530,12 +530,12 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   // V6 Spec #4 — Trajectory Intervention: declining trajectories that need action
   if (interventions && interventions.interventions && interventions.interventions.length > 0) {
     html += `
-      <div class="auto-mt24-p20-rad12-bg-surface">
-        <div class="brief-label" class="auto-text-risk-2">Needs attention</div>
-        <div class="auto-fs14-text-secondary-mb12-2">${escapeHtml(humanize(interventions.summary || ''))}</div>
+      <div class="b-mt24-p20">
+        <div class="brief-label" class="b-text-risk">Needs attention</div>
+        <div class="b-fs14-text-16">${escapeHtml(humanize(interventions.summary || ''))}</div>
         ${interventions.interventions.slice(0, 2).map(iv => `
-          <div class="auto-p100-u-4300">
-            <div class="auto-fs14-text-primary-fw500">${escapeHtml(humanize(iv.intervention || ''))}</div>
+          <div class="b-p100-u">
+            <div class="b-fs14-text-5">${escapeHtml(humanize(iv.intervention || ''))}</div>
             <div class="ds-meta" class="mt-4">Time to impact: ${escapeHtml(iv.time_to_failure || '')} · Urgency: ${escapeHtml(iv.urgency || '')}</div>
           </div>
         `).join('')}
@@ -546,14 +546,14 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   // V6 Spec #1 — Adaptive Nudges: actionable restructuring suggestions
   if (nudges && nudges.nudges && nudges.nudges.length > 0) {
     html += `
-      <div class="auto-mt32-p20-rad12-bg-surface">
+      <div class="b-mt32-p20">
         <div class="brief-label" class="text-accent">Maestro suggests a change</div>
-        <div class="auto-fs14-text-secondary-mb16">${escapeHtml(humanize(nudges.summary || ''))}</div>
+        <div class="body-text">${escapeHtml(humanize(nudges.summary || ''))}</div>
         ${nudges.nudges.slice(0, 2).map((n, i) => `
-          <div class="brief-item" data-nudge-idx="${i}" class="auto-u-4300">
-            <div class="auto-fs14-text-primary-fw500-mb4">${escapeHtml(humanize(n.intervention || ''))}</div>
-            <div class="brief-context" class="auto-fs12">${escapeHtml(humanize(n.evidence || ''))}</div>
-            <div class="ds-row" class="auto-gap6-mt8">
+          <div class="brief-item" data-nudge-idx="${i}" class="b-u-4300">
+            <div class="b-fs14-text-6">${escapeHtml(humanize(n.intervention || ''))}</div>
+            <div class="brief-context" class="fs-12">${escapeHtml(humanize(n.evidence || ''))}</div>
+            <div class="ds-row" class="b-gap6-mt8">
               <button class="ds-btn ds-btn-positive ds-btn-small" onclick="this.closest('.brief-item').style.opacity='0.5';this.textContent='Accepted'">Accept</button>
               <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="this.closest('.brief-item').style.display='none'">Dismiss</button>
             </div>
@@ -568,22 +568,22 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   if (commitments && commitments.commitments && commitments.commitments.length > 0) {
     window._currentBriefingCommitments = commitments.commitments;
     html += `
-      <div class="maestro-card" class="auto-mt16-u-c5b7">
+      <div class="maestro-card" class="b-mt16-u-2">
         <div class="swipe-card-category ${commitments.overdue_count > 0 ? 'contradiction' : 'due'}" class="mb-12">Commitments due today</div>
-        <div class="auto-fs14-text-secondary-mb12">${escapeHtml(humanize(commitments.summary || ''))}</div>
+        <div class="b-fs14-text-15">${escapeHtml(humanize(commitments.summary || ''))}</div>
         ${commitments.commitments.map((c, i) => `
-          <div class="brief-item" class="auto-u-4300-p100">
-            <div class="auto-flex-u-2a4d-u-daae-gap12">
+          <div class="brief-item" class="b-u-p100">
+            <div class="b-flex-u-6">
               <div class="flex-1">
-                <div class="brief-context" class="auto-text-primary-fw500">${escapeHtml(humanize(c.description || ''))}</div>
+                <div class="brief-context" class="b-text-primary">${escapeHtml(humanize(c.description || ''))}</div>
                 <div class="ds-meta" class="mt-4">
                   ${c.who_committed ? `By: ${escapeHtml(c.who_committed)}` : ''}
                   ${c.to_whom ? ` → ${escapeHtml(c.to_whom)}` : ''}
                   ${c.due_date ? ` · Due: ${escapeHtml(c.due_date)}` : ''}
-                  ${c.is_overdue ? ' · <span class="auto-text-risk-2">OVERDUE</span>' : ''}
+                  ${c.is_overdue ? ' · <span class="b-text-risk">OVERDUE</span>' : ''}
                 </div>
               </div>
-              <button class="ds-btn ds-btn-ghost ds-btn-small" class="auto-fs11-ws-nowrap"
+              <button class="ds-btn ds-btn-ghost ds-btn-small" class="b-fs11-ws"
                       onclick="sendCommitmentReminder(${i})">Remind</button>
             </div>
             <div id="commitment-reminder-${i}" class="mt-8"></div>
@@ -602,15 +602,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     html += `
       <div class="brief-section">
         <div class="brief-label" class="text-accent">Maestro has questions</div>
-        <div class="auto-fs14-text-secondary-mb16">${escapeHtml(humanize(curiosity.summary))}</div>
+        <div class="body-text">${escapeHtml(humanize(curiosity.summary))}</div>
         ${curiosity.questions.slice(0, 3).map((q, i) => `
-          <div class="curiosity-conversation" data-curiosity-idx="${i}" class="auto-u-4300-p120">
-            <div class="curiosity-question" class="auto-text-primary-fw500-mb8">${escapeHtml(humanize(q.question))}</div>
+          <div class="curiosity-conversation" data-curiosity-idx="${i}" class="b-u-p120">
+            <div class="curiosity-question" class="b-text-primary-2">${escapeHtml(humanize(q.question))}</div>
             <div class="curiosity-evidence ds-meta" class="mb-8">${escapeHtml(humanize(q.evidence))}</div>
             <div class="curiosity-conversation-area" id="curiosity-conv-${i}" data-question-id="${escapeHtml(q.question_id || '')}" data-question-type="${escapeHtml(q.type || '')}" data-domain="${escapeHtml(q.domain || '')}" data-original-question="${escapeHtml(q.question || '')}" data-turn="1">
               <input type="text" class="curiosity-answer-input" id="curiosity-input-${i}"
                      placeholder="Type your answer…"
-                     class="auto-w-full-p812-bg-surface-border-default"
+                     class="b-w-full-8"
                      onkeydown="if(event.key==='Enter') submitCuriosityAnswer(${i})"
                      aria-label="Answer Maestro's question" />
               <button class="ds-btn ds-btn-ghost ds-btn-small" class="mt-6" onclick="submitCuriosityAnswer(${i})">Answer</button>
@@ -622,26 +622,26 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   }
 
   // V8 Daily Work #2 — Task & Action-Item Intelligence.
-  // Shows tasks auto-extracted from signal text during ingestion.
+  // Shows tasks b-extracted from signal text during ingestion.
   // Each task has: description, assignee, due_date, priority, status.
   if (tasks && tasks.tasks && tasks.tasks.length > 0) {
     const priorityColor = { high: 'var(--risk,#DC2626)', medium: 'var(--warning,#D97706)', low: 'var(--text-muted)' };
     html += `
       <div class="brief-section">
         <div class="brief-label" class="text-accent">Your tasks</div>
-        <div class="auto-fs14-text-secondary-mb16">${tasks.total} open task${tasks.total === 1 ? '' : 's'} auto-extracted from your organization's signals.</div>
+        <div class="body-text">${tasks.total} open task${tasks.total === 1 ? '' : 's'} b-extracted from your organization's signals.</div>
         ${tasks.tasks.slice(0, 5).map(t => `
-          <div class="brief-item" class="auto-u-4300-p100">
-            <div class="auto-flex-u-2a4d-u-daae-gap12">
+          <div class="brief-item" class="b-u-p100">
+            <div class="b-flex-u-6">
               <div class="flex-1">
-                <div class="brief-context" class="auto-text-primary-fw500">${escapeHtml(humanize(t.description || ''))}</div>
+                <div class="brief-context" class="b-text-primary">${escapeHtml(humanize(t.description || ''))}</div>
                 <div class="ds-meta" class="mt-4">
                   ${t.assignee ? `Assignee: ${escapeHtml(t.assignee)}` : 'Unassigned'}
                   ${t.due_date ? ` · Due: ${escapeHtml(t.due_date)}` : ''}
                   ${t.domain ? ` · Domain: ${escapeHtml(t.domain)}` : ''}
                 </div>
               </div>
-              <span class="tag" class="auto-bg-3ca4-clr-bde7-bd-a6e2-fs10">
+              <span class="tag" class="b-bg-3ca4">
                 ${escapeHtml(t.priority || 'medium')}
               </span>
             </div>
@@ -663,8 +663,8 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     if (totalCount > 0) {
       html += `
         <div class="brief-section">
-          <div class="brief-label" class="auto-text-muted-2">What Maestro doesn't know yet</div>
-          <div class="auto-fs14-text-secondary-mb16">${escapeHtml(humanize(unknowns.summary || ''))}</div>
+          <div class="brief-label" class="b-text-muted">What Maestro doesn't know yet</div>
+          <div class="body-text">${escapeHtml(humanize(unknowns.summary || ''))}</div>
       `;
 
       // Level 1: Known — green, collapsed by default (it's the "good news")
@@ -672,12 +672,12 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         html += `
           <details class="unknowns-level unknowns-known" class="mb-12">
             <summary class="brief-card-action">
-              <span class="auto-text-positive-3">✓</span>
+              <span class="b-text-positive-2">✓</span>
               <strong>Known</strong> — ${unknowns.known.length} area${unknowns.known.length === 1 ? '' : 's'} measured thoroughly
             </summary>
             <div class="brief-item-indent">
               ${unknowns.known.slice(0, 5).map(a => `
-                <div class="auto-p60-u-4300">
+                <div class="b-p60-u">
                   <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} signals · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
                 </div>
@@ -692,15 +692,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         html += `
           <details class="unknowns-level unknowns-known-unknowns" open class="mb-12">
             <summary class="brief-card-action">
-              <span class="auto-text-warning">!</span>
+              <span class="text-warning">!</span>
               <strong>Known Unknowns</strong> — ${unknowns.known_unknowns.length} area${unknowns.known_unknowns.length === 1 ? '' : 's'} the org knows it's under-measuring
             </summary>
             <div class="brief-item-indent">
               ${unknowns.known_unknowns.slice(0, 5).map(a => `
-                <div class="auto-p60-u-4300">
+                <div class="b-p60-u">
                   <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
-                  <div class="auto-fs12-text-muted-mt2-2">${escapeHtml(humanize(a.reason || ''))}</div>
+                  <div class="b-fs12-text-8">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
               `).join('')}
             </div>
@@ -713,15 +713,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         html += `
           <details class="unknowns-level unknowns-unknown-unknowns" open class="mb-12">
             <summary class="brief-card-action">
-              <span class="auto-text-risk-3">?</span>
+              <span class="b-text-risk-2">?</span>
               <strong>Unknown Unknowns</strong> — ${unknowns.unknown_unknowns.length} blind spot${unknowns.unknown_unknowns.length === 1 ? '' : 's'} (the org doesn't know it doesn't know)
             </summary>
             <div class="brief-item-indent">
               ${unknowns.unknown_unknowns.slice(0, 5).map(a => `
-                <div class="auto-p60-u-4300">
+                <div class="b-p60-u">
                   <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
-                  <div class="auto-fs12-text-muted-mt2-2">${escapeHtml(humanize(a.reason || ''))}</div>
+                  <div class="b-fs12-text-8">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
               `).join('')}
             </div>
@@ -734,15 +734,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         html += `
           <details class="unknowns-level unknowns-emerging" open class="mb-12">
             <summary class="brief-card-action">
-              <span class="auto-text-accent">✦</span>
+              <span class="text-accent">✦</span>
               <strong>Emerging Unknowns</strong> — ${unknowns.emerging_unknowns.length} new pattern${unknowns.emerging_unknowns.length === 1 ? '' : 's'} in the last 7 days
             </summary>
             <div class="brief-item-indent">
               ${unknowns.emerging_unknowns.slice(0, 5).map(a => `
-                <div class="auto-p60-u-4300">
+                <div class="b-p60-u">
                   <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} new signal${a.signal_count === 1 ? '' : 's'} · detected ${a.detected_at ? new Date(a.detected_at).toLocaleDateString() : 'recently'}</div>
-                  <div class="auto-fs12-text-muted-mt2-2">${escapeHtml(humanize(a.reason || ''))}</div>
+                  <div class="b-fs12-text-8">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
               `).join('')}
             </div>
@@ -803,14 +803,14 @@ async function submitCuriosityAnswer(idx) {
   // Show the user's answer as a chat bubble (right-aligned)
   const chatArea = convEl;
   chatArea.insertAdjacentHTML('beforebegin', `
-    <div class="curiosity-chat-bubble curiosity-chat-user" class="auto-m80840-p812-bg-accent-text-accent">
+    <div class="curiosity-chat-bubble curiosity-chat-user" class="b-m80840-p812">
       ${escapeHtml(answer)}
     </div>
   `);
 
   // Show a loading indicator
   chatArea.insertAdjacentHTML('beforebegin', `
-    <div class="curiosity-loading" id="curiosity-loading-${idx}" class="auto-m80-text-muted-fs12-u-4ddb">Maestro is thinking…</div>
+    <div class="curiosity-loading" id="curiosity-loading-${idx}" class="b-m80-text">Maestro is thinking…</div>
   `);
 
   try {
@@ -836,8 +836,8 @@ async function submitCuriosityAnswer(idx) {
     if (data.understanding_updated) {
       // Conversation closed — show the closing message
       chatArea.insertAdjacentHTML('beforebegin', `
-        <div class="curiosity-chat-bubble curiosity-chat-maestro curiosity-chat-closing" class="auto-m80-p1014-bg-surface-bd-fb99">
-          <span class="auto-text-accent-fw500">${escapeHtml(humanize(data.summary || 'Thank you. Understanding updated.'))}</span>
+        <div class="curiosity-chat-bubble curiosity-chat-maestro curiosity-chat-closing" class="b-m80-p1014">
+          <span class="b-text-accent">${escapeHtml(humanize(data.summary || 'Thank you. Understanding updated.'))}</span>
         </div>
       `);
       // Remove the input area — the conversation is done
@@ -845,7 +845,7 @@ async function submitCuriosityAnswer(idx) {
     } else if (data.follow_up_question) {
       // Show the follow-up question as a chat bubble (left-aligned)
       chatArea.insertAdjacentHTML('beforebegin', `
-        <div class="curiosity-chat-bubble curiosity-chat-maestro" class="auto-m84080-p1014-bg-surface-border-default">
+        <div class="curiosity-chat-bubble curiosity-chat-maestro" class="b-m84080-p1014">
           ${escapeHtml(humanize(data.follow_up_question))}
         </div>
       `);
@@ -858,7 +858,7 @@ async function submitCuriosityAnswer(idx) {
       // Unexpected response — re-enable input and show error
       inputEl.disabled = false;
       chatArea.insertAdjacentHTML('beforebegin', `
-        <div class="auto-m80-text-risk-fs12">Something went wrong. Try again.</div>
+        <div class="b-m80-text-2">Something went wrong. Try again.</div>
       `);
     }
   } catch (e) {
@@ -867,7 +867,7 @@ async function submitCuriosityAnswer(idx) {
     if (loadingEl) loadingEl.remove();
     inputEl.disabled = false;
     chatArea.insertAdjacentHTML('beforebegin', `
-      <div class="auto-m80-text-risk-fs12">Failed: ${escapeHtml(e.message)}</div>
+      <div class="b-m80-text-2">Failed: ${escapeHtml(e.message)}</div>
     `);
   }
 }
@@ -882,15 +882,15 @@ async function quickWriteBack(provider, actionType, params, idx) {
     const preview = await api.postOEM('/writeback', { provider, action_type: actionType, params });
     el.innerHTML = `
       <div class="brief-surface-block">
-        <pre class="auto-fs11-text-secondary-ws-pre-wrap-m0080">${escapeHtml(preview.preview)}</pre>
-        <div class="auto-flex-gap6">
-          <button class="ds-btn ds-btn-primary ds-btn-small" class="auto-fs11" onclick="approveQuickWriteBack('${preview.action_id}', ${idx})">Approve</button>
-          <button class="ds-btn ds-btn-ghost ds-btn-small" class="auto-fs11" onclick="document.getElementById('quick-wb-${idx}').innerHTML=''">Cancel</button>
+        <pre class="b-fs11-text-8">${escapeHtml(preview.preview)}</pre>
+        <div class="b-flex-gap6">
+          <button class="ds-btn ds-btn-primary ds-btn-small" class="fs-11" onclick="approveQuickWriteBack('${preview.action_id}', ${idx})">Approve</button>
+          <button class="ds-btn ds-btn-ghost ds-btn-small" class="fs-11" onclick="document.getElementById('quick-wb-${idx}').innerHTML=''">Cancel</button>
         </div>
       </div>
     `;
   } catch (e) {
-    el.innerHTML = `<div class="ds-error" class="auto-fs11">Failed: ${escapeHtml(e.message)}</div>`;
+    el.innerHTML = `<div class="ds-error" class="fs-11">Failed: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -906,12 +906,12 @@ async function approveQuickWriteBack(actionId, idx) {
       if (r.issue_key) detail = ` Created ${r.issue_key}.`;
       else if (r.message_ts) detail = ` Posted to Slack.`;
       else if (r.draft_id) detail = ` Draft created (NOT sent).`;
-      el.innerHTML = `<div class="auto-p8-text-positive-fs12">Done.${detail}</div>`;
+      el.innerHTML = `<div class="b-p8-text-2">Done.${detail}</div>`;
     } else {
-      el.innerHTML = `<div class="ds-error" class="auto-fs11">Failed: ${escapeHtml(result.error || '')}</div>`;
+      el.innerHTML = `<div class="ds-error" class="fs-11">Failed: ${escapeHtml(result.error || '')}</div>`;
     }
   } catch (e) {
-    el.innerHTML = `<div class="ds-error" class="auto-fs11">Failed: ${escapeHtml(e.message)}</div>`;
+    el.innerHTML = `<div class="ds-error" class="fs-11">Failed: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -931,7 +931,7 @@ async function showInlineWhy(title, idx) {
     const question = `Why is this happening: ${title}?`;
     const data = await api.getOEM(`/explain?q=${encodeURIComponent(question)}`);
     if (!data.steps || data.steps.length === 0) {
-      el.innerHTML = `<div class="auto-p812-bg-surface-rad6-fs12">${escapeHtml(humanize(data.honest_limitation || 'Not enough data to explain yet.'))}</div>`;
+      el.innerHTML = `<div class="b-p812-bg">${escapeHtml(humanize(data.honest_limitation || 'Not enough data to explain yet.'))}</div>`;
       return;
     }
     let chainHtml = '<div class="space-2">';
@@ -939,12 +939,12 @@ async function showInlineWhy(title, idx) {
       const confPct = Math.round((step.confidence || 0) * 100);
       const confColor = confPct >= 70 ? 'var(--accent)' : confPct >= 40 ? 'var(--secondary)' : 'var(--text-muted)';
       chainHtml += `
-        <div class="auto-flex-gap10-p40-u-4300">
-          <div class="auto-u-5cd1-w20-h20-rad50p">${step.step}</div>
+        <div class="b-flex-gap10">
+          <div class="b-u-5cd1-2">${step.step}</div>
           <div class="flex-1">
-            <div class="auto-fs12-text-primary-fw500">${escapeHtml(humanize(step.label || ''))}</div>
-            <div class="auto-fs11-text-secondary-lh14">${escapeHtml(humanize(step.narrative || ''))}</div>
-            <div class="auto-mt2-h2-bg-08c2-rad1"><div class="auto-h100-wconfpctp-bg-41cc"></div></div>
+            <div class="b-fs12-text-14">${escapeHtml(humanize(step.label || ''))}</div>
+            <div class="b-fs11-text-7">${escapeHtml(humanize(step.narrative || ''))}</div>
+            <div class="b-mt2-h2"><div class="b-h100-wconfpctp"></div></div>
           </div>
         </div>
       `;
@@ -952,7 +952,7 @@ async function showInlineWhy(title, idx) {
     chainHtml += '</div>';
     el.innerHTML = chainHtml;
   } catch (e) {
-    el.innerHTML = `<div class="ds-error" class="auto-fs11">Failed: ${escapeHtml(e.message)}</div>`;
+    el.innerHTML = `<div class="ds-error" class="fs-11">Failed: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -973,15 +973,15 @@ async function sendCommitmentReminder(idx) {
     });
     el.innerHTML = `
       <div class="brief-surface-block">
-        <pre class="auto-fs11-text-secondary-ws-pre-wrap-m0080">${escapeHtml(preview.preview)}</pre>
-        <div class="auto-flex-gap6">
-          <button class="ds-btn ds-btn-primary ds-btn-small" class="auto-fs11" onclick="approveCommitmentReminder('${preview.action_id}', ${idx})">Approve & Send</button>
-          <button class="ds-btn ds-btn-ghost ds-btn-small" class="auto-fs11" onclick="document.getElementById('commitment-reminder-${idx}').innerHTML=''">Cancel</button>
+        <pre class="b-fs11-text-8">${escapeHtml(preview.preview)}</pre>
+        <div class="b-flex-gap6">
+          <button class="ds-btn ds-btn-primary ds-btn-small" class="fs-11" onclick="approveCommitmentReminder('${preview.action_id}', ${idx})">Approve & Send</button>
+          <button class="ds-btn ds-btn-ghost ds-btn-small" class="fs-11" onclick="document.getElementById('commitment-reminder-${idx}').innerHTML=''">Cancel</button>
         </div>
       </div>
     `;
   } catch (e) {
-    el.innerHTML = `<div class="ds-error" class="auto-fs11">Failed: ${escapeHtml(e.message)}</div>`;
+    el.innerHTML = `<div class="ds-error" class="fs-11">Failed: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -992,12 +992,12 @@ async function approveCommitmentReminder(actionId, idx) {
   try {
     const result = await api.postOEM(`/writeback/${actionId}/approve`, { approved_by: 'ceo' });
     if (result.status === 'executed') {
-      el.innerHTML = `<div class="auto-p8-text-positive-fs12">Reminder sent.</div>`;
+      el.innerHTML = `<div class="b-p8-text-2">Reminder sent.</div>`;
     } else {
-      el.innerHTML = `<div class="ds-error" class="auto-fs11">Failed: ${escapeHtml(result.error || '')}</div>`;
+      el.innerHTML = `<div class="ds-error" class="fs-11">Failed: ${escapeHtml(result.error || '')}</div>`;
     }
   } catch (e) {
-    el.innerHTML = `<div class="ds-error" class="auto-fs11">Failed: ${escapeHtml(e.message)}</div>`;
+    el.innerHTML = `<div class="ds-error" class="fs-11">Failed: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -1218,33 +1218,33 @@ async function prepareExecution(title) {
         <div class="ds-stack">
           <div>
             <div class="ds-cascade-label">Execution plan</div>
-            <div class="auto-fs15-text-primary-mb16">${escapeHtml(humanize(plan.summary || ''))}</div>
+            <div class="b-fs15-text-3">${escapeHtml(humanize(plan.summary || ''))}</div>
           </div>
           ${plan.steps ? plan.steps.map(s => `
-            <div class="ds-card" class="auto-p14">
-              <div class="ds-row-between" class="auto-mb6">
+            <div class="ds-card" class="b-p14">
+              <div class="ds-row-between" class="mb-6">
                 <span class="ds-tag ds-tag-pending">Step ${s.step}</span>
                 <span class="ds-meta">${escapeHtml(s.estimated_time || '')}</span>
               </div>
-              <div class="auto-fs14-fw500-text-primary-mb4">${escapeHtml(humanize(s.title || ''))}</div>
-              <div class="auto-fs13-text-secondary-2">${escapeHtml(humanize(s.detail || ''))}</div>
+              <div class="b-fs14-fw500-3">${escapeHtml(humanize(s.title || ''))}</div>
+              <div class="subtle-text">${escapeHtml(humanize(s.detail || ''))}</div>
               <div class="ds-meta" class="mt-6">Owner: ${escapeHtml(humanize(s.owner || ''))}${s.prerequisite ? ' · After: ' + escapeHtml(humanize(s.prerequisite)) : ''}</div>
             </div>
           `).join('') : ''}
           <div>
             <div class="ds-cascade-label">Drafted briefing</div>
-            <div class="auto-p14-bg-surface-rad8-fs13">${escapeHtml(humanize(plan.drafted_briefing || ''))}</div>
+            <div class="b-p14-bg-3">${escapeHtml(humanize(plan.drafted_briefing || ''))}</div>
           </div>
           <div>
             <div class="ds-cascade-label">Follow-through</div>
-            <div class="auto-fs13-text-secondary-2">
+            <div class="subtle-text">
               Check-in: ${escapeHtml(plan.follow_through?.check_in_date || '')}<br>
               Success: ${escapeHtml(humanize(plan.follow_through?.success_metric || ''))}
             </div>
           </div>
-          <div class="auto-u-7f83-pt16-mt8">
-            <div class="ds-cascade-label" class="auto-mb10">Execute — create tickets, drafts, messages</div>
-            <div class="auto-flex-gap8-u-9012">
+          <div class="b-u-7f83">
+            <div class="ds-cascade-label" class="mb-10">Execute — create tickets, drafts, messages</div>
+            <div class="b-flex-gap8-4">
               <button class="ds-btn ds-btn-primary ds-btn-small" onclick="executeWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(title).replace(/'/g,"\\'")}',description:'See execution plan',issue_type:'Task'})">Create Jira ticket</button>
               <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="executeWriteBack('gmail','create_draft',{to:'team@acme.com',subject:'Action needed: ${escapeJs(title).replace(/'/g,"\\'")}',body:'See execution plan'})">Draft email</button>
               <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="executeWriteBack('slack','post_message',{channel:'general',text:'Action needed: ${escapeJs(title).replace(/'/g,"\\'")}'})">Post to Slack</button>
@@ -1275,9 +1275,9 @@ async function executeWriteBack(provider, actionType, params) {
 
     // Show preview + approve/reject buttons
     resultEl.innerHTML = `
-      <div class="auto-p14-bg-surface-border-default-rad8">
-        <div class="auto-fs13-fw500-text-primary-mb8">Preview</div>
-        <pre class="auto-fs12-text-secondary-ws-pre-wrap-m00120">${escapeHtml(preview.preview)}</pre>
+      <div class="b-p14-bg-2">
+        <div class="b-fs13-fw500-3">Preview</div>
+        <pre class="b-fs12-text-20">${escapeHtml(preview.preview)}</pre>
         <div class="flex-row">
           <button class="ds-btn ds-btn-primary ds-btn-small" onclick="approveWriteBack('${preview.action_id}')">Approve & Execute</button>
           <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="rejectWriteBack('${preview.action_id}')">Reject</button>
@@ -1302,7 +1302,7 @@ async function approveWriteBack(actionId) {
       else if (r.provider === 'gmail') detail = `Draft created (NOT sent): <a href="${r.draft_url || '#'}" target="_blank" class="text-accent">Open in Gmail</a>`;
       else if (r.provider === 'slack') detail = `Message posted to ${escapeHtml(r.channel || '')} (ts: ${escapeHtml(r.message_ts || '')})`;
       else if (r.provider === 'github') detail = `Comment created: <a href="${r.comment_url || '#'}" target="_blank" class="text-accent">View</a>`;
-      resultEl.innerHTML = `<div class="auto-p14-bg-093d-bd-001d-rad8">Executed. ${detail}${r.mock ? ' (mock mode — no real API call)' : ''}</div>`;
+      resultEl.innerHTML = `<div class="b-p14-bg">Executed. ${detail}${r.mock ? ' (mock mode — no real API call)' : ''}</div>`;
     } else {
       resultEl.innerHTML = `<div class="ds-error">Execution failed: ${escapeHtml(result.error || 'unknown error')}</div>`;
     }
@@ -1316,7 +1316,7 @@ async function rejectWriteBack(actionId) {
   if (!resultEl) return;
   try {
     await api.postOEM(`/writeback/${actionId}/reject`, { rejected_by: 'ceo' });
-    resultEl.innerHTML = `<div class="auto-p14-text-muted-fs13">Action rejected.</div>`;
+    resultEl.innerHTML = `<div class="b-p14-text">Action rejected.</div>`;
   } catch (e) {
     resultEl.innerHTML = `<div class="ds-error">Reject failed: ${escapeHtml(e.message)}</div>`;
   }

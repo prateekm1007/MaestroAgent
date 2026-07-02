@@ -19,7 +19,7 @@
 async function loadPreparedDecisions() {
   const el = document.getElementById('ecc-prepared');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Assembling prepared decisions…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const data = await api.getOEM('/preparations');
@@ -35,7 +35,7 @@ function renderPreparedDecisions(container, preps) {
 
   if (!preps.length) {
     container.innerHTML = `<div class="ds-empty">
-      <div class="auto-fs135-text-secondary-mb6">No prepared decisions yet.</div>
+      <div class="b-fs135-text-2">No prepared decisions yet.</div>
       <div>Prepared decisions are assembled automatically from your recommendations — rollback plans, RFC drafts, customer briefs. They appear here when ready for your approval.</div>
     </div>`;
     return;
@@ -50,7 +50,7 @@ function renderPreparedDecisions(container, preps) {
 
     return `
       <div class="ds-card" data-preparation-id="${escapeHtml(p.preparation_id)}">
-        <div class="ds-row-between" class="auto-mb8">
+        <div class="ds-row-between" class="mb-8">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(status)}</span>
             <span class="ds-meta">${escapeHtml(p.preparation_type || 'preparation')}</span>
@@ -58,25 +58,25 @@ function renderPreparedDecisions(container, preps) {
           ${p.confidence != null ? `<span class="ds-meta">conf <span class="ds-meta-strong">${formatConfidence(p.confidence)}</span></span>` : ''}
         </div>
 
-        <div class="auto-fs145-fw500-text-primary-mb6">${escapeHtml(humanize(p.title))}</div>
+        <div class="b-fs145-fw500-2">${escapeHtml(humanize(p.title))}</div>
 
-        ${p.summary ? `<div class="auto-fs13-text-secondary-lh155-mb10">${escapeHtml(humanize(p.summary))}</div>` : ''}
+        ${p.summary ? `<div class="b-fs13-text-18">${escapeHtml(humanize(p.summary))}</div>` : ''}
 
-        <div class="ds-row" class="auto-gap14-mb10-u-9012">
+        <div class="ds-row" class="b-gap14-mb10-2">
           ${assumptionCount > 0 ? `<span class="ds-meta">${assumptionCount} assumption${assumptionCount === 1 ? '' : 's'}</span>` : ''}
           ${evidenceCount > 0 ? `<span class="ds-meta">${evidenceCount} evidence signal${evidenceCount === 1 ? '' : 's'}</span>` : ''}
           ${p.intent_id ? `<span class="ds-meta">linked intent</span>` : ''}
         </div>
 
         ${p.content ? `
-          <div class="auto-mb10">
+          <div class="mb-10">
             <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="togglePrepContent('${escapeJs(p.preparation_id)}')">Review content</button>
-            <div id="prep-content-${escapeHtml(p.preparation_id)}" class="auto-hidden-mt8-p1012-bg-surface">${escapeHtml(p.content)}</div>
+            <div id="prep-content-${escapeHtml(p.preparation_id)}" class="b-hidden-mt8">${escapeHtml(p.content)}</div>
           </div>
         ` : ''}
 
         ${isReady ? `
-          <div class="ds-row" class="auto-gap6">
+          <div class="ds-row" class="b-gap6">
             <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparedDecision('${escapeJs(p.preparation_id)}')">Approve</button>
             <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparedDecision('${escapeJs(p.preparation_id)}')">Reject</button>
             ${p.intent_id ? `<button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View cascade</button>` : ''}

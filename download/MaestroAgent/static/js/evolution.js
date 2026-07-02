@@ -8,7 +8,7 @@
 async function loadEvolution() {
   const el = document.getElementById('evolution-content');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Measuring how your organization has evolved…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const data = await api.getOEM('/evolution?window=90d');
@@ -16,7 +16,7 @@ async function loadEvolution() {
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization is still gathering the history needed to measure evolution.</div>
-      <div class="auto-mt8-fs13">After 90 days of signals, Maestro will show how decision quality, knowledge mobility, and prediction accuracy have changed.</div>
+      <div class="b-mt8-fs13">After 90 days of signals, Maestro will show how decision quality, knowledge mobility, and prediction accuracy have changed.</div>
     </div>`;
   }
 }
@@ -45,10 +45,10 @@ function renderEvolutionReport(el, data) {
 
     html += `
       <div class="story-card">
-        <div class="auto-flex-u-1e2c-gap10-mb8">
-          <span class="auto-fs20-clr-6419">${arrow}</span>
-          <span class="auto-fs15-fw500-text-primary-tt-capitalize">${escapeHtml(humanName)}</span>
-          <span class="auto-mlauto-fs13-clr-6419">${delta > 0 ? '+' : ''}${(delta * 100).toFixed(0)}%</span>
+        <div class="b-flex-u-3">
+          <span class="b-fs20-clr">${arrow}</span>
+          <span class="b-fs15-fw500">${escapeHtml(humanName)}</span>
+          <span class="b-mlfs13-clr">${delta > 0 ? '+' : ''}${(delta * 100).toFixed(0)}%</span>
         </div>
         <div class="story-narrative">${escapeHtml(humanize(narrative))}</div>
         <div class="story-evidence">Based on ${evidence} ${evidence === 1 ? 'signal' : 'signals'}</div>
@@ -58,7 +58,7 @@ function renderEvolutionReport(el, data) {
 
   // Caveats
   if (caveats) {
-    html += `<div class="auto-mt24-p16-rad8-bg-surface">${escapeHtml(caveats)}</div>`;
+    html += `<div class="b-mt24-p16-2">${escapeHtml(caveats)}</div>`;
   }
 
   html += `</div>`;

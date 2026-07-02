@@ -6,7 +6,7 @@
 // Round 45 redesign — 3 sub-surfaces, all Bumble-styled:
 //   1. Whispers  — ambient intelligence from contradictions + overnight
 //   2. Timeline  — chronological signal feed (V8 Daily Work #1)
-//   3. Tasks     — auto-extracted action items (V8 Daily Work #2)
+//   3. Tasks     — b-extracted action items (V8 Daily Work #2)
 //
 // Bumble design: bold cards, pill buttons, system typography,
 // swipe-card-category badges, maestro-btn classes. Each surface uses
@@ -25,7 +25,7 @@ let _workSubTab = 'whispers';  // 'whispers' | 'timeline' | 'tasks'
 async function loadWork() {
   const el = document.getElementById('work-content');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Listening to your tools…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     // Fetch everything in parallel — the 3 sub-tabs share the same data
@@ -40,9 +40,9 @@ async function loadWork() {
 
     renderWorkSurface(el, briefing, contradictions, dashboard, timeline, tasks);
   } catch (e) {
-    el.innerHTML = `<div class="calm-empty" class="auto-text-center-p4820">
+    el.innerHTML = `<div class="calm-empty" class="b-text-center-9">
       <div class="brief-card-title">Maestro is connecting to your tools.</div>
-      <div class="auto-fs14-text-muted">Configure signal sources in Settings to see ambient intelligence here.</div>
+      <div class="meta-text">Configure signal sources in Settings to see ambient intelligence here.</div>
     </div>`;
   }
 }
@@ -67,19 +67,19 @@ function renderWorkSurface(el, briefing, contradictions, dashboard, timeline, ta
 
   // Sub-tab pills — Bumble style
   html += `
-    <div class="auto-flex-gap8-mb20-u-9012">
+    <div class="b-flex-gap8">
       <button class="maestro-btn ${_workSubTab === 'whispers' ? '' : 'maestro-btn-ghost'}"
-              class="auto-fs13-minh36-p616-rad999"
+              class="b-fs13-minh36-3"
               onclick="_workSetTab('whispers')">
         Whispers${tabCounts.whispers > 0 ? ` · ${tabCounts.whispers}` : ''}
       </button>
       <button class="maestro-btn ${_workSubTab === 'timeline' ? '' : 'maestro-btn-ghost'}"
-              class="auto-fs13-minh36-p616-rad999"
+              class="b-fs13-minh36-3"
               onclick="_workSetTab('timeline')">
         Timeline${tabCounts.timeline > 0 ? ` · ${tabCounts.timeline}` : ''}
       </button>
       <button class="maestro-btn ${_workSubTab === 'tasks' ? '' : 'maestro-btn-ghost'}"
-              class="auto-fs13-minh36-p616-rad999"
+              class="b-fs13-minh36-3"
               onclick="_workSetTab('tasks')">
         Tasks${tabCounts.tasks > 0 ? ` · ${tabCounts.tasks}` : ''}
       </button>
@@ -186,41 +186,41 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
 
   // Whispers — Bumble cards with amber accent
   if (whispers.length > 0) {
-    html += `<div class="auto-fs14-fw800-text-primary-mb12-2">Whispers</div>`;
+    html += `<div class="b-fs14-fw800-5">Whispers</div>`;
     whispers.forEach((w, i) => {
       html += `
-        <div class="maestro-card whisper" data-idx="${i}" class="auto-mb12-u-24f4-cursor-pointer">
-          <div class="auto-fs15-fw700-text-primary-lh14">${escapeHtml(humanize(w.text))}</div>
-          <div class="auto-fs12-fw600-text-muted-mt6">via ${escapeHtml(w.source)}</div>
+        <div class="maestro-card whisper" data-idx="${i}" class="b-mb12-u">
+          <div class="b-fs15-fw700">${escapeHtml(humanize(w.text))}</div>
+          <div class="b-fs12-fw600-4">via ${escapeHtml(w.source)}</div>
         </div>
       `;
     });
   } else {
-    html += `<div class="calm-empty" class="auto-text-center-p3220">
-      <div class="auto-fs16-fw800-text-primary-mb6">No whispers right now.</div>
-      <div class="auto-fs13-text-muted">Maestro is listening. You'll know when something matters.</div>
+    html += `<div class="calm-empty" class="b-text-center-8">
+      <div class="b-fs16-fw800">No whispers right now.</div>
+      <div class="b-fs13-text-3">Maestro is listening. You'll know when something matters.</div>
     </div>`;
   }
 
   // Ambient integrations — Bumble cards with tool badges
-  html += `<div class="auto-fs14-fw800-text-primary-mt24-2">In your tools</div>`;
+  html += `<div class="b-fs14-fw800-9">In your tools</div>`;
   ambientCards.forEach((a, i) => {
     html += `
-      <div class="maestro-card ambient-card" data-idx="${i}" class="auto-mb12-cursor-pointer">
-        <div class="auto-inline-block-p412-rad999-bg-accent">${escapeHtml(a.tool)}</div>
-        <div class="auto-fs14-text-secondary-lh155">${escapeHtml(a.message)}</div>
+      <div class="maestro-card ambient-card" data-idx="${i}" class="b-mb12-cursor">
+        <div class="b-inline-block-7">${escapeHtml(a.tool)}</div>
+        <div class="b-fs14-text-12">${escapeHtml(a.message)}</div>
       </div>
     `;
   });
 
   // Deep capabilities — Bumble pill buttons
-  html += `<div class="auto-fs14-fw800-text-primary-mt24-2">Deep capabilities</div>`;
-  html += `<div class="auto-u-998b-u-f764-gap12">`;
+  html += `<div class="b-fs14-fw800-9">Deep capabilities</div>`;
+  html += `<div class="b-u-998b-2">`;
   deepCaps.forEach(cap => {
     const label = cap.count > 0
       ? `${escapeHtml(humanize(cap.label))} · ${cap.count}`
       : escapeHtml(humanize(cap.label));
-    html += `<button class="maestro-btn maestro-btn-secondary" class="auto-fs14-minh44-p1016" onclick="navTo('${cap.surface}')">${label}</button>`;
+    html += `<button class="maestro-btn maestro-btn-secondary" class="b-fs14-minh44-2" onclick="navTo('${cap.surface}')">${label}</button>`;
   });
   html += `</div>`;
 
@@ -235,9 +235,9 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
 
 function _renderTimelineSurface(timeline) {
   if (!timeline || !timeline.signals || timeline.signals.length === 0) {
-    return `<div class="calm-empty" class="auto-text-center-p4820">
-      <div class="auto-fs18-fw800-text-primary-mb8">No signals yet.</div>
-      <div class="auto-fs14-text-muted">Connect a signal source (GitHub, Jira, Slack) to see your organizational timeline here.</div>
+    return `<div class="calm-empty" class="b-text-center-9">
+      <div class="b-fs18-fw800-4">No signals yet.</div>
+      <div class="meta-text">Connect a signal source (GitHub, Jira, Slack) to see your organizational timeline here.</div>
     </div>`;
   }
 
@@ -248,15 +248,15 @@ function _renderTimelineSurface(timeline) {
   let html = '';
 
   // Header — count + pagination info
-  html += `<div class="auto-fs14-fw800-text-primary-mb4">Organizational Timeline</div>`;
-  html += `<div class="auto-fs12-text-muted-mb16">${pagination.total || signals.length} signal${(pagination.total || signals.length) === 1 ? '' : 's'} · most recent first${pagination.has_more ? ' · scroll for more' : ''}</div>`;
+  html += `<div class="b-fs14-fw800-7">Organizational Timeline</div>`;
+  html += `<div class="b-fs12-text-3">${pagination.total || signals.length} signal${(pagination.total || signals.length) === 1 ? '' : 's'} · most recent first${pagination.has_more ? ' · scroll for more' : ''}</div>`;
 
   // Filter pills (read-only display — future iteration can make them clickable)
   const activeFilters = Object.entries(filtersApplied).filter(([_, v]) => v);
   if (activeFilters.length > 0) {
-    html += `<div class="auto-flex-gap6-u-9012-mb12">`;
+    html += `<div class="b-flex-gap6-2">`;
     activeFilters.forEach(([key, val]) => {
-      html += `<div class="auto-inline-block-p310-rad999-bg-accent">${escapeHtml(key)}: ${escapeHtml(String(val))}</div>`;
+      html += `<div class="b-inline-block-4">${escapeHtml(key)}: ${escapeHtml(String(val))}</div>`;
     });
     html += `</div>`;
   }
@@ -281,14 +281,14 @@ function _renderTimelineSurface(timeline) {
 
     html += `
       <div class="maestro-card timeline-card" data-idx="${i}" class="mb-12">
-        <div class="auto-flex-u-daae-u-b505-gap12">
-          <div class="auto-flex-1-u-3f9f">
+        <div class="b-flex-u-9">
+          <div class="b-flex-u">
             <div class="swipe-card-category ${providerBadgeClass}" class="mb-8">${escapeHtml(provider.toUpperCase())}</div>
-            <div class="auto-fs15-fw700-text-primary-lh14-2">${escapeHtml(humanize(description))}</div>
-            ${actor ? `<div class="auto-fs12-fw600-text-secondary-mt4">by ${escapeHtml(humanize(actor))}</div>` : ''}
-            ${domain ? `<div class="auto-fs11-text-muted-mt2">${escapeHtml(humanize(domain))}</div>` : ''}
+            <div class="b-fs15-fw700-2">${escapeHtml(humanize(description))}</div>
+            ${actor ? `<div class="b-fs12-fw600-5">by ${escapeHtml(humanize(actor))}</div>` : ''}
+            ${domain ? `<div class="b-fs11-text-2">${escapeHtml(humanize(domain))}</div>` : ''}
           </div>
-          <div class="auto-fs11-text-muted-ws-nowrap-fw600">${escapeHtml(timeDisplay)}</div>
+          <div class="b-fs11-text-4">${escapeHtml(timeDisplay)}</div>
         </div>
       </div>
     `;
@@ -296,8 +296,8 @@ function _renderTimelineSurface(timeline) {
 
   // Load more button (if pagination has more)
   if (pagination.has_more) {
-    html += `<div class="auto-text-center-mt16">
-      <button class="maestro-btn maestro-btn-ghost" class="auto-fs13-minh36-p616" onclick="_loadMoreTimeline()">Load more</button>
+    html += `<div class="b-text-center-3">
+      <button class="maestro-btn maestro-btn-ghost" class="b-fs13-minh36-2" onclick="_loadMoreTimeline()">Load more</button>
     </div>`;
   }
 
@@ -378,16 +378,16 @@ async function _loadMoreTimeline() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SUB-TAB 3: TASKS — auto-extracted action items (V8 Daily Work #2)
+// SUB-TAB 3: TASKS — b-extracted action items (V8 Daily Work #2)
 // Each task is a maestro-card with a priority badge. Swipe-right marks
 // the task done (with confirmation); swipe-left defers it.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function _renderTasksSurface(tasks) {
   if (!tasks || !tasks.tasks || tasks.tasks.length === 0) {
-    return `<div class="calm-empty" class="auto-text-center-p4820">
-      <div class="auto-fs18-fw800-text-primary-mb8">No open tasks.</div>
-      <div class="auto-fs14-text-muted">Maestro scans your signals for action items ("Priya to review by Friday", "TODO: update docs"). They'll appear here.</div>
+    return `<div class="calm-empty" class="b-text-center-9">
+      <div class="b-fs18-fw800-4">No open tasks.</div>
+      <div class="meta-text">Maestro scans your signals for action items ("Priya to review by Friday", "TODO: update docs"). They'll appear here.</div>
     </div>`;
   }
 
@@ -398,8 +398,8 @@ function _renderTasksSurface(tasks) {
   let html = '';
 
   // Header — counts
-  html += `<div class="auto-fs14-fw800-text-primary-mb4">Your Tasks</div>`;
-  html += `<div class="auto-fs12-text-muted-mb16">${openTasks.length} open · ${doneCount} done${highPriorityCount > 0 ? ` · ${highPriorityCount} high priority` : ''}</div>`;
+  html += `<div class="b-fs14-fw800-7">Your Tasks</div>`;
+  html += `<div class="b-fs12-text-3">${openTasks.length} open · ${doneCount} done${highPriorityCount > 0 ? ` · ${highPriorityCount} high priority` : ''}</div>`;
 
   // Sort open tasks: high priority first, then by due date
   const sorted = [...openTasks].sort((a, b) => {
@@ -444,20 +444,20 @@ function _renderTasksSurface(tasks) {
     }
 
     html += `
-      <div class="maestro-card task-card" data-idx="${i}" data-task-id="${escapeHtml(taskId)}" class="auto-mb12-cursor-pointer">
-        <div class="auto-flex-u-daae-u-b505-gap12">
-          <div class="swipe-card-category ${priBadgeClass}" class="auto-mb8-u-5cd1">${priLabel}</div>
-          ${confLabel ? `<div class="auto-inline-block-p310-rad999-bg-7d51">${confLabel}</div>` : ''}
+      <div class="maestro-card task-card" data-idx="${i}" data-task-id="${escapeHtml(taskId)}" class="b-mb12-cursor">
+        <div class="b-flex-u-9">
+          <div class="swipe-card-category ${priBadgeClass}" class="b-mb8-u">${priLabel}</div>
+          ${confLabel ? `<div class="b-inline-block-2">${confLabel}</div>` : ''}
         </div>
-        <div class="auto-fs15-fw700-text-primary-lh14-2">${escapeHtml(humanize(description))}</div>
-        <div class="auto-flex-gap12-u-9012-mt8">
+        <div class="b-fs15-fw700-2">${escapeHtml(humanize(description))}</div>
+        <div class="b-flex-gap12-3">
           ${assignee ? `<span>👤 ${escapeHtml(humanize(assignee))}</span>` : ''}
-          ${dueDate ? `<span class="auto-text-secondary">📅 ${escapeHtml(dueDate)}${isOverdue ? ' · OVERDUE' : isToday ? ' · TODAY' : ''}</span>` : ''}
+          ${dueDate ? `<span class="text-secondary">📅 ${escapeHtml(dueDate)}${isOverdue ? ' · OVERDUE' : isToday ? ' · TODAY' : ''}</span>` : ''}
           ${domain ? `<span>🏷️ ${escapeHtml(humanize(domain))}</span>` : ''}
         </div>
-        <div class="auto-flex-gap8-mt12">
-          <button class="maestro-btn maestro-btn-secondary task-done-btn" class="auto-flex-1-fs13-minh40" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Mark done</button>
-          <button class="maestro-btn maestro-btn-ghost task-defer-btn" class="auto-flex-1-fs13-minh40" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Defer</button>
+        <div class="b-flex-gap8-2">
+          <button class="maestro-btn maestro-btn-secondary task-done-btn" class="b-flex-fs13" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Mark done</button>
+          <button class="maestro-btn maestro-btn-ghost task-defer-btn" class="b-flex-fs13" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Defer</button>
         </div>
       </div>
     `;
@@ -465,7 +465,7 @@ function _renderTasksSurface(tasks) {
 
   // Done count footer
   if (doneCount > 0) {
-    html += `<div class="auto-text-center-mt16-fs12-text-muted">${doneCount} task${doneCount === 1 ? '' : 's'} completed</div>`;
+    html += `<div class="b-text-center-4">${doneCount} task${doneCount === 1 ? '' : 's'} completed</div>`;
   }
 
   return html;

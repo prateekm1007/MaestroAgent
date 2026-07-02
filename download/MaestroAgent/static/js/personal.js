@@ -49,27 +49,27 @@ function loadPersonalMode() {
   if (!el) return;
 
   el.innerHTML = `
-    <div class="auto-flex-minh100vh">
+    <div class="b-flex-minh100vh">
       <!-- Personal sidebar (4 items) -->
-      <div class="auto-w200-u-7690-p200-u-5cd1">
-        <div class="auto-p02020-fs11-tt-uppercase-text-muted">Personal</div>
+      <div class="b-w200-u">
+        <div class="b-p02020-fs11">Personal</div>
         ${_personalSurfaces.map(s => `
           <button class="personal-nav-btn" data-surface="${s.id}"
-                  class="auto-flex-u-1e2c-gap10-w-full"
+                  class="b-flex-u-4"
                   onclick="navPersonalSurface('${s.id}')">
             <span>${s.icon}</span>
             <span>${escapeHtml(s.label)}</span>
           </button>
         `).join('')}
-        <div class="auto-mt20-p020-u-7f83-pt20">
-          <button class="ds-btn ds-btn-ghost ds-btn-small" class="auto-w-full" onclick="showWhatMaestroKnows()">
+        <div class="b-mt20-p020">
+          <button class="ds-btn ds-btn-ghost ds-btn-small" class="w-full" onclick="showWhatMaestroKnows()">
             What Maestro Knows
           </button>
         </div>
       </div>
       <!-- Main content -->
-      <div class="auto-flex-1-p24-u-7ac6" id="personal-main">
-        <div class="ds-loading"><span class="spinner"></span> Loading...</div>
+      <div class="b-flex-p24" id="personal-main">
+        <div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>
       </div>
     </div>
   `;
@@ -208,19 +208,19 @@ async function loadPersonalToday(el) {
 
     if (deck.length > 0) {
       html += `
-        <div class="auto-fs14-fw800-text-primary-mb16">Your morning</div>
-        <div id="personal-swipe-deck-container" class="auto-pos-relative-minh400-mw420-m0auto">
+        <div class="b-fs14-fw800-6">Your morning</div>
+        <div id="personal-swipe-deck-container" class="b-pos-relative">
         </div>
-        <div id="personal-swipe-deck-progress" class="auto-text-center-mt16-fs13-fw700">
+        <div id="personal-swipe-deck-progress" class="b-text-center-5">
           ${deck.length} ${deck.length === 1 ? 'card' : 'cards'}
         </div>
-        <div id="personal-swipe-deck-summary" class="auto-hidden-text-center-p24">
-          <div class="auto-fs18-fw800-text-primary-2">That's your morning.</div>
+        <div id="personal-swipe-deck-summary" class="b-hidden-text">
+          <div class="b-fs18-fw800-2">That's your morning.</div>
         </div>
       `;
     } else {
       html += `
-        <div class="calm-empty" class="auto-text-center-p4820">
+        <div class="calm-empty" class="b-text-center-9">
           <div class="calm-empty-icon">☀️</div>
           <div class="calm-empty-title">Good morning.</div>
           <div class="calm-empty-body">Connect a source and I'll brief you tomorrow. I work either way.</div>
@@ -342,32 +342,32 @@ async function loadPersonalMemory(el) {
   let html = '<div class="work-section">';
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12-2">
-      <div class="auto-fs14-fw600-text-primary-mb12">Memory Replay</div>
+    <div class="b-p20-bg-2">
+      <div class="section-title">Memory Replay</div>
       <input type="text" class="ask-input" id="memory-replay-input"
              placeholder="What did I talk about with Sarah?"
              onkeydown="if(event.key==='Enter') doMemoryReplay(this.value)"
-             class="auto-w-full-p812-bg-surface-border-default" />
-      <div id="memory-replay-result" class="auto-mt12"></div>
+             class="b-w-full-8" />
+      <div id="memory-replay-result" class="mt-12"></div>
     </div>
   `;
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12-2">
-      <div class="auto-fs14-fw600-text-primary-mb12">Personal Why?</div>
+    <div class="b-p20-bg-2">
+      <div class="section-title">Personal Why?</div>
       <input type="text" class="ask-input" id="personal-why-input"
              placeholder="Why did I skip the gym 3 times this month?"
              onkeydown="if(event.key==='Enter') doPersonalWhy(this.value)"
-             class="auto-w-full-p812-bg-surface-border-default" />
-      <div id="personal-why-result" class="auto-mt12"></div>
+             class="b-w-full-8" />
+      <div id="personal-why-result" class="mt-12"></div>
     </div>
   `;
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12">
-      <div class="auto-fs14-fw600-text-primary-mb12">Evolution Report</div>
+    <div class="b-p20-bg">
+      <div class="section-title">Evolution Report</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadEvolutionReport()">Generate quarterly report</button>
-      <div id="evolution-report-result" class="auto-mt12"></div>
+      <div id="evolution-report-result" class="mt-12"></div>
     </div>
   `;
 
@@ -381,32 +381,32 @@ async function loadPersonalDecide(el) {
   let html = '<div class="work-section">';
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12-2">
-      <div class="auto-fs14-fw600-text-primary-mb12">Decision Support</div>
+    <div class="b-p20-bg-2">
+      <div class="section-title">Decision Support</div>
       <input type="text" class="ask-input" id="decide-input"
              placeholder="Should I take this trip?"
              onkeydown="if(event.key==='Enter') doDecide(this.value)"
-             class="auto-w-full-p812-bg-surface-border-default" />
-      <div id="decide-result" class="auto-mt12"></div>
+             class="b-w-full-8" />
+      <div id="decide-result" class="mt-12"></div>
     </div>
   `;
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12-2">
-      <div class="auto-fs14-fw600-text-primary-mb12">Intent Cascade</div>
+    <div class="b-p20-bg-2">
+      <div class="section-title">Intent Cascade</div>
       <input type="text" class="ask-input" id="intent-input"
              placeholder="improve fitness"
              onkeydown="if(event.key==='Enter') doIntentCascade(this.value)"
-             class="auto-w-full-p812-bg-surface-border-default" />
-      <div id="intent-result" class="auto-mt12"></div>
+             class="b-w-full-8" />
+      <div id="intent-result" class="mt-12"></div>
     </div>
   `;
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12">
-      <div class="auto-fs14-fw600-text-primary-mb12">Prediction Market</div>
+    <div class="b-p20-bg">
+      <div class="section-title">Prediction Market</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadCalibration()">View calibration</button>
-      <div id="calibration-result" class="auto-mt12"></div>
+      <div id="calibration-result" class="mt-12"></div>
     </div>
   `;
 
@@ -420,19 +420,19 @@ async function loadPersonalReflect(el) {
   let html = '<div class="work-section">';
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12-2">
-      <div class="auto-fs14-fw600-text-primary-mb12">Reflection Prompts</div>
+    <div class="b-p20-bg-2">
+      <div class="section-title">Reflection Prompts</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadReflectionPrompts()">Get prompts</button>
-      <div id="reflection-prompts-result" class="auto-mt12"></div>
+      <div id="reflection-prompts-result" class="mt-12"></div>
     </div>
   `;
 
   html += `
-    <div class="auto-p20-bg-surface-border-default-rad12">
-      <div class="auto-fs14-fw600-text-primary-mb12">Legacy Builder</div>
-      <div class="auto-fs13-text-secondary-mb12">Document your life stories, values, and wisdom. Always private.</div>
+    <div class="b-p20-bg">
+      <div class="section-title">Legacy Builder</div>
+      <div class="b-fs13-text-19">Document your life stories, values, and wisdom. Always private.</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadLegacyPrompts()">Get writing prompts</button>
-      <div id="legacy-prompts-result" class="auto-mt12"></div>
+      <div id="legacy-prompts-result" class="mt-12"></div>
     </div>
   `;
 
@@ -483,10 +483,10 @@ async function doMemoryReplay(query) {
   el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/memory/replay', { query });
-    let html = '<div class="auto-p12-bg-surface-rad8">';
-    html += `<div class="auto-fs13-text-primary-ws-pre-wrap">${escapeHtml(humanize(data.summary || ''))}</div>`;
+    let html = '<div class="b-p12-bg">';
+    html += `<div class="b-fs13-text-15">${escapeHtml(humanize(data.summary || ''))}</div>`;
     if (data.third_party_warning) {
-      html += `<div class="auto-mt8-fs12-text-warning">${escapeHtml(humanize(data.third_party_warning))}</div>`;
+      html += `<div class="b-mt8-fs12">${escapeHtml(humanize(data.third_party_warning))}</div>`;
     }
     html += '</div>';
 
@@ -496,8 +496,8 @@ async function doMemoryReplay(query) {
     // Chips are derived from the memory graph, not generated by an LLM.
     const followUps = _generateMemoryFollowUps(query, data);
     if (followUps.length > 0) {
-      html += '<div class="auto-mt12">';
-      html += '<div class="auto-fs11-fw700-text-muted-mb6">Follow up</div>';
+      html += '<div class="mt-12">';
+      html += '<div class="b-fs11-fw700">Follow up</div>';
       followUps.forEach(fq => {
         html += `<button class="follow-up-chip" onclick="doMemoryReplay('${escapeJs(fq).replace(/'/g,"\\'")}')">${escapeHtml(fq)}</button>`;
       });
@@ -545,14 +545,14 @@ async function doPersonalWhy(question) {
   el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/why', { question });
-    let html = '<div class="auto-p12-bg-surface-rad8">';
+    let html = '<div class="b-p12-bg">';
     if (data.third_party_redirected) {
-      html += `<div class="auto-fs13-text-warning">${escapeHtml(humanize(data.explanation_chain[0].narrative || ''))}</div>`;
+      html += `<div class="b-fs13-text-25">${escapeHtml(humanize(data.explanation_chain[0].narrative || ''))}</div>`;
     } else {
       data.explanation_chain.forEach(step => {
-        html += `<div class="auto-p60-u-4300">
-          <div class="auto-fs13-fw500-text-primary">${escapeHtml(humanize(step.label || ''))}</div>
-          <div class="auto-fs12-text-secondary">${escapeHtml(humanize(step.narrative || ''))}</div>
+        html += `<div class="b-p60-u">
+          <div class="b-fs13-fw500">${escapeHtml(humanize(step.label || ''))}</div>
+          <div class="b-fs12-text-16">${escapeHtml(humanize(step.narrative || ''))}</div>
         </div>`;
       });
     }
@@ -569,12 +569,12 @@ async function doDecide(question) {
   el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/decide', { question });
-    let html = '<div class="auto-p12-bg-surface-rad8">';
-    html += `<div class="auto-fs12-text-muted-mb8-2">${escapeHtml(data.label || '')}</div>`;
-    html += `<div class="auto-fs13-text-primary-mb8">${escapeHtml(humanize(data.recommendation || ''))}</div>`;
-    html += `<div class="auto-flex-gap16-fs12"><div><strong>Pros:</strong> ${data.pros.map(p => escapeHtml(p)).join('; ')}</div></div>`;
-    html += `<div class="auto-fs12-mt4"><strong>Cons:</strong> ${data.cons.map(c => escapeHtml(c)).join('; ')}</div>`;
-    html += `<div class="auto-fs12-text-accent-mt8">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>`;
+    let html = '<div class="b-p12-bg">';
+    html += `<div class="b-fs12-text-5">${escapeHtml(data.label || '')}</div>`;
+    html += `<div class="b-fs13-text-12">${escapeHtml(humanize(data.recommendation || ''))}</div>`;
+    html += `<div class="b-flex-gap16"><div><strong>Pros:</strong> ${data.pros.map(p => escapeHtml(p)).join('; ')}</div></div>`;
+    html += `<div class="b-fs12-mt4"><strong>Cons:</strong> ${data.cons.map(c => escapeHtml(c)).join('; ')}</div>`;
+    html += `<div class="b-fs12-text">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>`;
     html += '</div>';
     el.innerHTML = html;
   } catch (e) {
@@ -588,7 +588,7 @@ async function doIntentCascade(intent) {
   el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/intent-cascade', { intent });
-    let html = '<div class="auto-p12-bg-surface-rad8">';
+    let html = '<div class="b-p12-bg">';
     const sections = [
       ['Assumptions', data.assumptions],
       ['Hypotheses', data.hypotheses],
@@ -596,9 +596,9 @@ async function doIntentCascade(intent) {
       ['Evidence Plan', data.evidence_plan],
     ];
     sections.forEach(([label, items]) => {
-      html += `<div class="auto-mb10"><div class="auto-fs12-fw600-text-accent-mb4">${label}</div>`;
+      html += `<div class="mb-10"><div class="b-fs12-fw600">${label}</div>`;
       items.forEach(item => {
-        html += `<div class="auto-fs12-text-secondary-p20">• ${escapeHtml(humanize(item.text || ''))}</div>`;
+        html += `<div class="b-fs12-text-18">• ${escapeHtml(humanize(item.text || ''))}</div>`;
       });
       html += '</div>';
     });
@@ -614,7 +614,7 @@ async function loadCalibration() {
   if (!el) return;
   try {
     const data = await api.getPersonal('/predictions/calibration');
-    el.innerHTML = `<div class="auto-p12-bg-surface-rad8-fs13">${escapeHtml(data.message || 'No data yet.')}</div>`;
+    el.innerHTML = `<div class="b-p12-bg-2">${escapeHtml(data.message || 'No data yet.')}</div>`;
   } catch (e) {
     el.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
   }
@@ -623,14 +623,14 @@ async function loadCalibration() {
 async function loadReflectionPrompts() {
   const el = document.getElementById('reflection-prompts-result');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Generating prompts…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.getPersonal('/reflection-prompts');
-    let html = '<div class="auto-p12-bg-surface-rad8">';
+    let html = '<div class="b-p12-bg">';
     data.prompts.forEach(p => {
-      html += `<div class="auto-p80-u-4300">
-        <div class="auto-fs13-text-primary-2">${escapeHtml(humanize(p.prompt || ''))}</div>
-        <div class="ds-meta" class="auto-mt2">${escapeHtml(p.type || '')}</div>
+      html += `<div class="b-p80-u">
+        <div class="b-fs13-text-8">${escapeHtml(humanize(p.prompt || ''))}</div>
+        <div class="ds-meta" class="mt-2">${escapeHtml(p.type || '')}</div>
       </div>`;
     });
     html += '</div>';
@@ -645,10 +645,10 @@ async function loadLegacyPrompts() {
   if (!el) return;
   try {
     const data = await api.getPersonal('/legacy/prompts');
-    let html = '<div class="auto-p12-bg-surface-rad8">';
-    html += '<div class="auto-fs13-text-secondary-mb8">Writing prompts for your legacy:</div>';
+    let html = '<div class="b-p12-bg">';
+    html += '<div class="b-fs13-text-21">Writing prompts for your legacy:</div>';
     data.prompts.forEach(p => {
-      html += `<div class="auto-fs13-text-primary-p40">• ${escapeHtml(p)}</div>`;
+      html += `<div class="b-fs13-text-14">• ${escapeHtml(p)}</div>`;
     });
     html += '</div>';
     el.innerHTML = html;
@@ -660,10 +660,10 @@ async function loadLegacyPrompts() {
 async function loadEvolutionReport() {
   const el = document.getElementById('evolution-report-result');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Generating report…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.getPersonal('/evolution-report');
-    el.innerHTML = `<div class="auto-p12-bg-surface-rad8-fs13-2">${escapeHtml(humanize(data.narrative || ''))}</div>`;
+    el.innerHTML = `<div class="b-p12-bg-3">${escapeHtml(humanize(data.narrative || ''))}</div>`;
   } catch (e) {
     el.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
   }
@@ -676,24 +676,24 @@ async function loadEvolutionReport() {
 async function showWhatMaestroKnows() {
   const el = document.getElementById('personal-main');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading everything Maestro knows about you…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.getPersonal('/dashboard');
     let html = '<div class="work-section">';
-    html += `<div class="auto-p20-bg-surface-border-default-rad12">`;
-    html += `<div class="auto-fs16-fw600-text-primary-mb8">What Maestro Knows About You</div>`;
-    html += `<div class="auto-fs13-text-secondary-mb16">${escapeHtml(data.message || '')}</div>`;
+    html += `<div class="b-p20-bg">`;
+    html += `<div class="b-fs16-fw600-2">What Maestro Knows About You</div>`;
+    html += `<div class="b-fs13-text-20">${escapeHtml(data.message || '')}</div>`;
     html += `<div class="ds-meta" class="mb-16">${data.total_sources} source(s) · ${data.total_items} item(s)</div>`;
 
     if (data.sources && data.sources.length > 0) {
       data.sources.forEach(src => {
-        html += `<div class="auto-p120-u-4300">
-          <div class="auto-flex-u-daae-u-1e2c">
+        html += `<div class="b-p120-u">
+          <div class="b-flex-u-7">
             <div>
-              <div class="auto-fs13-fw500-text-primary">${escapeHtml(src.source)}</div>
+              <div class="b-fs13-fw500">${escapeHtml(src.source)}</div>
               <div class="ds-meta">${src.item_count} item(s) · Consent: ${src.consent_active ? 'active' : 'revoked'}</div>
             </div>
-            <button class="ds-btn ds-btn-ghost ds-btn-small" class="auto-fs11-text-risk"
+            <button class="ds-btn ds-btn-ghost ds-btn-small" class="b-fs11-text-5"
                     onclick="revokePersonalSource('${escapeHtml(src.source)}')">Revoke</button>
           </div>
         </div>`;

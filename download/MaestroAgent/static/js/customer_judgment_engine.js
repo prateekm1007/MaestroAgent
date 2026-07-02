@@ -84,7 +84,7 @@ async function selectCustomer(name) {
 async function loadCustomerBrief(name) {
   const body = document.getElementById('customer-brief-body');
   const confEl = document.getElementById('customer-brief-confidence');
-  body.innerHTML = '<div class="loading-state"><span class="spinner"></span>Loading brief…</div>';
+  body.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const b = await api.getOEM(`/customer/brief/${encodeURIComponent(name)}`);
     confEl.textContent = `confidence ${formatConfidence(b.confidence)}`;
@@ -128,7 +128,7 @@ async function loadCustomerBrief(name) {
 async function loadCustomerCommittee(name) {
   const body = document.getElementById('customer-committee-body');
   const meta = document.getElementById('customer-committee-meta');
-  body.innerHTML = '<div class="loading-state"><span class="spinner"></span>Loading committee…</div>';
+  body.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const c = await api.getOEM(`/customer/committee/${encodeURIComponent(name)}`);
     meta.textContent = `${c.total_members} members · ${c.decision_radius} decision radius`;
@@ -155,7 +155,7 @@ async function loadCustomerCommittee(name) {
 
 async function loadCustomerDrift(name) {
   const body = document.getElementById('customer-drift-body');
-  body.innerHTML = '<div class="loading-state"><span class="spinner"></span>Loading drift…</div>';
+  body.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const d = await api.getOEM(`/customer/drift/${encodeURIComponent(name)}`);
     body.innerHTML = `
@@ -235,7 +235,7 @@ async function loadCustomerTwinForm(type, example) {
 async function runCustomerTwin(payload) {
   const resultEl = document.getElementById('customer-twin-result');
   resultEl.style.display = '';
-  resultEl.innerHTML = '<div class="loading-state"><span class="spinner"></span>Simulating…</div>';
+  resultEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postOEM('/customer/twin/simulate', payload);
     const riskColor = data.risk_level === 'critical' ? 'text-red-400' : data.risk_level === 'high' ? 'text-orange-400' : data.risk_level === 'medium' ? 'text-yellow-400' : 'text-green-400';

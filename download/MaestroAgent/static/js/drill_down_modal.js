@@ -13,7 +13,7 @@ async function openDrilldown(entityType, entityId) {
   const typeLabel = document.getElementById('drilldown-type');
 
   modal.classList.remove('hidden');
-  body.innerHTML = '<div class="loading-state"><span class="spinner"></span> Loading drill-down…</div>';
+  body.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   title.textContent = entityId;
   typeLabel.textContent = entityType.charAt(0).toUpperCase() + entityType.slice(1);
 
@@ -119,7 +119,7 @@ function renderDrilldownTab(tab) {
          ${pred.outcome ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Predicted Outcome</div><div class="text-sm text-brand-cyan">${escapeHtml(humanize(pred.outcome))}</div></div>` : ''}
          ${pred.detail ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Detail</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.detail))}</div></div>` : ''}
          ${pred.impact ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Impact</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.impact))}</div></div>` : ''}
-         ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" class="auto-w200"><div class="conf-bar-track"><div class="conf-bar-fill" class="auto-wpredconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(pred.confidence, { entity: 'prediction', title: pred.outcome })}</span></div></div>` : ''}
+         ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" class="b-w200"><div class="conf-bar-track"><div class="conf-bar-fill" class="b-wpredconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(pred.confidence, { entity: 'prediction', title: pred.outcome })}</span></div></div>` : ''}
          ${pred.risk ? `<div><span class="tag tag-rose">${escapeHtml(pred.risk)}</span></div>` : ''}
        </div>`;
   } else if (tab === 'simulation') {
@@ -156,11 +156,11 @@ function renderDrilldownTab(tab) {
        `).join('')}</div>`;
   } else if (tab === 'perspectives') {
     // Surface 4: Perspectives — translate this event into 6 team-specific views.
-    body.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Translating into team perspectives…</div>';
+    body.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
     renderPerspectivesTab(body);
   } else if (tab === 'sowhat') {
     // V3 Law 8: Everything answers 'so what?'
-    body.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Analyzing consequences…</div>';
+    body.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
     renderSoWhatTab(body);
   }
 }
@@ -181,19 +181,19 @@ async function renderSoWhatTab(bodyEl) {
       <div class="ds-stack">
         <div>
           <div class="ds-cascade-label">If ignored</div>
-          <div class="auto-fs14-text-primary-lh16">${escapeHtml(humanize(data.consequence_if_ignored || ''))}</div>
+          <div class="b-fs14-text-9">${escapeHtml(humanize(data.consequence_if_ignored || ''))}</div>
         </div>
         <div>
           <div class="ds-cascade-label">What to do</div>
-          <div class="auto-fs14-text-primary-lh16">${escapeHtml(humanize(data.recommended_action || ''))}</div>
+          <div class="b-fs14-text-9">${escapeHtml(humanize(data.recommended_action || ''))}</div>
         </div>
         <div>
           <div class="ds-cascade-label">When it matters</div>
-          <div class="auto-fs14-text-primary">${escapeHtml(humanize(data.time_horizon || ''))}</div>
+          <div class="b-fs14-text-4">${escapeHtml(humanize(data.time_horizon || ''))}</div>
         </div>
         <div>
           <div class="ds-cascade-label">How we know</div>
-          <div class="auto-fs13-text-secondary-2">${escapeHtml(humanize(data.confidence_in_consequence || ''))} · ${data.evidence_count || 0} signals</div>
+          <div class="subtle-text">${escapeHtml(humanize(data.confidence_in_consequence || ''))} · ${data.evidence_count || 0} signals</div>
         </div>
       </div>
     `;
@@ -222,7 +222,7 @@ async function renderPerspectivesTab(bodyEl) {
 
   if (!eventType) {
     bodyEl.innerHTML = `<div class="ds-empty">
-      <div class="auto-fs135-text-secondary-mb6">No perspectives available for this entity.</div>
+      <div class="b-fs135-text-2">No perspectives available for this entity.</div>
       <div>The Perspective Engine supports specific event types (customer commitment broken, objection raised, etc.). This entity doesn't map to a supported event type.</div>
     </div>`;
     return;
@@ -298,19 +298,19 @@ function renderPerspectiveGrid(bodyEl, data) {
   }
 
   bodyEl.innerHTML = `
-    <div class="auto-mb14">
+    <div class="b-mb14">
       <div class="ds-cascade-label">Event type</div>
-      <div class="auto-fs125-clr-c07c">${escapeHtml(data.event_type)}</div>
+      <div class="b-fs125-clr">${escapeHtml(data.event_type)}</div>
     </div>
     <div class="ds-perspective-grid">${rows}</div>
-    <div class="ds-meta" class="auto-mt14">Same event, six implications. Each team sees a different risk surface — coordination happens before the decision, not after.</div>
+    <div class="ds-meta" class="b-mt14">Same event, six implications. Each team sees a different risk surface — coordination happens before the decision, not after.</div>
   `;
 }
 
 async function runDrilldownSimulation() {
   const hires = parseInt(document.getElementById('drilldown-sim-hires').value);
   const resultEl = document.getElementById('drilldown-sim-result');
-  resultEl.innerHTML = '<div class="loading-state"><span class="spinner"></span> Running…</div>';
+  resultEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const lawCode = drilldownData?.simulation?.linked_laws?.[0];
     const resp = await fetch(`${MAESTRO_API}/api/oem/simulate`, {

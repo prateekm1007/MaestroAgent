@@ -6,7 +6,7 @@
 async function loadCanvas(decisionId) {
   const el = document.getElementById('canvas-content') || document.getElementById('main-content');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Mapping the decision…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     // If no decision ID, get the top recommendation
@@ -16,9 +16,9 @@ async function loadCanvas(decisionId) {
       if (ot.rec_id) {
         decisionId = ot.rec_id;
       } else {
-        el.innerHTML = `<div class="calm-empty" class="auto-text-center-p4820">
-          <div class="auto-fs18-fw800-text-primary-mb8">No active decisions to map.</div>
-          <div class="auto-fs14-text-muted">Connect more signal sources and Maestro will map your decisions here.</div>
+        el.innerHTML = `<div class="calm-empty" class="b-text-center-9">
+          <div class="b-fs18-fw800-4">No active decisions to map.</div>
+          <div class="meta-text">Connect more signal sources and Maestro will map your decisions here.</div>
         </div>`;
         return;
       }
@@ -36,19 +36,19 @@ function renderCanvas(el, data) {
   const edges = data.edges || [];
   const assessment = data.assessment || '';
 
-  let html = `<div class="auto-mw800-m0auto">`;
+  let html = `<div class="b-mw800-m0auto">`;
 
   // Header
   html += `
-    <div class="auto-mb20">
-      <div class="auto-fs18-fw800-text-primary">Decision Canvas</div>
-      <div class="auto-fs13-text-muted-mt4">${escapeHtml(humanize(assessment))}</div>
+    <div class="b-mb20">
+      <div class="b-fs18-fw800">Decision Canvas</div>
+      <div class="caption-text">${escapeHtml(humanize(assessment))}</div>
     </div>
   `;
 
   if (nodes.length === 0) {
-    html += `<div class="calm-empty" class="auto-text-center-p4820">
-      <div class="auto-fs16-fw700-text-primary">This decision has no dependencies mapped yet.</div>
+    html += `<div class="calm-empty" class="b-text-center-9">
+      <div class="b-fs16-fw700">This decision has no dependencies mapped yet.</div>
     </div>`;
     html += `</div>`;
     el.innerHTML = html;
@@ -56,10 +56,10 @@ function renderCanvas(el, data) {
   }
 
   // Canvas area — relative positioned for node placement
-  html += `<div class="auto-pos-relative-w-full-h600-bg-muted">`;
+  html += `<div class="b-pos-relative-3">`;
 
   // Render edges first (SVG lines behind nodes)
-  html += `<svg class="auto-pos-absolute-u-e89d-u-27fc-w-full">`;
+  html += `<svg class="b-pos-absolute-5">`;
   edges.forEach(edge => {
     const fromNode = nodes.find(n => n.id === edge.from);
     const toNode = nodes.find(n => n.id === edge.to);
@@ -90,12 +90,12 @@ function renderCanvas(el, data) {
 
     html += `
       <div class="maestro-card canvas-node" data-node-id="${escapeHtml(node.id)}"
-           class="auto-pos-absolute-u-1abd-u-02bd-wsize">
-        <div class="auto-inline-block-p28-rad999-bg-c178">${escapeHtml(node.type)}</div>
-        <div class="auto-fs12-fw700-text-primary-lh13">${escapeHtml(humanize(node.label))}</div>
-        ${node.detail ? `<div class="auto-fs10-text-muted-mt2-lh13">${escapeHtml(humanize(node.detail))}</div>` : ''}
-        ${node.confidence != null ? `<div class="auto-fs10-fw700-clr-c159-mt4">${Math.round(node.confidence * 100)}%</div>` : ''}
-        ${node.verified ? `<div class="auto-fs9-text-positive-fw700-mt2">✓ VERIFIED</div>` : ''}
+           class="b-pos-absolute">
+        <div class="b-inline-block">${escapeHtml(node.type)}</div>
+        <div class="b-fs12-fw700">${escapeHtml(humanize(node.label))}</div>
+        ${node.detail ? `<div class="b-fs10-text-2">${escapeHtml(humanize(node.detail))}</div>` : ''}
+        ${node.confidence != null ? `<div class="b-fs10-fw700">${Math.round(node.confidence * 100)}%</div>` : ''}
+        ${node.verified ? `<div class="b-fs9-text">✓ VERIFIED</div>` : ''}
       </div>
     `;
   });
@@ -104,7 +104,7 @@ function renderCanvas(el, data) {
 
   // Withdrawal path note
   html += `
-    <div class="auto-mt16-p1216-bg-muted-rad8">
+    <div class="b-mt16-p1216">
       <strong>Withdrawal path:</strong> You can map decisions on a whiteboard. This canvas saves time; without it, you are slower but functional.
     </div>
   `;

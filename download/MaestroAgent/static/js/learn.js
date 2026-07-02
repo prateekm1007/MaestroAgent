@@ -9,7 +9,7 @@
 async function loadLearn() {
   const el = document.getElementById('learn-content');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Recalling what your organization learned…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const [learning, improvement, calibration, identity, evolutionTracker, dna] = await Promise.all([
@@ -25,7 +25,7 @@ async function loadLearn() {
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization is still gathering experience.</div>
-      <div class="auto-mt8-fs13">As Maestro processes more signals, stories of organizational evolution will appear here.</div>
+      <div class="b-mt8-fs13">As Maestro processes more signals, stories of organizational evolution will appear here.</div>
     </div>`;
   }
 }
@@ -101,7 +101,7 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
   if (stories.length === 0) {
     html += `<div class="calm-empty">
       <div>Your organization is still gathering experience.</div>
-      <div class="auto-mt8-fs13">As predictions are resolved and patterns are validated, stories of organizational evolution will appear here.</div>
+      <div class="b-mt8-fs13">As predictions are resolved and patterns are validated, stories of organizational evolution will appear here.</div>
     </div>`;
   } else {
     html += `<div class="meta-surface sub-greeting">${stories.length} ${stories.length === 1 ? 'story' : 'stories'} from recent organizational learning.</div>`;
@@ -120,13 +120,13 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
   // V4 Organ #1 — Identity: does the org know itself?
   if (identity && identity.beliefs && identity.beliefs.length > 0) {
     html += `
-      <div class="auto-mt32-p20-rad12-bg-surface-2">
-        <div class="intention-label" class="auto-m00120-text-accent">Who your organization is</div>
-        <div class="auto-fs15-text-primary-lh16-mb16">${escapeHtml(humanize(identity.summary))}</div>
-        <div class="auto-fs13-text-secondary-mb8">
+      <div class="b-mt32-p20-2">
+        <div class="intention-label" class="b-m00120-text">Who your organization is</div>
+        <div class="b-fs15-text">${escapeHtml(humanize(identity.summary))}</div>
+        <div class="b-fs13-text-21">
           <strong>Strongest alignment:</strong> ${escapeHtml(humanize(identity.strongest_alignment || ''))}
         </div>
-        <div class="auto-fs13-text-secondary-2">
+        <div class="subtle-text">
           <strong>Largest gap:</strong> ${escapeHtml(humanize(identity.largest_gap || ''))}
         </div>
       </div>
@@ -136,15 +136,15 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
   // V6 Spec #5 — Organizational DNA: "Who your organization has become"
   if (dna && dna.chromosomes) {
     html += `
-      <div class="auto-mt32-p20-rad12-bg-surface-2">
-        <div class="intention-label" class="auto-text-accent-m00120">Who your organization has become</div>
-        <div class="auto-fs15-text-primary-mb16">${escapeHtml(humanize(dna.summary || ''))}</div>
-        <div class="auto-u-998b-u-f764-gap10">
+      <div class="b-mt32-p20-2">
+        <div class="intention-label" class="b-text-accent-2">Who your organization has become</div>
+        <div class="b-fs15-text-3">${escapeHtml(humanize(dna.summary || ''))}</div>
+        <div class="b-u-998b">
           ${Object.entries(dna.chromosomes).map(([name, chr]) => `
-            <div class="auto-p10-rad8-bg-surface">
-              <div class="auto-fs12-fw500-text-primary-tt-capitalize">${escapeHtml(name.replace(/_/g, ' '))}</div>
-              <div class="auto-fs11-text-secondary">${escapeHtml(humanize(chr.label || ''))}</div>
-              <div class="auto-fs10-text-muted-mt2">${escapeHtml(humanize(chr.basis || ''))}</div>
+            <div class="b-p10-rad8">
+              <div class="b-fs12-fw500">${escapeHtml(name.replace(/_/g, ' '))}</div>
+              <div class="b-fs11-text-6">${escapeHtml(humanize(chr.label || ''))}</div>
+              <div class="b-fs10-text">${escapeHtml(humanize(chr.basis || ''))}</div>
             </div>
           `).join('')}
         </div>
@@ -155,27 +155,27 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
   // V6 Spec #2 — Evolution Tracker: "Mistakes your organization no longer makes"
   if (evolutionTracker && evolutionTracker.failure_modes && evolutionTracker.failure_modes.length > 0) {
     html += `
-      <div class="auto-mt32-p20-rad12-bg-surface-2">
-        <div class="intention-label" class="auto-text-accent-m00120">Mistakes your organization no longer makes</div>
-        <div class="auto-fs14-text-secondary-mb16">${escapeHtml(humanize(evolutionTracker.summary || ''))}</div>
+      <div class="b-mt32-p20-2">
+        <div class="intention-label" class="b-text-accent-2">Mistakes your organization no longer makes</div>
+        <div class="body-text">${escapeHtml(humanize(evolutionTracker.summary || ''))}</div>
         ${evolutionTracker.failure_modes.slice(0, 4).map(m => {
           const status = m.current_status || 'active';
           const color = status === 'eliminated' ? 'var(--positive)' : status === 'resolving' ? 'var(--warning)' : 'var(--risk)';
           const label = status === 'eliminated' ? '✓ eliminated' : status === 'resolving' ? 'resolving' : 'active';
-          return `<div class="auto-p100-u-4300">
-            <div class="ds-row" class="auto-gap8">
-              <span class="auto-clr-6419-fs12-fw500">${label}</span>
-              <span class="auto-fs13-text-primary-2">${escapeHtml(humanize(m.failure_mode || ''))}</span>
+          return `<div class="b-p100-u">
+            <div class="ds-row" class="gap-8">
+              <span class="b-clr-fs12">${label}</span>
+              <span class="b-fs13-text-8">${escapeHtml(humanize(m.failure_mode || ''))}</span>
             </div>
-            <div class="auto-fs12-text-muted-mt4-2">${escapeHtml(humanize(m.narrative || ''))}</div>
+            <div class="b-fs12-text-10">${escapeHtml(humanize(m.narrative || ''))}</div>
           </div>`;
         }).join('')}
       </div>
     `;
   }
 
-  html += `<div class="intention-label" class="auto-mt32">Explore deeper</div>`;
-  html += `<div class="auto-u-998b-u-f764-gap8">`;
+  html += `<div class="intention-label" class="b-mt32">Explore deeper</div>`;
+  html += `<div class="b-u-998b-3">`;
   html += `<button class="intention-prompt" onclick="navTo('predictions')">Prediction calibration</button>`;
   html += `<button class="intention-prompt" onclick="navTo('assumptions')">Assumption accuracy</button>`;
   html += `<button class="intention-prompt" onclick="navTo('physics')">Organizational patterns</button>`;

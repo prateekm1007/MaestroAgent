@@ -15,7 +15,7 @@
 async function loadContradictions() {
   const listEl = document.getElementById('contradictions-list');
   if (!listEl) return;
-  listEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Detecting contradictions…</div>';
+  listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const data = await api.getOEM('/contradictions');
@@ -28,7 +28,7 @@ async function loadContradictions() {
 function renderContradictions(container, contradictions) {
   if (!contradictions.length) {
     container.innerHTML = `<div class="ds-empty">
-      <div class="auto-fs14-text-primary-mb6">No contradictions detected.</div>
+      <div class="b-fs14-text-11">No contradictions detected.</div>
       <div>Stated beliefs and observed behavior are aligned. Contradictions surface automatically as the OEM ingests new signals — commitment breaks, assumption invalidations, law violations, and bottleneck drift.</div>
     </div>`;
     return;
@@ -40,7 +40,7 @@ function renderContradictions(container, contradictions) {
     const acknowledged = c.status === 'acknowledged';
     return `
       <div class="ds-card" data-contradiction-id="${escapeHtml(c.contradiction_id)}">
-        <div class="ds-row-between" class="auto-mb10">
+        <div class="ds-row-between" class="mb-10">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${sevClass}">${escapeHtml(severity.toUpperCase())}</span>
             <span class="ds-meta">${escapeHtml(c.type || 'contradiction')}</span>
@@ -48,30 +48,30 @@ function renderContradictions(container, contradictions) {
           ${acknowledged ? `<span class="ds-tag ds-tag-validated">acknowledged</span>` : ''}
         </div>
 
-        <div class="auto-fs14-fw500-text-primary-mb8">${escapeHtml(c.title || c.description || 'Contradiction detected')}</div>
+        <div class="b-fs14-fw500-4">${escapeHtml(c.title || c.description || 'Contradiction detected')}</div>
 
         ${c.stated_belief ? `
-          <div class="auto-mb8">
+          <div class="mb-8">
             <div class="ds-cascade-label">Stated belief</div>
-            <div class="auto-fs13-text-secondary">${escapeHtml(c.stated_belief)}</div>
+            <div class="b-fs13-text-16">${escapeHtml(c.stated_belief)}</div>
           </div>
         ` : ''}
 
         ${c.observed_behavior ? `
-          <div class="auto-mb8">
+          <div class="mb-8">
             <div class="ds-cascade-label">Observed behavior</div>
-            <div class="auto-fs13-text-primary">${escapeHtml(c.observed_behavior)}</div>
+            <div class="b-fs13-text-7">${escapeHtml(c.observed_behavior)}</div>
           </div>
         ` : ''}
 
         ${c.description && c.title ? `
-          <div class="auto-fs125-text-secondary-lh155-mb8">${escapeHtml(humanize(c.description))}</div>
+          <div class="b-fs125-text-2">${escapeHtml(humanize(c.description))}</div>
         ` : ''}
 
         ${c.evidence && c.evidence.length ? `
-          <div class="auto-mb10">
+          <div class="mb-10">
             <div class="ds-cascade-label">Evidence (${c.evidence.length})</div>
-            <div class="ds-row" class="auto-u-9012-gap4">
+            <div class="ds-row" class="b-u-gap4">
               ${c.evidence.slice(0, 6).map(e => `<span class="source-cite">${escapeHtml(e.type || e.signal_type || 'signal')}</span>`).join('')}
               ${c.evidence.length > 6 ? `<span class="ds-meta">+${c.evidence.length - 6} more</span>` : ''}
             </div>
@@ -79,7 +79,7 @@ function renderContradictions(container, contradictions) {
         ` : ''}
 
         ${!acknowledged ? `
-          <div class="ds-row" class="auto-gap6">
+          <div class="ds-row" class="b-gap6">
             <button class="ds-btn ds-btn-primary ds-btn-small" onclick="acknowledgeContradiction('${escapeJs(c.contradiction_id)}')">Acknowledge</button>
           </div>
         ` : ''}

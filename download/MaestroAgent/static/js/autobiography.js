@@ -5,7 +5,7 @@
 async function loadAutobiography() {
   const el = document.getElementById('autobiography-content');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Writing your organization\u2019s story…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const data = await api.getOEM('/autobiography');
@@ -13,7 +13,7 @@ async function loadAutobiography() {
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization's story is still being written.</div>
-      <div class="auto-mt8-fs13">As Maestro gathers more history, the chapters will fill in.</div>
+      <div class="b-mt8-fs13">As Maestro gathers more history, the chapters will fill in.</div>
     </div>`;
   }
 }
@@ -26,10 +26,10 @@ function renderAutobiography(el, data) {
 
   for (const ch of chapters) {
     html += `
-      <div class="story-card" class="auto-mb16">
-        <div class="intention-label" class="auto-text-accent-mb8">${escapeHtml(humanize(ch.title || ''))}</div>
+      <div class="story-card" class="mb-16">
+        <div class="intention-label" class="accent-label">${escapeHtml(humanize(ch.title || ''))}</div>
         <div class="story-narrative">${escapeHtml(humanize(ch.narrative || ''))}</div>
-        ${ch.lessons && ch.lessons.length ? `<div class="story-evidence" class="auto-mt8">${ch.lessons.map(l => escapeHtml(humanize(l))).join(' · ')}</div>` : ''}
+        ${ch.lessons && ch.lessons.length ? `<div class="story-evidence" class="mt-8">${ch.lessons.map(l => escapeHtml(humanize(l))).join(' · ')}</div>` : ''}
       </div>
     `;
   }

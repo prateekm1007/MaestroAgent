@@ -37,20 +37,20 @@ function renderAskIntention(el) {
       <div class="intention-label">Common intentions</div>
       ${_intentionPrompts.map((p, i) => `
         <button class="intention-prompt" data-idx="${i}">
-          <span class="auto-text-accent-fw500">${escapeHtml(p.label)}</span>
-          <span class="auto-text-muted-ml8">— ${escapeHtml(p.text)}</span>
+          <span class="b-text-accent">${escapeHtml(p.label)}</span>
+          <span class="b-text-muted-6">— ${escapeHtml(p.text)}</span>
         </button>
       `).join('')}
 
-      <div class="auto-mt32">
+      <div class="b-mt32">
         <input type="text" class="maestro-input" id="ask-v2-input"
                placeholder="Ask me anything…"
                onkeydown="if(event.key==='Enter') submitAskV2(this.value)"
                aria-label="Ask the organization"
-               class="auto-fs16-fw600" />
+               class="b-fs16-fw600" />
       </div>
 
-      <div id="ask-v2-answer" class="auto-mt32"></div>
+      <div id="ask-v2-answer" class="b-mt32"></div>
     </div>
   `;
 
@@ -81,7 +81,7 @@ async function submitAskV2(question) {
     /\bwhy\b/.test(trimmedLower)
   );
   if (isWhyQuestion) {
-    answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Composing causal explanation…</div>';
+    answerEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
     answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const data = await api.getOEM(`/explain?q=${encodeURIComponent(question)}`);
@@ -94,7 +94,7 @@ async function submitAskV2(question) {
 
   // V5 Spec #5 — route "what if" questions to Imagination engine
   if (qLower.includes('what if') || qLower.includes('what would happen') || qLower.includes('imagine')) {
-    answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Imagining consequences…</div>';
+    answerEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
     answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const data = await api.getOEM(`/imagine?scenario=${encodeURIComponent(question)}`);
@@ -107,7 +107,7 @@ async function submitAskV2(question) {
 
   // V5 Spec #8 — route "when have we" questions to Recall engine
   if (qLower.includes('when have we') || qLower.includes('been here before') || qLower.includes('recall') || qLower.includes('last time')) {
-    answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Searching organizational memory…</div>';
+    answerEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
     answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const data = await api.getOEM(`/recall?situation=${encodeURIComponent(question)}`);
@@ -118,7 +118,7 @@ async function submitAskV2(question) {
     return;
   }
 
-  answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Consulting your organization\u2019s memory…</div>';
+  answerEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   // Scroll to answer
   answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -140,18 +140,18 @@ function renderAskV2Answer(el, question, data) {
   const humanAnswer = humanize(synthesized);
 
   let html = `
-    <div class="maestro-card" class="auto-mw420-m0auto">
-      <div class="swipe-card-category answer" class="auto-mb12">Answer</div>
-      <div class="auto-fs18-fw800-text-primary-lh135">
+    <div class="maestro-card" class="b-mw420-m0auto">
+      <div class="swipe-card-category answer" class="mb-12">Answer</div>
+      <div class="b-fs18-fw800-3">
         ${escapeHtml(humanAnswer)}
       </div>
   `;
 
   // Collapsible evidence detail (Apple's progressive disclosure)
   if (evidenceDetail) {
-    html += `<details class="auto-mt8-mb12">
-      <summary class="auto-cursor-pointer-fs13-text-accent-fw700">Show evidence</summary>
-      <div class="auto-mt8-p12-bg-muted-rad12">${escapeHtml(humanize(evidenceDetail))}</div>
+    html += `<details class="b-mt8-mb12">
+      <summary class="b-cursor-pointer">Show evidence</summary>
+      <div class="b-mt8-p12">${escapeHtml(humanize(evidenceDetail))}</div>
     </details>`;
   }
 
@@ -171,25 +171,25 @@ function renderAskV2Answer(el, question, data) {
       confLabel = 'CONFIDENT';
       confColor = 'var(--maestro-warning,#FF9800)';
     }
-    html += `<div class="auto-inline-block-p412-rad999-bg-7d51">${confLabel}</div>`;
+    html += `<div class="b-inline-block-5">${confLabel}</div>`;
   }
 
   // Swipe-to-rate hint (feeds attention signals P1-5)
   html += `
-    <div class="swipe-card-hint" class="auto-mtauto">
-      <span class="auto-text-muted">← Not useful</span>
-      <span class="auto-text-positive-2">Useful →</span>
+    <div class="swipe-card-hint" class="b-mtauto">
+      <span class="text-muted">← Not useful</span>
+      <span class="b-text-positive">Useful →</span>
     </div>
-    <div class="auto-flex-gap8-mt8">
-      <button class="maestro-btn maestro-btn-secondary" class="auto-flex-1-fs13-minh40" onclick="rateAskAnswer(false)">Not useful</button>
-      <button class="maestro-btn" class="auto-flex-1-fs13-minh40" onclick="rateAskAnswer(true)">Useful</button>
+    <div class="b-flex-gap8-3">
+      <button class="maestro-btn maestro-btn-secondary" class="b-flex-fs13" onclick="rateAskAnswer(false)">Not useful</button>
+      <button class="maestro-btn" class="b-flex-fs13" onclick="rateAskAnswer(true)">Useful</button>
     </div>
   `;
 
   html += `</div>`;
 
   // "Ask another question" — Bumble pill style
-  html += `<button class="maestro-btn maestro-btn-ghost maestro-btn-full" class="auto-mt16-mw420" onclick="loadAskV2()">Ask another question</button>`;
+  html += `<button class="maestro-btn maestro-btn-ghost maestro-btn-full" class="b-mt16-mw420" onclick="loadAskV2()">Ask another question</button>`;
 
   el.innerHTML = html;
 }
@@ -205,25 +205,25 @@ async function rateAskAnswer(useful) {
 
 function renderImaginationAnswer(el, question, data) {
   let html = `<div class="story-card">
-    <div class="story-narrative" class="auto-fw500-text-accent-mb12">${escapeHtml(humanize(data.scenario || question))}</div>
+    <div class="story-narrative" class="b-fw500-text">${escapeHtml(humanize(data.scenario || question))}</div>
   `;
   if (data.consequences && data.consequences.length) {
     for (const c of data.consequences) {
-      html += `<div class="auto-p100-u-4300">
-        <div class="auto-fs14-text-primary">${escapeHtml(humanize(c.effect || ''))}</div>
-        <div class="ds-meta" class="auto-mt4">Because: ${escapeHtml(humanize(c.cause || ''))}</div>
+      html += `<div class="b-p100-u">
+        <div class="b-fs14-text-4">${escapeHtml(humanize(c.effect || ''))}</div>
+        <div class="ds-meta" class="mt-4">Because: ${escapeHtml(humanize(c.cause || ''))}</div>
         <div class="ds-meta">Confidence: ${escapeHtml(humanize(c.confidence || ''))}</div>
       </div>`;
     }
   }
   if (data.historical_analogue) {
-    html += `<div class="auto-mt12-p12-bg-surface-rad8"><strong>Last time something similar happened:</strong> ${escapeHtml(humanize(data.historical_analogue))}</div>`;
+    html += `<div class="b-mt12-p12"><strong>Last time something similar happened:</strong> ${escapeHtml(humanize(data.historical_analogue))}</div>`;
   }
   if (data.recommendation) {
-    html += `<div class="auto-mt8-fs14-text-accent-fw500">${escapeHtml(humanize(data.recommendation))}</div>`;
+    html += `<div class="b-mt8-fs14">${escapeHtml(humanize(data.recommendation))}</div>`;
   }
   html += `</div>`;
-  html += `<button class="intention-prompt" onclick="loadAskV2()" class="auto-mt16">Ask another question</button>`;
+  html += `<button class="intention-prompt" onclick="loadAskV2()" class="mt-16">Ask another question</button>`;
   el.innerHTML = html;
 }
 
@@ -231,24 +231,24 @@ function renderRecallAnswer(el, question, data) {
   if (data.novel || !data.moments || data.moments.length === 0) {
     el.innerHTML = `<div class="story-card">
       <div class="story-narrative">${escapeHtml(humanize(data.summary || 'No similar past moments found.'))}</div>
-      <div class="story-evidence" class="auto-mt8">This may be a novel situation for the organization.</div>
+      <div class="story-evidence" class="mt-8">This may be a novel situation for the organization.</div>
     </div>
-    <button class="intention-prompt" onclick="loadAskV2()" class="auto-mt16">Ask another question</button>`;
+    <button class="intention-prompt" onclick="loadAskV2()" class="mt-16">Ask another question</button>`;
     return;
   }
   let html = `<div class="story-card">
-    <div class="story-narrative" class="auto-fw500-text-accent-mb12">${escapeHtml(humanize(data.summary || ''))}</div>
+    <div class="story-narrative" class="b-fw500-text">${escapeHtml(humanize(data.summary || ''))}</div>
   `;
   for (const m of data.moments) {
-    html += `<div class="auto-p120-u-4300">
-      <div class="ds-meta" class="auto-mb4">${escapeHtml(humanize(m.when || ''))}</div>
-      <div class="auto-fs14-text-primary">${escapeHtml(humanize(m.situation || ''))}</div>
-      <div class="auto-fs13-text-secondary-mt4">What we did: ${escapeHtml(humanize(m.what_we_did || ''))}</div>
-      <div class="auto-fs13-text-secondary-2">What we learned: ${escapeHtml(humanize(m.what_we_learned || ''))}</div>
+    html += `<div class="b-p120-u">
+      <div class="ds-meta" class="mb-4">${escapeHtml(humanize(m.when || ''))}</div>
+      <div class="b-fs14-text-4">${escapeHtml(humanize(m.situation || ''))}</div>
+      <div class="b-fs13-text-22">What we did: ${escapeHtml(humanize(m.what_we_did || ''))}</div>
+      <div class="subtle-text">What we learned: ${escapeHtml(humanize(m.what_we_learned || ''))}</div>
     </div>`;
   }
   html += `</div>`;
-  html += `<button class="intention-prompt" onclick="loadAskV2()" class="auto-mt16">Ask another question</button>`;
+  html += `<button class="intention-prompt" onclick="loadAskV2()" class="mt-16">Ask another question</button>`;
   el.innerHTML = html;
 }
 
@@ -261,17 +261,17 @@ function renderExplanationAnswer(el, question, data) {
   if (!data.steps || data.steps.length === 0) {
     el.innerHTML = `<div class="story-card">
       <div class="story-narrative">${escapeHtml(humanize(data.honest_limitation || data.summary || 'Maestro cannot explain this yet.'))}</div>
-      <div class="story-evidence" class="auto-mt8">Connect more providers (GitHub, Jira, Slack, Confluence) so Maestro can observe the pattern and compose a causal chain.</div>
+      <div class="story-evidence" class="mt-8">Connect more providers (GitHub, Jira, Slack, Confluence) so Maestro can observe the pattern and compose a causal chain.</div>
     </div>
-    <button class="intention-prompt" onclick="loadAskV2()" class="auto-mt16">Ask another question</button>`;
+    <button class="intention-prompt" onclick="loadAskV2()" class="mt-16">Ask another question</button>`;
     return;
   }
 
   // Header — the question + overall confidence + total evidence
   const overallPct = Math.round((data.overall_confidence || 0) * 100);
   let html = `<div class="story-card">
-    <div class="story-narrative" class="auto-fw500-text-accent-mb8">${escapeHtml(humanize(question))}</div>
-    <div class="ds-meta" class="auto-mb16">
+    <div class="story-narrative" class="b-fw500-text-2">${escapeHtml(humanize(question))}</div>
+    <div class="ds-meta" class="mb-16">
       ${data.step_count} step${data.step_count === 1 ? '' : 's'} · ${data.total_evidence} evidence signals · overall confidence ${overallPct}%
     </div>
     <div class="explanation-chain">`;
@@ -291,16 +291,16 @@ function renderExplanationAnswer(el, question, data) {
           <div class="explanation-step-narrative">${escapeHtml(humanize(step.narrative || ''))}</div>
           <div class="explanation-step-meta">
             <span class="ds-meta">${step.evidence_count} evidence</span>
-            <span class="ds-meta" class="auto-ml12">confidence ${confPct}%</span>
+            <span class="ds-meta" class="b-ml12">confidence ${confPct}%</span>
           </div>
-          <div class="explanation-conf-bar" class="auto-bg-08c2-h3-rad2-mt6">
-            <div class="auto-bg-41cc-h100-wconfpctp-transition"></div>
+          <div class="explanation-conf-bar" class="b-bg-08c2">
+            <div class="b-bg-41cc"></div>
           </div>
           ${step.sources && step.sources.length > 0 ? `
             <details class="explanation-sources">
-              <summary class="ds-meta" class="auto-cursor-pointer-mt6">${step.sources.length} source${step.sources.length === 1 ? '' : 's'}</summary>
-              <div class="auto-mt6">
-                ${step.sources.map(s => `<div class="ds-meta" class="auto-p20">${escapeHtml(s)}</div>`).join('')}
+              <summary class="ds-meta" class="b-cursor-pointer-2">${step.sources.length} source${step.sources.length === 1 ? '' : 's'}</summary>
+              <div class="mt-6">
+                ${step.sources.map(s => `<div class="ds-meta" class="p-20">${escapeHtml(s)}</div>`).join('')}
               </div>
             </details>
           ` : ''}
@@ -313,10 +313,10 @@ function renderExplanationAnswer(el, question, data) {
 
   // Honest limitation (if any) — shown as a footnote
   if (data.honest_limitation) {
-    html += `<div class="story-evidence" class="auto-mt16-u-4ddb">${escapeHtml(humanize(data.honest_limitation))}</div>`;
+    html += `<div class="story-evidence" class="b-mt16-u">${escapeHtml(humanize(data.honest_limitation))}</div>`;
   }
 
   html += `</div>`;
-  html += `<button class="intention-prompt" onclick="loadAskV2()" class="auto-mt16">Ask another question</button>`;
+  html += `<button class="intention-prompt" onclick="loadAskV2()" class="mt-16">Ask another question</button>`;
   el.innerHTML = html;
 }

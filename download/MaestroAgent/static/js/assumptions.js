@@ -18,7 +18,7 @@ let _assumptionsView = 'dangerous'; // 'dangerous' | 'all' | 'accuracy'
 async function loadAssumptions() {
   const containerEl = document.getElementById('assumptions-dangerous');
   if (!containerEl) return;
-  containerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Surfacing dangerous assumptions…</div>';
+  containerEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const data = await api.getOEM('/assumptions/dangerous');
@@ -31,7 +31,7 @@ async function loadAssumptions() {
 function renderDangerousAssumptions(container, assumptions) {
   if (!assumptions.length) {
     container.innerHTML = `<div class="ds-empty">
-      <div class="auto-fs14-text-primary-mb6">No dangerous assumptions detected.</div>
+      <div class="b-fs14-text-11">No dangerous assumptions detected.</div>
       <div>Dangerous assumptions are open, high-stakes, and unvalidated — the ones that could bankrupt a project if wrong. They surface automatically as the OEM ingests decision signals.</div>
     </div>`;
     return;
@@ -47,7 +47,7 @@ function renderDangerousAssumptions(container, assumptions) {
 
     return `
       <div class="ds-card" data-assumption-id="${escapeHtml(a.assumption_id)}">
-        <div class="ds-row-between" class="auto-mb10">
+        <div class="ds-row-between" class="mb-10">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(status)}</span>
             <span class="ds-tag ds-tag-${stakesClass}">${escapeHtml(stakes)} stakes</span>
@@ -55,27 +55,27 @@ function renderDangerousAssumptions(container, assumptions) {
           ${a.created_at ? `<span class="ds-meta">${formatTimestamp(a.created_at)}</span>` : ''}
         </div>
 
-        <div class="auto-fs14-text-primary-lh155-mb10">${escapeHtml(humanize(a.statement))}</div>
+        <div class="b-fs14-text-8">${escapeHtml(humanize(a.statement))}</div>
 
-        ${a.context ? `<div class="ds-meta" class="auto-mb10">${escapeHtml(humanize(a.context))}</div>` : ''}
+        ${a.context ? `<div class="ds-meta" class="mb-10">${escapeHtml(humanize(a.context))}</div>` : ''}
 
-        ${a.intent_id ? `<div class="ds-meta" class="auto-mb10">Supports: <span class="ds-meta-strong">intent ${escapeHtml(a.intent_id.substring(0, 16))}…</span></div>` : ''}
+        ${a.intent_id ? `<div class="ds-meta" class="mb-10">Supports: <span class="ds-meta-strong">intent ${escapeHtml(a.intent_id.substring(0, 16))}…</span></div>` : ''}
 
-        <div class="ds-row" class="auto-gap14-mb10">
+        <div class="ds-row" class="b-gap14-mb10">
           <span class="ds-meta">${supportingCount} supporting</span>
           <span class="ds-meta">${contradictingCount} contradicting</span>
           ${contradictingCount === 0 && supportingCount === 0 ? `<span class="ds-tag ds-tag-uncertain">unvalidated</span>` : ''}
         </div>
 
         ${contradictingCount > 0 ? `
-          <div class="auto-mb10-p810-bg-9876-bd-39ca">
-            <div class="ds-cascade-label" class="auto-text-risk">Evidence contradicts this assumption</div>
-            <div class="ds-meta" class="auto-mt2">${contradictingCount} signal${contradictingCount === 1 ? '' : 's'} suggest this assumption may be wrong</div>
+          <div class="b-mb10-p810">
+            <div class="ds-cascade-label" class="text-risk">Evidence contradicts this assumption</div>
+            <div class="ds-meta" class="mt-2">${contradictingCount} signal${contradictingCount === 1 ? '' : 's'} suggest this assumption may be wrong</div>
           </div>
         ` : ''}
 
         ${status === 'open' ? `
-          <div class="ds-row" class="auto-gap6">
+          <div class="ds-row" class="b-gap6">
             <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'validated')">Mark as validated</button>
             <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'invalidated')">Invalidate</button>
             <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View in cascade</button>
@@ -117,7 +117,7 @@ async function resolveAssumption(assumptionId, newStatus) {
 async function loadAssumptionAccuracy() {
   const containerEl = document.getElementById('assumptions-accuracy');
   if (!containerEl) return;
-  containerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Computing accuracy…</div>';
+  containerEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const report = await api.getOEM('/assumptions/accuracy');
@@ -136,37 +136,37 @@ function renderAssumptionAccuracy(container, report) {
 
   container.innerHTML = `
     <div class="ds-card">
-      <div class="auto-fs14-fw500-text-primary-mb14">Assumption accuracy report</div>
-      <div class="ds-row" class="auto-gap24-u-9012-mb14">
+      <div class="b-fs14-fw500-2">Assumption accuracy report</div>
+      <div class="ds-row" class="b-gap24-u">
         <div>
           <div class="ds-meta">Total</div>
-          <div class="auto-fs22-text-primary">${total}</div>
+          <div class="b-fs22-text-2">${total}</div>
         </div>
         <div>
           <div class="ds-meta">Validated</div>
-          <div class="auto-fs22-text-positive">${validated}</div>
+          <div class="b-fs22-text">${validated}</div>
         </div>
         <div>
           <div class="ds-meta">Invalidated</div>
-          <div class="auto-fs22-text-risk">${invalidated}</div>
+          <div class="b-fs22-text-3">${invalidated}</div>
         </div>
         <div>
           <div class="ds-meta">Still open</div>
-          <div class="auto-fs22-text-warning">${open}</div>
+          <div class="b-fs22-text-4">${open}</div>
         </div>
         <div>
           <div class="ds-meta">Accuracy rate</div>
-          <div class="auto-fs22-clr-c07c">${accuracyRate != null ? (accuracyRate * 100).toFixed(0) + '%' : '—'}</div>
+          <div class="b-fs22-clr">${accuracyRate != null ? (accuracyRate * 100).toFixed(0) + '%' : '—'}</div>
         </div>
       </div>
       ${report.most_costly_when_wrong && report.most_costly_when_wrong.length ? `
-        <div class="auto-mt16">
+        <div class="mt-16">
           <div class="ds-cascade-label">Most costly when wrong</div>
-          <div class="ds-stack" class="auto-mt8">
+          <div class="ds-stack" class="mt-8">
             ${report.most_costly_when_wrong.slice(0, 5).map(a => `
-              <div class="ds-card" class="auto-p1012">
-                <div class="auto-fs13-text-primary">${escapeHtml(humanize(a.statement))}</div>
-                <div class="ds-meta" class="auto-mt4">${escapeHtml(a.stakes || 'medium')} stakes · ${escapeHtml(a.status || 'resolved')}</div>
+              <div class="ds-card" class="b-p1012">
+                <div class="b-fs13-text-7">${escapeHtml(humanize(a.statement))}</div>
+                <div class="ds-meta" class="mt-4">${escapeHtml(a.stakes || 'medium')} stakes · ${escapeHtml(a.status || 'resolved')}</div>
               </div>
             `).join('')}
           </div>

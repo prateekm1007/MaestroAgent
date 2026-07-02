@@ -52,7 +52,7 @@ function formatTimestamp(ts) {
 }
 
 function loadingHTML(el, msg) {
-  el.innerHTML = `<div class="loading-state"><span class="spinner"></span> ${msg || 'Loading…'}</div>`;
+  el.innerHTML = `<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>`;
 }
 function errorHTML(el, msg, retryFn) {
   const retryBtn = retryFn ? `<button onclick="${retryFn}" class="btn btn-ghost text-[10px] ml-2">Retry</button>` : '';
@@ -116,7 +116,7 @@ function loadSurfaceData(surface) {
 async function loadUnifiedMemory() {
   const el = document.getElementById('memory-content') || document.getElementById('main-content');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading your memory…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const filter = getCurrentFilter ? getCurrentFilter() : 'all';
@@ -124,23 +124,23 @@ async function loadUnifiedMemory() {
     const items = data.items || [];
     const counts = data.counts || {};
 
-    let html = `<div class="auto-mw700-m0auto">`;
+    let html = `<div class="b-mw700-m0auto">`;
 
     // Header + filter pill container
     html += `
-      <div class="auto-flex-u-daae-u-1e2c-mb16">
+      <div class="b-flex-u-8">
         <div>
-          <div class="auto-fs18-fw800-text-primary">Memory</div>
-          <div class="auto-fs12-text-muted-mt2">${counts.all || 0} item${(counts.all || 0) === 1 ? '' : 's'} · most recent first</div>
+          <div class="b-fs18-fw800">Memory</div>
+          <div class="b-fs12-text-7">${counts.all || 0} item${(counts.all || 0) === 1 ? '' : 's'} · most recent first</div>
         </div>
         <div id="filter-pill-container"></div>
       </div>
     `;
 
     if (items.length === 0) {
-      html += `<div class="calm-empty" class="auto-text-center-p4820">
-        <div class="auto-fs18-fw800-text-primary-mb8">No memories yet.</div>
-        <div class="auto-fs14-text-muted">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
+      html += `<div class="calm-empty" class="b-text-center-9">
+        <div class="b-fs18-fw800-4">No memories yet.</div>
+        <div class="meta-text">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
       </div>`;
     } else {
       items.forEach((item, i) => {
@@ -172,13 +172,13 @@ async function loadUnifiedMemory() {
         }
 
         html += `
-          <div class="maestro-card" class="auto-mb12-pos-relative">
-            <div class="auto-pos-absolute-u-853f-u-2f11-w10-2" title="${dotTitle}" aria-label="Mode: ${dotTitle}"></div>
-            ${provider ? `<div class="swipe-card-category ${mode === 'work' ? 'decision' : 'habit'}" class="auto-mb8">${escapeHtml(provider.toUpperCase())}</div>` : ''}
-            <div class="auto-fs15-fw700-text-primary-lh14">${escapeHtml(humanize(description))}</div>
-            ${actor ? `<div class="auto-fs12-fw600-text-secondary-mt4">by ${escapeHtml(humanize(actor))}</div>` : ''}
-            ${domain ? `<div class="auto-fs11-text-muted-mt2">${escapeHtml(humanize(domain))}</div>` : ''}
-            ${timeDisplay ? `<div class="auto-fs11-text-muted-mt4-fw600">${escapeHtml(timeDisplay)}</div>` : ''}
+          <div class="maestro-card" class="b-mb12-pos">
+            <div class="b-pos-absolute-4" title="${dotTitle}" aria-label="Mode: ${dotTitle}"></div>
+            ${provider ? `<div class="swipe-card-category ${mode === 'work' ? 'decision' : 'habit'}" class="mb-8">${escapeHtml(provider.toUpperCase())}</div>` : ''}
+            <div class="b-fs15-fw700">${escapeHtml(humanize(description))}</div>
+            ${actor ? `<div class="b-fs12-fw600-5">by ${escapeHtml(humanize(actor))}</div>` : ''}
+            ${domain ? `<div class="b-fs11-text-2">${escapeHtml(humanize(domain))}</div>` : ''}
+            ${timeDisplay ? `<div class="b-fs11-text-3">${escapeHtml(timeDisplay)}</div>` : ''}
           </div>
         `;
       });

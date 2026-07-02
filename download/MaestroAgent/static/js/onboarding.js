@@ -131,8 +131,8 @@ function renderOnboardingWelcome() {
   return `
     <div class="onboarding-screen">
       <div class="onboarding-logo">M</div>
-      <div class="text-hero" class="auto-text-center-mbvar--space-3">Your organization's judgment, institutionalized.</div>
-      <div class="text-body" class="auto-text-center-text-secondary-mw320-mbvar--space-6">
+      <div class="text-hero" class="b-text-center">Your organization's judgment, institutionalized.</div>
+      <div class="text-body" class="b-text-center-10">
         I'm Maestro — your organizational intelligence layer.
       </div>
       <button class="maestro-btn maestro-btn-full" onclick="showOnboardingScreen(2)">Get Started</button>
@@ -148,12 +148,12 @@ function renderOnboardingWelcome() {
 function renderOnboardingName() {
   return `
     <div class="onboarding-screen">
-      <div class="text-title" class="auto-mbvar--space-5">What's your name?</div>
-      <div class="auto-w-full-mw420">
+      <div class="text-title" class="b-mbvar-space-4">What's your name?</div>
+      <div class="b-w-full-5">
         <input type="text" class="maestro-input" id="onboard-name" placeholder="First name"
                oninput="document.getElementById('onboard-name-btn').disabled = !this.value.trim"
-               class="auto-mbvar--space-4" autofocus />
-        <div class="text-caption" class="auto-text-muted-mbvar--space-5">
+               class="b-mbvar-space-3" autofocus />
+        <div class="text-caption" class="b-text-muted-4">
           This is how I'll greet you.
         </div>
         <button class="maestro-btn maestro-btn-full" id="onboard-name-btn" disabled
@@ -186,18 +186,18 @@ async function saveOnboardingName() {
 function renderOnboardingAbout() {
   return `
     <div class="onboarding-screen">
-      <div class="text-title" class="auto-mbvar--space-5">Tell me about you.</div>
-      <div class="auto-w-full-mw420">
-        <div class="onboarding-card" class="auto-mbvar--space-3">
-          <div class="text-label" class="auto-mbvar--space-2">How old are you?</div>
+      <div class="text-title" class="b-mbvar-space-4">Tell me about you.</div>
+      <div class="b-w-full-5">
+        <div class="onboarding-card" class="b-mbvar-space-2">
+          <div class="text-label" class="b-mbvar-space">How old are you?</div>
           <input type="number" class="maestro-input" id="onboard-age" placeholder="Age" min="18" max="120" />
         </div>
-        <div class="onboarding-card" class="auto-mbvar--space-3">
-          <div class="text-label" class="auto-mbvar--space-2">What do you do?</div>
-          <input type="text" class="maestro-input" id="onboard-role" placeholder="Role (e.g. Engineer, Student)" class="auto-mbvar--space-2" />
+        <div class="onboarding-card" class="b-mbvar-space-2">
+          <div class="text-label" class="b-mbvar-space">What do you do?</div>
+          <input type="text" class="maestro-input" id="onboard-role" placeholder="Role (e.g. Engineer, Student)" class="b-mbvar-space" />
           <input type="text" class="maestro-input" id="onboard-company" placeholder="Company (optional)" />
         </div>
-        <div class="text-caption" class="auto-text-muted-mbvar--space-4">
+        <div class="text-caption" class="b-text-muted-3">
           This is stored in your Maestro account. You can delete it anytime in Settings.
         </div>
         <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingAbout()">Continue</button>
@@ -240,26 +240,26 @@ function renderOnboardingWorkTools() {
 
   return `
     <div class="onboarding-screen">
-      <div class="text-title" class="auto-mbvar--space-2">Connect your work tools.</div>
-      <div class="text-body" class="auto-text-muted-mbvar--space-5-mw380-text-center">
+      <div class="text-title" class="b-mbvar-space">Connect your work tools.</div>
+      <div class="text-body" class="b-text-muted-5">
         Optional — skip if you want. I work either way.
       </div>
-      <div class="auto-w-full-mw420">
-        <div class="onboarding-card" class="auto-mbvar--space-4">
+      <div class="b-w-full-5">
+        <div class="onboarding-card" class="b-mbvar-space-3">
           ${tools.map(s => `
             <div class="onboarding-toggle-row">
-              <div class="auto-flex-u-1e2c-gapvar--space-3">
-                <span class="auto-fs24">${s.icon}</span>
+              <div class="b-flex-u-5">
+                <span class="fs-24">${s.icon}</span>
                 <div>
                   <div class="text-label">${escapeHtml(s.label)}</div>
-                  <div class="text-caption" class="auto-text-muted">${escapeHtml(s.desc)}</div>
+                  <div class="text-caption" class="text-muted">${escapeHtml(s.desc)}</div>
                 </div>
               </div>
               <div class="maestro-toggle" id="work-toggle-${s.id}" onclick="toggleWorkTool('${s.id}')"></div>
             </div>
           `).join('')}
         </div>
-        <div class="auto-flex-gapvar--space-3">
+        <div class="b-flex-gapvar">
           <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(5)">Skip for now</button>
           <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingWorkTools()">Continue</button>
         </div>
@@ -387,26 +387,26 @@ function renderOnboardingPersonalTools() {
 
   return `
     <div class="onboarding-screen">
-      <div class="text-title" class="auto-mbvar--space-2">Connect your personal tools.</div>
-      <div class="text-body" class="auto-text-muted-mbvar--space-5-mw380-text-center">
+      <div class="text-title" class="b-mbvar-space">Connect your personal tools.</div>
+      <div class="text-body" class="b-text-muted-5">
         Also optional. Personal data stays separate from work by default.
       </div>
-      <div class="auto-w-full-mw420">
-        <div class="onboarding-card" class="auto-mbvar--space-4">
+      <div class="b-w-full-5">
+        <div class="onboarding-card" class="b-mbvar-space-3">
           ${tools.map(s => `
             <div class="onboarding-toggle-row">
-              <div class="auto-flex-u-1e2c-gapvar--space-3">
-                <span class="auto-fs24">${s.icon}</span>
+              <div class="b-flex-u-5">
+                <span class="fs-24">${s.icon}</span>
                 <div>
                   <div class="text-label">${escapeHtml(s.label)}</div>
-                  <div class="text-caption" class="auto-text-muted">${escapeHtml(s.desc)}</div>
+                  <div class="text-caption" class="text-muted">${escapeHtml(s.desc)}</div>
                 </div>
               </div>
               <div class="maestro-toggle" id="personal-toggle-${s.id}" onclick="togglePersonalTool('${s.id}')"></div>
             </div>
           `).join('')}
         </div>
-        <div class="auto-flex-gapvar--space-3">
+        <div class="b-flex-gapvar">
           <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(6)">Skip for now</button>
           <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingPersonalTools()">Connect</button>
         </div>
@@ -450,9 +450,9 @@ function saveOnboardingPersonalTools() {
 function renderOnboardingDone() {
   return `
     <div class="onboarding-screen yellow-bg">
-      <div class="text-hero" class="auto-text-center-mbvar--space-5">You're in.</div>
-      <div class="auto-fs80-fw900-mbvar--space-5">✓</div>
-      <div class="text-label" class="auto-text-center-mw300-mbvar--space-6">
+      <div class="text-hero" class="b-text-center-2">You're in.</div>
+      <div class="b-fs80-fw900">✓</div>
+      <div class="text-label" class="b-text-center-7">
         I'll learn what matters as you use me. You'll get a briefing tomorrow morning.
       </div>
       <button class="maestro-btn maestro-btn-inverted maestro-btn-full" onclick="finishOnboarding()">

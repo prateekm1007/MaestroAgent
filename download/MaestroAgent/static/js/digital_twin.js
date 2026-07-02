@@ -68,7 +68,7 @@ function renderECCTwin(twinState) {
 async function runTwinScenario(scenario) {
   const resultEl = document.getElementById('twin-result');
   if (!resultEl) return;
-  resultEl.innerHTML = '<div class="loading-state"><span class="spinner"></span> Running simulation...</div>';
+  resultEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const resp = await fetch(MAESTRO_API + '/api/oem/twin/simulate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},

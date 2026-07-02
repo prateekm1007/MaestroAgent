@@ -182,13 +182,13 @@ function openCommandPalette() {
     palette.className = 'fixed inset-0 z-50';
     palette.style.cssText = 'display:flex;align-items:flex-start;justify-content:center;padding-top:120px;background:rgba(0,0,0,0.5);';
     palette.innerHTML = `
-      <div class="auto-bg-surface-border-default-rad12-w480">
+      <div class="b-bg-surface">
         <input type="text" id="command-palette-input" placeholder="Search surfaces…"
-               class="auto-w-full-p1620-bg-transparent-border-none"
+               class="b-w-full-7"
                aria-label="Search surfaces"
                oninput="filterCommandPalette(this.value)"
                onkeydown="handlePaletteKeydown(event)">
-        <div id="command-palette-results" class="auto-flex-1-u-7ac6-p8"></div>
+        <div id="command-palette-results" class="b-flex-u-2"></div>
       </div>
     `;
     palette.addEventListener('click', (e) => {
@@ -214,14 +214,14 @@ function renderPaletteResults(surfaces) {
   const results = document.getElementById('command-palette-results');
   if (!results) return;
   if (surfaces.length === 0) {
-    results.innerHTML = '<div class="auto-p20-text-center-text-muted-fs14">No surfaces found</div>';
+    results.innerHTML = '<div class="b-p20-text">No surfaces found</div>';
     return;
   }
   let currentGroup = '';
   results.innerHTML = surfaces.map(s => {
-    const groupHeader = s.group !== currentGroup ? `<div class="auto-p8164-fs10-fw600-tt-uppercase">${escapeHtml(s.group)}</div>` : '';
+    const groupHeader = s.group !== currentGroup ? `<div class="b-p8164-fs10">${escapeHtml(s.group)}</div>` : '';
     currentGroup = s.group;
-    return groupHeader + `<div class="palette-result" class="auto-p1016-cursor-pointer-rad6-fs14" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='transparent'" onclick="navTo('${escapeJs(s.id)}');closeCommandPalette();">${escapeHtml(s.label)}</div>`;
+    return groupHeader + `<div class="palette-result" class="b-p1016-cursor" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='transparent'" onclick="navTo('${escapeJs(s.id)}');closeCommandPalette();">${escapeHtml(s.label)}</div>`;
   }).join('');
 }
 

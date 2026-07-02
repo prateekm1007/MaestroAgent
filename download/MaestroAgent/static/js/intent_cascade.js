@@ -20,7 +20,7 @@ let _intentCascadeExpanded = new Set(); // intent_ids currently expanded
 async function loadIntentCascade() {
   const listEl = document.getElementById('intent-cascade-list');
   if (!listEl) return;
-  listEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading intents…</div>';
+  listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const data = await api.getOEM('/intents');
@@ -33,7 +33,7 @@ async function loadIntentCascade() {
 function renderIntentList(container, intents) {
   if (!intents.length) {
     container.innerHTML = `<div class="ds-empty">
-      <div class="auto-fs14-text-primary-mb6">No active intents yet.</div>
+      <div class="b-fs14-text-11">No active intents yet.</div>
       <div>Intents are inferred from your recommendations and signal history. Connect more signal sources in Settings to surface them.</div>
     </div>`;
     return;
@@ -43,21 +43,21 @@ function renderIntentList(container, intents) {
     const isExpanded = _intentCascadeExpanded.has(intent.intent_id);
     return `
       <div class="ds-card" data-intent-id="${escapeHtml(intent.intent_id)}">
-        <div class="ds-row-between" class="auto-cursor-pointer" onclick="toggleIntentCascade('${escapeJs(intent.intent_id)}')">
-          <div class="auto-flex-1-u-3f9f">
-            <div class="ds-row" class="auto-mb6">
+        <div class="ds-row-between" class="cursor-pointer" onclick="toggleIntentCascade('${escapeJs(intent.intent_id)}')">
+          <div class="b-flex-u">
+            <div class="ds-row" class="mb-6">
               <span class="ds-tag ds-tag-${intentStatusTagClass(intent.status)}">${escapeHtml(intent.status || 'active')}</span>
               ${intent.intent_type ? `<span class="ds-meta">${escapeHtml(intent.intent_type)}</span>` : ''}
             </div>
-            <div class="auto-fs145-fw500-text-primary-mb4">${escapeHtml(intent.goal)}</div>
+            <div class="b-fs145-fw500">${escapeHtml(intent.goal)}</div>
             <div class="ds-meta">${intent.owner ? `Owner: <span class="ds-meta-strong">${escapeHtml(intent.owner)}</span>` : 'No owner assigned'}</div>
           </div>
-          <div class="ds-row" class="auto-u-5cd1">
+          <div class="ds-row" class="b-u-5cd1">
             ${intent.confidence != null ? `<span class="ds-meta">conf <span class="ds-meta-strong">${formatConfidence(intent.confidence)}</span></span>` : ''}
-            <span class="auto-text-muted-fs14-transition-u-6bb7">›</span>
+            <span class="b-text-muted-2">›</span>
           </div>
         </div>
-        <div id="intent-cascade-detail-${escapeHtml(intent.intent_id)}" class="auto-u-d1b3-mt18"></div>
+        <div id="intent-cascade-detail-${escapeHtml(intent.intent_id)}" class="b-u-d1b3"></div>
       </div>
     `;
   }).join('');
@@ -105,7 +105,7 @@ async function toggleIntentCascade(intentId) {
 async function loadIntentCascadeDetail(intentId) {
   const detailEl = document.getElementById(`intent-cascade-detail-${intentId}`);
   if (!detailEl) return;
-  detailEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading cascade…</div>';
+  detailEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const cascade = await api.getOEM(`/intents/${intentId}`);
@@ -130,14 +130,14 @@ function renderIntentCascade(cascade) {
         <div class="ds-cascade-label">Assumptions (${assumptions.length})</div>
         <div class="ds-stack">
           ${assumptions.map(a => `
-            <div class="ds-card" class="auto-p1214">
-              <div class="ds-row-between" class="auto-mb6">
+            <div class="ds-card" class="b-p1214">
+              <div class="ds-row-between" class="mb-6">
                 <span class="ds-tag ds-tag-${assumptionStatusTagClass(a.status)}">${escapeHtml(a.status || 'open')}</span>
                 ${a.stakes ? `<span class="ds-tag ds-tag-${a.stakes === 'critical' || a.stakes === 'high' ? 'high' : a.stakes === 'medium' ? 'medium' : 'low'}">${escapeHtml(a.stakes)}</span>` : ''}
               </div>
-              <div class="auto-fs13-text-primary-lh155">${escapeHtml(humanize(a.statement))}</div>
-              ${a.context ? `<div class="ds-meta" class="auto-mt6">${escapeHtml(humanize(a.context))}</div>` : ''}
-              ${a.made_by ? `<div class="ds-meta" class="auto-mt4">By <span class="ds-meta-strong">${escapeHtml(a.made_by)}</span></div>` : ''}
+              <div class="b-fs13-text-10">${escapeHtml(humanize(a.statement))}</div>
+              ${a.context ? `<div class="ds-meta" class="mt-6">${escapeHtml(humanize(a.context))}</div>` : ''}
+              ${a.made_by ? `<div class="ds-meta" class="mt-4">By <span class="ds-meta-strong">${escapeHtml(a.made_by)}</span></div>` : ''}
             </div>
           `).join('')}
         </div>
@@ -176,7 +176,7 @@ function renderIntentCascade(cascade) {
         <div class="ds-cascade-label">Evidence (${evidence.length} signal${evidence.length === 1 ? '' : 's'})</div>
         <div class="ds-stack">
           ${evidence.slice(0, 12).map(ev => `
-            <div class="ds-card" class="auto-p1014">
+            <div class="ds-card" class="b-p1014">
               <div class="ds-row-between">
                 <div class="ds-row">
                   <span class="source-cite">${escapeHtml(ev.type || ev.signal_type || 'signal')}</span>
@@ -184,10 +184,10 @@ function renderIntentCascade(cascade) {
                 </div>
                 ${ev.timestamp ? `<span class="ds-meta">${formatTimestamp(ev.timestamp)}</span>` : ''}
               </div>
-              ${ev.artifact ? `<div class="ds-meta" class="auto-mt4">${escapeHtml(ev.artifact)}</div>` : ''}
+              ${ev.artifact ? `<div class="ds-meta" class="mt-4">${escapeHtml(ev.artifact)}</div>` : ''}
             </div>
           `).join('')}
-          ${evidence.length > 12 ? `<div class="ds-meta" class="auto-p62">+ ${evidence.length - 12} more</div>` : ''}
+          ${evidence.length > 12 ? `<div class="ds-meta" class="b-p62">+ ${evidence.length - 12} more</div>` : ''}
         </div>
       </div>
     `);
@@ -204,16 +204,16 @@ function renderHypothesisInline(h) {
   const status = h.status || 'pending';
   const canResolve = status === 'pending' || status === 'open';
   return `
-    <div class="ds-card" class="auto-p1214">
-      <div class="ds-row-between" class="auto-mb6">
+    <div class="ds-card" class="b-p1214">
+      <div class="ds-row-between" class="mb-6">
         <span class="ds-tag ds-tag-${hypothesisStatusTagClass(status)}">${escapeHtml(status)}</span>
         ${h.confidence != null ? `<span class="ds-meta">conf <span class="ds-meta-strong">${formatConfidence(h.confidence)}</span></span>` : ''}
       </div>
-      <div class="auto-fs13-text-primary-lh155-mb6">${escapeHtml(humanize(h.statement))}</div>
-      ${h.prediction ? `<div class="ds-meta" class="auto-mb4">Prediction: <span class="ds-meta-strong">${escapeHtml(h.prediction)}</span></div>` : ''}
+      <div class="b-fs13-text-11">${escapeHtml(humanize(h.statement))}</div>
+      ${h.prediction ? `<div class="ds-meta" class="mb-4">Prediction: <span class="ds-meta-strong">${escapeHtml(h.prediction)}</span></div>` : ''}
       ${h.predicted_value != null ? `<div class="ds-meta">Predicted: <span class="ds-meta-strong">${escapeHtml(String(h.predicted_value))}</span></div>` : ''}
       ${canResolve ? `
-        <div class="ds-row" class="auto-mt8-gap6">
+        <div class="ds-row" class="b-mt8-gap6">
           <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveHypothesisFromCascade('${escapeJs(h.hypothesis_id)}','validated')">Mark validated</button>
           <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveHypothesisFromCascade('${escapeJs(h.hypothesis_id)}','invalidated')">Mark invalidated</button>
         </div>
@@ -226,15 +226,15 @@ function renderPreparationInline(p) {
   const status = p.status || 'ready';
   const isReady = status === 'ready' || status === 'draft';
   return `
-    <div class="ds-card" class="auto-p1214">
-      <div class="ds-row-between" class="auto-mb6">
+    <div class="ds-card" class="b-p1214">
+      <div class="ds-row-between" class="mb-6">
         <span class="ds-tag ds-tag-${preparationStatusTagClass(status)}">${escapeHtml(status)}</span>
         <span class="ds-meta">${escapeHtml(p.preparation_type || 'preparation')}</span>
       </div>
-      <div class="auto-fs13-fw500-text-primary-mb4">${escapeHtml(humanize(p.title))}</div>
-      ${p.summary ? `<div class="auto-fs125-text-secondary-lh155">${escapeHtml(humanize(p.summary))}</div>` : ''}
+      <div class="b-fs13-fw500-2">${escapeHtml(humanize(p.title))}</div>
+      ${p.summary ? `<div class="b-fs125-text">${escapeHtml(humanize(p.summary))}</div>` : ''}
       ${isReady ? `
-        <div class="ds-row" class="auto-mt8-gap6">
+        <div class="ds-row" class="b-mt8-gap6">
           <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparationFromCascade('${escapeJs(p.preparation_id)}')">Approve</button>
           <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparationFromCascade('${escapeJs(p.preparation_id)}')">Reject</button>
         </div>

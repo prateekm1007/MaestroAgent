@@ -6,7 +6,7 @@
 async function loadCoordination() {
   const el = document.getElementById('coordination-content') || document.getElementById('main-content');
   if (!el) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading coordination requests…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const [active, all] = await Promise.all([
@@ -17,34 +17,34 @@ async function loadCoordination() {
     const requests = (all.requests || []);
     renderCoordinationSurface(el, requests);
   } catch (e) {
-    el.innerHTML = `<div class="calm-empty" class="auto-text-center-p4820">
-      <div class="auto-fs16-fw700-text-primary-2">Coordination Engine</div>
-      <div class="auto-fs13-text-muted-mt4">Failed to load: ${escapeHtml(e.message)}</div>
+    el.innerHTML = `<div class="calm-empty" class="b-text-center-9">
+      <div class="b-fs16-fw700-2">Coordination Engine</div>
+      <div class="caption-text">Failed to load: ${escapeHtml(e.message)}</div>
     </div>`;
   }
 }
 
 function renderCoordinationSurface(el, requests) {
-  let html = `<div class="auto-mw700-m0auto">`;
+  let html = `<div class="b-mw700-m0auto">`;
 
   // Header
   html += `
-    <div class="auto-mb20">
-      <div class="auto-fs18-fw800-text-primary">Coordination Engine</div>
-      <div class="auto-fs13-text-muted-mt4">Coordinate multi-team input for decisions without scheduling a meeting.</div>
+    <div class="b-mb20">
+      <div class="b-fs18-fw800">Coordination Engine</div>
+      <div class="caption-text">Coordinate multi-team input for decisions without scheduling a meeting.</div>
     </div>
   `;
 
   // Initiate form
   html += `
-    <div class="maestro-card" class="auto-mb20">
-      <div class="auto-fs14-fw700-text-primary-mb12">Initiate a coordination request</div>
+    <div class="maestro-card" class="b-mb20">
+      <div class="b-fs14-fw700-4">Initiate a coordination request</div>
       <input type="text" class="maestro-input" id="coord-decision-input"
              placeholder="e.g., Standardize OAuth across all services"
              onkeydown="if(event.key==='Enter') initiateCoordination()"
-             class="auto-w-full-p1014-bg-muted-border-default" />
+             class="b-w-full-6" />
       <button class="maestro-btn maestro-btn-full" id="coord-initiate-btn"
-              class="auto-fs14-minh44">
+              class="b-fs14-minh44">
         Initiate coordination
       </button>
     </div>
@@ -52,7 +52,7 @@ function renderCoordinationSurface(el, requests) {
 
   // Active requests
   if (requests.length > 0) {
-    html += `<div class="auto-fs14-fw800-text-primary-mb12">Active requests (${requests.length})</div>`;
+    html += `<div class="b-fs14-fw800-4">Active requests (${requests.length})</div>`;
     requests.forEach(req => {
       const status = req.status || 'open';
       const statusColor = status === 'synthesized' ? 'var(--maestro-success,#00C853)' : 'var(--maestro-warning,#FF9800)';
@@ -60,12 +60,12 @@ function renderCoordinationSurface(el, requests) {
       const responseCount = (req.responses || []).length;
 
       html += `
-        <div class="maestro-card" class="auto-mb12-cursor-pointer" data-action="viewCoordination" data-args='["${escapeJs(req.request_id)}"]'>
-          <div class="auto-flex-u-daae-u-b505-gap12">
-            <div class="auto-flex-1">
-              <div class="auto-inline-block-p310-rad999-bg-98ab">${escapeHtml(status)}</div>
-              <div class="auto-fs15-fw700-text-primary-lh14">${escapeHtml(humanize(req.decision || ''))}</div>
-              <div class="auto-flex-gap12-mt6-fs12">
+        <div class="maestro-card" class="b-mb12-cursor" data-action="viewCoordination" data-args='["${escapeJs(req.request_id)}"]'>
+          <div class="b-flex-u-9">
+            <div class="flex-1">
+              <div class="b-inline-block-3">${escapeHtml(status)}</div>
+              <div class="b-fs15-fw700">${escapeHtml(humanize(req.decision || ''))}</div>
+              <div class="b-flex-gap12-2">
                 <span>👥 ${teamCount} team${teamCount === 1 ? '' : 's'}</span>
                 <span>💬 ${responseCount} response${responseCount === 1 ? '' : 's'}</span>
               </div>
@@ -76,16 +76,16 @@ function renderCoordinationSurface(el, requests) {
     });
   } else {
     html += `
-      <div class="calm-empty" class="auto-text-center-p3220">
-        <div class="auto-fs16-fw700-text-primary-2">No coordination requests yet.</div>
-        <div class="auto-fs13-text-muted-mt4">Initiate one above to coordinate multi-team input for a decision.</div>
+      <div class="calm-empty" class="b-text-center-8">
+        <div class="b-fs16-fw700-2">No coordination requests yet.</div>
+        <div class="caption-text">Initiate one above to coordinate multi-team input for a decision.</div>
       </div>
     `;
   }
 
   // Withdrawal path
   html += `
-    <div class="auto-mt24-p1216-bg-muted-rad8">
+    <div class="b-mt24-p1216">
       <strong>Withdrawal path:</strong> You can make decisions without coordination — schedule a meeting instead. This tool saves time; without it, you are slower but functional.
     </div>
   `;
@@ -120,7 +120,7 @@ async function initiateCoordination() {
 async function viewCoordination(requestId) {
   const el = document.getElementById('coordination-content') || document.getElementById('main-content');
   if (!el || !requestId) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading coordination request…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
 
   try {
     const req = await api.getOEM(`/coordinate/${encodeURIComponent(requestId)}`);
@@ -131,28 +131,28 @@ async function viewCoordination(requestId) {
 }
 
 function renderCoordinationDetail(el, req) {
-  let html = `<div class="auto-mw700-m0auto">`;
+  let html = `<div class="b-mw700-m0auto">`;
 
   // Back button
-  html += `<button class="maestro-btn maestro-btn-ghost" class="auto-fs13-minh36-mb16" id="coord-back-btn">← Back to coordination</button>`;
+  html += `<button class="maestro-btn maestro-btn-ghost" class="b-fs13-minh36" id="coord-back-btn">← Back to coordination</button>`;
 
   // Decision
   html += `
-    <div class="auto-mb20">
-      <div class="auto-fs18-fw800-text-primary">${escapeHtml(humanize(req.decision || ''))}</div>
-      <div class="auto-fs12-text-muted-mt4">Initiated by ${escapeHtml(req.initiated_by || 'CEO')} · ${escapeHtml(req.created_at || '')}</div>
+    <div class="b-mb20">
+      <div class="b-fs18-fw800">${escapeHtml(humanize(req.decision || ''))}</div>
+      <div class="b-fs12-text-9">Initiated by ${escapeHtml(req.initiated_by || 'CEO')} · ${escapeHtml(req.created_at || '')}</div>
     </div>
   `;
 
   // Affected teams
   const teams = req.affected_teams || [];
   if (teams.length > 0) {
-    html += `<div class="auto-fs14-fw800-mb12">Affected teams (${teams.length})</div>`;
+    html += `<div class="b-fs14-fw800">Affected teams (${teams.length})</div>`;
     teams.forEach(team => {
       html += `
-        <div class="maestro-card" class="auto-mb8-p1014">
-          <div class="auto-fs14-fw700-text-primary">${escapeHtml(team.team || team)}</div>
-          <div class="auto-fs12-text-muted-mt2">${escapeHtml((team.domains || []).join(', '))}</div>
+        <div class="maestro-card" class="b-mb8-p1014">
+          <div class="b-fs14-fw700-2">${escapeHtml(team.team || team)}</div>
+          <div class="b-fs12-text-7">${escapeHtml((team.domains || []).join(', '))}</div>
         </div>
       `;
     });
@@ -161,14 +161,14 @@ function renderCoordinationDetail(el, req) {
   // Contacts
   const contacts = req.contacts || [];
   if (contacts.length > 0) {
-    html += `<div class="auto-fs14-fw800-mt20-mb12">Contacts (${contacts.length})</div>`;
+    html += `<div class="b-fs14-fw800-2">Contacts (${contacts.length})</div>`;
     contacts.forEach(c => {
       html += `
-        <div class="maestro-card" class="auto-mb8-p1014">
-          <div class="auto-flex-u-daae-u-1e2c">
+        <div class="maestro-card" class="b-mb8-p1014">
+          <div class="b-flex-u-7">
             <div>
-              <div class="auto-fs14-fw700-text-primary">${escapeHtml(c.email || '')}</div>
-              <div class="auto-fs12-text-muted">${escapeHtml(c.team || '')} · ${escapeHtml(c.role || '')}</div>
+              <div class="b-fs14-fw700-2">${escapeHtml(c.email || '')}</div>
+              <div class="tag-text">${escapeHtml(c.team || '')} · ${escapeHtml(c.role || '')}</div>
             </div>
           </div>
         </div>
@@ -179,12 +179,12 @@ function renderCoordinationDetail(el, req) {
   // Responses
   const responses = req.responses || [];
   if (responses.length > 0) {
-    html += `<div class="auto-fs14-fw800-mt20-mb12">Responses (${responses.length})</div>`;
+    html += `<div class="b-fs14-fw800-2">Responses (${responses.length})</div>`;
     responses.forEach(r => {
       html += `
-        <div class="maestro-card" class="auto-mb8-p1214-u-61ed">
-          <div class="auto-fs13-fw700-text-primary">${escapeHtml(r.from || '')} — ${escapeHtml(r.team || '')}</div>
-          <div class="auto-fs13-text-secondary-mt4-lh15">${escapeHtml(humanize(r.response || ''))}</div>
+        <div class="maestro-card" class="b-mb8-p1214">
+          <div class="b-fs13-fw700">${escapeHtml(r.from || '')} — ${escapeHtml(r.team || '')}</div>
+          <div class="b-fs13-text-23">${escapeHtml(humanize(r.response || ''))}</div>
         </div>
       `;
     });
@@ -193,22 +193,22 @@ function renderCoordinationDetail(el, req) {
   // Synthesis
   if (req.synthesis) {
     html += `
-      <div class="auto-mt24-p16-bg-accent-rad12">
-        <div class="auto-fs14-fw800-text-accent-mb8">Synthesized recommendation</div>
-        <div class="auto-fs14-text-primary-lh155">${escapeHtml(humanize(req.synthesis.recommendation || ''))}</div>
-        ${req.synthesis.consensus ? `<div class="auto-fs12-text-muted-mt8">Consensus: ${Math.round(req.synthesis.consensus * 100)}%</div>` : ''}
+      <div class="b-mt24-p16">
+        <div class="b-fs14-fw800-3">Synthesized recommendation</div>
+        <div class="b-fs14-text-7">${escapeHtml(humanize(req.synthesis.recommendation || ''))}</div>
+        ${req.synthesis.consensus ? `<div class="b-fs12-text-11">Consensus: ${Math.round(req.synthesis.consensus * 100)}%</div>` : ''}
       </div>
     `;
   }
 
   // Response form
   html += `
-    <div class="maestro-card" class="auto-mt20">
-      <div class="auto-fs14-fw700-mb12">Add a response</div>
+    <div class="maestro-card" class="b-mt20">
+      <div class="b-fs14-fw700">Add a response</div>
       <textarea id="coord-response-input" placeholder="Enter your team's input on this decision…"
-                class="auto-w-full-minh80-p1014-bg-muted"></textarea>
+                class="b-w-full-4"></textarea>
       <button class="maestro-btn maestro-btn-full" id="coord-respond-btn"
-              class="auto-fs14-minh44">
+              class="b-fs14-minh44">
         Submit response
       </button>
     </div>
