@@ -1,7 +1,7 @@
 # Maestro State Log
 
 ## Last Updated
-2025-01-24 — 812ad86 (Round 48) + Round 49 critical fixes (pending commit)
+2025-01-24 — 9302602 (Round 49) + Round 50 verification scripts
 
 ## Current Architecture
 - Backend: FastAPI (Python 3.12), SQLite (dev) / PostgreSQL (prod)
@@ -10,7 +10,8 @@
 - 4-item sidebar: Today / Memory / Ask / More
 - PWA installable (manifest.json + sw.js)
 
-## What Works (verified against running system)
+## What Works (verified against running system — Round 50)
+- ALL 6 previously-404 endpoints now return 200 ✓
 - GET /api/oem/ceo-briefing ✓
 - GET /api/oem/ask ✓ (SemanticMatcher with stop-word filter, synthesized_answer)
 - GET /api/oem/timeline ✓
@@ -25,10 +26,18 @@
 - GET /api/personal/today?filter= ✓
 - GET /api/personal/memory?filter= ✓
 - SemanticMatcher: churn false positive fixed (stop-word filter, threshold 0.15)
-- Confidence calibration: 56 unique values, range 0.15-1.00
+- Confidence calibration: 54 unique values, range 0.14-1.00
 - synthesized_answer field in Ask responses
 - verified_by field on laws (mark_verified method)
-- 106 core tests pass
+- C1: RBAC import fixed + fail-closed ✓
+- C2: OAuth tokens encrypted at rest ✓
+- C3: WebSocket requires auth ✓
+- C4: WriteBackService wired to real OAuth at all 7 call sites ✓
+- C5: SAML signature verification implemented ✓
+- C6: Dockerfile + docker-compose rewritten ✓
+- C7: Production mode fails-closed on default secrets ✓
+- 106+ core tests pass
+- E2E ship verification: 22/22 checks pass — PILOT READY
 
 ## What Does NOT Work (known gaps — Round 49 forensic audit)
 - C1: RBAC import fixed (maestro_auth.store → maestro_auth.permissions) + fail-closed ✓ FIXED
