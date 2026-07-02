@@ -1,0 +1,411 @@
+    30→    30→    30→is_mock = token is None or token == "mock-token-for-testing"
+    31→    31→    31→if is_mock:
+    32→    32→    32→    return {"mock": True, "issue_key": "ENG-1234", ...}  # NO HTTP CALL
+    33→    33→    33→```
+    34→    34→    34→
+    35→    35→    35→**Implication:** A CEO clicking "Create Jira ticket" or "Draft email" sees a success toast + fake ticket key. No ticket is created. No draft is created. The "AI agent that does work" pitch is fiction.
+    36→    36→    36→
+    37→    37→    37→### Onboarding flow
+    38→    38→    38→
+    39→    39→    39→`static/js/onboarding.js:149-286` — "Connect your work tools" screen **does not call `/api/oauth/{provider}/start`** anywhere. It only flips a JS boolean and posts to `/api/personal/consent/grant`. The user thinks they connected GitHub; nothing happened. Misleading by design.
+    40→    40→    40→
+    41→    41→    41→### OAuth security
+    42→    42→    42→
+    43→    43→    43→| Check | Status | Evidence |
+    44→    44→    44→|---|---|---|
+    45→    45→    45→| OAuth 2.0 code flow | ✅ Real | `oauth_manager.py:334-412` |
+    46→    46→    46→| Token refresh (5-min buffer) | ✅ Real | `oauth_manager.py:481-501` |
+    47→    47→    47→| Token revocation | ✅ Best-effort | `oauth_manager.py:505-544` |
+    48→    48→    48→| Client secrets encrypted at rest | ✅ Real (Fernet) | `oauth_config_store.py:96-121` |
+    49→    49→    49→| **Access/refresh tokens encrypted at rest** | ❌ **PLAINTEXT** | `checkpoint_store.py:67-77` — schema says `access_token TEXT NOT NULL`, no `encrypt()` call exists in the file. The docstring at line 14 lies and claims "encrypted OAuth tokens per provider." |
+    50→    50→    50→| `state` CSRF param | ⚠️ Not HMAC-signed | `oauth_manager.py:243-252` — comment admits it. |
+    51→    51→    51→| PKCE | ❌ Not implemented | No `code_challenge` anywhere. |
+    52→    52→    52→| Refresh / reconnect / disconnect | ✅ Works | All present. |
+    53→    53→    53→| Skip / repeat onboarding | ⚠️ Partial | `finishOnboarding()` just redirects; no state validation. |
+    54→    54→    54→
+    55→    55→    55→**Does refreshing break onboarding?** No — onboarding state is in `localStorage` only.
+    56→    56→    56→**Can signals disconnect/reconnect?** Yes, but only the consent flag, not actual OAuth tokens (because onboarding never created any).
+    57→    57→    57→
+    58→    58→    58→---
+    59→    59→    59→
+    60→    60→    60→## PHASE 2 — HISTORICAL INGESTION
+    61→    61→    61→
+    62→    62→    62→### What is actually computed
+    63→    63→    63→
+    64→    64→    64→**Real:** `historical_engine.py:122-220` runs an `asyncio.gather` per provider, paginates real APIs, rate-limits, retries, persists checkpoints to SQLite, streams signals into the live OEM. **Progress percentages are real** — `progress_tracker.py:186-216` computes them from actual `events_processed / elapsed`. No `time.sleep` simulation.
+    65→    65→    65→
+    66→    66→    66→**Real:** Bayesian confidence in `confidence.py:46-216` uses a Beta-Binomial posterior with SHR-calibrated prior. Not hand-tuned.
+    67→    67→    67→
+    68→    68→    68→**Real:** Dedup is real (`model.py:859-917`, `_law_dedup_key`).
+    69→    69→    69→
+    70→    70→    70→### What is fake
+    71→    71→    71→
+    72→    72→    72→| Claim | Reality | Evidence |
+    73→    73→    73→|---|---|---|
+    74→    74→    74→| "Semantic" search | Character 3-gram TF-IDF + cosine sim. No embeddings, no vector DB. | `semantic_matcher.py:41-241` |
+    75→    75→    75→| LLM-driven synthesis | **Zero LLM calls in the entire codebase.** Comments say "Rule-based for the pilot; LLM in production." | `decision.py:372,403`, `sowhat.py:38`, `perspective.py:20`, `coordination.py:197`, `preparation.py:9` |
+    76→    76→    76→| Learning loop | Resolves recommendations from CEO agree/reject clicks, **not from observed reality**. | `prediction_lifecycle.py:321-361` — `if total_agree > 0 and total_reject == 0: status = "correct"` |
+    77→    77→    77→| Law invalidation | **Unreachable from real data.** Counter-examples require `signal.metadata.get("contradicts", False)` which no importer ever sets. | `model.py:919-938` |
+    78→    78→    78→| Default first-run experience | **Silently loads hardcoded `acme-corp` data** (priya.m@acme.com, Globex, $3.2M ARR). No UI badge. Default is `MAESTRO_DEMO_SEED=true` unless `MAESTRO_ENV=production`. | `oem_state.py:57-86`, `importers/demo_provider.py:37-315` |
+    79→    79→    79→| Autocomplete "semantic expansion" | Hand-built synonym dict + hardcoded demo customer names (`globex`, `initech`, `hooli`). | `autocomplete.py:56-90` |
+    80→    80→    80→
+    81→    81→    81→### Are discoveries believable?
+    82→    82→    82→
+    83→    83→    83→**No, with real data they would degrade.** Domain inference (`providers/github.py:96-121`) keyword-maps `auth → auth`, `payment → payments`. Real repos like `monorepo`, `services`, `platform-v2` all collapse into `"engineering"` — the knowledge graph becomes one giant blob.
+    84→    84→    84→
+    85→    85→    85→A law like `"sara.k@acme.com is a bottleneck — 5 evidence signals across 3 observations"` (`pattern.py:228-235`) just restates the input. No causal claim. The "causal engine" (`causal.py:90-116`) groups LearningObjects by type and counts them — that's correlation dressed as causation.
+    86→    86→    86→
+    87→    87→    87→### Would an enterprise CTO believe this ingestion?
+    88→    88→    88→
+    89→    89→    89→**Only if they didn't look closely.** The acme-corp demo data is hand-curated to hit pattern thresholds exactly. Real data at 10k Slack messages would produce thousands of shallow "user-X is an expert — N signals" patterns. A CTO would ask "so what?" and the system has no answer.
+    90→    90→    90→
+    91→    91→    91→---
+    92→    92→    92→
+    93→    93→    93→## PHASE 3 — HOME DASHBOARD
+    94→    94→    94→
+    95→    95→    95→**Verdict:** Real cards, real OEM wiring, **broken click handlers**.
+    96→    96→    96→
+    97→    97→    97→- All 10 panels in `app.html:341-516` fetch real data via `home_core.js:4-114`.
+    98→    98→    98→- No visually-dead cards.
+    99→    99→    99→- **Defects:** Section 6 "Decision Simulator" POSTs to `/api/oem/simulate` while the standalone Simulator surface POSTs to `/api/oem/simulator` — one will 404 depending on backend wiring.
+   100→   100→   100→- Section 9 "Executive Autocomplete" click handler passes `source_type.split(':')[0]` as entity type — `"lo:bottleneck"` becomes `"lo"` which the backend may not handle.
+   101→   101→   101→- Drill-down modal opens 10 tabs but **never moves focus into the modal** (`drill_down_modal.js:15` — no `.focus()` call). No focus trap. Tab escapes into background.
+   102→   102→   102→
+   103→   103→   103→---
+   104→   104→   104→
+   105→   105→   105→## PHASE 4 — ORGANIZATIONAL AUTOCOMPLETE (THE MOAT)
+   106→   106→   106→
+   107→   107→   107→**Verdict: This is the strongest part of the product.** Genuinely wired to the backend, with `AbortController` cancellation on each keystroke (`ask.js:17`), keyboard nav, ESC, mouse, all working.
+   108→   108→   108→
+   109→   109→   109→| Input | Behavior |
+   110→   110→   110→|---|---|
+   111→   111→   111→| `we` | Stopword → surfaces all active recommendations + laws |
+   112→   112→   112→| `we should` | Surfaces "We should {rec.recommendation}" completions — killer demo behavior |
+   113→   113→   113→| `hire` | Synonym expansion → {hiring, recruit, onboarding, staffing, headcount} |
+   114→   114→   114→| `legal` | Synonym expansion → {compliance, contract, policy, regulation} |
+   115→   115→   115→| Random `zxqwk` | Honest empty state: "No matches in OEM for 'zxqwk'" |
+   116→   116→   116→| Rapid type/erase | `AbortError` correctly swallowed, no race conditions |
+   117→   117→   117→| ↑↓ Enter ESC | All work |
+   118→   118→   118→
+   119→   119→   119→**The caveat that kills the moat:** With `MAESTRO_DEMO_SEED=true` (the default), every demo instance returns the **same completions** because they're mined from the same acme-corp seed. A Fortune 100 customer evaluating the autocomplete in pilot mode is not seeing their own organization's intelligence — they're seeing the demo corpus.
+   120→   120→   120→
+   121→   121→   121→---
+   122→   122→   122→
+   123→   123→   123→## PHASE 5 — EVERY PAGE INVENTORY
+   124→   124→   124→
+   125→   125→   125→**README claims "19 surfaces." Actual count: 30.**
+   126→   126→   126→
+   127→   127→   127→| Status | Surfaces |
+   128→   128→   128→|---|---|
+   129→   129→   129→| ✅ Real end-to-end (~24) | Today, Memory, Ask v2, Home, Inbox, Simulator, Hayek, Knowledge Flow, Memory Replay, Customer Judgment, Physics, Debate, Intent Cascade, Contradictions, Prediction Market, Signals, OEM Builder, Audit Log, Settings, Evolution, Cognition, Autobiography, Playbook, Canvas |
+   130→   130→   130→| ⚠️ Mis-named | **Live Meeting** — `live_meeting.js:62-67` is NOT live, NOT WebSocket. Just a textarea + `POST /api/oem/meetings/analyze`. |
+   131→   131→   131→| ⚠️ Half-real | **Assumptions** — reads OK, but "Invalidate" button does NOT call backend. Toast: "Backend status mutation endpoint is a follow-up." (`assumptions.js:111`) |
+   132→   132→   132→| ❌ Dead-end | **Teammate** — `teammate.js:7-25` requires `email` param. Only caller `loadTeammate()` passes no email. Always shows "No teammate selected." No UI triggers it with a real person. |
+   133→   133→   133→| ❌ Destructive | **Personal Mode** — `personal.js:32-59` overwrites `#main-content` innerHTML. After visiting, navigating to other surfaces via hashchange breaks (DOM destroyed). |
+   134→   134→   134→
+   135→   135→   135→---
+   136→   136→   136→
+   137→   137→   137→## PHASE 6 — EXECUTIVE WORKFLOW (Can a CEO use this for 1 hour?)
+   138→   138→   138→
+   139→   139→   139→**Yes, conditionally** — if they stay on Today / Memory / Ask / Home / Inbox / Physics / Intent Cascade / Contradictions / Predictions, and avoid:
+   140→   140→   140→
+   141→   141→   141→- ❌ Teammate (dead-end)
+   142→   142→   142→- ❌ Personal Mode (destroys navigation)
+   143→   143→   143→- ❌ Canvas (mouse-only, useless on iPad)
+   144→   144→   144→- ❌ Live Meeting (not actually live)
+   145→   145→   145→- ❌ Prepared Decisions "Reject" button — **silently lies**: calls `approve?approved_by=ceo-rejected` (`prepared_decisions.js:101-110`). CEO thinks they rejected it; backend records an "approval" with a string convention.
+   146→   146→   146→- ❌ Assumptions "Invalidate" button (no API call)
+   147→   147→   147→- ❌ `window.alert()` blocking the UI in 9 places (`eng_audit.js:107,122,125,137,140`, `mode-tabs.js:229`, `personal.js:436,445,460,702`)
+   148→   148→   148→
+   149→   149→   149→**Can a CEO make a real business decision?** Yes for read-only review. **No** for writeback actions — none of them actually do anything.
+   150→   150→   150→
+   151→   151→   151→---
+   152→   152→   152→
+   153→   153→   153→## PHASE 7 — STRESS TESTING
+   154→   154→   154→
+   155→   155→   155→| Test | Result |
+   156→   156→   156→|---|---|
+   157→   157→   157→| Memory leaks | **HIGH severity.** `swipe-cards.js:23-25` adds 2 `document` listeners per card, never removed. Today creates 7 cards per visit. After 10 visits = **140 leaked listeners**. Personal Mode creates another 7. Canvas drag (`canvas.js:134-142`) doubles listeners on every re-render. |
+   158→   158→   158→| `org_dot.js:53` `setInterval` | Started on init, never cleared on `pagehide`. |
+   159→   159→   159→| `window._swipeDeck` / `_personalDeck` | Stored on `window`, never nulled. |
+   160→   160→   160→| 30 tabs / rapid nav | Not directly tested, but DOM destruction from Personal Mode guarantees breakage after sustained use. |
+   161→   161→   161→| Mobile width | Sidebar hides, replaced by bottom nav (`mode-tabs.js:156-181`) appended to `document.body`. Works but ugly. |
+   162→   162→   162→| 50% / 200% zoom | CSS uses rem/em — would scale. No explicit testing. |
+   163→   163→   163→| DevTools throttle | SWR cache (`swr_cache.js:108-124`) handles backend failure with offline banner + cached data. |
+   164→   164→   164→
+   165→   165→   165→---
+   166→   166→   166→
+   167→   167→   167→## PHASE 8 — ACCESSIBILITY
+   168→   168→   168→
+   169→   169→   169→**Multiple WCAG 2.1 Level A failures:**
+   170→   170→   170→
+   171→   171→   171→| Criterion | Failure | Evidence |
+   172→   172→   172→|---|---|---|
+   173→   173→   173→| 1.3.1 Info & Relationships (A) | Clickable cards use `<div onclick="...">` with no `role="button"` or `tabindex` | `home_core.js:126`, `home_renderers.js:229,316`, dozens more |
+   174→   174→   174→| 2.1.1 Keyboard (A) | Div-as-button cards cannot be activated by keyboard | Same |
+   175→   175→   175→| 2.4.3 Focus Order (A) | Drill-down modal never moves focus; no focus trap | `drill_down_modal.js:15` |
+   176→   176→   176→| 4.1.2 Name, Role, Value (A) | Command palette is a `<div>` with no `role="dialog"`, no `aria-modal` | `maestro.js:165-178` |
+   177→   177→   177→| 3.3.2 Labels or Instructions (A) | Onboarding inputs use `placeholder` as only label | `onboarding.js:74` |
+   178→   178→   178→| 1.4.3 Contrast (AA) | `text-[10px] text-fg-600` and `text-[9px] text-fg-500` pervasive — likely below 4.5:1 | `home_renderers.js:50-51` |
+   179→   179→   179→| 2.2.1 Timing Adjustable (A) | Toast auto-hides after 5000ms with no way to extend | `swr_cache.js:191-207` |
+   180→   180→   180→
+   181→   181→   181→**Good:** skip-link, `*:focus-visible`, `prefers-reduced-motion`, drill-down has `role="dialog"`, autocomplete has `role="listbox"`/`option`.
+   182→   182→   182→
+   183→   183→   183→**Verdict:** A Fortune 100 legal team will flag this immediately. ADA non-compliance is litigation risk.
+   184→   184→   184→
+   185→   185→   185→---
+   186→   186→   186→
+   187→   187→   187→## PHASE 9 — PERFORMANCE
+   188→   188→   188→
+   189→   189→   189→| Metric | Result |
+   190→   190→   190→|---|---|
+   191→   191→   191→| First Paint / LCP | **Not measured anywhere in the codebase.** No Lighthouse CI, no RUM. |
+   192→   192→   192→| API latency claims | F100 report claims `<15ms` for `/api/oem/dashboard`. These are **single-request measurements against in-memory SQLite + demo seed**. No load test exists. |
+   193→   193→   193→| Memory growth | Unbounded (see Phase 7 listener leaks). |
+   194→   194→   194→| DOM node count | Not tracked. |
+   195→   195→   195→| Long tasks | Not measured. |
+   196→   196→   196→| App weight | Claimed `app.html = 48 KB` (F100 report) / `51 KB` (QA report). **Actual: 66 KB.** Claimed `app.css = 16.5 KB`. **Actual: 41 KB.** Claimed `app.js = 92 KB`. **File does not exist.** JS is split across 35 files in `static/js/`. |
+   197→   197→   197→| Largest test | `test_large_history_simulation` exercises 2,000 signals. Claimed target: "100k employees, 10M signals, sub-second interaction." Untested at scale. |
+   198→   198→   198→| SQLite + process-wide singleton OEM | Default. With a `threading.RLock` around OEM state, concurrency collapses under any real load. |
+   199→   199→   199→
+   200→   200→   200→**Verdict: Performance is unvalidated theater.** Will it survive enterprise load? Unknown and unmeasured. Almost certainly **no** at meaningful concurrency.
+   201→   201→   201→
+   202→   202→   202→---
+   203→   203→   203→
+   204→   204→   204→## PHASE 10 — CODE QUALITY
+   205→   205→   205→
+   206→   206→   206→| Issue | Evidence |
+   207→   207→   207→|---|---|
+   208→   208→   208→| **RBAC silently broken** | `oem.py:55` imports `from maestro_auth.store import get_auth_store` — **`maestro_auth/store.py` does not exist**. ImportError is swallowed by broad `except Exception: return True` (allow access). **All 158 OEM endpoints are unauthenticated in production.** |
+   209→   209→   209→| **WebSocket ambient/pulse has NO auth** | `websocket.py:108-133` — `await websocket.accept()` with no auth check. Anyone can subscribe to executive intelligence feed. |
+   210→   210→   210→| **`/api/auth/keys` unauthenticated** | `auth.py:78-103` — anyone can create API keys with `scopes: ["*"]` or revoke existing keys. |
+   211→   211→   211→| 319 `innerHTML` uses | Many with unescaped API data. `today.js:331-332` interpolates `weather.forecast` raw. XSS surface. |
+   212→   212→   212→| `console.warn` / `console.error` in prod | `mode-tabs.js:138` "switchMode() is deprecated", `eng_audit.js:287,252`, `swr_cache.js:38` |
+   213→   213→   213→| `window.alert()` / `confirm()` | 9 places. Blocks UI. |
+   214→   214→   214→| Personal Mode DOM destruction | `personal.js:32-59` — overwrites `#main-content`. Navigation-breaking bug. |
+   215→   215→   215→| Stale deprecated code | `_deprecated/` directory contains Tauri+React+CrewAI code that 6+ architecture docs reference as current. |
+   216→   216→   216→| Deps unpinned | `pyproject.toml` — all `>=`, no upper bounds. `langgraph-checkpoint-sqlite>=2.0` — **this version doesn't exist**. `argon2-cffi`, `hvac`, `python3-saml` used in code but not declared in deps. |
+   217→   217→   217→| Tamper-evident audit log | `security.py:856-868` `verify_chain()` does NOT recompute canonical hash. Comment admits it. Tamper detection is incomplete. |
+   218→   218→   218→| 3 inconsistent test counts | F100 report: 445 tests. QA_REPORT_FINAL: 445 tests. Actual `pytest --collect-only`: 1,663 tests. |
+   219→   219→   219→
+   220→   220→   220→---
+   221→   221→   221→
+   222→   222→   222→## PHASE 11 — ENTERPRISE REALISM
+   223→   223→   223→
+   224→   224→   224→For every insight shown, the answer to "could this actually be inferred?" is **mostly no, with current code**:
+   225→   225→   225→
+   226→   226→   226→| Insight type | Could it be inferred? | Why |
+   227→   227→   227→|---|---|---|
+   228→   228→   228→| Laws (e.g., "X is a bottleneck") | Yes, but tautologically — restates input data | `pattern.py:228-235` |
+   229→   229→   229→| Contradictions | Yes for commitment-broken ratio; laws never invalidate (unreachable code) | `model.py:919-938` |
+   230→   230→   230→| Predictions | Resolved by CEO clicks, not reality | `prediction_lifecycle.py:321-361` |
+   231→   231→   231→| Perspectives | Rule-based templates, no LLM | `perspective.py:20` |
+   232→   232→   232→| Causal chains | Grouping by type, not causation | `causal.py:90-116` |
+   233→   233→   233→| Semantic search | Character n-gram TF-IDF | `semantic_matcher.py` |
+   234→   234→   234→| Confidence scores | Real Bayesian math | ✅ |
+   235→   235→   235→| Progress bars | Real (computed from throughput) | ✅ |
+   236→   236→   236→| Brier scores | Real math, fake inputs (CEO clicks) | `learning.py:321-332` |
+   237→   237→   237→
+   238→   238→   238→**Would a Fortune 500 executive believe this?** Only the acme-corp demo, which is hand-curated. With real data, insights would be shallow and the "so what?" answer would be missing.
+   239→   239→   239→
+   240→   240→   240→**Would this survive procurement review?** No:
+   241→   241→   241→- No SOC2 Type II report
+   242→   242→   242→- No ISO 27001 certificate
+   243→   243→   243→- No third-party pentest
+   244→   244→   244→- All self-graded reports carry disclaimer: "SELF-GRADED — NOT INDEPENDENTLY VERIFIED"
+   245→   245→   245→- Vendor's own disclaimer admits: "A subsequent external audit found a committed encryption master key in the same repo. The Security score of 9.8/10 below did not catch it."
+   246→   246→   246→- No HIPAA BAA scaffolding
+   247→   247→   247→- No GDPR DSAR / right-to-erasure
+   248→   248→   248→- No data residency controls (Terraform defaults to us-east-1)
+   249→   249→   249→- Multi-tenant isolation is fake (OEM is process-wide singleton; most tables have no `org_id` column)
+   250→   250→   250→
+   251→   251→   251→---
+   252→   252→   252→
+   253→   253→   253→## PHASE 12 — FAILURE REPORT
+   254→   254→   254→
+   255→   255→   255→### CRITICAL (Makes product unusable)
+   256→   256→   256→
+   257→   257→   257→**C1. RBAC is silently disabled on all 158 OEM endpoints**
+   258→   258→   258→- **Repro:** Set `MAESTRO_AUTH_ENABLED=true`, hit `GET /api/oem/laws` without authentication
+   259→   259→   259→- **Expected:** 401 Unauthorized
+   260→   260→   260→- **Actual:** 200 OK with full data
+   261→   261→   261→- **Severity:** CRITICAL
+   262→   262→   262→- **Root cause:** `oem.py:55` imports from non-existent `maestro_auth.store`. `ImportError` swallowed by `except Exception: return True`.
+   263→   263→   263→- **Fix:** Fix import path to `maestro_auth.permissions`; add integration test that fails when RBAC is broken.
+   264→   264→   264→
+   265→   265→   265→**C2. OAuth provider tokens stored in plaintext**
+   266→   266→   266→- **Repro:** Connect GitHub via OAuth, inspect `oauth_credentials` table
+   267→   267→   267→- **Expected:** `access_token` and `refresh_token` encrypted
+   268→   268→   268→- **Actual:** Both stored as plaintext TEXT
+   269→   269→   269→- **Severity:** CRITICAL
+   270→   270→   270→- **Root cause:** `checkpoint_store.py:67-77` schema + `save_credentials` at line 273-303 — no `encrypt()` call. Docstring at line 14 lies.
+   271→   271→   271→- **Fix:** Use the existing `EncryptionManager` (already used for client secrets) on both columns.
+   272→   272→   272→
+   273→   273→   273→**C3. WebSocket `/ws/ambient/pulse` has no authentication**
+   274→   274→   274→- **Repro:** `wscat -c ws://server/ws/ambient/pulse`
+   275→   275→   275→- **Expected:** Connection refused without auth
+   276→   276→   276→- **Actual:** Stream of executive intelligence events
+   277→   277→   277→- **Severity:** CRITICAL
+   278→   278→   278→- **Root cause:** `websocket.py:108-133` — `await websocket.accept()` with no auth check
+   279→   279→   279→- **Fix:** Require session cookie or bearer token before accept.
+   280→   280→   280→
+   281→   281→   281→**C4. Writeback is non-functional in production**
+   282→   282→   282→- **Repro:** Connect real OAuth, click "Create Jira ticket" in UI
+   283→   283→   283→- **Expected:** Real Jira issue created
+   284→   284→   284→- **Actual:** Backend returns `{"mock": true, "issue_key": "ENG-<hash>"}` — no API call to Jira
+   285→   285→   285→- **Severity:** CRITICAL
+   286→   286→   286→- **Root cause:** All 7 call sites in `routes/oem.py` instantiate `WriteBackService()` with no `oauth_manager`. Every per-provider executor takes the `is_mock` branch.
+   287→   287→   287→- **Fix:** Wire `WriteBackService(oauth_manager=import_state.oauth, ...)` at all 7 call sites.
+   288→   288→   288→
+   289→   289→   289→**C5. SAML signature verification not implemented**
+   290→   290→   290→- **Repro:** Submit a SAML Response with any `<ds:Signature>` element
+   291→   291→   291→- **Expected:** Cryptographic verification against IdP cert
+   292→   292→   292→- **Actual:** Verification deferred. `saml.py:221-224` — "TODO(v1.1): call python3-saml's XML signature verification with the IdP cert"
+   293→   293→   293→- **Severity:** CRITICAL
+   294→   294→   294→- **Root cause:** SAML support was scaffolded but signature verification never written.
+   295→   295→   295→- **Fix:** Install `python3-saml`, call `validate_signed_assertion`. Or remove SAML from supported protocols.
+   296→   296→   296→
+   297→   297→   297→**C6. Dockerfile and docker-compose are broken**
+   298→   298→   298→- **Repro:** `docker compose up` on a fresh clone
+   299→   299→   299→- **Expected:** Running stack
+   300→   300→   300→- **Actual:** Build failure — references `frontend/`, `realtime-server/`, `frontend-next/` directories that exist only under `_deprecated/`
+   301→   301→   301→- **Severity:** CRITICAL
+   302→   302→   302→- **Root cause:** Repo bifurcated; deployment files reference deprecated codebase.
+   303→   303→   303→- **Fix:** Rewrite Dockerfile to copy `app.html` + `static/` + `backend/`. Rewrite docker-compose to match.
+   304→   304→   304→
+   305→   305→   305→**C7. Default secrets in infrastructure**
+   306→   306→   306→- **Repro:** Deploy via Helm chart without overriding values
+   307→   307→   307→- **Expected:** Fail-closed if secrets unset
+   308→   308→   308→- **Actual:** `values.yaml:45-46` — `secrets.jwtSecret: change-me`, `secrets.encryptionKey: change-me`. `models.py:247` — `pepper = "default-pepper-change-me"`. `main.py:69` — `MAESTRO_ADMIN_PASSWORD` defaults to `"changeme-now"`. `docker-compose.yml:62` — `JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}`.
+   309→   309→   309→- **Severity:** CRITICAL
+   310→   310→   310→- **Root cause:** Convenience defaults for dev shipped to production templates.
+   311→   311→   311→- **Fix:** Fail-closed if any of these env vars are unset when `MAESTRO_ENV=production`.
+   312→   312→   312→
+   313→   313→   313→### HIGH (Major enterprise blocker)
+   314→   314→   314→
+   315→   315→   315→**H1. Multi-tenant isolation is fake** — OEM is process-wide singleton (`oem_state.py`). Only `users.org_id` and `provider_connections.org_id` exist. Tables `audit_events`, `predictions`, `import_jobs`, `oauth_credentials`, `calibration_history`, `feedback_events`, `drift_events`, `law_evolution_events`, `prediction_outcomes` have NO `org_id` column. Each tenant requires dedicated infrastructure.
+   316→   316→   316→
+   317→   317→   317→**H2. `maestro_auth.store` doesn't exist** — see C1.
+   318→   318→   318→
+   319→   319→   319→**H3. No DB TLS** — `maestro_db/base.py:106-112` `create_engine` has no `sslmode`/`ssl` connect_args. PostgreSQL connections are plaintext.
+   320→   320→   320→
+   321→   321→   321→**H4. No container security context** in k8s deployment — no `runAsNonRoot`, `readOnlyRootFilesystem`, `capabilities.drop: ["ALL"]`, `seccompProfile`.
+   322→   322→   322→
+   323→   323→   323→**H5. CSP allows `unsafe-inline` in script-src** — `security.py:200`. XSS protection defeated.
+   324→   324→   324→
+   325→   325→   325→**H6. Terraform ECS task definitions omit env vars** — `infra/terraform/main.tf:133-138` container_definitions has no `environment` or `secrets` blocks. Container would have no `DATABASE_URL`, no `MAESTRO_MASTER_KEY`, nothing.
+   326→   326→   326→
+   327→   327→   327→**H7. No `/metrics` endpoint** — Prometheus scrapes `/metrics` (`prometheus.yml`, k8s annotations, ServiceMonitor) but the app never registers it. `prometheus_client` not in deps. Observability stack is broken.
+   328→   328→   328→
+   329→   329→   329→**H8. Grafana has no dashboards** — only `provisioning/dashboards/dashboards.yml` exists. Empty Grafana.
+   330→   330→   330→
+   331→   331→   331→**H9. Pen-test checklist is entirely unchecked** — `docs/PEN_TEST_CHECKLIST.md:8-106` — every checkbox is `[ ]`. F100 report claims "Penetration Tests (all pass)."
+   332→   332→   332→
+   333→   333→   333→**H10. No CI/CD pipeline** — `cicd.yml` references non-existent directories. F100 report admits "No CI/CD pipeline configured (tests run manually)." No secrets scanning, no Dependabot, no `pip-audit`, no SBOM.
+   334→   334→   334→
+   335→   335→   335→**H11. No load test** — Performance claims of "sub-15ms API" are single-request against in-memory SQLite. Will not survive enterprise concurrency.
+   336→   336→   336→
+   337→   337→   337→**H12. No Postgres in CI** — only SQLite. The production code path (`pool_size=20`, `pool_recycle=3600`) is untested.
+   338→   338→   338→
+   339→   339→   339→**H13. `TamperEvidentAuditLog.verify_chain()` doesn't verify hashes** — `security.py:856-868`. Only checks `_prev_hash` linkage. An attacker rewriting event_type/user_id while preserving chain linkage is undetected.
+   340→   340→   340→
+   341→   341→   341→**H14. Vault integration is dead code** — `hvac` not in `pyproject.toml`. AWS KMS not wired despite Terraform creating a KMS key.
+   342→   342→   342→
+   343→   343→   343→**H15. No PII masking in audit logs** — emails, IPs, user-agents stored in plaintext.
+   344→   344→   344→
+   345→   345→   345→**H16. Onboarding doesn't actually connect tools** — `onboarding.js:149-286` only flips consent flags.
+   346→   346→   346→
+   347→   347→   347→**H17. Personal Mode destroys `#main-content`** — `personal.js:32-59`. Navigation-breaking.
+   348→   348→   348→
+   349→   349→   349→**H18. Teammate surface is a dead-end** — `teammate.js:7-25`. Unreachable with a real person.
+   350→   350→   350→
+   351→   351→   351→**H19. "Reject" buttons lie** — Prepared Decisions, Intent Cascade, Assumptions all fake the reject via string conventions or no API call.
+   352→   352→   352→
+   353→   353→   353→**H20. Memory leaks** — SwipeCard and Canvas drag accumulate document listeners forever.
+   354→   354→   354→
+   355→   355→   355→### MEDIUM (Workflow problems)
+   356→   356→   356→
+   357→   357→   357→**M1.** Demo seed dominates default experience with no UI badge (`oem_state.py:57-86`).
+   358→   358→   358→**M2.** Live Meeting is not live — just transcript-paste analyzer (`live_meeting.js:62-67`).
+   359→   359→   359→**M3.** Laws never invalidate from real signals (`model.py:919-938` — `contradicts=True` never set by importers).
+   360→   360→   360→**M4.** Learning loop resolves from CEO clicks, not reality (`prediction_lifecycle.py:321-361`).
+   361→   361→   361→**M5.** "Semantic" search is character 3-gram TF-IDF — "layoff" and "reduction in force" share zero 3-grams.
+   362→   362→   362→**M6.** Autocomplete synonym dict hardcodes `globex`, `initech`, `hooli` (`autocomplete.py:87-90`). Real customers get no expansion.
+   363→   363→   363→**M7.** 9 `window.alert()` calls block the UI.
+   364→   364→   364→**M8.** Domain inference collapses real-world repo names into `"engineering"` blob (`providers/github.py:96-121`).
+   365→   365→   365→**M9.** `verify_loop_closed.py` runs against demo seed data — passing doesn't prove real-data loop closure.
+   366→   366→   366→**M10.** JWKS cached forever with no TTL (`oidc.py:394-403`). IdP key rotation breaks auth until restart.
+   367→   367→   367→**M11.** SCIM filter parsing is regex-based — complex filters return all users (`scim.py:266-282`).
+   368→   368→   368→**M12.** No migration tests — schema drift undetectable.
+   369→   369→   369→**M13.** Architecture docs describe deprecated Tauri+React product, not shipped vanilla-JS product.
+   370→   370→   370→**M14.** Three inconsistent test counts (322 / 445 / 1663) across three different reports.
+   371→   371→   371→**M15.** `app.css` claimed 16.5 KB, actual 41 KB. `app.html` claimed 48 KB, actual 66 KB. `app.js` claimed 92 KB, file doesn't exist.
+   372→   372→   372→
+   373→   373→   373→### LOW (Polish)
+   374→   374→   374→
+   375→   375→   375→**L1.** WCAG 2.1 Level A failures (div-as-button cards, missing focus trap, missing dialog semantics).
+   376→   376→   376→**L2.** `console.warn` debug statements left in production code.
+   377→   377→   377→**L3.** Canvas drag is mouse-only — broken on iPad.
+   378→   378→   378→**L4.** `preStop: sleep 5` is not graceful shutdown.
+   379→   379→   379→**L5.** Hardcoded `acme.atlassian.net` URL even in mock writeback responses (`writeback/jira.py:42-55`).
+   380→   380→   380→**L6.** `REASONS_WE_MIGHT_BE_WRONG.md` is excellent — but the F100 readiness report contradicts it.
+   381→   381→   381→
+   382→   382→   382→---
+   383→   383→   383→
+   384→   384→   384→## FINAL SCORES (out of 10)
+   385→   385→   385→
+   386→   386→   386→| Dimension | Score | Justification |
+   387→   387→   387→|---|---|---|
+   388→   388→   388→| **Navigation** | 5/10 | 24/30 surfaces work; 1 dead-end, 1 destructive, 1 mis-named. Personal Mode breaks back-navigation. |
+   389→   389→   389→| **Usability** | 4/10 | Real autocomplete moat. But fake reject buttons, fake writeback, `window.alert()` in 9 places, onboarding doesn't connect tools. |
+   390→   390→   390→| **Enterprise Readiness** | 2/10 | RBAC broken. Plaintext OAuth tokens. No SAML sig verification. No multi-tenancy. No SOC2/ISO. Vendor's own disclaimers retract the readiness claim. |
+   391→   391→   391→| **Interaction Quality** | 6/10 | Autocomplete is genuinely good. SWR caching is solid. But fake buttons that lie to the user erode trust. |
+   392→   392→   392→| **Performance** | 3/10 | No load test. Claims of sub-15ms are single-request against in-memory SQLite. Process-wide OEM singleton with RLock will not scale. |
+   393→   393→   393→| **Reliability** | 3/10 | Memory leaks (SwipeCard, Canvas, org_dot). Personal Mode DOM destruction. Broken Dockerfile. Broken docker-compose. No graceful shutdown. |
+   394→   394→   394→| **Accessibility** | 3/10 | Multiple WCAG 2.1 Level A failures. Div-as-button cards. No focus trap. `window.alert()` blocks. Would fail ADA procurement. |
+   395→   395→   395→| **Data Credibility** | 4/10 | Bayesian confidence is real math. But laws never invalidate, learning loop is CEO-click-based, "semantic" is TF-IDF, no LLM calls. |
+   396→   396→   396→| **Execution Flow** | 3/10 | Writeback is dead code in production. Onboarding doesn't connect tools. "Reject" buttons lie. Pipeline is real but the closing of the loop is theatrical. |
+   397→   397→   397→| **Overall Production Readiness** | **2/10** | Architectural bones exist. Implementation is riddled with silent failures that defeat the security model and the value proposition. |
+   398→   398→   398→
+   399→   399→   399→---
+   400→   400→   400→
+   401→   401→   401→## FINAL ANSWER
+   402→   402→   402→
+   403→   403→   403→> **"Would you ship this to a Fortune 100 customer tomorrow?"**
+   404→   404→   404→
+   405→   405→   405→## **ABSOLUTELY NOT.**
+   406→   406→   406→
+   407→   407→   407→---
+   408→   408→   408→
+   409→   409→   409→### What I would tell the procurement committee
+   410→   410→   410→
+   411→   411→   411→The engineering team has genuine talent. The OAuth importer code, the Bayesian confidence math, the autocomplete engine, the 25-table Alembic schema, the 1,663-test suite, the `REASONS_WE_MIGHT_BE_WRONG.md` pre-mortem — these are the work of people who care.
+   412→   412→   412→
+   413→   413→   413→But the product is **not production-ready**, and the gap between the marketing (`FORTUNE_100_READINESS_REPORT.md` calling itself 9.7/10) and the reality (RBAC silently disabled, plaintext OAuth tokens, writeback is dead code, Dockerfile doesn't build, SAML signatures not verified, no load tests, no SOC2) is large enough to invalidate the marketing entirely.
+   414→   414→   414→
+   415→   415→   415→The vendor's own disclaimer at the top of `FORTUNE_100_READINESS_REPORT.md` is the most honest sentence in the repo:
+   416→   416→   416→
+   417→   417→   417→> *"A subsequent external audit found a committed encryption master key in the same repo. The Security score of 9.8/10 below did not catch it."*
+   418→   418→   418→
+   419→   419→   419→That sentence is the entire evaluation. The team has the self-awareness to admit they were wrong once. They will be wrong again. A $2M/year contract is not the right vehicle to find out about the next time.
+   420→   420→   420→
+   421→   421→   421→**Counter-offer:** 90-day paid pilot at $30–50K. Require:
+   422→   422→   422→1. Working `docker compose up` on a clean clone.
+   423→   423→   423→2. Real OAuth tokens encrypted at rest (Fernet already exists — just call it).
+   424→   424→   424→3. RBAC import path fixed + integration test that fails when RBAC is broken.
+   425→   425→   425→4. Writeback actually wired to OAuth manager at all 7 call sites.
+   426→   426→   426→5. SAML signature verification actually implemented or removed from supported protocols.
+   427→   427→   427→6. One real load test (locust/k6) at 100/500/1000 RPS against Postgres-backed deployment.
+   428→   428→   428→7. `/metrics` endpoint registered + at least one Grafana dashboard.
+   429→   429→   429→8. Pen-test checklist actually executed by a third party (NCC Group, Trail of Bits).
+   430→   430→   430→9. One named design partner with OED > 0 (per their own `DESIGN_PARTNER_PLAYBOOK.md` PMF definition — they currently name zero).
+   431→   431→   431→
+   432→   432→   432→If they deliver all 9 in 90 days, re-evaluate the $2M/year contract. If they don't, walk away. The autocomplete moat is real. The rest is not.
+   433→   433→   433→
+   434→   434→   434→---
+   435→   435→   435→
+   436→   436→   436→### Suggested next steps for you
+   437→   437→   437→
+   438→   438→   438→1. **Send this report to the Maestro team** — it's the most honest feedback they'll get. Their own `REASONS_WE_MIGHT_BE_WRONG.md` suggests they'll receive it constructively.
+   439→   439→   439→2. **Demand the 9 remediation items above** as pilot exit criteria, not aspIrational roadmap.
+   440→   440→   440→3. **If they refuse the pilot terms**, that itself is the answer: they know the product isn't ready for the contract they're selling.
