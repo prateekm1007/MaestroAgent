@@ -1,183 +1,338 @@
-/**
- * Maestro Ambient Whisper — Browser Extension (Manifest V3)
- *
- * This is the delivery mechanism that makes Maestro ambient.
- *
- * The backend Whisper API exists (commit 3fe450c) but it requires the
- * user to open Maestro and call it. This extension surfaces the Whisper
- * WITHOUT the user opening Maestro — it detects when you're in Gmail,
- * Google Calendar, or GitHub, infers the context from the page, calls
- * the Whisper API, and shows a small non-intrusive panel.
- *
- * This is the "radio receiver" for Maestro's "radio station."
- *
- * INSTALLATION (Chrome/Edge):
- *   1. Open chrome://extensions
- *   2. Enable Developer mode
- *   3. Click "Load unpacked"
- *   4. Select this folder (maestro-ambient-extension/)
- *   5. Set MAESTRO_API_URL in the extension options
- *
- * PRIVACY BY DESIGN:
- *   - No keystroke logging
- *   - No content inspection of email bodies or documents
- *   - Uses only page URL + title to infer context
- *   - Calls the Maestro Whisper API with inferred context only
- *   - No data is stored or transmitted elsewhere
- *
- * The extension is deliberately lightweight — the intelligence lives in
- * Maestro's backend, not in the extension.
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// Maestro Ambient Whisper — Content Script v2.0
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// CEO's Ambient Layer spec (2026-07-03):
+//   - Every card has 4 parts: Situation → Insight → Evidence → Action
+//   - Golden Rule: Never interrupt. Only arrive when intelligence changes a decision.
+//   - 5-second auto-dismiss (unless hovered)
+//   - Only high-priority whispers auto-show
+//   - Bumble theme (via styles.css — zero inline styles)
+//
+// Delivery surfaces: Gmail, Calendar, GitHub, Zoom, Slack, Jira, Salesforce,
+//   Notion, Figma
+// ═══════════════════════════════════════════════════════════════════════════
 
 (function() {
   'use strict';
 
-  // Prevent double-injection
-  if (window.__maestroAmbientInjected) return;
-  window.__maestroAmbientInjected = true;
+  // ─── Configuration ────────────────────────────────────────────────────
+  const MAESTRO_URL = localStorage.getItem('maestro_url') || 'http://127.0.0.1:8765';
+  const CHECK_INTERVAL_MS = 30000;  // Check every 30 seconds
+  const AUTO_DISMISS_MS = 5000;     // 5-second auto-dismiss (CEO's spec)
+  const COOLDOWN_MS = 60000;        // Don't show the same insight twice in 60s
 
-  let MAESTRO_API_URL = 'http://localhost:8000';
-  let whisperEnabled = true;
-  let lastWhisperTime = 0;
-  const WHISPER_COOLDOWN_MS = 60000;
+  let panel = null;
+  let dismissTimer = null;
+  let lastInsight = '';
 
-  chrome.storage?.local.get(['maestroApiUrl', 'whisperEnabled'], (result) => {
-    if (result.maestroApiUrl) MAESTRO_API_URL = result.maestroApiUrl;
-    if (result.whisperEnabled !== undefined) whisperEnabled = result.whisperEnabled;
-  });
-
-  // ─── Context Detection (URL + title only, NO content inspection) ─────────
-
+  // ─── Context detection ────────────────────────────────────────────────
   function detectContext() {
     const url = window.location.href;
-    const title = document.title;
+    const title = document.title || '';
 
+    // Gmail
     if (url.includes('mail.google.com')) {
-      return { context: 'email', entity: extractEntity(title), topic: inferTopic(title), app: 'gmail' };
+      const senderEl = document.querySelector('[email]') || document.querySelector('.gD');
+      const sender = senderEl ? (senderEl.getAttribute('email') || senderEl.textContent.trim()) : '';
+      return { app: 'gmail', context: 'email', entity: sender, topic: title };
     }
-    if (url.includes('calendar.google.com')) {
-      return { context: 'meeting', entity: extractEntity(title), topic: '', app: 'calendar' };
+
+    // GitHub PR
+    if (url.includes('github.com') && url.includes('/pull/')) {
+      const repo = url.split('github.com/')[1] ? url.split('github.com/')[1].split('/pull/')[0] : '';
+      return { app: 'github', context: 'review', entity: repo, topic: 'code_review' };
     }
-    if (url.includes('github.com')) {
-      const domain = inferDomain(url);
-      return { context: 'review', entity: domain, topic: domain, app: 'github' };
+
+    // GitHub issue
+    if (url.includes('github.com') && url.includes('/issues/')) {
+      const repo = url.split('github.com/')[1] ? url.split('github.com/')[1].split('/issues/')[0] : '';
+      return { app: 'github', context: 'ticket', entity: repo, topic: title };
     }
+
+    // Jira
+    if (url.includes('atlassian.net') && url.includes('/browse/')) {
+      const ticketId = url.split('/browse/')[1] ? url.split('/browse/')[1].split('?')[0] : '';
+      return { app: 'jira', context: 'ticket', entity: ticketId, topic: title };
+    }
+
+    // Salesforce
+    if (url.includes('lightning.force.com')) {
+      return { app: 'salesforce', context: 'customer', entity: title, topic: 'crm' };
+    }
+
+    // Notion
+    if (url.includes('notion.so')) {
+      return { app: 'notion', context: 'document', entity: '', topic: title };
+    }
+
+    // Figma
+    if (url.includes('figma.com')) {
+      return { app: 'figma', context: 'design', entity: '', topic: title };
+    }
+
+    // Zoom
     if (url.includes('zoom.us')) {
-      return { context: 'meeting', entity: extractEntity(title), topic: '', app: 'zoom' };
+      return { app: 'zoom', context: 'meeting', entity: '', topic: title };
     }
-    if (url.includes('slack.com')) {
-      return { context: 'message', entity: '', topic: '', app: 'slack' };
+
+    // Slack
+    if (url.includes('app.slack.com')) {
+      const channelEl = document.querySelector('[data-qa="channel_name"]');
+      const channel = channelEl ? channelEl.textContent.trim() : '';
+      return { app: 'slack', context: 'message', entity: channel, topic: title };
     }
+
+    // Calendar
+    if (url.includes('calendar.google.com')) {
+      return { app: 'calendar', context: 'meeting', entity: '', topic: title };
+    }
+
     return null;
   }
 
-  function extractEntity(title) {
-    const known = ['Globex', 'Initech', 'Hooli', 'Microsoft', 'Stripe', 'Snowflake', 'Amazon', 'Google', 'Acme'];
-    for (const c of known) { if (title.includes(c)) return c; }
-    const match = title.match(/\b([A-Z][a-z]+)\b/);
-    return match ? match[1] : '';
-  }
-
-  function inferTopic(title) {
-    const l = title.toLowerCase();
-    if (l.includes('price') || l.includes('pricing') || l.includes('cost')) return 'pricing';
-    if (l.includes('security') || l.includes('compliance') || l.includes('soc2')) return 'security';
-    if (l.includes('timeline') || l.includes('deadline') || l.includes('due')) return 'timeline';
-    if (l.includes('contract') || l.includes('renewal') || l.includes('legal')) return 'legal';
-    if (l.includes('feature') || l.includes('roadmap')) return 'features';
-    return '';
-  }
-
-  function inferDomain(url) {
-    const l = url.toLowerCase();
-    if (l.includes('auth') || l.includes('oauth') || l.includes('security')) return 'auth';
-    if (l.includes('payment') || l.includes('billing')) return 'payments';
-    if (l.includes('deploy') || l.includes('release')) return 'deployment';
-    if (l.includes('platform') || l.includes('infra')) return 'platform';
-    return '';
-  }
-
-  // ─── Whisper Panel ──────────────────────────────────────────────────────
-
-  function createPanel(data) {
-    const existing = document.getElementById('maestro-whisper-panel');
-    if (existing) existing.remove();
-    if (!data.whispers || data.whispers.length === 0) return;
-
-    const panel = document.createElement('div');
-    panel.id = 'maestro-whisper-panel';
-    panel.style.cssText = `position:fixed;bottom:20px;right:20px;width:340px;max-height:400px;overflow-y:auto;background:#0a0a14;border:1px solid rgba(124,92,255,0.3);border-radius:12px;padding:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#eaeaef;z-index:999999;box-shadow:0 8px 32px rgba(0,0,0,0.4);transition:opacity 0.3s,transform 0.3s;opacity:0;transform:translateY(10px);`;
-
-    panel.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06);">
-        <div style="width:20px;height:20px;border-radius:6px;background:rgba(124,92,255,0.15);display:flex;align-items:center;justify-content:center;color:#7c5cff;font-weight:bold;font-size:11px;">M</div>
-        <div style="font-size:11px;font-weight:600;color:#7c5cff;letter-spacing:0.03em;">Maestro Whisper</div>
-        <div style="margin-left:auto;cursor:pointer;color:#6b7280;font-size:14px;" id="maestro-w-close">×</div>
-      </div>
-      <div id="maestro-w-content"></div>
-      ${data.narrative ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);font-size:9px;color:#6b7280;">${esc(data.narrative)}</div>` : ''}
-    `;
-
-    const content = panel.querySelector('#maestro-w-content');
-    data.whispers.slice(0, 4).forEach(w => {
-      const item = document.createElement('div');
-      item.style.cssText = 'margin-bottom:8px;padding:6px 8px;background:rgba(255,255,255,0.03);border-radius:6px;';
-      item.innerHTML = `<div style="font-size:11px;color:#eaeaef;line-height:1.4;">${esc(w.text)}</div><div style="font-size:9px;color:#6b7280;margin-top:3px;">${esc(w.source||'')} · ${Math.round((w.confidence||0.5)*100)}% confidence</div>`;
-      content.appendChild(item);
-    });
-    if (data.warnings) {
-      data.warnings.slice(0, 2).forEach(w => {
-        const item = document.createElement('div');
-        item.style.cssText = 'margin-bottom:8px;padding:6px 8px;background:rgba(245,158,11,0.08);border-left:2px solid #f59e0b;border-radius:4px;';
-        item.innerHTML = `<div style="font-size:11px;color:#fbbf24;line-height:1.4;">⚠ ${esc(w.text)}</div>`;
-        content.appendChild(item);
-      });
-    }
-
-    document.body.appendChild(panel);
-    requestAnimationFrame(() => { panel.style.opacity = '1'; panel.style.transform = 'translateY(0)'; });
-    panel.querySelector('#maestro-w-close').addEventListener('click', () => dismiss(panel));
-    setTimeout(() => dismiss(panel), 30000);
-  }
-
-  function dismiss(panel) {
-    if (!panel.parentNode) return;
-    panel.style.opacity = '0';
-    panel.style.transform = 'translateY(10px)';
-    setTimeout(() => panel.remove(), 300);
-  }
-
-  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-
-  // ─── API Call ───────────────────────────────────────────────────────────
-
+  // ─── API call ─────────────────────────────────────────────────────────
   async function fetchWhisper(ctx) {
     try {
-      const params = new URLSearchParams({ context: ctx.context, entity: ctx.entity, topic: ctx.topic });
-      const resp = await fetch(`${MAESTRO_API_URL}/api/oem/whisper?${params}`, { credentials: 'include', headers: { 'Accept': 'application/json' } });
+      const params = new URLSearchParams({
+        context: ctx.context,
+        entity: ctx.entity || '',
+        topic: ctx.topic || '',
+      });
+      const resp = await fetch(`${MAESTRO_URL}/api/oem/whisper?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
       if (!resp.ok) return null;
       return await resp.json();
-    } catch { return null; }
+    } catch (e) {
+      // Network error — Maestro may not be running. Silent (golden rule).
+      return null;
+    }
   }
 
-  // ─── Main ───────────────────────────────────────────────────────────────
+  // ─── Golden Rule: should we show? ─────────────────────────────────────
+  function shouldShow(whispers) {
+    // Golden Rule: Never interrupt. Only arrive when intelligence changes a decision.
+    if (!whispers || whispers.length === 0) return false;
 
-  async function maybeWhisper() {
-    if (!whisperEnabled) return;
-    if (Date.now() - lastWhisperTime < WHISPER_COOLDOWN_MS) return;
+    // Only high-priority whispers auto-show
+    const highPriority = whispers.filter(w => w.priority === 'high');
+    if (highPriority.length === 0) return false;
+
+    // Don't show the same insight twice in one session
+    const currentInsight = highPriority[0].insight;
+    if (currentInsight === lastInsight) return false;
+
+    // Respect cooldown
+    const lastShown = parseInt(localStorage.getItem('maestro_last_shown') || '0', 10);
+    if (Date.now() - lastShown < COOLDOWN_MS) return false;
+
+    lastInsight = currentInsight;
+    localStorage.setItem('maestro_last_shown', String(Date.now()));
+    return true;
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function createCard(w) {
+    const evidenceHtml = (w.evidence || []).map(e => `
+      <div class="maestro-ambient-evidence-item">
+        <span class="maestro-ambient-evidence-source">${esc(e.source)}</span>
+        <span class="maestro-ambient-evidence-date">${esc(e.date)}</span>
+        <span class="maestro-ambient-evidence-text">${esc(e.text)}</span>
+      </div>
+    `).join('');
+
+    const confidencePct = Math.round((w.confidence || 0.5) * 100);
+    const priorityClass = `priority-${w.priority || 'medium'}`;
+    const priorityBadge = w.priority === 'high'
+      ? `<span class="maestro-ambient-priority-badge high">High Priority</span>` : '';
+
+    const actionPayload = encodeURIComponent(JSON.stringify(w.action ? w.action.payload : {}));
+    const actionType = w.action ? w.action.type : 'open_in_maestro';
+    const actionLabel = w.action ? w.action.label : 'Open in Maestro';
+
+    return `
+      <div class="maestro-ambient-card ${priorityClass}">
+        <div class="maestro-ambient-situation">
+          <span class="maestro-ambient-label">Situation</span>
+          <span class="maestro-ambient-situation-text">${esc(w.situation)}${priorityBadge}</span>
+        </div>
+        <div class="maestro-ambient-insight">
+          <span class="maestro-ambient-label">Insight</span>
+          <span class="maestro-ambient-insight-text">${esc(w.insight)}</span>
+        </div>
+        ${evidenceHtml ? `
+        <div class="maestro-ambient-evidence">
+          <span class="maestro-ambient-label">Evidence</span>
+          <div class="maestro-ambient-evidence-list">${evidenceHtml}</div>
+        </div>` : ''}
+        <button class="maestro-ambient-action"
+                data-action="${esc(actionType)}"
+                data-payload="${actionPayload}"
+                data-whisper-id="${esc(w.whisper_id)}"
+                data-insight="${esc(w.insight)}">
+          ${esc(actionLabel)} ↓
+        </button>
+        <div class="maestro-ambient-confidence">
+          Confidence: ${confidencePct}%
+          <span class="maestro-ambient-confidence-bar">
+            <span class="maestro-ambient-confidence-fill" data-confidence="${confidencePct}"></span>
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  function showPanel(whispers) {
+    if (!panel) createPanel();
+    const cards = whispers.map(createCard).join('');
+    const header = `
+      <div class="maestro-ambient-panel-header">
+        <span class="maestro-ambient-panel-title">⚡ Maestro</span>
+        <button class="maestro-ambient-panel-close" id="maestro-close-btn">×</button>
+      </div>
+    `;
+    panel.innerHTML = header + cards;
+    panel.classList.add('visible');
+
+    // Bind close button
+    const closeBtn = panel.querySelector('#maestro-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => dismissPanel('closed'));
+    }
+
+    // Bind action buttons
+    panel.querySelectorAll('.maestro-ambient-action').forEach(btn => {
+      btn.addEventListener('click', () => handleAction(btn));
+    });
+
+    // Set confidence bar widths from data attributes (no inline styles)
+    panel.querySelectorAll('.maestro-ambient-confidence-fill').forEach(el => {
+      const pct = el.getAttribute('data-confidence') || '50';
+      el.style.width = pct + '%';
+    });
+
+    // Auto-dismiss after 5 seconds (CEO's spec: "Less than five seconds")
+    clearTimeout(dismissTimer);
+    dismissTimer = setTimeout(() => dismissPanel('timeout'), AUTO_DISMISS_MS);
+
+    // Hover pauses auto-dismiss
+    panel.addEventListener('mouseenter', () => clearTimeout(dismissTimer));
+    panel.addEventListener('mouseleave', () => {
+      clearTimeout(dismissTimer);
+      dismissTimer = setTimeout(() => dismissPanel('timeout'), AUTO_DISMISS_MS);
+    });
+  }
+
+  function dismissPanel(reason) {
+    if (!panel) return;
+    panel.classList.remove('visible');
+    // Record outcome (ignored) if auto-dismissed
+    if (reason === 'timeout') {
+      const firstCard = panel.querySelector('.maestro-ambient-action');
+      if (firstCard) {
+        recordOutcome(firstCard.dataset.whisperId, 'ignored', firstCard.dataset.insight);
+      }
+    }
+    clearTimeout(dismissTimer);
+  }
+
+  function createPanel() {
+    panel = document.createElement('div');
+    panel.className = 'maestro-ambient-panel';
+    document.body.appendChild(panel);
+  }
+
+  // ─── Action handling ──────────────────────────────────────────────────
+  function handleAction(btn) {
+    const actionType = btn.dataset.action;
+    const payload = JSON.parse(decodeURIComponent(btn.dataset.payload) || '{}');
+    const whisperId = btn.dataset.whisperId;
+    const insight = btn.dataset.insight;
+
+    switch (actionType) {
+      case 'insert_text':
+        // Insert into the active text field (Gmail compose, Slack input, etc.)
+        const activeField = document.activeElement;
+        if (activeField && (activeField.tagName === 'TEXTAREA' || activeField.contentEditable === 'true')) {
+          if (activeField.contentEditable === 'true') {
+            activeField.innerHTML += payload.text || '';
+          } else {
+            activeField.value += payload.text || '';
+          }
+        }
+        recordOutcome(whisperId, 'acted', insight);
+        dismissPanel('acted');
+        break;
+
+      case 'prepare_email':
+        // Open Maestro with the prepared email draft
+        window.open(`${MAESTRO_URL}/#prepare-email:${encodeURIComponent(JSON.stringify(payload))}`, '_blank');
+        recordOutcome(whisperId, 'acted', insight);
+        dismissPanel('acted');
+        break;
+
+      case 'open_in_maestro':
+        // Open a Maestro surface
+        const surface = payload.surface || 'home';
+        window.open(`${MAESTRO_URL}/#${surface}`, '_blank');
+        recordOutcome(whisperId, 'acted', insight);
+        dismissPanel('acted');
+        break;
+
+      case 'approve_anyway':
+        // Record the override
+        recordOutcome(whisperId, 'overrode', insight);
+        dismissPanel('overrode');
+        break;
+
+      default:
+        window.open(MAESTRO_URL, '_blank');
+        recordOutcome(whisperId, 'acted', insight);
+        dismissPanel('acted');
+    }
+  }
+
+  // ─── Outcome tracking (closes the feedback loop) ──────────────────────
+  function recordOutcome(whisperId, action, insight) {
+    try {
+      fetch(`${MAESTRO_URL}/api/oem/whisper/outcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ whisper_id: whisperId, action: action, insight: insight }),
+      });
+    } catch (e) {
+      // Silent — outcome tracking is best-effort
+    }
+  }
+
+  // ─── Main loop ─────────────────────────────────────────────────────────
+  async function check() {
     const ctx = detectContext();
-    if (!ctx || (!ctx.entity && !ctx.topic)) return;
-    lastWhisperTime = Date.now();
+    if (!ctx) return;
+
     const data = await fetchWhisper(ctx);
-    if (data && data.whispers && data.whispers.length > 0) createPanel(data);
+    if (!data || !data.whispers) return;
+
+    if (shouldShow(data.whispers)) {
+      const highPriority = data.whispers.filter(w => w.priority === 'high');
+      showPanel(highPriority);
+    }
   }
 
-  setTimeout(maybeWhisper, 3000);
-  let lastUrl = location.href;
-  setInterval(() => { if (location.href !== lastUrl) { lastUrl = location.href; setTimeout(maybeWhisper, 2000); } }, 2000);
+  // ─── Init ──────────────────────────────────────────────────────────────
+  // Wait 3 seconds after page load before first check (don't interrupt immediately)
+  setTimeout(() => {
+    check();
+    setInterval(check, CHECK_INTERVAL_MS);
+  }, 3000);
 
-  chrome.runtime?.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'toggleWhisper') { whisperEnabled = msg.enabled; if (!whisperEnabled) { const p = document.getElementById('maestro-whisper-panel'); if (p) p.remove(); } sendResponse({ ok: true }); }
-    if (msg.type === 'triggerWhisper') { maybeWhisper(); sendResponse({ ok: true }); }
-  });
 })();

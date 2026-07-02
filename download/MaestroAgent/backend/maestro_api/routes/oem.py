@@ -2590,6 +2590,61 @@ def organizational_whisper(
     return w.for_context(context=context, entity=entity, topic=topic, user=user)
 
 
+# ─── Whisper outcome tracking (closes the feedback loop) ───────────────────
+# CEO's Ambient Layer spec: track whether the user acted on a whisper,
+# so the system learns which whispers change decisions (and which are noise).
+
+_whisper_outcomes: list[dict[str, Any]] = []
+
+
+@router.post("/whisper/outcome")
+def record_whisper_outcome(payload: dict[str, Any]) -> dict[str, Any]:
+    """Record what happened after a whisper was shown.
+
+    This closes the feedback loop:
+      Whisper shown → User acted/ignored/overrode → Outcome recorded →
+      Learning adjusts future whisper priority.
+
+    The organization evolves: whispers that are repeatedly ignored get
+    lower priority. Whispers that are acted on get higher priority.
+
+    Payload:
+      - whisper_id: str
+      - action: "acted" | "ignored" | "overrode"
+      - insight: str (the whisper's insight text, for dedup learning)
+    """
+    whisper_id = payload.get("whisper_id", "")
+    action = payload.get("action", "")
+    insight = payload.get("insight", "")
+
+    if action not in ("acted", "ignored", "overrode"):
+        raise HTTPException(400, f"Invalid action: {action}. Must be acted/ignored/overrode.")
+
+    outcome = {
+        "whisper_id": whisper_id,
+        "action": action,
+        "insight": insight,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _whisper_outcomes.append(outcome)
+
+    # Keep only the last 1000 outcomes (in-memory; production would persist)
+    if len(_whisper_outcomes) > 1000:
+        _whisper_outcomes[:] = _whisper_outcomes[-1000:]
+
+    logger.info("Whisper outcome recorded: %s → %s", whisper_id, action)
+    return {"ok": True, "whisper_id": whisper_id, "recorded": action}
+
+
+@router.get("/whisper/outcomes")
+def get_whisper_outcomes(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Get recent whisper outcomes (for learning analysis)."""
+    return {
+        "outcomes": _whisper_outcomes[-limit:],
+        "total": len(_whisper_outcomes),
+    }
+
+
 # ─── Ambient: Intent Detection + Interrupt Intelligence ────────────────────
 
 @router.get("/intent")

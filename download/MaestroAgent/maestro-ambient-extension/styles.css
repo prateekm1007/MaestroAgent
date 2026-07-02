@@ -1,0 +1,274 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Maestro Ambient Whisper — Bumble Theme Styles
+   ═══════════════════════════════════════════════════════════════════════════
+
+   CEO's Ambient Layer spec (2026-07-03):
+   - Bumble theme: light background (#F5F5F5), yellow accent (#FFC629),
+     Montserrat font, pill buttons, 16px radius cards.
+   - Every card has 4 parts: Situation → Insight → Evidence → Action.
+   - Zero inline styles (all in this file).
+
+   Golden Rule: Never interrupt. Only arrive when intelligence changes a decision.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Panel container ──────────────────────────────────────────────────── */
+.maestro-ambient-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 360px;
+  max-height: 480px;
+  overflow-y: auto;
+  background: #F5F5F5;
+  border-radius: 20px;
+  padding: 16px;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  z-index: 999999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+
+.maestro-ambient-panel.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.maestro-ambient-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.maestro-ambient-panel-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #000;
+  letter-spacing: 0.02em;
+}
+
+.maestro-ambient-panel-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.maestro-ambient-panel-close:hover {
+  background: #E5E5E5;
+}
+
+/* ─── Card (4-part format: Situation → Insight → Evidence → Action) ────── */
+.maestro-ambient-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  font-family: 'Montserrat', sans-serif;
+  border-left: 4px solid #FFC629;
+}
+
+.maestro-ambient-card:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Situation ────────────────────────────────────────────────────────── */
+.maestro-ambient-situation {
+  margin-bottom: 10px;
+}
+
+.maestro-ambient-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #999999;
+  margin-bottom: 4px;
+}
+
+.maestro-ambient-situation-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #000000;
+}
+
+/* ─── Insight ──────────────────────────────────────────────────────────── */
+.maestro-ambient-insight {
+  margin-bottom: 10px;
+}
+
+.maestro-ambient-insight-text {
+  font-size: 13px;
+  font-weight: 400;
+  color: #3A3A3A;
+  line-height: 1.5;
+}
+
+/* ─── Evidence ─────────────────────────────────────────────────────────── */
+.maestro-ambient-evidence {
+  margin-bottom: 12px;
+}
+
+.maestro-ambient-evidence-list {
+  margin-top: 4px;
+}
+
+.maestro-ambient-evidence-item {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: #999999;
+  margin-bottom: 3px;
+  align-items: baseline;
+}
+
+.maestro-ambient-evidence-source {
+  font-weight: 700;
+  text-transform: capitalize;
+  color: #666;
+  min-width: 60px;
+}
+
+.maestro-ambient-evidence-date {
+  color: #aaa;
+  font-size: 10px;
+  min-width: 70px;
+}
+
+.maestro-ambient-evidence-text {
+  flex: 1;
+  color: #777;
+}
+
+/* ─── Action button ────────────────────────────────────────────────────── */
+.maestro-ambient-action {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: #FFC629;
+  color: #000000;
+  border: none;
+  border-radius: 999px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  text-align: center;
+}
+
+.maestro-ambient-action:hover {
+  background: #F0B500;
+}
+
+.maestro-ambient-action:active {
+  transform: scale(0.96);
+}
+
+/* ─── Priority indicators ──────────────────────────────────────────────── */
+.maestro-ambient-card.priority-high {
+  border-left-color: #FF6B6B;
+}
+
+.maestro-ambient-card.priority-medium {
+  border-left-color: #FFC629;
+}
+
+.maestro-ambient-card.priority-low {
+  border-left-color: #4ECDC4;
+}
+
+.maestro-ambient-priority-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.maestro-ambient-priority-badge.high {
+  background: #FF6B6B;
+  color: #fff;
+}
+
+.maestro-ambient-priority-badge.medium {
+  background: #FFF3CD;
+  color: #856404;
+}
+
+.maestro-ambient-priority-badge.low {
+  background: #D1ECF1;
+  color: #0C5460;
+}
+
+/* ─── Confidence bar ───────────────────────────────────────────────────── */
+.maestro-ambient-confidence {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #999;
+}
+
+.maestro-ambient-confidence-bar {
+  display: inline-block;
+  width: 60px;
+  height: 4px;
+  background: #E5E5E5;
+  border-radius: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.maestro-ambient-confidence-fill {
+  display: block;
+  height: 100%;
+  background: #FFC629;
+  border-radius: 2px;
+}
+
+/* ─── Empty state ──────────────────────────────────────────────────────── */
+.maestro-ambient-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: #999;
+  font-size: 12px;
+}
+
+.maestro-ambient-empty-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+/* ─── Dismissed state ──────────────────────────────────────────────────── */
+.maestro-ambient-dismissed {
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+  padding: 8px;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .maestro-ambient-panel {
+    width: calc(100% - 24px);
+    right: 12px;
+    bottom: 12px;
+    max-height: 60vh;
+  }
+}

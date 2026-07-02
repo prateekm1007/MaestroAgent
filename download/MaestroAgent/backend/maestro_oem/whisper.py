@@ -2,20 +2,11 @@
 
 Like Cluely, but instead of helping one person, it helps the organization.
 
-When you're in a meeting, writing a proposal, or about to make a decision,
-the Whisper surfaces things your organization already knows that are
-relevant but that nobody has said yet:
+CEO's Ambient Layer spec (2026-07-03):
+  Every whisper card must contain exactly 4 parts:
+    Situation → Insight → Evidence → Action
 
-  - "Engineering already promised this."
-  - "Support solved this."
-  - "Legal already approved this wording."
-  - "Customer Success warned about this."
-  - "Finance rejected this last quarter."
-  - "Two similar customers accepted Option B."
-  - "This contradicts Law L-0003."
-
-The Whisper is NOT a chatbot. It's a contextual surfacing engine that
-reads the OEM and produces only what's relevant to the current context.
+  The golden rule: Never interrupt. Only arrive when intelligence changes a decision.
 
 Privacy by design:
   - No keystroke logging
@@ -40,6 +31,14 @@ class OrganizationalWhisper:
             entity="Globex",
             topic="pricing",
         )
+
+    Returns whispers in the CEO's 4-part format:
+        situation: what the user is doing
+        insight: what Maestro noticed
+        evidence: list of {source, date, text} — where this came from
+        action: {label, type, payload} — what to do next
+        confidence: 0.0-1.0
+        priority: "high" | "medium" | "low" — only "high" auto-shows
     """
 
     def __init__(self, model: Any, signals: list) -> None:
@@ -56,45 +55,48 @@ class OrganizationalWhisper:
         """Surface organizational knowledge relevant to the current context.
 
         Args:
-            context: "meeting" | "proposal" | "decision" | "email" | "review"
+            context: "meeting" | "proposal" | "decision" | "email" | "review" | "ticket" | "design"
             entity: The entity being discussed (customer name, law code, person)
             topic: The topic (pricing, security, timeline, etc.)
             user: The current user's email
 
         Returns:
-          - whispers: list of things the org knows
+          - whispers: list of 4-part cards (situation/insight/evidence/action/priority)
           - warnings: list of things to watch out for
           - precedents: list of similar past situations
           - confidence: overall confidence in the whispers
         """
-        whispers: list[dict[str, Any]] = []
+        raw_whispers: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
         precedents: list[dict[str, Any]] = []
 
         # Entity-specific whispers
         if entity:
-            whispers.extend(self._entity_whispers(entity))
+            raw_whispers.extend(self._entity_whispers(entity))
             warnings.extend(self._entity_warnings(entity))
             precedents.extend(self._entity_precedents(entity))
 
         # Topic-specific whispers
         if topic:
-            whispers.extend(self._topic_whispers(topic))
+            raw_whispers.extend(self._topic_whispers(topic))
             warnings.extend(self._topic_warnings(topic))
 
         # Context-specific whispers
         if context:
-            whispers.extend(self._context_whispers(context, entity))
+            raw_whispers.extend(self._context_whispers(context, entity))
 
         # Cross-team knowledge surfacing
-        whispers.extend(self._cross_team_knowledge(entity, topic))
+        raw_whispers.extend(self._cross_team_knowledge(entity, topic))
 
-        # Deduplicate by text
+        # Transform each raw whisper into the CEO's 4-part format
+        whispers_4part = [self._to_4part(w, context, entity, topic) for w in raw_whispers]
+
+        # Deduplicate by insight text
         seen = set()
         unique_whispers = []
-        for w in whispers:
-            key = w.get("text", "")[:80].lower()
-            if key not in seen:
+        for w in whispers_4part:
+            key = w.get("insight", "")[:80].lower()
+            if key and key not in seen:
                 seen.add(key)
                 unique_whispers.append(w)
 
@@ -113,17 +115,237 @@ class OrganizationalWhisper:
             "narrative": self._narrative(unique_whispers, warnings),
         }
 
+    # ─── 4-part format transformation ────────────────────────────────
+
+    def _to_4part(
+        self, raw: dict[str, Any], context: str, entity: str, topic: str
+    ) -> dict[str, Any]:
+        """Transform a raw whisper into the CEO's 4-part format.
+
+        CEO spec: Situation → Insight → Evidence → Action
+        """
+        raw_type = raw.get("type", "unknown")
+        raw_text = raw.get("text", "")
+        raw_source = raw.get("source", "")
+        raw_confidence = raw.get("confidence", 0.5)
+        raw_evidence = raw.get("evidence", {})
+
+        # Build situation from context + entity + topic
+        situation = self._build_situation(context, entity, topic)
+
+        # Insight is the raw text
+        insight = raw_text
+
+        # Evidence is a list of {source, date, text}
+        evidence = self._build_evidence_list(raw_source, raw_evidence, raw_type)
+
+        # Action depends on the whisper type
+        action = self._build_action(raw_type, entity, topic, raw_evidence, context)
+
+        # Priority: high only for commitments, objections, broken commitments, bottleneck
+        priority = self._compute_priority(raw_type, raw_confidence, raw_evidence)
+
+        return {
+            "situation": situation,
+            "insight": insight,
+            "evidence": evidence,
+            "action": action,
+            "confidence": raw_confidence,
+            "priority": priority,
+            "type": raw_type,
+            "whisper_id": f"wspr-{raw_type}-{hash(raw_text) & 0xFFFFFFFF:08x}",
+        }
+
+    def _build_situation(self, context: str, entity: str, topic: str) -> str:
+        """Build the situation line from context."""
+        if context == "meeting" and entity:
+            return f"Preparing for meeting with {entity}"
+        elif context == "email" and entity:
+            return f"Replying to {entity}"
+        elif context == "review":
+            return "Reviewing code change"
+        elif context == "decision":
+            return "Making a decision"
+        elif context == "proposal":
+            return "Preparing a proposal"
+        elif context == "ticket":
+            return "Working on a ticket"
+        elif context == "design":
+            return "Reviewing a design"
+        elif entity and topic:
+            return f"Working on {topic} with {entity}"
+        elif entity:
+            return f"Working with {entity}"
+        elif topic:
+            return f"Working on {topic}"
+        return "Working"
+
+    def _build_evidence_list(
+        self, source: str, evidence: dict[str, Any], whisper_type: str
+    ) -> list[dict[str, str]]:
+        """Build the evidence list from the raw evidence dict."""
+        items: list[dict[str, str]] = []
+        if not evidence:
+            if source:
+                items.append({"source": source, "date": "", "text": ""})
+            return items
+
+        # Extract timestamp
+        ts = ""
+        if "timestamp" in evidence:
+            ts = str(evidence["timestamp"])[:10]
+        elif "date" in evidence:
+            ts = str(evidence["date"])[:10]
+
+        # Build evidence text from the dict
+        if "artifact" in evidence:
+            items.append({"source": source or "signal", "date": ts, "text": str(evidence["artifact"])})
+        if "commitment" in evidence:
+            items.append({"source": source or "customer", "date": ts, "text": str(evidence["commitment"])[:100]})
+        if "objection_type" in evidence:
+            items.append({"source": source or "customer", "date": ts, "text": f"Objection: {evidence['objection_type']}"})
+        if "outcome" in evidence:
+            items.append({"source": source or "customer", "date": ts, "text": f"Decision: {evidence['outcome']}"})
+        if "domains" in evidence and isinstance(evidence["domains"], list):
+            items.append({"source": source or "knowledge graph", "date": ts, "text": f"Domains: {', '.join(evidence['domains'][:5])}"})
+        if "code" in evidence:
+            items.append({"source": source or "OEM laws", "date": ts, "text": f"Law code: {evidence['code']}"})
+        if "validated" in evidence or "failed" in evidence:
+            v = evidence.get("validated", 0)
+            f = evidence.get("failed", 0)
+            items.append({"source": source or "OEM laws", "date": ts, "text": f"Validated {v}x, failed {f}x"})
+
+        if not items and source:
+            items.append({"source": source, "date": ts, "text": ""})
+        return items
+
+    def _build_action(
+        self, whisper_type: str, entity: str, topic: str, evidence: dict[str, Any], context: str
+    ) -> dict[str, Any]:
+        """Build the action dict based on whisper type."""
+        # Commitment exists → prepare to reference it
+        if whisper_type == "commitment_exists":
+            return {
+                "label": "View commitment",
+                "type": "open_in_maestro",
+                "payload": {"surface": "customer", "entity": entity},
+            }
+        # Objection history → prepare a response addressing the objection
+        if whisper_type == "objection_history":
+            return {
+                "label": "Prepare response",
+                "type": "prepare_email" if context == "email" else "open_in_maestro",
+                "payload": {
+                    "entity": entity,
+                    "objection": evidence.get("objection_type", ""),
+                    "surface": "customer",
+                },
+            }
+        # Decision history → view the prior decision
+        if whisper_type == "decision_history":
+            return {
+                "label": "View prior decision",
+                "type": "open_in_maestro",
+                "payload": {"surface": "customer", "entity": entity},
+            }
+        # Expertise → open the knowledge graph for this person
+        if whisper_type == "expertise":
+            return {
+                "label": "View expertise map",
+                "type": "open_in_maestro",
+                "payload": {"surface": "hayek"},
+            }
+        # Law exists → view the law
+        if whisper_type == "law_exists":
+            return {
+                "label": "View law",
+                "type": "open_in_maestro",
+                "payload": {"surface": "physics"},
+            }
+        # Relevant law → check before proceeding
+        if whisper_type == "relevant_law":
+            return {
+                "label": "Review law",
+                "type": "open_in_maestro",
+                "payload": {"surface": "physics"},
+            }
+        # Relevant evidence → view the learning object
+        if whisper_type == "relevant_evidence":
+            return {
+                "label": "View evidence",
+                "type": "open_in_maestro",
+                "payload": {"surface": "eng-oem"},
+            }
+        # Cross-team knowledge → view the team's knowledge
+        if whisper_type == "cross_team":
+            return {
+                "label": "View cross-team knowledge",
+                "type": "open_in_maestro",
+                "payload": {"surface": "flow"},
+            }
+        # Meeting context → prepare for the meeting
+        if whisper_type == "meeting_context":
+            return {
+                "label": "Prepare for meeting",
+                "type": "open_in_maestro",
+                "payload": {"surface": "live", "entity": entity},
+            }
+        # Decision context → check time machine
+        if whisper_type == "decision_context":
+            return {
+                "label": "Check similar past decisions",
+                "type": "open_in_maestro",
+                "payload": {"surface": "physics"},
+            }
+        # Proposal context → check for duplicate work
+        if whisper_type == "proposal_context":
+            return {
+                "label": "Check for duplicate work",
+                "type": "open_in_maestro",
+                "payload": {"surface": "flow"},
+            }
+        # Default
+        return {
+            "label": "Open in Maestro",
+            "type": "open_in_maestro",
+            "payload": {"surface": "home"},
+        }
+
+    def _compute_priority(
+        self, whisper_type: str, confidence: float, evidence: dict[str, Any]
+    ) -> str:
+        """Compute priority. Only 'high' auto-shows (golden rule).
+
+        High priority: things that change a decision — commitments, objections,
+        broken commitments, champion quiet, bottlenecks.
+        Medium: things worth knowing — expertise, laws, decisions.
+        Low: contextual hints.
+        """
+        high_types = {
+            "commitment_exists",
+            "objection_history",
+            "broken_commitments",
+            "champion_quiet",
+            "bottleneck",
+            "open_objections",
+        }
+        if whisper_type in high_types:
+            return "high"
+        if confidence >= 0.8:
+            return "medium"
+        return "low"
+
+    # ─── Entity whispers (unchanged logic) ───────────────────────────
+
     def _entity_whispers(self, entity: str) -> list[dict[str, Any]]:
         """What does the org know about this entity?"""
         whispers = []
 
-        # Check if entity is a customer
         from maestro_oem.signal import SignalType
         customer_signals = [s for s in self.signals
                            if s.metadata.get("customer") == entity]
 
         if customer_signals:
-            # What commitments have been made?
             commitments = [s for s in customer_signals
                           if s.type == SignalType.CUSTOMER_COMMITMENT_MADE]
             for c in commitments:
@@ -135,7 +357,6 @@ class OrganizationalWhisper:
                     "evidence": {"artifact": c.artifact, "timestamp": c.timestamp.isoformat()},
                 })
 
-            # What objections have been raised?
             objections = [s for s in customer_signals
                          if s.type == SignalType.CUSTOMER_OBJECTION]
             for o in objections:
@@ -144,10 +365,10 @@ class OrganizationalWhisper:
                     "text": f"{entity} previously objected to: {o.metadata.get('objection_type', '')}",
                     "source": "customer signals",
                     "confidence": 1.0,
-                    "evidence": {"artifact": o.artifact, "timestamp": o.timestamp.isoformat()},
+                    "evidence": {"artifact": o.artifact, "timestamp": o.timestamp.isoformat(),
+                                 "objection_type": o.metadata.get("objection_type", "")},
                 })
 
-            # What decisions have been made?
             decisions = [s for s in customer_signals
                         if s.type == SignalType.CUSTOMER_DECISION]
             for d in decisions:
@@ -160,11 +381,9 @@ class OrganizationalWhisper:
                     "evidence": {"artifact": d.artifact, "outcome": outcome},
                 })
 
-        # Check if entity is a person
         person_signals = [s for s in self.signals if s.actor == entity
                          or s.metadata.get("contact") == entity]
         if person_signals:
-            # What does this person know?
             domains = set()
             for s in person_signals:
                 domain = s.metadata.get("domain", "")
@@ -179,7 +398,6 @@ class OrganizationalWhisper:
                     "evidence": {"domains": list(domains)},
                 })
 
-        # Check if entity is a law code
         if entity in self.model.laws:
             law = self.model.laws[entity]
             whispers.append({
@@ -201,7 +419,6 @@ class OrganizationalWhisper:
                            if s.metadata.get("customer") == entity]
 
         if customer_signals:
-            # Broken commitments
             broken = [s for s in customer_signals if s.type == SignalType.CUSTOMER_COMMITMENT_BROKEN]
             if broken:
                 warnings.append({
@@ -210,7 +427,6 @@ class OrganizationalWhisper:
                     "severity": "high",
                 })
 
-            # Champion quiet
             quiet = [s for s in customer_signals if s.type == SignalType.CUSTOMER_CHAMPION_QUIET]
             if quiet:
                 warnings.append({
@@ -219,7 +435,6 @@ class OrganizationalWhisper:
                     "severity": "high",
                 })
 
-            # Open objections
             objections = [s for s in customer_signals if s.type == SignalType.CUSTOMER_OBJECTION]
             if objections:
                 warnings.append({
@@ -228,7 +443,6 @@ class OrganizationalWhisper:
                     "severity": "medium",
                 })
 
-        # Check if entity is a bottleneck
         try:
             bottlenecks = self.model.approvals.get_bottlenecks(min_count=2)
             for bn in bottlenecks:
@@ -238,8 +452,10 @@ class OrganizationalWhisper:
                         "text": f"{entity} is gating {bn['items_gated']} items. They may be overloaded.",
                         "severity": "medium",
                     })
-        except Exception:
-            pass
+        except Exception as e:
+            # Log loudly per P6 — don't silently swallow
+            import logging
+            logging.getLogger(__name__).warning("Bottleneck check failed: %s", e)
 
         return warnings
 
@@ -252,7 +468,6 @@ class OrganizationalWhisper:
                          if s.metadata.get("customer") == entity
                          or s.actor == entity]
 
-        # Group by type
         by_type: dict[str, int] = {}
         for s in entity_signals:
             t = s.type.value
@@ -273,7 +488,6 @@ class OrganizationalWhisper:
         whispers = []
         topic_lower = topic.lower()
 
-        # Search laws for this topic
         for law in self.model.laws.values():
             if topic_lower in law.statement.lower():
                 whispers.append({
@@ -284,7 +498,6 @@ class OrganizationalWhisper:
                     "evidence": {"code": law.code},
                 })
 
-        # Search LOs for this topic
         from maestro_oem.learning_object import LearningObjectType
         for lo in self.model.learning_objects.values():
             if topic_lower in lo.title.lower() or topic_lower in lo.description.lower():
@@ -303,7 +516,6 @@ class OrganizationalWhisper:
         warnings = []
         topic_lower = topic.lower()
 
-        # Check for challenged laws on this topic
         for law in self.model.laws.values():
             if topic_lower in law.statement.lower() and law.failed_runtimes > 0:
                 warnings.append({
@@ -319,7 +531,6 @@ class OrganizationalWhisper:
         whispers = []
 
         if context == "meeting":
-            # Surface what the org knows that hasn't been said
             if entity:
                 whispers.append({
                     "type": "meeting_context",
@@ -329,7 +540,6 @@ class OrganizationalWhisper:
                 })
 
         elif context == "decision":
-            # Surface alternatives and precedents
             whispers.append({
                 "type": "decision_context",
                 "text": "Check the Time Machine for similar past decisions before committing.",
@@ -338,7 +548,6 @@ class OrganizationalWhisper:
             })
 
         elif context == "proposal":
-            # Surface related RFCs and approvals
             whispers.append({
                 "type": "proposal_context",
                 "text": "Check for duplicate work — someone may have already proposed this.",
@@ -352,17 +561,14 @@ class OrganizationalWhisper:
         """Surface knowledge from other teams that's relevant here."""
         whispers = []
 
-        # Find LOs that involve multiple providers (cross-team signals)
         from collections import defaultdict
         provider_lo: dict[str, list] = defaultdict(list)
         for lo in self.model.learning_objects.values():
             for p in lo.providers:
                 provider_lo[p].append(lo)
 
-        # If there's knowledge from a team the user isn't on, surface it
         for provider, los in provider_lo.items():
             if provider == "customer" and topic:
-                # Customer Success knowledge
                 for lo in los[:2]:
                     if topic.lower() in lo.title.lower() or topic.lower() in lo.description.lower():
                         whispers.append({

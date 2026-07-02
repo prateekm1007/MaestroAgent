@@ -291,7 +291,7 @@ class TestOrganizationalWhisper:
         # Initech has a broken commitment in the demo data
         commitment_whispers = [w for w in data["whispers"] if "commitment" in w.get("type", "")]
         # Should surface the commitment history
-        all_text = " ".join(w.get("text", "") for w in data["whispers"])
+        all_text = " ".join(w.get("text", "") + " " + w.get("insight", "") for w in data["whispers"])
         assert "SOC2" in all_text or len(commitment_whispers) > 0, \
             f"Whisper did not surface Initech commitments: {data['whispers']}"
 
@@ -299,7 +299,7 @@ class TestOrganizationalWhisper:
         """Whisper must surface past objections for the entity."""
         r = client.get("/api/oem/whisper?entity=Initech")
         data = r.json()
-        all_text = " ".join(w.get("text", "") for w in data["whispers"])
+        all_text = " ".join(w.get("text", "") + " " + w.get("insight", "") for w in data["whispers"])
         assert "pricing" in all_text.lower() or "objection" in all_text.lower(), \
             f"Whisper did not surface Initech objections: {data['whispers']}"
 
