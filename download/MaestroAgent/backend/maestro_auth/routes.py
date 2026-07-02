@@ -135,7 +135,7 @@ class MFAVerifyRequest(BaseModel):
 
 @router.post("/api/auth/login")
 @auth_policy(AuthPolicy.PUBLIC)
-async def login(req: LoginRequest, request: Request) -> dict[str, Any]:
+async def enterprise_login(req: LoginRequest, request: Request) -> dict[str, Any]:
     """Email/password login with optional MFA."""
     store = get_auth_store()
     sm = get_session_manager()
