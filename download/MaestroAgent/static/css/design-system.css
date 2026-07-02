@@ -546,3 +546,175 @@
 .sidebar-link .nav-icon {
   color: currentColor;
 }
+
+/* ─── Confirm modal (showConfirm) — extracted from inline styles ────────
+   Round 78 fix: the showConfirm() modal had 4 inline style= attributes.
+   Extracted to CSS classes for CSP compliance + consistency.
+   ────────────────────────────────────────────────────────────────── */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.confirm-panel {
+  background: #fff;
+  border-radius: 24px;
+  padding: 32px;
+  max-width: 440px;
+  width: calc(100% - 32px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.16);
+}
+.confirm-message {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 24px;
+  font-family: Montserrat, sans-serif;
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.confirm-btn {
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: Montserrat, sans-serif;
+}
+.confirm-btn-cancel {
+  border: 1px solid #E5E5E5;
+  background: transparent;
+  color: #3A3A3A;
+}
+.confirm-btn-ok {
+  border: none;
+  background: #FFC629;
+  font-weight: 700;
+  color: #000;
+}
+
+/* ─── Utility classes (extracted from app.html inline styles) ──────────
+   Round 78 fix: 37 inline style= attributes in app.html extracted to
+   these utility classes. Reduces inline-style count to 0 for CSP.
+   ────────────────────────────────────────────────────────────────── */
+.demo-banner {
+  display: none;
+  background: var(--warning);
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px 8px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+}
+.shortcut-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.spinner-sm {
+  width: 10px;
+  height: 10px;
+  border-width: 1px;
+}
+.btn-compact {
+  padding: 4px 8px;
+}
+.panel-scroll-300 {
+  max-height: 300px;
+  overflow-y: auto;
+}
+.panel-accent-secondary {
+  border: 1px solid rgba(0, 212, 170, 0.2);
+  background: rgba(0, 212, 170, 0.03);
+}
+.panel-accent-violet {
+  border: 1px solid rgba(124, 92, 255, 0.2);
+  background: rgba(124, 92, 255, 0.03);
+}
+.panel-accent-violet-light {
+  border: 1px solid rgba(124, 92, 255, 0.15);
+}
+.text-secondary { color: var(--secondary); }
+.text-accent { color: var(--accent); }
+.summary-toggle { list-style: none; }
+.hidden-initial { display: none; }
+.pos-relative { position: relative; }
+.row-mb-16 { margin-bottom: 16px; }
+.row-gap-6 { gap: 6px; }
+.input-sm { font-size: 12px; }
+.select-filter {
+  background: var(--surface-2);
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.import-banner-z { z-index: 40; }
+.progress-bar-width-0 { width: 0%; }
+
+/* ─── Ask surface suggestion cards ───────────────────────────────────── */
+.ds-card-suggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--divider, #E5E5E5);
+  background: var(--surface-1, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: Montserrat, sans-serif;
+}
+.ds-card-suggestion:hover {
+  border-color: #FFC629;
+  background: #FFF8E1;
+}
+.ds-card-suggestion-q {
+  font-size: 14px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 4px;
+}
+.ds-card-suggestion-d {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+}
+.b-flex-col-gap8 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.b-flex-gap8 {
+  display: flex;
+  gap: 8px;
+}
+.b-flex-wrap {
+  flex-wrap: wrap;
+}
+.b-mt6 { margin-top: 6px; }
+.b-mt8 { margin-top: 8px; }
+.b-mt12 { margin-top: 12px; }
+.b-mt16 { margin-top: 16px; }
+.b-mb6 { margin-bottom: 6px; }
+.b-mb8 { margin-bottom: 8px; }
+.b-fs11-text-5 { font-size: 11px; color: #666; }
+.b-fs12-text-6 { font-size: 12px; color: #555; line-height: 1.5; }
+.b-fs13-fw700-4 { font-size: 13px; font-weight: 700; color: #444; }
+.b-text-left-9 { text-align: left; }
+.b-mw500-m0auto { max-width: 500px; margin: 0 auto; }

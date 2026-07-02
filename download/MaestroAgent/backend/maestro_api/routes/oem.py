@@ -799,6 +799,33 @@ def _extract_action(signal) -> str:
     return ""
 
 
+@router.get("/signals")
+def get_signals(
+    limit: int = Query(100, ge=1, le=500),
+    law_code: str | None = Query(None, description="Filter by law code"),
+    provider: str | None = Query(None, description="Filter by provider"),
+) -> dict[str, Any]:
+    """Structured signal history for the Engineering Audit Log surface.
+
+    This is the same data as /receipts, but returned under the `signals` key
+    (the format loadEngAudit() in eng_audit.js expects). The eng-audit surface
+    was calling /signals but only /receipts existed — this caused a 404 that
+    made the surface show "HTTP 404: Not Found" instead of the signal list.
+
+    Returns:
+      - signals: list of {receipt_id, timestamp, provider, signal_type,
+                 actor, artifact, law_code, action, domain}
+      - total: total count of signals matching the filter
+    """
+    # Delegate to /receipts and reshape
+    result = get_receipts(limit=limit, law_code=law_code, provider=provider)
+    return {
+        "signals": result["receipts"],
+        "total": result["total"],
+        "filters": result["filters"],
+    }
+
+
 # ─── 12. POST /api/oem/meetings/analyze ───────────────────────────────────
 
 @router.post("/meetings/analyze")

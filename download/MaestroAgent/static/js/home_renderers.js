@@ -319,17 +319,44 @@ async function loadHayek() {
   loadingHTML(risksEl); loadingHTML(knowEl);
   try {
     const data = await api.getOEM('/knowledge');
+    const totals = data.totals || {};
+    const totalRisks = data.concentration_risks.length;
+    const totalExperts = data.hidden_experts.length;
+    const totalDeaths = data.knowledge_death.length;
+    const totalDups = data.duplicate_work.length;
+
+    // Enrich the surface header with a summary stats row
+    const headerEl = document.querySelector('#surface-hayek .p-6 > div:first-child');
+    if (headerEl && !headerEl.dataset.enriched) {
+      headerEl.dataset.enriched = '1';
+      headerEl.insertAdjacentHTML('beforeend', `
+        <div class="b-mt12 b-flex-gap8 b-flex-wrap">
+          <span class="ds-tag ds-tag-risk">${totalRisks} concentration risk${totalRisks === 1 ? '' : 's'}</span>
+          <span class="ds-tag ds-tag-info">${totalExperts} hidden expert${totalExperts === 1 ? '' : 's'}</span>
+          <span class="ds-tag ds-tag-warn">${totalDeaths} knowledge death${totalDeaths === 1 ? '' : 's'}</span>
+          <span class="ds-tag ds-tag-uncertain">${totalDups} duplicate work${totalDups === 1 ? '' : ' items'}</span>
+        </div>
+        <div class="b-mt8 b-fs12-text-6">
+          The Hayek Lens maps who influences what — derived from real signal interactions across your tools.
+          Concentration risks show where one person gates too much. Hidden experts are people with high
+          influence but low visibility. Knowledge death marks domains where expertise is leaving.
+          Duplicate work flags teams solving the same problem independently.
+        </div>
+      `);
+    }
+
     risksEl.innerHTML = data.concentration_risks.length === 0
-      ? '<div class="empty-state">No concentration risks detected.</div>'
+      ? '<div class="empty-state">No concentration risks detected. Influence is distributed — no single person gates a domain.</div>'
       : data.concentration_risks.map(r => `
         <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('risk', '${escapeJs(r.domain)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(r.domain)}</div>
-          <div class="text-[11px] text-fg-400 mt-1">Influence concentration: <span class="mono text-brand-rose">${r.score.toFixed(2)}</span></div>
+          <div class="text-[11px] text-fg-400 mt-1">Influence concentration: <span class="mono text-brand-rose">${r.score.toFixed(2)}</span> · ${r.entities ? r.entities.length : 0} entities</div>
           <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill b-wmathminrscore10100p-bg"></div></div></div>
+          ${r.entities && r.entities.length ? `<div class="b-mt6 b-fs11-text-5">Key holders: ${r.entities.slice(0,3).map(e => escapeHtml(e)).join(', ')}${r.entities.length > 3 ? ' +' + (r.entities.length - 3) + ' more' : ''}</div>` : ''}
         </div>
       `).join('');
     knowEl.innerHTML = data.hidden_experts.length === 0
-      ? '<div class="empty-state">No hidden experts detected.</div>'
+      ? '<div class="empty-state">No hidden experts detected. Every high-influence person is already visible to leadership.</div>'
       : data.hidden_experts.map(e => `
         <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('expert', '${escapeJs(e.entity)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(e.entity)}</div>

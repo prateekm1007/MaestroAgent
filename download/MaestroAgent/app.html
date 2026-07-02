@@ -160,7 +160,7 @@
 <!-- WCAG 2.1: Skip-to-content link for keyboard users -->
 <a href="#main-content" class="skip-link">Skip to content</a>
 <!-- Demo-mode banner — unmistakable visual indicator when demo seed is active -->
-<div id="demo-banner" role="alert" style="display:none; background:var(--warning); color:#000; font-size:11px; font-weight:700; text-align:center; padding:4px 8px; letter-spacing:0.05em; text-transform:uppercase; position:sticky; top:0; z-index:9999;">
+<div id="demo-banner" class="demo-banner" role="alert">
   ⚠ Demo Mode — Showing synthetic acme-corp sample data. Connect real providers via Settings to see live signals.
 </div>
 <div class="app-shell" id="app">
@@ -197,7 +197,7 @@
       <div class="sidebar-link" id="open-command-palette" tabindex="0" data-oc="oc-13" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCommandPalette();}" role="button" aria-label="Open command palette">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         Search surfaces…
-        <span style="margin-left:auto;font-size:10px;color:var(--text-muted);font-family:var(--font-mono);">⌘K</span>
+        <span class="shortcut-hint">⌘K</span>
       </div>
 
       <!-- Hidden: the 22 old sidebar links are removed from the sidebar.
@@ -205,7 +205,7 @@
     </div>
     <div class="p-3 border-t border-white/[0.06]">
       <div id="oem-status" class="text-[10px] text-fg-500">
-        <span class="spinner" style="width:10px;height:10px;border-width:1px;"></span>
+        <span class="spinner spinner-sm"></span>
         <span>Connecting to OEM…</span>
       </div>
       <div class="theme-toggle-row">
@@ -226,7 +226,7 @@
   <div class="main-area">
     <!-- Topbar -->
     <header class="topbar">
-      <button class="btn btn-ghost" data-oc="oc-15" aria-label="Toggle sidebar" style="padding:4px 8px;">
+      <button class="btn btn-ghost btn-compact" data-oc="oc-15" aria-label="Toggle sidebar">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
       <div class="flex items-center gap-2 text-xs text-fg-500 min-w-0">
@@ -330,6 +330,12 @@
         </div>
       </section>
 
+      <section class="surface" id="surface-coordination">
+        <div id="coordination-content">
+          <div class="ds-loading"><span class="spinner"></span> Loading coordination…</div>
+        </div>
+      </section>
+
       <section class="surface" id="surface-teammate">
         <div id="teammate-content">
           <div class="ds-loading"><span class="spinner"></span> Loading teammate…</div>
@@ -373,7 +379,7 @@
               <span>Executive Feed</span>
               <span class="text-[10px] text-fg-500">Meaningful events only — noise filtered</span>
             </div>
-            <div class="panel-body" id="feed-body" style="max-height: 300px; overflow-y: auto;">
+            <div class="panel-body panel-scroll-300" id="feed-body">
               <div class="loading-state"><span class="spinner"></span> Streaming...</div>
             </div>
           </div>
@@ -387,9 +393,9 @@
           </div>
 
           <!-- 0. Prepared Decisions (cognitive-model surface — replaces "you should do X" with "X is ready. Approve?") -->
-          <div class="panel" style="border: 1px solid rgba(0,212,170,0.2); background: rgba(0,212,170,0.03);">
+          <div class="panel panel-accent-secondary">
             <div class="panel-header">
-              <span style="color: var(--secondary);">Prepared Decisions — ready for approval</span>
+              <span class="text-secondary">Prepared Decisions — ready for approval</span>
               <span id="ecc-prepared-count" class="tag tag-cyan">—</span>
             </div>
             <div class="panel-body" id="ecc-prepared">
@@ -398,9 +404,9 @@
           </div>
 
           <!-- 1. Today's Attention -->
-          <div class="panel" style="border: 1px solid rgba(124,92,255,0.2); background: rgba(124,92,255,0.03);">
+          <div class="panel panel-accent-violet">
             <div class="panel-header">
-              <span style="color: var(--accent);">1. Today's Attention</span>
+              <span class="text-accent">1. Today's Attention</span>
               <span id="ecc-attention-count" class="tag tag-violet">—</span>
             </div>
             <div class="panel-body" id="ecc-attention">
@@ -497,9 +503,9 @@
           </div>
 
           <!-- 10. Digital Twin — What happens if...? -->
-          <div class="panel" style="border: 1px solid rgba(0,212,170,0.2); background: rgba(0,212,170,0.03);">
+          <div class="panel panel-accent-secondary">
             <div class="panel-header">
-              <span style="color: var(--secondary);">10. Digital Twin — What happens if...?</span>
+              <span class="text-secondary">10. Digital Twin — What happens if...?</span>
               <span id="ecc-twin-status" class="tag tag-green">Ready</span>
             </div>
             <div class="panel-body" id="ecc-twin">
@@ -509,7 +515,7 @@
 
           <!-- OEM State (collapsed, for reference) -->
           <details class="panel">
-            <summary class="panel-header cursor-pointer" style="list-style: none;">
+            <summary class="panel-header cursor-pointer summary-toggle">
               <span>OEM State (reference)</span>
               <span class="tag tag-cyan" id="oem-providers-badge">— providers</span>
             </summary>
@@ -580,7 +586,7 @@
               </div>
             </div>
           </div>
-          <div class="panel" id="simulator-result-panel" style="display:none;">
+          <div class="panel" id="simulator-result-panel" class="hidden-initial">
             <div class="panel-header"><span>Predicted Outcomes</span></div>
             <div class="panel-body" id="simulator-result"></div>
           </div>
@@ -670,17 +676,29 @@
             <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Ask the Organization</div>
             <h1 class="text-2xl font-bold text-white">Ask anything. Every answer cites evidence.</h1>
           </div>
-          <div style="position:relative;">
+          <div class="pos-relative">
             <input type="text" class="ask-input" id="ask-input" placeholder="Type a question — e.g. 'who is the bottleneck?'" oninput="onAskInput(this.value)" onkeydown="if(event.key==='Enter') submitAsk(this.value)" aria-label="Ask the organization">
             <div class="exec-autocomplete" id="exec-autocomplete"></div>
           </div>
-          <div id="ask-suggestions" class="space-y-2">
-            <div class="text-xs text-fg-500 mb-2">Try asking:</div>
-            <button class="tag tag-gray cursor-pointer" data-oc="oc-17">who is the bottleneck?</button>
-            <button class="tag tag-gray cursor-pointer" data-oc="oc-18">what laws have been discovered?</button>
-            <button class="tag tag-gray cursor-pointer" data-oc="oc-19">what is the P1 cluster risk?</button>
+          <div id="ask-suggestions" class="space-y-3">
+            <div class="text-xs text-fg-500 mb-2">Try asking — each question cites the signals, people, and laws behind the answer:</div>
+            <div class="b-flex-col-gap8">
+              <button class="ds-card-suggestion" data-oc="oc-17">
+                <div class="ds-card-suggestion-q">who is the bottleneck?</div>
+                <div class="ds-card-suggestion-d">Identifies the person gating the most decisions. Cites the specific PRs, tickets, and approvals where they're the blocker.</div>
+              </button>
+              <button class="ds-card-suggestion" data-oc="oc-18">
+                <div class="ds-card-suggestion-q">what laws have been discovered?</div>
+                <div class="ds-card-suggestion-d">Lists the organizational laws the OEM has inferred from execution data (e.g. "review-batch size inversely correlates with defect escape rate"). Each law shows evidence count and confidence.</div>
+              </button>
+              <button class="ds-card-suggestion" data-oc="oc-19">
+                <div class="ds-card-suggestion-q">what is the P1 cluster risk?</div>
+                <div class="ds-card-suggestion-d">Surfaces the highest-priority risk cluster — a group of related risks that compound if unaddressed. Shows the cluster's components and the cost of inaction.</div>
+              </button>
+            </div>
+            <div class="b-mt8 b-fs11-text-5">Tip: use ⌘K to open the command palette for full-text search across every surface, signal, and memory.</div>
           </div>
-          <div id="ask-answer" class="space-y-4" style="display:none;">
+          <div id="ask-answer" class="space-y-4 hidden-initial">
             <div class="panel">
               <div class="panel-header"><span>Maestro's synthesis</span><span class="text-[10px] text-fg-500" id="ask-confidence"></span></div>
               <div class="panel-body space-y-3">
@@ -727,19 +745,19 @@
           </div>
 
           <!-- Selected Customer: Executive Brief -->
-          <div class="panel" id="customer-brief-panel" style="display:none;">
+          <div class="panel" id="customer-brief-panel" class="hidden-initial">
             <div class="panel-header"><span id="customer-brief-title">Executive Brief</span><span class="text-[10px] text-fg-500" id="customer-brief-confidence"></span></div>
             <div class="panel-body space-y-4" id="customer-brief-body"></div>
           </div>
 
           <!-- Selected Customer: Buying Committee -->
-          <div class="panel" id="customer-committee-panel" style="display:none;">
+          <div class="panel" id="customer-committee-panel" class="hidden-initial">
             <div class="panel-header"><span>Buying Committee</span><span class="text-[10px] text-fg-500" id="customer-committee-meta"></span></div>
             <div class="panel-body" id="customer-committee-body"></div>
           </div>
 
           <!-- Selected Customer: Drift -->
-          <div class="panel" id="customer-drift-panel" style="display:none;">
+          <div class="panel" id="customer-drift-panel" class="hidden-initial">
             <div class="panel-header"><span>Relationship Drift</span><span class="text-[10px] text-fg-500">Continuous metrics, not snapshots</span></div>
             <div class="panel-body" id="customer-drift-body"></div>
           </div>
@@ -748,7 +766,7 @@
           <div class="panel">
             <div class="panel-header"><span>Ask the Relationship</span><span class="text-[10px] text-fg-500">Natural-language query</span></div>
             <div class="panel-body space-y-3">
-              <div style="position:relative;">
+              <div class="pos-relative">
                 <input type="text" class="ask-input" id="customer-ask-input" placeholder="e.g. 'Why is Initech slowing down?'" onkeydown="if(event.key==='Enter') submitCustomerAsk(this.value)" aria-label="Ask the relationship">
               </div>
               <div class="flex flex-wrap gap-1.5">
@@ -758,7 +776,7 @@
                 <button class="tag tag-gray cursor-pointer" data-oc="oc-23">What promises have we made?</button>
                 <button class="tag tag-gray cursor-pointer" data-oc="oc-24">Which engineering unlocks the most ARR?</button>
               </div>
-              <div id="customer-ask-answer" class="space-y-2" style="display:none;">
+              <div id="customer-ask-answer" class="space-y-2 hidden-initial">
                 <div class="text-sm text-fg-200 leading-relaxed" id="customer-ask-text"></div>
                 <div class="text-[11px] text-fg-400" id="customer-ask-evidence"></div>
                 <div class="text-[11px] text-amber-400" id="customer-ask-unknowns"></div>
@@ -772,8 +790,8 @@
             <div class="panel-header"><span>Customer Digital Twin — What happens if…?</span></div>
             <div class="panel-body space-y-3">
               <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="customer-twin-scenarios"></div>
-              <div id="customer-twin-form" class="space-y-2" style="display:none;"></div>
-              <div id="customer-twin-result" style="display:none;"></div>
+              <div id="customer-twin-form" class="space-y-2 hidden-initial"></div>
+              <div id="customer-twin-result" class="hidden-initial"></div>
             </div>
           </div>
         </div>
@@ -824,8 +842,8 @@
           <div id="prediction-market-ranking">
             <div class="ds-loading"><span class="spinner"></span> Computing calibration…</div>
           </div>
-          <div id="prediction-market-all" style="display:none;"></div>
-          <div id="prediction-market-submit" style="display:none;"></div>
+          <div id="prediction-market-all" class="hidden-initial"></div>
+          <div id="prediction-market-submit" class="hidden-initial"></div>
         </div>
       </section>
 
@@ -839,8 +857,8 @@
             <h1 class="ds-page-title">Dangerous Assumptions</h1>
             <p class="ds-subtitle">Open, high-stakes, unvalidated assumptions — the ones that could bankrupt a project if wrong. No enterprise product has this view.</p>
           </div>
-          <div class="ds-row-between" style="margin-bottom:16px;">
-            <div class="ds-row" style="gap:6px;">
+          <div class="ds-row-between row-mb-16">
+            <div class="ds-row row-gap-6">
               <button class="ds-btn ds-btn-primary ds-btn-small" data-oc="oc-25">Dangerous</button>
               <button class="ds-btn ds-btn-ghost ds-btn-small" data-oc="oc-26">Accuracy report</button>
             </div>
@@ -848,7 +866,7 @@
           <div id="assumptions-dangerous">
             <div class="ds-loading"><span class="spinner"></span> Surfacing dangerous assumptions…</div>
           </div>
-          <div id="assumptions-accuracy" style="display:none;"></div>
+          <div id="assumptions-accuracy" class="hidden-initial"></div>
         </div>
       </section>
 
@@ -866,7 +884,7 @@
             <div class="panel-header">
               <span>All Laws</span>
               <div class="flex gap-2">
-                <select class="input" id="law-filter" onchange="loadLaws(this.value)" style="background:var(--surface-2);border:1px solid var(--divider);border-radius:6px;padding:2px 8px;font-size:11px;color:var(--text-primary);">
+                <select class="input select-filter" id="law-filter" onchange="loadLaws(this.value)">
                   <option value="">All statuses</option>
                   <option value="validated">Validated</option>
                   <option value="candidate">Candidate</option>
@@ -1011,7 +1029,7 @@
             <div class="panel-body space-y-3">
               <div>
                 <div class="text-xs text-fg-400 mb-1">OEM API Base URL</div>
-                <input type="text" class="ask-input" id="settings-api-url" value="" style="font-size:12px;" readonly>
+                <input type="text" class="ask-input input-sm" id="settings-api-url" value="" readonly>
               </div>
               <div>
                 <div class="text-xs text-fg-400 mb-1">OEM Engine Status</div>
@@ -1032,9 +1050,9 @@
           </div>
 
           <!-- Enterprise OAuth Self-Service: Admin Integration Configuration -->
-          <div class="panel" style="border: 1px solid rgba(124,92,255,0.15);">
+          <div class="panel panel-accent-violet-light">
             <div class="panel-header">
-              <span style="color: var(--accent);">OAuth Integration Configuration</span>
+              <span class="text-accent">OAuth Integration Configuration</span>
               <span class="text-[10px] text-fg-500">Admin-only · Secrets encrypted at rest</span>
             </div>
             <div class="panel-body space-y-3" id="oauth-admin-list">
@@ -1043,7 +1061,7 @@
           </div>
 
           <!-- OAuth config form (hidden by default) -->
-          <div class="panel" id="oauth-config-form" style="display:none;">
+          <div class="panel" id="oauth-config-form" class="hidden-initial">
             <div class="panel-header">
               <span id="oauth-form-title">Configure Provider</span>
               <button class="btn btn-ghost text-[10px]" data-oc="oc-29">Cancel</button>
@@ -1051,15 +1069,15 @@
             <div class="panel-body space-y-3">
               <div>
                 <div class="text-xs text-fg-400 mb-1">Client ID</div>
-                <input type="text" id="oauth-client-id" class="ask-input" style="font-size:12px;" placeholder="e.g. Iv1.abc123" aria-label="OAuth Client ID">
+                <input type="text" id="oauth-client-id" class="ask-input input-sm" placeholder="e.g. Iv1.abc123" aria-label="OAuth Client ID">
               </div>
               <div>
                 <div class="text-xs text-fg-400 mb-1">Client Secret</div>
-                <input type="password" id="oauth-client-secret" class="ask-input" style="font-size:12px;" placeholder="Encrypted at rest with AES-256-GCM" aria-label="OAuth Client Secret">
+                <input type="password" id="oauth-client-secret" class="ask-input input-sm" placeholder="Encrypted at rest with AES-256-GCM" aria-label="OAuth Client Secret">
               </div>
               <div>
                 <div class="text-xs text-fg-400 mb-1">Redirect URI (optional — defaults to server config)</div>
-                <input type="text" id="oauth-redirect-uri" class="ask-input" style="font-size:12px;" placeholder="https://your-domain/api/oauth/callback">
+                <input type="text" id="oauth-redirect-uri" class="ask-input input-sm" placeholder="https://your-domain/api/oauth/callback">
               </div>
               <div class="text-[10px] text-fg-500">
                 The secret is encrypted before storage and decrypted only during the OAuth token exchange.
@@ -1086,7 +1104,7 @@
 <!-- ============================================================ -->
 <!-- IMPORT PROGRESS BANNER — shown when an import is running -->
 <!-- ============================================================ -->
-<div id="import-banner" class="fixed bottom-0 left-0 right-0 bg-ink-900 border-t-2 border-brand-violet/40 p-4 shadow-2xl hidden" style="z-index:40;">
+<div id="import-banner" class="fixed bottom-0 left-0 right-0 bg-ink-900 border-t-2 border-brand-violet/40 p-4 shadow-2xl hidden import-banner-z">
   <div class="max-w-6xl mx-auto">
     <div class="flex items-center justify-between mb-2">
       <div class="flex items-center gap-3">
@@ -1113,7 +1131,7 @@
       </div>
     </div>
     <div class="h-1 bg-ink-700 rounded-full overflow-hidden">
-      <div id="import-banner-progress" class="h-full bg-gradient-to-r from-brand-violet to-brand-cyan transition-all duration-500" style="width:0%"></div>
+      <div id="import-banner-progress" class="h-full bg-gradient-to-r from-brand-violet to-brand-cyan transition-all duration-500 progress-bar-width-0"></div>
     </div>
   </div>
 </div>

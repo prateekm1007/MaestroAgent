@@ -224,6 +224,17 @@ async function loadPersonalToday(el) {
           <div class="calm-empty-icon">☀️</div>
           <div class="calm-empty-title">Good morning.</div>
           <div class="calm-empty-body">Connect a source and I'll brief you tomorrow. I work either way.</div>
+          <div class="b-mt16 b-text-left-9 b-mw500-m0auto">
+            <div class="b-fs13-fw700-4 b-mb8">Personal Mode — what it does:</div>
+            <div class="b-fs12-text-6 b-mb6"><strong>Morning brief:</strong> A 5-card swipe deck — one habit to check in, one contradiction to reflect on, one memory to revisit, one reminder, one summary. Calm, like Apple Weather. Swipe right to act, left to defer.</div>
+            <div class="b-fs12-text-6 b-mb6"><strong>Memory:</strong> Your personal timeline — decisions you logged, habits you tracked, reflections you wrote. Encrypted at rest with your key. Visible only to you, never to your employer.</div>
+            <div class="b-fs12-text-6 b-mb6"><strong>Decide:</strong> Personal decisions with a Bumble-style swipe deck. Each card shows the decision, the trade-offs, and the cost of inaction. Swipe right to commit, left to defer.</div>
+            <div class="b-fs12-text-6 b-mb6"><strong>Reflect:</strong> A daily reflection prompt. Maestro notices patterns in your reflections over time — recurring concerns, energy cycles, decision velocity — and surfaces them gently.</div>
+            <div class="b-fs12-text-6"><strong>Incognito mode:</strong> Toggle incognito to stop personal collection temporarily. Work mode keeps running. Your existing personal memories are preserved.</div>
+          </div>
+          <div class="b-mt16">
+            <button class="ds-btn ds-btn-primary" onclick="navTo('eng-settings')">Connect a personal source →</button>
+          </div>
         </div>
       `;
     }

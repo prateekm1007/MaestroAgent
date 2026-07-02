@@ -29,6 +29,14 @@ from maestro_api.state import AppState
 
 logger = logging.getLogger(__name__)
 
+# Module-level Prometheus metrics — created once, reused across all app instances.
+# This prevents the "Duplicated timeseries in CollectorRegistry" error that
+# occurred when metrics were created inside create_app() (every test that
+# created an app re-registered the same metric names → 462 test errors).
+_REQUEST_COUNT = None
+_REQUEST_LATENCY = None
+_OEM_SIGNAL_COUNT = None
+
 
 # Round 49 C7: dangerous default secrets that must never be used in production.
 _DANGEROUS_DEFAULTS = {
@@ -350,24 +358,34 @@ def create_app(
     # ── Round 51 H6: Prometheus /metrics endpoint ────────────────────
     # Prometheus scrapes /metrics for observability. Without this, the
     # observability stack (Grafana, alerting) is broken.
+    #
+    # FIX (execution-verified 2026-07-03): The Counter/Histogram were created
+    # inside create_app(), so every test that called create_app() re-registered
+    # the same metric names → "Duplicated timeseries in CollectorRegistry"
+    # → 462 test errors. Fix: create metrics at MODULE level (once per process)
+    # and reuse them. This is the prometheus_client recommended pattern.
     try:
         from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
         from starlette.responses import Response
 
-        REQUEST_COUNT = Counter(
-            'maestro_requests_total',
-            'Total HTTP requests',
-            ['method', 'endpoint', 'status'],
-        )
-        REQUEST_LATENCY = Histogram(
-            'maestro_request_duration_seconds',
-            'HTTP request latency in seconds',
-            ['endpoint'],
-        )
-        OEM_SIGNAL_COUNT = Counter(
-            'maestro_oem_signals_total',
-            'Total OEM signals ingested',
-        )
+        # Module-level metrics — created once, reused across all app instances.
+        # This fixes the "Duplicated timeseries" error in tests.
+        global _REQUEST_COUNT, _REQUEST_LATENCY, _OEM_SIGNAL_COUNT
+        if _REQUEST_COUNT is None:
+            _REQUEST_COUNT = Counter(
+                'maestro_requests_total',
+                'Total HTTP requests',
+                ['method', 'endpoint', 'status'],
+            )
+            _REQUEST_LATENCY = Histogram(
+                'maestro_request_duration_seconds',
+                'HTTP request latency in seconds',
+                ['endpoint'],
+            )
+            _OEM_SIGNAL_COUNT = Counter(
+                'maestro_oem_signals_total',
+                'Total OEM signals ingested',
+            )
 
         @app.middleware("http")
         async def track_metrics(request, call_next):
@@ -381,8 +399,8 @@ def create_app(
                 parts = path.split('/')
                 if len(parts) > 4 and parts[-1] not in ('status', 'list', 'tools', 'metrics'):
                     path = '/'.join(parts[:-1]) + '/:id'
-            REQUEST_COUNT.labels(request.method, path, response.status_code).inc()
-            REQUEST_LATENCY.labels(path).observe(duration)
+            _REQUEST_COUNT.labels(request.method, path, response.status_code).inc()
+            _REQUEST_LATENCY.labels(path).observe(duration)
             return response
 
         @app.get("/metrics")

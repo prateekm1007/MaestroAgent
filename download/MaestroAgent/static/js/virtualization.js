@@ -141,6 +141,16 @@ async function loadUnifiedMemory() {
       html += `<div class="calm-empty b-text-center-9">
         <div class="b-fs18-fw800-4">No memories yet.</div>
         <div class="meta-text">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
+        <div class="b-mt16 b-text-left-9 b-mw500-m0auto">
+          <div class="b-fs13-fw700-4 b-mb8">What you'll see when connected:</div>
+          <div class="b-fs12-text-6 b-mb6"><strong>Work timeline:</strong> PRs opened, tickets transitioned, deployments shipped, postmortems written — every execution signal, timestamped and attributed.</div>
+          <div class="b-fs12-text-6 b-mb6"><strong>Personal memories:</strong> Decisions you made, habits you tracked, reflections you logged — encrypted at rest, visible only to you.</div>
+          <div class="b-fs12-text-6 b-mb6"><strong>Unified feed:</strong> Work and personal memories merged chronologically. The filter pill (All / Work / Personal) narrows the view without switching surfaces.</div>
+          <div class="b-fs12-text-6"><strong>Searchable:</strong> Every memory is full-text searchable via the command palette (⌘K). Type any fragment and jump to the moment it happened.</div>
+        </div>
+        <div class="b-mt16">
+          <button class="ds-btn ds-btn-primary" onclick="navTo('eng-settings')">Connect a data source →</button>
+        </div>
       </div>`;
     } else {
       items.forEach((item, i) => {

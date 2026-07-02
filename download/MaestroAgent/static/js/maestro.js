@@ -1,24 +1,24 @@
 
 // Round 78: Custom confirm modal (replaces native confirm())
+// Styles extracted to CSS classes (.confirm-backdrop, .confirm-panel, etc.)
+// in design-system.css — no inline styles (CSP + consistency).
 function showConfirm(message) {
   return new Promise(function(resolve) {
     var backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    
+    backdrop.className = 'confirm-backdrop';
+
     var panel = document.createElement('div');
-    panel.className = 'modal-panel';
-    panel.style.cssText = 'background:#fff;border-radius:24px;padding:32px;max-width:440px;width:calc(100% - 32px);box-shadow:0 24px 64px rgba(0,0,0,0.16);';
-    
-    panel.innerHTML = '<div style="font-size:16px;font-weight:700;color:#000;margin-bottom:24px;font-family:Montserrat,sans-serif;">' + message + '</div>' +
-      '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
-      '<button id="confirm-cancel" style="padding:10px 20px;border-radius:999px;border:1px solid #E5E5E5;background:transparent;font-size:14px;font-weight:600;color:#3A3A3A;cursor:pointer;font-family:Montserrat,sans-serif;">Cancel</button>' +
-      '<button id="confirm-ok" style="padding:10px 20px;border-radius:999px;border:none;background:#FFC629;font-size:14px;font-weight:700;color:#000;cursor:pointer;font-family:Montserrat,sans-serif;">Confirm</button>' +
+    panel.className = 'confirm-panel';
+
+    panel.innerHTML = '<div class="confirm-message">' + message + '</div>' +
+      '<div class="confirm-actions">' +
+      '<button id="confirm-cancel" class="confirm-btn confirm-btn-cancel">Cancel</button>' +
+      '<button id="confirm-ok" class="confirm-btn confirm-btn-ok">Confirm</button>' +
       '</div>';
-    
+
     backdrop.appendChild(panel);
     document.body.appendChild(backdrop);
-    
+
     document.getElementById('confirm-cancel').onclick = function() { backdrop.remove(); resolve(false); };
     document.getElementById('confirm-ok').onclick = function() { backdrop.remove(); resolve(true); };
     backdrop.onclick = function(e) { if (e.target === backdrop) { backdrop.remove(); resolve(false); } };
