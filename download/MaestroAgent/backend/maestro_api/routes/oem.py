@@ -5221,6 +5221,26 @@ def get_trajectory_intervention() -> dict[str, Any]:
     return engine.assess()
 
 
+@router.get("/org-pattern")
+def get_organizational_pattern() -> dict[str, Any]:
+    """Detect a recurring organizational pattern and suggest a law.
+
+    CEO's 'Friday notification' (2026-07-03): Maestro notices a pattern
+    over weeks and surfaces it as an organizational law suggestion.
+
+    Example: 'Customers have raised pricing concerns 11 times. Suggested
+    operating law: Address pricing proactively in every customer engagement.'
+
+    Returns None if no significant pattern is detected.
+    """
+    from maestro_oem.trajectory_intervention import TrajectoryInterventionEngine
+    engine = TrajectoryInterventionEngine(oem_state.model, oem_state.signals)
+    pattern = engine.detect_organizational_pattern(min_occurrences=5)
+    if pattern:
+        return {"pattern": pattern, "suggestion": "Review as Law?"}
+    return {"pattern": None}
+
+
 @router.get("/dna")
 def get_dna() -> dict[str, Any]:
     """Your organization's DNA — 7 chromosomes.

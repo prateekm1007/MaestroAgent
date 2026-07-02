@@ -124,7 +124,14 @@ def verify_csrf(request: Request) -> bool:
     For state-changing requests (POST/PUT/PATCH/DELETE), the client must send:
       1. The maestro_csrf cookie (set by the server on login)
       2. The X-CSRF-Token header matching the cookie
+
+    FIX (execution-verified 2026-07-03): skip CSRF when auth is disabled
+    (dev mode). The old code enforced CSRF even in dev mode, causing 403
+    on all POST requests in tests. This matches the CSRFMiddleware behavior.
     """
+    if not is_auth_enabled():
+        return True  # Dev mode — CSRF not enforced
+
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return True
 

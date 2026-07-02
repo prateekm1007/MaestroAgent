@@ -23,6 +23,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
+    monkeypatch.setenv("MAESTRO_LOCAL_DEV", "true")  # Fix: auth defaults ON without this → 403 on admin endpoints
     oem_state._initialized = False
     oem_state.engine = None
     oem_state.signals = []

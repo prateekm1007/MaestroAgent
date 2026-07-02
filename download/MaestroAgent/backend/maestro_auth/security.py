@@ -132,8 +132,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
-        # Skip CSRF if auth is disabled
-        if not os.environ.get("MAESTRO_AUTH_ENABLED", "").lower() in ("true", "1", "yes"):
+        # Skip CSRF if auth is disabled.
+        # FIX (execution-verified 2026-07-03): the old check used MAESTRO_AUTH_ENABLED
+        # directly, but is_auth_enabled() delegates to AuthConfig.from_env().enabled
+        # which returns False when MAESTRO_LOCAL_DEV=true. This mismatch caused CSRF
+        # to enforce (403) even in dev mode, breaking 7 test_oauth_self_service tests.
+        # Now we use the same is_auth_enabled() function that require_user uses.
+        from maestro_auth.permissions import is_auth_enabled
+        if not is_auth_enabled():
             return await call_next(request)
 
         if request.method not in self.STATE_CHANGING_METHODS:

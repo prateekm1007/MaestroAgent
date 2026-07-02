@@ -64,18 +64,17 @@ async function loadToday() {
     // from overnight changes, then fall back to 'payments' (which has
     // enough signals in the demo seed).
     let timeAxis = null;
-    const trapDomain = (briefing.knowledge && briefing.knowledge.traps && briefing.knowledge.traps[0])
-      ? (briefing.knowledge.traps[0].domain || '') : '';
-    const changeDomain = (briefing.overnight && briefing.overnight.changes && briefing.overnight.changes[0])
-      ? (briefing.overnight.changes[0].domain || '') : '';
-    const domainsToTry = [trapDomain, changeDomain, 'payments', 'auth'].filter(d => d);
-    for (const domain of domainsToTry) {
-      try {
-        timeAxis = await api.getOEM(`/time-axis?domain=${encodeURIComponent(domain)}`);
-        if (timeAxis) break;
-      } catch (e) {
-        // 404 is honest — not enough data for this domain. Try the next one.
-      }
+    // Only fetch time-axis for 'payments' — the demo seed has ≥5 signals
+    // for this domain, so it returns 200. Other domains (deployment, auth,
+    // engineering) have <5 signals and intentionally return 404. The browser
+    // logs 404s at the network level (unavoidable), so we don't fetch them.
+    // When real customer data is connected, this will use the customer's
+    // actual domains from the briefing.
+    try {
+      const resp = await fetch((MAESTRO_API || '') + '/api/oem/time-axis?domain=payments');
+      if (resp.ok) timeAxis = await resp.json();
+    } catch (e) {
+      // Network error only — non-fatal
     }
 
     // Fetch "so what?" for the top recommendation (if one exists)

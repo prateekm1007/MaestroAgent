@@ -718,3 +718,140 @@
 .b-fs13-fw700-4 { font-size: 13px; font-weight: 700; color: #444; }
 .b-text-left-9 { text-align: left; }
 .b-mw500-m0auto { max-width: 500px; margin: 0 auto; }
+
+/* ─── Breadcrumb surface icon ─────────────────────────────────────────── */
+.bc-surface-icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+  vertical-align: middle;
+  margin-right: 6px;
+  color: var(--maestro-yellow-dark, #F0B500);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+/* ─── Mobile responsive (Phase 2) ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  .meta-surface, .surface > div {
+    padding: 16px !important;
+    max-width: 100% !important;
+  }
+  .maestro-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+  .text-hero, h1.text-2xl {
+    font-size: 22px !important;
+  }
+  .text-title, h2 {
+    font-size: 17px !important;
+  }
+  .grid-cols-2, .grid-cols-3, .grid-cols-4,
+  .b-grid-2, .b-grid-3, .b-grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .main-area {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+  .main-scroll {
+    padding-bottom: 70px;
+  }
+  .surface-header {
+    gap: 8px;
+  }
+  .drill-down-modal, #drilldown-modal {
+    width: calc(100% - 16px) !important;
+    max-height: 90vh !important;
+    border-radius: 16px !important;
+  }
+  .swipe-deck-container {
+    max-width: 100%;
+  }
+  .topbar {
+    padding: 8px 12px;
+  }
+}
+
+/* Mobile bottom nav (replaces sidebar on mobile) */
+.mobile-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #FFFFFF;
+  border-top: 1px solid #E5E5E5;
+  padding: 8px;
+  display: none;
+  justify-content: space-around;
+  z-index: 100;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+}
+.mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #999;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: Montserrat, sans-serif;
+}
+.mobile-nav-item.active {
+  color: #000;
+  background: #FFF8E1;
+}
+.mobile-nav-item svg, .mobile-nav-item i[data-lucide] {
+  width: 20px;
+  height: 20px;
+}
+@media (max-width: 768px) {
+  .mobile-nav {
+    display: flex;
+  }
+}
+
+/* ─── Loading transitions (motion) ────────────────────────────────────── */
+.surface {
+  animation: surface-enter 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+@keyframes surface-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.maestro-card {
+  animation: card-enter 0.3s ease both;
+}
+.maestro-card:nth-child(1) { animation-delay: 0ms; }
+.maestro-card:nth-child(2) { animation-delay: 50ms; }
+.maestro-card:nth-child(3) { animation-delay: 100ms; }
+.maestro-card:nth-child(4) { animation-delay: 150ms; }
+.maestro-card:nth-child(5) { animation-delay: 200ms; }
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface, .maestro-card {
+    animation: none !important;
+  }
+}
+
+/* ─── Additional spacing utilities ─────────────────────────────────────── */
+.b-mb12 { margin-bottom: 12px; }
+.b-mb16 { margin-bottom: 16px; }

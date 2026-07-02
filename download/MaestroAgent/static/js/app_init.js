@@ -12,11 +12,38 @@ if ('serviceWorker' in navigator) {
   document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
   });
-  // Re-run after surface changes
+
+  // Surface → Lucide icon mapping (CEO's world-class spec: every surface has an icon)
+  const SURFACE_ICONS = {
+    today: 'sunrise', memory: 'brain', 'ask-v2': 'help-circle', home: 'layout-dashboard',
+    inbox: 'inbox', simulator: 'sliders-horizontal', hayek: 'network', flow: 'git-branch',
+    physics: 'atom', debate: 'swords', customer: 'users', intents: 'arrow-down-right',
+    contradictions: 'alert-octagon', predictions: 'trending-up', assumptions: 'alert-triangle',
+    'eng-signals': 'radio', 'eng-oem': 'settings-2', 'eng-audit': 'scroll-text',
+    'eng-settings': 'settings', canvas: 'pen-tool', personal: 'lock', work: 'briefcase',
+    learn: 'graduation-cap', evolution: 'trending-up', cognition: 'cpu',
+    autobiography: 'book-open', playbook: 'clipboard-list', live: 'mic',
+    coordination: 'git-merge', more: 'grid-horizontal', ask: 'help-circle',
+  };
+
+  // Re-run after surface changes + inject surface icon into breadcrumb
   const _origNavTo = window.navTo;
   if (_origNavTo) {
     window.navTo = function(surface) {
       _origNavTo(surface);
+      // Inject Lucide icon into the breadcrumb page title
+      const bcPage = document.getElementById('bc-page');
+      if (bcPage) {
+        const iconName = SURFACE_ICONS[surface] || 'circle';
+        // Remove any existing icon
+        const existingIcon = bcPage.querySelector('.bc-surface-icon');
+        if (existingIcon) existingIcon.remove();
+        // Insert new icon before the text
+        const iconEl = document.createElement('i');
+        iconEl.setAttribute('data-lucide', iconName);
+        iconEl.className = 'bc-surface-icon';
+        bcPage.insertBefore(iconEl, bcPage.firstChild);
+      }
       setTimeout(function() { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
     };
   }
@@ -87,5 +114,32 @@ document.addEventListener('DOMContentLoaded', function() {
   if (el_oc_30) el_oc_30.addEventListener('click', function() { saveOAuthProvider() });
   var el_oc_31 = document.querySelector('[data-oc="oc-31"]');
   if (el_oc_31) el_oc_31.addEventListener('click', function() { cancelImport() });
+});
+
+// Mobile nav: wire up click handlers + sync active state with navTo
+document.addEventListener('DOMContentLoaded', function() {
+  var mobileNavItems = document.querySelectorAll('.mobile-nav-item');
+  mobileNavItems.forEach(function(item) {
+    item.addEventListener('click', function() {
+      var surface = this.getAttribute('data-surface');
+      if (surface && typeof navTo === 'function') navTo(surface);
+    });
+  });
+
+  // Sync mobile nav active state when navTo is called
+  var _origNavTo2 = window.navTo;
+  if (_origNavTo2) {
+    window.navTo = function(surface) {
+      _origNavTo2(surface);
+      mobileNavItems.forEach(function(item) {
+        var itemSurface = item.getAttribute('data-surface');
+        if (itemSurface === surface) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+    };
+  }
 });
 

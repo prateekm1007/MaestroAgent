@@ -17,6 +17,9 @@ async function openDrilldown(entityType, entityId) {
   title.textContent = entityId;
   typeLabel.textContent = entityType.charAt(0).toUpperCase() + entityType.slice(1);
 
+  // WCAG 2.1: store the trigger element so we can return focus on close
+  drilldownTrigger = document.activeElement;
+
   try {
     const resp = await fetch(`${MAESTRO_API}/api/oem/entity/${entityType}/${encodeURIComponent(entityId)}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -24,14 +27,60 @@ async function openDrilldown(entityType, entityId) {
     drilldownActiveTab = 'why';
     updateDrilldownTabs();
     renderDrilldownTab('why');
+    // WCAG 2.1: trap focus inside the modal
+    trapFocus(modal);
   } catch (e) {
     body.innerHTML = `<div class="error-state">Failed to load: ${escapeHtml(e.message)}</div>`;
   }
 }
 
 function closeDrilldown() {
-  document.getElementById('drilldown-modal').classList.add('hidden');
+  const modal = document.getElementById('drilldown-modal');
+  modal.classList.add('hidden');
   drilldownData = null;
+  // WCAG 2.1: return focus to the trigger element
+  if (drilldownTrigger && typeof drilldownTrigger.focus === 'function') {
+    drilldownTrigger.focus();
+    drilldownTrigger = null;
+  }
+  // Remove the focus trap keydown listener
+  if (drilldownKeydownHandler) {
+    modal.removeEventListener('keydown', drilldownKeydownHandler);
+    drilldownKeydownHandler = null;
+  }
+}
+
+// WCAG 2.1: Focus trap for the drill-down modal
+// Tab cycles within the modal; Escape closes; focus returns to trigger.
+let drilldownTrigger = null;
+let drilldownKeydownHandler = null;
+
+function trapFocus(modal) {
+  // Wait a tick for the modal content to render
+  setTimeout(() => {
+    const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first.focus();
+
+    drilldownKeydownHandler = function(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeDrilldown();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    modal.addEventListener('keydown', drilldownKeydownHandler);
+  }, 100);
 }
 
 function switchDrilldownTab(tab) {

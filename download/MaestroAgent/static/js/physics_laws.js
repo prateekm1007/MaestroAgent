@@ -113,7 +113,17 @@ async function loadDebate() {
   try {
     const data = await api.getOEM('/inbox');
     el.innerHTML = data.dissent.length === 0
-      ? '<div class="empty-state">No laws hidden from leadership. All validated laws are known.</div>'
+      ? `<div class="empty-state">
+          <div class="b-fs18-fw800-4 b-mb12">No laws hidden from leadership.</div>
+          <div class="meta-text b-mb16">All validated laws are known to leadership. This is the healthy state — every organizational pattern that the OEM has discovered has been surfaced and acknowledged.</div>
+          <div class="b-text-left-9 b-mw500-m0auto">
+            <div class="b-fs13-fw700-4 b-mb8">When debates appear here, you'll see:</div>
+            <div class="b-fs12-text-6 b-mb6"><strong>Hidden laws:</strong> Patterns the OEM validated from execution data that leadership hasn't explicitly acknowledged. Each shows the law statement, evidence count, confidence, and which signals triggered it.</div>
+            <div class="b-fs12-text-6 b-mb6"><strong>Dissenting evidence:</strong> Cases where the organization's behavior contradicts a stated strategy or prior decision. Each shows both sides with their supporting evidence.</div>
+            <div class="b-fs12-text-6 b-mb6"><strong>Strategic tension:</strong> Places where two valid laws pull in opposite directions (e.g., "ship fast" vs. "ship safe"). Each shows the trade-off and a recommendation for resolving it.</div>
+            <div class="b-fs12-text-6"><strong>Acknowledge button:</strong> When you acknowledge a hidden law, it moves from "debate" to "physics" — leadership has seen it and accepted it as an operating constraint.</div>
+          </div>
+        </div>`
       : data.dissent.map(l => renderLawCardDetailed(l)).join('');
   } catch (e) {
     errorHTML(el, e.message, 'loadDebate()');
