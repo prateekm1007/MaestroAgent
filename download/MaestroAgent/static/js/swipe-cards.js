@@ -141,7 +141,7 @@ function openActionSheet(title, actions) {
   }
 
   sheet.innerHTML = `
-    <div style="font-size:18px;font-weight:800;color:var(--maestro-black);margin-bottom:var(--space-4);font-family:var(--font-sans,inherit);">${escapeHtml(title)}</div>
+    <div style="font-size:18px;font-weight:800;color:var(--maestro-black);margin-bottom:var(--space-4);font-family:'Montserrat',sans-serif;">${escapeHtml(title)}</div>
     ${actions.map(a => `
       <button class="maestro-btn ${a.style || ''}" style="width:100%;margin-bottom:var(--space-3);" onclick="${a.onclick}">
         ${escapeHtml(a.label)}

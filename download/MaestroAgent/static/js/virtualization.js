@@ -124,7 +124,7 @@ async function loadUnifiedMemory() {
     const items = data.items || [];
     const counts = data.counts || {};
 
-    let html = `<div style="max-width:700px;margin:0 auto;font-family:var(--font-sans,inherit);">`;
+    let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
 
     // Header + filter pill container
     html += `
@@ -139,7 +139,7 @@ async function loadUnifiedMemory() {
 
     if (items.length === 0) {
       html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:var(--font-sans,inherit);">No memories yet.</div>
+        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No memories yet.</div>
         <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
       </div>`;
     } else {

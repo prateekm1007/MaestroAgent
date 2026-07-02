@@ -184,7 +184,7 @@ function openCommandPalette() {
     palette.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--divider);border-radius:12px;width:480px;max-height:400px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
         <input type="text" id="command-palette-input" placeholder="Search surfaces…"
-               style="width:100%;padding:16px 20px;background:transparent;border:none;border-bottom:1px solid var(--divider);color:var(--text-primary);font-size:15px;outline:none;font-family:var(--font-sans);"
+               style="width:100%;padding:16px 20px;background:transparent;border:none;border-bottom:1px solid var(--divider);color:var(--text-primary);font-size:15px;outline:none;font-family:'Montserrat',sans-serif;"
                aria-label="Search surfaces"
                oninput="filterCommandPalette(this.value)"
                onkeydown="handlePaletteKeydown(event)">

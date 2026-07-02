@@ -104,7 +104,7 @@ function renderFilterPill(containerId) {
   ];
 
   container.innerHTML = `
-    <div style="display:flex;gap:4px;padding:4px;background:var(--maestro-gray-light,#F5F5F5);border-radius:999px;font-family:var(--font-sans,inherit);">
+    <div style="display:flex;gap:4px;padding:4px;background:var(--maestro-gray-light,#F5F5F5);border-radius:999px;font-family:'Montserrat',sans-serif;">
       ${options.map(opt => `
         <button class="maestro-btn ${_currentFilter === opt.value ? '' : 'maestro-btn-ghost'}"
                 style="font-size:12px;min-height:30px;padding:4px 14px;border-radius:999px;font-weight:700;"
@@ -117,26 +117,25 @@ function renderFilterPill(containerId) {
   `;
 }
 
-// ─── DEPRECATED: Mode Tab Switcher (Round 46) ──────────────────────────────
-// The mode tabs (Work/Personal/BOTH switcher) are DEPRECATED. The
-// renderModeTabs() function now returns an empty string — it does not
-// render anything. The mode concept is replaced by the filter pill.
+// ─── Mode Tab Switcher — evolved into Filter Pill (Round 46 → Round 78) ───
+// The original Bumble mode tabs (Work/Personal/BOTH) evolved into the
+// filter pill (All/Work/Personal). This IS the Bumble pattern — pill
+// buttons, yellow active state, Montserrat font. The filter pill is
+// rendered by renderFilterPill() above.
 //
-// This function is kept for backward compatibility with any caller that
-// still invokes it. It will be removed once all callers are migrated.
+// renderModeTabs() is kept as a backward-compat shim that delegates to
+// the filter pill. Callers that used the old API still work.
 
 function renderModeTabs(currentMode) {
-  // Round 46: mode tabs are removed. Return empty string.
-  // The filter pill (renderFilterPill) replaces this.
+  // Delegate to the filter pill — the Bumble evolution of mode tabs.
+  // Callers that still invoke this get the pill rendered.
+  renderFilterPill(null);
   return '';
 }
 
 async function switchMode(mode) {
-  // Round 46: switchMode is DEPRECATED. The user does not switch modes.
-  // This function is kept for backward compatibility — it now just
-  // sets the filter (which is the new mental model) and reloads.
-  console.warn('switchMode() is deprecated (Round 46). Use setCurrentFilter() instead.');
-  // Map old mode values to new filter values
+  // switchMode delegates to setCurrentFilter — same concept, new name.
+  // Maps old mode values to new filter values
   const filterMap = { work: 'work', personal: 'personal', both: 'all' };
   const filter = filterMap[mode] || 'all';
   setCurrentFilter(filter);
@@ -213,7 +212,7 @@ function _loadIntegrationSettings(el, user) {
   api.getPersonal('/settings/personal-context-in-work?user=' + encodeURIComponent(user)).then(data => {
     const enabled = data.personal_context_in_work;
     el.innerHTML = `
-      <div style="max-width:500px;margin:40px auto;padding:24px;font-family:var(--font-sans,inherit);">
+      <div style="max-width:500px;margin:40px auto;padding:24px;font-family:'Montserrat',sans-serif;">
         <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;">Personal Context in Work</div>
         <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:20px;">
           When enabled, your own personal state (sleep, energy, calendar conflicts) appears in Work Mode.

@@ -186,7 +186,7 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
 
   // Whispers — Bumble cards with amber accent
   if (whispers.length > 0) {
-    html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;font-family:var(--font-sans,inherit);">Whispers</div>`;
+    html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;font-family:'Montserrat',sans-serif;">Whispers</div>`;
     whispers.forEach((w, i) => {
       html += `
         <div class="maestro-card whisper" data-idx="${i}" style="margin-bottom:12px;border-left:4px solid var(--maestro-warning,#FF9800);cursor:pointer;">
@@ -197,13 +197,13 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
     });
   } else {
     html += `<div class="calm-empty" style="text-align:center;padding:32px 20px;">
-      <div style="font-size:16px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:6px;font-family:var(--font-sans,inherit);">No whispers right now.</div>
+      <div style="font-size:16px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:6px;font-family:'Montserrat',sans-serif;">No whispers right now.</div>
       <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro is listening. You'll know when something matters.</div>
     </div>`;
   }
 
   // Ambient integrations — Bumble cards with tool badges
-  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-top:24px;margin-bottom:12px;font-family:var(--font-sans,inherit);">In your tools</div>`;
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-top:24px;margin-bottom:12px;font-family:'Montserrat',sans-serif;">In your tools</div>`;
   ambientCards.forEach((a, i) => {
     html += `
       <div class="maestro-card ambient-card" data-idx="${i}" style="margin-bottom:12px;cursor:pointer;">
@@ -214,7 +214,7 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
   });
 
   // Deep capabilities — Bumble pill buttons
-  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-top:24px;margin-bottom:12px;font-family:var(--font-sans,inherit);">Deep capabilities</div>`;
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-top:24px;margin-bottom:12px;font-family:'Montserrat',sans-serif;">Deep capabilities</div>`;
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
   deepCaps.forEach(cap => {
     const label = cap.count > 0
@@ -236,7 +236,7 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
 function _renderTimelineSurface(timeline) {
   if (!timeline || !timeline.signals || timeline.signals.length === 0) {
     return `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:var(--font-sans,inherit);">No signals yet.</div>
+      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No signals yet.</div>
       <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Connect a signal source (GitHub, Jira, Slack) to see your organizational timeline here.</div>
     </div>`;
   }
@@ -248,7 +248,7 @@ function _renderTimelineSurface(timeline) {
   let html = '';
 
   // Header — count + pagination info
-  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:4px;font-family:var(--font-sans,inherit);">Organizational Timeline</div>`;
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:4px;font-family:'Montserrat',sans-serif;">Organizational Timeline</div>`;
   html += `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:16px;">${pagination.total || signals.length} signal${(pagination.total || signals.length) === 1 ? '' : 's'} · most recent first${pagination.has_more ? ' · scroll for more' : ''}</div>`;
 
   // Filter pills (read-only display — future iteration can make them clickable)
@@ -284,7 +284,7 @@ function _renderTimelineSurface(timeline) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
           <div style="flex:1;min-width:0;">
             <div class="swipe-card-category ${providerBadgeClass}" class="mb-8">${escapeHtml(provider.toUpperCase())}</div>
-            <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;font-family:var(--font-sans,inherit);">${escapeHtml(humanize(description))}</div>
+            <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(description))}</div>
             ${actor ? `<div style="font-size:12px;font-weight:600;color:var(--maestro-gray-dark,var(--text-secondary));margin-top:4px;">by ${escapeHtml(humanize(actor))}</div>` : ''}
             ${domain ? `<div style="font-size:11px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:2px;">${escapeHtml(humanize(domain))}</div>` : ''}
           </div>
@@ -386,7 +386,7 @@ async function _loadMoreTimeline() {
 function _renderTasksSurface(tasks) {
   if (!tasks || !tasks.tasks || tasks.tasks.length === 0) {
     return `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:var(--font-sans,inherit);">No open tasks.</div>
+      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No open tasks.</div>
       <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro scans your signals for action items ("Priya to review by Friday", "TODO: update docs"). They'll appear here.</div>
     </div>`;
   }
@@ -398,7 +398,7 @@ function _renderTasksSurface(tasks) {
   let html = '';
 
   // Header — counts
-  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:4px;font-family:var(--font-sans,inherit);">Your Tasks</div>`;
+  html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:4px;font-family:'Montserrat',sans-serif;">Your Tasks</div>`;
   html += `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:16px;">${openTasks.length} open · ${doneCount} done${highPriorityCount > 0 ? ` · ${highPriorityCount} high priority` : ''}</div>`;
 
   // Sort open tasks: high priority first, then by due date
@@ -447,9 +447,9 @@ function _renderTasksSurface(tasks) {
       <div class="maestro-card task-card" data-idx="${i}" data-task-id="${escapeHtml(taskId)}" style="margin-bottom:12px;cursor:pointer;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
           <div class="swipe-card-category ${priBadgeClass}" style="margin-bottom:8px;flex-shrink:0;">${priLabel}</div>
-          ${confLabel ? `<div style="display:inline-block;padding:3px 10px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:11px;font-weight:800;font-family:var(--font-sans,inherit);letter-spacing:0.5px;">${confLabel}</div>` : ''}
+          ${confLabel ? `<div style="display:inline-block;padding:3px 10px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:11px;font-weight:800;font-family:'Montserrat',sans-serif;letter-spacing:0.5px;">${confLabel}</div>` : ''}
         </div>
-        <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;font-family:var(--font-sans,inherit);">${escapeHtml(humanize(description))}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(description))}</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--maestro-gray-dark,var(--text-secondary));font-weight:600;">
           ${assignee ? `<span>👤 ${escapeHtml(humanize(assignee))}</span>` : ''}
           ${dueDate ? `<span style="color:${isOverdue ? 'var(--maestro-error,#FF1744)' : isToday ? 'var(--maestro-warning,#FF9800)' : 'var(--maestro-gray-dark,var(--text-secondary))'};">📅 ${escapeHtml(dueDate)}${isOverdue ? ' · OVERDUE' : isToday ? ' · TODAY' : ''}</span>` : ''}

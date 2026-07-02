@@ -17,7 +17,7 @@ async function loadCanvas(decisionId) {
         decisionId = ot.rec_id;
       } else {
         el.innerHTML = `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:var(--font-sans,inherit);">No active decisions to map.</div>
+          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No active decisions to map.</div>
           <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Connect more signal sources and Maestro will map your decisions here.</div>
         </div>`;
         return;
@@ -36,7 +36,7 @@ function renderCanvas(el, data) {
   const edges = data.edges || [];
   const assessment = data.assessment || '';
 
-  let html = `<div style="max-width:800px;margin:0 auto;font-family:var(--font-sans,inherit);">`;
+  let html = `<div style="max-width:800px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
 
   // Header
   html += `
@@ -72,7 +72,7 @@ function renderCanvas(el, data) {
     // Edge label
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
-    html += `<text x="${midX}" y="${midY}" fill="#999" font-size="10" font-family="var(--font-sans,inherit)" font-weight="600" text-anchor="middle">${escapeHtml(edge.label)}</text>`;
+    html += `<text x="${midX}" y="${midY}" fill="#999" font-size="10" font-family="Montserrat,sans-serif" font-weight="600" text-anchor="middle">${escapeHtml(edge.label)}</text>`;
   });
   html += `</svg>`;
 

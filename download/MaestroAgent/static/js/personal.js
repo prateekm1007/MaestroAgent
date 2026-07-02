@@ -208,14 +208,14 @@ async function loadPersonalToday(el) {
 
     if (deck.length > 0) {
       html += `
-        <div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:16px;font-family:var(--font-sans,inherit);">Your morning</div>
+        <div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:16px;font-family:'Montserrat',sans-serif;">Your morning</div>
         <div id="personal-swipe-deck-container" style="position:relative;min-height:400px;max-width:420px;margin:0 auto;">
         </div>
-        <div id="personal-swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:var(--font-sans,inherit);">
+        <div id="personal-swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:'Montserrat',sans-serif;">
           ${deck.length} ${deck.length === 1 ? 'card' : 'cards'}
         </div>
         <div id="personal-swipe-deck-summary" style="display:none;text-align:center;padding:24px;">
-          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">That's your morning.</div>
+          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">That's your morning.</div>
         </div>
       `;
     } else {

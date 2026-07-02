@@ -621,3 +621,187 @@
 .follow-up-chip:active {
   transform: scale(0.97);
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Round 78: Anthropic-to-Bumble compatibility overrides
+   The JS files use Anthropic utility classes (bg-ink-*, text-fg-*, etc.)
+   defined in app.css. These overrides remap those classes to the Bumble
+   light theme so the entire app renders in the Bumble vision without
+   requiring a JS rewrite.
+
+   This is the INVERSE of the prior approach: instead of mapping Bumble →
+   Anthropic (dark), we map Anthropic → Bumble (light). The Bumble CSS
+   loads LAST, so these overrides win.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Override Anthropic dark body with Bumble light */
+body, html {
+  background: var(--maestro-gray-bg, #F5F5F5) !important;
+  color: var(--maestro-black, #000000) !important;
+  font-family: 'Montserrat', sans-serif !important;
+}
+
+/* Override Anthropic surfaces with Bumble white */
+.surface, .panel, .card {
+  background: var(--maestro-white, #FFFFFF) !important;
+  color: var(--maestro-black, #000000) !important;
+  border-radius: var(--radius-card, 20px) !important;
+  box-shadow: var(--shadow-card, 0 2px 12px rgba(0,0,0,0.08)) !important;
+  border: none !important;
+}
+
+/* Override Anthropic dark utility classes with Bumble light */
+.bg-ink-900, .bg-ink-800, .bg-ink-700 { background: var(--maestro-gray-bg, #F5F5F5) !important; }
+.bg-ink-600, .bg-ink-500 { background: var(--maestro-gray-light, #E5E5E5) !important; }
+.text-fg-500, .text-fg-600 { color: var(--maestro-gray-mid, #999999) !important; }
+.text-fg-700, .text-fg-800 { color: var(--maestro-gray-dark, #3A3A3A) !important; }
+.text-fg-900, .text-white { color: var(--maestro-black, #000000) !important; }
+.text-fg-400, .text-fg-300 { color: var(--maestro-gray-mid, #999999) !important; }
+
+/* Override Anthropic accent (purple) with Bumble yellow */
+.bg-brand-purple { background: var(--maestro-yellow, #FFC629) !important; }
+.text-brand-purple { color: var(--maestro-yellow-dark, #F0B500) !important; }
+.text-brand-cyan { color: var(--maestro-yellow-dark, #F0B500) !important; }
+
+/* Override Anthropic divider */
+.border-divider { border-color: var(--maestro-gray-light, #E5E5E5) !important; }
+
+/* Override Anthropic surface variables */
+:root {
+  --surface: #FFFFFF !important;
+  --surface-2: #F5F5F5 !important;
+  --surface-3: #E5E5E5 !important;
+  --divider: #E5E5E5 !important;
+  --bg: #F5F5F5 !important;
+  --text-primary: #000000 !important;
+  --text-secondary: #3A3A3A !important;
+  --text-muted: #999999 !important;
+  --accent: #FFC629 !important;
+  --accent-hover: #F0B500 !important;
+}
+
+/* Override Anthropic button styles with Bumble pill buttons */
+.btn-primary {
+  background: var(--maestro-yellow, #FFC629) !important;
+  color: var(--maestro-black, #000000) !important;
+  border-radius: var(--radius-button, 999px) !important;
+  border: none !important;
+  font-weight: 700 !important;
+}
+.btn-primary:hover { background: var(--maestro-yellow-dark, #F0B500) !important; }
+
+.btn-ghost {
+  background: transparent !important;
+  color: var(--maestro-gray-dark, #3A3A3A) !important;
+  border: 1px solid var(--maestro-gray-light, #E5E5E5) !important;
+  border-radius: var(--radius-button, 999px) !important;
+}
+
+/* Override Anthropic input styles */
+.input, .ask-input {
+  background: var(--maestro-white, #FFFFFF) !important;
+  color: var(--maestro-black, #000000) !important;
+  border: 2px solid var(--maestro-gray-light, #E5E5E5) !important;
+  border-radius: var(--radius-input, 12px) !important;
+  font-family: 'Montserrat', sans-serif !important;
+}
+.input:focus, .ask-input:focus {
+  border-color: var(--maestro-yellow, #FFC629) !important;
+  outline: none !important;
+}
+
+/* Override Anthropic sidebar */
+.sidebar {
+  background: var(--maestro-white, #FFFFFF) !important;
+  border-right: 1px solid var(--maestro-gray-light, #E5E5E5) !important;
+}
+.sidebar-link {
+  color: var(--maestro-gray-dark, #3A3A3A) !important;
+  border-radius: var(--radius-button, 999px) !important;
+}
+.sidebar-link.active {
+  background: var(--maestro-yellow-light, #FFF4D1) !important;
+  color: var(--maestro-black, #000000) !important;
+  font-weight: 700 !important;
+}
+
+/* Override Anthropic drill-down modal */
+.drilldown-overlay { background: rgba(0, 0, 0, 0.4) !important; }
+.drilldown-panel {
+  background: var(--maestro-white, #FFFFFF) !important;
+  border-radius: var(--radius-card, 20px) !important;
+  box-shadow: var(--shadow-elevated, 0 8px 24px rgba(0,0,0,0.12)) !important;
+}
+
+/* Override Anthropic autocomplete dropdown */
+.exec-autocomplete {
+  background: var(--maestro-white, #FFFFFF) !important;
+  border: 1px solid var(--maestro-gray-light, #E5E5E5) !important;
+  border-radius: var(--radius-input, 12px) !important;
+  box-shadow: var(--shadow-card, 0 2px 12px rgba(0,0,0,0.08)) !important;
+}
+.exec-ac-item {
+  border-bottom: 1px solid var(--maestro-gray-light, #E5E5E5) !important;
+}
+.exec-ac-item.selected {
+  background: var(--maestro-yellow-light, #FFF4D1) !important;
+}
+
+/* Keep the Bumble compatibility aliases from app.css working */
+/* (These were added to app.css in the prior round — they still work
+   because app.css loads first, then maestro-bumble.css overrides) */
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Round 78: Component classes for Today/Personal/Work surfaces
+   Extracted from inline styles — Bumble-themed versions.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.brief-greeting { font-size: 36px; font-weight: 900; color: var(--maestro-black); line-height: 1.15; margin-bottom: 4px; font-family: 'Montserrat', sans-serif; }
+.brief-subtitle { font-size: 16px; color: var(--maestro-gray-dark); margin-bottom: 24px; font-family: 'Montserrat', sans-serif; }
+.brief-section { margin-top: 32px; padding: 24px; border-radius: var(--radius-card, 20px); background: var(--maestro-white); box-shadow: var(--shadow-card); }
+.brief-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--maestro-gray-mid); margin-bottom: 12px; font-weight: 700; }
+.brief-card-title { font-size: 22px; font-weight: 800; color: var(--maestro-black); line-height: 1.25; margin-bottom: 8px; font-family: 'Montserrat', sans-serif; }
+.brief-card-body { font-size: 16px; color: var(--maestro-gray-dark); margin-bottom: 12px; line-height: 1.55; font-family: 'Montserrat', sans-serif; }
+.brief-card-meta { font-size: 12px; color: var(--maestro-gray-mid); margin-top: 4px; font-weight: 600; }
+.brief-card-action { cursor: pointer; padding: 8px 0; font-size: 14px; color: var(--maestro-gray-dark); font-weight: 700; }
+.brief-card-action:hover { color: var(--maestro-yellow-dark); }
+.brief-item-row { padding: 8px 0; border-bottom: 1px solid var(--maestro-gray-light); font-size: 14px; color: var(--maestro-black); font-weight: 600; }
+.brief-item-indent { padding: 8px 0 8px 20px; }
+.brief-empty { font-size: 16px; color: var(--maestro-gray-mid); margin-bottom: 16px; }
+.brief-surface-block { padding: 16px; background: var(--maestro-gray-bg); border-radius: var(--radius-input, 12px); }
+.brief-confidence { display: inline-block; padding: 4px 12px; border-radius: var(--radius-button, 999px); font-size: 12px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 12px; font-family: 'Montserrat', sans-serif; }
+.brief-evidence { font-size: 12px; color: var(--maestro-gray-mid); margin-top: 2px; font-weight: 600; }
+.brief-success { padding: 8px; color: var(--maestro-success); font-size: 12px; }
+.brief-risk { margin: 8px 0; color: var(--maestro-error); font-size: 12px; }
+.brief-filter-pill { display: inline-flex; gap: 4px; padding: 4px; background: var(--maestro-gray-light); border-radius: var(--radius-button, 999px); }
+.brief-filter-btn { padding: 6px 14px; border-radius: var(--radius-button, 999px); font-size: 12px; font-weight: 700; cursor: pointer; border: none; background: transparent; color: var(--maestro-gray-mid); transition: all 0.2s; font-family: 'Montserrat', sans-serif; }
+.brief-filter-btn.active { background: var(--maestro-yellow); color: var(--maestro-black); }
+
+.personal-section { max-width: 600px; margin: 0 auto; padding: 24px; font-family: 'Montserrat', sans-serif; }
+.personal-card { background: var(--maestro-white); border-radius: var(--radius-card, 20px); padding: 24px; margin-bottom: 16px; box-shadow: var(--shadow-card); }
+.personal-title { font-size: 22px; font-weight: 800; color: var(--maestro-black); margin-bottom: 12px; font-family: 'Montserrat', sans-serif; }
+.personal-body { font-size: 16px; color: var(--maestro-gray-dark); line-height: 1.55; margin-bottom: 16px; font-family: 'Montserrat', sans-serif; }
+.personal-stat { text-align: center; padding: 16px; }
+.personal-stat-value { font-size: 36px; font-weight: 900; color: var(--maestro-black); font-family: 'Montserrat', sans-serif; }
+.personal-stat-label { font-size: 12px; color: var(--maestro-gray-mid); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; font-weight: 700; }
+
+.work-section { max-width: 800px; margin: 0 auto; padding: 24px; font-family: 'Montserrat', sans-serif; }
+.work-card { background: var(--maestro-white); border-radius: var(--radius-card, 20px); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow-card); }
+.work-title { font-size: 16px; font-weight: 700; color: var(--maestro-black); margin-bottom: 8px; font-family: 'Montserrat', sans-serif; }
+.work-body { font-size: 14px; color: var(--maestro-gray-dark); line-height: 1.5; font-family: 'Montserrat', sans-serif; }
+.work-meta { font-size: 12px; color: var(--maestro-gray-mid); margin-top: 8px; font-weight: 600; }
+
+.text-accent { color: var(--maestro-yellow-dark); }
+.text-positive { color: var(--maestro-success); }
+.text-risk { color: var(--maestro-error); }
+.text-warning { color: var(--maestro-warning); }
+.text-muted-sm { font-size: 12px; color: var(--maestro-gray-mid); font-weight: 600; }
+.text-secondary-sm { font-size: 14px; color: var(--maestro-gray-dark); }
+.mt-2 { margin-top: 2px; }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-6 { margin-top: 6px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.flex-1 { flex: 1; }

@@ -440,14 +440,14 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     html += `
       <div id="swipe-deck-container" style="position:relative;min-height:440px;max-width:420px;margin:0 auto;">
       </div>
-      <div id="swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:var(--font-sans,inherit);">
+      <div id="swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:'Montserrat',sans-serif;">
         ${remaining} ${remaining === 1 ? 'card' : 'cards'}
       </div>
       <div style="text-align:center;margin-top:8px;">
         <button class="maestro-btn maestro-btn-ghost" style="font-size:13px;min-height:36px;padding:6px 16px;" onclick="toggleSwipeDeckView()">See all</button>
       </div>
       <div id="swipe-deck-summary" style="display:none;text-align:center;padding:24px;">
-        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">That's your morning.</div>
+        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">That's your morning.</div>
         <div id="swipe-deck-counts" style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:8px;"></div>
       </div>
     `;
@@ -457,7 +457,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     html += `<div id="swipe-deck-list" style="display:none;">`;
     filteredItems.forEach((item, i) => {
       const prepareBtn = item.label === 'One decision' ? `<button class="maestro-btn maestro-btn-full" style="margin-top:12px;font-size:14px;min-height:44px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
-      const whyLink = `<a class="why-link" style="font-size:13px;color:var(--maestro-yellow-dark,#F0B500);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block;font-family:var(--font-sans,inherit);" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
+      const whyLink = `<a class="why-link" style="font-size:13px;color:var(--maestro-yellow-dark,#F0B500);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block;font-family:'Montserrat',sans-serif;" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
       const actionBtns = item.label === 'One decision' || item.label === 'One opportunity'
         ? `<div style="display:flex;gap:8px;margin-top:12px;">
              <button class="maestro-btn maestro-btn-secondary" style="flex:1;font-size:13px;min-height:44px;padding:10px 16px;" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
@@ -478,7 +478,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
           <div class="brief-card-title">${escapeHtml(humanize(item.title))}</div>
           ${item.context ? `<div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:8px;">${escapeHtml(humanize(item.context))}</div>` : ''}
           ${item.provenance ? `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:8px;">${escapeHtml(humanize(item.provenance))}</div>` : ''}
-          ${confLabel ? `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:var(--font-sans,inherit);margin-bottom:8px;">${confLabel}</div>` : ''}
+          ${confLabel ? `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:'Montserrat',sans-serif;margin-bottom:8px;">${confLabel}</div>` : ''}
           ${item.sowhat ? `<div style="margin-top:8px;padding:10px 14px;background:var(--maestro-yellow-light,#FFF4D1);border-radius:12px;font-size:13px;color:var(--maestro-black,var(--text-primary));font-weight:700;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
           ${prepareBtn}
           ${actionBtns}
@@ -570,7 +570,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     html += `
       <div class="maestro-card" style="margin-top:16px;border-left:4px solid ${commitments.overdue_count > 0 ? 'var(--maestro-error,#FF1744)' : 'var(--maestro-warning,#FF9800)'};">
         <div class="swipe-card-category ${commitments.overdue_count > 0 ? 'contradiction' : 'due'}" class="mb-12">Commitments due today</div>
-        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));margin-bottom:12px;font-family:var(--font-sans,inherit);">${escapeHtml(humanize(commitments.summary || ''))}</div>
+        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));margin-bottom:12px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(commitments.summary || ''))}</div>
         ${commitments.commitments.map((c, i) => `
           <div class="brief-item" style="border-bottom:1px solid var(--divider);padding:10px 0;">
             <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
