@@ -68,10 +68,13 @@ def _demo_seed_enabled() -> bool:
         # Explicitly set — honor it
         enabled = val not in ("false", "0", "no", "off")
         if enabled and is_production:
-            logger.warning(
+            # Round 69 P0 RESIDUAL-5: BLOCK synthetic data in production.
+            # The old code only logged a warning and loaded synthetic data anyway.
+            # Now it raises RuntimeError — production must never load demo seed.
+            raise RuntimeError(
                 "MAESTRO_DEMO_SEED=true in production (MAESTRO_ENV=production). "
-                "Synthetic demo data will be loaded. This is NOT recommended for "
-                "production deployments — set MAESTRO_DEMO_SEED=false."
+                "Synthetic demo data is BLOCKED in production. "
+                "Set MAESTRO_DEMO_SEED=false or use MAESTRO_LOCAL_DEV=true for dev mode."
             )
         return enabled
 

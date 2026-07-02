@@ -116,34 +116,53 @@ function renderCanvas(el, data) {
   _initCanvasDrag();
 }
 
-function _initCanvasDrag() {
-  document.querySelectorAll('.canvas-node').forEach(node => {
-    let isDragging = false;
-    let startX, startY, startLeft, startTop;
+// Round 69 RESIDUAL-7: Central drag manager — single listener pair, not per-node.
+// Old code added 2 document listeners per node per render — memory leak.
+let _canvasDragState = null;
 
+function _initCanvasDrag() {
+  // Remove old listeners if they exist (prevents accumulation on re-render)
+  _destroyCanvasDrag();
+
+  _canvasDragState = { dragging: null, startX: 0, startY: 0, startLeft: 0, startTop: 0 };
+
+  _canvasDragState.onMouseMove = (e) => {
+    if (!_canvasDragState || !_canvasDragState.dragging) return;
+    const dx = e.clientX - _canvasDragState.startX;
+    const dy = e.clientY - _canvasDragState.startY;
+    _canvasDragState.dragging.style.left = (_canvasDragState.startLeft + dx) + 'px';
+    _canvasDragState.dragging.style.top = (_canvasDragState.startTop + dy) + 'px';
+  };
+
+  _canvasDragState.onMouseUp = () => {
+    if (_canvasDragState && _canvasDragState.dragging) {
+      _canvasDragState.dragging.style.cursor = 'move';
+      _canvasDragState.dragging = null;
+    }
+  };
+
+  document.addEventListener('mousemove', _canvasDragState.onMouseMove);
+  document.addEventListener('mouseup', _canvasDragState.onMouseUp);
+
+  // Per-node: only mousedown (not document listeners)
+  document.querySelectorAll('.canvas-node').forEach(node => {
     node.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      startLeft = parseInt(node.style.left);
-      startTop = parseInt(node.style.top);
+      if (!_canvasDragState) return;
+      _canvasDragState.dragging = node;
+      _canvasDragState.startX = e.clientX;
+      _canvasDragState.startY = e.clientY;
+      _canvasDragState.startLeft = parseInt(node.style.left);
+      _canvasDragState.startTop = parseInt(node.style.top);
       node.style.cursor = 'grabbing';
       e.preventDefault();
     });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      node.style.left = (startLeft + dx) + 'px';
-      node.style.top = (startTop + dy) + 'px';
-    });
-
-    document.addEventListener('mouseup', () => {
-      if (isDragging) {
-        isDragging = false;
-        node.style.cursor = 'move';
-      }
-    });
   });
+}
+
+function _destroyCanvasDrag() {
+  if (_canvasDragState) {
+    document.removeEventListener('mousemove', _canvasDragState.onMouseMove);
+    document.removeEventListener('mouseup', _canvasDragState.onMouseUp);
+    _canvasDragState = null;
+  }
 }
