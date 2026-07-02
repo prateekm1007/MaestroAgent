@@ -40,8 +40,8 @@ function renderECCReplay(learning) {
               <div class="flex items-center gap-2 text-[10px]">
                 <span class="mono text-fg-500 w-16">${(b.expected_rate*100).toFixed(0)}% expected</span>
                 <div class="flex-1 h-3 bg-white/[0.04] rounded overflow-hidden relative">
-                  <div class="h-full bg-brand-cyan/40" class="b-wbexpectedrate100p"></div>
-                  <div class="absolute top-0 h-full bg-brand-violet/60" class="b-wbactualrate100p"></div>
+                  <div class="h-full bg-brand-cyan/40 b-wbexpectedrate100p"></div>
+                  <div class="absolute top-0 h-full bg-brand-violet/60 b-wbactualrate100p"></div>
                 </div>
                 <span class="mono text-fg-400 w-16">${b.actual_rate > 0 ? (b.actual_rate*100).toFixed(0) + '% actual' : '—'}</span>
                 <span class="text-fg-600 w-8">${b.predictions}</span>
@@ -57,7 +57,7 @@ function renderECCReplay(learning) {
         <div>
           <div class="text-[10px] uppercase tracking-wider text-fg-500 font-semibold mb-2">Accuracy Trend (weekly)</div>
           <div class="flex items-end gap-1 h-12">
-            ${trend.map(t => `<div class="flex-1 bg-brand-cyan/40 rounded-t" class="b-htaccuracy100" title="${t.week}: ${(t.accuracy*100).toFixed(0)}% (${t.predictions} predictions)"></div>`).join('')}
+            ${trend.map(t => `<div class="flex-1 bg-brand-cyan/40 rounded-t b-htaccuracy100" title="${t.week}: ${(t.accuracy*100).toFixed(0)}% (${t.predictions} predictions)"></div>`).join('')}
           </div>
         </div>
       ` : ''}
@@ -145,7 +145,7 @@ function renderRecCard(r) {
     </div>
     ${provChain ? `<div class="prov-chain mt-2 mb-2">${provChain}</div>` : ''}
     <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2">
-      <div class="conf-bar" class="b-w120"><div class="conf-bar-track"><div class="conf-bar-fill" class="b-wrconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(r.confidence, { entity: 'recommendation', title: r.title })}</span></div>
+      <div class="conf-bar b-w120"><div class="conf-bar-track"><div class="conf-bar-fill b-wrconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(r.confidence, { entity: 'recommendation', title: r.title })}</span></div>
       <span>·</span>
       <span>${r.evidence_count || 0} evidence</span>
       ${r.linked_laws && r.linked_laws.length ? `<span>·</span><span>Laws: ${r.linked_laws.join(', ')}</span>` : ''}
@@ -207,7 +207,7 @@ function renderLawCard(l) {
       </div>
     </div>
     <div class="flex items-center gap-3 text-[10px] text-fg-500 mt-2">
-      <div class="conf-bar" class="b-w120"><div class="conf-bar-track"><div class="conf-bar-fill" class="b-wlconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(l.confidence, { entity: 'law', title: l.statement })}</span></div>
+      <div class="conf-bar b-w120"><div class="conf-bar-track"><div class="conf-bar-fill b-wlconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(l.confidence, { entity: 'law', title: l.statement })}</span></div>
       <span>·</span>
       <span>${l.evidence_count} evidence</span>
       <span>·</span>
@@ -244,7 +244,7 @@ async function loadSimulator() {
           </div>
           <div>
             <div class="text-[10px] uppercase text-fg-500">Confidence</div>
-            <div class="conf-bar mt-1"><div class="conf-bar-track"><div class="conf-bar-fill" class="b-wsconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(s.confidence)}</span></div>
+            <div class="conf-bar mt-1"><div class="conf-bar-track"><div class="conf-bar-fill b-wsconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(s.confidence)}</span></div>
           </div>
         </div>
         <div class="pt-3 border-t border-white/[0.05]">
@@ -297,7 +297,7 @@ async function runSimulator() {
           </div>
           <div>
             <div class="text-[10px] uppercase text-fg-500">Confidence</div>
-            <div class="conf-bar mt-1"><div class="conf-bar-track"><div class="conf-bar-fill" class="b-wdataconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(data.confidence)}</span></div>
+            <div class="conf-bar mt-1"><div class="conf-bar-track"><div class="conf-bar-fill b-wdataconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(data.confidence)}</span></div>
           </div>
         </div>
         ${data.linked_laws && data.linked_laws.length ? `<div class="pt-3 border-t border-white/[0.05]"><div class="text-[10px] uppercase text-fg-500 mb-1">Linked Laws</div><div class="flex flex-wrap gap-1">${data.linked_laws.map(l => `<span class="prov-node">${escapeHtml(l)}</span>`).join('')}</div></div>` : ''}
@@ -325,7 +325,7 @@ async function loadHayek() {
         <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('risk', '${escapeJs(r.domain)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(r.domain)}</div>
           <div class="text-[11px] text-fg-400 mt-1">Influence concentration: <span class="mono text-brand-rose">${r.score.toFixed(2)}</span></div>
-          <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill" class="b-wmathminrscore10100p-bg"></div></div></div>
+          <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill b-wmathminrscore10100p-bg"></div></div></div>
         </div>
       `).join('');
     knowEl.innerHTML = data.hidden_experts.length === 0

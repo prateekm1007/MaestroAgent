@@ -35,20 +35,20 @@ function renderCalibrationRanking(container, predictors) {
     container.innerHTML = `<div class="ds-empty">
       <div class="b-fs14-text-11">No resolved predictions yet.</div>
       <div>Once predictions are submitted and resolved, each predictor gets a Brier score. The ranking below sorts by accuracy — not hierarchy.</div>
-      <button class="ds-btn ds-btn-primary" class="mt-16" onclick="setPredictionMarketView('submit')">Submit first prediction</button>
+      <button class="ds-btn ds-btn-primary mt-16" onclick="setPredictionMarketView('submit')">Submit first prediction</button>
     </div>`;
     return;
   }
 
   const html = `
-    <div class="ds-row-between" class="b-mb14">
+    <div class="ds-row-between b-mb14">
       <div class="ds-meta">Ranked by Brier score · lower is better · 0 = perfect · 0.25 = random</div>
-      <div class="ds-row" class="b-gap6">
+      <div class="ds-row b-gap6">
         <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="setPredictionMarketView('all')">All predictions</button>
         <button class="ds-btn ds-btn-primary ds-btn-small" onclick="setPredictionMarketView('submit')">Submit prediction</button>
       </div>
     </div>
-    <div class="ds-card" class="b-p0">
+    <div class="ds-card b-p0">
       ${predictors.map((p, i) => {
         const brier = p.avg_brier_score;
         const brierClass = brier == null ? 'ds-brier-poor' :
@@ -107,7 +107,7 @@ function renderAllMarketPredictions(container, predictions) {
   }
 
   container.innerHTML = `
-    <div class="ds-row-between" class="b-mb14">
+    <div class="ds-row-between b-mb14">
       <div class="ds-meta">${predictions.length} prediction${predictions.length === 1 ? '' : 's'}</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="setPredictionMarketView('ranking')">Back to ranking</button>
     </div>
@@ -116,20 +116,20 @@ function renderAllMarketPredictions(container, predictions) {
         const status = p.status || 'open';
         const statusClass = status === 'resolved' ? (p.actual_outcome ? 'validated' : 'rejected') : 'pending';
         return `
-          <div class="ds-card" class="b-p1416">
-            <div class="ds-row-between" class="mb-6">
+          <div class="ds-card b-p1416">
+            <div class="ds-row-between mb-6">
               <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(humanize(status))}</span>
               <span class="ds-meta">${formatTimestamp(p.made_at)}</span>
             </div>
             <div class="b-fs135-text">${escapeHtml(humanize(p.event))}</div>
-            <div class="ds-row" class="b-gap14">
+            <div class="ds-row b-gap14">
               <span class="ds-meta">predictor <span class="ds-meta-strong">${escapeHtml(humanize(p.predictor))}</span></span>
               <span class="ds-meta">prob <span class="ds-meta-strong">${(p.probability * 100).toFixed(0)}%</span></span>
               ${p.brier_score != null ? `<span class="ds-meta">brier <span class="ds-meta-strong">${p.brier_score.toFixed(3)}</span></span>` : ''}
               ${p.hypothesis_id ? `<span class="ds-meta">linked hypothesis</span>` : ''}
             </div>
             ${status === 'open' ? `
-              <div class="ds-row" class="b-gap6-mt10">
+              <div class="ds-row b-gap6-mt10">
                 <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveMarketPrediction('${escapeJs(p.prediction_id)}', true)">Resolve: happened</button>
                 <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveMarketPrediction('${escapeJs(p.prediction_id)}', false)">Resolve: didn't</button>
               </div>
@@ -144,18 +144,18 @@ function renderAllMarketPredictions(container, predictions) {
 function renderPredictionSubmitForm(container) {
   container.innerHTML = `
     <div class="ds-card">
-      <div class="ds-row-between" class="b-mb14">
+      <div class="ds-row-between b-mb14">
         <div class="b-fs14-fw500">Submit a prediction</div>
         <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="setPredictionMarketView('ranking')">Cancel</button>
       </div>
-      <div class="ds-stack" class="gap-12">
+      <div class="ds-stack gap-12">
         <div>
           <label class="ds-cascade-label" for="pm-predictor">Predictor (email)</label>
-          <input id="pm-predictor" class="ask-input" class="fs-13" placeholder="you@acme.com" value="ceo@acme.com">
+          <input id="pm-predictor" class="ask-input fs-13" placeholder="you@acme.com" value="ceo@acme.com">
         </div>
         <div>
           <label class="ds-cascade-label" for="pm-event">Event (what will happen?)</label>
-          <input id="pm-event" class="ask-input" class="fs-13" placeholder="e.g. Q4 launch ships on time">
+          <input id="pm-event" class="ask-input fs-13" placeholder="e.g. Q4 launch ships on time">
         </div>
         <div>
           <label class="ds-cascade-label" for="pm-probability">Probability: <span id="pm-prob-val" class="ds-meta-strong">70%</span></label>
@@ -163,7 +163,7 @@ function renderPredictionSubmitForm(container) {
         </div>
         <div>
           <label class="ds-cascade-label" for="pm-window">Resolution window (optional)</label>
-          <input id="pm-window" class="ask-input" class="fs-13" placeholder="e.g. Q4 2025">
+          <input id="pm-window" class="ask-input fs-13" placeholder="e.g. Q4 2025">
         </div>
         <button class="ds-btn ds-btn-primary" onclick="submitMarketPrediction()">Submit</button>
         <div id="pm-submit-result" class="d-none"></div>
@@ -192,12 +192,12 @@ async function submitMarketPrediction() {
     const resp = await api.postOEM('/predictions/market', {
       predictor, event, probability, resolution_window: resolutionWindow,
     });
-    resultEl.innerHTML = `<div class="ds-card" class="b-bg-ca5a">
+    resultEl.innerHTML = `<div class="ds-card b-bg-ca5a">
       <div class="b-fs13-text-6">Prediction submitted</div>
       <div class="ds-meta">ID: ${escapeHtml(resp.prediction_id || '')}</div>
       <div class="ds-meta">Probability: ${(probability * 100).toFixed(0)}%</div>
       ${resp.prediction && resp.prediction.brier_score != null ? `<div class="ds-meta">Brier score: ${resp.prediction.brier_score.toFixed(3)}</div>` : ''}
-      <button class="ds-btn ds-btn-ghost ds-btn-small" class="mt-8" onclick="setPredictionMarketView('all')">View all predictions</button>
+      <button class="ds-btn ds-btn-ghost ds-btn-small mt-8" onclick="setPredictionMarketView('all')">View all predictions</button>
     </div>`;
     document.getElementById('pm-event').value = '';
   } catch (e) {

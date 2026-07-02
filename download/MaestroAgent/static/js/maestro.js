@@ -260,7 +260,7 @@ function renderPaletteResults(surfaces) {
   results.innerHTML = surfaces.map(s => {
     const groupHeader = s.group !== currentGroup ? `<div class="b-p8164-fs10">${escapeHtml(s.group)}</div>` : '';
     currentGroup = s.group;
-    return groupHeader + `<div class="palette-result" class="b-p1016-cursor" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='transparent'" onclick="navTo('${escapeJs(s.id)}');closeCommandPalette();">${escapeHtml(s.label)}</div>`;
+    return groupHeader + `<div class="palette-result b-p1016-cursor" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='transparent'" onclick="navTo('${escapeJs(s.id)}');closeCommandPalette();">${escapeHtml(s.label)}</div>`;
   }).join('');
 }
 

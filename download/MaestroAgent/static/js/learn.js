@@ -121,7 +121,7 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
   if (identity && identity.beliefs && identity.beliefs.length > 0) {
     html += `
       <div class="b-mt32-p20-2">
-        <div class="intention-label" class="b-m00120-text">Who your organization is</div>
+        <div class="intention-label b-m00120-text">Who your organization is</div>
         <div class="b-fs15-text">${escapeHtml(humanize(identity.summary))}</div>
         <div class="b-fs13-text-21">
           <strong>Strongest alignment:</strong> ${escapeHtml(humanize(identity.strongest_alignment || ''))}
@@ -137,7 +137,7 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
   if (dna && dna.chromosomes) {
     html += `
       <div class="b-mt32-p20-2">
-        <div class="intention-label" class="b-text-accent-2">Who your organization has become</div>
+        <div class="intention-label b-text-accent-2">Who your organization has become</div>
         <div class="b-fs15-text-3">${escapeHtml(humanize(dna.summary || ''))}</div>
         <div class="b-u-998b">
           ${Object.entries(dna.chromosomes).map(([name, chr]) => `
@@ -156,14 +156,14 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
   if (evolutionTracker && evolutionTracker.failure_modes && evolutionTracker.failure_modes.length > 0) {
     html += `
       <div class="b-mt32-p20-2">
-        <div class="intention-label" class="b-text-accent-2">Mistakes your organization no longer makes</div>
+        <div class="intention-label b-text-accent-2">Mistakes your organization no longer makes</div>
         <div class="body-text">${escapeHtml(humanize(evolutionTracker.summary || ''))}</div>
         ${evolutionTracker.failure_modes.slice(0, 4).map(m => {
           const status = m.current_status || 'active';
           const color = status === 'eliminated' ? 'var(--positive)' : status === 'resolving' ? 'var(--warning)' : 'var(--risk)';
           const label = status === 'eliminated' ? '✓ eliminated' : status === 'resolving' ? 'resolving' : 'active';
           return `<div class="b-p100-u">
-            <div class="ds-row" class="gap-8">
+            <div class="ds-row gap-8">
               <span class="b-clr-fs12">${label}</span>
               <span class="b-fs13-text-8">${escapeHtml(humanize(m.failure_mode || ''))}</span>
             </div>
@@ -174,7 +174,7 @@ function renderLearnStories(el, learning, improvement, calibration, identity, ev
     `;
   }
 
-  html += `<div class="intention-label" class="b-mt32">Explore deeper</div>`;
+  html += `<div class="intention-label b-mt32">Explore deeper</div>`;
   html += `<div class="b-u-998b-3">`;
   html += `<button class="intention-prompt" onclick="navTo('predictions')">Prediction calibration</button>`;
   html += `<button class="intention-prompt" onclick="navTo('assumptions')">Assumption accuracy</button>`;

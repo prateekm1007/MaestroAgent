@@ -201,7 +201,7 @@ async function connectProvider(provider) {
   }
 }
 
-async async function disconnectProvider(provider) {
+async function disconnectProvider(provider) {
   if (!await showConfirm(`Disconnect ${provider}? Already-ingested history is preserved.`)) return;
   try {
     await fetch(`${MAESTRO_API}/api/oauth/${provider}/disconnect`, { method: 'POST' });

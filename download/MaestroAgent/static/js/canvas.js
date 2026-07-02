@@ -16,7 +16,7 @@ async function loadCanvas(decisionId) {
       if (ot.rec_id) {
         decisionId = ot.rec_id;
       } else {
-        el.innerHTML = `<div class="calm-empty" class="b-text-center-9">
+        el.innerHTML = `<div class="calm-empty b-text-center-9">
           <div class="b-fs18-fw800-4">No active decisions to map.</div>
           <div class="meta-text">Connect more signal sources and Maestro will map your decisions here.</div>
         </div>`;
@@ -47,7 +47,7 @@ function renderCanvas(el, data) {
   `;
 
   if (nodes.length === 0) {
-    html += `<div class="calm-empty" class="b-text-center-9">
+    html += `<div class="calm-empty b-text-center-9">
       <div class="b-fs16-fw700">This decision has no dependencies mapped yet.</div>
     </div>`;
     html += `</div>`;

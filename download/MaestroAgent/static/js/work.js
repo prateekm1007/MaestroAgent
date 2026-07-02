@@ -40,7 +40,7 @@ async function loadWork() {
 
     renderWorkSurface(el, briefing, contradictions, dashboard, timeline, tasks);
   } catch (e) {
-    el.innerHTML = `<div class="calm-empty" class="b-text-center-9">
+    el.innerHTML = `<div class="calm-empty b-text-center-9">
       <div class="brief-card-title">Maestro is connecting to your tools.</div>
       <div class="meta-text">Configure signal sources in Settings to see ambient intelligence here.</div>
     </div>`;
@@ -189,14 +189,14 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
     html += `<div class="b-fs14-fw800-5">Whispers</div>`;
     whispers.forEach((w, i) => {
       html += `
-        <div class="maestro-card whisper" data-idx="${i}" class="b-mb12-u">
+        <div class="maestro-card whisper b-mb12-u" data-idx="${i}">
           <div class="b-fs15-fw700">${escapeHtml(humanize(w.text))}</div>
           <div class="b-fs12-fw600-4">via ${escapeHtml(w.source)}</div>
         </div>
       `;
     });
   } else {
-    html += `<div class="calm-empty" class="b-text-center-8">
+    html += `<div class="calm-empty b-text-center-8">
       <div class="b-fs16-fw800">No whispers right now.</div>
       <div class="b-fs13-text-3">Maestro is listening. You'll know when something matters.</div>
     </div>`;
@@ -206,7 +206,7 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
   html += `<div class="b-fs14-fw800-9">In your tools</div>`;
   ambientCards.forEach((a, i) => {
     html += `
-      <div class="maestro-card ambient-card" data-idx="${i}" class="b-mb12-cursor">
+      <div class="maestro-card ambient-card b-mb12-cursor" data-idx="${i}">
         <div class="b-inline-block-7">${escapeHtml(a.tool)}</div>
         <div class="b-fs14-text-12">${escapeHtml(a.message)}</div>
       </div>
@@ -220,7 +220,7 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
     const label = cap.count > 0
       ? `${escapeHtml(humanize(cap.label))} · ${cap.count}`
       : escapeHtml(humanize(cap.label));
-    html += `<button class="maestro-btn maestro-btn-secondary" class="b-fs14-minh44-2" onclick="navTo('${cap.surface}')">${label}</button>`;
+    html += `<button class="maestro-btn maestro-btn-secondary b-fs14-minh44-2" onclick="navTo('${cap.surface}')">${label}</button>`;
   });
   html += `</div>`;
 
@@ -235,7 +235,7 @@ function _renderWhispersSurface(Contradictions, overnight, decisions, metrics, p
 
 function _renderTimelineSurface(timeline) {
   if (!timeline || !timeline.signals || timeline.signals.length === 0) {
-    return `<div class="calm-empty" class="b-text-center-9">
+    return `<div class="calm-empty b-text-center-9">
       <div class="b-fs18-fw800-4">No signals yet.</div>
       <div class="meta-text">Connect a signal source (GitHub, Jira, Slack) to see your organizational timeline here.</div>
     </div>`;
@@ -280,10 +280,10 @@ function _renderTimelineSurface(timeline) {
     const timeDisplay = _formatTimestamp(timestamp);
 
     html += `
-      <div class="maestro-card timeline-card" data-idx="${i}" class="mb-12">
+      <div class="maestro-card timeline-card mb-12" data-idx="${i}">
         <div class="b-flex-u-9">
           <div class="b-flex-u">
-            <div class="swipe-card-category ${providerBadgeClass}" class="mb-8">${escapeHtml(provider.toUpperCase())}</div>
+            <div class="swipe-card-category ${providerBadgeClass} mb-8">${escapeHtml(provider.toUpperCase())}</div>
             <div class="b-fs15-fw700-2">${escapeHtml(humanize(description))}</div>
             ${actor ? `<div class="b-fs12-fw600-5">by ${escapeHtml(humanize(actor))}</div>` : ''}
             ${domain ? `<div class="b-fs11-text-2">${escapeHtml(humanize(domain))}</div>` : ''}
@@ -297,7 +297,7 @@ function _renderTimelineSurface(timeline) {
   // Load more button (if pagination has more)
   if (pagination.has_more) {
     html += `<div class="b-text-center-3">
-      <button class="maestro-btn maestro-btn-ghost" class="b-fs13-minh36-2" onclick="_loadMoreTimeline()">Load more</button>
+      <button class="maestro-btn maestro-btn-ghost b-fs13-minh36-2" onclick="_loadMoreTimeline()">Load more</button>
     </div>`;
   }
 
@@ -385,7 +385,7 @@ async function _loadMoreTimeline() {
 
 function _renderTasksSurface(tasks) {
   if (!tasks || !tasks.tasks || tasks.tasks.length === 0) {
-    return `<div class="calm-empty" class="b-text-center-9">
+    return `<div class="calm-empty b-text-center-9">
       <div class="b-fs18-fw800-4">No open tasks.</div>
       <div class="meta-text">Maestro scans your signals for action items ("Priya to review by Friday", "TODO: update docs"). They'll appear here.</div>
     </div>`;
@@ -444,9 +444,9 @@ function _renderTasksSurface(tasks) {
     }
 
     html += `
-      <div class="maestro-card task-card" data-idx="${i}" data-task-id="${escapeHtml(taskId)}" class="b-mb12-cursor">
+      <div class="maestro-card task-card b-mb12-cursor" data-idx="${i}" data-task-id="${escapeHtml(taskId)}">
         <div class="b-flex-u-9">
-          <div class="swipe-card-category ${priBadgeClass}" class="b-mb8-u">${priLabel}</div>
+          <div class="swipe-card-category ${priBadgeClass} b-mb8-u">${priLabel}</div>
           ${confLabel ? `<div class="b-inline-block-2">${confLabel}</div>` : ''}
         </div>
         <div class="b-fs15-fw700-2">${escapeHtml(humanize(description))}</div>
@@ -456,8 +456,8 @@ function _renderTasksSurface(tasks) {
           ${domain ? `<span>🏷️ ${escapeHtml(humanize(domain))}</span>` : ''}
         </div>
         <div class="b-flex-gap8-2">
-          <button class="maestro-btn maestro-btn-secondary task-done-btn" class="b-flex-fs13" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Mark done</button>
-          <button class="maestro-btn maestro-btn-ghost task-defer-btn" class="b-flex-fs13" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Defer</button>
+          <button class="maestro-btn maestro-btn-secondary task-done-btn b-flex-fs13" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Mark done</button>
+          <button class="maestro-btn maestro-btn-ghost task-defer-btn b-flex-fs13" data-task-id="${escapeHtml(taskId)}" onclick="event.stopPropagation();">Defer</button>
         </div>
       </div>
     `;

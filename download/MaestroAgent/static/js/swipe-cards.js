@@ -112,7 +112,7 @@ function createSwipeCard(data) {
       <div class="swipe-card-category ${categoryClass}">${escapeHtml(data.category || 'INSIGHT')}</div>
       <div class="swipe-card-judgment">${escapeHtml(humanize(data.judgment || data.title || ''))}</div>
       ${data.evidence ? `<div class="swipe-card-evidence">${escapeHtml(humanize(data.evidence))}</div>` : ''}
-      ${data.why_link ? `<a class="why-link" class="b-fs13-text" onclick="${data.why_callback || ''}">Why?</a>` : ''}
+      ${data.why_link ? `<a class="why-link b-fs13-text" onclick="${data.why_callback || ''}">Why?</a>` : ''}
     </div>
     <div class="swipe-card-hint">
       <span class="left-hint">${escapeHtml(leftLabel)}</span>
@@ -143,11 +143,11 @@ function openActionSheet(title, actions) {
   sheet.innerHTML = `
     <div class="b-fs18-fw800-5">${escapeHtml(title)}</div>
     ${actions.map(a => `
-      <button class="maestro-btn ${a.style || ''}" class="b-w-full-3" onclick="${a.onclick}">
+      <button class="maestro-btn ${a.style || ''} b-w-full-3" onclick="${a.onclick}">
         ${escapeHtml(a.label)}
       </button>
     `).join('')}
-    <button class="maestro-btn maestro-btn-ghost" class="w-full" onclick="closeActionSheet()">Cancel</button>
+    <button class="maestro-btn maestro-btn-ghost w-full" onclick="closeActionSheet()">Cancel</button>
   `;
 
   overlay.classList.add('open');

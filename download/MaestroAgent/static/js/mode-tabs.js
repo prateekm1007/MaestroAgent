@@ -207,6 +207,7 @@ function showIntegrationToggle() {
     // Fallback if onboarding.js hasn't loaded yet
     _loadIntegrationSettings(el, 'local-dev-user');
   }
+}
 
 function _loadIntegrationSettings(el, user) {
   api.getPersonal('/settings/personal-context-in-work?user=' + encodeURIComponent(user)).then(data => {
@@ -220,11 +221,11 @@ function _loadIntegrationSettings(el, user) {
         </div>
         <div class="b-p16-bg">
           <div class="b-fs13-fw700-2">Current state: ${enabled ? 'ON' : 'OFF (default)'}</div>
-          <button class="maestro-btn ${enabled ? 'maestro-btn-ghost' : ''}" class="b-w-full-2" onclick="toggleIntegration(${!enabled})">
+          <button class="maestro-btn ${enabled ? 'maestro-btn-ghost' : ''} b-w-full-2" onclick="toggleIntegration(${!enabled})">
             ${enabled ? 'Disable' : 'Enable'}
           </button>
         </div>
-        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" class="fs-13" onclick="navTo('today')">Back to Today</button>
+        <button class="maestro-btn maestro-btn-ghost maestro-btn-full fs-13" onclick="navTo('today')">Back to Today</button>
       </div>
     `;
   }).catch(() => {

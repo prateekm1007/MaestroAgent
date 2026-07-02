@@ -50,7 +50,7 @@ function renderPreparedDecisions(container, preps) {
 
     return `
       <div class="ds-card" data-preparation-id="${escapeHtml(p.preparation_id)}">
-        <div class="ds-row-between" class="mb-8">
+        <div class="ds-row-between mb-8">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(status)}</span>
             <span class="ds-meta">${escapeHtml(p.preparation_type || 'preparation')}</span>
@@ -62,7 +62,7 @@ function renderPreparedDecisions(container, preps) {
 
         ${p.summary ? `<div class="b-fs13-text-18">${escapeHtml(humanize(p.summary))}</div>` : ''}
 
-        <div class="ds-row" class="b-gap14-mb10-2">
+        <div class="ds-row b-gap14-mb10-2">
           ${assumptionCount > 0 ? `<span class="ds-meta">${assumptionCount} assumption${assumptionCount === 1 ? '' : 's'}</span>` : ''}
           ${evidenceCount > 0 ? `<span class="ds-meta">${evidenceCount} evidence signal${evidenceCount === 1 ? '' : 's'}</span>` : ''}
           ${p.intent_id ? `<span class="ds-meta">linked intent</span>` : ''}
@@ -76,7 +76,7 @@ function renderPreparedDecisions(container, preps) {
         ` : ''}
 
         ${isReady ? `
-          <div class="ds-row" class="b-gap6">
+          <div class="ds-row b-gap6">
             <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparedDecision('${escapeJs(p.preparation_id)}')">Approve</button>
             <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparedDecision('${escapeJs(p.preparation_id)}')">Reject</button>
             ${p.intent_id ? `<button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View cascade</button>` : ''}

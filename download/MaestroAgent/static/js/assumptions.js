@@ -47,7 +47,7 @@ function renderDangerousAssumptions(container, assumptions) {
 
     return `
       <div class="ds-card" data-assumption-id="${escapeHtml(a.assumption_id)}">
-        <div class="ds-row-between" class="mb-10">
+        <div class="ds-row-between mb-10">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(status)}</span>
             <span class="ds-tag ds-tag-${stakesClass}">${escapeHtml(stakes)} stakes</span>
@@ -57,11 +57,11 @@ function renderDangerousAssumptions(container, assumptions) {
 
         <div class="b-fs14-text-8">${escapeHtml(humanize(a.statement))}</div>
 
-        ${a.context ? `<div class="ds-meta" class="mb-10">${escapeHtml(humanize(a.context))}</div>` : ''}
+        ${a.context ? `<div class="ds-meta mb-10">${escapeHtml(humanize(a.context))}</div>` : ''}
 
-        ${a.intent_id ? `<div class="ds-meta" class="mb-10">Supports: <span class="ds-meta-strong">intent ${escapeHtml(a.intent_id.substring(0, 16))}…</span></div>` : ''}
+        ${a.intent_id ? `<div class="ds-meta mb-10">Supports: <span class="ds-meta-strong">intent ${escapeHtml(a.intent_id.substring(0, 16))}…</span></div>` : ''}
 
-        <div class="ds-row" class="b-gap14-mb10">
+        <div class="ds-row b-gap14-mb10">
           <span class="ds-meta">${supportingCount} supporting</span>
           <span class="ds-meta">${contradictingCount} contradicting</span>
           ${contradictingCount === 0 && supportingCount === 0 ? `<span class="ds-tag ds-tag-uncertain">unvalidated</span>` : ''}
@@ -69,13 +69,13 @@ function renderDangerousAssumptions(container, assumptions) {
 
         ${contradictingCount > 0 ? `
           <div class="b-mb10-p810">
-            <div class="ds-cascade-label" class="text-risk">Evidence contradicts this assumption</div>
-            <div class="ds-meta" class="mt-2">${contradictingCount} signal${contradictingCount === 1 ? '' : 's'} suggest this assumption may be wrong</div>
+            <div class="ds-cascade-label text-risk">Evidence contradicts this assumption</div>
+            <div class="ds-meta mt-2">${contradictingCount} signal${contradictingCount === 1 ? '' : 's'} suggest this assumption may be wrong</div>
           </div>
         ` : ''}
 
         ${status === 'open' ? `
-          <div class="ds-row" class="b-gap6">
+          <div class="ds-row b-gap6">
             <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'validated')">Mark as validated</button>
             <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'invalidated')">Invalidate</button>
             <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View in cascade</button>
@@ -134,7 +134,7 @@ function renderAssumptionAccuracy(container, report) {
   container.innerHTML = `
     <div class="ds-card">
       <div class="b-fs14-fw500-2">Assumption accuracy report</div>
-      <div class="ds-row" class="b-gap24-u">
+      <div class="ds-row b-gap24-u">
         <div>
           <div class="ds-meta">Total</div>
           <div class="b-fs22-text-2">${total}</div>
@@ -159,11 +159,11 @@ function renderAssumptionAccuracy(container, report) {
       ${report.most_costly_when_wrong && report.most_costly_when_wrong.length ? `
         <div class="mt-16">
           <div class="ds-cascade-label">Most costly when wrong</div>
-          <div class="ds-stack" class="mt-8">
+          <div class="ds-stack mt-8">
             ${report.most_costly_when_wrong.slice(0, 5).map(a => `
-              <div class="ds-card" class="b-p1012">
+              <div class="ds-card b-p1012">
                 <div class="b-fs13-text-7">${escapeHtml(humanize(a.statement))}</div>
-                <div class="ds-meta" class="mt-4">${escapeHtml(a.stakes || 'medium')} stakes · ${escapeHtml(a.status || 'resolved')}</div>
+                <div class="ds-meta mt-4">${escapeHtml(a.stakes || 'medium')} stakes · ${escapeHtml(a.status || 'resolved')}</div>
               </div>
             `).join('')}
           </div>

@@ -198,7 +198,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # (will be removed when Tailwind is compiled to a CSS file).
         default_csp = (
             "default-src 'self' https:; "
-            "script-src 'self' https://cdn.tailwindcss.com; "
+            "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com; "
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
             "img-src 'self' data: https:; "
             "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; "

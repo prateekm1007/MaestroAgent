@@ -96,8 +96,8 @@ function renderCognition(el, skepticism, wisdom, metacognition, principles, comp
 
 function renderAttention(a) {
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">Where your attention should be</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">Where your attention should be</div>
       <div class="body-text">${escapeHtml(humanize(a.summary || ''))}</div>
   `;
   if (a.attention_thieves && a.attention_thieves.length) {
@@ -119,8 +119,8 @@ function renderAttention(a) {
 function renderTrajectories(t) {
   const trajs = t.trajectories || {};
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">Where things are heading</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">Where things are heading</div>
       <div class="body-text">${escapeHtml(humanize(t.summary || ''))}</div>
   `;
   for (const [name, traj] of Object.entries(trajs)) {
@@ -129,7 +129,7 @@ function renderTrajectories(t) {
     const color = trend === 'improving' ? 'var(--positive)' : trend === 'declining' ? 'var(--risk)' : 'var(--text-muted)';
     html += `
       <div class="b-p100-u">
-        <div class="ds-row" class="gap-8">
+        <div class="ds-row gap-8">
           <span class="b-clr-fs16">${arrow}</span>
           <span class="b-fs13-fw500-4">${escapeHtml(name.replace(/_/g, ' '))}</span>
           <span class="b-mlfs11-text">${escapeHtml(traj.slope || '')} · ${escapeHtml(traj.duration || '')}</span>
@@ -145,8 +145,8 @@ function renderTrajectories(t) {
 function renderCausal(c) {
   if (!c.chains || c.chains.length === 0) return '';
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">What causes what</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">What causes what</div>
       <div class="body-text">${escapeHtml(humanize(c.summary || ''))}</div>
   `;
   for (const chain of c.chains.slice(0, 3)) {
@@ -154,7 +154,7 @@ function renderCausal(c) {
       <div class="b-p120-u">
         <div class="b-fs13-text-8"><strong>When:</strong> ${escapeHtml(humanize(chain.cause || ''))}</div>
         <div class="b-fs13-text-13"><strong>Then:</strong> ${escapeHtml(humanize(chain.effect || ''))}</div>
-        <div class="ds-meta" class="mt-4">Observed ${chain.sequence_count} times · ${escapeHtml(chain.confidence || '')} confidence</div>
+        <div class="ds-meta mt-4">Observed ${chain.sequence_count} times · ${escapeHtml(chain.confidence || '')} confidence</div>
         <div class="b-fs12-text-17">${escapeHtml(humanize(chain.narrative || ''))}</div>
       </div>
     `;
@@ -166,8 +166,8 @@ function renderCausal(c) {
 function renderForgetting(f) {
   if (!f.candidates || f.candidates.length === 0) return '';
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">What to stop tracking</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">What to stop tracking</div>
       <div class="body-text">${escapeHtml(humanize(f.summary || ''))}</div>
   `;
   for (const c of f.candidates.slice(0, 3)) {
@@ -185,8 +185,8 @@ function renderForgetting(f) {
 function renderConsciousness(c) {
   const dims = c.dimensions || {};
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="b-text-accent-3">Right now</div>
+    <div class="story-card mb-16">
+      <div class="intention-label b-text-accent-3">Right now</div>
       <div class="b-fs15-text-3">${escapeHtml(humanize(c.summary || ''))}</div>
       <div class="b-u-998b-2">
   `;
@@ -211,15 +211,15 @@ function renderConsciousness(c) {
 function renderSkepticism(s) {
   if (!s.challenges || s.challenges.length === 0) return '';
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">Beliefs worth questioning</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">Beliefs worth questioning</div>
       <div class="body-text">${escapeHtml(humanize(s.summary || ''))}</div>
   `;
   for (const c of s.challenges.slice(0, 3)) {
     html += `
       <div class="b-p120-u">
         <div class="b-fs14-text-5">${escapeHtml(humanize(c.challenge || ''))}</div>
-        <div class="ds-meta" class="mt-4">${escapeHtml(humanize(c.evidence || ''))}</div>
+        <div class="ds-meta mt-4">${escapeHtml(humanize(c.evidence || ''))}</div>
       </div>
     `;
   }
@@ -229,8 +229,8 @@ function renderSkepticism(s) {
 
 function renderWisdom(w) {
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">When values compete</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">When values compete</div>
       <div class="b-fs14-text-10">${escapeHtml(humanize(w.wisdom || ''))}</div>
   `;
   if (w.competing_values && w.competing_values.length) {
@@ -245,8 +245,8 @@ function renderWisdom(w) {
 
 function renderMetacognition(m) {
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">How well the parts work together</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">How well the parts work together</div>
       <div class="b-fs15-text-2">${escapeHtml(humanize(m.diagnosis || ''))}</div>
       <div class="b-fs13-text-21">Team quality vs. organization quality: ${m.meta_gap > 0 ? 'organization is stronger' : m.meta_gap < -0.1 ? 'teams are stronger than the whole' : 'balanced'}</div>
   `;
@@ -263,8 +263,8 @@ function renderMetacognition(m) {
 
 function renderPrinciples(p) {
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">What your organization has earned the right to trust</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">What your organization has earned the right to trust</div>
       <div class="body-text">${escapeHtml(humanize(p.summary || ''))}</div>
   `;
   if (p.principles && p.principles.length) {
@@ -272,7 +272,7 @@ function renderPrinciples(p) {
       html += `
         <div class="b-p120-u">
           <div class="b-fs14-text-5">${escapeHtml(humanize(principle.statement || ''))}</div>
-          <div class="ds-meta" class="mt-4">${escapeHtml(humanize(principle.narrative || ''))}</div>
+          <div class="ds-meta mt-4">${escapeHtml(humanize(principle.narrative || ''))}</div>
         </div>
       `;
     }
@@ -289,8 +289,8 @@ function renderPrinciples(p) {
 
 function renderCompression(c) {
   let html = `
-    <div class="story-card" class="mb-16">
-      <div class="intention-label" class="accent-label">What it all comes down to</div>
+    <div class="story-card mb-16">
+      <div class="intention-label accent-label">What it all comes down to</div>
       <div class="body-text">${escapeHtml(humanize(c.summary || ''))}</div>
   `;
   if (c.truths && c.truths.length) {

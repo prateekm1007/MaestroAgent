@@ -43,7 +43,7 @@ function renderPlaybook(el, role, data) {
   `;
 
   if (data.error) {
-    html += `<div class="ds-empty" class="b-mt24">${escapeHtml(humanize(data.error))}</div>`;
+    html += `<div class="ds-empty b-mt24">${escapeHtml(humanize(data.error))}</div>`;
     el.innerHTML = html;
     return;
   }
@@ -63,8 +63,8 @@ function renderPlaybook(el, role, data) {
 function renderSalesPlaybook(data) {
   const outreach = data.drafted_outreach || {};
   let html = `
-    <div class="story-card" class="b-mt24">
-      <div class="story-narrative" class="b-fw500-text">
+    <div class="story-card b-mt24">
+      <div class="story-narrative b-fw500-text">
         Drafted Outreach — ${escapeHtml(data.customer || 'Unknown Customer')}
       </div>
   `;
@@ -76,7 +76,7 @@ ${escapeHtml(outreach.body)}
       </div>
     `;
     if (outreach.talking_points && outreach.talking_points.length > 0) {
-      html += `<div class="ds-cascade-label" class="mb-8">Talking Points</div>`;
+      html += `<div class="ds-cascade-label mb-8">Talking Points</div>`;
       html += outreach.talking_points.map(tp => `
         <div class="b-p812-bg-2">
           • ${escapeHtml(humanize(tp))}
@@ -86,7 +86,7 @@ ${escapeHtml(outreach.body)}
   }
 
   html += `
-    <div class="ds-meta" class="mt-16">
+    <div class="ds-meta mt-16">
       ${data.customer_signal_count || 0} customer signals · ARR at stake: $${(data.arr_at_stake || 0).toLocaleString()}
     </div>
     <div class="b-mt8-fs13-2">${escapeHtml(humanize(data.next_best_action || ''))}</div>
@@ -109,8 +109,8 @@ ${escapeHtml(outreach.body)}
 
 function renderMarketingPlaybook(data) {
   let html = `
-    <div class="story-card" class="b-mt24">
-      <div class="story-narrative" class="b-fw500-text">
+    <div class="story-card b-mt24">
+      <div class="story-narrative b-fw500-text">
         Marketing ROI — ${data.campaigns ? data.campaigns.length : 0} Campaigns
       </div>
   `;
@@ -143,7 +143,7 @@ function renderMarketingPlaybook(data) {
   }
 
   html += `
-    <div class="ds-meta" class="mt-12">
+    <div class="ds-meta mt-12">
       Total spend: $${(data.total_spend || 0).toLocaleString()} · Total conversions: ${data.total_conversions || 0} · Overall CPA: $${(data.overall_cpa || 0).toFixed(2)}
     </div>
     <div class="b-mt8-fs13-2">${escapeHtml(humanize(data.recommendation || ''))}</div>
@@ -155,8 +155,8 @@ function renderMarketingPlaybook(data) {
 
 function renderProductPlaybook(data) {
   let html = `
-    <div class="story-card" class="b-mt24">
-      <div class="story-narrative" class="b-fw500-text">
+    <div class="story-card b-mt24">
+      <div class="story-narrative b-fw500-text">
         PRD Outline — ${escapeHtml(data.feature || 'New Feature')}
       </div>
   `;
@@ -164,7 +164,7 @@ function renderProductPlaybook(data) {
   if (data.prd_outline) {
     html += data.prd_outline.sections.map(s => `
       <div class="mb-16">
-        <div class="ds-cascade-label" class="mb-6">${escapeHtml(s.title)}</div>
+        <div class="ds-cascade-label mb-6">${escapeHtml(s.title)}</div>
         <div class="b-p1014-bg">
           ${escapeHtml(humanize(s.content || ''))}
         </div>
@@ -173,21 +173,21 @@ function renderProductPlaybook(data) {
   }
 
   if (data.drafted_tickets && data.drafted_tickets.length > 0) {
-    html += `<div class="ds-cascade-label" class="b-mt16-mb8">Drafted Tickets (${data.drafted_tickets.length})</div>`;
+    html += `<div class="ds-cascade-label b-mt16-mb8">Drafted Tickets (${data.drafted_tickets.length})</div>`;
     html += data.drafted_tickets.map(t => `
       <div class="b-p1012-bg-2">
         <div class="b-fs13-text-9">${escapeHtml(humanize(t.summary || ''))}</div>
-        <div class="ds-meta" class="mt-4">Priority: ${escapeHtml(t.priority || 'medium')}</div>
+        <div class="ds-meta mt-4">Priority: ${escapeHtml(t.priority || 'medium')}</div>
       </div>
     `).join('');
   }
 
   if (data.unresolved_concerns && data.unresolved_concerns.length > 0) {
-    html += `<div class="ds-cascade-label" class="b-mt16-mb8-2">Unresolved Concerns (${data.unresolved_concerns.length})</div>`;
+    html += `<div class="ds-cascade-label b-mt16-mb8-2">Unresolved Concerns (${data.unresolved_concerns.length})</div>`;
     html += data.unresolved_concerns.map(c => `
       <div class="b-p1012-bg">
         <div class="subtle-text">${escapeHtml(humanize(c.concern || ''))}</div>
-        <div class="ds-meta" class="mt-4">Raised by: ${escapeHtml(c.raised_by || 'unknown')}</div>
+        <div class="ds-meta mt-4">Raised by: ${escapeHtml(c.raised_by || 'unknown')}</div>
       </div>
     `).join('');
   }

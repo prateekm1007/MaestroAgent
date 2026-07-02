@@ -17,7 +17,7 @@ async function loadCoordination() {
     const requests = (all.requests || []);
     renderCoordinationSurface(el, requests);
   } catch (e) {
-    el.innerHTML = `<div class="calm-empty" class="b-text-center-9">
+    el.innerHTML = `<div class="calm-empty b-text-center-9">
       <div class="b-fs16-fw700-2">Coordination Engine</div>
       <div class="caption-text">Failed to load: ${escapeHtml(e.message)}</div>
     </div>`;
@@ -37,7 +37,7 @@ function renderCoordinationSurface(el, requests) {
 
   // Initiate form
   html += `
-    <div class="maestro-card" class="b-mb20">
+    <div class="maestro-card b-mb20">
       <div class="b-fs14-fw700-4">Initiate a coordination request</div>
       <input type="text" class="maestro-input" id="coord-decision-input"
              placeholder="e.g., Standardize OAuth across all services"
@@ -60,7 +60,7 @@ function renderCoordinationSurface(el, requests) {
       const responseCount = (req.responses || []).length;
 
       html += `
-        <div class="maestro-card" class="b-mb12-cursor" data-action="viewCoordination" data-args='["${escapeJs(req.request_id)}"]'>
+        <div class="maestro-card b-mb12-cursor" data-action="viewCoordination" data-args='["${escapeJs(req.request_id)}"]'>
           <div class="b-flex-u-9">
             <div class="flex-1">
               <div class="b-inline-block-3">${escapeHtml(status)}</div>
@@ -76,7 +76,7 @@ function renderCoordinationSurface(el, requests) {
     });
   } else {
     html += `
-      <div class="calm-empty" class="b-text-center-8">
+      <div class="calm-empty b-text-center-8">
         <div class="b-fs16-fw700-2">No coordination requests yet.</div>
         <div class="caption-text">Initiate one above to coordinate multi-team input for a decision.</div>
       </div>
@@ -134,7 +134,7 @@ function renderCoordinationDetail(el, req) {
   let html = `<div class="b-mw700-m0auto">`;
 
   // Back button
-  html += `<button class="maestro-btn maestro-btn-ghost" class="b-fs13-minh36" id="coord-back-btn">← Back to coordination</button>`;
+  html += `<button class="maestro-btn maestro-btn-ghost b-fs13-minh36" id="coord-back-btn">← Back to coordination</button>`;
 
   // Decision
   html += `
@@ -150,7 +150,7 @@ function renderCoordinationDetail(el, req) {
     html += `<div class="b-fs14-fw800">Affected teams (${teams.length})</div>`;
     teams.forEach(team => {
       html += `
-        <div class="maestro-card" class="b-mb8-p1014">
+        <div class="maestro-card b-mb8-p1014">
           <div class="b-fs14-fw700-2">${escapeHtml(team.team || team)}</div>
           <div class="b-fs12-text-7">${escapeHtml((team.domains || []).join(', '))}</div>
         </div>
@@ -164,7 +164,7 @@ function renderCoordinationDetail(el, req) {
     html += `<div class="b-fs14-fw800-2">Contacts (${contacts.length})</div>`;
     contacts.forEach(c => {
       html += `
-        <div class="maestro-card" class="b-mb8-p1014">
+        <div class="maestro-card b-mb8-p1014">
           <div class="b-flex-u-7">
             <div>
               <div class="b-fs14-fw700-2">${escapeHtml(c.email || '')}</div>
@@ -182,7 +182,7 @@ function renderCoordinationDetail(el, req) {
     html += `<div class="b-fs14-fw800-2">Responses (${responses.length})</div>`;
     responses.forEach(r => {
       html += `
-        <div class="maestro-card" class="b-mb8-p1214">
+        <div class="maestro-card b-mb8-p1214">
           <div class="b-fs13-fw700">${escapeHtml(r.from || '')} — ${escapeHtml(r.team || '')}</div>
           <div class="b-fs13-text-23">${escapeHtml(humanize(r.response || ''))}</div>
         </div>
@@ -203,7 +203,7 @@ function renderCoordinationDetail(el, req) {
 
   // Response form
   html += `
-    <div class="maestro-card" class="b-mt20">
+    <div class="maestro-card b-mt20">
       <div class="b-fs14-fw700">Add a response</div>
       <textarea id="coord-response-input" placeholder="Enter your team's input on this decision…"
                 class="b-w-full-4"></textarea>

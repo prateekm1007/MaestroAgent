@@ -40,7 +40,7 @@ function renderContradictions(container, contradictions) {
     const acknowledged = c.status === 'acknowledged';
     return `
       <div class="ds-card" data-contradiction-id="${escapeHtml(c.contradiction_id)}">
-        <div class="ds-row-between" class="mb-10">
+        <div class="ds-row-between mb-10">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${sevClass}">${escapeHtml(severity.toUpperCase())}</span>
             <span class="ds-meta">${escapeHtml(c.type || 'contradiction')}</span>
@@ -71,7 +71,7 @@ function renderContradictions(container, contradictions) {
         ${c.evidence && c.evidence.length ? `
           <div class="mb-10">
             <div class="ds-cascade-label">Evidence (${c.evidence.length})</div>
-            <div class="ds-row" class="b-u-gap4">
+            <div class="ds-row b-u-gap4">
               ${c.evidence.slice(0, 6).map(e => `<span class="source-cite">${escapeHtml(e.type || e.signal_type || 'signal')}</span>`).join('')}
               ${c.evidence.length > 6 ? `<span class="ds-meta">+${c.evidence.length - 6} more</span>` : ''}
             </div>
@@ -79,7 +79,7 @@ function renderContradictions(container, contradictions) {
         ` : ''}
 
         ${!acknowledged ? `
-          <div class="ds-row" class="b-gap6">
+          <div class="ds-row b-gap6">
             <button class="ds-btn ds-btn-primary ds-btn-small" onclick="acknowledgeContradiction('${escapeJs(c.contradiction_id)}')">Acknowledge</button>
           </div>
         ` : ''}

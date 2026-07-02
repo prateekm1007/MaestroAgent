@@ -26,10 +26,10 @@ function renderAutobiography(el, data) {
 
   for (const ch of chapters) {
     html += `
-      <div class="story-card" class="mb-16">
-        <div class="intention-label" class="accent-label">${escapeHtml(humanize(ch.title || ''))}</div>
+      <div class="story-card mb-16">
+        <div class="intention-label accent-label">${escapeHtml(humanize(ch.title || ''))}</div>
         <div class="story-narrative">${escapeHtml(humanize(ch.narrative || ''))}</div>
-        ${ch.lessons && ch.lessons.length ? `<div class="story-evidence" class="mt-8">${ch.lessons.map(l => escapeHtml(humanize(l))).join(' · ')}</div>` : ''}
+        ${ch.lessons && ch.lessons.length ? `<div class="story-evidence mt-8">${ch.lessons.map(l => escapeHtml(humanize(l))).join(' · ')}</div>` : ''}
       </div>
     `;
   }

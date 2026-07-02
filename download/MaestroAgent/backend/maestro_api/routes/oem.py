@@ -2998,6 +2998,23 @@ def get_assumption(assumption_id: str) -> dict[str, Any]:
     return a
 
 
+@router.post("/assumptions/{assumption_id}/{status}")
+def resolve_assumption(assumption_id: str, status: str) -> dict[str, Any]:
+    """Resolve an assumption by setting its status (validated/invalidated).
+
+    Round 78: the frontend's resolveAssumption() calls this endpoint.
+    Prior versions had optimistic UI only — the status was lost on refresh.
+    """
+    if status not in ("validated", "invalidated"):
+        raise HTTPException(400, f"Invalid status: {status}. Must be 'validated' or 'invalidated'.")
+    graph = _get_assumption_graph()
+    a = graph.get_assumption(assumption_id)
+    if not a:
+        raise HTTPException(404, f"Assumption {assumption_id} not found")
+    a["status"] = status
+    return {"ok": True, "assumption_id": assumption_id, "status": status}
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 21. INTENT MODEL — root entity of the cognitive model
 # ═══════════════════════════════════════════════════════════════════════════

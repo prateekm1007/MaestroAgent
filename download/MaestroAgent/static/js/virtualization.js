@@ -138,7 +138,7 @@ async function loadUnifiedMemory() {
     `;
 
     if (items.length === 0) {
-      html += `<div class="calm-empty" class="b-text-center-9">
+      html += `<div class="calm-empty b-text-center-9">
         <div class="b-fs18-fw800-4">No memories yet.</div>
         <div class="meta-text">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
       </div>`;
@@ -172,9 +172,9 @@ async function loadUnifiedMemory() {
         }
 
         html += `
-          <div class="maestro-card" class="b-mb12-pos">
+          <div class="maestro-card b-mb12-pos">
             <div class="b-pos-absolute-4" title="${dotTitle}" aria-label="Mode: ${dotTitle}"></div>
-            ${provider ? `<div class="swipe-card-category ${mode === 'work' ? 'decision' : 'habit'}" class="mb-8">${escapeHtml(provider.toUpperCase())}</div>` : ''}
+            ${provider ? `<div class="swipe-card-category ${mode === 'work' ? 'decision' : 'habit'} mb-8">${escapeHtml(provider.toUpperCase())}</div>` : ''}
             <div class="b-fs15-fw700">${escapeHtml(humanize(description))}</div>
             ${actor ? `<div class="b-fs12-fw600-5">by ${escapeHtml(humanize(actor))}</div>` : ''}
             ${domain ? `<div class="b-fs11-text-2">${escapeHtml(humanize(domain))}</div>` : ''}

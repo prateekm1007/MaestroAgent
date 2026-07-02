@@ -8,7 +8,7 @@ async function loadTeammate(email) {
   const el = document.getElementById('teammate-content') || document.getElementById('main-content');
   if (!el) return;
   if (!email) {
-    el.innerHTML = `<div class="calm-empty" class="b-text-center-9">
+    el.innerHTML = `<div class="calm-empty b-text-center-9">
       <div class="b-fs16-fw700-2">No teammate selected.</div>
       <div class="caption-text">Tap a person's name anywhere in Maestro to see their view.</div>
     </div>`;
@@ -48,8 +48,8 @@ function renderTeammate(el, data) {
     data.tasks.forEach(task => {
       const priClass = task.priority === 'high' ? 'contradiction' : task.priority === 'medium' ? 'due' : 'unknown';
       html += `
-        <div class="maestro-card" class="mb-10">
-          <div class="swipe-card-category ${priClass}" class="mb-6">${escapeHtml(task.priority.toUpperCase())}</div>
+        <div class="maestro-card mb-10">
+          <div class="swipe-card-category ${priClass} mb-6">${escapeHtml(task.priority.toUpperCase())}</div>
           <div class="b-fs14-fw700-3">${escapeHtml(humanize(task.description))}</div>
           <div class="b-flex-gap12">
             ${task.due_date ? `<span>📅 ${escapeHtml(task.due_date)}</span>` : ''}
@@ -68,7 +68,7 @@ function renderTeammate(el, data) {
     `;
     data.commitments.forEach(c => {
       html += `
-        <div class="maestro-card" class="b-mb10-u">
+        <div class="maestro-card b-mb10-u">
           <div class="b-fs14-fw700-3">${escapeHtml(humanize(c.description))}</div>
           <div class="b-flex-gap12">
             ${c.to_whom ? `<span>→ ${escapeHtml(c.to_whom)}</span>` : ''}
@@ -83,7 +83,7 @@ function renderTeammate(el, data) {
   if (data.attention && data.attention.total_signals > 0) {
     html += `
       <div class="b-fs14-fw800-8">Attention</div>
-      <div class="maestro-card" class="mb-10">
+      <div class="maestro-card mb-10">
         <div class="b-fs13-text-17">${escapeHtml(humanize(data.attention.summary || 'No attention data.'))}</div>
       </div>
     `;
@@ -92,7 +92,7 @@ function renderTeammate(el, data) {
   // Empty state
   if ((!data.tasks || data.tasks.length === 0) && (!data.commitments || data.commitments.length === 0)) {
     html += `
-      <div class="calm-empty" class="b-text-center-8">
+      <div class="calm-empty b-text-center-8">
         <div class="b-fs16-fw700-2">No tasks or commitments yet.</div>
         <div class="caption-text">As ${escapeHtml(data.name)} appears in more signals, their tasks and commitments will show here.</div>
       </div>
