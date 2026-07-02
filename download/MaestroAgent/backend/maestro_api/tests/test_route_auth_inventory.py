@@ -19,14 +19,9 @@ from fastapi.routing import APIRoute, APIWebSocketRoute
 # Set MAESTRO_APP_DIR so create_app() can find app.html
 os.environ.setdefault("MAESTRO_APP_DIR", os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
-from maestro_api.main import create_app
 from maestro_api.security.policy import AuthPolicy, get_route_policy
 
-
-@pytest.fixture(scope="module")
-def app():
-    """Create the app once per module to avoid side-effect accumulation."""
-    return create_app()
+# The `app` fixture is provided by conftest.py (session-scoped, shared).
 
 
 PUBLIC_EXACT = {

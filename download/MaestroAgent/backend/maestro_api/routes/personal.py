@@ -20,12 +20,18 @@ Every endpoint enforces:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import Any
 
 from maestro_auth.permissions import is_auth_enabled, require_user
 from maestro_api.security.policy import set_router_policy, AuthPolicy
-router = APIRouter(dependencies=[Depends(lambda r: None if not is_auth_enabled() else require_user(r))], prefix="/api/personal", tags=["personal-mode"])
+def _require_user_if_auth_enabled(request: Request) -> None:
+    """Auth gate that respects dev mode. See imports.py for the pattern."""
+    if is_auth_enabled():
+        require_user(request)
+
+
+router = APIRouter(dependencies=[Depends(_require_user_if_auth_enabled)], prefix="/api/personal", tags=["personal-mode"])
 
 
 # ─── Briefing ──────────────────────────────────────────────────────────────
