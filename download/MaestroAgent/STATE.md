@@ -76,3 +76,28 @@
 6. Run load test against Postgres
 7. Third-party pen-test
 8. Ship pilot
+
+## Round 57 Fixes (verified)
+- C1: OAuth callback infers provider from state token (no more 400 on standard OAuth flows) ✓
+- C2: complete_connection is now async + awaits start_import (imports actually start) ✓
+- C3: OAuth state is HMAC-signed with JWT_SECRET (CSRF protection) ✓
+- C4: No default admin seeded in production mode ✓
+- H1: Duplicate id=surface-memory fixed (renamed legacy to surface-memory-replay) ✓
+
+## Disciplines (the "why" — do not lose these)
+12. Endpoint tests are necessary but not sufficient — read the integration-layer code.
+13. Check for sync/async contract violations — async called from sync without await = silent failure.
+14. OAuth state must be HMAC-signed, not just formatted.
+15. No default credentials in production — fail closed, not convenience-seeded.
+16. No duplicate DOM IDs — add a CI lint check.
+
+## Round 58 Disciplines (verified)
+17. Not every audit finding is true — verify every claim against the source code before acting on it.
+18. The autocomplete IS the OEM moat — it searches 10 data sources, not page names.
+19. The executive action layer EXISTS — approve, reject, complete, writeback, resolve.
+20. escapeHtml is correct — the mapping is {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}.
+
+## Confirmed False Audit Findings (do NOT waste time on these)
+- ~~Autocomplete searches page names~~ — FALSE. SemanticAutocompleteEngine searches the live OEM.
+- ~~escapeHtml has a mapping bug~~ — FALSE. Every character maps correctly.
+- ~~CEO cannot record a decision~~ — FALSE. POST /preparations/{id}/approve, /reject, /tasks/complete, /writeback, /decision-log/{id}/resolve all exist.
