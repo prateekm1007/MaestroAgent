@@ -125,16 +125,20 @@ class HistoricalImportEngine:
         since: str | None = "5y",
         job_id: str | None = None,
         resume: bool = True,
+        org_id: str = "default",
     ) -> str:
         """Start a new import job (or resume an existing one).
 
         Returns job_id immediately; the actual import runs as a background task.
+
+        Round 65 C3 fix: org_id is propagated to the on_signals callback
+        so imported signals go to the correct org's OEM, not the singleton.
         """
-        job_id = job_id or self.store.create_job(providers=providers, since=since)
+        job_id = job_id or self.store.create_job(providers=providers, since=since, org_id=org_id)
         self.store.update_job_status(job_id, "running")
 
         # Start the background task
-        task = asyncio.create_task(self._run_job(job_id, providers, since, resume))
+        task = asyncio.create_task(self._run_job(job_id, providers, since, resume, org_id=org_id))
         self._running_jobs[job_id] = task
         return job_id
 
@@ -170,16 +174,21 @@ class HistoricalImportEngine:
         providers: list[str],
         since: str | None,
         resume: bool,
+        org_id: str = "default",
     ) -> None:
-        """Main job loop. Runs all providers in parallel."""
+        """Main job loop. Runs all providers in parallel.
+
+        Round 65 C3 fix: org_id propagated to _import_provider → on_signals.
+        """
         self.tracker.start_job(job_id, providers, since)
         self.tracker.set_phase(job_id, "importing")
 
         since_dt = parse_since(since)
 
         # Run all providers concurrently
+        # Round 65 C3 fix: pass org_id so on_signals routes to the correct OEM
         tasks = [
-            self._run_provider(job_id, provider, since_dt, resume)
+            self._run_provider(job_id, provider, since_dt, resume, org_id=org_id)
             for provider in providers
         ]
         try:
@@ -228,8 +237,12 @@ class HistoricalImportEngine:
         provider: str,
         since: datetime | None,
         resume: bool,
+        org_id: str = "default",
     ) -> bool:
-        """Run ingestion for one provider. Returns True on success."""
+        """Run ingestion for one provider. Returns True on success.
+
+        Round 65 C3 fix: org_id propagated to on_signals callback.
+        """
         # Check if provider is connected
         if not self.oauth.store.load_credentials(provider):
             self.tracker.mark_provider_failed(
@@ -364,9 +377,10 @@ class HistoricalImportEngine:
                         checkpoint_data["errors"] += 1
 
                 # Stream into live OEM
+                # Round 65 C3 fix: pass org_id to route to the correct org's OEM
                 if new_signals and self.on_signals:
                     try:
-                        self.on_signals(new_signals)
+                        self.on_signals(new_signals, org_id=org_id)
                         signals_since_last_oem_update += len(new_signals)
                     except Exception as e:
                         logger.warning("Live OEM ingest failed: %s", e)

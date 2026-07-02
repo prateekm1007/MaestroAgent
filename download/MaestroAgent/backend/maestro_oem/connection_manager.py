@@ -67,7 +67,7 @@ class ConnectionManager:
         return self.oauth.get_authorization_url(provider)
 
     async def complete_connection(
-        self, provider: str, code: str, state: str
+        self, provider: str, code: str, state: str, org_id: str = "default"
     ) -> dict[str, Any]:
         """Complete the OAuth flow and trigger the initial historical import.
 
@@ -76,6 +76,8 @@ class ConnectionManager:
         Round 57 C2 fix: this method was sync and called `async start_import`
         without await — the coroutine was never awaited, so imports never
         started. Now this method is async and properly awaits start_import.
+        Round 65 C3 fix: org_id propagated to start_import so signals go to
+        the correct org's OEM.
         """
         creds = self.oauth.exchange_code(provider, code, state)
 
@@ -85,6 +87,7 @@ class ConnectionManager:
                 job_id = await self.import_engine.start_import(
                     providers=[provider],
                     since="5y",  # 5 years of history per the spec
+                    org_id=org_id,
                 )
                 logger.info(
                     "Started historical import job %s for newly-connected %s",

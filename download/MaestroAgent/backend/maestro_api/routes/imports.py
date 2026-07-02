@@ -31,6 +31,10 @@ from maestro_api.oem_state import import_state, oem_state
 from maestro_oem.historical_engine import parse_since
 from maestro_oem.oauth_manager import OAuthError
 
+# Round 65 C2 fix: ONE canonical provider list, used everywhere.
+# No more dual whitelists that drift.
+SUPPORTED_IMPORT_PROVIDERS = ("github", "jira", "slack", "confluence", "gmail", "customer")
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -62,7 +66,9 @@ async def oauth_start(provider: str) -> dict[str, Any]:
     """
     _ensure_initialized()
     assert import_state.connections is not None
-    if provider not in ("github", "jira", "slack", "confluence", "gmail", "customer"):
+    # Round 65 C2 fix: use the canonical SUPPORTED_IMPORT_PROVIDERS list
+    # (defined at the bottom of this file). No more dual whitelists.
+    if provider not in SUPPORTED_IMPORT_PROVIDERS:
         raise HTTPException(404, f"Unknown provider: {provider}")
     try:
         url, state = import_state.connections.get_authorization_url(provider)
@@ -162,7 +168,7 @@ async def start_import(req: StartImportRequest) -> dict[str, Any]:
 
     # Validate providers
     for p in req.providers:
-        if p not in ("github", "jira", "slack", "confluence", "gmail"):
+        if p not in SUPPORTED_IMPORT_PROVIDERS:
             raise HTTPException(400, f"Unknown provider: {p}")
         if not import_state.connections.is_connected(p):
             raise HTTPException(400, f"Provider {p} is not connected")
@@ -296,7 +302,7 @@ async def import_progress_ws(websocket: WebSocket, job_id: str) -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 # All supported providers
-SUPPORTED_OAUTH_PROVIDERS = ("github", "jira", "slack", "confluence", "gmail", "customer")
+SUPPORTED_OAUTH_PROVIDERS = SUPPORTED_IMPORT_PROVIDERS  # Round 65: unified
 
 
 @router.get("/api/oauth/admin/providers")

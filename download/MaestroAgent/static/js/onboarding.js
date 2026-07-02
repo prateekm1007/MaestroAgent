@@ -13,14 +13,52 @@
 let _onboardingStep = 1;
 let _onboardingData = {};
 
+// Round 65 H1 fix: persist onboarding state to localStorage so refresh
+// doesn't lose progress.
+function _saveOnboardingState() {
+  try {
+    localStorage.setItem('maestro_onboarding', JSON.stringify({
+      step: _onboardingStep,
+      data: _onboardingData,
+      timestamp: Date.now()
+    }));
+  } catch (e) { /* localStorage may be unavailable in some contexts */ }
+}
+
+function _loadOnboardingState() {
+  try {
+    const saved = localStorage.getItem('maestro_onboarding');
+    if (saved) {
+      const state = JSON.parse(saved);
+      // Only resume if saved within the last hour
+      if (state.timestamp && (Date.now() - state.timestamp) < 3600000) {
+        _onboardingStep = state.step || 1;
+        _onboardingData = state.data || {};
+        return true;
+      }
+    }
+  } catch (e) { /* parse error — start fresh */ }
+  return false;
+}
+
+function _clearOnboardingState() {
+  try { localStorage.removeItem('maestro_onboarding'); } catch (e) {}
+}
+
 function startOnboarding() {
-  _onboardingStep = 1;
-  _onboardingData = {};
-  showOnboardingScreen(1);
+  // Round 65 H1: try to resume from saved state
+  if (_loadOnboardingState() && _onboardingStep > 1) {
+    showOnboardingScreen(_onboardingStep);
+  } else {
+    _onboardingStep = 1;
+    _onboardingData = {};
+    showOnboardingScreen(1);
+  }
 }
 
 function showOnboardingScreen(step) {
   _onboardingStep = step;
+  _saveOnboardingState(); // Round 65 H1: checkpoint after every step
   const el = document.getElementById('onboarding-container');
   if (!el) return;
 
@@ -382,5 +420,6 @@ function renderOnboardingDone() {
 }
 
 function finishOnboarding() {
+  _clearOnboardingState(); // Round 65 H1: clear saved state on completion
   window.location.href = '/app.html';
 }

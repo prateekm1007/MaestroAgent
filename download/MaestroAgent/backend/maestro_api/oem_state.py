@@ -57,13 +57,9 @@ _IMPORT_DB_PATH = os.environ.get(
 def _demo_seed_enabled() -> bool:
     """Whether the acme-corp demo seed should be loaded at startup.
 
-    Honors MAESTRO_DEMO_SEED env var. Defaults to True (demo on) so the
-    product is evaluable without OAuth credentials. Set MAESTRO_DEMO_SEED=false
-    to start with an empty OEM — useful for tests and production deployments.
-
-    In production (MAESTRO_ENV=production), defaults to False — a production
-    deployment must never silently load synthetic data. If demo seed is
-    explicitly enabled in production, a warning is logged.
+    Round 60/65 fix: defaults to False (demo OFF) in non-local environments.
+    Defaults to True only when MAESTRO_LOCAL_DEV=true.
+    In production (MAESTRO_ENV=production), always False unless explicitly set.
     """
     val = os.environ.get("MAESTRO_DEMO_SEED", "").strip().lower()
     is_production = os.environ.get("MAESTRO_ENV", "development") == "production"
@@ -686,13 +682,29 @@ class ImportState:
         self.tracker = ProgressTracker()
         # on_signals streams into the live OEM
         # on_oem_update returns a fresh snapshot for the progress UI
+        # Round 65 C3 fix: route signals to the correct org's OEM, not the
+        # module-level singleton. The old code was `on_signals=oem_state.live_ingest`
+        # which always went to the default singleton regardless of org_id.
+        # Now the callback uses OEMStateRegistry to route to the correct org.
+        def _org_aware_ingest(new_signals, org_id="default"):
+            """Route ingested signals to the correct org's OEM."""
+            from maestro_api.oem_state import OEMStateRegistry
+            state = OEMStateRegistry.get(org_id)
+            state.live_ingest(new_signals)
+
+        def _org_aware_snapshot(org_id="default"):
+            """Get a snapshot from the correct org's OEM."""
+            from maestro_api.oem_state import OEMStateRegistry
+            state = OEMStateRegistry.get(org_id)
+            return state.snapshot()
+
         self.engine = HistoricalImportEngine(
             store=self.store,
             oauth=self.oauth,
             factory=self.factory,
             tracker=self.tracker,
-            on_signals=oem_state.live_ingest,
-            on_oem_update=oem_state.snapshot,
+            on_signals=_org_aware_ingest,
+            on_oem_update=_org_aware_snapshot,
         )
         self.connections = ConnectionManager(
             store=self.store, oauth=self.oauth, import_engine=self.engine,
