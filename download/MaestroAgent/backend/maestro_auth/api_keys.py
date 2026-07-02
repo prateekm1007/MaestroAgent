@@ -11,12 +11,15 @@ keyring (via `keyring`) so the user doesn't have to manage it manually.
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from maestro_db import sqlite_compat as sqlite3
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def generate_api_key() -> str:
