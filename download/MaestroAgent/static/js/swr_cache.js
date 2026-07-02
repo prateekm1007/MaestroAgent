@@ -78,7 +78,9 @@ const SWR = {
     try {
       const resp = await fetch(MAESTRO_API + url, options);
       if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        const err = new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        err.status = resp.status;
+        throw err;
       }
       const data = await resp.json();
       const entry = this._cache.get(key);
@@ -98,8 +100,14 @@ const SWR = {
         return null;
       }
 
-      // Retry with exponential backoff
-      if (retryCount < this.MAX_RETRIES && this._online) {
+      // Retry with exponential backoff — but NOT for definitive client errors.
+      // 4xx (except 408 Request Timeout, 429 Too Many Requests) won't change
+      // on retry. Retrying 404s caused 6 wasteful failed requests in the
+      // console for /api/oem/time-axis (intentional 404 = insufficient data).
+      const isDefinitiveClientError =
+        err.status && err.status >= 400 && err.status < 500 &&
+        err.status !== 408 && err.status !== 429;
+      if (!isDefinitiveClientError && retryCount < this.MAX_RETRIES && this._online) {
         const delay = this.RETRY_DELAYS[retryCount] || 4000;
         await new Promise(r => setTimeout(r, delay));
         return this._doFetch(key, url, options, retryCount + 1);

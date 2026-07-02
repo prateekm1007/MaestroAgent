@@ -153,3 +153,69 @@ def test_list_jobs_ordering(store):
     jobs = store.list_jobs()
     assert jobs[0]["job_id"] == j2
     assert jobs[1]["job_id"] == j1
+
+
+def test_auto_migrate_org_id_on_legacy_db():
+    """Regression test: _auto_migrate_org_id must add org_id to legacy DBs.
+
+    Root cause (found by execution 2026-07-03): the old code used
+    `row[1]` to read PRAGMA table_info results, but sqlite_compat
+    returns dicts (not tuples), so `row[1]` raised KeyError(1). The
+    broad `except Exception` caught it and logged at DEBUG level
+    (invisible at default log level), so the ALTER TABLE never ran.
+    This caused /api/imports and /api/oauth/status to 500 with
+    "no such column: org_id".
+
+    This test creates a legacy DB (no org_id) and verifies the
+    CheckpointStore constructor auto-migrates all 3 tables.
+    """
+    import sqlite3
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        path = f.name
+    try:
+        # Create legacy schema (no org_id) — simulates a DB from before Round 52
+        conn = sqlite3.connect(path)
+        conn.executescript("""
+            CREATE TABLE import_jobs (
+                job_id TEXT PRIMARY KEY, status TEXT NOT NULL,
+                providers TEXT NOT NULL, since TEXT,
+                started_at TEXT NOT NULL, completed_at TEXT,
+                total_signals INTEGER NOT NULL DEFAULT 0, error TEXT
+            );
+            CREATE TABLE oauth_credentials (
+                provider TEXT NOT NULL, access_token TEXT NOT NULL,
+                refresh_token TEXT, token_type TEXT DEFAULT 'Bearer',
+                expires_at TEXT, scopes TEXT, metadata TEXT
+            );
+            CREATE TABLE provider_connections (
+                provider TEXT NOT NULL, connected INTEGER NOT NULL DEFAULT 0,
+                connected_at TEXT, metadata TEXT
+            );
+        """)
+        conn.commit()
+        conn.close()
+
+        # Verify legacy DB has NO org_id
+        check = sqlite3.connect(path)
+        cols_before = [r[1] for r in check.execute("PRAGMA table_info(import_jobs)").fetchall()]
+        assert "org_id" not in cols_before, "Test setup wrong: org_id already exists"
+        check.close()
+
+        # Construct CheckpointStore — should auto-migrate
+        s = CheckpointStore(path)
+        s.close()
+
+        # Verify org_id was added to all 3 tables
+        verify = sqlite3.connect(path)
+        for table in ["import_jobs", "oauth_credentials", "provider_connections"]:
+            cols = [r[1] for r in verify.execute(f"PRAGMA table_info({table})").fetchall()]
+            assert "org_id" in cols, f"FAIL: org_id not added to {table}. Cols: {cols}"
+        verify.close()
+
+        # Verify list_jobs works (the original failure surface)
+        s2 = CheckpointStore(path)
+        jobs = s2.list_jobs()
+        assert jobs == [], "list_jobs should return empty list on fresh DB"
+        s2.close()
+    finally:
+        os.unlink(path)

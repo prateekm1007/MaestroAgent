@@ -527,3 +527,22 @@
 :root[data-theme="light"] .explanation-step:not(.explanation-step-last)::before {
   background: var(--ds-divider, #E4E4E7);
 }
+
+/* ─── Lucide nav icons (sidebar) ──────────────────────────────────────
+   Round 78 fix: the icon() helper + Lucide CDN were loaded but no
+   <i data-lucide> tags existed, so lucide.createIcons() had nothing
+   to convert (0 icons rendered). Added real <i data-lucide> tags to
+   the 4 sidebar nav items. This rule sizes them consistently.
+   ────────────────────────────────────────────────────────────────── */
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.75;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.sidebar-link .nav-icon {
+  color: currentColor;
+}

@@ -145,9 +145,23 @@ class CheckpointStore:
         ]
         for table in tables_needing_org_id:
             try:
-                # Check if org_id column exists
+                # Check if org_id column exists.
+                # NOTE: sqlite_compat.fetchall() returns dicts (not tuples),
+                # so we must index by column name, not by position. The old
+                # code used row[1] which raised KeyError(1) — caught by the
+                # broad except below, silently skipping the ALTER. This was
+                # the root cause of the /api/imports 500 (org_id missing).
                 cursor = self._conn.execute(f"PRAGMA table_info({table})")
-                columns = [row[1] for row in cursor.fetchall()]
+                rows = cursor.fetchall()
+                columns = []
+                for row in rows:
+                    if isinstance(row, dict):
+                        columns.append(row.get("name", ""))
+                    elif hasattr(row, "keys"):
+                        columns.append(row.keys()[1] if len(row.keys()) > 1 else "")
+                    else:
+                        # Raw sqlite3.Row or tuple fallback
+                        columns.append(row[1] if len(row) > 1 else "")
                 if "org_id" not in columns:
                     # Add the column with a default value for existing rows
                     self._conn.execute(
@@ -155,8 +169,10 @@ class CheckpointStore:
                     )
                     logger.info("Auto-migrated: added org_id column to %s", table)
             except Exception as e:
-                # Table might not exist yet (first run) — the _SCHEMA will create it
-                logger.debug("Auto-migrate check for %s: %s", table, e)
+                # Table might not exist yet (first run) — the _SCHEMA will create it.
+                # Log at WARNING (not DEBUG) so silent migration failures are visible —
+                # the old DEBUG level hid the KeyError(1) that broke /api/imports.
+                logger.warning("Auto-migrate check for %s failed: %s", table, e)
 
     @contextmanager
     def _cursor(self) -> Iterator[sqlite3.Cursor]:

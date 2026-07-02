@@ -1,0 +1,252 @@
+[
+  {
+    "surface": "today",
+    "title": "Today \u2014 Morning Brief",
+    "status": "ok",
+    "text_len": 2655,
+    "filename": "today.png",
+    "page_errors": []
+  },
+  {
+    "surface": "memory",
+    "title": "Memory \u2014 Unified Feed",
+    "status": "ok",
+    "text_len": 161,
+    "filename": "memory.png",
+    "page_errors": []
+  },
+  {
+    "surface": "ask-v2",
+    "title": "Ask \u2014 Executive Question",
+    "status": "ok",
+    "text_len": 642,
+    "filename": "ask-v2.png",
+    "page_errors": []
+  },
+  {
+    "surface": "more",
+    "title": "More \u2014 All Surfaces",
+    "status": "skipped",
+    "reason": "no DOM element"
+  },
+  {
+    "surface": "home",
+    "title": "Home \u2014 Executive Cognition Center",
+    "status": "ok",
+    "text_len": 7574,
+    "filename": "home.png",
+    "page_errors": []
+  },
+  {
+    "surface": "inbox",
+    "title": "Inbox \u2014 Decisions Awaiting You",
+    "status": "ok",
+    "text_len": 606,
+    "filename": "inbox.png",
+    "page_errors": []
+  },
+  {
+    "surface": "simulator",
+    "title": "Simulator \u2014 Decision Simulator",
+    "status": "ok",
+    "text_len": 648,
+    "filename": "simulator.png",
+    "page_errors": []
+  },
+  {
+    "surface": "hayek",
+    "title": "Hayek \u2014 Knowledge Graph",
+    "status": "ok",
+    "text_len": 197,
+    "filename": "hayek.png",
+    "page_errors": []
+  },
+  {
+    "surface": "flow",
+    "title": "Flow \u2014 Knowledge Flow",
+    "status": "ok",
+    "text_len": 419,
+    "filename": "flow.png",
+    "page_errors": []
+  },
+  {
+    "surface": "ask",
+    "title": "Ask \u2014 Legacy Ask",
+    "status": "ok",
+    "text_len": 159,
+    "filename": "ask.png",
+    "page_errors": []
+  },
+  {
+    "surface": "customer",
+    "title": "Customer \u2014 Judgment Engine",
+    "status": "ok",
+    "text_len": 1761,
+    "filename": "customer.png",
+    "page_errors": []
+  },
+  {
+    "surface": "physics",
+    "title": "Physics \u2014 Execution Laws",
+    "status": "ok",
+    "text_len": 5486,
+    "filename": "physics.png",
+    "page_errors": []
+  },
+  {
+    "surface": "debate",
+    "title": "Debate \u2014 Active Debates",
+    "status": "ok",
+    "text_len": 230,
+    "filename": "debate.png",
+    "page_errors": []
+  },
+  {
+    "surface": "live",
+    "title": "Live \u2014 Meeting Analyzer",
+    "status": "ok",
+    "text_len": 539,
+    "filename": "live.png",
+    "page_errors": []
+  },
+  {
+    "surface": "intents",
+    "title": "Intents \u2014 Intent Cascade",
+    "status": "ok",
+    "text_len": 554,
+    "filename": "intents.png",
+    "page_errors": []
+  },
+  {
+    "surface": "contradictions",
+    "title": "Contradictions",
+    "status": "ok",
+    "text_len": 507,
+    "filename": "contradictions.png",
+    "page_errors": []
+  },
+  {
+    "surface": "predictions",
+    "title": "Predictions \u2014 Prediction Market",
+    "status": "ok",
+    "text_len": 402,
+    "filename": "predictions.png",
+    "page_errors": []
+  },
+  {
+    "surface": "assumptions",
+    "title": "Assumptions \u2014 Dangerous Assumptions",
+    "status": "ok",
+    "text_len": 1011,
+    "filename": "assumptions.png",
+    "page_errors": []
+  },
+  {
+    "surface": "eng-signals",
+    "title": "Engineering \u2014 Signals",
+    "status": "ok",
+    "text_len": 529,
+    "filename": "eng-signals.png",
+    "page_errors": []
+  },
+  {
+    "surface": "eng-oem",
+    "title": "Engineering \u2014 OEM Builder",
+    "status": "ok",
+    "text_len": 353,
+    "filename": "eng-oem.png",
+    "page_errors": []
+  },
+  {
+    "surface": "eng-audit",
+    "title": "Engineering \u2014 Audit Log",
+    "status": "ok",
+    "text_len": 130,
+    "filename": "eng-audit.png",
+    "page_errors": []
+  },
+  {
+    "surface": "eng-settings",
+    "title": "Engineering \u2014 Settings",
+    "status": "ok",
+    "text_len": 1184,
+    "filename": "eng-settings.png",
+    "page_errors": []
+  },
+  {
+    "surface": "canvas",
+    "title": "Canvas \u2014 Decision Canvas",
+    "status": "ok",
+    "text_len": 453,
+    "filename": "canvas.png",
+    "page_errors": []
+  },
+  {
+    "surface": "coordination",
+    "title": "Coordination \u2014 Coordination Engine",
+    "status": "skipped",
+    "reason": "no DOM element"
+  },
+  {
+    "surface": "work",
+    "title": "Work \u2014 Work Surface",
+    "status": "ok",
+    "text_len": 660,
+    "filename": "work.png",
+    "page_errors": []
+  },
+  {
+    "surface": "learn",
+    "title": "Learn \u2014 Learn Surface",
+    "status": "ok",
+    "text_len": 1363,
+    "filename": "learn.png",
+    "page_errors": []
+  },
+  {
+    "surface": "evolution",
+    "title": "Evolution \u2014 Evolution Report",
+    "status": "ok",
+    "text_len": 936,
+    "filename": "evolution.png",
+    "page_errors": []
+  },
+  {
+    "surface": "cognition",
+    "title": "Cognition \u2014 Cognitive Organs",
+    "status": "ok",
+    "text_len": 5994,
+    "filename": "cognition.png",
+    "page_errors": []
+  },
+  {
+    "surface": "autobiography",
+    "title": "Autobiography \u2014 Org Story",
+    "status": "ok",
+    "text_len": 1184,
+    "filename": "autobiography.png",
+    "page_errors": []
+  },
+  {
+    "surface": "playbook",
+    "title": "Playbook \u2014 Role Playbooks",
+    "status": "ok",
+    "text_len": 603,
+    "filename": "playbook.png",
+    "page_errors": []
+  },
+  {
+    "surface": "personal",
+    "title": "Personal \u2014 Personal Mode",
+    "status": "ok",
+    "text_len": 147,
+    "filename": "personal.png",
+    "page_errors": []
+  },
+  {
+    "surface": "command-palette",
+    "title": "Command Palette (\u2318K)",
+    "status": "ok",
+    "filename": "command-palette.png"
+  }
+]
