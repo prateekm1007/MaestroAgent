@@ -1,5 +1,20 @@
 # Contributing to Maestro
 
+## ⛔ GOVERNANCE GATE — READ BEFORE ANY WORK ⛔
+
+> **Before writing a single line of code, you MUST:**
+> 1. Read [GOVERNANCE.md](./GOVERNANCE.md) — the enforcement protocol
+> 2. Read [ENTROPY_RECOVERY.md](./ENTROPY_RECOVERY.md) — all 10 principles
+> 3. Complete the Pre-Execution Gate in GOVERNANCE.md for your task
+> 4. After your work, complete the Post-Execution Gate before committing
+>
+> This is not optional. This is not "best practice." This is the mechanical
+> enforcement of the anti-entropy principles. Every regression in this repo's
+> history happened because someone skipped these steps.
+>
+> **If you skip the gate, you will introduce entropy. The auditor will catch it.
+> Save everyone's time: read the principles, execute your claims, document root causes.**
+
 ## Verification Protocol (MANDATORY — read [ENTROPY_RECOVERY.md](./ENTROPY_RECOVERY.md) first)
 
 > **A fix is not "verified" until it has been executed, not read.**

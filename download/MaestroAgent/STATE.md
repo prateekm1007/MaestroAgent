@@ -1,17 +1,17 @@
 # Maestro State Log
 
-> **Read [ENTROPY_RECOVERY.md](./ENTROPY_RECOVERY.md) before trusting anything in this file.**
-> The 10 principles there govern how claims are made and verified here.
-> Summary: a claim is not true until executed (P1); untested = unverified (P2);
-> don't mock what you're verifying (P3); state files are claims about reality (P4);
-> self-certification is weak (P5); fail closed not silent (P6); scoped state needs
-> isolation tests (P7); round numbers aren't progress (P8); deferrals need triggers (P9);
-> write down why a bug was missed, not just that it's fixed (P10).
+> ⛔ **GOVERNANCE GATE: Read [GOVERNANCE.md](./GOVERNANCE.md) and [ENTROPY_RECOVERY.md](./ENTROPY_RECOVERY.md) BEFORE doing any work or trusting any claim in this file.**
+>
+> The 10 principles govern how claims are made and verified here:
+> P1: execute, don't read | P2: untested = unverified | P3: don't mock what you verify
+> P4: state = reality, not intentions | P5: self-cert is weak | P6: fail closed, not silent
+> P7: scoped state needs isolation tests | P8: round numbers aren't progress
+> P9: deferrals need concrete triggers | P10: document WHY a bug was missed
 
 ## Last Updated
-2026-07-02 — Phase 0+1+2 PUSHED to origin/main (commit `7b25a79`).
+2026-07-03 — Governance enforcement protocol installed (commit pending).
 
-## Current Status: ❌ NOT PRODUCTION READY — Phase 0-2 complete and on remote; Phase 3-6 remain
+## Current Status: 6/10 — Pilot-ready with scoped claims. Not contract-ready.
 
 > **Push verified:** `origin/main` is now at `7b25a79` (was `004adc3`).
 > An auditor pulling a fresh clone WILL see the C1 fix, the SAML fix, the 106
