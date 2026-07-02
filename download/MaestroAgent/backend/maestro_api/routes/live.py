@@ -15,12 +15,22 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from maestro_core.streaming import EventType
+from maestro_auth.permissions import is_auth_enabled, require_user
 
-router = APIRouter()
+
+# Round 77 Phase 1: uniform auth enforcement on the live control router.
+# These routes let the UI inject actions into a running run (spawn agents,
+# trigger debates, create loops). They must be authenticated.
+def _require_user_if_auth_enabled(request: Request) -> None:
+    if is_auth_enabled():
+        require_user(request)
+
+
+router = APIRouter(dependencies=[Depends(_require_user_if_auth_enabled)])
 
 
 class SpawnSubAgentRequest(BaseModel):

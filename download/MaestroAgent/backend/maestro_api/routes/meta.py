@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
-router = APIRouter()
+from maestro_auth.permissions import is_auth_enabled, require_user
+
+
+def _require_user_if_auth_enabled(request: Request) -> None:
+    if is_auth_enabled():
+        require_user(request)
+
+
+router = APIRouter(dependencies=[Depends(_require_user_if_auth_enabled)])
 
 
 @router.get("/recommendations")
