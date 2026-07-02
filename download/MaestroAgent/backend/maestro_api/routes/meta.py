@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from maestro_auth.permissions import is_auth_enabled, require_user
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 
 
 def _require_user_if_auth_enabled(request: Request) -> None:
@@ -39,3 +40,6 @@ async def get_recommendations(request: Request, limit: int = 20) -> dict[str, An
         "count": len(recs),
         "analyzed_runs": limit,
     }
+
+# Phase 1: stamp USER auth policy on all routes in this router
+set_router_policy(router, AuthPolicy.USER)

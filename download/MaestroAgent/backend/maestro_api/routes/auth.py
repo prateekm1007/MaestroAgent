@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from maestro_auth.permissions import require_user
+from maestro_api.security.policy import auth_policy, AuthPolicy
 
 # Round 65 CTO Blocker 8: Admin endpoints (keys, revoke) require auth.
 # /status and /login are public (needed to check auth state and authenticate).
@@ -28,6 +29,7 @@ class LoginResponse(BaseModel):
 
 
 @router.get("/status")
+@auth_policy(AuthPolicy.PUBLIC)
 async def auth_status(request: Request) -> dict[str, Any]:
     """Check if auth is enabled and the current request is authenticated."""
     state: Any = request.app.state.maestro
@@ -42,6 +44,7 @@ async def auth_status(request: Request) -> dict[str, Any]:
 
 
 @router.post("/login", response_model=LoginResponse)
+@auth_policy(AuthPolicy.PUBLIC)
 async def login(req: LoginRequest, request: Request) -> LoginResponse:
     """Verify an API key (or OAuth code) and return auth status.
 
@@ -81,6 +84,7 @@ async def login(req: LoginRequest, request: Request) -> LoginResponse:
 
 
 @router.get("/keys")
+@auth_policy(AuthPolicy.USER)
 async def list_api_keys(request: Request, user: dict = Depends(require_user)) -> list[dict[str, Any]]:
     """List all API keys (metadata only — no plaintext). Requires auth."""
     state: Any = request.app.state.maestro
@@ -95,6 +99,7 @@ class CreateKeyRequest(BaseModel):
 
 
 @router.post("/keys")
+@auth_policy(AuthPolicy.USER)
 async def create_api_key(req: CreateKeyRequest, request: Request, user: dict = Depends(require_user)) -> dict[str, Any]:
     """Generate a new API key. Returns the plaintext ONCE."""
     state: Any = request.app.state.maestro
@@ -113,6 +118,7 @@ class RevokeKeyRequest(BaseModel):
 
 
 @router.post("/keys/revoke")
+@auth_policy(AuthPolicy.USER)
 async def revoke_api_key(req: RevokeKeyRequest, request: Request, user: dict = Depends(require_user)) -> dict[str, Any]:
     """Revoke an API key."""
     state: Any = request.app.state.maestro

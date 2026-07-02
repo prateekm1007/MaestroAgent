@@ -66,6 +66,7 @@ from maestro_auth.saml import SAMLManager, SAMLError
 from maestro_auth.scim import SCIMManager, SCIMError, SCIMNotFoundError
 
 logger = logging.getLogger(__name__)
+from maestro_api.security.policy import set_router_policy, auth_policy, AuthPolicy
 
 router = APIRouter()
 scim_router = APIRouter()
@@ -133,6 +134,7 @@ class MFAVerifyRequest(BaseModel):
 
 
 @router.post("/api/auth/login")
+@auth_policy(AuthPolicy.PUBLIC)
 async def login(req: LoginRequest, request: Request) -> dict[str, Any]:
     """Email/password login with optional MFA."""
     store = get_auth_store()
@@ -264,6 +266,7 @@ async def list_sessions(request: Request) -> dict[str, Any]:
 # ─── OIDC ───
 
 @router.get("/api/auth/oidc/providers")
+@auth_policy(AuthPolicy.PUBLIC)
 async def list_oidc_providers() -> dict[str, Any]:
     """List configured OIDC providers."""
     from maestro_auth.oidc import PROVIDER_DEFAULTS
@@ -277,6 +280,7 @@ async def list_oidc_providers() -> dict[str, Any]:
 
 
 @router.get("/api/auth/oidc/{provider}/login")
+@auth_policy(AuthPolicy.PUBLIC)
 async def oidc_login(provider: str, request: Request, redirect_to: str = "/") -> RedirectResponse:
     """Start the OIDC flow for a provider."""
     if provider not in OIDC_PROVIDERS:
@@ -295,6 +299,7 @@ async def oidc_login(provider: str, request: Request, redirect_to: str = "/") ->
 
 
 @router.get("/api/auth/oidc/{provider}/callback")
+@auth_policy(AuthPolicy.PUBLIC)
 async def oidc_callback(
     provider: str,
     request: Request,
@@ -363,6 +368,7 @@ async def oidc_callback(
 # ─── SAML ───
 
 @router.get("/api/auth/saml/providers")
+@auth_policy(AuthPolicy.PUBLIC)
 async def list_saml_providers() -> dict[str, Any]:
     """List configured SAML providers."""
     import os
@@ -375,6 +381,7 @@ async def list_saml_providers() -> dict[str, Any]:
 
 
 @router.get("/api/auth/saml/{provider}/login")
+@auth_policy(AuthPolicy.PUBLIC)
 async def saml_login(provider: str, request: Request, relay_state: str = "/") -> RedirectResponse:
     """Start the SAML flow."""
     base_url = str(request.base_url).rstrip("/")
@@ -390,6 +397,7 @@ async def saml_login(provider: str, request: Request, relay_state: str = "/") ->
 
 
 @router.post("/api/auth/saml/{provider}/acs")
+@auth_policy(AuthPolicy.PUBLIC)
 async def saml_acs(provider: str, request: Request) -> Response:
     """SAML Assertion Consumer Service — process the SAMLResponse."""
     form = await request.form()
@@ -432,6 +440,7 @@ async def saml_acs(provider: str, request: Request) -> Response:
 
 
 @router.get("/api/auth/saml/metadata")
+@auth_policy(AuthPolicy.PUBLIC)
 async def saml_metadata(request: Request) -> PlainTextResponse:
     """SAML SP metadata XML."""
     base_url = str(request.base_url).rstrip("/")
@@ -866,3 +875,9 @@ def soc2_checklist():
             "for operational controls (patching, monitoring, incident response)."
         ),
     }
+
+# Phase 1: stamp auth policies on enterprise auth routers
+# Most routes require USER auth; login/callback routes are PUBLIC.
+# Per-route @auth_policy decorators override the router default.
+set_router_policy(router, AuthPolicy.USER)
+set_router_policy(scim_router, AuthPolicy.USER)

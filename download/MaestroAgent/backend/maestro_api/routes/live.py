@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from maestro_core.streaming import EventType
 from maestro_auth.permissions import is_auth_enabled, require_user
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 
 
 # Round 77 Phase 1: uniform auth enforcement on the live control router.
@@ -259,3 +260,6 @@ async def get_live_state(run_id: str, request: Request) -> dict[str, Any]:
         "agent_edges": edges,
         "error": latest.error if latest else None,
     }
+
+# Phase 1: stamp USER auth policy on all routes in this router
+set_router_policy(router, AuthPolicy.USER)

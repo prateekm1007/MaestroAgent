@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from maestro_auth.permissions import is_auth_enabled, require_user
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 
 
 def _require_user_if_auth_enabled(request: Request) -> None:
@@ -151,3 +152,6 @@ async def export_graph(run_id: str, request: Request) -> dict[str, Any]:
         "nodes": agents,
         "edges": edges,
     }
+
+# Phase 1: stamp USER auth policy on all routes in this router
+set_router_policy(router, AuthPolicy.USER)

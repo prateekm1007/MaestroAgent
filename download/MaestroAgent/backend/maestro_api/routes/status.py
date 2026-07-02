@@ -10,6 +10,7 @@ backend health, provider status, and quick links. Useful for:
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
@@ -156,3 +157,5 @@ async def status_page(request: Request) -> HTMLResponse:
 </body>
 </html>
 """)
+
+set_router_policy(router, AuthPolicy.PUBLIC)

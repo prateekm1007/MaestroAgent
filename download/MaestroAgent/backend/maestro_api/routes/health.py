@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 
 router = APIRouter()
 
@@ -67,3 +68,5 @@ async def list_models(request: Request) -> dict:
         "default_provider": state.llm.default_provider,
         "default_model": state.llm.default_model,
     }
+
+set_router_policy(router, AuthPolicy.PUBLIC)

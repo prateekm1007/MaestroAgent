@@ -24,6 +24,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from maestro_api.security.policy import auth_policy, AuthPolicy
 
 from maestro_api.message_broker import get_message_broker
 
@@ -39,6 +40,7 @@ _active_connections = 0
 
 def register_ws_routes(app: FastAPI) -> None:
     @app.websocket("/ws/{run_id}")
+    @auth_policy(AuthPolicy.USER)
     async def stream_events(websocket: WebSocket, run_id: str) -> None:
         global _active_connections
         if _active_connections >= MAX_WS_CONNECTIONS:
@@ -106,6 +108,7 @@ def register_ws_routes(app: FastAPI) -> None:
     # server instances are running (with Redis), a pulse computed on
     # instance A is received by WebSocket clients on instance B.
     @app.websocket("/ws/ambient/pulse")
+    @auth_policy(AuthPolicy.USER)
     async def stream_ambient_pulse(websocket: WebSocket) -> None:
         global _active_connections
         if _active_connections >= MAX_WS_CONNECTIONS:

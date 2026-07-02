@@ -17,6 +17,7 @@ from maestro_core.state import RunStatus, State
 from maestro_core.streaming import EventBus, EventType
 
 from maestro_auth.permissions import is_auth_enabled, require_user
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 router = APIRouter(dependencies=[Depends(lambda r: None if not is_auth_enabled() else require_user(r))])
 
 
@@ -242,3 +243,6 @@ async def _resolve_template(template: str, extras: dict[str, Any]):
             detail=f"Template {template} has no build_graph() function",
         )
     return module.build_graph(goal=extras.get("goal", ""), **extras)
+
+# Phase 1: stamp USER auth policy on all routes in this router
+set_router_policy(router, AuthPolicy.USER)

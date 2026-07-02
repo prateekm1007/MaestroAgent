@@ -31,6 +31,7 @@ from maestro_api.oem_state import import_state, oem_state
 from maestro_oem.historical_engine import parse_since
 from maestro_oem.oauth_manager import OAuthError
 from maestro_auth.permissions import is_auth_enabled, require_user, require_admin
+from maestro_api.security.policy import set_router_policy, auth_policy, AuthPolicy
 
 # Round 65 C2 fix: ONE canonical provider list, used everywhere.
 # No more dual whitelists that drift.
@@ -100,6 +101,7 @@ async def oauth_start(provider: str) -> dict[str, Any]:
 # ─── OAuth callback ───
 
 @router.get("/api/oauth/callback")
+@auth_policy(AuthPolicy.PUBLIC)
 async def oauth_callback(
     request: Request,
     code: str | None = Query(None),
@@ -285,6 +287,7 @@ async def oem_snapshot() -> dict[str, Any]:
 # ─── WebSocket for live progress ───
 
 @router.websocket("/api/imports/{job_id}/stream")
+@auth_policy(AuthPolicy.USER)
 async def import_progress_ws(websocket: WebSocket, job_id: str) -> None:
     """Stream live progress updates for an import job.
 
@@ -374,6 +377,7 @@ SUPPORTED_OAUTH_PROVIDERS = SUPPORTED_IMPORT_PROVIDERS  # Round 65: unified
 
 
 @router.get("/api/oauth/admin/providers", dependencies=[Depends(require_admin)])
+@auth_policy(AuthPolicy.ADMIN)
 async def list_oauth_provider_configs() -> dict[str, Any]:
     """List all configured OAuth providers (without secrets).
 
@@ -416,6 +420,7 @@ async def list_oauth_provider_configs() -> dict[str, Any]:
 
 
 @router.post("/api/oauth/admin/providers/{provider}", dependencies=[Depends(require_admin)])
+@auth_policy(AuthPolicy.ADMIN)
 async def save_oauth_provider_config(
     provider: str,
     payload: dict[str, Any],
@@ -465,6 +470,7 @@ async def save_oauth_provider_config(
 
 
 @router.delete("/api/oauth/admin/providers/{provider}", dependencies=[Depends(require_admin)])
+@auth_policy(AuthPolicy.ADMIN)
 async def delete_oauth_provider_config(provider: str) -> dict[str, Any]:
     """Disable an OAuth provider configuration (DB-stored).
 
@@ -498,3 +504,7 @@ def _provider_label(provider: str) -> str:
         "customer": "Salesforce (Customer CRM)",
     }
     return labels.get(provider, provider.title())
+
+# Phase 1: stamp USER auth policy on all routes in this router.
+# Admin routes (above) have @auth_policy(AuthPolicy.ADMIN) which overrides.
+set_router_policy(router, AuthPolicy.USER)

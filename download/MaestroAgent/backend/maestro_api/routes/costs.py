@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from maestro_auth.permissions import is_auth_enabled, require_user
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 router = APIRouter(dependencies=[Depends(lambda r: None if not is_auth_enabled() else require_user(r))])
 
 
@@ -37,3 +38,6 @@ async def list_all_costs(request: Request) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+# Phase 1: stamp USER auth policy on all routes in this router
+set_router_policy(router, AuthPolicy.USER)

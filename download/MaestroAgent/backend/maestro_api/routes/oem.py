@@ -25,6 +25,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Depends, Request
 
 from maestro_api.oem_state import oem_state
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 from maestro_db.db_helper import get_db_url_for_learning
 
 logger = logging.getLogger(__name__)
@@ -5267,3 +5268,6 @@ def record_surface_open(payload: dict[str, Any]) -> dict[str, Any]:
     from maestro_oem.pilot_metrics import PilotMetrics
     PilotMetrics.record_surface_open(payload.get("surface", ""))
     return {"recorded": True}
+
+# Phase 1: stamp USER auth policy on all routes in this router
+set_router_policy(router, AuthPolicy.USER)
