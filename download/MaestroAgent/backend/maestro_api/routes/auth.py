@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
+from maestro_auth.permissions import require_user
 
 # Round 65 CTO Blocker 8: Admin endpoints (keys, revoke) require auth.
 # /status and /login are public (needed to check auth state and authenticate).
