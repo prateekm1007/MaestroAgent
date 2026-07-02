@@ -73,7 +73,7 @@ class AppState:
             short_term=ShortTermMemory(),
             semantic=vector,
             graph=NetworkXGraphMemory(persist_path=self.graph_path),
-            long_term=LongTermMemory(db_path=self.db_path),
+            long_term=LongTermMemory(db_path=self.db_path, vector=vector),
         )
         self.checkpoints = SQLiteCheckpointStore(db_path=self.db_path)
         self.verifiers = VerifierRegistry()

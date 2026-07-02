@@ -99,4 +99,21 @@ target-version = ["py311"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests", "maestro_oem/tests", "maestro_api/tests", "maestro_auth/tests"]
+testpaths = [
+    "tests",
+    "maestro_api/tests",
+    "maestro_auth/tests",
+    "maestro_oem/tests",
+    "maestro_personal/tests",
+    "maestro_core/tests",
+    "maestro_loops/tests",
+    "maestro_memory/tests",
+    "maestro_verify/tests",
+    "maestro_llm/tests",
+    "maestro_hybrid/tests",
+    "maestro_meta/tests",
+    "maestro_agents/tests",
+    "maestro_plugins/tests",
+    "maestro_cli/tests",
+    "maestro_db/tests",
+]

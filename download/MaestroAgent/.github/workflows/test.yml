@@ -44,21 +44,51 @@ jobs:
           pip install playwright pytest pytest-asyncio httpx pytest-cov
           python -m playwright install chromium --with-deps
 
-      # ─── Step 1a: JUnit XML + Coverage ───────────────────────────────
-      - name: Run full test suite with JUnit + coverage
+      # ─── Step 1a: JUnit XML + Coverage — ALL 16 modules ─────────────
+      # M2 fix: previously CI only ran 4 of 16 modules. The other 12 existed
+      # on disk and passed when run manually, but were never executed by CI —
+      # decorative unless someone remembered to run them by hand. This is the
+      # same pattern as C1 (artifact of "fixed" without the wiring that makes
+      # it function). Fixed: CI now runs all 16 module test directories.
+      - name: Run full test suite with JUnit + coverage (all 16 modules)
         working-directory: backend
         run: |
           python -m pytest \
+            tests/ \
             maestro_api/tests/ \
             maestro_auth/tests/ \
             maestro_oem/tests/ \
+            maestro_personal/tests/ \
+            maestro_core/tests/ \
+            maestro_loops/tests/ \
+            maestro_memory/tests/ \
+            maestro_verify/tests/ \
+            maestro_llm/tests/ \
+            maestro_hybrid/tests/ \
+            maestro_meta/tests/ \
+            maestro_agents/tests/ \
+            maestro_plugins/tests/ \
+            maestro_cli/tests/ \
+            maestro_db/tests/ \
             --tb=short \
             -v \
             --timeout=120 \
             --junit-xml=test-results.xml \
-            --cov=maestro_oem \
+            --cov=maestro_core \
+            --cov=maestro_loops \
+            --cov=maestro_memory \
+            --cov=maestro_verify \
+            --cov=maestro_llm \
+            --cov=maestro_hybrid \
+            --cov=maestro_meta \
+            --cov=maestro_agents \
+            --cov=maestro_plugins \
+            --cov=maestro_cli \
+            --cov=maestro_db \
             --cov=maestro_api \
             --cov=maestro_auth \
+            --cov=maestro_oem \
+            --cov=maestro_personal \
             --cov-report=xml:coverage.xml \
             --cov-report=html:coverage-html
         env:
