@@ -38,6 +38,22 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _clear_writeback_store():
+    """Clear WriteBackStore before each test to prevent state pollution.
+
+    Round 70 Step 2: The writeback test failed in the full suite because
+    WriteBackStore accumulates actions across tests. This fixture clears
+    the store before each test, ensuring isolation.
+    """
+    try:
+        from maestro_oem.writeback import WriteBackStore
+        WriteBackStore.clear()
+    except Exception:
+        pass
+    yield
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # PHASE 1 — ONBOARDING & CONNECTORS
 # ═══════════════════════════════════════════════════════════════════════════

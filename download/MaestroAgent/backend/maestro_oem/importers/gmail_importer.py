@@ -70,9 +70,23 @@ class GmailPageFetcher(BaseProviderFetcher):
     # ─── PageFetcher interface ───
 
     async def estimate_total_pages(self, since: datetime | None = None) -> int:
-        # Gmail messages.list doesn't return total estimate; use a reasonable default
-        # based on typical enterprise volumes (~500 pages of 100 = 50k messages)
-        return 500
+        """Estimate total pages using Gmail's profile API.
+
+        Round 70 Step 3: Replaced hardcoded 500 with a real estimate
+        from GET /gmail/v1/users/me/profile which returns messagesTotal.
+        Falls back to 100 if the API call fails (conservative default).
+        """
+        try:
+            profile = await self._request("GET", "/gmail/v1/users/me/profile")
+            total_messages = profile.get("messagesTotal", 0)
+            if total_messages > 0:
+                # 100 messages per page (Gmail API max per request)
+                estimated_pages = max(1, (total_messages + 99) // 100)
+                logger.info("Gmail estimate: %d messages → %d pages", total_messages, estimated_pages)
+                return estimated_pages
+        except Exception as e:
+            logger.warning("Gmail profile estimate failed, using conservative default: %s", e)
+        return 100  # Conservative fallback (was hardcoded 500)
 
     async def fetch_page(
         self,

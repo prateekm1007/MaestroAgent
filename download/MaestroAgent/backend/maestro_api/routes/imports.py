@@ -261,7 +261,35 @@ async def import_progress_ws(websocket: WebSocket, job_id: str) -> None:
 
     Client receives JSON snapshots at ~4 Hz until the job completes or
     the client disconnects.
+
+    Round 70 RESIDUAL-9: Added authentication check before accept.
+    Same pattern as /ws/ambient/pulse — token from query param or header.
     """
+    # Auth check — same pattern as /ws/ambient/pulse
+    from maestro_auth.permissions import is_auth_enabled
+    if is_auth_enabled():
+        token = (
+            websocket.query_params.get("token")
+            or websocket.headers.get("Authorization", "").replace("Bearer ", "")
+        )
+        if not token:
+            await websocket.close(code=4401, reason="Authentication required")
+            return
+        try:
+            from maestro_auth.sessions import SessionManager
+            from maestro_auth.models import AuthStore
+            import os as _os
+            _auth_db = _os.environ.get("MAESTRO_AUTH_DB", "auth.db")
+            _store = AuthStore(_auth_db)
+            _sm = SessionManager(_store)
+            user = _sm.validate_session(token)
+            if not user:
+                await websocket.close(code=4401, reason="Invalid token")
+                return
+        except Exception:
+            await websocket.close(code=4401, reason="Authentication failed")
+            return
+
     await websocket.accept()
     _ensure_initialized()
     assert import_state.tracker is not None
