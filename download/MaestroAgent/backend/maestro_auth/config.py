@@ -31,12 +31,25 @@ class AuthConfig:
 
     @classmethod
     def from_env(cls) -> "AuthConfig":
-        enabled = os.environ.get("MAESTRO_AUTH_ENABLED", "false").lower() in ("1", "true", "yes")
+        # Round 60 Fix 1: auth defaults to ON in non-local environments.
+        # The old default was "false" — every endpoint was open by default.
+        # Now: auth is ON unless MAESTRO_LOCAL_DEV=true or MAESTRO_AUTH_ENABLED=false.
+        env = os.environ.get("MAESTRO_ENV", "development")
+        is_local_dev = env == "development" and os.environ.get("MAESTRO_LOCAL_DEV", "false").lower() in ("1", "true", "yes")
+        auth_default = "false" if is_local_dev else "true"
+        enabled = os.environ.get("MAESTRO_AUTH_ENABLED", auth_default).lower() in ("1", "true", "yes")
         api_key = os.environ.get("MAESTRO_API_KEY")
         rate_limit = int(os.environ.get("MAESTRO_RATE_LIMIT_RPM", "100"))
         oauth_provider = os.environ.get("MAESTRO_OAUTH_PROVIDER") or None
         cors = os.environ.get("MAESTRO_CORS_ORIGINS")
-        cors_origins = [o.strip() for o in cors.split(",")] if cors else None
+        # Round 60 Fix 5: tighten CORS when not explicitly configured.
+        # In local dev: allow localhost. Otherwise: no wildcard.
+        if cors:
+            cors_origins = [o.strip() for o in cors.split(",")]
+        elif is_local_dev:
+            cors_origins = ["http://localhost:1420", "http://127.0.0.1:1420", "http://localhost:8765", "http://127.0.0.1:8765"]
+        else:
+            cors_origins = []  # No wildcard — must be explicitly configured
         return cls(
             enabled=enabled,
             api_key=api_key,

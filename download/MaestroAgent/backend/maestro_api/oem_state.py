@@ -80,10 +80,18 @@ def _demo_seed_enabled() -> bool:
         return enabled
 
     # Not explicitly set — use environment-aware default
+    # Round 60 Fix 2: demo seed defaults OFF in non-local environments.
+    # The old default was True for ALL non-production environments —
+    # staging, pilot, etc. all got synthetic data. Now only local dev
+    # (MAESTRO_LOCAL_DEV=true) gets the demo seed by default.
     if is_production:
         logger.info("MAESTRO_DEMO_SEED not set in production — defaulting to false (no demo data)")
         return False
-    return True  # Development default: demo on
+    is_local_dev = os.environ.get("MAESTRO_LOCAL_DEV", "false").lower() in ("1", "true", "yes")
+    if is_local_dev:
+        return True  # Local dev: demo on for evaluation
+    logger.info("MAESTRO_DEMO_SEED not set in non-local env — defaulting to false (no demo data)")
+    return False  # Non-local, non-production: demo OFF
 
 
 class OEMState:

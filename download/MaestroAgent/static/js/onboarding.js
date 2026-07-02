@@ -117,7 +117,7 @@ function renderOnboardingAbout() {
           <input type="text" class="maestro-input" id="onboard-company" placeholder="Company (optional)" />
         </div>
         <div class="text-caption" style="color:var(--maestro-gray-mid);margin-bottom:var(--space-4);">
-          This stays on your device. Never shared.
+          This is stored in your Maestro account. You can delete it anytime in Settings.
         </div>
         <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingAbout()">Continue</button>
       </div>
@@ -146,7 +146,7 @@ function saveOnboardingAbout() {
 // The user is NOT asked to choose a mode. They connect work tools (all
 // OFF by default). Maestro infers "work context" from the data.
 
-let _workToolToggles = { jira: false, slack: false, github: false, confluence: false, gmail: false, calendar: false };
+let _workToolToggles = { jira: false, slack: false, github: false, confluence: false, gmail: false };
 
 function renderOnboardingWorkTools() {
   const tools = [
@@ -154,8 +154,7 @@ function renderOnboardingWorkTools() {
     { id: 'slack', icon: '💬', label: 'Slack', desc: 'Team conversations & cross-team signals' },
     { id: 'github', icon: '🐙', label: 'GitHub', desc: 'Code, PRs, & engineering signals' },
     { id: 'confluence', icon: '📄', label: 'Confluence', desc: 'Team wikis & documentation' },
-    { id: 'gmail', icon: '✉️', label: 'Gmail', desc: 'Work email (read-only)' },
-    { id: 'calendar', icon: '📅', label: 'Work Calendar', desc: 'Meetings & commitments' },
+    { id: 'gmail', icon: '✉️', label: 'Gmail / Calendar', desc: 'Work email & calendar (read-only)' },
   ];
 
   return `
