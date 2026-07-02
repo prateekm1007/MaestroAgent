@@ -18,6 +18,7 @@ def _require_user_if_auth_enabled(request: Request) -> None:
 @auth_policy(AuthPolicy.PUBLIC)
 async def health(request: Request) -> dict:
     state = request.app.state.maestro
+    from maestro_api.oem_state import _demo_seed_enabled
     return {
         "status": "ok",
         "version": "0.1.0",
@@ -26,6 +27,11 @@ async def health(request: Request) -> dict:
         "default_model": state.llm.default_model if state.llm else None,
         "verifiers": state.verifiers.names() if state.verifiers else [],
         "plugins": state.plugins.list() if state.plugins else [],
+        # Round 78 Phase 3: expose demo seed status so the frontend can
+        # watermark the UI when synthetic data is active. The auditor flagged
+        # "demo data conflated with production" — this lets the UI show a
+        # visible "DEMO DATA" badge on every surface when demo seed is on.
+        "demo_seed": _demo_seed_enabled(),
     }
 
 

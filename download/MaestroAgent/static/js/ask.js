@@ -1,11 +1,24 @@
 // ASK — backend-driven autocomplete (NO hardcoded suggestions)
 // ═══════════════════════════════════════════════════════════════════════════
+// Round 78 Phase 4: added ESC handler + 150ms debounce.
+// The auditor flagged: "Key handler in ask.js handles arrows/enter but not ESC"
+// and "Per-keystroke fetch with abort; stale protection exists, but no
+// debounce/throttle budget." Both are now fixed.
 
 let autocompleteAbort = null;
 let autocompleteSelectedIdx = -1;
 let autocompleteSuggestions = [];  // Store full suggestion objects for rich rendering
+let _askDebounceTimer = null;
+const _ASK_DEBOUNCE_MS = 150;
 
-async function onAskInput(value) {
+function onAskInput(value) {
+  // Debounce: don't fire on every keystroke — wait 150ms of inactivity.
+  // This reduces request pressure under rapid typing (auditor's MEDIUM finding).
+  clearTimeout(_askDebounceTimer);
+  _askDebounceTimer = setTimeout(() => _doAskInput(value), _ASK_DEBOUNCE_MS);
+}
+
+async function _doAskInput(value) {
   const dropdown = document.getElementById('exec-autocomplete');
   const v = value.trim();
   if (!v) {
@@ -129,6 +142,13 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'Enter' && autocompleteSelectedIdx >= 0) {
     e.preventDefault();
     selectAutocomplete(autocompleteSelectedIdx);
+  } else if (e.key === 'Escape') {
+    // Round 78 Phase 4: ESC closes the dropdown and returns focus to the input.
+    // The auditor flagged: "Key handler handles arrows/enter but not ESC."
+    e.preventDefault();
+    dropdown.classList.remove('active');
+    autocompleteSelectedIdx = -1;
+    document.getElementById('ask-input').focus();
   }
 });
 

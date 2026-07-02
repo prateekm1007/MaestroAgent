@@ -84,7 +84,16 @@ function renderECCAutocomplete() {
 }
 
 let eccAcAbort = null;
-async function onECCAutocompleteInput(value) {
+let _eccAcDebounceTimer = null;
+let _eccAcSelectedIdx = -1;
+
+function onECCAutocompleteInput(value) {
+  // Round 78 Phase 4: debounce + ESC support.
+  clearTimeout(_eccAcDebounceTimer);
+  _eccAcDebounceTimer = setTimeout(() => _doECCAutocompleteInput(value), 150);
+}
+
+async function _doECCAutocompleteInput(value) {
   const dropdown = document.getElementById('ecc-ac-dropdown');
   const resultsEl = document.getElementById('ecc-ac-results');
   const v = value.trim();
@@ -103,7 +112,7 @@ async function onECCAutocompleteInput(value) {
     }
     dropdown.classList.remove('active');
     resultsEl.innerHTML = suggestions.map(s => `
-      <div class="card mb-2 cursor-pointer" onclick="openDrilldown('${s.source_type.split(':')[0]}', '${escapeJs(s.source_id)}')">
+      <div class="card mb-2 cursor-pointer" role="button" tabindex="0" onclick="openDrilldown('${s.source_type.split(':')[0]}', '${escapeJs(s.source_id)}')">
         <div class="text-sm font-semibold text-white">${escapeHtml(s.completion)}</div>
         <div class="text-[10px] text-fg-400 mt-1">${escapeHtml(s.reason)}</div>
         <div class="flex items-center gap-2 mt-2 text-[10px] text-fg-500 flex-wrap">
@@ -126,7 +135,7 @@ function renderRecCard(r) {
     const key = p.oem_change || p.gate || p.entity || p.domain || 'evidence';
     return `<span class="prov-node">${escapeHtml(key)}</span>`;
   }).join('<span class="prov-arrow">→</span>');
-  return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" onclick="openDrilldown('recommendation', '${escapeJs(r.title)}')">
+  return `<div class="card ${r.urgency === 'urgent' ? 'urgent' : ''} mb-3 cursor-pointer" role="button" tabindex="0" onclick="openDrilldown('recommendation', '${escapeJs(r.title)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="text-sm font-semibold text-white mb-1">${escapeHtml(humanize(r.title))}</div>
@@ -185,7 +194,7 @@ async function loadInbox() {
 
 function renderLawCard(l) {
   const statusTag = l.status === 'validated' ? 'tag-cyan' : l.status === 'stressed' ? 'tag-amber' : l.status === 'invalidated' ? 'tag-rose' : l.status === 'unknown_to_leadership' ? 'tag-purple' : 'tag-gray';
-  return `<div class="card mb-3 cursor-pointer" onclick="openDrilldown('law', '${escapeJs(l.code)}')">
+  return `<div class="card mb-3 cursor-pointer" role="button" tabindex="0" onclick="openDrilldown('law', '${escapeJs(l.code)}')">
     <div class="flex items-start justify-between mb-2">
       <div class="flex-1">
         <div class="flex items-center gap-2 mb-1">
@@ -313,7 +322,7 @@ async function loadHayek() {
     risksEl.innerHTML = data.concentration_risks.length === 0
       ? '<div class="empty-state">No concentration risks detected.</div>'
       : data.concentration_risks.map(r => `
-        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('risk', '${escapeJs(r.domain)}')">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('risk', '${escapeJs(r.domain)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(r.domain)}</div>
           <div class="text-[11px] text-fg-400 mt-1">Influence concentration: <span class="mono text-brand-rose">${r.score.toFixed(2)}</span></div>
           <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${Math.min(r.score*10,100)}%;background:#ff5577;"></div></div></div>
@@ -322,7 +331,7 @@ async function loadHayek() {
     knowEl.innerHTML = data.hidden_experts.length === 0
       ? '<div class="empty-state">No hidden experts detected.</div>'
       : data.hidden_experts.map(e => `
-        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('expert', '${escapeJs(e.entity)}')">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('expert', '${escapeJs(e.entity)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(e.entity)}</div>
           <div class="text-[11px] text-fg-400 mt-1">Influence: <span class="mono text-brand-purple">${e.influence.toFixed(2)}</span> · ${e.domains ? e.domains.length : 0} domains</div>
           ${e.domains && e.domains.length ? `<div class="mt-2 flex flex-wrap gap-1">${e.domains.map(d => `<span class="tag tag-gray">${escapeHtml(d)}</span>`).join('')}</div>` : ''}
@@ -348,7 +357,7 @@ async function loadKnowledge() {
     expertsEl.innerHTML = data.hidden_experts.length === 0
       ? '<div class="empty-state">No hidden experts detected.</div>'
       : data.hidden_experts.map(e => `
-        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('expert', '${escapeJs(e.entity)}')">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('expert', '${escapeJs(e.entity)}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(e.entity)}</div>
           <div class="text-[11px] text-fg-400 mt-1">Influence ${e.influence.toFixed(2)} · ${e.domains ? e.domains.length : 0} domains</div>
         </div>
@@ -356,7 +365,7 @@ async function loadKnowledge() {
     deathEl.innerHTML = data.knowledge_death.length === 0
       ? '<div class="empty-state">No knowledge death detected.</div>'
       : data.knowledge_death.map(k => `
-        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeJs(k.title || k.description || 'knowledge_death')}')">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('pattern', '${escapeJs(k.title || k.description || 'knowledge_death')}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(humanize(k.title))}</div>
           <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(humanize(k.description))}</div>
           <div class="text-[10px] text-fg-500 mt-1">Boundary: ${escapeHtml(k.boundary)} · Confidence ${formatConfidence(k.confidence)}</div>
@@ -365,7 +374,7 @@ async function loadKnowledge() {
     dupEl.innerHTML = data.duplicate_work.length === 0
       ? '<div class="empty-state">No duplicate work detected.</div>'
       : data.duplicate_work.map(d => `
-        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('pattern', '${escapeJs(d.title || d.description || 'duplicate_work')}')">
+        <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" role="button" tabindex="0" onclick="openDrilldown('pattern', '${escapeJs(d.title || d.description || 'duplicate_work')}')">
           <div class="text-sm font-semibold text-white">${escapeHtml(humanize(d.title))}</div>
           <div class="text-[11px] text-fg-400 mt-1">${escapeHtml(humanize(d.description))}</div>
           <div class="text-[10px] text-fg-500 mt-1">Domain: ${escapeHtml(d.domain)} · ${d.providers.join(', ')}</div>
@@ -396,3 +405,15 @@ async function loadMemory() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Round 78 Phase 6: keyboard accessibility for div-as-button elements.
+// Any element with role="button" and tabindex="0" should activate on
+// Enter or Space — this is the WAI-ARIA pattern for interactive divs.
+document.addEventListener('keydown', function(e) {
+  if (e.target && e.target.getAttribute && e.target.getAttribute('role') === 'button') {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.target.click();
+    }
+  }
+});

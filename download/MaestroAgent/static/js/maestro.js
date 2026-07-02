@@ -102,6 +102,20 @@ window.addEventListener('DOMContentLoaded', () => {
   navTo(validHash ? hash : 'today');
   // Initialize the Organizational Dot
   initOrgDot();
+  // Round 78 Phase 3: check if demo seed is active and watermark the UI.
+  // The auditor flagged "demo data conflated with production" — this adds
+  // a visible "DEMO DATA" badge so users always know when they're looking
+  // at synthetic data vs real tenant data.
+  fetch((MAESTRO_API || '') + '/api/health').then(r => r.json()).then(data => {
+    if (data.demo_seed) {
+      const badge = document.createElement('div');
+      badge.id = 'demo-watermark';
+      badge.style.cssText = 'position:fixed;top:0;right:0;z-index:99999;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:4px 12px;border-radius:0 0 0 8px;letter-spacing:0.5px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+      badge.textContent = 'DEMO DATA';
+      badge.title = 'This instance is running with synthetic demo data (MAESTRO_DEMO_SEED=true). All insights, signals, and learning objects are fictional.';
+      document.body.appendChild(badge);
+    }
+  }).catch(() => {});
 });
 
 document.addEventListener('keydown', (e) => {
