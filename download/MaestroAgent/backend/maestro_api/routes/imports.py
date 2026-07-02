@@ -23,13 +23,14 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from maestro_api.oem_state import import_state, oem_state
 from maestro_oem.historical_engine import parse_since
 from maestro_oem.oauth_manager import OAuthError
+from maestro_auth.permissions import is_auth_enabled, require_user, require_admin
 
 # Round 65 C2 fix: ONE canonical provider list, used everywhere.
 # No more dual whitelists that drift.
@@ -37,7 +38,23 @@ SUPPORTED_IMPORT_PROVIDERS = ("github", "jira", "slack", "confluence", "gmail", 
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+# Round 77 C3 fix: uniform auth enforcement on the imports router.
+# Previously this router had NO auth dependency — security depended on
+# per-route checks, which were missing on admin endpoints (C2) and broken
+# in oauth_callback (C1). Now all routes require authentication when auth
+# is enabled. Admin endpoints additionally require admin role.
+#
+# NOTE: using a named function with Request type annotation instead of a
+# lambda — FastAPI's dependency resolution needs the type annotation to
+# know to inject the Request object. A bare lambda `lambda r: ...` causes
+# FastAPI to treat `r` as a query parameter (422 error).
+def _require_user_if_auth_enabled(request: Request) -> None:
+    """Router-level auth dependency: require authentication when auth is enabled."""
+    if is_auth_enabled():
+        require_user(request)  # Raises 401 if not authed
+
+
+router = APIRouter(dependencies=[Depends(_require_user_if_auth_enabled)])
 
 
 # ─── Helpers ───
@@ -84,6 +101,7 @@ async def oauth_start(provider: str) -> dict[str, Any]:
 
 @router.get("/api/oauth/callback")
 async def oauth_callback(
+    request: Request,
     code: str | None = Query(None),
     state: str | None = Query(None),
     provider: str | None = Query(None),
@@ -94,6 +112,14 @@ async def oauth_callback(
     The provider passes back `code`, `state`, and (for Atlassian) the
     provider type. We exchange the code for tokens and immediately
     trigger a historical import for the newly-connected provider.
+
+    Round 77 C1 fix: the prior version called `require_user(request)` but
+    `request` was not a parameter — a NameError fired every time auth was
+    enabled, swallowed by `except Exception: pass`, so org_id silently
+    defaulted to "default". Every authenticated OAuth callback routed
+    imports to the default tenant — a cross-tenant data leak. Now the
+    function accepts `request: Request` and FAILS CLOSED when auth is
+    enabled but org_id can't be resolved (no silent default in production).
     """
     _ensure_initialized()
     assert import_state.connections is not None
@@ -104,8 +130,6 @@ async def oauth_callback(
     # Round 57 C1 fix: if provider is not in query params, parse it from the
     # state token. Most OAuth providers (GitHub, Google, Slack) do not include
     # the provider name in their redirect — they only return code and state.
-    # The state token format is <provider>:<expire>:<nonce>:<sig> (or the
-    # legacy format <provider>:<expire>:<random>).
     if not provider and state:
         parts = state.split(":", 3)
         if len(parts) >= 1:
@@ -114,23 +138,28 @@ async def oauth_callback(
     if not code or not state or not provider:
         raise HTTPException(400, "Missing code, state, or provider")
 
-    try:
-        # Round 69 P0 RESIDUAL-1: Extract org_id from authenticated request.
-        # In dev mode (no auth), uses "default". In production, extracts from session.
-        from maestro_auth.permissions import is_auth_enabled
-        org_id = "default"
-        if is_auth_enabled():
-            # Try to extract org_id from the authenticated user's session
-            try:
-                from maestro_auth.permissions import require_user
-                user_info = require_user(request)
-                org_id = user_info.get("org_id", "default") if user_info else "default"
-            except Exception:
-                pass  # Dev mode or no session — use default
-        result = await import_state.connections.complete_connection(provider, code, state, org_id=org_id)
-    except OAuthError as e:
-        return {"ok": False, "error": str(e), "provider": provider}
-
+    # Round 77 C1 fix: extract org_id from the authenticated session.
+    # FAIL CLOSED: if auth is enabled but org_id can't be resolved, reject
+    # the callback rather than silently defaulting to "default" (which would
+    # route the import to the wrong tenant). Principle 6: fail closed, not
+    # silent. Principle 7: test the real scoped object graph.
+    org_id = "default"
+    if is_auth_enabled():
+        user_info = require_user(request)  # Raises 401 if not authed
+        org_id = user_info.get("org_id") if user_info else None
+        if not org_id:
+            # Fail closed: authenticated user with no org_id → reject.
+            # This prevents cross-tenant contamination via default fallback.
+            logger.error(
+                "OAuth callback for provider %s: authenticated user has no org_id — "
+                "rejecting to prevent cross-tenant data routing", provider,
+            )
+            raise HTTPException(
+                403,
+                "Authenticated user has no org_id — OAuth callback cannot "
+                "determine which tenant to route the import to. Contact admin.",
+            )
+    result = await import_state.connections.complete_connection(provider, code, state, org_id=org_id)
     return {"ok": True, **result}
 
 
@@ -344,7 +373,7 @@ async def import_progress_ws(websocket: WebSocket, job_id: str) -> None:
 SUPPORTED_OAUTH_PROVIDERS = SUPPORTED_IMPORT_PROVIDERS  # Round 65: unified
 
 
-@router.get("/api/oauth/admin/providers")
+@router.get("/api/oauth/admin/providers", dependencies=[Depends(require_admin)])
 async def list_oauth_provider_configs() -> dict[str, Any]:
     """List all configured OAuth providers (without secrets).
 
@@ -386,7 +415,7 @@ async def list_oauth_provider_configs() -> dict[str, Any]:
     return {"providers": result, "total": len(result)}
 
 
-@router.post("/api/oauth/admin/providers/{provider}")
+@router.post("/api/oauth/admin/providers/{provider}", dependencies=[Depends(require_admin)])
 async def save_oauth_provider_config(
     provider: str,
     payload: dict[str, Any],
@@ -435,7 +464,7 @@ async def save_oauth_provider_config(
     }
 
 
-@router.delete("/api/oauth/admin/providers/{provider}")
+@router.delete("/api/oauth/admin/providers/{provider}", dependencies=[Depends(require_admin)])
 async def delete_oauth_provider_config(provider: str) -> dict[str, Any]:
     """Disable an OAuth provider configuration (DB-stored).
 
