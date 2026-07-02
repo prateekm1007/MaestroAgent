@@ -125,7 +125,7 @@ async function loadPersonalToday(el) {
       api.getPersonal('/contradictions').catch(() => null),
     ]);
 
-    let html = '<div style="max-width:700px;margin:0 auto;">';
+    let html = '<div class="work-section">';
 
     // Round 47 Block 2.1 — Personal briefing as swipe cards.
     // Same Bumble pattern as the enterprise briefing. Max 7 cards.
@@ -208,14 +208,14 @@ async function loadPersonalToday(el) {
 
     if (deck.length > 0) {
       html += `
-        <div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:16px;font-family:'Montserrat',sans-serif;">Your morning</div>
+        <div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:16px;font-family:var(--font-sans,inherit);">Your morning</div>
         <div id="personal-swipe-deck-container" style="position:relative;min-height:400px;max-width:420px;margin:0 auto;">
         </div>
-        <div id="personal-swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:'Montserrat',sans-serif;">
+        <div id="personal-swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:var(--font-sans,inherit);">
           ${deck.length} ${deck.length === 1 ? 'card' : 'cards'}
         </div>
         <div id="personal-swipe-deck-summary" style="display:none;text-align:center;padding:24px;">
-          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">That's your morning.</div>
+          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">That's your morning.</div>
         </div>
       `;
     } else {
@@ -339,7 +339,7 @@ function _showPersonalDeckSummary() {
 // ─── Memory: knowledge graph + memory replay + evolution report ──────────
 
 async function loadPersonalMemory(el) {
-  let html = '<div style="max-width:700px;margin:0 auto;">';
+  let html = '<div class="work-section">';
 
   html += `
     <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
@@ -378,7 +378,7 @@ async function loadPersonalMemory(el) {
 // ─── Decide: decision support + prepared decisions + intent cascade + predictions ──
 
 async function loadPersonalDecide(el) {
-  let html = '<div style="max-width:700px;margin:0 auto;">';
+  let html = '<div class="work-section">';
 
   html += `
     <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
@@ -417,7 +417,7 @@ async function loadPersonalDecide(el) {
 // ─── Reflect: self-reflection prompts + legacy builder ───────────────────
 
 async function loadPersonalReflect(el) {
-  let html = '<div style="max-width:700px;margin:0 auto;">';
+  let html = '<div class="work-section">';
 
   html += `
     <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
@@ -679,11 +679,11 @@ async function showWhatMaestroKnows() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading everything Maestro knows about you…</div>';
   try {
     const data = await api.getPersonal('/dashboard');
-    let html = '<div style="max-width:700px;margin:0 auto;">';
+    let html = '<div class="work-section">';
     html += `<div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;">`;
     html += `<div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">What Maestro Knows About You</div>`;
     html += `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(data.message || '')}</div>`;
-    html += `<div class="ds-meta" style="margin-bottom:16px;">${data.total_sources} source(s) · ${data.total_items} item(s)</div>`;
+    html += `<div class="ds-meta" class="mb-16">${data.total_sources} source(s) · ${data.total_items} item(s)</div>`;
 
     if (data.sources && data.sources.length > 0) {
       data.sources.forEach(src => {

@@ -104,7 +104,7 @@ function renderFilterPill(containerId) {
   ];
 
   container.innerHTML = `
-    <div style="display:flex;gap:4px;padding:4px;background:var(--maestro-gray-light,#F5F5F5);border-radius:999px;font-family:'Montserrat',sans-serif;">
+    <div style="display:flex;gap:4px;padding:4px;background:var(--maestro-gray-light,#F5F5F5);border-radius:999px;font-family:var(--font-sans,inherit);">
       ${options.map(opt => `
         <button class="maestro-btn ${_currentFilter === opt.value ? '' : 'maestro-btn-ghost'}"
                 style="font-size:12px;min-height:30px;padding:4px 14px;border-radius:999px;font-weight:700;"
@@ -213,7 +213,7 @@ function _loadIntegrationSettings(el, user) {
   api.getPersonal('/settings/personal-context-in-work?user=' + encodeURIComponent(user)).then(data => {
     const enabled = data.personal_context_in_work;
     el.innerHTML = `
-      <div style="max-width:500px;margin:40px auto;padding:24px;font-family:'Montserrat',sans-serif;">
+      <div style="max-width:500px;margin:40px auto;padding:24px;font-family:var(--font-sans,inherit);">
         <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;">Personal Context in Work</div>
         <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:20px;">
           When enabled, your own personal state (sleep, energy, calendar conflicts) appears in Work Mode.

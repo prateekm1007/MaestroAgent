@@ -346,7 +346,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   const totalCardCount = filteredItems.length + personalCards.length;
   if (totalCardCount === 0) {
     html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-      <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">Nothing needs you right now.</div>
+      <div class="brief-card-title">Nothing needs you right now.</div>
       <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Maestro is watching. You'll know when something matters.</div>
     </div>`;
   } else {
@@ -440,14 +440,14 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     html += `
       <div id="swipe-deck-container" style="position:relative;min-height:440px;max-width:420px;margin:0 auto;">
       </div>
-      <div id="swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:'Montserrat',sans-serif;">
+      <div id="swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:var(--font-sans,inherit);">
         ${remaining} ${remaining === 1 ? 'card' : 'cards'}
       </div>
       <div style="text-align:center;margin-top:8px;">
         <button class="maestro-btn maestro-btn-ghost" style="font-size:13px;min-height:36px;padding:6px 16px;" onclick="toggleSwipeDeckView()">See all</button>
       </div>
       <div id="swipe-deck-summary" style="display:none;text-align:center;padding:24px;">
-        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">That's your morning.</div>
+        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">That's your morning.</div>
         <div id="swipe-deck-counts" style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:8px;"></div>
       </div>
     `;
@@ -457,7 +457,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     html += `<div id="swipe-deck-list" style="display:none;">`;
     filteredItems.forEach((item, i) => {
       const prepareBtn = item.label === 'One decision' ? `<button class="maestro-btn maestro-btn-full" style="margin-top:12px;font-size:14px;min-height:44px;" onclick="prepareExecution('${escapeJs(item.title)}')">Prepare</button>` : '';
-      const whyLink = `<a class="why-link" style="font-size:13px;color:var(--maestro-yellow-dark,#F0B500);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block;font-family:'Montserrat',sans-serif;" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
+      const whyLink = `<a class="why-link" style="font-size:13px;color:var(--maestro-yellow-dark,#F0B500);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block;font-family:var(--font-sans,inherit);" onclick="showInlineWhy('${escapeJs(item.title)}', ${i})">Why?</a>`;
       const actionBtns = item.label === 'One decision' || item.label === 'One opportunity'
         ? `<div style="display:flex;gap:8px;margin-top:12px;">
              <button class="maestro-btn maestro-btn-secondary" style="flex:1;font-size:13px;min-height:44px;padding:10px 16px;" onclick="quickWriteBack('jira','create_issue',{project:'ENG',summary:'${escapeJs(item.title).replace(/'/g,"\\'")}',description:'${escapeJs(item.context || '').replace(/'/g,"\\'")}',issue_type:'Task'},${i})">Create ticket</button>
@@ -473,18 +473,18 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
                       : confLabel === 'CONFIDENT' ? 'var(--maestro-warning,#FF9800)'
                       : 'var(--maestro-gray-mid,#999999)';
       html += `
-        <div class="maestro-card brief-item" data-idx="${i}" style="margin-bottom:16px;">
-          <div class="swipe-card-category ${categoryClass}" style="margin-bottom:12px;">${escapeHtml(item.label.toUpperCase())}</div>
-          <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.3;margin-bottom:8px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(item.title))}</div>
+        <div class="maestro-card brief-item" data-idx="${i}" class="mb-16">
+          <div class="swipe-card-category ${categoryClass}" class="mb-12">${escapeHtml(item.label.toUpperCase())}</div>
+          <div class="brief-card-title">${escapeHtml(humanize(item.title))}</div>
           ${item.context ? `<div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:8px;">${escapeHtml(humanize(item.context))}</div>` : ''}
           ${item.provenance ? `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-bottom:8px;">${escapeHtml(humanize(item.provenance))}</div>` : ''}
-          ${confLabel ? `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:'Montserrat',sans-serif;margin-bottom:8px;">${confLabel}</div>` : ''}
+          ${confLabel ? `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:var(--font-sans,inherit);margin-bottom:8px;">${confLabel}</div>` : ''}
           ${item.sowhat ? `<div style="margin-top:8px;padding:10px 14px;background:var(--maestro-yellow-light,#FFF4D1);border-radius:12px;font-size:13px;color:var(--maestro-black,var(--text-primary));font-weight:700;">So what: ${escapeHtml(humanize(item.sowhat))}</div>` : ''}
           ${prepareBtn}
           ${actionBtns}
           ${whyLink}
-          <div id="inline-why-${i}" style="margin-top:8px;"></div>
-          <div id="quick-wb-${i}" style="margin-top:8px;"></div>
+          <div id="inline-why-${i}" class="mt-8"></div>
+          <div id="quick-wb-${i}" class="mt-8"></div>
         </div>
       `;
     });
@@ -495,8 +495,8 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       html += `
         <div class="maestro-card brief-item" data-idx="p${i}" style="margin-bottom:16px;position:relative;">
           <div style="position:absolute;top:14px;right:14px;width:10px;height:10px;border-radius:50%;background:#FF6B6B;opacity:0.85;" title="Personal" aria-label="Mode: Personal"></div>
-          <div class="swipe-card-category ${categoryClass}" style="margin-bottom:12px;">${escapeHtml(item.label.toUpperCase())}</div>
-          <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.3;margin-bottom:8px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(item.title))}</div>
+          <div class="swipe-card-category ${categoryClass}" class="mb-12">${escapeHtml(item.label.toUpperCase())}</div>
+          <div class="brief-card-title">${escapeHtml(humanize(item.title))}</div>
           ${item.context ? `<div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:8px;">${escapeHtml(humanize(item.context))}</div>` : ''}
         </div>
       `;
@@ -520,7 +520,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
           const color = n.urgency === 'high' ? 'var(--risk)' : n.urgency === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
           return `<div style="padding:8px 0;border-bottom:1px solid var(--divider);">
             <div style="font-size:13px;color:${color};">${escapeHtml(humanize(n.message || ''))}</div>
-            ${n.detail ? `<div class="ds-meta" style="margin-top:2px;">${escapeHtml(humanize(n.detail))}</div>` : ''}
+            ${n.detail ? `<div class="ds-meta" class="mt-2">${escapeHtml(humanize(n.detail))}</div>` : ''}
           </div>`;
         }).join('')}
       </div>
@@ -536,7 +536,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
         ${interventions.interventions.slice(0, 2).map(iv => `
           <div style="padding:10px 0;border-bottom:1px solid var(--divider);">
             <div style="font-size:14px;color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(iv.intervention || ''))}</div>
-            <div class="ds-meta" style="margin-top:4px;">Time to impact: ${escapeHtml(iv.time_to_failure || '')} · Urgency: ${escapeHtml(iv.urgency || '')}</div>
+            <div class="ds-meta" class="mt-4">Time to impact: ${escapeHtml(iv.time_to_failure || '')} · Urgency: ${escapeHtml(iv.urgency || '')}</div>
           </div>
         `).join('')}
       </div>
@@ -547,7 +547,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   if (nudges && nudges.nudges && nudges.nudges.length > 0) {
     html += `
       <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--accent-border);">
-        <div class="brief-label" style="color:var(--accent);">Maestro suggests a change</div>
+        <div class="brief-label" class="text-accent">Maestro suggests a change</div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(nudges.summary || ''))}</div>
         ${nudges.nudges.slice(0, 2).map((n, i) => `
           <div class="brief-item" data-nudge-idx="${i}" style="border-bottom:1px solid var(--divider);">
@@ -569,14 +569,14 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
     window._currentBriefingCommitments = commitments.commitments;
     html += `
       <div class="maestro-card" style="margin-top:16px;border-left:4px solid ${commitments.overdue_count > 0 ? 'var(--maestro-error,#FF1744)' : 'var(--maestro-warning,#FF9800)'};">
-        <div class="swipe-card-category ${commitments.overdue_count > 0 ? 'contradiction' : 'due'}" style="margin-bottom:12px;">Commitments due today</div>
-        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));margin-bottom:12px;font-family:'Montserrat',sans-serif;">${escapeHtml(humanize(commitments.summary || ''))}</div>
+        <div class="swipe-card-category ${commitments.overdue_count > 0 ? 'contradiction' : 'due'}" class="mb-12">Commitments due today</div>
+        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));margin-bottom:12px;font-family:var(--font-sans,inherit);">${escapeHtml(humanize(commitments.summary || ''))}</div>
         ${commitments.commitments.map((c, i) => `
           <div class="brief-item" style="border-bottom:1px solid var(--divider);padding:10px 0;">
             <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
-              <div style="flex:1;">
+              <div class="flex-1">
                 <div class="brief-context" style="color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(c.description || ''))}</div>
-                <div class="ds-meta" style="margin-top:4px;">
+                <div class="ds-meta" class="mt-4">
                   ${c.who_committed ? `By: ${escapeHtml(c.who_committed)}` : ''}
                   ${c.to_whom ? ` → ${escapeHtml(c.to_whom)}` : ''}
                   ${c.due_date ? ` · Due: ${escapeHtml(c.due_date)}` : ''}
@@ -586,7 +586,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
               <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;white-space:nowrap;"
                       onclick="sendCommitmentReminder(${i})">Remind</button>
             </div>
-            <div id="commitment-reminder-${i}" style="margin-top:8px;"></div>
+            <div id="commitment-reminder-${i}" class="mt-8"></div>
           </div>
         `).join('')}
       </div>
@@ -600,20 +600,20 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   // human_context signal that feeds into the model.
   if (curiosity && curiosity.questions && curiosity.questions.length > 0) {
     html += `
-      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
-        <div class="brief-label" style="color:var(--accent);">Maestro has questions</div>
+      <div class="brief-section">
+        <div class="brief-label" class="text-accent">Maestro has questions</div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(curiosity.summary))}</div>
         ${curiosity.questions.slice(0, 3).map((q, i) => `
           <div class="curiosity-conversation" data-curiosity-idx="${i}" style="border-bottom:1px solid var(--divider);padding:12px 0;">
             <div class="curiosity-question" style="color:var(--text-primary);font-weight:500;margin-bottom:8px;">${escapeHtml(humanize(q.question))}</div>
-            <div class="curiosity-evidence ds-meta" style="margin-bottom:8px;">${escapeHtml(humanize(q.evidence))}</div>
+            <div class="curiosity-evidence ds-meta" class="mb-8">${escapeHtml(humanize(q.evidence))}</div>
             <div class="curiosity-conversation-area" id="curiosity-conv-${i}" data-question-id="${escapeHtml(q.question_id || '')}" data-question-type="${escapeHtml(q.type || '')}" data-domain="${escapeHtml(q.domain || '')}" data-original-question="${escapeHtml(q.question || '')}" data-turn="1">
               <input type="text" class="curiosity-answer-input" id="curiosity-input-${i}"
                      placeholder="Type your answer…"
                      style="width:100%;padding:8px 12px;background:var(--surface-2);border:1px solid var(--divider);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;"
                      onkeydown="if(event.key==='Enter') submitCuriosityAnswer(${i})"
                      aria-label="Answer Maestro's question" />
-              <button class="ds-btn ds-btn-ghost ds-btn-small" style="margin-top:6px;" onclick="submitCuriosityAnswer(${i})">Answer</button>
+              <button class="ds-btn ds-btn-ghost ds-btn-small" class="mt-6" onclick="submitCuriosityAnswer(${i})">Answer</button>
             </div>
           </div>
         `).join('')}
@@ -627,15 +627,15 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
   if (tasks && tasks.tasks && tasks.tasks.length > 0) {
     const priorityColor = { high: 'var(--risk,#DC2626)', medium: 'var(--warning,#D97706)', low: 'var(--text-muted)' };
     html += `
-      <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
-        <div class="brief-label" style="color:var(--accent);">Your tasks</div>
+      <div class="brief-section">
+        <div class="brief-label" class="text-accent">Your tasks</div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${tasks.total} open task${tasks.total === 1 ? '' : 's'} auto-extracted from your organization's signals.</div>
         ${tasks.tasks.slice(0, 5).map(t => `
           <div class="brief-item" style="border-bottom:1px solid var(--divider);padding:10px 0;">
             <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
-              <div style="flex:1;">
+              <div class="flex-1">
                 <div class="brief-context" style="color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(t.description || ''))}</div>
-                <div class="ds-meta" style="margin-top:4px;">
+                <div class="ds-meta" class="mt-4">
                   ${t.assignee ? `Assignee: ${escapeHtml(t.assignee)}` : 'Unassigned'}
                   ${t.due_date ? ` · Due: ${escapeHtml(t.due_date)}` : ''}
                   ${t.domain ? ` · Domain: ${escapeHtml(t.domain)}` : ''}
@@ -662,7 +662,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
                        (unknowns.level_counts?.unknown_unknowns || 0) + (unknowns.level_counts?.emerging_unknowns || 0);
     if (totalCount > 0) {
       html += `
-        <div style="margin-top:32px;padding:20px;border-radius:12px;background:var(--surface);border:1px solid var(--divider);">
+        <div class="brief-section">
           <div class="brief-label" style="color:var(--text-muted);">What Maestro doesn't know yet</div>
           <div style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(humanize(unknowns.summary || ''))}</div>
       `;
@@ -670,16 +670,16 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       // Level 1: Known — green, collapsed by default (it's the "good news")
       if (unknowns.known && unknowns.known.length > 0) {
         html += `
-          <details class="unknowns-level unknowns-known" style="margin-bottom:12px;">
-            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+          <details class="unknowns-level unknowns-known" class="mb-12">
+            <summary class="brief-card-action">
               <span style="color:var(--positive,#16A34A);">✓</span>
               <strong>Known</strong> — ${unknowns.known.length} area${unknowns.known.length === 1 ? '' : 's'} measured thoroughly
             </summary>
-            <div style="padding:8px 0 8px 20px;">
+            <div class="brief-item-indent">
               ${unknowns.known.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
                   <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
-                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} signals · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
+                  <div class="ds-meta" class="mt-2">${a.signal_count} signals · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
                 </div>
               `).join('')}
             </div>
@@ -690,16 +690,16 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       // Level 2: Known Unknowns — amber, expanded (actionable: instrument them)
       if (unknowns.known_unknowns && unknowns.known_unknowns.length > 0) {
         html += `
-          <details class="unknowns-level unknowns-known-unknowns" open style="margin-bottom:12px;">
-            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+          <details class="unknowns-level unknowns-known-unknowns" open class="mb-12">
+            <summary class="brief-card-action">
               <span style="color:var(--warning,#D97706);">!</span>
               <strong>Known Unknowns</strong> — ${unknowns.known_unknowns.length} area${unknowns.known_unknowns.length === 1 ? '' : 's'} the org knows it's under-measuring
             </summary>
-            <div style="padding:8px 0 8px 20px;">
+            <div class="brief-item-indent">
               ${unknowns.known_unknowns.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
                   <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
-                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
+                  <div class="ds-meta" class="mt-2">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
               `).join('')}
@@ -711,16 +711,16 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       // Level 3: Unknown Unknowns — red, expanded (risky: blind spots)
       if (unknowns.unknown_unknowns && unknowns.unknown_unknowns.length > 0) {
         html += `
-          <details class="unknowns-level unknowns-unknown-unknowns" open style="margin-bottom:12px;">
-            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+          <details class="unknowns-level unknowns-unknown-unknowns" open class="mb-12">
+            <summary class="brief-card-action">
               <span style="color:var(--risk,#DC2626);">?</span>
               <strong>Unknown Unknowns</strong> — ${unknowns.unknown_unknowns.length} blind spot${unknowns.unknown_unknowns.length === 1 ? '' : 's'} (the org doesn't know it doesn't know)
             </summary>
-            <div style="padding:8px 0 8px 20px;">
+            <div class="brief-item-indent">
               ${unknowns.unknown_unknowns.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
                   <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
-                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
+                  <div class="ds-meta" class="mt-2">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
               `).join('')}
@@ -732,16 +732,16 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
       // Level 4: Emerging Unknowns — purple pulse, expanded (opportunities: investigate)
       if (unknowns.emerging_unknowns && unknowns.emerging_unknowns.length > 0) {
         html += `
-          <details class="unknowns-level unknowns-emerging" open style="margin-bottom:12px;">
-            <summary style="cursor:pointer;padding:8px 0;font-size:13px;color:var(--text-secondary);">
+          <details class="unknowns-level unknowns-emerging" open class="mb-12">
+            <summary class="brief-card-action">
               <span style="color:var(--accent,#7C5CFF);">✦</span>
               <strong>Emerging Unknowns</strong> — ${unknowns.emerging_unknowns.length} new pattern${unknowns.emerging_unknowns.length === 1 ? '' : 's'} in the last 7 days
             </summary>
-            <div style="padding:8px 0 8px 20px;">
+            <div class="brief-item-indent">
               ${unknowns.emerging_unknowns.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
                   <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
-                  <div class="ds-meta" style="margin-top:2px;">${a.signal_count} new signal${a.signal_count === 1 ? '' : 's'} · detected ${a.detected_at ? new Date(a.detected_at).toLocaleDateString() : 'recently'}</div>
+                  <div class="ds-meta" class="mt-2">${a.signal_count} new signal${a.signal_count === 1 ? '' : 's'} · detected ${a.detected_at ? new Date(a.detected_at).toLocaleDateString() : 'recently'}</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
               `).join('')}
@@ -881,7 +881,7 @@ async function quickWriteBack(provider, actionType, params, idx) {
   try {
     const preview = await api.postOEM('/writeback', { provider, action_type: actionType, params });
     el.innerHTML = `
-      <div style="padding:10px;background:var(--surface-2);border:1px solid var(--divider);border-radius:8px;">
+      <div class="brief-surface-block">
         <pre style="font-size:11px;color:var(--text-secondary);white-space:pre-wrap;margin:0 0 8px 0;">${escapeHtml(preview.preview)}</pre>
         <div style="display:flex;gap:6px;">
           <button class="ds-btn ds-btn-primary ds-btn-small" style="font-size:11px;" onclick="approveQuickWriteBack('${preview.action_id}', ${idx})">Approve</button>
@@ -941,7 +941,7 @@ async function showInlineWhy(title, idx) {
       chainHtml += `
         <div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--divider);">
           <div style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--surface-2);border:1px solid var(--accent);color:var(--accent);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;">${step.step}</div>
-          <div style="flex:1;">
+          <div class="flex-1">
             <div style="font-size:12px;color:var(--text-primary);font-weight:500;">${escapeHtml(humanize(step.label || ''))}</div>
             <div style="font-size:11px;color:var(--text-secondary);line-height:1.4;">${escapeHtml(humanize(step.narrative || ''))}</div>
             <div style="margin-top:2px;height:2px;background:var(--divider);border-radius:1px;overflow:hidden;"><div style="height:100%;width:${confPct}%;background:${confColor};"></div></div>
@@ -972,7 +972,7 @@ async function sendCommitmentReminder(idx) {
       params: { channel: 'general', text: reminderText },
     });
     el.innerHTML = `
-      <div style="padding:10px;background:var(--surface-2);border:1px solid var(--divider);border-radius:8px;">
+      <div class="brief-surface-block">
         <pre style="font-size:11px;color:var(--text-secondary);white-space:pre-wrap;margin:0 0 8px 0;">${escapeHtml(preview.preview)}</pre>
         <div style="display:flex;gap:6px;">
           <button class="ds-btn ds-btn-primary ds-btn-small" style="font-size:11px;" onclick="approveCommitmentReminder('${preview.action_id}', ${idx})">Approve & Send</button>
@@ -1228,7 +1228,7 @@ async function prepareExecution(title) {
               </div>
               <div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:4px;">${escapeHtml(humanize(s.title || ''))}</div>
               <div style="font-size:13px;color:var(--text-secondary);">${escapeHtml(humanize(s.detail || ''))}</div>
-              <div class="ds-meta" style="margin-top:6px;">Owner: ${escapeHtml(humanize(s.owner || ''))}${s.prerequisite ? ' · After: ' + escapeHtml(humanize(s.prerequisite)) : ''}</div>
+              <div class="ds-meta" class="mt-6">Owner: ${escapeHtml(humanize(s.owner || ''))}${s.prerequisite ? ' · After: ' + escapeHtml(humanize(s.prerequisite)) : ''}</div>
             </div>
           `).join('') : ''}
           <div>
@@ -1298,10 +1298,10 @@ async function approveWriteBack(actionId) {
     if (result.status === 'executed') {
       const r = result.result || {};
       let detail = '';
-      if (r.provider === 'jira') detail = `Issue created: <a href="${r.issue_url || '#'}" target="_blank" style="color:var(--accent);">${escapeHtml(r.issue_key || '')}</a>`;
-      else if (r.provider === 'gmail') detail = `Draft created (NOT sent): <a href="${r.draft_url || '#'}" target="_blank" style="color:var(--accent);">Open in Gmail</a>`;
+      if (r.provider === 'jira') detail = `Issue created: <a href="${r.issue_url || '#'}" target="_blank" class="text-accent">${escapeHtml(r.issue_key || '')}</a>`;
+      else if (r.provider === 'gmail') detail = `Draft created (NOT sent): <a href="${r.draft_url || '#'}" target="_blank" class="text-accent">Open in Gmail</a>`;
       else if (r.provider === 'slack') detail = `Message posted to ${escapeHtml(r.channel || '')} (ts: ${escapeHtml(r.message_ts || '')})`;
-      else if (r.provider === 'github') detail = `Comment created: <a href="${r.comment_url || '#'}" target="_blank" style="color:var(--accent);">View</a>`;
+      else if (r.provider === 'github') detail = `Comment created: <a href="${r.comment_url || '#'}" target="_blank" class="text-accent">View</a>`;
       resultEl.innerHTML = `<div style="padding:14px;background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:8px;color:var(--positive,#16A34A);font-size:13px;">Executed. ${detail}${r.mock ? ' (mock mode — no real API call)' : ''}</div>`;
     } else {
       resultEl.innerHTML = `<div class="ds-error">Execution failed: ${escapeHtml(result.error || 'unknown error')}</div>`;

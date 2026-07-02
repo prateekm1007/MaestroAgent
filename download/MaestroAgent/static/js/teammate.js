@@ -9,7 +9,7 @@ async function loadTeammate(email) {
   if (!el) return;
   if (!email) {
     el.innerHTML = `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-      <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">No teammate selected.</div>
+      <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">No teammate selected.</div>
       <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">Tap a person's name anywhere in Maestro to see their view.</div>
     </div>`;
     return;
@@ -25,7 +25,7 @@ async function loadTeammate(email) {
 }
 
 function renderTeammate(el, data) {
-  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+  let html = `<div style="max-width:700px;margin:0 auto;font-family:var(--font-sans,inherit);">`;
 
   // Header
   html += `
@@ -93,7 +93,7 @@ function renderTeammate(el, data) {
   if ((!data.tasks || data.tasks.length === 0) && (!data.commitments || data.commitments.length === 0)) {
     html += `
       <div class="calm-empty" style="text-align:center;padding:32px 20px;">
-        <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">No tasks or commitments yet.</div>
+        <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">No tasks or commitments yet.</div>
         <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">As ${escapeHtml(data.name)} appears in more signals, their tasks and commitments will show here.</div>
       </div>
     `;

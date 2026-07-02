@@ -18,14 +18,14 @@ async function loadCoordination() {
     renderCoordinationSurface(el, requests);
   } catch (e) {
     el.innerHTML = `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-      <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">Coordination Engine</div>
+      <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">Coordination Engine</div>
       <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">Failed to load: ${escapeHtml(e.message)}</div>
     </div>`;
   }
 }
 
 function renderCoordinationSurface(el, requests) {
-  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+  let html = `<div style="max-width:700px;margin:0 auto;font-family:var(--font-sans,inherit);">`;
 
   // Header
   html += `
@@ -42,7 +42,7 @@ function renderCoordinationSurface(el, requests) {
       <input type="text" class="maestro-input" id="coord-decision-input"
              placeholder="e.g., Standardize OAuth across all services"
              onkeydown="if(event.key==='Enter') initiateCoordination()"
-             style="width:100%;padding:10px 14px;background:var(--maestro-gray-light,#F5F5F5);border:1px solid var(--divider,#E5E5E5);border-radius:8px;color:var(--maestro-black,var(--text-primary));font-size:14px;font-family:'Montserrat',sans-serif;outline:none;margin-bottom:12px;" />
+             style="width:100%;padding:10px 14px;background:var(--maestro-gray-light,#F5F5F5);border:1px solid var(--divider,#E5E5E5);border-radius:8px;color:var(--maestro-black,var(--text-primary));font-size:14px;font-family:var(--font-sans,inherit);outline:none;margin-bottom:12px;" />
       <button class="maestro-btn maestro-btn-full" id="coord-initiate-btn"
               style="font-size:14px;min-height:44px;">
         Initiate coordination
@@ -77,7 +77,7 @@ function renderCoordinationSurface(el, requests) {
   } else {
     html += `
       <div class="calm-empty" style="text-align:center;padding:32px 20px;">
-        <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">No coordination requests yet.</div>
+        <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:var(--font-sans,inherit);">No coordination requests yet.</div>
         <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">Initiate one above to coordinate multi-team input for a decision.</div>
       </div>
     `;
@@ -131,7 +131,7 @@ async function viewCoordination(requestId) {
 }
 
 function renderCoordinationDetail(el, req) {
-  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+  let html = `<div style="max-width:700px;margin:0 auto;font-family:var(--font-sans,inherit);">`;
 
   // Back button
   html += `<button class="maestro-btn maestro-btn-ghost" style="font-size:13px;min-height:36px;margin-bottom:16px;" id="coord-back-btn">← Back to coordination</button>`;
@@ -206,7 +206,7 @@ function renderCoordinationDetail(el, req) {
     <div class="maestro-card" style="margin-top:20px;">
       <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Add a response</div>
       <textarea id="coord-response-input" placeholder="Enter your team's input on this decision…"
-                style="width:100%;min-height:80px;padding:10px 14px;background:var(--maestro-gray-light,#F5F5F5);border:1px solid var(--divider,#E5E5E5);border-radius:8px;color:var(--maestro-black,var(--text-primary));font-size:14px;font-family:'Montserrat',sans-serif;outline:none;margin-bottom:12px;resize:vertical;"></textarea>
+                style="width:100%;min-height:80px;padding:10px 14px;background:var(--maestro-gray-light,#F5F5F5);border:1px solid var(--divider,#E5E5E5);border-radius:8px;color:var(--maestro-black,var(--text-primary));font-size:14px;font-family:var(--font-sans,inherit);outline:none;margin-bottom:12px;resize:vertical;"></textarea>
       <button class="maestro-btn maestro-btn-full" id="coord-respond-btn"
               style="font-size:14px;min-height:44px;">
         Submit response

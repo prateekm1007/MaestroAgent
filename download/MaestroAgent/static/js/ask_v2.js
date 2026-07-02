@@ -47,7 +47,7 @@ function renderAskIntention(el) {
                placeholder="Ask me anything…"
                onkeydown="if(event.key==='Enter') submitAskV2(this.value)"
                aria-label="Ask the organization"
-               style="font-size:16px;font-family:'Montserrat',sans-serif;font-weight:600;" />
+               style="font-size:16px;font-family:var(--font-sans,inherit);font-weight:600;" />
       </div>
 
       <div id="ask-v2-answer" style="margin-top:32px;"></div>
@@ -142,7 +142,7 @@ function renderAskV2Answer(el, question, data) {
   let html = `
     <div class="maestro-card" style="max-width:420px;margin:0 auto;">
       <div class="swipe-card-category answer" style="margin-bottom:12px;">Answer</div>
-      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.35;margin-bottom:12px;font-family:'Montserrat',sans-serif;">
+      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));line-height:1.35;margin-bottom:12px;font-family:var(--font-sans,inherit);">
         ${escapeHtml(humanAnswer)}
       </div>
   `;
@@ -150,7 +150,7 @@ function renderAskV2Answer(el, question, data) {
   // Collapsible evidence detail (Apple's progressive disclosure)
   if (evidenceDetail) {
     html += `<details style="margin-top:8px;margin-bottom:12px;">
-      <summary style="cursor:pointer;font-size:13px;color:var(--maestro-yellow-dark,#F0B500);font-weight:700;font-family:'Montserrat',sans-serif;">Show evidence</summary>
+      <summary style="cursor:pointer;font-size:13px;color:var(--maestro-yellow-dark,#F0B500);font-weight:700;font-family:var(--font-sans,inherit);">Show evidence</summary>
       <div style="margin-top:8px;padding:12px;background:var(--maestro-gray-bg,#F5F5F5);border-radius:12px;font-size:12px;color:var(--maestro-gray-dark,var(--text-secondary));white-space:pre-wrap;line-height:1.5;">${escapeHtml(humanize(evidenceDetail))}</div>
     </details>`;
   }
@@ -171,7 +171,7 @@ function renderAskV2Answer(el, question, data) {
       confLabel = 'CONFIDENT';
       confColor = 'var(--maestro-warning,#FF9800)';
     }
-    html += `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:'Montserrat',sans-serif;margin-bottom:12px;letter-spacing:0.5px;">${confLabel}</div>`;
+    html += `<div style="display:inline-block;padding:4px 12px;border-radius:999px;background:${confColor}20;color:${confColor};font-size:12px;font-weight:800;font-family:var(--font-sans,inherit);margin-bottom:12px;letter-spacing:0.5px;">${confLabel}</div>`;
   }
 
   // Swipe-to-rate hint (feeds attention signals P1-5)
