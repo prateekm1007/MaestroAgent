@@ -28,7 +28,9 @@ jobs:
       - name: Run tests
         run: |
           cd backend
-          python -m pytest -x --tb=short -q
+          python -m pytest -x --tb=short -q \
+            maestro_api/tests/ maestro_auth/tests/ maestro_oem/tests/ \
+            maestro_personal/tests/ tests/
         env:
           MAESTRO_APP_DIR: ${{ github.workspace }}
           MAESTRO_DEMO_SEED: 'true'

@@ -123,6 +123,40 @@ class CheckpointStore:
         self._conn.executescript(_SCHEMA)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        # Round 55 C1 fix: auto-migrate org_id columns. The Alembic migration
+        # exists but may not have been applied. This ensures the schema matches
+        # the code on every startup — no manual `alembic upgrade head` needed.
+        self._auto_migrate_org_id()
+
+    def _auto_migrate_org_id(self) -> None:
+        """Ensure org_id columns exist on all tables. Idempotent.
+
+        Round 55 C1 fix: the Round 52 migration added org_id to the SQL
+        queries but the schema migration was never applied to existing
+        databases. This method checks each table for the org_id column
+        and adds it if missing. This is defense-in-depth — the Alembic
+        migration should also be run, but this ensures the code works
+        even if the migration wasn't applied.
+        """
+        tables_needing_org_id = [
+            "import_jobs",
+            "oauth_credentials",
+            "provider_connections",
+        ]
+        for table in tables_needing_org_id:
+            try:
+                # Check if org_id column exists
+                cursor = self._conn.execute(f"PRAGMA table_info({table})")
+                columns = [row[1] for row in cursor.fetchall()]
+                if "org_id" not in columns:
+                    # Add the column with a default value for existing rows
+                    self._conn.execute(
+                        f"ALTER TABLE {table} ADD COLUMN org_id TEXT NOT NULL DEFAULT 'default'"
+                    )
+                    logger.info("Auto-migrated: added org_id column to %s", table)
+            except Exception as e:
+                # Table might not exist yet (first run) — the _SCHEMA will create it
+                logger.debug("Auto-migrate check for %s: %s", table, e)
 
     @contextmanager
     def _cursor(self) -> Iterator[sqlite3.Cursor]:

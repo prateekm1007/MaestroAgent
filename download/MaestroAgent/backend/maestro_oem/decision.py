@@ -313,6 +313,15 @@ class DecisionEngine:
             lo_data["relevance"] = round(score, 3)
             relevant_los.append(lo_data)
 
+        # Round 55 H2 fix: if semantic search returns nothing, fall back to
+        # keyword search. Short queries (1-2 words after stop-word removal)
+        # produce too few n-grams for the TF-IDF matcher to find matches.
+        # Keyword fallback ensures "hire" and "payments" return results.
+        if not relevant_laws and not relevant_los:
+            relevant_laws, relevant_los = self._keyword_fallback(
+                q_lower, self.model, relevant_laws, relevant_los
+            )
+
         # Search for hidden experts (still keyword-based — names are exact)
         experts = self.model.knowledge.get_hidden_experts()
         relevant_experts = [e for e in experts if any(word in e["entity"].lower() for word in q_lower.split())]
@@ -388,6 +397,57 @@ class DecisionEngine:
             "experts": relevant_experts,
             "bottlenecks": relevant_bottlenecks,
         }
+
+    def _keyword_fallback(
+        self, q_lower: str, model: Any,
+        existing_laws: list[dict[str, Any]],
+        existing_los: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Keyword fallback for short queries where semantic search returns nothing.
+
+        Round 55 H2 fix: the TF-IDF n-gram matcher needs enough text to produce
+        meaningful n-gram overlap. Short queries (1-2 words) may produce too
+        few n-grams to match anything. This fallback does a simple substring
+        search across law statements and LO titles/descriptions.
+        """
+        laws = list(existing_laws)
+        los = list(existing_los)
+
+        # Keyword search in laws
+        if not laws:
+            for law in model.laws.values():
+                law_text = f"{law.statement} {law.condition} {law.outcome}".lower()
+                if any(word in law_text for word in q_lower.split() if len(word) > 1):
+                    laws.append({
+                        "code": law.code,
+                        "statement": law.statement,
+                        "confidence": law.confidence,
+                        "status": law.status.value if hasattr(law.status, "value") else str(law.status),
+                        "evidence_count": law.evidence_count,
+                        "provenance": model.get_provenance_chain(law.code),
+                        "relevance": 0.1,  # low relevance — keyword match
+                        "verified_by": getattr(law, "verified_by", None),
+                    })
+                    if len(laws) >= 5:
+                        break
+
+        # Keyword search in learning objects
+        if not los:
+            for lo in model.learning_objects.values():
+                lo_text = f"{lo.title} {lo.description}".lower()
+                if any(word in lo_text for word in q_lower.split() if len(word) > 1):
+                    los.append({
+                        "type": lo.type.value if hasattr(lo.type, "value") else str(lo.type),
+                        "title": lo.title,
+                        "confidence": lo.confidence,
+                        "evidence_count": lo.evidence_count,
+                        "providers": list(lo.providers),
+                        "relevance": 0.1,  # low relevance — keyword match
+                    })
+                    if len(los) >= 5:
+                        break
+
+        return laws, los
 
     def _synthesize_answer(
         self,
