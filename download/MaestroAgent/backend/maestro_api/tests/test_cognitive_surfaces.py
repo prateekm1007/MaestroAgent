@@ -83,8 +83,10 @@ class TestCognitiveModelSurfaces:
         """Loading the app with all cognitive-model surfaces must not
         produce any JS console errors."""
         _, errors, page_errors = browser_context
-        js_errors = [e for e in errors if "Failed to fetch" not in e and "ERR_" not in e and "500" not in e and "404" not in e and "Refused" not in e]
-        assert len(js_errors) == 0, f"Console errors: {js_errors}"
+        # Round 65: Removed error suppression filter. CI green must mean
+        # real errors are caught, not hidden. If this test fails, fix the
+        # underlying error — do NOT re-add the filter.
+        assert len(errors) == 0, f"Console errors: {errors}"
         assert len(page_errors) == 0, f"Page errors: {page_errors}"
 
     def test_prepared_decisions_loads_on_home(self, browser_context):
