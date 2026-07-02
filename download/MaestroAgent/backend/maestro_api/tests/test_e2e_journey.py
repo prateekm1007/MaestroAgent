@@ -17,41 +17,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-@pytest.fixture(scope="session")
-def client():
-    """Create a SINGLE test client for the entire session.
-
-    Using scope="session" because:
-    1. prometheus_client CollectorRegistry cannot be registered twice
-    2. OEM state is an in-memory singleton — re-initializing per test causes race conditions
-    3. The demo seed is deterministic — fresh state per test is unnecessary for behavioral tests
-
-    Tests that need isolated state (multi-tenant) create their own OEMStateRegistry instances.
-    """
-    os.environ["MAESTRO_LOCAL_DEV"] = "true"
-    os.environ["MAESTRO_DEMO_SEED"] = "true"
-    os.environ["MAESTRO_APP_DIR"] = os.path.join(os.path.dirname(__file__), "..", "..", "..")
-    from maestro_api.main import create_app
-    app = create_app()
-    from maestro_api.oem_state import oem_state
-    oem_state.initialize()
-    return TestClient(app)
 
 
-@pytest.fixture(autouse=True)
-def _clear_writeback_store():
-    """Clear WriteBackStore before each test to prevent state pollution.
-
-    Round 70 Step 2: The writeback test failed in the full suite because
-    WriteBackStore accumulates actions across tests. This fixture clears
-    the store before each test, ensuring isolation.
-    """
-    try:
-        from maestro_oem.writeback import WriteBackStore
-        WriteBackStore.clear()
-    except Exception:
-        pass
-    yield
 
 
 # ═══════════════════════════════════════════════════════════════════════════
