@@ -1,0 +1,38 @@
+{
+  "dashboard": {
+    "title": "Maestro Overview",
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Request Rate (req/s)",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [{"expr": "rate(maestro_requests_total[1m])", "legendFormat": "{{method}} {{endpoint}}"}],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "title": "p95 Latency (ms)",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [{"expr": "histogram_quantile(0.95, rate(maestro_request_duration_seconds_bucket[5m])) * 1000", "legendFormat": "p95 {{endpoint}}"}],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "title": "Error Rate (%)",
+        "type": "stat",
+        "datasource": "Prometheus",
+        "targets": [{"expr": "sum(rate(maestro_requests_total{status=~\"4..|5..\"}[1m])) / sum(rate(maestro_requests_total[1m])) * 100"}],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+      },
+      {
+        "title": "OEM Signals Ingested",
+        "type": "stat",
+        "datasource": "Prometheus",
+        "targets": [{"expr": "maestro_signals_ingested_total"}],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "refresh": "30s"
+  }
+}

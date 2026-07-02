@@ -99,3 +99,18 @@
 - Round 48: Don't verify GitHub patches without testing the running system
 - Round 49: Don't ship without testing production code paths, not mock paths
 - Context resets happen. Log state externally. Read it every session.
+
+## Round 52 Fixes (verified)
+- Fix 1: Onboarding OAuth — already done in Round 51 (commit 03aa72f) ✓
+- Fix 2: Bumble consumer copy stripped — "Make the first move" → enterprise copy ✓
+- Fix 3: 3 stale tests fixed — oauth providers (6→9), sidebar surfaces (work→memory), incognito toggle ✓
+- Fix 4: org_id multi-tenant isolation — IN PROGRESS (the biggest fix, 3-5 days)
+
+## Round 52 Fix 4 + Remaining HIGH (verified)
+- Fix 4: org_id added to all CheckpointStore tables (import_jobs, import_checkpoints, oauth_credentials, provider_connections) ✓
+- Fix 4: All queries scoped by org_id (save_credentials, load_credentials, delete_credentials, set_connection, get_connection, list_connections, create_job, list_jobs) ✓
+- Fix 4: Alembic migration created (f4_org_id_multi_tenant.py) ✓
+- Fix 4: OEMStateRegistry created — per-org OEM instances, backward-compatible singleton ✓
+- H11: Audit log hash verification fixed — verify_chain now recomputes canonical hash from actual row data ✓
+- H7: Grafana dashboard created (infra/grafana/dashboards/maestro-overview.json) ✓
+- H9: CI/CD pipeline rewritten with Postgres service + pip-audit + bandit ✓

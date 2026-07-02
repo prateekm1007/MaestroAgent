@@ -32,9 +32,10 @@ logger = logging.getLogger(__name__)
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS import_jobs (
     job_id              TEXT PRIMARY KEY,
-    status              TEXT NOT NULL,           -- pending|running|completed|failed|cancelled
-    providers           TEXT NOT NULL,           -- JSON array
-    since               TEXT,                    -- ISO timestamp or '5y' or null
+    org_id              TEXT NOT NULL DEFAULT 'default',
+    status              TEXT NOT NULL,
+    providers           TEXT NOT NULL,
+    since               TEXT,
     started_at          TEXT NOT NULL,
     completed_at        TEXT,
     total_signals       INTEGER NOT NULL DEFAULT 0,
@@ -63,9 +64,11 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
 
 CREATE INDEX IF NOT EXISTS idx_checkpoints_job ON import_checkpoints(job_id);
 CREATE INDEX IF NOT EXISTS idx_checkpoints_provider ON import_checkpoints(provider);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_org ON import_jobs(org_id);
 
 CREATE TABLE IF NOT EXISTS oauth_credentials (
-    provider            TEXT PRIMARY KEY,
+    provider            TEXT NOT NULL,
+    org_id              TEXT NOT NULL DEFAULT 'default',
     access_token        TEXT NOT NULL,
     refresh_token       TEXT,
     token_type          TEXT NOT NULL DEFAULT 'Bearer',
@@ -73,16 +76,22 @@ CREATE TABLE IF NOT EXISTS oauth_credentials (
     scopes              TEXT,
     metadata            TEXT,
     created_at          TEXT NOT NULL,
-    updated_at          TEXT NOT NULL
+    updated_at          TEXT NOT NULL,
+    PRIMARY KEY (provider, org_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_oauth_org ON oauth_credentials(org_id);
+
 CREATE TABLE IF NOT EXISTS provider_connections (
-    provider            TEXT PRIMARY KEY,
+    provider            TEXT NOT NULL,
+    org_id              TEXT NOT NULL DEFAULT 'default',
     connected           INTEGER NOT NULL DEFAULT 0,
     connected_at        TEXT,
-    org_id              TEXT,
-    metadata            TEXT
+    metadata            TEXT,
+    PRIMARY KEY (provider, org_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_connections_org ON provider_connections(org_id);
 """
 
 
@@ -140,6 +149,7 @@ class CheckpointStore:
         job_id: str | None = None,
         providers: list[str] | None = None,
         since: str | None = None,
+        org_id: str = "default",
     ) -> str:
         """Create a new import job. Returns the job_id."""
         job_id = job_id or str(uuid4())
@@ -147,9 +157,9 @@ class CheckpointStore:
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO import_jobs
-                   (job_id, status, providers, since, started_at, total_signals)
-                   VALUES (?, 'pending', ?, ?, ?, 0)""",
-                (job_id, json.dumps(providers), since,
+                   (job_id, org_id, status, providers, since, started_at, total_signals)
+                   VALUES (?, ?, 'pending', ?, ?, ?, 0)""",
+                (job_id, org_id, json.dumps(providers), since,
                  datetime.now(timezone.utc).isoformat()),
             )
         logger.info("Created import job %s for providers=%s", job_id, providers)
@@ -188,11 +198,11 @@ class CheckpointStore:
                 return None
             return self._row_to_job(row)
 
-    def list_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
+    def list_jobs(self, limit: int = 50, org_id: str = "default") -> list[dict[str, Any]]:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT * FROM import_jobs ORDER BY started_at DESC LIMIT ?",
-                (limit,),
+                "SELECT * FROM import_jobs WHERE org_id = ? ORDER BY started_at DESC LIMIT ?",
+                (org_id, limit),
             )
             return [self._row_to_job(r) for r in cur.fetchall()]
 
@@ -279,10 +289,10 @@ class CheckpointStore:
         expires_at: str | None = None,
         scopes: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        org_id: str = "default",
     ) -> None:
         # Round 49 C2 fix: encrypt OAuth tokens at rest.
-        # The old code stored access_token and refresh_token as plaintext TEXT.
-        # Now they are encrypted via EncryptionManager (Fernet) before storage.
+        # Round 52 Fix 4: scope by org_id for multi-tenant isolation.
         from maestro_auth.security import EncryptionManager
         enc = EncryptionManager()
         encrypted_access = enc.encrypt(access_token)
@@ -292,10 +302,10 @@ class CheckpointStore:
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO oauth_credentials
-                   (provider, access_token, refresh_token, token_type, expires_at,
+                   (provider, org_id, access_token, refresh_token, token_type, expires_at,
                     scopes, metadata, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(provider) DO UPDATE SET
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(provider, org_id) DO UPDATE SET
                     access_token = excluded.access_token,
                     refresh_token = excluded.refresh_token,
                     token_type = excluded.token_type,
@@ -305,16 +315,16 @@ class CheckpointStore:
                     updated_at = excluded.updated_at
                    """,
                 (
-                    provider, encrypted_access, encrypted_refresh, token_type, expires_at,
+                    provider, org_id, encrypted_access, encrypted_refresh, token_type, expires_at,
                     json.dumps(scopes or []), json.dumps(metadata or {}), now, now,
                 ),
             )
 
-    def load_credentials(self, provider: str) -> dict[str, Any] | None:
+    def load_credentials(self, provider: str, org_id: str = "default") -> dict[str, Any] | None:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT * FROM oauth_credentials WHERE provider = ?",
-                (provider,),
+                "SELECT * FROM oauth_credentials WHERE provider = ? AND org_id = ?",
+                (provider, org_id),
             )
             row = cur.fetchone()
             if not row:
@@ -345,11 +355,11 @@ class CheckpointStore:
                 "updated_at": row["updated_at"],
             }
 
-    def delete_credentials(self, provider: str) -> None:
+    def delete_credentials(self, provider: str, org_id: str = "default") -> None:
         with self._cursor() as cur:
             cur.execute(
-                "DELETE FROM oauth_credentials WHERE provider = ?",
-                (provider,),
+                "DELETE FROM oauth_credentials WHERE provider = ? AND org_id = ?",
+                (provider, org_id),
             )
 
     def list_credentials(self) -> list[dict[str, Any]]:
@@ -363,33 +373,32 @@ class CheckpointStore:
         self,
         provider: str,
         connected: bool,
-        org_id: str | None = None,
+        org_id: str = "default",
         metadata: dict[str, Any] | None = None,
     ) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO provider_connections
-                   (provider, connected, connected_at, org_id, metadata)
+                   (provider, org_id, connected, connected_at, metadata)
                    VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT(provider) DO UPDATE SET
+                   ON CONFLICT(provider, org_id) DO UPDATE SET
                     connected = excluded.connected,
                     connected_at = excluded.connected_at,
-                    org_id = excluded.org_id,
                     metadata = excluded.metadata
                    """,
                 (
-                    provider, 1 if connected else 0,
-                    now if connected else None, org_id,
+                    provider, org_id, 1 if connected else 0,
+                    now if connected else None,
                     json.dumps(metadata or {}),
                 ),
             )
 
-    def get_connection(self, provider: str) -> dict[str, Any] | None:
+    def get_connection(self, provider: str, org_id: str = "default") -> dict[str, Any] | None:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT * FROM provider_connections WHERE provider = ?",
-                (provider,),
+                "SELECT * FROM provider_connections WHERE provider = ? AND org_id = ?",
+                (provider, org_id),
             )
             row = cur.fetchone()
             if not row:
@@ -402,9 +411,9 @@ class CheckpointStore:
                 "metadata": json.loads(row["metadata"] or "{}"),
             }
 
-    def list_connections(self) -> list[dict[str, Any]]:
+    def list_connections(self, org_id: str = "default") -> list[dict[str, Any]]:
         with self._cursor() as cur:
-            cur.execute("SELECT * FROM provider_connections ORDER BY provider")
+            cur.execute("SELECT * FROM provider_connections WHERE org_id = ? ORDER BY provider", (org_id,))
             return [
                 {
                     "provider": r["provider"],

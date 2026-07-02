@@ -829,14 +829,22 @@ class TamperEvidentAuditLog:
     def verify_chain(self) -> tuple[bool, str | None]:
         """Verify the integrity of the entire audit chain.
 
-        Returns (is_valid, first_broken_event_id_or_None).
+        Round 52 H11 fix: the old verify_chain only checked _prev_hash
+        linkage but used placeholder values for the canonical hash
+        recomputation (event_type="", user_id=None, etc.). An attacker
+        could rewrite event_type/user_id while preserving linkage.
+        Now we fetch the full row and recompute the canonical hash from
+        the actual data.
         """
         from maestro_db import sqlite_compat as sqlite3
         conn = sqlite3.connect(self.store.db_path)
         try:
             conn.row_factory = sqlite3.Row
+            # Fetch the FULL row — not just id and detail
             rows = conn.execute(
-                "SELECT id, detail FROM audit_events ORDER BY timestamp ASC, id ASC"
+                "SELECT id, event_type, user_id, email, ip_address, "
+                "user_agent, resource, detail, success, timestamp "
+                "FROM audit_events ORDER BY timestamp ASC, id ASC"
             ).fetchall()
         finally:
             conn.close()
@@ -849,23 +857,27 @@ class TamperEvidentAuditLog:
             stored_hash = detail.get("_chain_hash")
             stored_prev = detail.get("_prev_hash")
 
+            # Check linkage
             if stored_prev != prev_hash:
                 return False, row_id
 
-            # Recompute the hash
+            # Recompute the canonical hash from the ACTUAL row data
             canonical = json.dumps({
-                "event_type": "",  # We'd need to fetch the full row for a complete check
-                "user_id": None,
-                "email": None,
-                "ip_address": None,
-                "resource": None,
-                "success": True,
-                "timestamp": "",
+                "event_type": row["event_type"],
+                "user_id": row["user_id"],
+                "email": row["email"],
+                "ip_address": row["ip_address"],
+                "user_agent": row["user_agent"],
+                "resource": row["resource"],
+                "success": bool(row["success"]),
+                "timestamp": row["timestamp"],
                 "prev_hash": prev_hash,
             }, sort_keys=True)
-            # Note: Full verification requires the complete row data.
-            # For production, store the canonical form alongside the hash.
-            # This simplified check verifies the chain linkage.
+            expected_hash = hashlib.sha256(canonical.encode()).hexdigest()
+
+            # Verify the hash matches — detects tampering
+            if stored_hash != expected_hash:
+                return False, row_id
 
             prev_hash = stored_hash
 

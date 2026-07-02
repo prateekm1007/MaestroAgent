@@ -562,6 +562,84 @@ class OEMState:
 oem_state = OEMState()
 
 
+# ─── Round 52 Fix 4: Per-org OEM registry for multi-tenant isolation ──────
+# The OEM was a process-wide singleton — Tenant A could see Tenant B's data.
+# The registry creates one OEMState per org_id. In single-tenant mode
+# (the default), all requests use the 'default' org — backward compatible.
+# In multi-tenant mode (when auth is enabled), the route extracts org_id
+# from the authenticated user and passes it to get_oem_for_org().
+
+class OEMStateRegistry:
+    """Per-org OEM state registry.
+
+    Round 52 Fix 4: replaces the process-wide singleton with a dict
+    keyed by org_id. Each org gets its own OEMState instance with its
+    own signals, laws, learning objects, and decisions.
+    """
+
+    _instances: dict[str, "OEMState"] = {}
+    _lock = threading.Lock()
+
+    @classmethod
+    def get(cls, org_id: str = "default") -> "OEMState":
+        """Get the OEMState for a specific org. Creates it if needed."""
+        if org_id not in cls._instances:
+            with cls._lock:
+                if org_id not in cls._instances:
+                    # For the default org, use the existing singleton
+                    # (backward compatibility — existing code uses oem_state directly)
+                    if org_id == "default":
+                        cls._instances[org_id] = oem_state
+                    else:
+                        # Create a new OEMState for this org
+                        new_state = OEMState()
+                        new_state.initialize()
+                        cls._instances[org_id] = new_state
+        return cls._instances[org_id]
+
+    @classmethod
+    def get_org_id_from_request(cls, request) -> str:
+        """Extract org_id from the authenticated request.
+
+        In dev mode (no auth), returns 'default'.
+        In production (auth enabled), extracts org_id from the user's
+        session/token. Falls back to 'default' if not available.
+        """
+        # Check if auth is enabled
+        try:
+            from maestro_auth.permissions import is_auth_enabled
+            if not is_auth_enabled():
+                return "default"
+        except Exception:
+            return "default"
+
+        # Try to get org_id from request state (set by auth middleware)
+        org_id = getattr(request.state, "org_id", None)
+        if org_id:
+            return org_id
+
+        # Try to get from user session
+        try:
+            from maestro_auth.permissions import require_user
+            result = require_user(request)
+            user = result.get("user", {})
+            org_id = user.get("org_id", "default")
+            return org_id or "default"
+        except Exception:
+            return "default"
+
+    @classmethod
+    def clear(cls) -> None:
+        """Clear all instances (for testing)."""
+        cls._instances = {}
+
+
+# Convenience function for routes
+def get_oem_for_org(org_id: str = "default") -> "OEMState":
+    """Get the OEM state for a specific org."""
+    return OEMStateRegistry.get(org_id)
+
+
 # ─── Import state — wires together the historical import pipeline ──────────
 
 class ImportState:
