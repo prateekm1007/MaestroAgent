@@ -61,13 +61,38 @@ class AppState:
 
         self.ledger = CostLedger(db_path=self.db_path)
 
-        # Try to construct a Chroma vector memory; fall back to in-memory.
-        try:
-            from maestro_memory.vector import ChromaVectorMemory
-            vector = ChromaVectorMemory(persist_path=self.chroma_path)
-        except Exception as exc:
-            logger.warning("Chroma unavailable (%s); using InMemoryVectorMemory", exc)
+        # Vector backend selection.
+        #
+        # Default: try ChromaVectorMemory (production-grade, persistent).
+        # MAESTRO_VECTOR_BACKEND=inmemory: force InMemoryVectorMemory — no
+        #   network dependency, no external model download. Use this in tests
+        #   and air-gapped/eegress-restricted environments.
+        #
+        # Production note (Principle 1 — honest accounting): ChromaVectorMemory
+        # uses ChromaDB's default embedding function, which downloads a ~90MB
+        # ONNX model (all-MiniLM-L6-v2) from the internet on first use. This
+        # is a hidden runtime dependency on unrestricted outbound network
+        # access. In Fortune 100 / air-gapped environments, this download will
+        # fail and search() will fall back to SQL LIKE (logged loudly per P6).
+        # To make semantic search work offline, either:
+        #   1. Vendor the ONNX model into the Docker image at build time, OR
+        #   2. Pass a local sentence-transformers embedder to ChromaVectorMemory, OR
+        #   3. Set MAESTRO_VECTOR_BACKEND=inmemory (no semantic ranking, but
+        #      deterministic and offline-safe).
+        import os
+        vector_backend = os.environ.get("MAESTRO_VECTOR_BACKEND", "chroma")
+
+        if vector_backend == "inmemory":
+            logger.info("MAESTRO_VECTOR_BACKEND=inmemory — using InMemoryVectorMemory")
             vector = InMemoryVectorMemory()
+        else:
+            # Try to construct a Chroma vector memory; fall back to in-memory.
+            try:
+                from maestro_memory.vector import ChromaVectorMemory
+                vector = ChromaVectorMemory(persist_path=self.chroma_path)
+            except Exception as exc:
+                logger.warning("Chroma unavailable (%s); using InMemoryVectorMemory", exc)
+                vector = InMemoryVectorMemory()
 
         self.memory = MemoryManager(
             short_term=ShortTermMemory(),

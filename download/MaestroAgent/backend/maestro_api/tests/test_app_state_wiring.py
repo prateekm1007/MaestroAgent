@@ -12,6 +12,15 @@ This test constructs the REAL AppState (not a hand-wired LongTermMemory) and
 asserts the wiring is correct. It would have caught the integration bug that
 the 19 unit tests missed.
 
+DETERMINISM NOTE (Principle 1): these tests set MAESTRO_VECTOR_BACKEND=inmemory
+to force InMemoryVectorMemory. Without this, AppState tries to construct
+ChromaVectorMemory, which uses ChromaDB's default embedding function — that
+downloads a ~90MB ONNX model from the internet on first use. The test would
+then be non-deterministic: it passes when chromadb is absent (falls back to
+InMemoryVectorMemory) but fails when chromadb is present and the model
+download fails (air-gapped networks, egress allowlists, corrupted cache).
+Setting the env var makes the test deterministic regardless of environment.
+
 Root cause (P10): all 19 unit tests constructed LongTermMemory by hand with
 vector=InMemoryVectorMemory(). None constructed the real AppState end-to-end.
 Following Principle 7 here closes that gap.
@@ -19,10 +28,24 @@ Following Principle 7 here closes that gap.
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def force_inmemory_vector(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force InMemoryVectorMemory so tests don't depend on ChromaDB's model download.
+
+    This makes the integration tests deterministic across environments — they
+    pass whether or not chromadb is installed, and whether or not the ONNX
+    model can be downloaded. Production deployments that want real semantic
+    ranking should NOT set this env var (and should vendor the model — see
+    state.py docstring).
+    """
+    monkeypatch.setenv("MAESTRO_VECTOR_BACKEND", "inmemory")
 
 
 async def test_app_state_wires_vector_into_long_term_memory(tmp_path: Path) -> None:
@@ -66,10 +89,12 @@ async def test_app_state_long_term_search_uses_vector_not_sql_like(tmp_path: Pat
     must find it via the vector layer — proving the wiring is functional, not
     just present.
 
-    This is the test the auditor asked for: 'semantic search doesn't work in
-    production.' If long_term.vector is None (the integration bug), this test
-    fails because SQL LIKE can't match 'database scaling' against 'Postgres for
-    streaming replication' (no substring overlap).
+    This test uses InMemoryVectorMemory (via MAESTRO_VECTOR_BACKEND=inmemory)
+    so it's deterministic. The InMemoryVectorMemory uses a hash-based pseudo-
+    embedding — not real semantic quality, but sufficient to prove the wiring
+    is functional: a non-substring query finds an episode that SQL LIKE would
+    miss. Production semantic quality depends on ChromaDB + a real embedding
+    model (see state.py docstring for the offline-deployment caveat).
     """
     from maestro_api.state import AppState
 
