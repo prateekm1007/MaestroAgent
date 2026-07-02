@@ -212,7 +212,6 @@ jobs:
           lhci collect --url http://localhost:1420/app.html --numberOfRuns=5 --outputDirectory=lighthouse-results
           lhci assert --config .lighthouserc.json
           kill $SERVER_PID
-        continue-on-error: true
 
       - name: Upload Lighthouse reports
         if: always()
@@ -226,7 +225,6 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true  # Warn — may need baseline configuration
 
       # ─── Step 5: SBOM generation ─────────────────────────────────────
       - name: Generate SBOM
