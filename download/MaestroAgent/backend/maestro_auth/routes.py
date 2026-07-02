@@ -185,7 +185,7 @@ async def login(req: LoginRequest, request: Request) -> dict[str, Any]:
     return response
 
 
-@router.post("/api/auth/refresh")
+@router.post("/api/auth/refresh", dependencies=[Depends(require_user)])
 async def refresh_token(request: Request) -> dict[str, Any]:
     """Rotate the refresh token. Returns new CSRF token."""
     sm = get_session_manager()
@@ -208,7 +208,7 @@ async def refresh_token(request: Request) -> dict[str, Any]:
     return response
 
 
-@router.post("/api/auth/logout")
+@router.post("/api/auth/logout", dependencies=[Depends(require_user)])
 async def logout(request: Request) -> dict[str, Any]:
     """Revoke the current session."""
     sm = get_session_manager()
@@ -220,7 +220,7 @@ async def logout(request: Request) -> dict[str, Any]:
     return response
 
 
-@router.get("/api/auth/me")
+@router.get("/api/auth/me", dependencies=[Depends(require_user)])
 async def me(request: Request) -> dict[str, Any]:
     """Get the current user info."""
     result = current_user(request)
@@ -241,7 +241,7 @@ async def me(request: Request) -> dict[str, Any]:
     }
 
 
-@router.get("/api/auth/sessions")
+@router.get("/api/auth/sessions", dependencies=[Depends(require_user)])
 async def list_sessions(request: Request) -> dict[str, Any]:
     """List the current user's active sessions."""
     result = require_user(request)
@@ -467,7 +467,7 @@ class MFAEnableRequest(BaseModel):
     code: str
 
 
-@router.post("/api/auth/mfa/setup")
+@router.post("/api/auth/mfa/setup", dependencies=[Depends(require_user)])
 async def mfa_setup(request: Request) -> dict[str, Any]:
     """Generate a TOTP secret + QR code URL for MFA setup."""
     result = require_user(request)
@@ -479,7 +479,7 @@ async def mfa_setup(request: Request) -> dict[str, Any]:
     return {"secret": secret, "otpauth_uri": otpauth_uri}
 
 
-@router.post("/api/auth/mfa/enable")
+@router.post("/api/auth/mfa/enable", dependencies=[Depends(require_user)])
 async def mfa_enable(req: MFAEnableRequest, request: Request) -> dict[str, Any]:
     """Verify the code and enable MFA."""
     result = require_user(request)
@@ -501,7 +501,7 @@ async def mfa_enable(req: MFAEnableRequest, request: Request) -> dict[str, Any]:
     return {"ok": True, "backup_codes": backup_codes}
 
 
-@router.post("/api/auth/mfa/disable")
+@router.post("/api/auth/mfa/disable", dependencies=[Depends(require_user)])
 async def mfa_disable(request: Request) -> dict[str, Any]:
     """Disable MFA."""
     result = require_user(request)
@@ -512,7 +512,7 @@ async def mfa_disable(request: Request) -> dict[str, Any]:
     return {"ok": True}
 
 
-@router.post("/api/auth/mfa/backup-codes")
+@router.post("/api/auth/mfa/backup-codes", dependencies=[Depends(require_user)])
 async def mfa_backup_codes(request: Request) -> dict[str, Any]:
     """Generate new backup codes (invalidates old ones)."""
     result = require_user(request)
@@ -528,7 +528,7 @@ async def mfa_backup_codes(request: Request) -> dict[str, Any]:
 
 # ─── Admin: users, roles, audit ───
 
-@router.get("/api/auth/users")
+@router.get("/api/auth/users", dependencies=[Depends(require_admin)])
 async def list_users(request: Request) -> dict[str, Any]:
     """List all users (admin only)."""
     require_admin(request)
@@ -557,7 +557,7 @@ class AssignRoleRequest(BaseModel):
     scope_org_id: str | None = None
 
 
-@router.post("/api/auth/users/{user_id}/roles")
+@router.post("/api/auth/users/{user_id}/roles", dependencies=[Depends(require_admin)])
 async def assign_role(user_id: str, req: AssignRoleRequest, request: Request) -> dict[str, Any]:
     """Assign a role to a user (admin only)."""
     admin = require_admin(request)
@@ -570,7 +570,7 @@ async def assign_role(user_id: str, req: AssignRoleRequest, request: Request) ->
     return {"ok": True}
 
 
-@router.delete("/api/auth/users/{user_id}/roles/{role}")
+@router.delete("/api/auth/users/{user_id}/roles/{role}", dependencies=[Depends(require_admin)])
 async def revoke_role(user_id: str, role: str, request: Request) -> dict[str, Any]:
     """Revoke a role from a user (admin only)."""
     admin = require_admin(request)
@@ -581,7 +581,7 @@ async def revoke_role(user_id: str, role: str, request: Request) -> dict[str, An
     return {"ok": True}
 
 
-@router.get("/api/auth/roles")
+@router.get("/api/auth/roles", dependencies=[Depends(require_admin)])
 async def list_roles(request: Request) -> dict[str, Any]:
     """List all available roles."""
     store = get_auth_store()
@@ -598,7 +598,7 @@ async def list_roles(request: Request) -> dict[str, Any]:
     }
 
 
-@router.get("/api/auth/audit")
+@router.get("/api/auth/audit", dependencies=[Depends(require_admin)])
 async def list_audit(request: Request, limit: int = 100, event_type: str | None = None) -> dict[str, Any]:
     """List audit events (admin only)."""
     require_admin(request)
@@ -609,7 +609,7 @@ async def list_audit(request: Request, limit: int = 100, event_type: str | None 
 
 # ─── SOC2 monitoring endpoints ───
 
-@router.get("/api/auth/soc2/access-review")
+@router.get("/api/auth/soc2/access-review", dependencies=[Depends(require_admin)])
 async def soc2_access_review(request: Request) -> dict[str, Any]:
     """Generate an access review report for SOC2 auditors (admin only)."""
     require_admin(request)
@@ -619,7 +619,7 @@ async def soc2_access_review(request: Request) -> dict[str, Any]:
     return monitor.access_review()
 
 
-@router.get("/api/auth/soc2/change-log")
+@router.get("/api/auth/soc2/change-log", dependencies=[Depends(require_admin)])
 async def soc2_change_log(request: Request, limit: int = 100) -> dict[str, Any]:
     """Recent role/permission changes for SOC2 change management (admin only)."""
     require_admin(request)
@@ -630,7 +630,7 @@ async def soc2_change_log(request: Request, limit: int = 100) -> dict[str, Any]:
     return {"events": events, "count": len(events)}
 
 
-@router.get("/api/auth/soc2/sessions")
+@router.get("/api/auth/soc2/sessions", dependencies=[Depends(require_admin)])
 async def soc2_session_inventory(request: Request) -> dict[str, Any]:
     """Active session inventory for SOC2 monitoring (admin only)."""
     require_admin(request)
@@ -640,7 +640,7 @@ async def soc2_session_inventory(request: Request) -> dict[str, Any]:
     return monitor.session_inventory()
 
 
-@router.get("/api/auth/soc2/posture")
+@router.get("/api/auth/soc2/posture", dependencies=[Depends(require_admin)])
 async def soc2_security_posture(request: Request) -> dict[str, Any]:
     """Security posture summary for SOC2 monitoring (admin only)."""
     require_admin(request)
@@ -650,7 +650,7 @@ async def soc2_security_posture(request: Request) -> dict[str, Any]:
     return monitor.security_posture()
 
 
-@router.post("/api/auth/soc2/cleanup-sessions")
+@router.post("/api/auth/soc2/cleanup-sessions", dependencies=[Depends(require_admin)])
 async def soc2_cleanup_sessions(request: Request) -> dict[str, Any]:
     """Manually trigger expired session cleanup (admin only)."""
     require_admin(request)
@@ -756,7 +756,7 @@ async def scim_delete_user(user_id: str, request: Request) -> Response:
 # AUDIT_READ permission when auth is enabled) and gives enterprises
 # a machine-readable checklist for their compliance review.
 
-@router.get("/api/auth/soc2-checklist")
+@router.get("/api/auth/soc2-checklist", dependencies=[Depends(require_admin)])
 def soc2_checklist():
     """SOC2 Trust Service Criteria compliance checklist.
 

@@ -34,6 +34,13 @@ PUBLIC_EXACT = {
     "/api/auth/status",
     "/api/auth/login",
     "/api/oauth/callback",  # OAuth redirect target — provider redirects here
+    "/api/auth/oidc/providers",  # IdP discovery pre-login
+    "/api/auth/oidc/{provider}/login",  # OIDC handshake start
+    "/api/auth/oidc/{provider}/callback",  # IdP redirect callback
+    "/api/auth/saml/providers",  # SAML IdP discovery pre-login
+    "/api/auth/saml/{provider}/login",  # SAML handshake start
+    "/api/auth/saml/{provider}/acs",  # SAML assertion consumer
+    "/api/auth/saml/metadata",  # SP metadata must be publicly retrievable
     "/status",  # HTML status page for health checks
     "/docs",
     "/openapi.json",
@@ -198,23 +205,11 @@ def test_non_public_api_routes_have_auth_dependency_guard(app) -> None:
     except Exception:
         pass
 
-    # Routes that rely on middleware (not per-route deps) — tracked as known gap.
-    KNOWN_MIDDLEWARE_ROUTES = {
-        "/api/auth/refresh", "/api/auth/logout", "/api/auth/me", "/api/auth/sessions",
-        "/api/auth/oidc/providers", "/api/auth/oidc/{provider}/login",
-        "/api/auth/oidc/{provider}/callback",
-        "/api/auth/saml/providers", "/api/auth/saml/{provider}/login",
-        "/api/auth/saml/{provider}/acs", "/api/auth/saml/metadata",
-        "/api/auth/mfa/setup", "/api/auth/mfa/enable", "/api/auth/mfa/disable",
-        "/api/auth/mfa/backup-codes",
-        "/api/auth/users", "/api/auth/users/{user_id}/roles",
-        "/api/auth/users/{user_id}/roles/{role}",
-        "/api/auth/roles", "/api/auth/audit",
-        "/api/auth/soc2-checklist", "/api/auth/soc2/access-review",
-        "/api/auth/soc2/change-log", "/api/auth/soc2/cleanup-sessions",
-        "/api/auth/soc2/posture", "/api/auth/soc2/sessions",
-        "/api/doctor", "/api/models",
-    }
+    # All 28 previously-middleware-only routes have been migrated to explicit
+    # per-route dependencies. This set is intentionally EMPTY — if any route
+    # is added here, it means a new middleware-only route was introduced and
+    # must be migrated. CI fails if this set is non-empty.
+    KNOWN_MIDDLEWARE_ROUTES: set[str] = set()
 
     for route in _iter_api_routes(app):
         if _is_public_path(route.path):

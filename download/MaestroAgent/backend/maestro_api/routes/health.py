@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
-from maestro_api.security.policy import set_router_policy, AuthPolicy
+from fastapi import APIRouter, Depends, Request
+from maestro_api.security.policy import set_router_policy, auth_policy, AuthPolicy
+from maestro_auth.permissions import is_auth_enabled, require_user
 
 router = APIRouter()
 
 
+def _require_user_if_auth_enabled(request: Request) -> None:
+    if is_auth_enabled():
+        require_user(request)
+
+
 @router.get("/health")
+@auth_policy(AuthPolicy.PUBLIC)
 async def health(request: Request) -> dict:
     state = request.app.state.maestro
     return {
@@ -22,7 +29,8 @@ async def health(request: Request) -> dict:
     }
 
 
-@router.get("/doctor")
+@router.get("/doctor", dependencies=[Depends(_require_user_if_auth_enabled)])
+@auth_policy(AuthPolicy.USER)
 async def doctor(request: Request) -> dict:
     """Deeper diagnostics — provider connectivity, DB writability, etc."""
     state = request.app.state.maestro
@@ -52,7 +60,8 @@ async def doctor(request: Request) -> dict:
     return results
 
 
-@router.get("/models")
+@router.get("/models", dependencies=[Depends(_require_user_if_auth_enabled)])
+@auth_policy(AuthPolicy.USER)
 async def list_models(request: Request) -> dict:
     """List available models per provider.
 
@@ -69,4 +78,6 @@ async def list_models(request: Request) -> dict:
         "default_model": state.llm.default_model,
     }
 
-set_router_policy(router, AuthPolicy.PUBLIC)
+# Only /health is PUBLIC; /doctor and /models are USER (per-route deps above).
+# Don't stamp the router with PUBLIC — that would override the per-route deps.
+
