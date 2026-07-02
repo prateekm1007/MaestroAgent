@@ -182,13 +182,13 @@ function openCommandPalette() {
     palette.className = 'fixed inset-0 z-50';
     palette.style.cssText = 'display:flex;align-items:flex-start;justify-content:center;padding-top:120px;background:rgba(0,0,0,0.5);';
     palette.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--divider);border-radius:12px;width:480px;max-height:400px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+      <div class="auto-bg-surface-border-default-rad12-w480">
         <input type="text" id="command-palette-input" placeholder="Search surfaces…"
-               style="width:100%;padding:16px 20px;background:transparent;border:none;border-bottom:1px solid var(--divider);color:var(--text-primary);font-size:15px;outline:none;font-family:'Montserrat',sans-serif;"
+               class="auto-w-full-p1620-bg-transparent-border-none"
                aria-label="Search surfaces"
                oninput="filterCommandPalette(this.value)"
                onkeydown="handlePaletteKeydown(event)">
-        <div id="command-palette-results" style="flex:1;overflow-y:auto;padding:8px;"></div>
+        <div id="command-palette-results" class="auto-flex-1-u-7ac6-p8"></div>
       </div>
     `;
     palette.addEventListener('click', (e) => {
@@ -214,14 +214,14 @@ function renderPaletteResults(surfaces) {
   const results = document.getElementById('command-palette-results');
   if (!results) return;
   if (surfaces.length === 0) {
-    results.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:14px;">No surfaces found</div>';
+    results.innerHTML = '<div class="auto-p20-text-center-text-muted-fs14">No surfaces found</div>';
     return;
   }
   let currentGroup = '';
   results.innerHTML = surfaces.map(s => {
-    const groupHeader = s.group !== currentGroup ? `<div style="padding:8px 16px 4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">${escapeHtml(s.group)}</div>` : '';
+    const groupHeader = s.group !== currentGroup ? `<div class="auto-p8164-fs10-fw600-tt-uppercase">${escapeHtml(s.group)}</div>` : '';
     currentGroup = s.group;
-    return groupHeader + `<div class="palette-result" style="padding:10px 16px;cursor:pointer;border-radius:6px;font-size:14px;color:var(--text-primary);transition:background 150ms;" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='transparent'" onclick="navTo('${escapeJs(s.id)}');closeCommandPalette();">${escapeHtml(s.label)}</div>`;
+    return groupHeader + `<div class="palette-result" class="auto-p1016-cursor-pointer-rad6-fs14" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='transparent'" onclick="navTo('${escapeJs(s.id)}');closeCommandPalette();">${escapeHtml(s.label)}</div>`;
   }).join('');
 }
 

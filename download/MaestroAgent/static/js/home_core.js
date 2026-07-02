@@ -229,7 +229,7 @@ function renderECCHayek(knowledge) {
     <div class="card mb-2 cursor-pointer hover:bg-white/[0.02]" onclick="openDrilldown('risk', '${escapeJs(r.domain)}')">
       <div class="text-sm font-semibold text-white">${escapeHtml(r.domain)}</div>
       <div class="text-[11px] text-fg-400 mt-1">Concentration: <span class="mono text-brand-rose">${r.score.toFixed(2)}</span></div>
-      <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${Math.min(r.score*10,100)}%;background:#ff5577;"></div></div></div>
+      <div class="conf-bar mt-2"><div class="conf-bar-track"><div class="conf-bar-fill" class="auto-wmathminrscore10100p-bg-58b7"></div></div></div>
       <div class="text-[10px] text-fg-600 mt-1">Click for evidence, people, prediction →</div>
     </div>`).join('')}</div>`;
 }
@@ -290,7 +290,7 @@ function renderECCSimulator(sim) {
       </div>
       <div class="grid grid-cols-2 gap-4 pt-3 border-t border-white/[0.05]">
         <div><div class="text-[10px] uppercase text-fg-500">Recommendation</div><div class="text-sm text-brand-cyan mt-1">${escapeHtml(s.recommendation)}</div></div>
-        <div><div class="text-[10px] uppercase text-fg-500">Confidence</div><div class="conf-bar mt-1"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${s.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(s.confidence)}</span></div></div>
+        <div><div class="text-[10px] uppercase text-fg-500">Confidence</div><div class="conf-bar mt-1"><div class="conf-bar-track"><div class="conf-bar-fill" class="auto-wsconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidence(s.confidence)}</span></div></div>
       </div>
       <div class="pt-3 border-t border-white/[0.05]">
         <div class="text-[10px] uppercase text-fg-500 font-semibold mb-1">Current Health</div>
@@ -353,7 +353,7 @@ function renderECCAsk() {
         <input type="text" class="ask-input w-full" placeholder="Ask anything about your organization..." id="ecc-ask-input" oninput="onECCAskInput(this.value)" onkeydown="if(event.key==='Enter'){submitECCAsk()}" aria-label="Ask the organization">
         <div id="ecc-ask-autocomplete" class="exec-autocomplete"></div>
       </div>
-      <div id="ecc-ask-answer" style="display:none;" class="space-y-3">
+      <div id="ecc-ask-answer" class="auto-hidden" class="space-y-3">
         <div class="text-[11px] text-fg-400" id="ecc-ask-answer-text"></div>
         <div id="ecc-ask-citations" class="flex flex-wrap gap-1"></div>
         <div id="ecc-ask-path" class="text-[10px] text-fg-600"></div>

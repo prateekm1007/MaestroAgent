@@ -31,7 +31,7 @@ async function loadAssumptions() {
 function renderDangerousAssumptions(container, assumptions) {
   if (!assumptions.length) {
     container.innerHTML = `<div class="ds-empty">
-      <div style="font-size:14px;color:var(--ds-text-primary);margin-bottom:6px;">No dangerous assumptions detected.</div>
+      <div class="auto-fs14-text-primary-mb6">No dangerous assumptions detected.</div>
       <div>Dangerous assumptions are open, high-stakes, and unvalidated — the ones that could bankrupt a project if wrong. They surface automatically as the OEM ingests decision signals.</div>
     </div>`;
     return;
@@ -47,7 +47,7 @@ function renderDangerousAssumptions(container, assumptions) {
 
     return `
       <div class="ds-card" data-assumption-id="${escapeHtml(a.assumption_id)}">
-        <div class="ds-row-between" style="margin-bottom:10px;">
+        <div class="ds-row-between" class="auto-mb10">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(status)}</span>
             <span class="ds-tag ds-tag-${stakesClass}">${escapeHtml(stakes)} stakes</span>
@@ -55,27 +55,27 @@ function renderDangerousAssumptions(container, assumptions) {
           ${a.created_at ? `<span class="ds-meta">${formatTimestamp(a.created_at)}</span>` : ''}
         </div>
 
-        <div style="font-size:14px;color:var(--ds-text-primary);line-height:1.55;margin-bottom:10px;">${escapeHtml(humanize(a.statement))}</div>
+        <div class="auto-fs14-text-primary-lh155-mb10">${escapeHtml(humanize(a.statement))}</div>
 
-        ${a.context ? `<div class="ds-meta" style="margin-bottom:10px;">${escapeHtml(humanize(a.context))}</div>` : ''}
+        ${a.context ? `<div class="ds-meta" class="auto-mb10">${escapeHtml(humanize(a.context))}</div>` : ''}
 
-        ${a.intent_id ? `<div class="ds-meta" style="margin-bottom:10px;">Supports: <span class="ds-meta-strong">intent ${escapeHtml(a.intent_id.substring(0, 16))}…</span></div>` : ''}
+        ${a.intent_id ? `<div class="ds-meta" class="auto-mb10">Supports: <span class="ds-meta-strong">intent ${escapeHtml(a.intent_id.substring(0, 16))}…</span></div>` : ''}
 
-        <div class="ds-row" style="gap:14px;margin-bottom:10px;">
+        <div class="ds-row" class="auto-gap14-mb10">
           <span class="ds-meta">${supportingCount} supporting</span>
           <span class="ds-meta">${contradictingCount} contradicting</span>
           ${contradictingCount === 0 && supportingCount === 0 ? `<span class="ds-tag ds-tag-uncertain">unvalidated</span>` : ''}
         </div>
 
         ${contradictingCount > 0 ? `
-          <div style="margin-bottom:10px;padding:8px 10px;background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.15);border-radius:6px;">
-            <div class="ds-cascade-label" style="color:var(--ds-risk);">Evidence contradicts this assumption</div>
-            <div class="ds-meta" style="margin-top:2px;">${contradictingCount} signal${contradictingCount === 1 ? '' : 's'} suggest this assumption may be wrong</div>
+          <div class="auto-mb10-p810-bg-9876-bd-39ca">
+            <div class="ds-cascade-label" class="auto-text-risk">Evidence contradicts this assumption</div>
+            <div class="ds-meta" class="auto-mt2">${contradictingCount} signal${contradictingCount === 1 ? '' : 's'} suggest this assumption may be wrong</div>
           </div>
         ` : ''}
 
         ${status === 'open' ? `
-          <div class="ds-row" style="gap:6px;">
+          <div class="ds-row" class="auto-gap6">
             <button class="ds-btn ds-btn-positive ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'validated')">Mark as validated</button>
             <button class="ds-btn ds-btn-risk ds-btn-small" onclick="resolveAssumption('${escapeJs(a.assumption_id)}', 'invalidated')">Invalidate</button>
             <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View in cascade</button>
@@ -136,37 +136,37 @@ function renderAssumptionAccuracy(container, report) {
 
   container.innerHTML = `
     <div class="ds-card">
-      <div style="font-size:14px;font-weight:500;color:var(--ds-text-primary);margin-bottom:14px;">Assumption accuracy report</div>
-      <div class="ds-row" style="gap:24px;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="auto-fs14-fw500-text-primary-mb14">Assumption accuracy report</div>
+      <div class="ds-row" class="auto-gap24-u-9012-mb14">
         <div>
           <div class="ds-meta">Total</div>
-          <div style="font-family:var(--ds-font-mono);font-size:22px;color:var(--ds-text-primary);">${total}</div>
+          <div class="auto-fs22-text-primary">${total}</div>
         </div>
         <div>
           <div class="ds-meta">Validated</div>
-          <div style="font-family:var(--ds-font-mono);font-size:22px;color:var(--ds-positive);">${validated}</div>
+          <div class="auto-fs22-text-positive">${validated}</div>
         </div>
         <div>
           <div class="ds-meta">Invalidated</div>
-          <div style="font-family:var(--ds-font-mono);font-size:22px;color:var(--ds-risk);">${invalidated}</div>
+          <div class="auto-fs22-text-risk">${invalidated}</div>
         </div>
         <div>
           <div class="ds-meta">Still open</div>
-          <div style="font-family:var(--ds-font-mono);font-size:22px;color:var(--ds-warning);">${open}</div>
+          <div class="auto-fs22-text-warning">${open}</div>
         </div>
         <div>
           <div class="ds-meta">Accuracy rate</div>
-          <div style="font-family:var(--ds-font-mono);font-size:22px;color:var(--ds-secondary);">${accuracyRate != null ? (accuracyRate * 100).toFixed(0) + '%' : '—'}</div>
+          <div class="auto-fs22-clr-c07c">${accuracyRate != null ? (accuracyRate * 100).toFixed(0) + '%' : '—'}</div>
         </div>
       </div>
       ${report.most_costly_when_wrong && report.most_costly_when_wrong.length ? `
-        <div style="margin-top:16px;">
+        <div class="auto-mt16">
           <div class="ds-cascade-label">Most costly when wrong</div>
-          <div class="ds-stack" style="margin-top:8px;">
+          <div class="ds-stack" class="auto-mt8">
             ${report.most_costly_when_wrong.slice(0, 5).map(a => `
-              <div class="ds-card" style="padding:10px 12px;">
-                <div style="font-size:13px;color:var(--ds-text-primary);">${escapeHtml(humanize(a.statement))}</div>
-                <div class="ds-meta" style="margin-top:4px;">${escapeHtml(a.stakes || 'medium')} stakes · ${escapeHtml(a.status || 'resolved')}</div>
+              <div class="ds-card" class="auto-p1012">
+                <div class="auto-fs13-text-primary">${escapeHtml(humanize(a.statement))}</div>
+                <div class="ds-meta" class="auto-mt4">${escapeHtml(a.stakes || 'medium')} stakes · ${escapeHtml(a.status || 'resolved')}</div>
               </div>
             `).join('')}
           </div>

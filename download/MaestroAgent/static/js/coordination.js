@@ -17,34 +17,34 @@ async function loadCoordination() {
     const requests = (all.requests || []);
     renderCoordinationSurface(el, requests);
   } catch (e) {
-    el.innerHTML = `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-      <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">Coordination Engine</div>
-      <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">Failed to load: ${escapeHtml(e.message)}</div>
+    el.innerHTML = `<div class="calm-empty" class="auto-text-center-p4820">
+      <div class="auto-fs16-fw700-text-primary-2">Coordination Engine</div>
+      <div class="auto-fs13-text-muted-mt4">Failed to load: ${escapeHtml(e.message)}</div>
     </div>`;
   }
 }
 
 function renderCoordinationSurface(el, requests) {
-  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+  let html = `<div class="auto-mw700-m0auto">`;
 
   // Header
   html += `
-    <div style="margin-bottom:20px;">
-      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));">Coordination Engine</div>
-      <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">Coordinate multi-team input for decisions without scheduling a meeting.</div>
+    <div class="auto-mb20">
+      <div class="auto-fs18-fw800-text-primary">Coordination Engine</div>
+      <div class="auto-fs13-text-muted-mt4">Coordinate multi-team input for decisions without scheduling a meeting.</div>
     </div>
   `;
 
   // Initiate form
   html += `
-    <div class="maestro-card" style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:700;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;">Initiate a coordination request</div>
+    <div class="maestro-card" class="auto-mb20">
+      <div class="auto-fs14-fw700-text-primary-mb12">Initiate a coordination request</div>
       <input type="text" class="maestro-input" id="coord-decision-input"
              placeholder="e.g., Standardize OAuth across all services"
              onkeydown="if(event.key==='Enter') initiateCoordination()"
-             style="width:100%;padding:10px 14px;background:var(--maestro-gray-light,#F5F5F5);border:1px solid var(--divider,#E5E5E5);border-radius:8px;color:var(--maestro-black,var(--text-primary));font-size:14px;font-family:'Montserrat',sans-serif;outline:none;margin-bottom:12px;" />
+             class="auto-w-full-p1014-bg-muted-border-default" />
       <button class="maestro-btn maestro-btn-full" id="coord-initiate-btn"
-              style="font-size:14px;min-height:44px;">
+              class="auto-fs14-minh44">
         Initiate coordination
       </button>
     </div>
@@ -52,7 +52,7 @@ function renderCoordinationSurface(el, requests) {
 
   // Active requests
   if (requests.length > 0) {
-    html += `<div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;">Active requests (${requests.length})</div>`;
+    html += `<div class="auto-fs14-fw800-text-primary-mb12">Active requests (${requests.length})</div>`;
     requests.forEach(req => {
       const status = req.status || 'open';
       const statusColor = status === 'synthesized' ? 'var(--maestro-success,#00C853)' : 'var(--maestro-warning,#FF9800)';
@@ -60,12 +60,12 @@ function renderCoordinationSurface(el, requests) {
       const responseCount = (req.responses || []).length;
 
       html += `
-        <div class="maestro-card" style="margin-bottom:12px;cursor:pointer;" data-action="viewCoordination" data-args='["${escapeJs(req.request_id)}"]'>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-            <div style="flex:1;">
-              <div style="display:inline-block;padding:3px 10px;border-radius:999px;background:${statusColor}20;color:${statusColor};font-size:11px;font-weight:800;margin-bottom:8px;text-transform:uppercase;">${escapeHtml(status)}</div>
-              <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;">${escapeHtml(humanize(req.decision || ''))}</div>
-              <div style="display:flex;gap:12px;margin-top:6px;font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));font-weight:600;">
+        <div class="maestro-card" class="auto-mb12-cursor-pointer" data-action="viewCoordination" data-args='["${escapeJs(req.request_id)}"]'>
+          <div class="auto-flex-u-daae-u-b505-gap12">
+            <div class="auto-flex-1">
+              <div class="auto-inline-block-p310-rad999-bg-98ab">${escapeHtml(status)}</div>
+              <div class="auto-fs15-fw700-text-primary-lh14">${escapeHtml(humanize(req.decision || ''))}</div>
+              <div class="auto-flex-gap12-mt6-fs12">
                 <span>👥 ${teamCount} team${teamCount === 1 ? '' : 's'}</span>
                 <span>💬 ${responseCount} response${responseCount === 1 ? '' : 's'}</span>
               </div>
@@ -76,16 +76,16 @@ function renderCoordinationSurface(el, requests) {
     });
   } else {
     html += `
-      <div class="calm-empty" style="text-align:center;padding:32px 20px;">
-        <div style="font-size:16px;font-weight:700;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">No coordination requests yet.</div>
-        <div style="font-size:13px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">Initiate one above to coordinate multi-team input for a decision.</div>
+      <div class="calm-empty" class="auto-text-center-p3220">
+        <div class="auto-fs16-fw700-text-primary-2">No coordination requests yet.</div>
+        <div class="auto-fs13-text-muted-mt4">Initiate one above to coordinate multi-team input for a decision.</div>
       </div>
     `;
   }
 
   // Withdrawal path
   html += `
-    <div style="margin-top:24px;padding:12px 16px;background:var(--maestro-gray-light,#F5F5F5);border-radius:8px;font-size:12px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.5;">
+    <div class="auto-mt24-p1216-bg-muted-rad8">
       <strong>Withdrawal path:</strong> You can make decisions without coordination — schedule a meeting instead. This tool saves time; without it, you are slower but functional.
     </div>
   `;
@@ -131,28 +131,28 @@ async function viewCoordination(requestId) {
 }
 
 function renderCoordinationDetail(el, req) {
-  let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+  let html = `<div class="auto-mw700-m0auto">`;
 
   // Back button
-  html += `<button class="maestro-btn maestro-btn-ghost" style="font-size:13px;min-height:36px;margin-bottom:16px;" id="coord-back-btn">← Back to coordination</button>`;
+  html += `<button class="maestro-btn maestro-btn-ghost" class="auto-fs13-minh36-mb16" id="coord-back-btn">← Back to coordination</button>`;
 
   // Decision
   html += `
-    <div style="margin-bottom:20px;">
-      <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));">${escapeHtml(humanize(req.decision || ''))}</div>
-      <div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;">Initiated by ${escapeHtml(req.initiated_by || 'CEO')} · ${escapeHtml(req.created_at || '')}</div>
+    <div class="auto-mb20">
+      <div class="auto-fs18-fw800-text-primary">${escapeHtml(humanize(req.decision || ''))}</div>
+      <div class="auto-fs12-text-muted-mt4">Initiated by ${escapeHtml(req.initiated_by || 'CEO')} · ${escapeHtml(req.created_at || '')}</div>
     </div>
   `;
 
   // Affected teams
   const teams = req.affected_teams || [];
   if (teams.length > 0) {
-    html += `<div style="font-size:14px;font-weight:800;margin-bottom:12px;">Affected teams (${teams.length})</div>`;
+    html += `<div class="auto-fs14-fw800-mb12">Affected teams (${teams.length})</div>`;
     teams.forEach(team => {
       html += `
-        <div class="maestro-card" style="margin-bottom:8px;padding:10px 14px;">
-          <div style="font-size:14px;font-weight:700;color:var(--maestro-black,var(--text-primary));">${escapeHtml(team.team || team)}</div>
-          <div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:2px;">${escapeHtml((team.domains || []).join(', '))}</div>
+        <div class="maestro-card" class="auto-mb8-p1014">
+          <div class="auto-fs14-fw700-text-primary">${escapeHtml(team.team || team)}</div>
+          <div class="auto-fs12-text-muted-mt2">${escapeHtml((team.domains || []).join(', '))}</div>
         </div>
       `;
     });
@@ -161,14 +161,14 @@ function renderCoordinationDetail(el, req) {
   // Contacts
   const contacts = req.contacts || [];
   if (contacts.length > 0) {
-    html += `<div style="font-size:14px;font-weight:800;margin-top:20px;margin-bottom:12px;">Contacts (${contacts.length})</div>`;
+    html += `<div class="auto-fs14-fw800-mt20-mb12">Contacts (${contacts.length})</div>`;
     contacts.forEach(c => {
       html += `
-        <div class="maestro-card" style="margin-bottom:8px;padding:10px 14px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="maestro-card" class="auto-mb8-p1014">
+          <div class="auto-flex-u-daae-u-1e2c">
             <div>
-              <div style="font-size:14px;font-weight:700;color:var(--maestro-black,var(--text-primary));">${escapeHtml(c.email || '')}</div>
-              <div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));">${escapeHtml(c.team || '')} · ${escapeHtml(c.role || '')}</div>
+              <div class="auto-fs14-fw700-text-primary">${escapeHtml(c.email || '')}</div>
+              <div class="auto-fs12-text-muted">${escapeHtml(c.team || '')} · ${escapeHtml(c.role || '')}</div>
             </div>
           </div>
         </div>
@@ -179,12 +179,12 @@ function renderCoordinationDetail(el, req) {
   // Responses
   const responses = req.responses || [];
   if (responses.length > 0) {
-    html += `<div style="font-size:14px;font-weight:800;margin-top:20px;margin-bottom:12px;">Responses (${responses.length})</div>`;
+    html += `<div class="auto-fs14-fw800-mt20-mb12">Responses (${responses.length})</div>`;
     responses.forEach(r => {
       html += `
-        <div class="maestro-card" style="margin-bottom:8px;padding:12px 14px;border-left:4px solid var(--maestro-yellow,#FFC629);">
-          <div style="font-size:13px;font-weight:700;color:var(--maestro-black,var(--text-primary));">${escapeHtml(r.from || '')} — ${escapeHtml(r.team || '')}</div>
-          <div style="font-size:13px;color:var(--maestro-gray-dark,var(--text-secondary));margin-top:4px;line-height:1.5;">${escapeHtml(humanize(r.response || ''))}</div>
+        <div class="maestro-card" class="auto-mb8-p1214-u-61ed">
+          <div class="auto-fs13-fw700-text-primary">${escapeHtml(r.from || '')} — ${escapeHtml(r.team || '')}</div>
+          <div class="auto-fs13-text-secondary-mt4-lh15">${escapeHtml(humanize(r.response || ''))}</div>
         </div>
       `;
     });
@@ -193,22 +193,22 @@ function renderCoordinationDetail(el, req) {
   // Synthesis
   if (req.synthesis) {
     html += `
-      <div style="margin-top:24px;padding:16px;background:var(--maestro-yellow-light,#FFF4D1);border-radius:12px;">
-        <div style="font-size:14px;font-weight:800;color:var(--maestro-yellow-dark,#F0B500);margin-bottom:8px;">Synthesized recommendation</div>
-        <div style="font-size:14px;color:var(--maestro-black,var(--text-primary));line-height:1.55;">${escapeHtml(humanize(req.synthesis.recommendation || ''))}</div>
-        ${req.synthesis.consensus ? `<div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:8px;">Consensus: ${Math.round(req.synthesis.consensus * 100)}%</div>` : ''}
+      <div class="auto-mt24-p16-bg-accent-rad12">
+        <div class="auto-fs14-fw800-text-accent-mb8">Synthesized recommendation</div>
+        <div class="auto-fs14-text-primary-lh155">${escapeHtml(humanize(req.synthesis.recommendation || ''))}</div>
+        ${req.synthesis.consensus ? `<div class="auto-fs12-text-muted-mt8">Consensus: ${Math.round(req.synthesis.consensus * 100)}%</div>` : ''}
       </div>
     `;
   }
 
   // Response form
   html += `
-    <div class="maestro-card" style="margin-top:20px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Add a response</div>
+    <div class="maestro-card" class="auto-mt20">
+      <div class="auto-fs14-fw700-mb12">Add a response</div>
       <textarea id="coord-response-input" placeholder="Enter your team's input on this decision…"
-                style="width:100%;min-height:80px;padding:10px 14px;background:var(--maestro-gray-light,#F5F5F5);border:1px solid var(--divider,#E5E5E5);border-radius:8px;color:var(--maestro-black,var(--text-primary));font-size:14px;font-family:'Montserrat',sans-serif;outline:none;margin-bottom:12px;resize:vertical;"></textarea>
+                class="auto-w-full-minh80-p1014-bg-muted"></textarea>
       <button class="maestro-btn maestro-btn-full" id="coord-respond-btn"
-              style="font-size:14px;min-height:44px;">
+              class="auto-fs14-minh44">
         Submit response
       </button>
     </div>

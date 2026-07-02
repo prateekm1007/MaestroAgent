@@ -1174,5 +1174,22 @@
     });
   }
 </script>
+<!-- Lucide icons — consistent iconography system -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script defer src="/static/js/icons.js"></script>
+<script>
+  // Initialize Lucide icons after DOM loads
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+  // Re-run after surface changes
+  const _origNavTo = window.navTo;
+  if (_origNavTo) {
+    window.navTo = function(surface) {
+      _origNavTo(surface);
+      setTimeout(function() { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+    };
+  }
+</script>
 </body>
 </html>

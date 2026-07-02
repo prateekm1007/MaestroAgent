@@ -124,23 +124,23 @@ async function loadUnifiedMemory() {
     const items = data.items || [];
     const counts = data.counts || {};
 
-    let html = `<div style="max-width:700px;margin:0 auto;font-family:'Montserrat',sans-serif;">`;
+    let html = `<div class="auto-mw700-m0auto">`;
 
     // Header + filter pill container
     html += `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+      <div class="auto-flex-u-daae-u-1e2c-mb16">
         <div>
-          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));">Memory</div>
-          <div style="font-size:12px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:2px;">${counts.all || 0} item${(counts.all || 0) === 1 ? '' : 's'} · most recent first</div>
+          <div class="auto-fs18-fw800-text-primary">Memory</div>
+          <div class="auto-fs12-text-muted-mt2">${counts.all || 0} item${(counts.all || 0) === 1 ? '' : 's'} · most recent first</div>
         </div>
         <div id="filter-pill-container"></div>
       </div>
     `;
 
     if (items.length === 0) {
-      html += `<div class="calm-empty" style="text-align:center;padding:48px 20px;">
-        <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;font-family:'Montserrat',sans-serif;">No memories yet.</div>
-        <div style="font-size:14px;color:var(--maestro-gray-mid,var(--text-muted));">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
+      html += `<div class="calm-empty" class="auto-text-center-p4820">
+        <div class="auto-fs18-fw800-text-primary-mb8">No memories yet.</div>
+        <div class="auto-fs14-text-muted">Connect work tools (Jira, Slack, GitHub) or personal tools (calendar, email) to see your unified memory here.</div>
       </div>`;
     } else {
       items.forEach((item, i) => {
@@ -172,13 +172,13 @@ async function loadUnifiedMemory() {
         }
 
         html += `
-          <div class="maestro-card" style="margin-bottom:12px;position:relative;">
-            <div style="position:absolute;top:14px;right:14px;width:10px;height:10px;border-radius:50%;background:${dotColor};opacity:0.85;" title="${dotTitle}" aria-label="Mode: ${dotTitle}"></div>
-            ${provider ? `<div class="swipe-card-category ${mode === 'work' ? 'decision' : 'habit'}" style="margin-bottom:8px;">${escapeHtml(provider.toUpperCase())}</div>` : ''}
-            <div style="font-size:15px;font-weight:700;color:var(--maestro-black,var(--text-primary));line-height:1.4;">${escapeHtml(humanize(description))}</div>
-            ${actor ? `<div style="font-size:12px;font-weight:600;color:var(--maestro-gray-dark,var(--text-secondary));margin-top:4px;">by ${escapeHtml(humanize(actor))}</div>` : ''}
-            ${domain ? `<div style="font-size:11px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:2px;">${escapeHtml(humanize(domain))}</div>` : ''}
-            ${timeDisplay ? `<div style="font-size:11px;color:var(--maestro-gray-mid,var(--text-muted));margin-top:4px;font-weight:600;">${escapeHtml(timeDisplay)}</div>` : ''}
+          <div class="maestro-card" class="auto-mb12-pos-relative">
+            <div class="auto-pos-absolute-u-853f-u-2f11-w10-2" title="${dotTitle}" aria-label="Mode: ${dotTitle}"></div>
+            ${provider ? `<div class="swipe-card-category ${mode === 'work' ? 'decision' : 'habit'}" class="auto-mb8">${escapeHtml(provider.toUpperCase())}</div>` : ''}
+            <div class="auto-fs15-fw700-text-primary-lh14">${escapeHtml(humanize(description))}</div>
+            ${actor ? `<div class="auto-fs12-fw600-text-secondary-mt4">by ${escapeHtml(humanize(actor))}</div>` : ''}
+            ${domain ? `<div class="auto-fs11-text-muted-mt2">${escapeHtml(humanize(domain))}</div>` : ''}
+            ${timeDisplay ? `<div class="auto-fs11-text-muted-mt4-fw600">${escapeHtml(timeDisplay)}</div>` : ''}
           </div>
         `;
       });

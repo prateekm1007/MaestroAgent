@@ -26,7 +26,7 @@ function initOrgDot() {
   dotContainer.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 12px;border-radius:8px;transition:all var(--ease);';
   dotContainer.innerHTML = `
     <span class="org-dot org-dot-green" id="org-dot" aria-label="Organizational status"></span>
-    <span style="font-size:13px;font-weight:500;color:var(--text-secondary);" id="org-dot-label">All clear</span>
+    <span class="auto-fs13-fw500-text-secondary" id="org-dot-label">All clear</span>
   `;
   dotContainer.addEventListener('click', () => {
     // Clicking the dot navigates to TODAY (the morning brief)

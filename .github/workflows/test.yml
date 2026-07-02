@@ -241,14 +241,14 @@ jobs:
           path: sbom.spdx.json
 
       # ─── CSS audit — inline style budget ───────────────────────────
-      - name: CSS audit — no more than 50 inline styles per JS file
+      - name: CSS audit — no more than 5 inline styles per JS file
         working-directory: download/MaestroAgent
         run: |
           FAIL=0
           for f in static/js/*.js; do
             count=$(grep -c 'style=' "$f" 2>/dev/null || echo 0)
-            if [ "$count" -gt 50 ]; then
-              echo "FAIL: $f has $count inline styles (max 50)"
+            if [ "$count" -gt 5 ]; then
+              echo "FAIL: $f has $count inline styles (max 5)"
               FAIL=1
             fi
           done
@@ -256,4 +256,4 @@ jobs:
             echo "CSS audit failed — too many inline styles. Extract to CSS classes."
             exit 1
           fi
-          echo "CSS audit passed — all files under 50 inline styles."
+          echo "CSS audit passed — all files under 5 inline styles."

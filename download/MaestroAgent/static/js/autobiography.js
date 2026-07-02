@@ -13,7 +13,7 @@ async function loadAutobiography() {
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization's story is still being written.</div>
-      <div style="margin-top:8px;font-size:13px;">As Maestro gathers more history, the chapters will fill in.</div>
+      <div class="auto-mt8-fs13">As Maestro gathers more history, the chapters will fill in.</div>
     </div>`;
   }
 }
@@ -26,10 +26,10 @@ function renderAutobiography(el, data) {
 
   for (const ch of chapters) {
     html += `
-      <div class="story-card" style="margin-bottom:16px;">
-        <div class="intention-label" style="color:var(--accent);margin-bottom:8px;">${escapeHtml(humanize(ch.title || ''))}</div>
+      <div class="story-card" class="auto-mb16">
+        <div class="intention-label" class="auto-text-accent-mb8">${escapeHtml(humanize(ch.title || ''))}</div>
         <div class="story-narrative">${escapeHtml(humanize(ch.narrative || ''))}</div>
-        ${ch.lessons && ch.lessons.length ? `<div class="story-evidence" style="margin-top:8px;">${ch.lessons.map(l => escapeHtml(humanize(l))).join(' · ')}</div>` : ''}
+        ${ch.lessons && ch.lessons.length ? `<div class="story-evidence" class="auto-mt8">${ch.lessons.map(l => escapeHtml(humanize(l))).join(' · ')}</div>` : ''}
       </div>
     `;
   }

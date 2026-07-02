@@ -119,7 +119,7 @@ function renderDrilldownTab(tab) {
          ${pred.outcome ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Predicted Outcome</div><div class="text-sm text-brand-cyan">${escapeHtml(humanize(pred.outcome))}</div></div>` : ''}
          ${pred.detail ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Detail</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.detail))}</div></div>` : ''}
          ${pred.impact ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Impact</div><div class="text-sm text-fg-300">${escapeHtml(humanize(pred.impact))}</div></div>` : ''}
-         ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" style="width:200px;"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${pred.confidence*100}%"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(pred.confidence, { entity: 'prediction', title: pred.outcome })}</span></div></div>` : ''}
+         ${pred.confidence != null ? `<div><div class="text-[10px] uppercase text-fg-500 mb-1">Confidence</div><div class="conf-bar" class="auto-w200"><div class="conf-bar-track"><div class="conf-bar-fill" class="auto-wpredconfidence100p"></div></div><span class="text-brand-cyan font-bold">${formatConfidenceWithWhy(pred.confidence, { entity: 'prediction', title: pred.outcome })}</span></div></div>` : ''}
          ${pred.risk ? `<div><span class="tag tag-rose">${escapeHtml(pred.risk)}</span></div>` : ''}
        </div>`;
   } else if (tab === 'simulation') {
@@ -181,19 +181,19 @@ async function renderSoWhatTab(bodyEl) {
       <div class="ds-stack">
         <div>
           <div class="ds-cascade-label">If ignored</div>
-          <div style="font-size:14px;color:var(--text-primary);line-height:1.6;">${escapeHtml(humanize(data.consequence_if_ignored || ''))}</div>
+          <div class="auto-fs14-text-primary-lh16">${escapeHtml(humanize(data.consequence_if_ignored || ''))}</div>
         </div>
         <div>
           <div class="ds-cascade-label">What to do</div>
-          <div style="font-size:14px;color:var(--text-primary);line-height:1.6;">${escapeHtml(humanize(data.recommended_action || ''))}</div>
+          <div class="auto-fs14-text-primary-lh16">${escapeHtml(humanize(data.recommended_action || ''))}</div>
         </div>
         <div>
           <div class="ds-cascade-label">When it matters</div>
-          <div style="font-size:14px;color:var(--text-primary);">${escapeHtml(humanize(data.time_horizon || ''))}</div>
+          <div class="auto-fs14-text-primary">${escapeHtml(humanize(data.time_horizon || ''))}</div>
         </div>
         <div>
           <div class="ds-cascade-label">How we know</div>
-          <div style="font-size:13px;color:var(--text-secondary);">${escapeHtml(humanize(data.confidence_in_consequence || ''))} · ${data.evidence_count || 0} signals</div>
+          <div class="auto-fs13-text-secondary-2">${escapeHtml(humanize(data.confidence_in_consequence || ''))} · ${data.evidence_count || 0} signals</div>
         </div>
       </div>
     `;
@@ -222,7 +222,7 @@ async function renderPerspectivesTab(bodyEl) {
 
   if (!eventType) {
     bodyEl.innerHTML = `<div class="ds-empty">
-      <div style="font-size:13.5px;color:var(--ds-text-secondary);margin-bottom:6px;">No perspectives available for this entity.</div>
+      <div class="auto-fs135-text-secondary-mb6">No perspectives available for this entity.</div>
       <div>The Perspective Engine supports specific event types (customer commitment broken, objection raised, etc.). This entity doesn't map to a supported event type.</div>
     </div>`;
     return;
@@ -298,12 +298,12 @@ function renderPerspectiveGrid(bodyEl, data) {
   }
 
   bodyEl.innerHTML = `
-    <div style="margin-bottom:14px;">
+    <div class="auto-mb14">
       <div class="ds-cascade-label">Event type</div>
-      <div style="font-family:var(--ds-font-mono);font-size:12.5px;color:var(--ds-secondary);">${escapeHtml(data.event_type)}</div>
+      <div class="auto-fs125-clr-c07c">${escapeHtml(data.event_type)}</div>
     </div>
     <div class="ds-perspective-grid">${rows}</div>
-    <div class="ds-meta" style="margin-top:14px;">Same event, six implications. Each team sees a different risk surface — coordination happens before the decision, not after.</div>
+    <div class="ds-meta" class="auto-mt14">Same event, six implications. Each team sees a different risk surface — coordination happens before the decision, not after.</div>
   `;
 }
 

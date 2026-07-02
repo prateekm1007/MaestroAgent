@@ -35,7 +35,7 @@ function renderPreparedDecisions(container, preps) {
 
   if (!preps.length) {
     container.innerHTML = `<div class="ds-empty">
-      <div style="font-size:13.5px;color:var(--ds-text-secondary);margin-bottom:6px;">No prepared decisions yet.</div>
+      <div class="auto-fs135-text-secondary-mb6">No prepared decisions yet.</div>
       <div>Prepared decisions are assembled automatically from your recommendations — rollback plans, RFC drafts, customer briefs. They appear here when ready for your approval.</div>
     </div>`;
     return;
@@ -50,7 +50,7 @@ function renderPreparedDecisions(container, preps) {
 
     return `
       <div class="ds-card" data-preparation-id="${escapeHtml(p.preparation_id)}">
-        <div class="ds-row-between" style="margin-bottom:8px;">
+        <div class="ds-row-between" class="auto-mb8">
           <div class="ds-row">
             <span class="ds-tag ds-tag-${statusClass}">${escapeHtml(status)}</span>
             <span class="ds-meta">${escapeHtml(p.preparation_type || 'preparation')}</span>
@@ -58,25 +58,25 @@ function renderPreparedDecisions(container, preps) {
           ${p.confidence != null ? `<span class="ds-meta">conf <span class="ds-meta-strong">${formatConfidence(p.confidence)}</span></span>` : ''}
         </div>
 
-        <div style="font-size:14.5px;font-weight:500;color:var(--ds-text-primary);margin-bottom:6px;">${escapeHtml(humanize(p.title))}</div>
+        <div class="auto-fs145-fw500-text-primary-mb6">${escapeHtml(humanize(p.title))}</div>
 
-        ${p.summary ? `<div style="font-size:13px;color:var(--ds-text-secondary);line-height:1.55;margin-bottom:10px;">${escapeHtml(humanize(p.summary))}</div>` : ''}
+        ${p.summary ? `<div class="auto-fs13-text-secondary-lh155-mb10">${escapeHtml(humanize(p.summary))}</div>` : ''}
 
-        <div class="ds-row" style="gap:14px;margin-bottom:10px;flex-wrap:wrap;">
+        <div class="ds-row" class="auto-gap14-mb10-u-9012">
           ${assumptionCount > 0 ? `<span class="ds-meta">${assumptionCount} assumption${assumptionCount === 1 ? '' : 's'}</span>` : ''}
           ${evidenceCount > 0 ? `<span class="ds-meta">${evidenceCount} evidence signal${evidenceCount === 1 ? '' : 's'}</span>` : ''}
           ${p.intent_id ? `<span class="ds-meta">linked intent</span>` : ''}
         </div>
 
         ${p.content ? `
-          <div style="margin-bottom:10px;">
+          <div class="auto-mb10">
             <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="togglePrepContent('${escapeJs(p.preparation_id)}')">Review content</button>
-            <div id="prep-content-${escapeHtml(p.preparation_id)}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--ds-surface-2);border-radius:6px;font-size:12.5px;color:var(--ds-text-secondary);line-height:1.55;white-space:pre-wrap;">${escapeHtml(p.content)}</div>
+            <div id="prep-content-${escapeHtml(p.preparation_id)}" class="auto-hidden-mt8-p1012-bg-surface">${escapeHtml(p.content)}</div>
           </div>
         ` : ''}
 
         ${isReady ? `
-          <div class="ds-row" style="gap:6px;">
+          <div class="ds-row" class="auto-gap6">
             <button class="ds-btn ds-btn-positive ds-btn-small" onclick="approvePreparedDecision('${escapeJs(p.preparation_id)}')">Approve</button>
             <button class="ds-btn ds-btn-risk ds-btn-small" onclick="rejectPreparedDecision('${escapeJs(p.preparation_id)}')">Reject</button>
             ${p.intent_id ? `<button class="ds-btn ds-btn-ghost ds-btn-small" onclick="navTo('intents')">View cascade</button>` : ''}

@@ -104,10 +104,10 @@ function renderFilterPill(containerId) {
   ];
 
   container.innerHTML = `
-    <div style="display:flex;gap:4px;padding:4px;background:var(--maestro-gray-light,#F5F5F5);border-radius:999px;font-family:'Montserrat',sans-serif;">
+    <div class="auto-flex-gap4-p4-bg-muted">
       ${options.map(opt => `
         <button class="maestro-btn ${_currentFilter === opt.value ? '' : 'maestro-btn-ghost'}"
-                style="font-size:12px;min-height:30px;padding:4px 14px;border-radius:999px;font-weight:700;"
+                class="auto-fs12-minh30-p414-rad999"
                 onclick="setCurrentFilter('${opt.value}')"
                 aria-pressed="${_currentFilter === opt.value}">
           ${escapeHtml(opt.label)}
@@ -212,19 +212,19 @@ function _loadIntegrationSettings(el, user) {
   api.getPersonal('/settings/personal-context-in-work?user=' + encodeURIComponent(user)).then(data => {
     const enabled = data.personal_context_in_work;
     el.innerHTML = `
-      <div style="max-width:500px;margin:40px auto;padding:24px;font-family:'Montserrat',sans-serif;">
-        <div style="font-size:20px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:12px;">Personal Context in Work</div>
-        <div style="font-size:14px;color:var(--maestro-gray-dark,var(--text-secondary));line-height:1.55;margin-bottom:20px;">
+      <div class="auto-mw500-m40auto-p24">
+        <div class="auto-fs20-fw800-text-primary-mb12">Personal Context in Work</div>
+        <div class="auto-fs14-text-secondary-lh155-mb20">
           When enabled, your own personal state (sleep, energy, calendar conflicts) appears in Work Mode.
           Maestro never surfaces intelligence about a third party. You can disable this at any time.
         </div>
-        <div style="padding:16px;background:var(--maestro-gray-light,#F5F5F5);border-radius:12px;margin-bottom:20px;">
-          <div style="font-size:13px;font-weight:700;color:var(--maestro-black,var(--text-primary));margin-bottom:8px;">Current state: ${enabled ? 'ON' : 'OFF (default)'}</div>
-          <button class="maestro-btn ${enabled ? 'maestro-btn-ghost' : ''}" style="width:100%;font-size:14px;min-height:44px;" onclick="toggleIntegration(${!enabled})">
+        <div class="auto-p16-bg-muted-rad12-mb20">
+          <div class="auto-fs13-fw700-text-primary-mb8">Current state: ${enabled ? 'ON' : 'OFF (default)'}</div>
+          <button class="maestro-btn ${enabled ? 'maestro-btn-ghost' : ''}" class="auto-w-full-fs14-minh44" onclick="toggleIntegration(${!enabled})">
             ${enabled ? 'Disable' : 'Enable'}
           </button>
         </div>
-        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" style="font-size:13px;" onclick="navTo('today')">Back to Today</button>
+        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" class="auto-fs13" onclick="navTo('today')">Back to Today</button>
       </div>
     `;
   }).catch(() => {

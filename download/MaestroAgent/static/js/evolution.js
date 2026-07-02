@@ -16,7 +16,7 @@ async function loadEvolution() {
   } catch (e) {
     el.innerHTML = `<div class="calm-empty">
       <div>Your organization is still gathering the history needed to measure evolution.</div>
-      <div style="margin-top:8px;font-size:13px;">After 90 days of signals, Maestro will show how decision quality, knowledge mobility, and prediction accuracy have changed.</div>
+      <div class="auto-mt8-fs13">After 90 days of signals, Maestro will show how decision quality, knowledge mobility, and prediction accuracy have changed.</div>
     </div>`;
   }
 }
@@ -45,10 +45,10 @@ function renderEvolutionReport(el, data) {
 
     html += `
       <div class="story-card">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="font-size:20px;color:${color};">${arrow}</span>
-          <span style="font-size:15px;font-weight:500;color:var(--text-primary);text-transform:capitalize;">${escapeHtml(humanName)}</span>
-          <span style="margin-left:auto;font-size:13px;color:${color};font-family:var(--font-mono);">${delta > 0 ? '+' : ''}${(delta * 100).toFixed(0)}%</span>
+        <div class="auto-flex-u-1e2c-gap10-mb8">
+          <span class="auto-fs20-clr-6419">${arrow}</span>
+          <span class="auto-fs15-fw500-text-primary-tt-capitalize">${escapeHtml(humanName)}</span>
+          <span class="auto-mlauto-fs13-clr-6419">${delta > 0 ? '+' : ''}${(delta * 100).toFixed(0)}%</span>
         </div>
         <div class="story-narrative">${escapeHtml(humanize(narrative))}</div>
         <div class="story-evidence">Based on ${evidence} ${evidence === 1 ? 'signal' : 'signals'}</div>
@@ -58,7 +58,7 @@ function renderEvolutionReport(el, data) {
 
   // Caveats
   if (caveats) {
-    html += `<div style="margin-top:24px;padding:16px;border-radius:8px;background:var(--surface-2);border:1px solid var(--divider);font-size:12px;color:var(--text-muted);line-height:1.6;">${escapeHtml(caveats)}</div>`;
+    html += `<div class="auto-mt24-p16-rad8-bg-surface">${escapeHtml(caveats)}</div>`;
   }
 
   html += `</div>`;

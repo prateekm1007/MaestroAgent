@@ -49,26 +49,26 @@ function loadPersonalMode() {
   if (!el) return;
 
   el.innerHTML = `
-    <div style="display:flex;min-height:100vh;">
+    <div class="auto-flex-minh100vh">
       <!-- Personal sidebar (4 items) -->
-      <div style="width:200px;border-right:1px solid var(--divider);padding:20px 0;flex-shrink:0;">
-        <div style="padding:0 20px 20px;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">Personal</div>
+      <div class="auto-w200-u-7690-p200-u-5cd1">
+        <div class="auto-p02020-fs11-tt-uppercase-text-muted">Personal</div>
         ${_personalSurfaces.map(s => `
           <button class="personal-nav-btn" data-surface="${s.id}"
-                  style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;border:none;background:none;cursor:pointer;color:${_personalCurrentSurface === s.id ? 'var(--accent)' : 'var(--text-secondary)'};font-size:14px;text-align:left;font-family:inherit;"
+                  class="auto-flex-u-1e2c-gap10-w-full"
                   onclick="navPersonalSurface('${s.id}')">
             <span>${s.icon}</span>
             <span>${escapeHtml(s.label)}</span>
           </button>
         `).join('')}
-        <div style="margin-top:20px;padding:0 20px;border-top:1px solid var(--divider);padding-top:20px;">
-          <button class="ds-btn ds-btn-ghost ds-btn-small" style="width:100%;" onclick="showWhatMaestroKnows()">
+        <div class="auto-mt20-p020-u-7f83-pt20">
+          <button class="ds-btn ds-btn-ghost ds-btn-small" class="auto-w-full" onclick="showWhatMaestroKnows()">
             What Maestro Knows
           </button>
         </div>
       </div>
       <!-- Main content -->
-      <div style="flex:1;padding:24px;overflow-y:auto;" id="personal-main">
+      <div class="auto-flex-1-p24-u-7ac6" id="personal-main">
         <div class="ds-loading"><span class="spinner"></span> Loading...</div>
       </div>
     </div>
@@ -117,7 +117,7 @@ async function loadPersonalSurface(surfaceId) {
 // ─── Today: briefing + habits + contradictions (Round 47 Block 2.1: swipe cards) ──
 
 async function loadPersonalToday(el) {
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading your morning briefing…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w50"></div></div>';
   try {
     const [briefing, habits, contradictions] = await Promise.all([
       api.getPersonal('/briefing').catch(() => null),
@@ -208,19 +208,19 @@ async function loadPersonalToday(el) {
 
     if (deck.length > 0) {
       html += `
-        <div style="font-size:14px;font-weight:800;color:var(--maestro-black,var(--text-primary));margin-bottom:16px;font-family:'Montserrat',sans-serif;">Your morning</div>
-        <div id="personal-swipe-deck-container" style="position:relative;min-height:400px;max-width:420px;margin:0 auto;">
+        <div class="auto-fs14-fw800-text-primary-mb16">Your morning</div>
+        <div id="personal-swipe-deck-container" class="auto-pos-relative-minh400-mw420-m0auto">
         </div>
-        <div id="personal-swipe-deck-progress" style="text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--maestro-gray-mid,var(--text-muted));font-family:'Montserrat',sans-serif;">
+        <div id="personal-swipe-deck-progress" class="auto-text-center-mt16-fs13-fw700">
           ${deck.length} ${deck.length === 1 ? 'card' : 'cards'}
         </div>
-        <div id="personal-swipe-deck-summary" style="display:none;text-align:center;padding:24px;">
-          <div style="font-size:18px;font-weight:800;color:var(--maestro-black,var(--text-primary));font-family:'Montserrat',sans-serif;">That's your morning.</div>
+        <div id="personal-swipe-deck-summary" class="auto-hidden-text-center-p24">
+          <div class="auto-fs18-fw800-text-primary-2">That's your morning.</div>
         </div>
       `;
     } else {
       html += `
-        <div class="calm-empty" style="text-align:center;padding:48px 20px;">
+        <div class="calm-empty" class="auto-text-center-p4820">
           <div class="calm-empty-icon">☀️</div>
           <div class="calm-empty-title">Good morning.</div>
           <div class="calm-empty-body">Connect a source and I'll brief you tomorrow. I work either way.</div>
@@ -342,32 +342,32 @@ async function loadPersonalMemory(el) {
   let html = '<div class="work-section">';
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Memory Replay</div>
+    <div class="auto-p20-bg-surface-border-default-rad12-2">
+      <div class="auto-fs14-fw600-text-primary-mb12">Memory Replay</div>
       <input type="text" class="ask-input" id="memory-replay-input"
              placeholder="What did I talk about with Sarah?"
              onkeydown="if(event.key==='Enter') doMemoryReplay(this.value)"
-             style="width:100%;padding:8px 12px;background:var(--surface-2);border:1px solid var(--divider);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;" />
-      <div id="memory-replay-result" style="margin-top:12px;"></div>
+             class="auto-w-full-p812-bg-surface-border-default" />
+      <div id="memory-replay-result" class="auto-mt12"></div>
     </div>
   `;
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Personal Why?</div>
+    <div class="auto-p20-bg-surface-border-default-rad12-2">
+      <div class="auto-fs14-fw600-text-primary-mb12">Personal Why?</div>
       <input type="text" class="ask-input" id="personal-why-input"
              placeholder="Why did I skip the gym 3 times this month?"
              onkeydown="if(event.key==='Enter') doPersonalWhy(this.value)"
-             style="width:100%;padding:8px 12px;background:var(--surface-2);border:1px solid var(--divider);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;" />
-      <div id="personal-why-result" style="margin-top:12px;"></div>
+             class="auto-w-full-p812-bg-surface-border-default" />
+      <div id="personal-why-result" class="auto-mt12"></div>
     </div>
   `;
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Evolution Report</div>
+    <div class="auto-p20-bg-surface-border-default-rad12">
+      <div class="auto-fs14-fw600-text-primary-mb12">Evolution Report</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadEvolutionReport()">Generate quarterly report</button>
-      <div id="evolution-report-result" style="margin-top:12px;"></div>
+      <div id="evolution-report-result" class="auto-mt12"></div>
     </div>
   `;
 
@@ -381,32 +381,32 @@ async function loadPersonalDecide(el) {
   let html = '<div class="work-section">';
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Decision Support</div>
+    <div class="auto-p20-bg-surface-border-default-rad12-2">
+      <div class="auto-fs14-fw600-text-primary-mb12">Decision Support</div>
       <input type="text" class="ask-input" id="decide-input"
              placeholder="Should I take this trip?"
              onkeydown="if(event.key==='Enter') doDecide(this.value)"
-             style="width:100%;padding:8px 12px;background:var(--surface-2);border:1px solid var(--divider);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;" />
-      <div id="decide-result" style="margin-top:12px;"></div>
+             class="auto-w-full-p812-bg-surface-border-default" />
+      <div id="decide-result" class="auto-mt12"></div>
     </div>
   `;
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Intent Cascade</div>
+    <div class="auto-p20-bg-surface-border-default-rad12-2">
+      <div class="auto-fs14-fw600-text-primary-mb12">Intent Cascade</div>
       <input type="text" class="ask-input" id="intent-input"
              placeholder="improve fitness"
              onkeydown="if(event.key==='Enter') doIntentCascade(this.value)"
-             style="width:100%;padding:8px 12px;background:var(--surface-2);border:1px solid var(--divider);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;" />
-      <div id="intent-result" style="margin-top:12px;"></div>
+             class="auto-w-full-p812-bg-surface-border-default" />
+      <div id="intent-result" class="auto-mt12"></div>
     </div>
   `;
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Prediction Market</div>
+    <div class="auto-p20-bg-surface-border-default-rad12">
+      <div class="auto-fs14-fw600-text-primary-mb12">Prediction Market</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadCalibration()">View calibration</button>
-      <div id="calibration-result" style="margin-top:12px;"></div>
+      <div id="calibration-result" class="auto-mt12"></div>
     </div>
   `;
 
@@ -420,19 +420,19 @@ async function loadPersonalReflect(el) {
   let html = '<div class="work-section">';
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Reflection Prompts</div>
+    <div class="auto-p20-bg-surface-border-default-rad12-2">
+      <div class="auto-fs14-fw600-text-primary-mb12">Reflection Prompts</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadReflectionPrompts()">Get prompts</button>
-      <div id="reflection-prompts-result" style="margin-top:12px;"></div>
+      <div id="reflection-prompts-result" class="auto-mt12"></div>
     </div>
   `;
 
   html += `
-    <div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Legacy Builder</div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">Document your life stories, values, and wisdom. Always private.</div>
+    <div class="auto-p20-bg-surface-border-default-rad12">
+      <div class="auto-fs14-fw600-text-primary-mb12">Legacy Builder</div>
+      <div class="auto-fs13-text-secondary-mb12">Document your life stories, values, and wisdom. Always private.</div>
       <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="loadLegacyPrompts()">Get writing prompts</button>
-      <div id="legacy-prompts-result" style="margin-top:12px;"></div>
+      <div id="legacy-prompts-result" class="auto-mt12"></div>
     </div>
   `;
 
@@ -480,13 +480,13 @@ async function toggleIncognito() {
 async function doMemoryReplay(query) {
   const el = document.getElementById('memory-replay-result');
   if (!el || !query) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Searching memories…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/memory/replay', { query });
-    let html = '<div style="padding:12px;background:var(--surface-2);border-radius:8px;">';
-    html += `<div style="font-size:13px;color:var(--text-primary);white-space:pre-wrap;">${escapeHtml(humanize(data.summary || ''))}</div>`;
+    let html = '<div class="auto-p12-bg-surface-rad8">';
+    html += `<div class="auto-fs13-text-primary-ws-pre-wrap">${escapeHtml(humanize(data.summary || ''))}</div>`;
     if (data.third_party_warning) {
-      html += `<div style="margin-top:8px;font-size:12px;color:var(--warning);">${escapeHtml(humanize(data.third_party_warning))}</div>`;
+      html += `<div class="auto-mt8-fs12-text-warning">${escapeHtml(humanize(data.third_party_warning))}</div>`;
     }
     html += '</div>';
 
@@ -496,8 +496,8 @@ async function doMemoryReplay(query) {
     // Chips are derived from the memory graph, not generated by an LLM.
     const followUps = _generateMemoryFollowUps(query, data);
     if (followUps.length > 0) {
-      html += '<div style="margin-top:12px;">';
-      html += '<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Follow up</div>';
+      html += '<div class="auto-mt12">';
+      html += '<div class="auto-fs11-fw700-text-muted-mb6">Follow up</div>';
       followUps.forEach(fq => {
         html += `<button class="follow-up-chip" onclick="doMemoryReplay('${escapeJs(fq).replace(/'/g,"\\'")}')">${escapeHtml(fq)}</button>`;
       });
@@ -542,17 +542,17 @@ function _generateMemoryFollowUps(originalQuery, data) {
 async function doPersonalWhy(question) {
   const el = document.getElementById('personal-why-result');
   if (!el || !question) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Analyzing…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/why', { question });
-    let html = '<div style="padding:12px;background:var(--surface-2);border-radius:8px;">';
+    let html = '<div class="auto-p12-bg-surface-rad8">';
     if (data.third_party_redirected) {
-      html += `<div style="font-size:13px;color:var(--warning);">${escapeHtml(humanize(data.explanation_chain[0].narrative || ''))}</div>`;
+      html += `<div class="auto-fs13-text-warning">${escapeHtml(humanize(data.explanation_chain[0].narrative || ''))}</div>`;
     } else {
       data.explanation_chain.forEach(step => {
-        html += `<div style="padding:6px 0;border-bottom:1px solid var(--divider);">
-          <div style="font-size:13px;font-weight:500;color:var(--text-primary);">${escapeHtml(humanize(step.label || ''))}</div>
-          <div style="font-size:12px;color:var(--text-secondary);">${escapeHtml(humanize(step.narrative || ''))}</div>
+        html += `<div class="auto-p60-u-4300">
+          <div class="auto-fs13-fw500-text-primary">${escapeHtml(humanize(step.label || ''))}</div>
+          <div class="auto-fs12-text-secondary">${escapeHtml(humanize(step.narrative || ''))}</div>
         </div>`;
       });
     }
@@ -566,15 +566,15 @@ async function doPersonalWhy(question) {
 async function doDecide(question) {
   const el = document.getElementById('decide-result');
   if (!el || !question) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Analyzing…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/decide', { question });
-    let html = '<div style="padding:12px;background:var(--surface-2);border-radius:8px;">';
-    html += `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${escapeHtml(data.label || '')}</div>`;
-    html += `<div style="font-size:13px;color:var(--text-primary);margin-bottom:8px;">${escapeHtml(humanize(data.recommendation || ''))}</div>`;
-    html += `<div style="display:flex;gap:16px;font-size:12px;"><div><strong>Pros:</strong> ${data.pros.map(p => escapeHtml(p)).join('; ')}</div></div>`;
-    html += `<div style="font-size:12px;margin-top:4px;"><strong>Cons:</strong> ${data.cons.map(c => escapeHtml(c)).join('; ')}</div>`;
-    html += `<div style="font-size:12px;color:var(--accent);margin-top:8px;">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>`;
+    let html = '<div class="auto-p12-bg-surface-rad8">';
+    html += `<div class="auto-fs12-text-muted-mb8-2">${escapeHtml(data.label || '')}</div>`;
+    html += `<div class="auto-fs13-text-primary-mb8">${escapeHtml(humanize(data.recommendation || ''))}</div>`;
+    html += `<div class="auto-flex-gap16-fs12"><div><strong>Pros:</strong> ${data.pros.map(p => escapeHtml(p)).join('; ')}</div></div>`;
+    html += `<div class="auto-fs12-mt4"><strong>Cons:</strong> ${data.cons.map(c => escapeHtml(c)).join('; ')}</div>`;
+    html += `<div class="auto-fs12-text-accent-mt8">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>`;
     html += '</div>';
     el.innerHTML = html;
   } catch (e) {
@@ -585,10 +585,10 @@ async function doDecide(question) {
 async function doIntentCascade(intent) {
   const el = document.getElementById('intent-result');
   if (!el || !intent) return;
-  el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Breaking down…</div>';
+  el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line" class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
     const data = await api.postPersonal('/intent-cascade', { intent });
-    let html = '<div style="padding:12px;background:var(--surface-2);border-radius:8px;">';
+    let html = '<div class="auto-p12-bg-surface-rad8">';
     const sections = [
       ['Assumptions', data.assumptions],
       ['Hypotheses', data.hypotheses],
@@ -596,9 +596,9 @@ async function doIntentCascade(intent) {
       ['Evidence Plan', data.evidence_plan],
     ];
     sections.forEach(([label, items]) => {
-      html += `<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px;">${label}</div>`;
+      html += `<div class="auto-mb10"><div class="auto-fs12-fw600-text-accent-mb4">${label}</div>`;
       items.forEach(item => {
-        html += `<div style="font-size:12px;color:var(--text-secondary);padding:2px 0;">• ${escapeHtml(humanize(item.text || ''))}</div>`;
+        html += `<div class="auto-fs12-text-secondary-p20">• ${escapeHtml(humanize(item.text || ''))}</div>`;
       });
       html += '</div>';
     });
@@ -614,7 +614,7 @@ async function loadCalibration() {
   if (!el) return;
   try {
     const data = await api.getPersonal('/predictions/calibration');
-    el.innerHTML = `<div style="padding:12px;background:var(--surface-2);border-radius:8px;font-size:13px;color:var(--text-primary);">${escapeHtml(data.message || 'No data yet.')}</div>`;
+    el.innerHTML = `<div class="auto-p12-bg-surface-rad8-fs13">${escapeHtml(data.message || 'No data yet.')}</div>`;
   } catch (e) {
     el.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
   }
@@ -626,11 +626,11 @@ async function loadReflectionPrompts() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Generating prompts…</div>';
   try {
     const data = await api.getPersonal('/reflection-prompts');
-    let html = '<div style="padding:12px;background:var(--surface-2);border-radius:8px;">';
+    let html = '<div class="auto-p12-bg-surface-rad8">';
     data.prompts.forEach(p => {
-      html += `<div style="padding:8px 0;border-bottom:1px solid var(--divider);">
-        <div style="font-size:13px;color:var(--text-primary);">${escapeHtml(humanize(p.prompt || ''))}</div>
-        <div class="ds-meta" style="margin-top:2px;">${escapeHtml(p.type || '')}</div>
+      html += `<div class="auto-p80-u-4300">
+        <div class="auto-fs13-text-primary-2">${escapeHtml(humanize(p.prompt || ''))}</div>
+        <div class="ds-meta" class="auto-mt2">${escapeHtml(p.type || '')}</div>
       </div>`;
     });
     html += '</div>';
@@ -645,10 +645,10 @@ async function loadLegacyPrompts() {
   if (!el) return;
   try {
     const data = await api.getPersonal('/legacy/prompts');
-    let html = '<div style="padding:12px;background:var(--surface-2);border-radius:8px;">';
-    html += '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Writing prompts for your legacy:</div>';
+    let html = '<div class="auto-p12-bg-surface-rad8">';
+    html += '<div class="auto-fs13-text-secondary-mb8">Writing prompts for your legacy:</div>';
     data.prompts.forEach(p => {
-      html += `<div style="font-size:13px;color:var(--text-primary);padding:4px 0;">• ${escapeHtml(p)}</div>`;
+      html += `<div class="auto-fs13-text-primary-p40">• ${escapeHtml(p)}</div>`;
     });
     html += '</div>';
     el.innerHTML = html;
@@ -663,7 +663,7 @@ async function loadEvolutionReport() {
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Generating report…</div>';
   try {
     const data = await api.getPersonal('/evolution-report');
-    el.innerHTML = `<div style="padding:12px;background:var(--surface-2);border-radius:8px;font-size:13px;color:var(--text-primary);white-space:pre-wrap;">${escapeHtml(humanize(data.narrative || ''))}</div>`;
+    el.innerHTML = `<div class="auto-p12-bg-surface-rad8-fs13-2">${escapeHtml(humanize(data.narrative || ''))}</div>`;
   } catch (e) {
     el.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
   }
@@ -680,26 +680,26 @@ async function showWhatMaestroKnows() {
   try {
     const data = await api.getPersonal('/dashboard');
     let html = '<div class="work-section">';
-    html += `<div style="padding:20px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;">`;
-    html += `<div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">What Maestro Knows About You</div>`;
-    html += `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">${escapeHtml(data.message || '')}</div>`;
+    html += `<div class="auto-p20-bg-surface-border-default-rad12">`;
+    html += `<div class="auto-fs16-fw600-text-primary-mb8">What Maestro Knows About You</div>`;
+    html += `<div class="auto-fs13-text-secondary-mb16">${escapeHtml(data.message || '')}</div>`;
     html += `<div class="ds-meta" class="mb-16">${data.total_sources} source(s) · ${data.total_items} item(s)</div>`;
 
     if (data.sources && data.sources.length > 0) {
       data.sources.forEach(src => {
-        html += `<div style="padding:12px 0;border-bottom:1px solid var(--divider);">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
+        html += `<div class="auto-p120-u-4300">
+          <div class="auto-flex-u-daae-u-1e2c">
             <div>
-              <div style="font-size:13px;font-weight:500;color:var(--text-primary);">${escapeHtml(src.source)}</div>
+              <div class="auto-fs13-fw500-text-primary">${escapeHtml(src.source)}</div>
               <div class="ds-meta">${src.item_count} item(s) · Consent: ${src.consent_active ? 'active' : 'revoked'}</div>
             </div>
-            <button class="ds-btn ds-btn-ghost ds-btn-small" style="font-size:11px;color:var(--risk);"
+            <button class="ds-btn ds-btn-ghost ds-btn-small" class="auto-fs11-text-risk"
                     onclick="revokePersonalSource('${escapeHtml(src.source)}')">Revoke</button>
           </div>
         </div>`;
       });
     } else {
-      html += '<div style="font-size:13px;color:var(--text-muted);">No data sources connected yet.</div>';
+      html += '<div class="empty-state"><div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 8 C16 8 12 14 12 20 C12 26 16 30 16 30 L16 36 L32 36 L32 30 C32 30 36 26 36 20 C36 14 32 8 24 8 Z" stroke="#FFC629" stroke-width="2" fill="#FFF4D1"/></svg></div><div class="empty-state-title">No data sources connected.</div><div class="empty-state-body">Connect your work tools in Settings to start receiving signals.</div></div>';
     }
 
     html += '</div></div>';

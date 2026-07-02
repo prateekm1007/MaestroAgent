@@ -71,7 +71,7 @@ async function loadOAuthAdminConfigs() {
           </div>
           <div class="text-[10px] text-fg-400">
             ${p.client_id ? `Client ID: <code>${escapeHtml(p.client_id)}</code>` : 'No Client ID set'}
-            ${p.has_secret ? ' · <span style="color:#22c55e">Secret: encrypted</span>' : ''}
+            ${p.has_secret ? ' · <span class="auto-clr-1d11">Secret: encrypted</span>' : ''}
           </div>
           <div class="flex gap-1.5 mt-2">
             <button class="tag tag-gray cursor-pointer text-[10px] hover:bg-white/[0.05]" onclick="openOAuthConfigForm('${escapeJs(p.provider)}', '${escapeJs(p.label)}', '${escapeJs(p.client_id)}')" aria-label="Configure ${escapeHtml(humanize(p.label))}">Configure</button>
