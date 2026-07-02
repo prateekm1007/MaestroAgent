@@ -95,11 +95,22 @@ async def oauth_callback(
     if error:
         return {"ok": False, "error": error, "provider": provider}
 
+    # Round 57 C1 fix: if provider is not in query params, parse it from the
+    # state token. Most OAuth providers (GitHub, Google, Slack) do not include
+    # the provider name in their redirect — they only return code and state.
+    # The state token format is <provider>:<expire>:<nonce>:<sig> (or the
+    # legacy format <provider>:<expire>:<random>).
+    if not provider and state:
+        parts = state.split(":", 3)
+        if len(parts) >= 1:
+            provider = parts[0]
+
     if not code or not state or not provider:
         raise HTTPException(400, "Missing code, state, or provider")
 
     try:
-        result = import_state.connections.complete_connection(provider, code, state)
+        # Round 57 C2 fix: complete_connection is now async — must await
+        result = await import_state.connections.complete_connection(provider, code, state)
     except OAuthError as e:
         return {"ok": False, "error": str(e), "provider": provider}
 

@@ -66,19 +66,23 @@ class ConnectionManager:
     def get_authorization_url(self, provider: str) -> tuple[str, str]:
         return self.oauth.get_authorization_url(provider)
 
-    def complete_connection(
+    async def complete_connection(
         self, provider: str, code: str, state: str
     ) -> dict[str, Any]:
         """Complete the OAuth flow and trigger the initial historical import.
 
         Returns the credentials metadata (without the access_token).
+
+        Round 57 C2 fix: this method was sync and called `async start_import`
+        without await — the coroutine was never awaited, so imports never
+        started. Now this method is async and properly awaits start_import.
         """
         creds = self.oauth.exchange_code(provider, code, state)
 
         # Trigger historical import in the background
         if self.import_engine:
             try:
-                job_id = self.import_engine.start_import(
+                job_id = await self.import_engine.start_import(
                     providers=[provider],
                     since="5y",  # 5 years of history per the spec
                 )

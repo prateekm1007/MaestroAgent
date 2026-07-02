@@ -18,6 +18,7 @@ This is REAL OAuth — not a stub. To test end-to-end you need to:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -240,22 +241,60 @@ def _load_config_from_db(provider: str) -> dict[str, Any] | None:
 
 # ─── State tokens (CSRF protection) ───
 
-def _make_state(provider: str, ttl_seconds: int = 600) -> str:
-    """Create a signed state token. Format: <provider>:<expire>:<random>
+def _get_state_secret() -> bytes:
+    """Get the secret key for signing OAuth state tokens.
 
-    We don't sign with a secret key here because the OAuthManager process is
-    stateful anyway — we just need the state to be unforgeable enough that
-    a browser can't be tricked into completing someone else's flow.
+    Round 57 C3 fix: the old state was just `provider:expiry:random` with
+    no signature. An attacker could craft a valid-looking state token.
+    Now the state is HMAC-signed with JWT_SECRET (or a dev-only fallback).
     """
+    return os.environ.get("JWT_SECRET", "dev-only-state-secret-do-not-use-in-prod").encode()
+
+
+def _make_state(provider: str, ttl_seconds: int = 600) -> str:
+    """Create an HMAC-signed state token.
+
+    Round 57 C3 fix: format is now <provider>:<expire>:<nonce>:<hmac_sig>.
+    The signature prevents forgery. The nonce prevents replay. The expiry
+    prevents stale tokens. The provider is embedded so the callback can
+    extract it when the OAuth provider doesn't return it (C1 fix).
+    """
+    import hmac
     expire = int(time.time()) + ttl_seconds
-    rand = secrets.token_urlsafe(24)
-    return f"{provider}:{expire}:{rand}"
+    nonce = secrets.token_urlsafe(16)
+    payload = f"{provider}:{expire}:{nonce}"
+    sig = hmac.new(_get_state_secret(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{payload}:{sig}"
 
 
 def _verify_state(state: str, expected_provider: str) -> bool:
-    """Verify a returned state token."""
+    """Verify an HMAC-signed state token.
+
+    Round 57 C3 fix: verifies the signature, provider, and expiry.
+    """
+    import hmac
     try:
-        provider, expire_str, _ = state.split(":", 2)
+        parts = state.split(":")
+        if len(parts) != 4:
+            # Legacy format (unsigned) — reject in production, allow in dev
+            legacy_parts = state.split(":", 2)
+            if len(legacy_parts) == 3:
+                provider, expire_str, _ = legacy_parts
+                if provider != expected_provider:
+                    return False
+                if int(expire_str) < time.time():
+                    return False
+                # Allow legacy unsigned state only in dev mode
+                if os.environ.get("MAESTRO_ENV") == "production":
+                    return False
+                return True
+            return False
+
+        provider, expire_str, nonce, sig = parts
+        payload = f"{provider}:{expire_str}:{nonce}"
+        expected_sig = hmac.new(_get_state_secret(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+        if not hmac.compare_digest(sig, expected_sig):
+            return False
         if provider != expected_provider:
             return False
         if int(expire_str) < time.time():

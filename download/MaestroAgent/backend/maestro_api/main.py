@@ -100,16 +100,25 @@ def create_app(
         auth_db = _os.environ.get("MAESTRO_AUTH_DB", str(_auth_db_dir / "auth.db"))
         _auth_store = AuthStore(auth_db)
         init_auth(_auth_store)
-        # Seed a default admin user if no users exist (dev convenience).
+        # Round 57 C4 fix: only seed default admin in dev mode.
+        # In production, refuse to seed — the deployment must create the
+        # first admin explicitly via the CLI or env vars.
         if not _auth_store.list_users(limit=1):
-            admin = _auth_store.create_user(
-                email="admin@maestro.local",
-                display_name="Default Admin",
-                password=_os.environ.get("MAESTRO_ADMIN_PASSWORD", "changeme-now"),
-                is_admin=True,
-            )
-            _auth_store.assign_role(admin["id"], "admin")
-            logger.info("Seeded default admin user (admin@maestro.local) — change the password!")
+            _is_prod = _os.environ.get("MAESTRO_ENV") == "production"
+            if _is_prod:
+                logger.error(
+                    "No users found in production — refusing to seed default admin. "
+                    "Create an admin user via: maestro create-admin --email <email> --password <password>"
+                )
+            else:
+                admin = _auth_store.create_user(
+                    email="admin@maestro.local",
+                    display_name="Default Admin",
+                    password=_os.environ.get("MAESTRO_ADMIN_PASSWORD", "changeme-now"),
+                    is_admin=True,
+                )
+                _auth_store.assign_role(admin["id"], "admin")
+                logger.info("Seeded default admin (dev mode only) — change the password!")
         # Resume any incomplete jobs from before the restart.
         try:
             assert import_state.engine is not None
