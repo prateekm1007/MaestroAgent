@@ -41,7 +41,7 @@ const pageNames = {
   'eng-signals': 'Signals', 'eng-oem': 'OEM Builder',
   'eng-audit': 'Audit Log', 'eng-settings': 'Settings',
   // Round 47 — Block 1
-  canvas: 'Decision Canvas', teammate: 'Teammate View',
+  canvas: 'Decision Canvas', teammate: 'Teammate View', coordination: 'Coordination Engine',
 };
 
 function navTo(surface) {
@@ -157,6 +157,7 @@ const _hiddenSurfaces = [
   // Round 47 — Block 1: Canvas + Per-Teammate (command-palette only, NOT sidebar)
   { id: 'canvas', label: 'Canvas — visual decision mapping', group: 'Round 47' },
   { id: 'teammate', label: 'Per-Teammate view — tasks, commitments, trust', group: 'Round 47' },
+  { id: 'coordination', label: 'Coordination Engine — multi-team decision input', group: 'Round 59' },
 ];
 
 function openCommandPalette() {

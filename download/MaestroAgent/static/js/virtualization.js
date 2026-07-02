@@ -102,6 +102,7 @@ function loadSurfaceData(surface) {
     // Round 47 — Block 1: Canvas + Per-Teammate (command-palette access)
     case 'canvas': if (typeof loadCanvas === 'function') loadCanvas(); break;
     case 'teammate': if (typeof loadTeammate === 'function') loadTeammate(); break;
+    case 'coordination': if (typeof loadCoordination === 'function') loadCoordination(); break;
   }
 }
 

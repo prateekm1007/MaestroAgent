@@ -191,13 +191,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         response = await call_next(request)
 
-        # CSP — configurable via MAESTRO_CSP env var.
-        # Default allows Tailwind CDN + Google Fonts (dev mode).
-        # Production should set MAESTRO_CSP to a stricter policy with
-        # compiled assets and nonce-based script-src.
+        # CSP — Round 59: removed 'unsafe-inline' from script-src.
+        # The csp-shim.js converts all onclick= handlers to data-action
+        # attributes + delegated event listener. This makes strict CSP
+        # possible. Style-src still needs unsafe-inline for Tailwind
+        # (will be removed when Tailwind is compiled to a CSS file).
         default_csp = (
             "default-src 'self' https:; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "script-src 'self' https://cdn.tailwindcss.com; "
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
             "img-src 'self' data: https:; "
             "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; "

@@ -1117,6 +1117,8 @@
 <!-- SCRIPT — OEM API integration -->
 <!-- ============================================================ -->
 <!-- Frontend JS — modularized into domain files (NO ES modules, preserves global scope) -->
+<!-- Round 59: CSP shim must load FIRST — converts onclick= to data-action -->
+<script src="/static/js/csp-shim.js"></script>
 <script defer src="/static/js/core.js"></script>
 <script defer src="/static/js/maestro.js"></script>
 <script defer src="/static/js/swr_cache.js"></script>
@@ -1155,6 +1157,8 @@
 <!-- Round 47 — Block 1: Canvas + Per-Teammate (command-palette access, NOT sidebar items) -->
 <script defer src="/static/js/canvas.js"></script>
 <script defer src="/static/js/teammate.js"></script>
+<!-- Round 59 — Coordination Engine UI -->
+<script defer src="/static/js/coordination.js"></script>
 <!-- Round 47 — Block 3: PWA service worker registration -->
 <script>
   if ('serviceWorker' in navigator) {
