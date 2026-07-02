@@ -19,10 +19,10 @@ cd backend
 pip install -e .
 
 # Run the server
-python -m maestro_cli.main serve --port 8765
+python -m maestro_cli.main serve --port 1420
 
 # Open the app
-# Visit http://localhost:8765/app.html
+# Visit http://localhost:1420/app.html
 ```
 
 The app loads in demo mode with synthetic `acme-corp` sample data. Connect real providers via Settings to see live signals.

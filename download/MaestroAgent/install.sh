@@ -12,7 +12,7 @@
 #   3. Builds and starts the stack via `docker compose up -d`.
 #   4. Prints the URL where the PWA is reachable.
 #
-# After install, open http://localhost:8765 in Chrome/Firefox/Brave
+# After install, open http://localhost:1420 in Chrome/Firefox/Brave
 # and click "Install" in the address bar.
 
 set -euo pipefail
@@ -85,7 +85,7 @@ docker compose up -d
 # --- 5. Wait for health ---
 info "Waiting for the engine to come online..."
 for i in {1..30}; do
-    if curl -sf http://localhost:8765/api/health &> /dev/null; then
+    if curl -sf http://localhost:1420/api/health &> /dev/null; then
         break
     fi
     sleep 1
@@ -95,8 +95,8 @@ done
 echo ""
 echo -e "${BOLD}${GREEN}✓ MaestroAgent v1.0 is running!${NC}"
 echo ""
-echo "  ${BOLD}PWA + API:${NC}  http://localhost:8765"
-echo "  ${BOLD}API docs:${NC}   http://localhost:8765/docs"
+echo "  ${BOLD}PWA + API:${NC}  http://localhost:1420"
+echo "  ${BOLD}API docs:${NC}   http://localhost:1420/docs"
 echo ""
 
 # Check if auth is enabled.
@@ -109,7 +109,7 @@ if grep -q "MAESTRO_AUTH_ENABLED=true" .env 2>/dev/null; then
 fi
 
 echo "  To install as a PWA:"
-echo "    1. Open http://localhost:8765 in Chrome/Firefox/Brave"
+echo "    1. Open http://localhost:1420 in Chrome/Firefox/Brave"
 echo "    2. Click the install icon in the address bar"
 echo "    3. MaestroAgent will appear in your app launcher"
 echo ""

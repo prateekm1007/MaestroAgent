@@ -44,6 +44,11 @@ COPY CONSTITUTION.md /app/
 # Set ownership
 RUN chown -R maestro:maestro /app
 
+# Round 65 CTO Blocker 4: create /data BEFORE switching to non-root user.
+# The old code ran `mkdir -p /data` after `USER maestro` — non-root cannot
+# create directories in root-owned /. This caused `docker build` to fail.
+RUN mkdir -p /data && chown maestro:maestro /data
+
 # Switch to non-root user
 USER maestro
 
@@ -52,9 +57,6 @@ ENV MAESTRO_APP_DIR=/app
 ENV MAESTRO_DEMO_SEED=true
 ENV PYTHONPATH=/app/backend
 ENV MAESTRO_AUTH_DB=/data/auth.db
-
-# Create data directory
-RUN mkdir -p /data
 
 EXPOSE 1420
 

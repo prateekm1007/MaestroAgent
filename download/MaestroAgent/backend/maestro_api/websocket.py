@@ -126,8 +126,15 @@ def register_ws_routes(app: FastAPI) -> None:
                 await websocket.close(code=4401, reason="Authentication required")
                 return
             try:
-                from maestro_auth.sessions import verify_session_token
-                user = verify_session_token(token)
+                # Round 65 CTO Blocker 3: verify_session_token never existed.
+                # Use SessionManager.validate_session which is the real function.
+                from maestro_auth.sessions import SessionManager
+                from maestro_auth.models import AuthStore
+                import os as _os
+                _auth_db = _os.environ.get("MAESTRO_AUTH_DB", "auth.db")
+                _store = AuthStore(_auth_db)
+                _sm = SessionManager(_store)
+                user = _sm.validate_session(token)
                 if not user:
                     await websocket.close(code=4401, reason="Invalid token")
                     return

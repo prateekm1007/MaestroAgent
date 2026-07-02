@@ -39,7 +39,7 @@ redis:
 
 env:
   NODE_ENV: production
-  PORT: "8765"
+  PORT: "1420"
 
 secrets:
   jwtSecret: change-me

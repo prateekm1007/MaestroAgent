@@ -12,7 +12,7 @@
 # Usage:
 #   ./test_e2e.sh [BASE_URL]
 #
-# Default BASE_URL is http://localhost:8765.
+# Default BASE_URL is http://localhost:1420.
 
 set -euo pipefail
 
@@ -21,7 +21,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-BASE_URL="${1:-http://localhost:8765}"
+BASE_URL="${1:-http://localhost:1420}"
 PASS=0
 FAIL=0
 

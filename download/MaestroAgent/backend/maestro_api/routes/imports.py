@@ -116,7 +116,10 @@ async def oauth_callback(
 
     try:
         # Round 57 C2 fix: complete_connection is now async — must await
-        result = await import_state.connections.complete_connection(provider, code, state)
+        # Round 65 CTO Blocker 1: propagate org_id for multi-tenant isolation.
+        # Without this, all imports go to the "default" org regardless of who connected.
+        org_id = "default"  # TODO: extract from authenticated request when multi-tenant auth is wired
+        result = await import_state.connections.complete_connection(provider, code, state, org_id=org_id)
     except OAuthError as e:
         return {"ok": False, "error": str(e), "provider": provider}
 

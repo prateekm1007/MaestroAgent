@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
+
+# Round 65 CTO Blocker 8: Admin endpoints (keys, revoke) require auth.
+# /status and /login are public (needed to check auth state and authenticate).
+from maestro_auth.permissions import require_user
 
 router = APIRouter()
 
@@ -76,7 +80,7 @@ async def login(req: LoginRequest, request: Request) -> LoginResponse:
 
 
 @router.get("/keys")
-async def list_api_keys(request: Request) -> list[dict[str, Any]]:
+async def list_api_keys(request: Request, user: dict = Depends(require_user)) -> list[dict[str, Any]]:
     """List all API keys (metadata only — no plaintext). Requires auth."""
     state: Any = request.app.state.maestro
     if state.api_key_store is None:
@@ -90,7 +94,7 @@ class CreateKeyRequest(BaseModel):
 
 
 @router.post("/keys")
-async def create_api_key(req: CreateKeyRequest, request: Request) -> dict[str, Any]:
+async def create_api_key(req: CreateKeyRequest, request: Request, user: dict = Depends(require_user)) -> dict[str, Any]:
     """Generate a new API key. Returns the plaintext ONCE."""
     state: Any = request.app.state.maestro
     if state.api_key_store is None:
@@ -108,7 +112,7 @@ class RevokeKeyRequest(BaseModel):
 
 
 @router.post("/keys/revoke")
-async def revoke_api_key(req: RevokeKeyRequest, request: Request) -> dict[str, Any]:
+async def revoke_api_key(req: RevokeKeyRequest, request: Request, user: dict = Depends(require_user)) -> dict[str, Any]:
     """Revoke an API key."""
     state: Any = request.app.state.maestro
     if state.api_key_store is None:

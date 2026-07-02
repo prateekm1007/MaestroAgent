@@ -352,9 +352,15 @@ class WriteBackService:
             try:
                 token = self.oauth.get_valid_access_token(action.provider)
             except Exception as e:
-                logger.warning("Failed to get OAuth token for %s: %s", action.provider, e)
-                # In dev/test mode without OAuth, use a mock token
-                token = "mock-token-for-testing"
+                # Round 65 CTO Blocker 6: FAIL CLOSED. The old code substituted
+                # "mock-token-for-testing" and silently returned success. The trust
+                # ledger recorded outcome="success" when nothing actually happened.
+                # This is worse than a failure — it is a silent lie.
+                logger.error("OAuth token retrieval failed for %s: %s", action.provider, e)
+                raise RuntimeError(
+                    f"Cannot execute writeback for {action.provider}: no valid OAuth token. "
+                    f"Reconnect the provider in Settings."
+                )
 
         if action.provider == "jira":
             from maestro_oem.writeback.jira import execute_jira

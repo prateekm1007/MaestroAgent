@@ -8,14 +8,14 @@ scrape_configs:
   - job_name: 'maestro-api'
     metrics_path: /metrics
     static_configs:
-      - targets: ['api:8765']
+      - targets: ['api:1420']
         labels:
           service: 'api'
 
   - job_name: 'maestro-worker'
     metrics_path: /metrics
     static_configs:
-      - targets: ['worker:8765']
+      - targets: ['worker:1420']
         labels:
           service: 'worker'
 

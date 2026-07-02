@@ -79,7 +79,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_security_group" "ecs" {
   name = "maestro-ecs" vpc_id = module.vpc.vpc_id
-  ingress { port = 8765 protocol = "tcp" security_groups = [aws_security_group.alb.id] }
+  ingress { port = 1420 protocol = "tcp" security_groups = [aws_security_group.alb.id] }
   egress { port = 0 protocol = "-1" cidr_blocks = ["0.0.0.0/0"] }
 }
 
@@ -102,7 +102,7 @@ resource "aws_lb" "maestro" {
 }
 
 resource "aws_lb_target_group" "api" {
-  name = "maestro-api" port = 8765 protocol = "HTTP" vpc_id = module.vpc.vpc_id
+  name = "maestro-api" port = 1420 protocol = "HTTP" vpc_id = module.vpc.vpc_id
   health_check { path = "/api/health" matcher = "200" interval = 30 }
   deregistration_delay = 30
 }
@@ -134,14 +134,14 @@ resource "aws_ecs_task_definition" "api" {
   family = "maestro-api" network_mode = "awsvpc" requires_compatibilities = ["FARGATE"]
   cpu = "1024" memory = "2048"
   execution_role_arn = aws_iam_role.ecs_execution.arn
-  container_definitions = jsonencode([{ name = "api" image = "${aws_ecr_repository.api.repository_url}:latest" cpu = 1024 memory = 2048 portMappings = [{ containerPort = 8765 }] essential = true logConfiguration = { logDriver = "awslogs" options = { "awslogs-group" = aws_cloudwatch_log_group.api.name "awslogs-region" = var.aws_region "awslogs-stream-prefix" = "api" } } }])
+  container_definitions = jsonencode([{ name = "api" image = "${aws_ecr_repository.api.repository_url}:latest" cpu = 1024 memory = 2048 portMappings = [{ containerPort = 1420 }] essential = true logConfiguration = { logDriver = "awslogs" options = { "awslogs-group" = aws_cloudwatch_log_group.api.name "awslogs-region" = var.aws_region "awslogs-stream-prefix" = "api" } } }])
 }
 
 resource "aws_ecs_service" "api" {
   name = "maestro-api" cluster = aws_ecs_cluster.maestro.id
   task_definition = aws_ecs_task_definition.api.arn desired_count = 2 launch_type = "FARGATE"
   network_configuration { subnets = module.vpc.private_subnets security_groups = [aws_security_group.ecs.id] assign_public_ip = false }
-  load_balancer { target_group_arn = aws_lb_target_group.api.arn container_name = "api" container_port = 8765 }
+  load_balancer { target_group_arn = aws_lb_target_group.api.arn container_name = "api" container_port = 1420 }
   deployment_configuration { maximum_percent = 200 minimum_healthy_percent = 100 deployment_circuit_breaker { enable = true rollback = true } }
 }
 

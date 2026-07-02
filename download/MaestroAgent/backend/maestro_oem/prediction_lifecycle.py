@@ -451,7 +451,10 @@ class PredictionResolver:
         elif status == "incorrect":
             outcome = "miss"
         elif status == "partially_correct":
-            outcome = "hit"  # Count partial as hit for calibration
+            # Round 65 CTO RISK 8: partially_correct was counted as "hit",
+            # inflating the Brier score. Partial is NOT a hit — it is a miss
+            # for calibration purposes. The prediction was not fully correct.
+            outcome = "miss"
         else:
             return  # expired/insufficient_data don't calibrate
 

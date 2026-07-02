@@ -24,7 +24,7 @@ spec:
         component: api
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8765"
+        prometheus.io/port: "1420"
         prometheus.io/path: "/metrics"
     spec:
       containers:
@@ -32,7 +32,7 @@ spec:
           image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
           imagePullPolicy: {{ .Values.image.api.pullPolicy }}
           ports:
-            - containerPort: 8765
+            - containerPort: 1420
               name: http
           env:
             - name: NODE_ENV
@@ -126,7 +126,7 @@ spec:
   type: ClusterIP
   ports:
     - port: 80
-      targetPort: 8765
+      targetPort: 1420
       protocol: TCP
       name: http
   selector:

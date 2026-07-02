@@ -101,10 +101,10 @@ jobs:
 
       - name: Smoke test the image
         run: |
-          docker run -d --name maestro-ci -p 8765:8765 \
+          docker run -d --name maestro-ci -p 1420:1420 \
             -e MAESTRO_LOG=info \
             maestroagent/app:ci
           sleep 5
-          curl -sf http://localhost:8765/api/health | head -c 200
+          curl -sf http://localhost:1420/api/health | head -c 200
           docker logs maestro-ci
           docker rm -f maestro-ci
