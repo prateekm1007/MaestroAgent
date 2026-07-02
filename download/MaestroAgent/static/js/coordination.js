@@ -113,7 +113,7 @@ async function initiateCoordination() {
     // Reload to show the new request
     loadCoordination();
   } catch (e) {
-    alert('Failed to initiate coordination: ' + e.message);
+    showToast('Failed to initiate coordination: ' + e.message, 'error');
   }
 }
 
@@ -233,7 +233,7 @@ function renderCoordinationDetail(el, req) {
         });
         viewCoordination(req.request_id); // reload
       } catch (e) {
-        alert('Failed to submit response: ' + e.message);
+        showToast('Failed to submit response: ' + e.message, 'error');
       }
     });
   }

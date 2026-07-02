@@ -38,7 +38,7 @@
 <!-- People? Prediction? Simulation? Recommendation?              -->
 <!-- ============================================================ -->
 <div id="drilldown-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="drilldown-title">
-  <div class="absolute inset-0 bg-black/60" onclick="closeDrilldown()"></div>
+  <div class="absolute inset-0 bg-black/60" data-oc="oc-0"></div>
   <div class="relative bg-ink-900 border border-white/10 rounded-lg shadow-2xl max-w-4xl mx-auto my-8 max-h-[85vh] overflow-hidden flex flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b border-white/10">
@@ -46,20 +46,20 @@
         <div class="text-[10px] uppercase tracking-wider text-fg-500" id="drilldown-type">Entity</div>
         <h2 class="text-lg font-bold text-white" id="drilldown-title">Loading…</h2>
       </div>
-      <button onclick="closeDrilldown()" class="text-fg-500 hover:text-white text-xl" aria-label="Close">x</button>
+      <button data-oc="oc-1" class="text-fg-500 hover:text-white text-xl" aria-label="Close">x</button>
     </div>
     <!-- Tabs -->
     <div class="flex border-b border-white/10 overflow-x-auto" id="drilldown-tabs">
-      <button class="drilldown-tab active" data-tab="why" onclick="switchDrilldownTab('why')">Why?</button>
-      <button class="drilldown-tab" data-tab="where" onclick="switchDrilldownTab('where')">Where?</button>
-      <button class="drilldown-tab" data-tab="evidence" onclick="switchDrilldownTab('evidence')">Evidence</button>
-      <button class="drilldown-tab" data-tab="timeline" onclick="switchDrilldownTab('timeline')">Timeline</button>
-      <button class="drilldown-tab" data-tab="people" onclick="switchDrilldownTab('people')">People</button>
-      <button class="drilldown-tab" data-tab="prediction" onclick="switchDrilldownTab('prediction')">Prediction</button>
-      <button class="drilldown-tab" data-tab="simulation" onclick="switchDrilldownTab('simulation')">Simulation</button>
-      <button class="drilldown-tab" data-tab="recommendation" onclick="switchDrilldownTab('recommendation')">Recommendation</button>
-      <button class="drilldown-tab" data-tab="perspectives" onclick="switchDrilldownTab('perspectives')">Perspectives</button>
-      <button class="drilldown-tab" data-tab="sowhat" onclick="switchDrilldownTab('sowhat')">So what?</button>
+      <button class="drilldown-tab active" data-tab="why" data-oc="oc-2">Why?</button>
+      <button class="drilldown-tab" data-tab="where" data-oc="oc-3">Where?</button>
+      <button class="drilldown-tab" data-tab="evidence" data-oc="oc-4">Evidence</button>
+      <button class="drilldown-tab" data-tab="timeline" data-oc="oc-5">Timeline</button>
+      <button class="drilldown-tab" data-tab="people" data-oc="oc-6">People</button>
+      <button class="drilldown-tab" data-tab="prediction" data-oc="oc-7">Prediction</button>
+      <button class="drilldown-tab" data-tab="simulation" data-oc="oc-8">Simulation</button>
+      <button class="drilldown-tab" data-tab="recommendation" data-oc="oc-9">Recommendation</button>
+      <button class="drilldown-tab" data-tab="perspectives" data-oc="oc-10">Perspectives</button>
+      <button class="drilldown-tab" data-tab="sowhat" data-oc="oc-11">So what?</button>
     </div>
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-6" id="drilldown-body">
@@ -185,7 +185,7 @@
         <div class="sidebar-link active" data-surface="today" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>Today</div>
         <div class="sidebar-link" data-surface="memory" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>Memory</div>
         <div class="sidebar-link" data-surface="ask-v2" tabindex="0"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>Ask</div>
-        <div class="sidebar-link" data-surface="more" tabindex="0" onclick="openMoreMenu(); return false;" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMoreMenu();}" role="button" aria-label="More surfaces"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"/></svg>More</div>
+        <div class="sidebar-link" data-surface="more" tabindex="0" data-oc="oc-12" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMoreMenu();}" role="button" aria-label="More surfaces"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"/></svg>More</div>
       </div>
 
       <!-- Constitution v2: the 22 old surfaces are NOT in the sidebar.
@@ -194,7 +194,7 @@
            This is the collapse the Constitution demanded: 4 surfaces visible,
            the rest invisible until summoned. -->
       <div class="sidebar-v2-divider">More</div>
-      <div class="sidebar-link" id="open-command-palette" tabindex="0" onclick="openCommandPalette()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCommandPalette();}" role="button" aria-label="Open command palette">
+      <div class="sidebar-link" id="open-command-palette" tabindex="0" data-oc="oc-13" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCommandPalette();}" role="button" aria-label="Open command palette">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         Search surfaces…
         <span style="margin-left:auto;font-size:10px;color:var(--text-muted);font-family:var(--font-mono);">⌘K</span>
@@ -209,7 +209,7 @@
         <span>Connecting to OEM…</span>
       </div>
       <div class="theme-toggle-row">
-        <div class="theme-toggle" onclick="toggleTheme()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTheme();}" tabindex="0" role="button" aria-label="Toggle theme">
+        <div class="theme-toggle" data-oc="oc-14" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTheme();}" tabindex="0" role="button" aria-label="Toggle theme">
           <svg id="theme-icon-moon" class="theme-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
           </svg>
@@ -226,7 +226,7 @@
   <div class="main-area">
     <!-- Topbar -->
     <header class="topbar">
-      <button class="btn btn-ghost" onclick="toggleMobileSidebar()" aria-label="Toggle sidebar" style="padding:4px 8px;">
+      <button class="btn btn-ghost" data-oc="oc-15" aria-label="Toggle sidebar" style="padding:4px 8px;">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
       <div class="flex items-center gap-2 text-xs text-fg-500 min-w-0">
@@ -576,7 +576,7 @@
                   <input type="range" id="sim-hires" min="0" max="10" value="0" class="w-full" oninput="document.getElementById('sim-hires-val').textContent=this.value">
                   <div class="text-xs text-fg-500 mt-1">Value: <span id="sim-hires-val" class="mono text-brand-cyan">0</span></div>
                 </div>
-                <button class="btn btn-primary" onclick="runSimulator()">Run Simulation</button>
+                <button class="btn btn-primary" data-oc="oc-16">Run Simulation</button>
               </div>
             </div>
           </div>
@@ -676,9 +676,9 @@
           </div>
           <div id="ask-suggestions" class="space-y-2">
             <div class="text-xs text-fg-500 mb-2">Try asking:</div>
-            <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('ask-input').value='who is the bottleneck?'; submitAsk('who is the bottleneck?')">who is the bottleneck?</button>
-            <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('ask-input').value='what laws have been discovered?'; submitAsk('what laws have been discovered?')">what laws have been discovered?</button>
-            <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('ask-input').value='what is the P1 cluster risk?'; submitAsk('what is the P1 cluster risk?')">what is the P1 cluster risk?</button>
+            <button class="tag tag-gray cursor-pointer" data-oc="oc-17">who is the bottleneck?</button>
+            <button class="tag tag-gray cursor-pointer" data-oc="oc-18">what laws have been discovered?</button>
+            <button class="tag tag-gray cursor-pointer" data-oc="oc-19">what is the P1 cluster risk?</button>
           </div>
           <div id="ask-answer" class="space-y-4" style="display:none;">
             <div class="panel">
@@ -752,11 +752,11 @@
                 <input type="text" class="ask-input" id="customer-ask-input" placeholder="e.g. 'Why is Initech slowing down?'" onkeydown="if(event.key==='Enter') submitCustomerAsk(this.value)" aria-label="Ask the relationship">
               </div>
               <div class="flex flex-wrap gap-1.5">
-                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Why is Initech slowing down?'; submitCustomerAsk('Why is Initech slowing down?')">Why is Initech slowing down?</button>
-                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Who actually influences Globex?'; submitCustomerAsk('Who actually influences Globex?')">Who influences Globex?</button>
-                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Why did we lose Hooli?'; submitCustomerAsk('Why did we lose Hooli?')">Why did we lose Hooli?</button>
-                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='What promises have we made?'; submitCustomerAsk('What promises have we made?')">What promises have we made?</button>
-                <button class="tag tag-gray cursor-pointer" onclick="document.getElementById('customer-ask-input').value='Which engineering work unlocks the most ARR?'; submitCustomerAsk('Which engineering work unlocks the most ARR?')">Which engineering unlocks the most ARR?</button>
+                <button class="tag tag-gray cursor-pointer" data-oc="oc-20">Why is Initech slowing down?</button>
+                <button class="tag tag-gray cursor-pointer" data-oc="oc-21">Who influences Globex?</button>
+                <button class="tag tag-gray cursor-pointer" data-oc="oc-22">Why did we lose Hooli?</button>
+                <button class="tag tag-gray cursor-pointer" data-oc="oc-23">What promises have we made?</button>
+                <button class="tag tag-gray cursor-pointer" data-oc="oc-24">Which engineering unlocks the most ARR?</button>
               </div>
               <div id="customer-ask-answer" class="space-y-2" style="display:none;">
                 <div class="text-sm text-fg-200 leading-relaxed" id="customer-ask-text"></div>
@@ -841,8 +841,8 @@
           </div>
           <div class="ds-row-between" style="margin-bottom:16px;">
             <div class="ds-row" style="gap:6px;">
-              <button class="ds-btn ds-btn-primary ds-btn-small" onclick="setAssumptionsView('dangerous')">Dangerous</button>
-              <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="setAssumptionsView('accuracy')">Accuracy report</button>
+              <button class="ds-btn ds-btn-primary ds-btn-small" data-oc="oc-25">Dangerous</button>
+              <button class="ds-btn ds-btn-ghost ds-btn-small" data-oc="oc-26">Accuracy report</button>
             </div>
           </div>
           <div id="assumptions-dangerous">
@@ -906,14 +906,14 @@
       <section class="surface" id="surface-live">
         <div class="p-6 space-y-5 max-w-7xl mx-auto">
           <div>
-            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Live Meeting</div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Meeting Analyzer</div>
             <h1 class="text-2xl font-bold text-white">Meeting intelligence — OEM-driven.</h1>
             <p class="text-xs text-fg-500 mt-1">Paste a meeting transcript and the OEM will detect objections (linked to real laws), action items, and triggered laws. No hardcoded scripts — every detection comes from the live OEM state.</p>
           </div>
           <div class="panel">
             <div class="panel-header">
               <span>Transcript</span>
-              <button class="btn btn-cyan text-[10px]" onclick="startLiveMeeting()" id="live-start-btn">Start Meeting Analysis</button>
+              <button class="btn btn-cyan text-[10px]" data-oc="oc-27" id="live-start-btn">Start Meeting Analysis</button>
             </div>
             <div class="panel-body">
               <div id="transcript-area" class="space-y-2 min-h-[200px] max-h-[400px] overflow-y-auto mb-3">
@@ -921,7 +921,7 @@
               </div>
               <div id="live-transcript-input" class="space-y-2">
                 <textarea id="live-transcript-textarea" class="ask-input w-full" rows="6" placeholder="Jane: Let's make a decision on Q3 hiring.&#10;Chris: I recommend we approve the plan as-is.&#10;Pat: I dissent. We need to address the bottleneck first.&#10;Priya: Agreed — let's resolve the bottleneck before hiring.&#10;Jane: Approved. Address bottleneck first, then revisit hiring."></textarea>
-                <button class="btn btn-primary text-[11px]" onclick="analyzeTranscript()">Analyze with OEM</button>
+                <button class="btn btn-primary text-[11px]" data-oc="oc-28">Analyze with OEM</button>
               </div>
             </div>
           </div>
@@ -1046,7 +1046,7 @@
           <div class="panel" id="oauth-config-form" style="display:none;">
             <div class="panel-header">
               <span id="oauth-form-title">Configure Provider</span>
-              <button class="btn btn-ghost text-[10px]" onclick="document.getElementById('oauth-config-form').style.display='none'">Cancel</button>
+              <button class="btn btn-ghost text-[10px]" data-oc="oc-29">Cancel</button>
             </div>
             <div class="panel-body space-y-3">
               <div>
@@ -1065,7 +1065,7 @@
                 The secret is encrypted before storage and decrypted only during the OAuth token exchange.
                 It is never logged, never returned by any API, and never stored in plain text.
               </div>
-              <button class="btn btn-primary text-xs" onclick="saveOAuthProvider()">Save Configuration</button>
+              <button class="btn btn-primary text-xs" data-oc="oc-30">Save Configuration</button>
             </div>
           </div>
 
@@ -1109,7 +1109,7 @@
           <div class="text-[10px] uppercase tracking-wider text-fg-500">Recs</div>
           <div class="text-sm font-bold text-brand-amber" id="import-banner-recs">0</div>
         </div>
-        <button class="btn btn-ghost text-[11px]" onclick="cancelImport()">Cancel</button>
+        <button class="btn btn-ghost text-[11px]" data-oc="oc-31">Cancel</button>
       </div>
     </div>
     <div class="h-1 bg-ink-700 rounded-full overflow-hidden">
@@ -1190,6 +1190,76 @@
       setTimeout(function() { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
     };
   }
+</script>
+
+<script>
+// Round 78: onclick → addEventListener (CSP compliance)
+document.addEventListener('DOMContentLoaded', function() {
+  var el_oc-0 = document.querySelector('[data-oc="oc-0"]');
+  if (el_oc-0) el_oc-0.addEventListener('click', function() { closeDrilldown() });
+  var el_oc-1 = document.querySelector('[data-oc="oc-1"]');
+  if (el_oc-1) el_oc-1.addEventListener('click', function() { closeDrilldown() });
+  var el_oc-2 = document.querySelector('[data-oc="oc-2"]');
+  if (el_oc-2) el_oc-2.addEventListener('click', function() { switchDrilldownTab('why') });
+  var el_oc-3 = document.querySelector('[data-oc="oc-3"]');
+  if (el_oc-3) el_oc-3.addEventListener('click', function() { switchDrilldownTab('where') });
+  var el_oc-4 = document.querySelector('[data-oc="oc-4"]');
+  if (el_oc-4) el_oc-4.addEventListener('click', function() { switchDrilldownTab('evidence') });
+  var el_oc-5 = document.querySelector('[data-oc="oc-5"]');
+  if (el_oc-5) el_oc-5.addEventListener('click', function() { switchDrilldownTab('timeline') });
+  var el_oc-6 = document.querySelector('[data-oc="oc-6"]');
+  if (el_oc-6) el_oc-6.addEventListener('click', function() { switchDrilldownTab('people') });
+  var el_oc-7 = document.querySelector('[data-oc="oc-7"]');
+  if (el_oc-7) el_oc-7.addEventListener('click', function() { switchDrilldownTab('prediction') });
+  var el_oc-8 = document.querySelector('[data-oc="oc-8"]');
+  if (el_oc-8) el_oc-8.addEventListener('click', function() { switchDrilldownTab('simulation') });
+  var el_oc-9 = document.querySelector('[data-oc="oc-9"]');
+  if (el_oc-9) el_oc-9.addEventListener('click', function() { switchDrilldownTab('recommendation') });
+  var el_oc-10 = document.querySelector('[data-oc="oc-10"]');
+  if (el_oc-10) el_oc-10.addEventListener('click', function() { switchDrilldownTab('perspectives') });
+  var el_oc-11 = document.querySelector('[data-oc="oc-11"]');
+  if (el_oc-11) el_oc-11.addEventListener('click', function() { switchDrilldownTab('sowhat') });
+  var el_oc-12 = document.querySelector('[data-oc="oc-12"]');
+  if (el_oc-12) el_oc-12.addEventListener('click', function() { openMoreMenu(); return false; });
+  var el_oc-13 = document.querySelector('[data-oc="oc-13"]');
+  if (el_oc-13) el_oc-13.addEventListener('click', function() { openCommandPalette() });
+  var el_oc-14 = document.querySelector('[data-oc="oc-14"]');
+  if (el_oc-14) el_oc-14.addEventListener('click', function() { toggleTheme() });
+  var el_oc-15 = document.querySelector('[data-oc="oc-15"]');
+  if (el_oc-15) el_oc-15.addEventListener('click', function() { toggleMobileSidebar() });
+  var el_oc-16 = document.querySelector('[data-oc="oc-16"]');
+  if (el_oc-16) el_oc-16.addEventListener('click', function() { runSimulator() });
+  var el_oc-17 = document.querySelector('[data-oc="oc-17"]');
+  if (el_oc-17) el_oc-17.addEventListener('click', function() { document.getElementById('ask-input').value='who is the bottleneck?'; submitAsk('who is the bottleneck?') });
+  var el_oc-18 = document.querySelector('[data-oc="oc-18"]');
+  if (el_oc-18) el_oc-18.addEventListener('click', function() { document.getElementById('ask-input').value='what laws have been discovered?'; submitAsk('what laws have been discovered?') });
+  var el_oc-19 = document.querySelector('[data-oc="oc-19"]');
+  if (el_oc-19) el_oc-19.addEventListener('click', function() { document.getElementById('ask-input').value='what is the P1 cluster risk?'; submitAsk('what is the P1 cluster risk?') });
+  var el_oc-20 = document.querySelector('[data-oc="oc-20"]');
+  if (el_oc-20) el_oc-20.addEventListener('click', function() { document.getElementById('customer-ask-input').value='Why is Initech slowing down?'; submitCustomerAsk('Why is Initech slowing down?') });
+  var el_oc-21 = document.querySelector('[data-oc="oc-21"]');
+  if (el_oc-21) el_oc-21.addEventListener('click', function() { document.getElementById('customer-ask-input').value='Who actually influences Globex?'; submitCustomerAsk('Who actually influences Globex?') });
+  var el_oc-22 = document.querySelector('[data-oc="oc-22"]');
+  if (el_oc-22) el_oc-22.addEventListener('click', function() { document.getElementById('customer-ask-input').value='Why did we lose Hooli?'; submitCustomerAsk('Why did we lose Hooli?') });
+  var el_oc-23 = document.querySelector('[data-oc="oc-23"]');
+  if (el_oc-23) el_oc-23.addEventListener('click', function() { document.getElementById('customer-ask-input').value='What promises have we made?'; submitCustomerAsk('What promises have we made?') });
+  var el_oc-24 = document.querySelector('[data-oc="oc-24"]');
+  if (el_oc-24) el_oc-24.addEventListener('click', function() { document.getElementById('customer-ask-input').value='Which engineering work unlocks the most ARR?'; submitCustomerAsk('Which engineering work unlocks the most ARR?') });
+  var el_oc-25 = document.querySelector('[data-oc="oc-25"]');
+  if (el_oc-25) el_oc-25.addEventListener('click', function() { setAssumptionsView('dangerous') });
+  var el_oc-26 = document.querySelector('[data-oc="oc-26"]');
+  if (el_oc-26) el_oc-26.addEventListener('click', function() { setAssumptionsView('accuracy') });
+  var el_oc-27 = document.querySelector('[data-oc="oc-27"]');
+  if (el_oc-27) el_oc-27.addEventListener('click', function() { startLiveMeeting() });
+  var el_oc-28 = document.querySelector('[data-oc="oc-28"]');
+  if (el_oc-28) el_oc-28.addEventListener('click', function() { analyzeTranscript() });
+  var el_oc-29 = document.querySelector('[data-oc="oc-29"]');
+  if (el_oc-29) el_oc-29.addEventListener('click', function() { document.getElementById('oauth-config-form').style.display='none' });
+  var el_oc-30 = document.querySelector('[data-oc="oc-30"]');
+  if (el_oc-30) el_oc-30.addEventListener('click', function() { saveOAuthProvider() });
+  var el_oc-31 = document.querySelector('[data-oc="oc-31"]');
+  if (el_oc-31) el_oc-31.addEventListener('click', function() { cancelImport() });
+});
 </script>
 </body>
 </html>

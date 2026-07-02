@@ -104,7 +104,7 @@ async function saveOAuthProvider() {
   const redirectUri = document.getElementById('oauth-redirect-uri').value.trim();
 
   if (!clientId || !clientSecret) {
-    alert('Client ID and Client Secret are required.');
+    showToast('Client ID and Client Secret are required.', 'error');
     return;
   }
 
@@ -119,10 +119,10 @@ async function saveOAuthProvider() {
       document.getElementById('oauth-config-form').style.display = 'none';
       loadOAuthAdminConfigs();
     } else {
-      alert(data.detail || 'Failed to save OAuth config');
+      showToast(data.detail || 'Failed to save OAuth config', 'error');
     }
   } catch (e) {
-    alert('Error: ' + e.message);
+    showToast('Error: ' + e.message, 'error');
   }
 }
 
@@ -134,10 +134,10 @@ async function deleteOAuthProvider(provider) {
     if (data.ok) {
       loadOAuthAdminConfigs();
     } else {
-      alert(data.detail || 'Failed to remove');
+      showToast(data.detail || 'Failed to remove', 'error');
     }
   } catch (e) {
-    alert('Error: ' + e.message);
+    showToast('Error: ' + e.message, 'error');
   }
 }
 

@@ -235,11 +235,11 @@ function _loadIntegrationSettings(el, user) {
 async function toggleIntegration(enable) {
   try {
     const user = (typeof _getCurrentUser === 'function') ? (await _getCurrentUser()) : 'local-dev-user';
-    if (!user) { alert('Could not determine user identity.'); return; }
+    if (!user) { showToast('Could not determine user identity.', 'error'); return; }
     await api.postPersonal('/settings/personal-context-in-work', { enabled: enable, user: user });
     showIntegrationToggle(); // reload
   } catch (e) {
-    alert('Toggle failed: ' + e.message);
+    showToast('Toggle failed: ' + e.message, 'error');
   }
 }
 

@@ -449,7 +449,7 @@ async function checkInHabit(habitId) {
     await api.postPersonal('/habits/checkin', { habit_id: habitId });
     loadPersonalSurface('personal-today'); // reload
   } catch (e) {
-    alert('Check-in failed: ' + e.message);
+    showToast('Check-in failed: ' + e.message, 'error');
   }
 }
 
@@ -458,7 +458,7 @@ async function dismissContradiction(key) {
     await api.postPersonal('/contradictions/dismiss', { dismiss_key: key });
     loadPersonalSurface('personal-today'); // reload
   } catch (e) {
-    alert('Dismiss failed: ' + e.message);
+    showToast('Dismiss failed: ' + e.message, 'error');
   }
 }
 
@@ -473,7 +473,7 @@ async function toggleIncognito() {
     }
     loadPersonalSurface('personal-today'); // reload
   } catch (e) {
-    alert('Incognito toggle failed: ' + e.message);
+    showToast('Incognito toggle failed: ' + e.message, 'error');
   }
 }
 
@@ -715,6 +715,6 @@ async function revokePersonalSource(source) {
     await api.postPersonal('/dashboard/revoke', { source });
     showWhatMaestroKnows(); // reload
   } catch (e) {
-    alert('Revoke failed: ' + e.message);
+    showToast('Revoke failed: ' + e.message, 'error');
   }
 }

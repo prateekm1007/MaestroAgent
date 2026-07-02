@@ -1,3 +1,17 @@
+
+// Round 78: Toast notification system (replaces alert/confirm)
+function showToast(message, type) {
+  type = type || 'info';
+  var toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(function() {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(function() { toast.remove(); }, 300);
+  }, 3000);
+}
 // MAESTRO — Pure Renderer Frontend
 // ═══════════════════════════════════════════════════════════════════════════
 // The UI is a pure renderer. The OEM is the single source of truth.
@@ -33,7 +47,7 @@ const pageNames = {
   hayek: 'Hayek Lens', flow: 'Knowledge Flow',
   ask: 'Ask the Organization', customer: 'Customer Judgment',
   physics: 'Organizational Physics', debate: 'Debate',
-  live: 'Live Meeting',
+  live: 'Meeting Analyzer',
   intents: 'Intent Cascade',
   contradictions: 'Contradictions',
   predictions: 'Prediction Market',
@@ -41,7 +55,7 @@ const pageNames = {
   'eng-signals': 'Signals', 'eng-oem': 'OEM Builder',
   'eng-audit': 'Audit Log', 'eng-settings': 'Settings',
   // Round 47 — Block 1
-  canvas: 'Decision Canvas', teammate: 'Teammate View', coordination: 'Coordination Engine',
+  canvas: 'Decision Canvas', coordination: 'Coordination Engine',
 };
 
 function navTo(surface) {
@@ -154,7 +168,7 @@ const _hiddenSurfaces = [
   { id: 'customer', label: 'Customer Judgment', group: 'CEO Product' },
   { id: 'physics', label: 'Organizational Physics — patterns', group: 'CEO Product' },
   { id: 'debate', label: 'Debate — laws unknown to leadership', group: 'CEO Product' },
-  { id: 'live', label: 'Live Meeting intelligence', group: 'CEO Product' },
+  { id: 'live', label: 'Meeting Analyzer — transcript intelligence', group: 'CEO Product' },
   { id: 'intents', label: 'Intent Cascade', group: 'Cognitive Model' },
   { id: 'contradictions', label: 'Contradictions', group: 'Cognitive Model' },
   { id: 'predictions', label: 'Prediction Market — calibration', group: 'Cognitive Model' },
@@ -170,7 +184,6 @@ const _hiddenSurfaces = [
   { id: 'personal', label: 'Personal Mode — your life, your memory, your decisions', group: 'Personal' },
   // Round 47 — Block 1: Canvas + Per-Teammate (command-palette only, NOT sidebar)
   { id: 'canvas', label: 'Canvas — visual decision mapping', group: 'Round 47' },
-  { id: 'teammate', label: 'Per-Teammate view — tasks, commitments, trust', group: 'Round 47' },
   { id: 'coordination', label: 'Coordination Engine — multi-team decision input', group: 'Round 59' },
 ];
 

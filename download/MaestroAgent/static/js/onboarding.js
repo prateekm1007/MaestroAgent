@@ -170,7 +170,7 @@ async function saveOnboardingName() {
   const name = document.getElementById('onboard-name').value.trim();
   if (!name) return;
   const user = await _getCurrentUser();
-  if (!user) { alert('Could not determine your user identity. Please refresh and try again.'); return; }
+  if (!user) { showToast('Could not determine your user identity. Please refresh and try again.', 'error'); return; }
   _onboardingData.name = name;
   api.postPersonal('/kg/entity', {
     user: await _getCurrentUser(),

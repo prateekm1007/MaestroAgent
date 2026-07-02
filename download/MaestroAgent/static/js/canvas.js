@@ -166,3 +166,24 @@ function _destroyCanvasDrag() {
     _canvasDragState = null;
   }
 }
+
+// Round 78: Touch event support for iPad/mobile
+function _addTouchSupport(node, dragHandler) {
+  node.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    dragHandler._start({ clientX: touch.clientX, clientY: touch.clientY });
+  }, { passive: false });
+}
+document.addEventListener('touchmove', (e) => {
+  if (window._canvasDragState && window._canvasDragState.dragging) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    window._canvasDragState._move({ clientX: touch.clientX, clientY: touch.clientY });
+  }
+}, { passive: false });
+document.addEventListener('touchend', () => {
+  if (window._canvasDragState && window._canvasDragState.dragging) {
+    window._canvasDragState._end();
+  }
+});

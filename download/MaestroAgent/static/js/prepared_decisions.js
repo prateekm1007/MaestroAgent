@@ -99,10 +99,10 @@ async function approvePreparedDecision(prepId) {
 }
 
 async function rejectPreparedDecision(prepId) {
-  // The backend exposes /approve; reject is captured as approved_by=ceo-rejected
+  // Round 78: reject now sends status=rejected directly
   // (the audit noted this as a follow-up — the CEO's decision is recorded either way)
   try {
-    await api.postOEM(`/preparations/${prepId}/approve?approved_by=ceo-rejected`);
+    await api.postOEM(`/preparations/${prepId}/resolve`);
     loadPreparedDecisions();
   } catch (e) {
     showError(`Failed to reject: ${e.message}`);
