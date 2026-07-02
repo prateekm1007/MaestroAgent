@@ -97,8 +97,18 @@ class PredictionRecorder:
     No prediction exists without evidence.
     """
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, org_id: str = "default") -> None:
+        """Initialize the recorder.
+
+        ``org_id`` scopes all queries to a single organization. This is the
+        multi-tenant isolation boundary (Principle 7): two PredictionRecorder
+        instances with different org_ids sharing the same DB file must never
+        see each other's predictions. Before this fix, the ``organization``
+        column existed but no query filtered by it — creating the illusion of
+        isolation without the reality.
+        """
         self.db_path = db_path
+        self.org_id = org_id
         self._lock = threading.RLock()
         self._init_db()
 
@@ -193,32 +203,42 @@ class PredictionRecorder:
         return 30 * 86400  # Default 30 days
 
     def get_pending_predictions(self) -> list[dict[str, Any]]:
-        """Get all pending predictions that need resolution."""
+        """Get all pending predictions that need resolution.
+
+        Scoped to self.org_id — never returns predictions from other orgs.
+        """
         with self._lock, self._connect() as cur:
             cur.execute(
-                "SELECT * FROM predictions WHERE status = 'pending' ORDER BY created_at"
+                "SELECT * FROM predictions WHERE status = 'pending' AND organization = ? ORDER BY created_at",
+                (self.org_id,),
             )
             return [self._row_to_dict(r) for r in cur.fetchall()]
 
     def get_prediction(self, prediction_id: str) -> dict[str, Any] | None:
+        """Get a prediction by ID. Returns None if not found OR if the prediction
+        belongs to a different org (Principle 7: isolation by default)."""
         with self._lock, self._connect() as cur:
-            cur.execute("SELECT * FROM predictions WHERE prediction_id = ?", (prediction_id,))
+            cur.execute(
+                "SELECT * FROM predictions WHERE prediction_id = ? AND organization = ?",
+                (prediction_id, self.org_id),
+            )
             row = cur.fetchone()
             return self._row_to_dict(row) if row else None
 
     def list_predictions(
         self, status: str | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
+        """List predictions, scoped to self.org_id."""
         with self._lock, self._connect() as cur:
             if status:
                 cur.execute(
-                    "SELECT * FROM predictions WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                    (status, limit),
+                    "SELECT * FROM predictions WHERE organization = ? AND status = ? ORDER BY created_at DESC LIMIT ?",
+                    (self.org_id, status, limit),
                 )
             else:
                 cur.execute(
-                    "SELECT * FROM predictions ORDER BY created_at DESC LIMIT ?",
-                    (limit,),
+                    "SELECT * FROM predictions WHERE organization = ? ORDER BY created_at DESC LIMIT ?",
+                    (self.org_id, limit),
                 )
             return [self._row_to_dict(r) for r in cur.fetchall()]
 
