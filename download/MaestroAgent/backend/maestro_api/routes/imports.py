@@ -33,12 +33,17 @@ from maestro_oem.oauth_manager import OAuthError
 from maestro_auth.permissions import is_auth_enabled, require_user, require_admin
 from maestro_api.security.policy import set_router_policy, auth_policy, AuthPolicy
 
-# Round 65 C2 fix + Round 78 connector drift fix: ONE canonical provider list,
-# used everywhere. Previously had 6 providers while oauth_manager.py had 9
-# (glean, guru, dust were missing). Now unified to 9.
+# Round 65 C2 fix + Round 78 connector drift fix (corrected):
+# ONE canonical provider list, matching BOTH the OAuth manager AND the
+# importer factory. Previously had 6 (factory) vs 9 (OAuth manager) —
+# the prior "fix" added glean/guru/dust to this list but the factory has
+# NO importers for them, so OAuth connect would succeed but import would
+# crash with ValueError. Corrected: only list providers that have BOTH
+# OAuth configs AND importer implementations.
+# glean/guru/dust have OAuth configs in oauth_manager.py but no importers.
+# They are BLOCKED from the connect flow until importers are implemented.
 SUPPORTED_IMPORT_PROVIDERS = (
     "github", "jira", "slack", "confluence", "gmail", "customer",
-    "glean", "guru", "dust",
 )
 
 logger = logging.getLogger(__name__)

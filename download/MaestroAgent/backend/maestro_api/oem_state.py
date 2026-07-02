@@ -569,15 +569,21 @@ class OEMStateRegistry:
 
         In dev mode (no auth), returns 'default'.
         In production (auth enabled), extracts org_id from the user's
-        session/token. Falls back to 'default' if not available.
+        session/token. FAILS CLOSED (raises ValueError) if auth is
+        enabled but org_id can't be resolved — does NOT silently fall
+        back to 'default', which would route data to the wrong tenant.
+
+        Round 78 CRITICAL 2 fix: the prior version returned 'default'
+        when auth was enabled but org_id was missing. This created a
+        cross-tenant data leak path. Now it raises.
         """
         # Check if auth is enabled
         try:
             from maestro_auth.permissions import is_auth_enabled
             if not is_auth_enabled():
-                return "default"
+                return "default"  # Dev mode — no auth, no tenant scoping
         except Exception:
-            return "default"
+            return "default"  # Auth check itself failed — can't enforce
 
         # Try to get org_id from request state (set by auth middleware)
         org_id = getattr(request.state, "org_id", None)
@@ -589,10 +595,20 @@ class OEMStateRegistry:
             from maestro_auth.permissions import require_user
             result = require_user(request)
             user = result.get("user", {})
-            org_id = user.get("org_id", "default")
-            return org_id or "default"
+            org_id = user.get("org_id")
+            if org_id:
+                return org_id
         except Exception:
-            return "default"
+            pass  # Fall through to fail-closed below
+
+        # FAIL CLOSED: auth is enabled but org_id couldn't be resolved.
+        # Do NOT return 'default' — that would route data to the wrong tenant.
+        raise ValueError(
+            "Tenant resolution failed: auth is enabled but org_id could not "
+            "be extracted from the request. Refusing to fall back to 'default' "
+            "to prevent cross-tenant data routing. Ensure the auth middleware "
+            "sets request.state.org_id or the user session includes org_id."
+        )
 
     @classmethod
     def clear(cls) -> None:
