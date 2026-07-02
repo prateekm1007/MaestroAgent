@@ -77,6 +77,36 @@ jobs:
         run: |
           python scripts/verify_loop_closed.py
 
+      - name: Verify no error suppression in tests
+        run: |
+          if grep -rn "not in.*Failed\|not in.*ERR_\|not in.*500\|not in.*404" backend/tests/ backend/maestro_api/tests/ backend/maestro_auth/tests/ backend/maestro_oem/tests/ 2>/dev/null; then
+            echo "ERROR SUPPRESSION DETECTED — BLOCKING COMMIT"
+            exit 1
+          fi
+
+      - name: E2E Journey Tests (12 phases)
+        working-directory: backend
+        run: |
+          python -m pytest maestro_api/tests/test_e2e_journey.py -v --tb=short --timeout=60
+        env:
+          MAESTRO_LOCAL_DEV: "true"
+          MAESTRO_DEMO_SEED: "true"
+
+      - name: Lighthouse CI
+        run: |
+          npm install -g @lhci/cli@0.12.x
+          npm install -g puppeteer
+          # Start the server in background
+          cd backend && PYTHONPATH=. MAESTRO_LOCAL_DEV=true MAESTRO_DEMO_SEED=true \
+            python -c "import uvicorn; from maestro_api.main import create_app; uvicorn.run(create_app(), host='0.0.0.0', port=1420)" &
+          SERVER_PID=$!
+          sleep 5
+          # Run Lighthouse CI
+          lhci collect --url http://localhost:1420/app.html --numberOfRuns=1
+          lhci assert --config .lighthouserc.json
+          kill $SERVER_PID
+        continue-on-error: true  # Warn but don't block — Lighthouse needs a real deployment
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,0 +1,23 @@
+{
+  "ci": {
+    "collect": {
+      "numberOfRuns": 1,
+      "settings": {
+        "preset": "desktop"
+      }
+    },
+    "assert": {
+      "preset": "lighthouse:no-pwa",
+      "assertions": {
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+        "interaction-to-next-paint": ["error", { "maxNumericValue": 200 }],
+        "first-contentful-paint": ["error", { "maxNumericValue": 1800 }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 300 }]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
