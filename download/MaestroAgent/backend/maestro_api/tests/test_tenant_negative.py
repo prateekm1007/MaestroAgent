@@ -29,20 +29,46 @@ class TestTenantNegativeIsolation:
     has a cross-tenant data contamination risk.
     """
 
-    def test_tenant_a_signals_do_not_appear_in_tenant_b(self, client):
+    @pytest.fixture(autouse=True)
+    def _clear_oem_registry(self, monkeypatch):
+        """Clear non-default OEM instances before each test + disable demo seed.
+
+        OEMStateRegistry.get() calls initialize() on new instances, which
+        seeds demo data (62 learning objects). This makes assertions on
+        counts unreliable. We disable the demo seed for these tests so
+        new org instances start empty (0 signals, 0 learning objects).
+
+        We only clear non-default orgs — TestTenantEndpointIsolation (which
+        runs after this class) needs the 'default' org's demo-seeded state.
+        """
+        # Disable demo seed so OEMStateRegistry.get() creates empty instances.
+        monkeypatch.setenv("MAESTRO_DEMO_SEED", "false")
+        from maestro_api.oem_state import OEMStateRegistry
+        # Remove all non-default instances
+        for org_id in list(OEMStateRegistry._instances.keys()):
+            if org_id != "default":
+                del OEMStateRegistry._instances[org_id]
+        yield
+
+    def test_tenant_a_signals_do_not_appear_in_tenant_b(self):
         """Tenant A ingests signals. Tenant B's OEM must NOT receive them.
 
         This is the core negative test: signals for org 'acme' must NOT
         appear in org 'globex' OEM state.
+
+        Uses unique org IDs to avoid demo-seed interference from the
+        session-scoped client fixture.
         """
         from maestro_api.oem_state import OEMStateRegistry
         from maestro_oem.signal import ExecutionSignal, SignalType, SignalProvider
 
-        # Get separate OEM instances for two tenants
-        acme = OEMStateRegistry.get("acme")
-        globex = OEMStateRegistry.get("globex")
+        # Use unique org IDs that are NOT seeded by demo data.
+        # The session-scoped client fixture initializes 'default' and 'acme'
+        # with demo seed — using those orgs causes baseline interference.
+        acme = OEMStateRegistry.get("acme-isolation-test-001")
+        globex = OEMStateRegistry.get("globex-isolation-test-001")
 
-        # Record initial state
+        # Record initial state (should be 0 for unseeded orgs)
         acme_signals_before = len(acme.signals)
         globex_signals_before = len(globex.signals)
         globex_laws_before = len(globex.model.laws)
@@ -82,13 +108,14 @@ class TestTenantNegativeIsolation:
         assert acme is not globex, \
             "Tenant A and Tenant B share the same OEM instance — ISOLATION BROKEN"
 
-    def test_tenant_a_learning_objects_do_not_leak(self, client):
+    def test_tenant_a_learning_objects_do_not_leak(self):
         """Learning objects inferred for Tenant A must NOT appear in Tenant B."""
         from maestro_api.oem_state import OEMStateRegistry
         from maestro_oem.signal import ExecutionSignal, SignalType, SignalProvider
 
-        acme = OEMStateRegistry.get("acme-lo-test")
-        globex = OEMStateRegistry.get("globex-lo-test")
+        # Use unique org IDs to avoid demo-seed interference.
+        acme = OEMStateRegistry.get("acme-lo-test-002")
+        globex = OEMStateRegistry.get("globex-lo-test-002")
 
         acme_lo_before = len(acme.model.learning_objects)
         globex_lo_before = len(globex.model.learning_objects)
