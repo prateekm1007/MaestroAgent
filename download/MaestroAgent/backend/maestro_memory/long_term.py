@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS episodes(
     run_id TEXT NOT NULL,
     agent_id TEXT,
     scope TEXT,
+    org_id TEXT NOT NULL DEFAULT 'default',
     summary TEXT,
     content TEXT,
     tags_json TEXT,
@@ -48,6 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_episodes_run ON episodes(run_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_agent ON episodes(agent_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_scope ON episodes(scope);
 CREATE INDEX IF NOT EXISTS idx_episodes_tags ON episodes(tags_json);
+CREATE INDEX IF NOT EXISTS idx_episodes_org ON episodes(org_id);
 """
 
 
@@ -65,9 +67,19 @@ class LongTermMemory:
         self,
         db_path: str | Path = "maestro.db",
         vector: "VectorMemory | None" = None,
+        org_id: str = "default",
     ) -> None:
+        """Initialize the long-term memory store.
+
+        ``org_id`` scopes all queries to a single organization (Principle 7).
+        Two LongTermMemory instances with different org_ids sharing the same
+        DB file must never see each other's episodes. Before this fix, the
+        episodes table had no org_id column — any tenant could read any
+        other tenant's episodic memories.
+        """
         self.db_path = str(db_path)
         self.vector = vector
+        self.org_id = org_id
         conn = sqlite3.connect(self.db_path)
         try:
             conn.executescript(SCHEMA)
@@ -94,14 +106,16 @@ class LongTermMemory:
     ) -> str:
         eid = str(uuid.uuid4())
         conn = self._conn_get()
+        # INSERT includes org_id
         conn.execute(
-            "INSERT INTO episodes (id, run_id, agent_id, scope, summary, content, "
-            "tags_json, provenance_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO episodes (id, run_id, agent_id, scope, org_id, summary, content, "
+            "tags_json, provenance_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 eid,
                 run_id,
                 agent_id,
                 scope,
+                self.org_id,
                 summary or content[:200],
                 content,
                 json.dumps(tags or []),
@@ -118,7 +132,7 @@ class LongTermMemory:
                     agent_id=agent_id,
                     scope=scope,
                     content=summary or content,
-                    metadata={"episode_id": eid},
+                    metadata={"episode_id": eid, "org_id": self.org_id},
                 )
             except Exception:
                 # Principle 6: log loudly, don't silently swallow. SQLite is
@@ -140,29 +154,33 @@ class LongTermMemory:
         return cur.rowcount > 0
 
     async def get(self, episode_id: str) -> dict[str, Any] | None:
+        """Get an episode by ID. Returns None if not found OR if the episode
+        belongs to a different org (Principle 7: isolation by default)."""
         conn = self._conn_get()
         row = conn.execute(
-            "SELECT * FROM episodes WHERE id = ?", (episode_id,)
+            "SELECT * FROM episodes WHERE id = ? AND org_id = ?",
+            (episode_id, self.org_id),
         ).fetchone()
         if row is None:
             return None
         return self._row_to_dict(row)
 
     async def list_by_run(self, run_id: str, promoted_only: bool = False) -> list[dict[str, Any]]:
+        """List episodes for a run, scoped to self.org_id."""
         conn = self._conn_get()
-        sql = "SELECT * FROM episodes WHERE run_id = ?"
+        sql = "SELECT * FROM episodes WHERE run_id = ? AND org_id = ?"
         if promoted_only:
             sql += " AND promoted_at IS NOT NULL"
         sql += " ORDER BY created_at ASC"
-        rows = conn.execute(sql, (run_id,)).fetchall()
+        rows = conn.execute(sql, (run_id, self.org_id)).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
     async def list_by_tag(self, tag: str, limit: int = 50) -> list[dict[str, Any]]:
+        """List episodes by tag, scoped to self.org_id."""
         conn = self._conn_get()
-        # JSON contains — works for SQLite's json1.
         rows = conn.execute(
-            "SELECT * FROM episodes WHERE tags_json LIKE ? ORDER BY created_at DESC LIMIT ?",
-            (f'%"{tag}"%', limit),
+            "SELECT * FROM episodes WHERE tags_json LIKE ? AND org_id = ? ORDER BY created_at DESC LIMIT ?",
+            (f'%"{tag}"%', self.org_id, limit),
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
@@ -192,10 +210,13 @@ class LongTermMemory:
                 )
                 entries = []
             if entries:
+                # Filter vector results by org_id (the vector store is shared
+                # across orgs — only return entries belonging to self.org_id).
                 wanted = [
                     e.metadata.get("episode_id")
                     for e in entries
                     if e.metadata.get("episode_id")
+                    and e.metadata.get("org_id") == self.org_id
                 ]
                 hydrated = await self._hydrate_by_ids(wanted)
                 id_to_row = {r["id"]: r for r in hydrated}
@@ -206,23 +227,24 @@ class LongTermMemory:
             else:
                 logger.warning("Vector query returned no entries — falling back to SQL LIKE")
 
-        # Fallback: SQL LIKE (substring matching).
+        # Fallback: SQL LIKE (substring matching), scoped to org_id.
         conn = self._conn_get()
         rows = conn.execute(
-            "SELECT * FROM episodes WHERE summary LIKE ? OR content LIKE ? "
+            "SELECT * FROM episodes WHERE org_id = ? AND (summary LIKE ? OR content LIKE ?) "
             "ORDER BY created_at DESC LIMIT ?",
-            (f"%{query}%", f"%{query}%", limit),
+            (self.org_id, f"%{query}%", f"%{query}%", limit),
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
     async def _hydrate_by_ids(self, episode_ids: list[str]) -> list[dict[str, Any]]:
-        """Fetch full episode rows for a list of ids."""
+        """Fetch full episode rows for a list of ids, scoped to org_id."""
         if not episode_ids:
             return []
         conn = self._conn_get()
         placeholders = ",".join("?" * len(episode_ids))
         rows = conn.execute(
-            f"SELECT * FROM episodes WHERE id IN ({placeholders})", episode_ids,
+            f"SELECT * FROM episodes WHERE id IN ({placeholders}) AND org_id = ?",
+            (*episode_ids, self.org_id),
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
@@ -232,6 +254,7 @@ class LongTermMemory:
             "run_id": row["run_id"],
             "agent_id": row["agent_id"],
             "scope": row["scope"],
+            "org_id": row["org_id"],
             "summary": row["summary"],
             "content": row["content"],
             "tags": json.loads(row["tags_json"]),
