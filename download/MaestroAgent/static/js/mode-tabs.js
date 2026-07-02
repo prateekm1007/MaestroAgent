@@ -198,7 +198,19 @@ function showIntegrationToggle() {
   const el = document.getElementById('main-content') || document.getElementById('personal-main');
   if (!el) return;
   el.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Loading integration settings…</div>';
-  api.getPersonal('/settings/personal-context-in-work?user=default').then(data => {
+  // Round 78 CRITICAL 4: use _getCurrentUser() instead of hardcoded 'default'
+  if (typeof _getCurrentUser === 'function') {
+    _getCurrentUser().then(user => {
+      if (!user) { el.innerHTML = '<div class="ds-error">Could not determine user identity.</div>'; return; }
+      _loadIntegrationSettings(el, user);
+    });
+  } else {
+    // Fallback if onboarding.js hasn't loaded yet
+    _loadIntegrationSettings(el, 'local-dev-user');
+  }
+
+function _loadIntegrationSettings(el, user) {
+  api.getPersonal('/settings/personal-context-in-work?user=' + encodeURIComponent(user)).then(data => {
     const enabled = data.personal_context_in_work;
     el.innerHTML = `
       <div style="max-width:500px;margin:40px auto;padding:24px;font-family:'Montserrat',sans-serif;">
@@ -223,7 +235,9 @@ function showIntegrationToggle() {
 
 async function toggleIntegration(enable) {
   try {
-    await api.postPersonal('/settings/personal-context-in-work', { enabled: enable, user: 'default' });
+    const user = (typeof _getCurrentUser === 'function') ? (await _getCurrentUser()) : 'local-dev-user';
+    if (!user) { alert('Could not determine user identity.'); return; }
+    await api.postPersonal('/settings/personal-context-in-work', { enabled: enable, user: user });
     showIntegrationToggle(); // reload
   } catch (e) {
     alert('Toggle failed: ' + e.message);
