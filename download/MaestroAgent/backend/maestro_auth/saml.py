@@ -208,20 +208,22 @@ class SAMLManager:
                 "Unsigned SAML responses are not accepted (fail-closed). "
                 "Enable signatures in your IdP configuration."
             )
-        # Signature element is present — require python3-saml for verification.
+        # Signature element is present — require xmlsec + lxml for real verification.
+        # Principle 3: do NOT mock this. Principle 6: do NOT defer with a TODO.
+        # The prior code did `import saml` (always failed — python3-saml exposes
+        # `onelogin.saml2`, not `saml`) which meant the fail-closed path fired on
+        # every signed response. Fixed to check for xmlsec + lxml directly (the
+        # actual crypto deps) and use real xmlsec verification against the IdP cert.
         try:
-            import saml  # noqa: F401 — python3-saml
+            import xmlsec  # noqa: F401
+            from lxml import etree  # noqa: F401
         except ImportError:
             raise SAMLError(
-                "python3-saml is not installed — SAML signature cannot be "
+                "xmlsec or lxml is not installed — SAML signature cannot be "
                 "cryptographically verified. Authentication refused (fail-closed). "
-                "Install with: pip install python3-saml. A <ds:Signature> element "
-                "is present but cannot be verified without the crypto library."
+                "Install with: pip install python3-saml (pulls both). "
+                "A <ds:Signature> element is present but cannot be verified."
             )
-        # Round 49 C5 fix: actually verify the SAML signature.
-        # The old code had a TODO here and accepted the assertion without
-        # verification. Now we use xmlsec (a dependency of python3-saml) to
-        # verify the XML signature against the IdP certificate.
         # If no IdP cert is configured, fail closed.
         idp_cert = os.environ.get("MAESTRO_SAML_IDP_CERT", "")
         if not idp_cert:
@@ -234,23 +236,34 @@ class SAMLManager:
         try:
             import xmlsec
             from lxml import etree
-            # Verify the XML signature using the IdP certificate
-            # Re-parse the raw SAML response to get the XML tree with signatures
+            # Verify the XML signature using the IdP certificate.
             tree = etree.fromstring(base64.b64decode(saml_response_b64))
-            # Find the signature node
-            sig_node = tree.find(".//{http://www.w3.org/2000/09/xmldsig#}Signature")
+            # Find the assertion — SAML signatures typically sign the assertion,
+            # and the <ds:Signature> is the first child of <saml:Assertion>.
+            assertion = tree.find(".//{urn:oasis:names:tc:SAML:2.0:assertion}Assertion")
+            if assertion is None:
+                raise SAMLError("SAML response has no <Assertion> — authentication refused")
+            sig_node = assertion.find("{http://www.w3.org/2000/09/xmldsig#}Signature")
+            if sig_node is None:
+                sig_node = tree.find(".//{http://www.w3.org/2000/09/xmldsig#}Signature")
             if sig_node is None:
                 raise SAMLError("SAML response has no signature node — authentication refused")
-            # Create a signed XML context and verify
             ctx = xmlsec.SignatureContext()
-            # Load the IdP certificate
-            cert = xmlsec.Key.from_memory(idp_cert, xmlsec.KeyFormat.CERT_PEM, None)
-            ctx.key = cert
-            # Verify the signature in-place
+            ctx.key = xmlsec.Key.from_memory(idp_cert.encode("utf-8"), xmlsec.KeyFormat.CERT_PEM)
+            # Register the assertion's ID so xmlsec can resolve URI="#<id>" references.
+            assertion_id = assertion.get("ID")
+            if assertion_id:
+                ctx.register_id(assertion, "ID")
             ctx.verify(sig_node)
             logger.info("SAML signature verified successfully against IdP certificate")
         except SAMLError:
             raise
+        except xmlsec.Error as e:
+            raise SAMLError(
+                f"SAML signature verification FAILED — authentication refused "
+                f"(fail-closed). The signature is invalid, the XML was tampered, "
+                f"or the IdP cert does not match. xmlsec error: {e}"
+            )
         except Exception as e:
             raise SAMLError(
                 f"SAML signature verification FAILED — authentication refused "

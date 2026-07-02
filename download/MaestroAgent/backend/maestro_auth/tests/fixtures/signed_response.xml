@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_6fef55c545204d7ea64f27b7706cf657" Version="2.0" IssueInstant="2026-07-02T11:19:18Z">
+  <saml:Issuer>https://idp.example.com</saml:Issuer>
+  <samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+  <saml:Assertion ID="_7f1337c43139458c9fe1ca870efbb9cd" Version="2.0" IssueInstant="2026-07-02T11:19:18Z">
+    <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+<ds:SignedInfo>
+<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+<ds:Reference URI="#_7f1337c43139458c9fe1ca870efbb9cd">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+<ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+</ds:Transforms>
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+<ds:DigestValue>QEYUk7wjVAshZ5QreR+IwdlmfMLLav9q22XCBF21H1g=</ds:DigestValue>
+</ds:Reference>
+</ds:SignedInfo>
+<ds:SignatureValue>MmIVNDlCVu9ZVwCcILNDLTCRDscLfnUaLGkTotRq53/x5BCBMGGadQ7bygXZymi1
+TM0EWO9xssc2SmYDEJ7HXjPsS4rLwAqqaLWezMWtI14talVVv+7ieuRfjNq+vLAu
+j7HFV2gbvbr8ht3ujiIydl6J0HScQTesD0lDBMEfYOLbjiv8BKjCw/YUyeo58Px1
+Zev+weh1OcfKrIlAsLeqqInvJ4kxYUm+M4R51OTqNathF34iLiIAM7sknGNWs191
+xpl3XQkQMCixS/0FrDp0OL9ddaruWgH1eQ5Aqq0qnypy+UJyGIgBr8nLaRrKx/BK
+ojL4TgIEYT2ndT9I4lOUew==</ds:SignatureValue>
+</ds:Signature><saml:Issuer>https://idp.example.com</saml:Issuer>
+    <saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">user@example.com</saml:NameID></saml:Subject>
+    <saml:AttributeStatement>
+      <saml:Attribute Name="email"><saml:AttributeValue>user@example.com</saml:AttributeValue></saml:Attribute>
+      <saml:Attribute Name="name"><saml:AttributeValue>Test User</saml:AttributeValue></saml:Attribute>
+    </saml:AttributeStatement>
+  </saml:Assertion>
+</samlp:Response>

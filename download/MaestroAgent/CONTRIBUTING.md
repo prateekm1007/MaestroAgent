@@ -1,5 +1,100 @@
 # Contributing to Maestro
 
+## Verification Protocol (MANDATORY — read [ENTROPY_RECOVERY.md](./ENTROPY_RECOVERY.md) first)
+
+> **A fix is not "verified" until it has been executed, not read.**
+>
+> This rule exists because, across multiple audit rounds, fixes were marked
+> ✓ VERIFIED in `STATE.md` and docstrings while being completely non-functional
+> on first execution. The canonical instance: a "semantic search fix" that
+> instantiated an abstract class (`VectorMemory`, an `ABC`), called a method
+> that did not exist (`.search()`), and swallowed both errors with
+> `except Exception: pass` — every call fell through to SQL `LIKE` while the
+> docstring claimed semantic ranking. It shipped "verified" for 18+ rounds
+> because no test exercised the path with a query that would distinguish
+> semantic ranking from substring matching.
+
+**No fix may be marked ✓ VERIFIED without ALL THREE of the following:**
+
+### 1. A pasted terminal transcript in the commit message (Principle 1)
+
+The actual code path must be run, with output. Not "tests pass" — the
+specific function called, in isolation, with the result printed.
+
+**Required format in the commit message:**
+
+```
+fix(memory): LongTermMemory semantic search actually invokes vector layer
+
+VERIFICATION (executed, not read):
+$ python -c "
+import asyncio
+from maestro_memory.long_term import LongTermMemory
+from maestro_memory.vector import InMemoryVectorMemory
+mem = LongTermMemory(db_path=':memory:', vector=InMemoryVectorMemory())
+asyncio.run(mem.write(run_id='r1', agent_id='a', scope='shared',
+    content='We chose Postgres for streaming replication.'))
+results = asyncio.run(mem.search('database scaling', limit=5))
+print(f'Results: {len(results)}')
+print(f'First: {results[0][\"summary\"]}')"
+Results: 1
+First: Postgres chosen for replication + index performance
+
+TEST: backend/maestro_memory/tests/test_long_term_search.py::test_semantic_search_finds_non_substring_match — PASS
+```
+
+If the transcript is missing, the PR is blocked. No exceptions.
+
+### 2. For fixes touching a module with zero test coverage, add a test that FAILS when the fix is reverted (Principles 2 + 10)
+
+This is the rule that would have caught the `VectorMemory` bug immediately.
+If you're fixing `maestro_memory/long_term.py` and `maestro_memory/tests/`
+does not exist, your PR must create it with at least one test that would
+fail if your fix were reverted.
+
+**How to verify your test actually guards the fix (proof by negation):**
+1. Write the fix + the test. Confirm the test PASSES.
+2. Temporarily revert the fix. Confirm the test FAILS.
+3. Re-apply the fix. Confirm the test PASSES again.
+4. Paste all three outputs in the commit message.
+
+A test that passes both with and without the fix is decoration, not verification.
+
+### 3. The function must be called in isolation, outside test mocks, at least once (Principle 3)
+
+Unit tests with `MagicMock`-ed dependencies prove the code *paths* wire
+together — they do not prove the code *works*. The mocked-SAML-signature
+test (which `MagicMock`-ed `xmlsec`, `python3-saml`, and `lxml`, then
+hardcoded `mock_ctx.verify.return_value = True`) is the canonical example:
+it passed for rounds while proving nothing about real XML-DSig verification.
+
+Before marking a fix verified, run the actual function with real
+dependencies (or real fixtures) at least once. Paste the output.
+
+**Before mocking a dependency, ask:** "if this dependency were subtly broken,
+would this test still pass?" If yes, you're not testing your integration —
+you're testing that you can call a mock. For anything security- or
+correctness-critical (crypto, auth, data isolation), use a real fixture.
+
+---
+
+### Pre-merge checklist (paste this at the top of every PR description)
+
+```
+- [ ] I read ENTROPY_RECOVERY.md before starting this work
+- [ ] I imported and called the fixed function in isolation, outside test mocks
+- [ ] I pasted the terminal transcript in the commit message
+- [ ] If the touched module had zero tests, I added a test that FAILS when my fix is reverted (proof by negation outputs pasted)
+- [ ] I did NOT write a bare `except Exception: pass` around new/fixed code (Principle 6 — fail closed, or log loudly)
+- [ ] If this changes shared/global state to scoped state, I added a two-instance isolation test (Principle 7)
+- [ ] I did NOT mark anything ✓ VERIFIED in STATE.md that I have not personally executed in this session
+```
+
+If any box is unchecked, the PR cannot merge. Reviewers must reject on
+sight, including the founder's own PRs.
+
+---
+
 ## The Merge-Gate Rule
 
 > **No engineer — including the founder — can merge a feature unless it satisfies one of:**

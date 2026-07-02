@@ -18,11 +18,17 @@ promotion timestamp.
 from __future__ import annotations
 
 import json
+import logging
 from maestro_db import sqlite_compat as sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from maestro_memory.vector import VectorMemory
+
+logger = logging.getLogger(__name__)
 
 
 SCHEMA = """
@@ -46,10 +52,22 @@ CREATE INDEX IF NOT EXISTS idx_episodes_tags ON episodes(tags_json);
 
 
 class LongTermMemory:
-    """SQLite-backed long-term episodic memory."""
+    """SQLite-backed long-term episodic memory.
 
-    def __init__(self, db_path: str | Path = "maestro.db") -> None:
+    When a ``VectorMemory`` is provided at construction, episodes are also
+    indexed into the vector store on write, and search() queries the vector
+    layer first (semantic ranking), falling back to SQL LIKE only when no
+    vector is configured or the vector query returns nothing. The fallback
+    is logged loudly (Principle 6: no silent swallows).
+    """
+
+    def __init__(
+        self,
+        db_path: str | Path = "maestro.db",
+        vector: "VectorMemory | None" = None,
+    ) -> None:
         self.db_path = str(db_path)
+        self.vector = vector
         conn = sqlite3.connect(self.db_path)
         try:
             conn.executescript(SCHEMA)
@@ -92,6 +110,24 @@ class LongTermMemory:
             ),
         )
         conn.commit()
+        # Index into the vector store so search() can rank semantically.
+        if self.vector is not None:
+            try:
+                await self.vector.add(
+                    run_id=run_id,
+                    agent_id=agent_id,
+                    scope=scope,
+                    content=summary or content,
+                    metadata={"episode_id": eid},
+                )
+            except Exception:
+                # Principle 6: log loudly, don't silently swallow. SQLite is
+                # the source of truth; a vector index failure is non-fatal but
+                # must be visible.
+                logger.warning(
+                    "Vector index failed for episode %s — search will fall back to SQL LIKE", eid,
+                    exc_info=True,
+                )
         return eid
 
     async def promote(self, episode_id: str) -> bool:
@@ -131,31 +167,62 @@ class LongTermMemory:
         return [self._row_to_dict(r) for r in rows]
 
     async def search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
-        """Semantic search across summary + content.
+        """Search across summary + content.
 
-        Round 53 H3 fix: the old search was naive SQL LIKE (substring
-        matching). Now we try the vector/semantic layer first (which
-        uses ChromaDB embeddings or in-memory cosine similarity), and
-        fall back to SQL LIKE if the vector layer is unavailable.
-        This ensures the Memory Replay and Knowledge Flow surfaces
-        get semantic results, not keyword matching.
+        When a ``VectorMemory`` is configured, queries the vector layer first
+        for semantic ranking, then hydrates the matching SQLite rows. Falls
+        back to SQL LIKE (substring) only when no vector is configured or the
+        vector query returns nothing. The fallback is logged loudly (P6).
+
+        Principle 1 note: the prior version of this method (the "Round 53 H3
+        fix" docstring above) instantiated ``VectorMemory()`` — an ABC that
+        raises TypeError — and called ``.search()`` — a method that does not
+        exist on the interface. Both errors were swallowed by a bare
+        ``except Exception: pass``, so every call fell through to SQL LIKE
+        while the docstring claimed semantic ranking. This is the C1 bug from
+        the forensic audit. Fixed below to use the real ``.query()`` interface
+        on an injected concrete subclass.
         """
-        # Try the semantic/vector layer first
-        try:
-            from maestro_memory.vector import VectorMemory
-            vector_mem = VectorMemory()
-            results = vector_mem.search(query, limit=limit)
-            if results:
-                return results
-        except Exception:
-            pass  # Fall back to SQL LIKE
+        if self.vector is not None:
+            try:
+                entries = await self.vector.query(query_text=query, top_k=limit)
+            except Exception:
+                logger.warning(
+                    "Vector query failed — falling back to SQL LIKE", exc_info=True,
+                )
+                entries = []
+            if entries:
+                wanted = [
+                    e.metadata.get("episode_id")
+                    for e in entries
+                    if e.metadata.get("episode_id")
+                ]
+                hydrated = await self._hydrate_by_ids(wanted)
+                id_to_row = {r["id"]: r for r in hydrated}
+                ordered = [id_to_row[eid] for eid in wanted if eid in id_to_row]
+                if ordered:
+                    return ordered
+                logger.warning("Vector returned entries but none matched SQLite rows — falling back to SQL LIKE")
+            else:
+                logger.warning("Vector query returned no entries — falling back to SQL LIKE")
 
-        # Fallback: SQL LIKE (the old behavior)
+        # Fallback: SQL LIKE (substring matching).
         conn = self._conn_get()
         rows = conn.execute(
             "SELECT * FROM episodes WHERE summary LIKE ? OR content LIKE ? "
             "ORDER BY created_at DESC LIMIT ?",
             (f"%{query}%", f"%{query}%", limit),
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
+    async def _hydrate_by_ids(self, episode_ids: list[str]) -> list[dict[str, Any]]:
+        """Fetch full episode rows for a list of ids."""
+        if not episode_ids:
+            return []
+        conn = self._conn_get()
+        placeholders = ",".join("?" * len(episode_ids))
+        rows = conn.execute(
+            f"SELECT * FROM episodes WHERE id IN ({placeholders})", episode_ids,
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
