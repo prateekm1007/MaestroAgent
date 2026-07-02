@@ -192,6 +192,25 @@ class TestTenantEndpointIsolation:
     In production (auth on), each request should be scoped to the user's org.
     """
 
+    @pytest.fixture(autouse=True)
+    def _restore_default_oem(self, monkeypatch):
+        """Restore the default OEM's demo-seeded state before each test.
+
+        TestTenantNegativeIsolation's fixture sets MAESTRO_DEMO_SEED=false and
+        clears non-default OEM instances. After those tests run, the default
+        OEM may have been re-initialized without demo seed. This fixture
+        ensures the default OEM has demo-seeded data for these endpoint tests.
+        """
+        from maestro_api.oem_state import oem_state, OEMStateRegistry
+        # Ensure demo seed is enabled for these tests
+        monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
+        # Re-initialize the default OEM if it has no laws (was cleared/reset)
+        if len(oem_state.model.laws) == 0:
+            # Force re-initialization by resetting the flag
+            oem_state._initialized = False
+            oem_state.initialize()
+        yield
+
     def test_oem_endpoints_return_data_from_default_tenant_in_dev_mode(self, client):
         """In dev mode, OEM endpoints return data from the default (singleton) OEM."""
         resp = client.get("/api/oem/laws")
