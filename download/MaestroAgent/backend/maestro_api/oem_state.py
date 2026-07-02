@@ -206,57 +206,11 @@ class OEMState:
                     logger.warning("Demo seed ingest failed for %s: %s", provider, e)
 
         self._demo_seeded = True
-        # Round 48 FIX 5/8: Vary LO evidence counts and confidence
-        self._vary_lo_confidence_for_demo()
-
-    def _vary_lo_confidence_for_demo(self) -> None:
-        """Post-seed: vary LO evidence/provider/recency for realistic confidence.
-
-        Round 48 FIX 5 + FIX 8. Without this, all LOs have evidence_count=1,
-        1 provider, same recency → same confidence. This method simulates a
-        real org where some patterns are observed many times across multiple
-        providers.
-        """
-        import hashlib
-        from datetime import datetime, timedelta, timezone
-        from maestro_oem.confidence import ConfidenceCalculator
-
-        # Use self.engine.get_model() directly — NOT self.model (which
-        # would trigger initialize() again since _initialized is still
-        # False at this point in the initialization flow).
-        model = self.engine.get_model()
-        now = datetime.now(timezone.utc)
-
-        for lo in model.learning_objects.values():
-            lo_id_str = str(lo.lo_id)
-            h = int(hashlib.md5(lo_id_str.encode()).hexdigest(), 16)
-
-            evidence_count = 1 + (h % 15)
-            lo.evidence_count = evidence_count
-
-            provider_count = 1 + (h % 3)
-            all_providers = {"github", "jira", "slack", "gmail", "confluence"}
-            existing = set(lo.providers)
-            while len(existing) < provider_count and len(existing) < len(all_providers):
-                remaining = all_providers - existing
-                existing.add(sorted(remaining)[h % len(remaining)])
-            lo.providers = existing
-
-            days_old = (h % 90)
-            lo.first_seen = now - timedelta(days=days_old)
-
-            contradiction_count = (h >> 8) % 3
-
-            try:
-                lo.confidence = ConfidenceCalculator.compute_lo_confidence(
-                    evidence_count=evidence_count,
-                    contradiction_count=contradiction_count,
-                    providers=lo.providers,
-                    first_seen=lo.first_seen,
-                    last_seen=now - timedelta(days=(h >> 4) % max(days_old, 1)),
-                )
-            except Exception:
-                pass
+        # Round 67 Phase 2.1: _vary_lo_confidence_for_demo REMOVED.
+        # The method hash-seeded evidence_count/provider_count/days_old to
+        # fabricate confidence diversity in demo mode. This was dishonest —
+        # the "54 unique values" was a demo artifact, not an engine property.
+        # If dev mode needs diverse confidence values, ingest diverse demo data.
 
     def live_ingest(self, new_signals: list[ExecutionSignal]) -> None:
         """Stream new signals into the live OEM.
@@ -451,6 +405,11 @@ class OEMState:
                 )
         except Exception as e:
             logger.warning("Closed-loop learning resolution failed (non-fatal): %s", e)
+
+    @property
+    def is_synthetic(self) -> bool:
+        """True if OEM is currently populated with demo seed data."""
+        return getattr(self, '_demo_seeded', False)
 
     def snapshot(self) -> dict[str, int]:
         """Return a count snapshot for the ProgressTracker."""

@@ -167,12 +167,20 @@ SWR.init();
 
 const api = {
   getOEM: (path) => SWR.fetch('oem:' + path, '/api/oem' + path),
-  postOEM: (path, body) =>
-    SWR.fetch('oem:' + path, '/api/oem' + path, {
+  postOEM: async (path, body) => {
+    // Round 67 Phase 3.3: POST must NOT use SWR cache.
+    // Mutations served as stale GET data is a real hazard.
+    const resp = await fetch('/api/oem' + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      SWR.invalidatePrefix('oem:');  // bust cache after mutation
+    }
+    return data;
+  },
   getPersonal: (path) => fetch('/api/personal' + path).then(r => r.json()),
   postPersonal: (path, body) =>
     fetch('/api/personal' + path, {

@@ -10,7 +10,7 @@
     GET /api/oem/ask?q=...       GET /api/oem/simulator
     GET /api/oem/provenance/{id} GET /api/oem/knowledge
 
-  No hardcoded insights. Every number comes from the OEM engine.
+  No hardcoded insights. Every number comes from the OEM engine. Demo mode uses synthetic data.
 
   To run:  python -m maestro_cli.main serve --port 8765
   Then visit: http://localhost:8765/app.html
@@ -343,7 +343,7 @@
           <div>
             <div class="text-[10px] uppercase tracking-[0.2em] text-fg-500 mb-1">Executive Cognition Center</div>
             <h1 class="text-2xl font-bold text-white">Live organizational intelligence.</h1>
-            <p class="text-xs text-fg-500 mt-1" id="home-briefing-timestamp">Every section below is derived from your live execution signals. No fake data.</p>
+            <p class="text-xs text-fg-500 mt-1" id="home-briefing-timestamp">Every section below is derived from your live execution signals. <span id="demo-data-warning"></span></p>
           </div>
 
           <!-- Ambient: Organizational Pulse + Narrative -->

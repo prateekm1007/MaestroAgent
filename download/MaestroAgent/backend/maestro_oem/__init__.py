@@ -9,7 +9,7 @@ Execution flow:
     ExecutionModel → DecisionEngine → UI
 
 Every provider produces different OEM changes.
-No hardcoded insights. No fake data.
+No hardcoded insights. Demo mode uses synthetic acme-corp data (opt-in via MAESTRO_DEMO_SEED=true).
 """
 
 from maestro_oem.signal import ExecutionSignal, SignalType, SignalProvider
