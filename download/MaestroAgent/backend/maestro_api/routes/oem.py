@@ -48,11 +48,17 @@ def _require_oem_permission(request: Request):
     """Layer 2: RBAC — requires OEM_READ for GET, OEM_WRITE for state-changing
     methods. Only fires when auth is enabled. When auth is disabled (dev mode),
     this is a no-op that preserves existing behavior.
+
+    Round 49 C1 fix: the import was `from maestro_auth.store import get_auth_store`
+    which does not exist — `maestro_auth/store.py` is not a module. The actual
+    `get_auth_store` lives in `maestro_auth/permissions.py`. The broken import
+    was swallowed by the broad `except Exception: return True` below, silently
+    disabling RBAC on all 158 endpoints. Now fixed: correct import path +
+    fail-closed when auth is enabled but the store is unavailable.
     """
     try:
-        from maestro_auth.permissions import is_auth_enabled, require_user
+        from maestro_auth.permissions import is_auth_enabled, require_user, get_auth_store
         from maestro_auth.models import Permissions
-        from maestro_auth.store import get_auth_store
 
         if not is_auth_enabled():
             return True  # Dev mode — no auth required
@@ -91,9 +97,18 @@ def _require_oem_permission(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        # Auth module not available or misconfigured — log and allow
-        # (tenant isolation still protects the route via Layer 1)
-        logger.debug("RBAC check skipped: %s", e)
+        # Round 49 C1 fix: if auth IS enabled but the auth module is broken,
+        # FAIL CLOSED — do not silently allow access. Only allow access in
+        # dev mode (when is_auth_enabled() returns False, handled above).
+        from maestro_auth.permissions import is_auth_enabled
+        if is_auth_enabled():
+            logger.error("RBAC check failed with auth enabled — FAILING CLOSED: %s", e)
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication system unavailable. Access denied.",
+            )
+        # Dev mode — auth not enabled, allow access (backward compat)
+        logger.debug("RBAC check skipped (dev mode): %s", e)
         return True
 
 
@@ -3924,7 +3939,7 @@ def create_writeback(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(400, "provider and action_type are required")
 
     try:
-        svc = WriteBackService()
+        svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
         return svc.preview(provider, action_type, params)
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -3958,7 +3973,7 @@ def approve_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]
     approved_by = payload.get("approved_by", "user")
 
     try:
-        svc = WriteBackService()
+        svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
         return svc.approve(action_id, approved_by)
     except ValueError as e:
         raise HTTPException(404, str(e))
@@ -3977,7 +3992,7 @@ def reject_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     rejected_by = payload.get("rejected_by", "user")
 
     try:
-        svc = WriteBackService()
+        svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
         return svc.reject(action_id, rejected_by)
     except ValueError as e:
         raise HTTPException(404, str(e))
@@ -3987,7 +4002,7 @@ def reject_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 def list_pending_writebacks() -> dict[str, Any]:
     """List all pending write-back actions awaiting approval."""
     from maestro_oem.writeback import WriteBackService
-    svc = WriteBackService()
+    svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
     pending = svc.list_pending()
     return {
         "pending": pending,
@@ -3999,7 +4014,7 @@ def list_pending_writebacks() -> dict[str, Any]:
 def list_all_writebacks() -> dict[str, Any]:
     """List all write-back actions (all statuses)."""
     from maestro_oem.writeback import WriteBackService
-    svc = WriteBackService()
+    svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
     all_actions = svc.list_all()
     return {
         "actions": all_actions,
@@ -4224,7 +4239,7 @@ def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     # Both checks passed — auto-execute
-    svc = WriteBackService()
+    svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
     preview = svc.preview(provider, action_type, params)
     result = svc.approve(preview["action_id"], approved_by=user, auto_execute=True)
 
@@ -4673,7 +4688,7 @@ def auto_action_contradictions(payload: dict[str, Any]) -> dict[str, Any]:
     open_contradictions = [c for c in contradictions if c.get("status") == "open"]
 
     # Generate a writeback preview for each open contradiction
-    svc = WriteBackService()
+    svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
     previews = []
     for contradiction in open_contradictions[:5]:  # limit to 5 to avoid spam
         title = contradiction.get("title", "Unknown contradiction")

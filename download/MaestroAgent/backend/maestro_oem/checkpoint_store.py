@@ -280,6 +280,14 @@ class CheckpointStore:
         scopes: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
+        # Round 49 C2 fix: encrypt OAuth tokens at rest.
+        # The old code stored access_token and refresh_token as plaintext TEXT.
+        # Now they are encrypted via EncryptionManager (Fernet) before storage.
+        from maestro_auth.security import EncryptionManager
+        enc = EncryptionManager()
+        encrypted_access = enc.encrypt(access_token)
+        encrypted_refresh = enc.encrypt(refresh_token) if refresh_token else None
+
         now = datetime.now(timezone.utc).isoformat()
         with self._cursor() as cur:
             cur.execute(
@@ -297,7 +305,7 @@ class CheckpointStore:
                     updated_at = excluded.updated_at
                    """,
                 (
-                    provider, access_token, refresh_token, token_type, expires_at,
+                    provider, encrypted_access, encrypted_refresh, token_type, expires_at,
                     json.dumps(scopes or []), json.dumps(metadata or {}), now, now,
                 ),
             )
@@ -311,10 +319,24 @@ class CheckpointStore:
             row = cur.fetchone()
             if not row:
                 return None
+            # Round 49 C2 fix: decrypt OAuth tokens on read.
+            from maestro_auth.security import EncryptionManager
+            enc = EncryptionManager()
+            try:
+                access_token = enc.decrypt(row["access_token"])
+            except Exception:
+                # If decryption fails, the token may be legacy plaintext
+                # (stored before the encryption fix). Return None to force
+                # re-authentication rather than returning plaintext.
+                access_token = None
+            try:
+                refresh_token = enc.decrypt(row["refresh_token"]) if row["refresh_token"] else None
+            except Exception:
+                refresh_token = None
             return {
                 "provider": row["provider"],
-                "access_token": row["access_token"],
-                "refresh_token": row["refresh_token"],
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "token_type": row["token_type"],
                 "expires_at": row["expires_at"],
                 "scopes": json.loads(row["scopes"] or "[]"),

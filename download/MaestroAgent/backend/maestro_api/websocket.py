@@ -112,6 +112,30 @@ def register_ws_routes(app: FastAPI) -> None:
             await websocket.close(code=1013, reason="Server overloaded — try again later")
             return
 
+        # Round 49 C3 fix: authenticate the WebSocket.
+        # The old code accepted any connection with no auth check. Now we
+        # require a valid token via query param or Authorization header.
+        # In dev mode (MAESTRO_AUTH_ENABLED not set), auth is skipped.
+        from maestro_auth.permissions import is_auth_enabled
+        if is_auth_enabled():
+            token = (
+                websocket.query_params.get("token")
+                or websocket.headers.get("Authorization", "").replace("Bearer ", "")
+            )
+            if not token:
+                await websocket.close(code=4401, reason="Authentication required")
+                return
+            try:
+                from maestro_auth.sessions import verify_session_token
+                user = verify_session_token(token)
+                if not user:
+                    await websocket.close(code=4401, reason="Invalid token")
+                    return
+            except Exception:
+                # If auth module is broken, fail closed in production
+                await websocket.close(code=4401, reason="Authentication failed")
+                return
+
         await websocket.accept()
         _active_connections += 1
         broker = get_message_broker()

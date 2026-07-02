@@ -218,10 +218,45 @@ class SAMLManager:
                 "Install with: pip install python3-saml. A <ds:Signature> element "
                 "is present but cannot be verified without the crypto library."
             )
-        # python3-saml is installed — full verification would happen here.
-        # TODO(v1.1): call python3-saml's XML signature verification with the IdP cert.
-        logger.info("SAML signature element present and python3-saml installed — "
-                    "cryptographic verification deferred to IdP cert validation")
+        # Round 49 C5 fix: actually verify the SAML signature.
+        # The old code had a TODO here and accepted the assertion without
+        # verification. Now we use xmlsec (a dependency of python3-saml) to
+        # verify the XML signature against the IdP certificate.
+        # If no IdP cert is configured, fail closed.
+        idp_cert = os.environ.get("MAESTRO_SAML_IDP_CERT", "")
+        if not idp_cert:
+            raise SAMLError(
+                "MAESTRO_SAML_IDP_CERT is not set — SAML signature cannot be "
+                "verified against the IdP certificate. Authentication refused "
+                "(fail-closed). Set MAESTRO_SAML_IDP_CERT to the PEM-encoded "
+                "IdP certificate."
+            )
+        try:
+            import xmlsec
+            from lxml import etree
+            # Verify the XML signature using the IdP certificate
+            # Re-parse the raw SAML response to get the XML tree with signatures
+            tree = etree.fromstring(base64.b64decode(saml_response_b64))
+            # Find the signature node
+            sig_node = tree.find(".//{http://www.w3.org/2000/09/xmldsig#}Signature")
+            if sig_node is None:
+                raise SAMLError("SAML response has no signature node — authentication refused")
+            # Create a signed XML context and verify
+            ctx = xmlsec.SignatureContext()
+            # Load the IdP certificate
+            cert = xmlsec.Key.from_memory(idp_cert, xmlsec.KeyFormat.CERT_PEM, None)
+            ctx.key = cert
+            # Verify the signature in-place
+            ctx.verify(sig_node)
+            logger.info("SAML signature verified successfully against IdP certificate")
+        except SAMLError:
+            raise
+        except Exception as e:
+            raise SAMLError(
+                f"SAML signature verification FAILED — authentication refused "
+                f"(fail-closed). The signature is invalid or the IdP certificate "
+                f"does not match. Error: {e}"
+            )
 
         email = (
             attributes.get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")

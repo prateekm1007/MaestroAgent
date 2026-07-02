@@ -29,6 +29,40 @@ from maestro_api.state import AppState
 logger = logging.getLogger(__name__)
 
 
+# Round 49 C7: dangerous default secrets that must never be used in production.
+_DANGEROUS_DEFAULTS = {
+    "JWT_SECRET": {"change-me", "dev-secret-change-in-production", "changeme-now", ""},
+    "MAESTRO_MASTER_KEY": {"change-me", "default-pepper-change-me", ""},
+    "MAESTRO_ADMIN_PASSWORD": {"changeme-now", ""},
+    "MAESTRO_AUTH_PEPPER": {"default-pepper-change-me", ""},
+}
+
+
+def _assert_production_secrets() -> None:
+    """Fail-closed if default secrets are used in production mode.
+
+    Round 49 C7 fix. In production (MAESTRO_ENV=production), the server
+    refuses to start if any secret is unset or set to a known default.
+    In dev mode (default), this is a no-op.
+    """
+    import os as _os
+    if _os.environ.get("MAESTRO_ENV") != "production":
+        return  # Dev mode — defaults are fine
+
+    errors: list[str] = []
+    for env_var, bad_values in _DANGEROUS_DEFAULTS.items():
+        actual = _os.environ.get(env_var, "")
+        if not actual:
+            errors.append(f"{env_var} must be set in production — refusing to start")
+        elif actual in bad_values:
+            errors.append(f"{env_var} is set to a default value — refusing to start in production")
+
+    if errors:
+        msg = "\n".join(errors)
+        logger.error("Production secret validation FAILED:\n%s", msg)
+        raise RuntimeError(f"Production secret validation failed:\n{msg}")
+
+
 def create_app(
     db_path: str | Path = "maestro.db",
     chroma_path: str | Path = ".maestro/chroma",
@@ -36,6 +70,10 @@ def create_app(
     frontend_dist: str | Path | None = None,
 ) -> FastAPI:
     """Build the FastAPI app with all routes + security middleware wired up."""
+
+    # Round 49 C7 fix: fail-closed on default secrets in production.
+    # If MAESTRO_ENV=production, refuse to start with any default secret.
+    _assert_production_secrets()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

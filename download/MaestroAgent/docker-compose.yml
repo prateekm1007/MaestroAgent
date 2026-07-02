@@ -1,16 +1,44 @@
-# =============================================================================
-# Maestro — Docker Compose for full local development
-# =============================================================================
+# Round 49 C6 fix: docker-compose rewritten for actual production assets.
+# The old compose file referenced _deprecated/ services. This version runs
+# the actual vanilla JS app + PostgreSQL for production-like testing.
+#
 # Usage:
-#   docker compose up -d                    # Start everything
-#   docker compose up -d api worker         # Start API + worker only
-#   docker compose logs -f api              # View API logs
-#   docker compose exec api npm run migrate # Run migrations
-#   docker compose down                     # Stop everything
-# =============================================================================
+#   docker compose up -d              # Start everything
+#   docker compose up -d app          # Start app only (with SQLite demo)
+#   docker compose logs -f app        # View app logs
+#   docker compose down               # Stop everything
 
 services:
-  # --- Database ---
+  # --- App (FastAPI + vanilla JS frontend) ---
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "1420:1420"
+    environment:
+      MAESTRO_APP_DIR: /app
+      MAESTRO_DEMO_SEED: "true"
+      MAESTRO_AUTH_DB: /data/auth.db
+      PYTHONPATH: /app/backend
+      # For production, set these:
+      # MAESTRO_ENV: production
+      # JWT_SECRET: ${JWT_SECRET}
+      # MAESTRO_MASTER_KEY: ${MAESTRO_MASTER_KEY}
+      # MAESTRO_ADMIN_PASSWORD: ${MAESTRO_ADMIN_PASSWORD}
+      # MAESTRO_AUTH_ENABLED: "true"
+    volumes:
+      - app_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:1420/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # --- Database (PostgreSQL for production-like testing) ---
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -28,156 +56,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # --- Redis (cache + queue) ---
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  # --- API Server ---
-  api:
-    build:
-      context: .
-      dockerfile: realtime-server/Dockerfile
-    restart: unless-stopped
-    ports:
-      - "8765:8765"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      NODE_ENV: production
-      PORT: 8765
-      DATABASE_URL: postgresql://maestro:maestro@db:5432/maestro
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
-      # LLM Providers (set in .env)
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      # Auth0 (optional)
-      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
-      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
-      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:-}
-      # Integrations
-      ATLASSIAN_CLIENT_ID: ${ATLASSIAN_CLIENT_ID:-}
-      ATLASSIAN_CLIENT_SECRET: ${ATLASSIAN_CLIENT_SECRET:-}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID:-}
-      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET:-}
-    volumes:
-      - api_deliverables:/app/deliverables
-      - api_keys:/app/keys
-      - api_backups:/app/backups
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8765/api/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-  # --- Worker (background jobs: LLM calls, receipt generation, sync) ---
-  worker:
-    build:
-      context: .
-      dockerfile: realtime-server/Dockerfile.worker
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://maestro:maestro@db:5432/maestro
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-    volumes:
-      - api_deliverables:/app/deliverables
-      - api_keys:/app/keys
-
-  # --- Frontend (Next.js) ---
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend-next/Dockerfile
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    depends_on:
-      api:
-        condition: service_healthy
-    environment:
-      NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://localhost:8765
-
-  # --- PostgreSQL Exporter (Prometheus metrics) ---
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATA_SOURCE_NAME: "postgresql://maestro:maestro@db:5432/maestro?sslmode=disable"
-    ports:
-      - "9187:9187"
-
-  # --- Redis Exporter ---
-  redis-exporter:
-    image: oliver006/redis_exporter:latest
-    restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      REDIS_ADDR: redis://redis:6379
-    ports:
-      - "9121:9121"
-
-  # --- Prometheus (metrics collection) ---
-  prometheus:
-    image: prom/prometheus:latest
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-
-  # --- Grafana (dashboards) ---
-  grafana:
-    image: grafana/grafana:latest
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning
-      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards
-
 volumes:
+  app_data:
   db_data:
-  api_deliverables:
-  api_keys:
-  api_backups:
-  prometheus_data:
-  grafana_data:
