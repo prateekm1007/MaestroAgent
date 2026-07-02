@@ -13,24 +13,43 @@
 let _onboardingStep = 1;
 let _onboardingData = {};
 
-// Round 78 fix: replace hardcoded 'default' user with authenticated session user.
-// Previously all onboarding data was stored under user: 'default', which means
-// all tenants shared the same onboarding state. Now we fetch the current user
-// from /api/auth/status and use their identity. Falls back to 'default' only
-// in dev mode (no auth).
+// Round 78 fix + Round 78 CRITICAL 4 fix: replace hardcoded 'default' user
+// with authenticated session user. Previously all onboarding data was stored
+// under user: 'default', which means all tenants shared the same onboarding
+// state. Now we fetch the current user from /api/auth/status.
+//
+// CRITICAL 4 fix: the prior version fell back to 'default' when auth status
+// couldn't be determined. This is a cross-tenant data leak — an unauthenticated
+// user could write onboarding data to the 'default' tenant. Now the function
+// returns null when the user can't be determined, and the callers check for
+// null before writing. In dev mode (auth disabled), /api/auth/status returns
+// {authenticated: false} and we use 'local-dev-user' — NOT 'default' — so
+// dev data is isolated from any real tenant.
 let _currentUserId = null;
 async function _getCurrentUser() {
-  if (_currentUserId) return _currentUserId;
+  if (_currentUserId !== null) return _currentUserId;
   try {
     const resp = await fetch((MAESTRO_API || '') + '/api/auth/status');
     const data = await resp.json();
     if (data.authenticated && data.user) {
-      _currentUserId = data.user.sub || data.user.email || 'default';
+      _currentUserId = data.user.sub || data.user.email;
+      if (!_currentUserId) {
+        // Authenticated but no sub or email — fail closed.
+        console.error('Onboarding: authenticated user has no sub/email — refusing to write without user identity');
+        return null;
+      }
+    } else if (data.authenticated === false) {
+      // Auth is disabled (dev mode) — use a dev-only user ID, NOT 'default'.
+      _currentUserId = 'local-dev-user';
     } else {
-      _currentUserId = 'default'; // Dev mode fallback
+      // Auth status ambiguous — fail closed.
+      console.error('Onboarding: could not determine auth status — refusing to write without user identity');
+      return null;
     }
   } catch (e) {
-    _currentUserId = 'default'; // Graceful fallback
+    // /api/auth/status failed — fail closed, don't write with 'default'.
+    console.error('Onboarding: /api/auth/status failed — refusing to write without user identity:', e);
+    return null;
   }
   return _currentUserId;
 }
@@ -150,6 +169,8 @@ function renderOnboardingName() {
 async function saveOnboardingName() {
   const name = document.getElementById('onboard-name').value.trim();
   if (!name) return;
+  const user = await _getCurrentUser();
+  if (!user) { alert('Could not determine your user identity. Please refresh and try again.'); return; }
   _onboardingData.name = name;
   api.postPersonal('/kg/entity', {
     user: await _getCurrentUser(),

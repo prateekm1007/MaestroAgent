@@ -78,6 +78,15 @@ class ConnectionManager:
         started. Now this method is async and properly awaits start_import.
         Round 65 C3 fix: org_id propagated to start_import so signals go to
         the correct org's OEM.
+        Round 78 CRITICAL 2 fix: the prior version returned connected=True
+        even when the import failed, with import_error as a side note. This
+        caused false-positive onboarding success — the user sees "connected"
+        but no data ever flows. Now the connection status is split:
+        - "authorized": OAuth tokens exchanged (always true if we get here)
+        - "ingesting": import job started successfully
+        - "connected": true only if import started (backward compat for
+          callers that check connected=True)
+        - "import_error": present if import failed (connected stays false)
         """
         creds = self.oauth.exchange_code(provider, code, state)
 
@@ -95,17 +104,33 @@ class ConnectionManager:
                 )
                 return {
                     "provider": provider,
+                    "authorized": True,
                     "connected": True,
+                    "ingesting": True,
                     "import_job_id": job_id,
                 }
             except Exception as e:
                 logger.error("Failed to start import for %s: %s", provider, e)
+                # CRITICAL fix: connected=False when import fails.
+                # The OAuth tokens ARE valid (authorized=True), but the
+                # connection is NOT "connected" in the user-facing sense
+                # — no data is flowing. The onboarding should show this
+                # as a failure, not a success.
                 return {
                     "provider": provider,
-                    "connected": True,
+                    "authorized": True,
+                    "connected": False,
+                    "ingesting": False,
                     "import_error": str(e),
                 }
-        return {"provider": provider, "connected": True}
+        # No import engine configured — connection is authorized but
+        # not ingesting. This is valid for dev mode without import support.
+        return {
+            "provider": provider,
+            "authorized": True,
+            "connected": True,
+            "ingesting": False,
+        }
 
     def disconnect(self, provider: str) -> None:
         """Revoke tokens and mark provider as disconnected.

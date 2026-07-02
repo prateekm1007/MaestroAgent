@@ -585,10 +585,19 @@ class OAuthManager:
     # ─── Status ───
 
     def status(self) -> list[dict[str, Any]]:
-        """Return connection status for all 6 providers (5 + customer/Salesforce)."""
+        """Return connection status for all supported providers.
+
+        Round 78 CRITICAL 3 fix: the prior version listed glean/guru/dust
+        in the status response even though they have no importers. Users
+        could see them as "connectable" but connecting would fail at import
+        time. Now only providers that have BOTH OAuth configs AND importer
+        implementations are surfaced. The canonical list is
+        SUPPORTED_IMPORT_PROVIDERS from imports.py.
+        """
+        # Import here to avoid circular dependency
+        from maestro_api.routes.imports import SUPPORTED_IMPORT_PROVIDERS
         out = []
-        for p in ("github", "jira", "slack", "confluence", "gmail", "customer",
-                  "glean", "guru", "dust"):
+        for p in SUPPORTED_IMPORT_PROVIDERS:
             cfg = self.get_config(p)
             conn = self.store.get_connection(p)
             creds = self.store.load_credentials(p)
