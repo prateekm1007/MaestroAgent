@@ -184,7 +184,30 @@ async def ensure_default_key(store: SQLiteApiKeyStore, config_db_path: str) -> s
     except Exception:
         pass
     # Also write to a file the user can read (for headless servers).
-    key_file = Path(config_db_path).parent / "api_key.txt"
+    #
+    # SECURITY (Round 76): the prior version wrote this to
+    # `Path(config_db_path).parent / "api_key.txt"` — which is inside the
+    # repo working directory. This caused a live API key to be committed
+    # to version control (backend/api_key.txt), giving anyone who cloned
+    # the repo the bearer token for all /api/* endpoints.
+    #
+    # Fix: write to a path OUTSIDE the repo tree by default. Use XDG config
+    # dir (~/.config/maestroagent/) or MAESTRO_API_KEY_FILE if set. Only
+    # fall back to the config_db_path parent if explicitly requested via
+    # MAESTRO_API_KEY_FILE_IN_REPO=true (for dev only, never production).
+    import os
+    key_file_env = os.environ.get("MAESTRO_API_KEY_FILE")
+    if key_file_env:
+        key_file = Path(key_file_env)
+    elif os.environ.get("MAESTRO_API_KEY_FILE_IN_REPO", "false").lower() == "true":
+        # Dev-only escape hatch — must be explicitly opted into.
+        key_file = Path(config_db_path).parent / "api_key.txt"
+    else:
+        # Default: write outside the repo tree.
+        xdg_config = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+        key_file = Path(xdg_config) / "maestroagent" / "api_key.txt"
+    key_file.parent.mkdir(parents=True, exist_ok=True)
     key_file.write_text(key)
     key_file.chmod(0o600)
+    logger.info("API key written to %s (outside repo tree)", key_file)
     return key

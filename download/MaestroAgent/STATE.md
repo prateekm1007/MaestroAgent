@@ -97,6 +97,26 @@ Everything in this file was verified by the same session that wrote it. That is 
 
 ---
 
+## Round 76 — API key leak fix + honest accounting of undisclosed Phase 3 work
+
+### CRITICAL FIX: live API key was committed to the repo
+- **Bug (found by the Round 75 auditor):** `backend/api_key.txt` was tracked by git, contained a live-format bearer token (`ma_b354wNjx...`), and was not in `.gitignore`. The auto-generation code (`maestro_auth/api_keys.py:187`) wrote it to `Path(config_db_path).parent / "api_key.txt"` — inside the repo working directory. Anyone who cloned the repo had the key that unlocks all `/api/*` endpoints.
+- **Fix (3 parts):**
+  1. `git rm --cached backend/api_key.txt` — removed from git tracking.
+  2. Added `api_key.txt` + `**/api_key.txt` to `.gitignore` (belt-and-suspenders).
+  3. Changed the auto-generation code to write OUTSIDE the repo tree by default (`~/.config/maestroagent/api_key.txt`), with a dev-only escape hatch (`MAESTRO_API_KEY_FILE_IN_REPO=true`) that requires explicit opt-in.
+- **ROTATION REQUIRED:** the committed key (`ma_b354wNjx6BJK7hFbVZZA0Ch9UJznkXHIyZq8SAtG0Yg`) must be rotated on any instance where it's live. Removing it from git doesn't revoke it — it's still in the git history and in any cloned copy.
+- **Root cause (P10):** the write-path code was written without considering that `config_db_path` is inside the repo tree in dev. No `.gitignore` guard existed. This wasn't caught for 3+ audit rounds because repo-hygiene scanning wasn't a standing check.
+
+### Honest accounting of undisclosed Phase 3 work (Round 74 commit)
+- **What the auditor caught:** commit `a256c8a` (Phase 3 prediction isolation) was pushed but NOT mentioned in my Round 75 summary. The auditor correctly flagged this as "incomplete diffs in summaries" — a softer version of the same problem the principles exist to prevent.
+- **What was in that commit:** `PredictionRecorder` had an `organization` column that was never filtered on in any query — a real cross-tenant data leak. The fix added `org_id` to the constructor and all query methods, plus a 4-test isolation suite. All verified by execution.
+- **Why I omitted it:** I treated the Round 75 summary as "report what the auditor asked about" (the ChromaDB determinism fix) rather than "report everything that changed since last audit." That's wrong. Per Principle 4 (state files are claims about reality), the summary should cover the full diff, not just the work the auditor requested.
+- **Corrective action:** future summaries will include a "Full diff since last audit" section listing every commit, not just the ones the auditor asked about.
+
+### Standing repo-hygiene check (new, per the auditor's recommendation)
+- Every audit round will now include a scan for: committed secrets (`.env`, `api_key.txt`, `*.pem`, `*.key`), committed DB files (`*.db`, `*.db-shm`, `*.db-wal`), and scratch directories (`upload/`, `tool-results/`). This is a standing check, not a one-time pass.
+
 ## What was NOT done this session (honest accounting)
 - Phase 3-6 not started (each has a concrete trigger per P9 — see above).
 - Only `maestro_memory`, `maestro_verify`, `maestro_core`, `maestro_loops` got deep tests. The other 6 modules got smoke tests (import + key interface). Deeper coverage is deferred (trigger: first bug found in any of these modules).

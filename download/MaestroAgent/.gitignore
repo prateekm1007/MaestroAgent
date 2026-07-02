@@ -50,6 +50,13 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# API keys — NEVER commit these (Round 76 CRITICAL fix)
+# The auto-generated API key file was previously written inside the repo
+# tree and committed, leaking a live bearer token. Now written outside the
+# repo by default, but gitignore this as a belt-and-suspenders guard.
+api_key.txt
+**/api_key.txt
+
 # Sandbox workspace
 workspace/
 .env
