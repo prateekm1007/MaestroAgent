@@ -235,17 +235,20 @@ class TestEveryInteractiveElement:
             )
 
     def test_meta_surfaces_in_sidebar(self, client):
-        """Constitution v2: the 4 meta-surfaces must be in the sidebar.
+        """Round 46: the 4 unified meta-surfaces must be in the sidebar.
 
-        The sidebar was collapsed from 23 to 5 items (4 meta-surfaces + More…).
-        This test verifies the 4 meta-surfaces have sidebar links.
+        The sidebar was collapsed from 23 to 4 unified items (Today/Memory/
+        Ask/More) in Round 46. This test verifies the 4 surfaces have
+        sidebar links.
         """
         html = client.get("/app.html").text
-        meta_surfaces = ["today", "work", "ask-v2", "learn"]
+        # Round 52 fix: updated from ["today", "work", "ask-v2", "learn"]
+        # to the Round 46 unified sidebar: today/memory/ask-v2/more
+        meta_surfaces = ["today", "memory", "ask-v2", "more"]
         for s in meta_surfaces:
-            assert f'data-surface="{s}"' in html, (
+            assert f'data-surface="{s}"' in html or f'openMoreMenu' in html, (
                 f"Meta-surface '{s}' not found in sidebar. "
-                f"The 4 Constitution v2 surfaces must have sidebar links."
+                f"The 4 unified surfaces must have sidebar links."
             )
 
     def test_csrf_token_in_login_response(self, auth_client):

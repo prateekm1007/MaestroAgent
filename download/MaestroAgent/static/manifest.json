@@ -1,7 +1,7 @@
 {
   "name": "Maestro — Living Intelligence Layer",
   "short_name": "Maestro",
-  "description": "Your cognitive companion for work and life. One app, one person, one constitution.",
+  "description": "Organizational intelligence that compounds judgment over time. One app, one person, one constitution.",
   "start_url": "/app.html",
   "display": "standalone",
   "background_color": "#FFFFFF",

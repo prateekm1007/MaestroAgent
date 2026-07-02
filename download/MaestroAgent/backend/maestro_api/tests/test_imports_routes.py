@@ -41,10 +41,12 @@ def test_oauth_status_endpoint(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "providers" in data
-    # 6 providers: github, jira, slack, confluence, gmail, customer (Salesforce)
+    # Round 52 fix: updated from 6 to 9 providers (glean, guru, dust added)
     assert len(data["providers"]) >= 5, f"Expected >=5 providers, got {len(data['providers'])}"
+    # Round 52 fix: allow all 9 known providers
+    known_providers = {"github", "jira", "slack", "confluence", "gmail", "customer", "glean", "guru", "dust"}
     for p in data["providers"]:
-        assert p["provider"] in ("github", "jira", "slack", "confluence", "gmail", "customer")
+        assert p["provider"] in known_providers, f"Unknown provider: {p['provider']}"
         assert "configured" in p
         assert "connected" in p
 
