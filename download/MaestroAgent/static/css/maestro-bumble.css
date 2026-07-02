@@ -805,3 +805,358 @@ body, html {
 .mb-12 { margin-bottom: 12px; }
 .mb-16 { margin-bottom: 16px; }
 .flex-1 { flex: 1; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WORLD-CLASS BUMBLE DESIGN SYSTEM — Round 78
+   The complete design system for CEO client demo.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── 1.3 Typography ─────────────────────────────────────────────────────── */
+
+body {
+  background: var(--maestro-gray-bg, #F5F5F5);
+  color: var(--maestro-black, #000000);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.text-hero    { font-size: 32px; font-weight: 900; line-height: 1.15; letter-spacing: -0.5px; }
+.text-title   { font-size: 22px; font-weight: 800; line-height: 1.25; letter-spacing: -0.3px; }
+.text-heading { font-size: 18px; font-weight: 700; line-height: 1.3; }
+.text-body    { font-size: 15px; font-weight: 400; line-height: 1.55; }
+.text-label   { font-size: 13px; font-weight: 700; line-height: 1.3; letter-spacing: 0.3px; text-transform: uppercase; }
+.text-caption { font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--maestro-gray-mid, #999999); }
+
+/* ─── 2.4 Color discipline — 8 colors max ────────────────────────────────── */
+
+:root {
+  --bg:           #F5F5F5;
+  --surface:      #FFFFFF;
+  --surface-2:    #F9F9F9;
+  --text-primary:   #000000;
+  --text-secondary: #3A3A3A;
+  --text-muted:     #999999;
+  --accent:       #FFC629;
+  --accent-hover: #F0B500;
+  --positive: #00C853;
+  --warning:  #FF9800;
+  --negative: #FF1744;
+}
+
+/* ─── 2.2 Spacing — 8px grid ─────────────────────────────────────────────── */
+
+.space-1 { margin: 4px; }
+.space-2 { margin: 8px; }
+.space-3 { margin: 12px; }
+.space-4 { margin: 16px; }
+.space-5 { margin: 24px; }
+.space-6 { margin: 32px; }
+.space-7 { margin: 48px; }
+.space-8 { margin: 64px; }
+
+.maestro-card { padding: 24px; }
+section + section { margin-top: 32px; }
+.maestro-card + .maestro-card { margin-top: 16px; }
+
+/* ─── 2.1 Motion design ──────────────────────────────────────────────────── */
+
+.maestro-card {
+  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              box-shadow 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.maestro-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated, 0 8px 24px rgba(0,0,0,0.12));
+}
+.maestro-card:active { transform: scale(0.98); }
+
+.maestro-btn {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.maestro-btn:active {
+  transform: scale(0.96);
+  box-shadow: 0 2px 8px rgba(255, 198, 41, 0.2);
+}
+
+.surface {
+  animation: surface-enter 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+@keyframes surface-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.exec-autocomplete {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.exec-autocomplete.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── 2.5 Touch targets — 44px minimum ───────────────────────────────────── */
+
+.maestro-btn { min-height: 44px; min-width: 44px; }
+.sidebar-link { min-height: 44px; }
+.exec-ac-item { min-height: 44px; padding: 12px 16px; }
+
+/* ─── 1.4 Empty states ───────────────────────────────────────────────────── */
+
+.empty-state {
+  text-align: center;
+  padding: 64px 24px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+.empty-state-icon { margin-bottom: 24px; opacity: 0.9; }
+.empty-state-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--maestro-black);
+  margin-bottom: 8px;
+  font-family: 'Montserrat', sans-serif;
+}
+.empty-state-body {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--maestro-gray-mid);
+  line-height: 1.55;
+}
+
+/* ─── 1.5 Skeleton loading ───────────────────────────────────────────────── */
+
+.skeleton {
+  background: linear-gradient(90deg, #E5E5E5 0%, #F5F5F5 50%, #E5E5E5 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-card {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+.skeleton-card .skeleton-line { height: 16px; margin-bottom: 12px; }
+.skeleton-card .skeleton-line:last-child { width: 60%; }
+
+/* ─── 3.1 Premium modal ──────────────────────────────────────────────────── */
+
+.modal-backdrop, .drilldown-overlay {
+  background: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.modal-panel, .drilldown-panel {
+  background: var(--surface, #FFFFFF) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.16) !important;
+  max-width: 640px;
+  width: calc(100% - 32px);
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: modal-enter 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+@keyframes modal-enter {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ─── 3.2 Premium autocomplete ───────────────────────────────────────────── */
+
+.exec-autocomplete {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface, #FFFFFF) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12) !important;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8px;
+  border: none !important;
+}
+.exec-ac-item {
+  padding: 12px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-bottom: none !important;
+}
+.exec-ac-item:hover,
+.exec-ac-item[aria-selected="true"] {
+  background: var(--maestro-yellow-light, #FFF4D1) !important;
+}
+
+/* ─── 3.3 Premium sidebar ────────────────────────────────────────────────── */
+
+.sidebar {
+  background: var(--surface, #FFFFFF) !important;
+  border-right: 1px solid #F0F0F0 !important;
+  padding: 16px 12px;
+}
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px !important;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary, #3A3A3A) !important;
+}
+.sidebar-link:hover {
+  background: var(--surface-2, #F9F9F9);
+}
+.sidebar-link.active {
+  background: var(--maestro-yellow-light, #FFF4D1) !important;
+  color: var(--maestro-black, #000000) !important;
+  font-weight: 700 !important;
+}
+
+/* ─── 3.4 Premium toast ──────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--maestro-black, #000000);
+  color: var(--maestro-white, #FFFFFF);
+  padding: 14px 24px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Montserrat', sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toast-enter 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.toast.success { background: var(--positive); }
+.toast.error { background: var(--negative); }
+.toast.warning { background: var(--warning); color: var(--maestro-black); }
+@keyframes toast-enter {
+  from { transform: translateX(-50%) translateY(100%); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+/* ─── 3.5 Mobile responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .sidebar { display: none !important; }
+  .main-content { padding: 16px !important; }
+  .meta-surface { padding: 24px 16px !important; max-width: 100% !important; }
+  .brief-section { padding: 16px !important; margin-top: 16px !important; }
+  .text-hero { font-size: 24px !important; }
+  .text-title { font-size: 18px !important; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sidebar { width: 240px; }
+  .main-content { max-width: 100%; }
+}
+
+@media (min-width: 1024px) {
+  .sidebar { width: 280px; }
+  .main-content { max-width: 960px; }
+}
+
+@media (min-width: 1440px) {
+  .main-content { max-width: 1100px; }
+}
+
+/* ─── 4.1 Demo watermark (premium version) ───────────────────────────────── */
+
+#demo-watermark {
+  position: fixed !important;
+  top: 16px !important;
+  right: 16px !important;
+  background: var(--accent, #FFC629) !important;
+  color: var(--maestro-black, #000000) !important;
+  padding: 6px 14px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  font-family: 'Montserrat', sans-serif !important;
+  letter-spacing: 0.5px !important;
+  text-transform: uppercase !important;
+  z-index: 200 !important;
+  box-shadow: 0 4px 12px rgba(255, 198, 41, 0.3) !important;
+}
+
+/* ─── 4.2 Confidence labels ──────────────────────────────────────────────── */
+
+.confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+}
+.confidence-high { background: rgba(0, 200, 83, 0.12); color: #00A040; }
+.confidence-medium { background: rgba(255, 152, 0, 0.12); color: #CC7700; }
+.confidence-low { background: rgba(255, 23, 68, 0.12); color: #CC1020; }
+
+/* ─── 4.3 Progress bars ──────────────────────────────────────────────────── */
+
+.progress-bar {
+  height: 8px;
+  background: var(--surface-2, #F9F9F9);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent, #FFC629);
+  border-radius: 999px;
+  transition: width 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ─── Loading state replacement ──────────────────────────────────────────── */
+
+.ds-loading {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--maestro-gray-mid, #999999);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Montserrat', sans-serif;
+}
+.ds-loading .spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--maestro-gray-light, #E5E5E5);
+  border-top-color: var(--accent, #FFC629);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

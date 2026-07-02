@@ -142,7 +142,7 @@ async function loadToday() {
     el.innerHTML = `<div class="calm-empty">
       <div style="font-size:18px;color:var(--text-primary);margin-bottom:8px;">Good morning.</div>
       <div>We couldn't prepare your brief right now. The organization is still learning.</div>
-      <button class="ds-btn ds-btn-ghost ds-btn-small" style="margin-top:16px;" onclick="loadToday()">Try again</button>
+      <button class="ds-btn ds-btn-ghost ds-btn-small" class="space-4" onclick="loadToday()">Try again</button>
     </div>`;
   }
 }
@@ -678,7 +678,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
             <div class="brief-item-indent">
               ${unknowns.known.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
-                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} signals · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
                 </div>
               `).join('')}
@@ -698,7 +698,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
             <div class="brief-item-indent">
               ${unknowns.known_unknowns.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
-                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
@@ -719,7 +719,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
             <div class="brief-item-indent">
               ${unknowns.unknown_unknowns.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
-                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} signal${a.signal_count === 1 ? '' : 's'} · ${Math.round((a.coverage || 0) * 100)}% coverage</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
@@ -740,7 +740,7 @@ function renderMorningBrief(el, briefing, pulse, contradictions, personality, ti
             <div class="brief-item-indent">
               ${unknowns.emerging_unknowns.slice(0, 5).map(a => `
                 <div style="padding:6px 0;border-bottom:1px solid var(--divider);">
-                  <div style="font-size:13px;color:var(--text-primary);font-weight:500;">${escapeHtml(a.area)}</div>
+                  <div class="text-body">${escapeHtml(a.area)}</div>
                   <div class="ds-meta" class="mt-2">${a.signal_count} new signal${a.signal_count === 1 ? '' : 's'} · detected ${a.detected_at ? new Date(a.detected_at).toLocaleDateString() : 'recently'}</div>
                   <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(humanize(a.reason || ''))}</div>
                 </div>
@@ -934,7 +934,7 @@ async function showInlineWhy(title, idx) {
       el.innerHTML = `<div style="padding:8px 12px;background:var(--surface-2);border-radius:6px;font-size:12px;color:var(--text-muted);">${escapeHtml(humanize(data.honest_limitation || 'Not enough data to explain yet.'))}</div>`;
       return;
     }
-    let chainHtml = '<div style="padding:8px 0;">';
+    let chainHtml = '<div class="space-2">';
     for (const step of data.steps.slice(0, 5)) {
       const confPct = Math.round((step.confidence || 0) * 100);
       const confColor = confPct >= 70 ? 'var(--accent)' : confPct >= 40 ? 'var(--secondary)' : 'var(--text-muted)';
@@ -1249,7 +1249,7 @@ async function prepareExecution(title) {
               <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="executeWriteBack('gmail','create_draft',{to:'team@acme.com',subject:'Action needed: ${escapeJs(title).replace(/'/g,"\\'")}',body:'See execution plan'})">Draft email</button>
               <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="executeWriteBack('slack','post_message',{channel:'general',text:'Action needed: ${escapeJs(title).replace(/'/g,"\\'")}'})">Post to Slack</button>
             </div>
-            <div id="writeback-result" style="margin-top:12px;"></div>
+            <div id="writeback-result" class="space-3"></div>
           </div>
         </div>
       `;
@@ -1278,7 +1278,7 @@ async function executeWriteBack(provider, actionType, params) {
       <div style="padding:14px;background:var(--surface-2);border:1px solid var(--divider);border-radius:8px;">
         <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:8px;">Preview</div>
         <pre style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;font-family:var(--font-mono,monospace);margin:0 0 12px 0;">${escapeHtml(preview.preview)}</pre>
-        <div style="display:flex;gap:8px;">
+        <div class="flex-row">
           <button class="ds-btn ds-btn-primary ds-btn-small" onclick="approveWriteBack('${preview.action_id}')">Approve & Execute</button>
           <button class="ds-btn ds-btn-ghost ds-btn-small" onclick="rejectWriteBack('${preview.action_id}')">Reject</button>
         </div>
