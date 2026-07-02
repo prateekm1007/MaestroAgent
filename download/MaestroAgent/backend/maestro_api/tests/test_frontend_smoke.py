@@ -87,8 +87,12 @@ class TestAppLoads:
         _, errors, page_errors = browser_context
         # Filter out network errors, 500/404 errors (slow OEM init, honest API
         # 404s from time-axis when domain has insufficient data), and CSP warnings
-        js_errors = [e for e in errors if "Failed to fetch" not in e and "ERR_" not in e and "500" not in e and "404" not in e and "Refused" not in e]
-        assert len(js_errors) == 0, f"Console errors: {js_errors}"
+        # Round 61 C2 fix: do NOT suppress errors. The old code filtered out
+        # "Failed to fetch", "ERR_", "500", "404", "Refused" — hiding real
+        # failures behind a green CI. Now we report all errors. If there are
+        # legitimate network errors in the test environment, they should be
+        # fixed, not hidden.
+        assert len(errors) == 0, f"Console errors: {errors}"
         assert len(page_errors) == 0, f"Page errors: {page_errors}"
 
     def test_navTo_defined(self, browser_context):

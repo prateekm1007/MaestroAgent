@@ -55,26 +55,25 @@ def get_session_manager() -> SessionManager:
 
 
 def is_auth_enabled() -> bool:
-    """Auth is enabled if MAESTRO_AUTH_ENABLED=true OR any OIDC/SAML provider is configured."""
-    if os.environ.get("MAESTRO_AUTH_ENABLED", "").lower() in ("true", "1", "yes"):
-        return True
-    # Check if any OIDC provider is configured
-    from maestro_auth.oidc import PROVIDER_DEFAULTS
-    for provider in PROVIDER_DEFAULTS:
-        env_prefix = f"MAESTRO_OIDC_{provider.upper()}_"
-        if os.environ.get(f"{env_prefix}CLIENT_ID") and os.environ.get(f"{env_prefix}CLIENT_SECRET"):
-            return True
-    # Check SAML
-    for provider in ("azure", "okta", "google", "custom"):
-        env_prefix = f"MAESTRO_SAML_{provider.upper()}_"
-        if (os.environ.get(f"{env_prefix}ENTITY_ID")
-                and os.environ.get(f"{env_prefix}SSO_URL")
-                and os.environ.get(f"{env_prefix}CERT")):
-            return True
-    # Check SCIM
-    if os.environ.get("MAESTRO_SCIM_TOKEN"):
-        return True
-    return False
+    """Auth is enabled by default in non-local environments.
+
+    Round 61 fix: this function previously had its own logic that defaulted
+    to False — separate from AuthConfig.from_env() in config.py. The RBAC
+    gate calls THIS function, not AuthConfig. So the config.py fix was dead
+    code. Now this function delegates to AuthConfig.from_env().enabled —
+    one source of truth, no dual-path drift.
+
+    Auth is enabled if:
+    1. MAESTRO_AUTH_ENABLED=true (explicit), OR
+    2. Any OIDC/SAML/SCIM provider is configured, OR
+    3. MAESTRO_LOCAL_DEV is NOT set (defaults to ON)
+
+    Auth is disabled ONLY if:
+    - MAESTRO_LOCAL_DEV=true, OR
+    - MAESTRO_AUTH_ENABLED=false (explicit)
+    """
+    from maestro_auth.config import AuthConfig
+    return AuthConfig.from_env().enabled
 
 
 # ─── Public paths (no auth required) ───
