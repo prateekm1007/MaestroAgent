@@ -196,17 +196,92 @@ function toggleWorkTool(toolId) {
   if (toggle) {
     toggle.classList.toggle('on', _workToolToggles[toolId]);
   }
-  // Grant consent if ON. These are work sources — stored under the work
-  // namespace in PersonalDataStore. The user can revoke later via
-  // "What Maestro Knows."
+  // Round 51 H15 fix: when a tool is toggled ON, start the REAL OAuth flow.
+  // The old code only called /consent/grant — the user thought they connected
+  // GitHub but no OAuth flow started. Now we redirect to the OAuth start URL.
+  // The OAuth callback will redirect back to onboarding.
   if (_workToolToggles[toolId]) {
+    // Grant consent (for the personal data store layer)
     api.postPersonal('/consent/grant', {
       user: 'default', source: `work_${toolId}`, purpose: 'store',
     }).catch(() => {});
     api.postPersonal('/consent/grant', {
       user: 'default', source: `work_${toolId}`, purpose: 'retrieve',
     }).catch(() => {});
+    // Start the real OAuth flow — redirect to the provider
+    // Map onboarding tool IDs to OAuth provider names
+    const oauthProvider = _toolIdToOAuthProvider(toolId);
+    if (oauthProvider) {
+      // Open OAuth in a popup so we stay on the onboarding page
+      _startOAuthFlow(oauthProvider, toolId);
+    }
   }
+}
+
+function _toolIdToOAuthProvider(toolId) {
+  // Map onboarding tool IDs to the OAuth provider names used by /api/oauth/{provider}/start
+  const mapping = {
+    'jira': 'jira',
+    'slack': 'slack',
+    'github': 'github',
+    'gmail': 'gmail',
+    'calendar': 'gmail',  // Google Calendar uses Gmail OAuth
+    'personal_calendar': 'gmail',
+    'personal_email': 'gmail',
+  };
+  return mapping[toolId] || null;
+}
+
+function _startOAuthFlow(provider, toolId) {
+  // Round 51 H15: start the real OAuth flow.
+  // Fetch the authorization URL from /api/oauth/{provider}/start,
+  // then open it in a popup. The popup redirects to the provider,
+  // the user authorizes, and the callback redirects back.
+  fetch(`/api/oauth/${provider}/start`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.authorization_url) {
+        // Open OAuth in a popup window
+        const popup = window.open(data.authorization_url, 'oauth-popup', 'width=600,height=700');
+        // Check periodically if the popup closed (user completed or cancelled)
+        const checkClosed = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            // Verify the connection succeeded
+            _verifyOAuthConnection(provider, toolId);
+          }
+        }, 1000);
+      }
+    })
+    .catch(() => {
+      // Non-fatal — the consent was already granted; OAuth can be completed later
+      console.warn(`OAuth start failed for ${provider} — user can connect later in Settings`);
+    });
+}
+
+function _verifyOAuthConnection(provider, toolId) {
+  // Check if the OAuth connection actually succeeded
+  fetch('/api/oauth/status')
+    .then(r => r.json())
+    .then(data => {
+      const providers = data.providers || [];
+      const connected = providers.find(p => p.provider === provider && p.connected);
+      if (connected) {
+        // Show a brief success indicator on the toggle
+        const toggle = document.getElementById(`work-toggle-${toolId}`) || document.getElementById(`personal-toggle-${toolId}`);
+        if (toggle) {
+          toggle.style.boxShadow = '0 0 0 3px var(--maestro-success, #00C853)';
+          setTimeout(() => { toggle.style.boxShadow = ''; }, 2000);
+        }
+      } else {
+        // Connection failed — turn the toggle back off
+        _workToolToggles[toolId] = false;
+        _personalToolToggles[toolId] = false;
+        const toggle = document.getElementById(`work-toggle-${toolId}`) || document.getElementById(`personal-toggle-${toolId}`);
+        if (toggle) toggle.classList.remove('on');
+      }
+    })
+    .catch(() => {});
 }
 
 function saveOnboardingWorkTools() {
@@ -267,9 +342,7 @@ function togglePersonalTool(toolId) {
   if (toggle) {
     toggle.classList.toggle('on', _personalToolToggles[toolId]);
   }
-  // Grant consent if ON. These are personal sources. The Work/Personal
-  // integration toggle (Round 44) still defaults to OFF — connecting
-  // personal tools does NOT auto-enable cross-context intelligence.
+  // Round 51 H15 fix: start the real OAuth flow for personal tools too.
   if (_personalToolToggles[toolId]) {
     api.postPersonal('/consent/grant', {
       user: 'default', source: toolId, purpose: 'store',
@@ -277,6 +350,11 @@ function togglePersonalTool(toolId) {
     api.postPersonal('/consent/grant', {
       user: 'default', source: toolId, purpose: 'retrieve',
     }).catch(() => {});
+    // Start the real OAuth flow
+    const oauthProvider = _toolIdToOAuthProvider(toolId);
+    if (oauthProvider) {
+      _startOAuthFlow(oauthProvider, toolId);
+    }
   }
 }
 

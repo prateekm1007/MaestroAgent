@@ -449,6 +449,24 @@ class PreparationEngine:
                 return True
         return False
 
+    def reject(self, preparation_id: str, rejected_by: str = "ceo", reason: str = "") -> bool:
+        """Mark a preparation as rejected.
+
+        Round 51 H18 fix: the old code had no reject method — the UI faked
+        rejection via string conventions (approved_by='ceo-rejected'). Now
+        there is a real reject method that sets status='rejected' and records
+        the rejector + reason.
+        """
+        for prep in self._preparations:
+            if prep.preparation_id == preparation_id:
+                prep.status = "rejected"
+                prep.approved_by = rejected_by
+                prep.approved_at = datetime.now(timezone.utc)
+                prep.metadata["reject_reason"] = reason
+                logger.info("Preparation %s rejected by %s: %s", preparation_id, rejected_by, reason)
+                return True
+        return False
+
     def get_preparation(self, preparation_id: str) -> dict[str, Any] | None:
         """Get a single preparation by ID."""
         for prep in self._preparations:

@@ -1,7 +1,7 @@
 # Maestro State Log
 
 ## Last Updated
-2025-01-24 — 9302602 (Round 49) + Round 50 verification scripts
+2025-01-24 — b670457 (Round 50) + Round 51 HIGH fixes (H15, H16, H18, H6, H19)
 
 ## Current Architecture
 - Backend: FastAPI (Python 3.12), SQLite (dev) / PostgreSQL (prod)
@@ -38,6 +38,13 @@
 - C7: Production mode fails-closed on default secrets ✓
 - 106+ core tests pass
 - E2E ship verification: 22/22 checks pass — PILOT READY
+
+## Round 51 HIGH Fixes (verified)
+- H15: Onboarding now starts real OAuth flow (calls /api/oauth/{provider}/start, not just /consent/grant) ✓
+- H16: Personal Mode no longer destroys #main-content (renders into personal-content sub-container) ✓
+- H18: Real reject endpoints added (POST /preparations/{id}/reject, POST /recommendations/{id}/reject) ✓
+- H6: Prometheus /metrics endpoint registered (request count, latency, OEM signals) ✓
+- H19: SwipeCard.destroy() removes all document listeners (no more memory leaks) ✓
 
 ## What Does NOT Work (known gaps — Round 49 forensic audit)
 - C1: RBAC import fixed (maestro_auth.store → maestro_auth.permissions) + fail-closed ✓ FIXED

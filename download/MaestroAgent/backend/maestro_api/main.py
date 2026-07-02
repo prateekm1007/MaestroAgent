@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -336,6 +337,53 @@ def create_app(
     else:
         # MAESTRO_FRONTEND_MODE=none — API-only, no frontend served.
         logger.info("API-only mode (MAESTRO_FRONTEND_MODE=none). No frontend served.")
+
+    # ── Round 51 H6: Prometheus /metrics endpoint ────────────────────
+    # Prometheus scrapes /metrics for observability. Without this, the
+    # observability stack (Grafana, alerting) is broken.
+    try:
+        from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+        from starlette.responses import Response
+
+        REQUEST_COUNT = Counter(
+            'maestro_requests_total',
+            'Total HTTP requests',
+            ['method', 'endpoint', 'status'],
+        )
+        REQUEST_LATENCY = Histogram(
+            'maestro_request_duration_seconds',
+            'HTTP request latency in seconds',
+            ['endpoint'],
+        )
+        OEM_SIGNAL_COUNT = Counter(
+            'maestro_oem_signals_total',
+            'Total OEM signals ingested',
+        )
+
+        @app.middleware("http")
+        async def track_metrics(request, call_next):
+            start = time.time()
+            response = await call_next(request)
+            duration = time.time() - start
+            # Normalize path to avoid high-cardinality labels
+            path = request.url.path
+            # Group similar paths (e.g., /api/oem/canvas/123 → /api/oem/canvas/:id)
+            if '/api/oem/' in path:
+                parts = path.split('/')
+                if len(parts) > 4 and parts[-1] not in ('status', 'list', 'tools', 'metrics'):
+                    path = '/'.join(parts[:-1]) + '/:id'
+            REQUEST_COUNT.labels(request.method, path, response.status_code).inc()
+            REQUEST_LATENCY.labels(path).observe(duration)
+            return response
+
+        @app.get("/metrics")
+        async def prometheus_metrics():
+            """Prometheus metrics endpoint for observability."""
+            return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+        logger.info("Prometheus /metrics endpoint registered")
+    except ImportError:
+        logger.warning("prometheus_client not installed — /metrics endpoint not available. Install with: pip install prometheus_client")
 
     return app
 

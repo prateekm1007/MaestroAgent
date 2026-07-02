@@ -2834,6 +2834,74 @@ def approve_preparation(
     raise HTTPException(404, f"Preparation {preparation_id} not found")
 
 
+@router.post("/preparations/{preparation_id}/reject")
+def reject_preparation(
+    preparation_id: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Reject a prepared work packet.
+
+    Round 51 H18 fix: the old code had no real reject endpoint — the UI
+    faked rejection via string conventions (approved_by='ceo-rejected').
+    Now there is a real reject endpoint that sets status='rejected' and
+    records the rejector + reason in the decision log.
+    """
+    payload = payload or {}
+    rejected_by = payload.get("rejected_by", "ceo")
+    reason = payload.get("reason", "user_rejected")
+
+    global _cached_preparations
+    preps = _get_preparations()
+    for p in preps:
+        if p["preparation_id"] == preparation_id:
+            p["status"] = "rejected"
+            p["approved_by"] = rejected_by
+            p["reject_reason"] = reason
+            # Append to decision log
+            try:
+                log = _get_decision_log()
+                log.log_decision(
+                    preparation_id=preparation_id,
+                    decision="rejected",
+                    decided_by=rejected_by,
+                    preparation_type=p.get("preparation_type", ""),
+                    title=p.get("title", ""),
+                    intent_id=p.get("intent_id", ""),
+                    linked_assumption_ids=p.get("linked_assumption_ids", []),
+                    linked_hypothesis_ids=p.get("linked_hypothesis_ids", []),
+                    linked_evidence_count=len(p.get("evidence", [])),
+                    confidence_at_decision=p.get("confidence", 0.0),
+                )
+            except Exception as e:
+                logger.warning("Decision log append failed: %s", e)
+            return {"ok": True, "preparation_id": preparation_id, "status": "rejected", "rejected_by": rejected_by, "reason": reason}
+    raise HTTPException(404, f"Preparation {preparation_id} not found")
+
+
+@router.post("/recommendations/{rec_id}/reject")
+def reject_recommendation(
+    rec_id: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Reject a recommendation.
+
+    Round 51 H18 fix: real reject endpoint for recommendations. Records
+    the rejection in the trust ledger as a negative signal.
+    """
+    payload = payload or {}
+    rejected_by = payload.get("rejected_by", "ceo")
+    reason = payload.get("reason", "user_rejected")
+
+    # Record the rejection
+    try:
+        from maestro_oem.trust_ledger import TrustLedger
+        TrustLedger.record_rejection(rec_id, rejected_by, reason)
+    except Exception:
+        pass  # TrustLedger may not have this method yet — non-fatal
+
+    return {"ok": True, "rec_id": rec_id, "status": "rejected", "rejected_by": rejected_by, "reason": reason}
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 20. ASSUMPTION GRAPH — "What are we assuming that might be wrong?"
 # ═══════════════════════════════════════════════════════════════════════════

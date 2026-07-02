@@ -11,18 +11,45 @@ class SwipeCard {
     this.onSwipeRight = onSwipeRight || (() => {});
     this.onSwipeLeft = onSwipeLeft || (() => {});
     this.threshold = 120; // px to trigger swipe
+    this._destroyed = false;
+    // Round 51 H19: store bound handlers so we can remove them on destroy.
+    // The old code added anonymous arrow functions to document, which could
+    // never be removed — every new SwipeCard leaked 2 document listeners.
+    this._handlers = {
+      touchstart: (e) => this._start(e),
+      touchmove: (e) => this._move(e),
+      touchend: (e) => this._end(e),
+      mousedown: (e) => this._start(e),
+      mousemove: (e) => this._move(e),
+      mouseup: (e) => this._end(e),
+    };
     this.bind();
   }
 
   bind() {
-    // Touch events
-    this.el.addEventListener('touchstart', (e) => this._start(e), { passive: true });
-    this.el.addEventListener('touchmove', (e) => this._move(e), { passive: true });
-    this.el.addEventListener('touchend', (e) => this._end(e), { passive: true });
-    // Mouse events
-    this.el.addEventListener('mousedown', (e) => this._start(e));
-    document.addEventListener('mousemove', (e) => this._move(e));
-    document.addEventListener('mouseup', (e) => this._end(e));
+    // Touch events — on the card element
+    this.el.addEventListener('touchstart', this._handlers.touchstart, { passive: true });
+    this.el.addEventListener('touchmove', this._handlers.touchmove, { passive: true });
+    this.el.addEventListener('touchend', this._handlers.touchend, { passive: true });
+    // Mouse events — mousedown on card, move/up on document
+    this.el.addEventListener('mousedown', this._handlers.mousedown);
+    document.addEventListener('mousemove', this._handlers.mousemove);
+    document.addEventListener('mouseup', this._handlers.mouseup);
+  }
+
+  // Round 51 H19: destroy method removes all listeners to prevent memory leaks.
+  // Call this before creating a new card or when leaving the surface.
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+    this.el.removeEventListener('touchstart', this._handlers.touchstart);
+    this.el.removeEventListener('touchmove', this._handlers.touchmove);
+    this.el.removeEventListener('touchend', this._handlers.touchend);
+    this.el.removeEventListener('mousedown', this._handlers.mousedown);
+    document.removeEventListener('mousemove', this._handlers.mousemove);
+    document.removeEventListener('mouseup', this._handlers.mouseup);
+    this.onSwipeRight = null;
+    this.onSwipeLeft = null;
   }
 
   _start(e) {

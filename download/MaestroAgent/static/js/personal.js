@@ -28,8 +28,24 @@ function loadPersonalMode() {
     _incognitoActive = data.incognito;
   }).catch(() => {});
 
-  // Render the 4-item sidebar + top bar with incognito toggle + "What Maestro Knows"
-  const el = document.getElementById('personal-content') || document.getElementById('main-content');
+  // Round 51 H16 fix: render into a dedicated personal-content container,
+  // NOT #main-content. The old code fell back to main-content when
+  // personal-content didn't exist, which destroyed the navigation DOM
+  // and broke hashchange navigation after visiting Personal Mode.
+  // Now we create the container if it doesn't exist, and always render
+  // into it — never overwriting main-content.
+  let el = document.getElementById('personal-content');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'personal-content';
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+      mainContent.appendChild(el);
+    } else {
+      // If main-content doesn't exist, fall back to body (shouldn't happen)
+      document.body.appendChild(el);
+    }
+  }
   if (!el) return;
 
   el.innerHTML = `
