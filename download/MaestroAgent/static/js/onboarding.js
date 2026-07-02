@@ -13,6 +13,28 @@
 let _onboardingStep = 1;
 let _onboardingData = {};
 
+// Round 78 fix: replace hardcoded 'default' user with authenticated session user.
+// Previously all onboarding data was stored under user: 'default', which means
+// all tenants shared the same onboarding state. Now we fetch the current user
+// from /api/auth/status and use their identity. Falls back to 'default' only
+// in dev mode (no auth).
+let _currentUserId = null;
+async function _getCurrentUser() {
+  if (_currentUserId) return _currentUserId;
+  try {
+    const resp = await fetch((MAESTRO_API || '') + '/api/auth/status');
+    const data = await resp.json();
+    if (data.authenticated && data.user) {
+      _currentUserId = data.user.sub || data.user.email || 'default';
+    } else {
+      _currentUserId = 'default'; // Dev mode fallback
+    }
+  } catch (e) {
+    _currentUserId = 'default'; // Graceful fallback
+  }
+  return _currentUserId;
+}
+
 // Round 65 H1 fix: persist onboarding state to localStorage so refresh
 // doesn't lose progress.
 function _saveOnboardingState() {
@@ -125,12 +147,12 @@ function renderOnboardingName() {
   `;
 }
 
-function saveOnboardingName() {
+async function saveOnboardingName() {
   const name = document.getElementById('onboard-name').value.trim();
   if (!name) return;
   _onboardingData.name = name;
   api.postPersonal('/kg/entity', {
-    user: 'default',
+    user: await _getCurrentUser(),
     entity_type: 'person',
     name: name,
     attributes: { role: 'self' },
@@ -166,13 +188,13 @@ function renderOnboardingAbout() {
   `;
 }
 
-function saveOnboardingAbout() {
+async function saveOnboardingAbout() {
   _onboardingData.age = document.getElementById('onboard-age')?.value || '';
   _onboardingData.role = document.getElementById('onboard-role')?.value || '';
   _onboardingData.company = document.getElementById('onboard-company')?.value || '';
   if (_onboardingData.role) {
     api.postPersonal('/kg/entity', {
-      user: 'default', entity_type: 'interest',
+      user: await _getCurrentUser(), entity_type: 'interest',
       name: _onboardingData.role,
       attributes: { company: _onboardingData.company },
     }).catch(() => {});
@@ -241,10 +263,10 @@ function toggleWorkTool(toolId) {
   if (_workToolToggles[toolId]) {
     // Grant consent (for the personal data store layer)
     api.postPersonal('/consent/grant', {
-      user: 'default', source: `work_${toolId}`, purpose: 'store',
+      user: await _getCurrentUser(), source: `work_${toolId}`, purpose: 'store',
     }).catch(() => {});
     api.postPersonal('/consent/grant', {
-      user: 'default', source: `work_${toolId}`, purpose: 'retrieve',
+      user: await _getCurrentUser(), source: `work_${toolId}`, purpose: 'retrieve',
     }).catch(() => {});
     // Start the real OAuth flow — redirect to the provider
     // Map onboarding tool IDs to OAuth provider names
@@ -375,7 +397,7 @@ function renderOnboardingPersonalTools() {
   `;
 }
 
-function togglePersonalTool(toolId) {
+async function togglePersonalTool(toolId) {
   _personalToolToggles[toolId] = !_personalToolToggles[toolId];
   const toggle = document.getElementById(`personal-toggle-${toolId}`);
   if (toggle) {
@@ -384,10 +406,10 @@ function togglePersonalTool(toolId) {
   // Round 51 H15 fix: start the real OAuth flow for personal tools too.
   if (_personalToolToggles[toolId]) {
     api.postPersonal('/consent/grant', {
-      user: 'default', source: toolId, purpose: 'store',
+      user: await _getCurrentUser(), source: toolId, purpose: 'store',
     }).catch(() => {});
     api.postPersonal('/consent/grant', {
-      user: 'default', source: toolId, purpose: 'retrieve',
+      user: await _getCurrentUser(), source: toolId, purpose: 'retrieve',
     }).catch(() => {});
     // Start the real OAuth flow
     const oauthProvider = _toolIdToOAuthProvider(toolId);

@@ -84,9 +84,14 @@ _CONCEPT_SYNONYMS: dict[str, set[str]] = {
     "objection": {"concern", "pushback", "hesitation", "resistance"},
     "committee": {"buying committee", "decision committee", "stakeholders"},
     "commitment": {"promise", "pledge", "guarantee", "commitments"},
-    "globex": {"globex"},
-    "initech": {"initech"},
-    "hooli": {"hooli"},
+    # NOTE: demo-only company names (globex/initech/hooli) were previously
+    # hardcoded here as semantic synonyms. This materially shaped autocomplete
+    # outputs for ALL tenants — a real customer named "Globex" would get
+    # different suggestions than a customer named "Acme". Removed per the
+    # external audit: semantic priors must be learned from tenant data, not
+    # hardcoded from demo fixtures. If tenant-specific synonyms are needed,
+    # they should be injected at query time from the org's own learning
+    # objects, not baked into a global synonym dict.
 }
 
 # Maps keywords to OEM LearningObject types

@@ -51,7 +51,5 @@ jobs:
           pip install -e backend/
       - name: Run pip-audit
         run: pip-audit -e backend/
-        continue-on-error: true
       - name: Run bandit
         run: bandit -r backend/ -ll -x backend/maestro_oem/tests,backend/maestro_api/tests,backend/maestro_auth/tests,backend/maestro_personal/tests
-        continue-on-error: true
