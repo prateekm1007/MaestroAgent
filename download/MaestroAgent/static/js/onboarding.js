@@ -146,13 +146,14 @@ function saveOnboardingAbout() {
 // The user is NOT asked to choose a mode. They connect work tools (all
 // OFF by default). Maestro infers "work context" from the data.
 
-let _workToolToggles = { jira: false, slack: false, github: false, gmail: false, calendar: false };
+let _workToolToggles = { jira: false, slack: false, github: false, confluence: false, gmail: false, calendar: false };
 
 function renderOnboardingWorkTools() {
   const tools = [
     { id: 'jira', icon: '📋', label: 'Jira', desc: 'Issue tracking & project management' },
     { id: 'slack', icon: '💬', label: 'Slack', desc: 'Team conversations & cross-team signals' },
     { id: 'github', icon: '🐙', label: 'GitHub', desc: 'Code, PRs, & engineering signals' },
+    { id: 'confluence', icon: '📄', label: 'Confluence', desc: 'Team wikis & documentation' },
     { id: 'gmail', icon: '✉️', label: 'Gmail', desc: 'Work email (read-only)' },
     { id: 'calendar', icon: '📅', label: 'Work Calendar', desc: 'Meetings & commitments' },
   ];
@@ -226,6 +227,7 @@ function _toolIdToOAuthProvider(toolId) {
     'github': 'github',
     'gmail': 'gmail',
     'calendar': 'gmail',  // Google Calendar uses Gmail OAuth
+    'confluence': 'confluence',  // Round 53 H4: add Confluence
     'personal_calendar': 'gmail',
     'personal_email': 'gmail',
   };

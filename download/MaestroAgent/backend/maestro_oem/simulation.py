@@ -16,13 +16,12 @@ compatibility with existing UIs and tests.
 
 HONESTY NOTE: The current model is intentionally simple — it adjusts
 two metrics (P1 cluster risk, decision velocity) based on a single
-input (hire_count) via two linear formulas. The UI implies multiple
-adjustable levers (team moves, meeting cadence, org mergers), but only
-hire_count is actually modeled. This is documented honestly because
-the product's pitch mentions "Decision Simulator" as a feature. The
-pilot will determine whether more inputs and non-linear models are
-needed. Until then, the simulator's predictions are bounded by the
-linear hire_count adjustment.
+input (hire_count) via two linear formulas. The API accepts other
+inputs (team_moves, meeting_cadence, org_merger) but only hire_count
+is actually modeled. The UI only exposes hire_count — no false
+affordances. The pilot will determine whether more inputs and
+non-linear models are needed. Until then, the simulator's predictions
+are bounded by the linear hire_count adjustment.
 """
 
 from __future__ import annotations

@@ -131,7 +131,26 @@ class LongTermMemory:
         return [self._row_to_dict(r) for r in rows]
 
     async def search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
-        """Naive substring search across summary + content."""
+        """Semantic search across summary + content.
+
+        Round 53 H3 fix: the old search was naive SQL LIKE (substring
+        matching). Now we try the vector/semantic layer first (which
+        uses ChromaDB embeddings or in-memory cosine similarity), and
+        fall back to SQL LIKE if the vector layer is unavailable.
+        This ensures the Memory Replay and Knowledge Flow surfaces
+        get semantic results, not keyword matching.
+        """
+        # Try the semantic/vector layer first
+        try:
+            from maestro_memory.vector import VectorMemory
+            vector_mem = VectorMemory()
+            results = vector_mem.search(query, limit=limit)
+            if results:
+                return results
+        except Exception:
+            pass  # Fall back to SQL LIKE
+
+        # Fallback: SQL LIKE (the old behavior)
         conn = self._conn_get()
         rows = conn.execute(
             "SELECT * FROM episodes WHERE summary LIKE ? OR content LIKE ? "
