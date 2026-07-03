@@ -24,13 +24,13 @@ def normalize_jira(event: dict[str, Any]) -> ExecutionSignal:
     {
         "event_type": "issue_created" | "issue_transitioned" | "issue_assigned" | "sprint_started" | "sprint_completed",
         "project": "EMEA",
-        "actor": "sara.k@acme.com",
+        "actor": "sara.k@example.com",
         "artifact": "EMEA-1247",
         "timestamp": "2024-11-12T09:14:00Z",
         "metadata": {
             "priority": "P1" | "P2" | "P3" | "Medium",
             "transition": "Approved" | "In Review" | "Done",
-            "assignee": "priya.m@acme.com",
+            "assignee": "priya.m@example.com",
             "sprint": "Q4 Sprint 3",
             "velocity": 42,
             "issue_type": "Bug" | "Task" | "Story" | "Epic",

@@ -24,12 +24,12 @@ def normalize_slack(event: dict[str, Any]) -> ExecutionSignal:
     {
         "event_type": "message" | "thread" | "decision" | "question" | "agreement" | "conflict",
         "channel": "#engineering",
-        "actor": "priya.m@acme.com",
+        "actor": "priya.m@example.com",
         "artifact": "C1234567890/p1234567890123456",
         "timestamp": "2024-11-12T09:14:00Z",
         "metadata": {
             "text": "can someone review this PR?",
-            "participants": ["priya.m@acme.com", "carlos.r@acme.com"],
+            "participants": ["priya.m@example.com", "carlos.r@example.com"],
             "thread_ts": "1234567890.123456",
             "is_decision": false,
         }

@@ -107,8 +107,8 @@ class IntentEngine:
         engine = IntentEngine(model, signals)
         intent = engine.infer(
             active_app="calendar",
-            user="jane.d@acme.com",
-            calendar_context={"title": "Q4 renewal with Globex", "participants": ["raj@globex.com"]},
+            user="jane.d@example.com",
+            calendar_context={"title": "Q4 renewal with <customer>", "participants": ["raj@example.com"]},
         )
         # intent = {intent: "preparing_for_negotiation", confidence: 0.85, ...}
     """

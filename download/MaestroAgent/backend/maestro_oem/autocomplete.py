@@ -86,7 +86,7 @@ _CONCEPT_SYNONYMS: dict[str, set[str]] = {
     "commitment": {"promise", "pledge", "guarantee", "commitments"},
     # NOTE: demo-only company names (globex/initech/hooli) were previously
     # hardcoded here as semantic synonyms. This materially shaped autocomplete
-    # outputs for ALL tenants — a real customer named "Globex" would get
+    # outputs for ALL tenants — a real customer named "<customer>" would get
     # different suggestions than a customer named "Acme". Removed per the
     # external audit: semantic priors must be learned from tenant data, not
     # hardcoded from demo fixtures. If tenant-specific synonyms are needed,
@@ -177,7 +177,7 @@ class SemanticAutocompleteEngine:
         engine = SemanticAutocompleteEngine(model, graph, decisions, contradiction_log)
         result = engine.suggest(
             query="We should hire more engineers",
-            context={"surface": "ask", "user": "ceo@acme.com", "org": "acme"},
+            context={"surface": "ask", "user": "ceo@example.com", "org": "acme"},
             limit=10,
         )
     """

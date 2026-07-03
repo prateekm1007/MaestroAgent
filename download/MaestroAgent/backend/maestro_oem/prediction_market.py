@@ -153,10 +153,10 @@ class PredictionMarket:
 
     Usage:
         market = PredictionMarket()
-        pid = market.submit("jane@acme.com", "Q4 launch ships on time", 0.7)
+        pid = market.submit("jane@example.com", "Q4 launch ships on time", 0.7)
         market.resolve(pid, actual_outcome=True)
         profiles = market.calibration_ranking()
-        # [{email: "jane@acme.com", avg_brier_score: 0.09, ...}]
+        # [{email: "jane@example.com", avg_brier_score: 0.09, ...}]
     """
 
     def __init__(self) -> None:

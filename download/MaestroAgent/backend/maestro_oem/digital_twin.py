@@ -265,7 +265,7 @@ class ScenarioEngine:
         engine = ScenarioEngine(twin)
         report = engine.run_scenario({
             "type": "person_leaves",
-            "person": "priya.m@acme.com",
+            "person": "priya.m@example.com",
         })
     """
 
@@ -280,8 +280,8 @@ class ScenarioEngine:
         """Apply a scenario and return the impact report.
 
         Scenario format:
-          {type: "person_leaves", person: "priya.m@acme.com"}
-          {type: "move_team", domain: "payments", new_owner: "carlos.r@acme.com"}
+          {type: "person_leaves", person: "priya.m@example.com"}
+          {type: "move_team", domain: "payments", new_owner: "carlos.r@example.com"}
           {type: "team_doubles", domain: "legal"}
           {type: "cut_meetings", reduction_pct: 30}
           {type: "add_hires", domain: "payments", count: 3}
@@ -403,7 +403,7 @@ class ScenarioEngine:
 
         # Add synthetic new people
         for i in range(new_hires):
-            new_email = f"new_hire_{i+1}@acme.com"
+            new_email = f"new_hire_{i+1}@example.com"
             self.twin.people[new_email] = PersonProfile(
                 email=new_email,
                 team=domain_name,
@@ -452,7 +452,7 @@ class ScenarioEngine:
 
         domain = self.twin.domains[domain_name]
         for i in range(count):
-            new_email = f"new_hire_{domain_name}_{i+1}@acme.com"
+            new_email = f"new_hire_{domain_name}_{i+1}@example.com"
             self.twin.people[new_email] = PersonProfile(
                 email=new_email,
                 team=domain_name,

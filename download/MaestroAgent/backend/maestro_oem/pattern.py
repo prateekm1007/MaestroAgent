@@ -322,7 +322,7 @@ class PatternDetector:
 
         A pattern is promoted when a customer accumulates >= 2 drift signals
         (champion quiet, engagement waning). This becomes a law candidate
-        like "Globex champion engagement is decaying — predict renewal risk."
+        like "<customer> champion engagement is decaying — predict renewal risk."
         """
         patterns: list[Pattern] = []
         by_customer: dict[str, list] = {}
@@ -361,7 +361,7 @@ class PatternDetector:
 
         A pattern is promoted when a customer has >= 3 distinct role signals,
         indicating the buying committee is taking shape. The law candidate
-        becomes "Globex buying committee: champion=Raj, economic_buyer=Sam..."
+        becomes "<customer> buying committee: champion=Raj, economic_buyer=Sam..."
         """
         patterns: list[Pattern] = []
         by_customer: dict[str, list] = {}
@@ -451,7 +451,7 @@ class PatternDetector:
         """Detect clusters of objections on the same customer.
 
         When a customer accumulates >= 2 objection LOs, we promote a pattern.
-        The law candidate becomes "Globex objects to security concerns —
+        The law candidate becomes "<customer> objects to security concerns —
         repeated pattern indicates unresolved review-blocker."
         """
         patterns: list[Pattern] = []

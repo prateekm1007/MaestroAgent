@@ -23,7 +23,7 @@ def normalize_confluence(event: dict[str, Any]) -> ExecutionSignal:
     {
         "event_type": "page_created" | "page_edited" | "page_owner_changed" | "rfc_created" | "postmortem_created",
         "space": "Engineering",
-        "actor": "carlos.r@acme.com",
+        "actor": "carlos.r@example.com",
         "artifact": "https://acme.atlassian.net/wiki/spaces/EN/pages/123456",
         "timestamp": "2024-11-12T09:14:00Z",
         "metadata": {

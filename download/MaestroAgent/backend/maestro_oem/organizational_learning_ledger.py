@@ -73,7 +73,7 @@ class OrganizationalLearningLedger:
 
     Usage:
         ledger = OrganizationalLearningLedger("org_learning.db")
-        ledger.record_commitment_learning(entity="Globex", whisper_id="wspr-1",
+        ledger.record_commitment_learning(entity="<customer>", whisper_id="wspr-1",
             action="ignored", outcome="broken", learning_entry="...")
         all_entries = ledger.get_all_entries()
         ledger.close()

@@ -265,7 +265,7 @@ class SCIMManager:
     @staticmethod
     def _apply_filter(users: list[dict[str, Any]], filter_expr: str) -> list[dict[str, Any]]:
         """Apply a simple SCIM filter. Supports `attr eq "value"`."""
-        # Parse "userName eq \"alice@acme.com\""
+        # Parse "userName eq \"alice@example.com\""
         import re
         match = re.match(r'(\w+(?:\.\w+)?)\s+eq\s+"([^"]+)"', filter_expr)
         if not match:

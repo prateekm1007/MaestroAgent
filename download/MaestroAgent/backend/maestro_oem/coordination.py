@@ -81,8 +81,8 @@ class CoordinationEngine:
 
     Usage:
         engine = CoordinationEngine(model, signals)
-        request = engine.initiate("Standardize OAuth", initiated_by="ceo@acme.com")
-        engine.add_response(request["request_id"], "security@acme.com", "Security", "We need to review the threat model first.")
+        request = engine.initiate("Standardize OAuth", initiated_by="ceo@example.com")
+        engine.add_response(request["request_id"], "security@example.com", "Security", "We need to review the threat model first.")
         synthesis = engine.synthesize(request["request_id"])
     """
 

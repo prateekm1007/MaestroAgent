@@ -31,13 +31,13 @@ Usage:
     entry = ledger.write_entry(
         whisper_id=wid,
         org_id="default",
-        entity="Globex",
+        entity="<customer>",
         commitment_text="Deliver SSO by 2024-12-15",
         executive_action="acted",
         outcome_signal_type=SignalType.CUSTOMER_COMMITMENT_KEPT,
         decision_influenced="Q4 SSO delivery prioritized",
     )
-    # entry = "Globex honored its SSO commitment after Jane acted on
+    # entry = "<customer> honored its SSO commitment after Jane acted on
     #          the Whisper. The Whisper surfaced the commitment before
     #          the Quarterly Review; Maestro does not know if the
     #          Whisper caused the action."

@@ -95,7 +95,7 @@ class DecisionIntelligenceLoop:
 
         Args:
             decision: The decision to state a hypothesis for
-            hypothesis: The falsifiable prediction ("SSO will ship by Q4 and Globex will renew")
+            hypothesis: The falsifiable prediction ("SSO will ship by Q4 and <customer> will renew")
         """
         if decision.status != DecisionStatus.ASSUMPTIONS_RECORDED:
             logger.warning(
@@ -144,7 +144,7 @@ class DecisionIntelligenceLoop:
 
         Args:
             decision: The decision whose outcome is being observed
-            outcome: What actually happened ("SSO shipped, Globex renewed")
+            outcome: What actually happened ("SSO shipped, <customer> renewed")
         """
         if decision.status != DecisionStatus.DECIDED:
             logger.warning(

@@ -78,7 +78,7 @@ class AssumptionGraph:
 
     Usage:
         graph = AssumptionGraph()
-        graph.create("Legal review takes 3 days", made_by="jane@acme.com", context="Q4 launch plan")
+        graph.create("Legal review takes 3 days", made_by="jane@example.com", context="Q4 launch plan")
         graph.check_against_signals(signals)  # auto-validate/invalidate
         dangerous = graph.get_dangerous_assumptions()
     """

@@ -140,7 +140,7 @@ class PerspectiveEngine:
         engine = PerspectiveEngine()
         perspectives = engine.translate(
             event_type="customer.commitment_broken",
-            context={"customer": "Globex", "commitment": "SSO by Q1", "arr": 3200000},
+            context={"customer": "<customer>", "commitment": "SSO by Q1", "arr": 3200000},
         )
         # perspectives = {"engineering": "...", "legal": "...", "finance": "...", ...}
     """

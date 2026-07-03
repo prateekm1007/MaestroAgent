@@ -26,12 +26,12 @@ def normalize_github(event: dict[str, Any]) -> ExecutionSignal:
     {
         "event_type": "pull_request" | "commit" | "review" | "merge",
         "repository": "acme/payments",
-        "actor": "priya.m@acme.com",
+        "actor": "priya.m@example.com",
         "artifact": "https://github.com/acme/payments/pull/447",
         "timestamp": "2024-11-12T09:14:00Z",
         "metadata": {
             "domain": "payments",  # inferred from repo
-            "reviewer": "carlos.r@acme.com",  # for review events
+            "reviewer": "carlos.r@example.com",  # for review events
             "labels": ["bug", "security"],
             "action": "opened" | "closed" | "merged" | "approved",
             "title": "...",

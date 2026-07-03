@@ -55,7 +55,7 @@ class CommitmentIntelligenceLoop:
         # Evening: fire Whispers for tomorrow's meetings
         evening = loop.run_evening_preparation(org_id="default")
         # Morning: exec asks "what did we promise?"
-        ask = loop.run_ask_recall("what did we promise Globex?")
+        ask = loop.run_ask_recall("what did we promise <customer>?")
         # After meeting: record action + outcome + learning
         loop.record_executive_action(wid, "acted", decision_influenced=...,
                                       follow_up_questions=[...])
@@ -252,7 +252,7 @@ class CommitmentIntelligenceLoop:
     def run_ask_recall(self, query: str, org_id: str = "default") -> dict[str, Any]:
         """Route an exec question through the RecallEngine.
 
-        The exec asks "what did we promise Globex?" — RecallEngine
+        The exec asks "what did we promise <customer>?" — RecallEngine
         returns the original commitment Evidence.
         """
         engine = RecallEngine(

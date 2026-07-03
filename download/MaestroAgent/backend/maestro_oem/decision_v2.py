@@ -53,7 +53,7 @@ class Decision:
     """A first-class decision object with a lifecycle.
 
     Attributes:
-        intent: What we're trying to achieve ("Prioritize SSO delivery to Globex")
+        intent: What we're trying to achieve ("Prioritize SSO delivery to <customer>")
         entity: The customer/org this decision affects
         status: Current lifecycle state (default: PROPOSED)
         assumptions: List of assumption dicts, each with claim_type="assumption"

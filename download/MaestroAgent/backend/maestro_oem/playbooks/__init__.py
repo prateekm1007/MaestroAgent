@@ -131,7 +131,7 @@ class PlaybookEngine:
         # Find the internal contact (actor) who has the most interactions with this customer
         from collections import Counter
         actors = Counter(s.actor for s in customer_signals if s.actor)
-        owner = actors.most_common(1)[0][0] if actors else "sales@acme.com"
+        owner = actors.most_common(1)[0][0] if actors else "sales@example.com"
 
         # Get ARR at stake
         arr = cje._arr_at_stake(customer) if hasattr(cje, "_arr_at_stake") else 0

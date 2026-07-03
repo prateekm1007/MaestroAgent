@@ -20,7 +20,7 @@ A pattern includes:
   - assumption_text: the recurring wrong assumption
   - decision_count: how many decisions used it with a wrong outcome
   - decision_intents: the intents of those decisions (for the narrative)
-  - description: a human-readable sentence ("the assumption 'Globex will
+  - description: a human-readable sentence ("the assumption '<customer> will
     renew if we ship on time' was wrong in 3 decisions: ...")
 
 This is the difference between "you made 3 decisions" and "you made 3
@@ -152,7 +152,7 @@ class CrossDecisionPatternDetector:
 
         Heuristic: if the outcome contains ANY negative words, the hypothesis
         was (at least partially) wrong. Mixed outcomes (e.g., "Shipped on
-        time, Globex did not renew") count as wrong because the hypothesis
+        time, <customer> did not renew") count as wrong because the hypothesis
         predicted a fully positive outcome.
 
         This is deliberately sensitive to negative words — false positives

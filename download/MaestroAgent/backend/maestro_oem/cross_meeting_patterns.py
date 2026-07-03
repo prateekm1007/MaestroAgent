@@ -5,7 +5,7 @@ on Loop 1 (commitments surface in meetings, meetings have preparation,
 preparation has recall)."
 
 A single meeting is a data point. A pattern across meetings is a signal.
-If pricing comes up in 3 meetings with Globex, that's a pattern — Maestro
+If pricing comes up in 3 meetings with <customer>, that's a pattern — Maestro
 connects meetings into a narrative, not just a list.
 
 The CrossMeetingPatternDetector:
@@ -16,11 +16,11 @@ The CrossMeetingPatternDetector:
 
 A pattern includes:
   - topic: the recurring topic ("pricing")
-  - entity: the entity it recurs for ("Globex")
+  - entity: the entity it recurs for ("<customer>")
   - meeting_count: how many meetings discussed it (3)
   - meeting_titles: the titles of those meetings (for the narrative)
   - description: a human-readable sentence ("pricing has come up in 3
-    meetings with Globex: Review #1, Review #2, Review #3.")
+    meetings with <customer>: Review #1, Review #2, Review #3.")
 
 This is the difference between "you have 3 meetings" and "you have 3
 meetings about the same thing — this is a pattern, not a coincidence."
@@ -38,7 +38,7 @@ class CrossMeetingPattern:
 
     Attributes:
         topic: The recurring topic ("pricing")
-        entity: The entity it recurs for ("Globex")
+        entity: The entity it recurs for ("<customer>")
         meeting_count: How many meetings discussed it
         meeting_titles: The titles of those meetings (for the narrative)
         description: A human-readable sentence about the pattern

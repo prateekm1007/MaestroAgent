@@ -43,7 +43,7 @@ class CalendarEvent:
     """A single calendar event.
 
     Attributes:
-        title: Event title (e.g., "Globex Quarterly Review")
+        title: Event title (e.g., "<customer> Quarterly Review")
         start: Start time (timezone-aware datetime)
         end: End time (timezone-aware datetime)
         entity: The customer/org this meeting is with. Empty for

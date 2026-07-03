@@ -24,13 +24,13 @@ def normalize_gmail(event: dict[str, Any]) -> ExecutionSignal:
     Expected event format:
     {
         "event_type": "email_sent" | "email_received" | "meeting_scheduled" | "meeting_completed",
-        "actor": "jane.doe@acme.com",
+        "actor": "jane.doe@example.com",
         "artifact": "msg-12345" | "cal-event-67890",
         "timestamp": "2024-11-12T09:14:00Z",
         "metadata": {
-            "recipient": "raj@globex.com",
+            "recipient": "raj@example.com",
             "recipient_type": "external" | "internal",
-            "participants": ["jane.doe@acme.com", "raj@globex.com"],
+            "participants": ["jane.doe@example.com", "raj@example.com"],
             "duration": 30,  # minutes, for meetings
             "subject": "Q4 renewal discussion",  # subject only, not body
             "calendar": "work",

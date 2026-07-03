@@ -19,11 +19,11 @@ The 5 fields:
    for this entity (the "internal expert").
 
 2. reason_recipient_chosen (str) — one sentence explaining WHY this
-   person was chosen. e.g., "Jane is the internal expert on Globex
+   person was chosen. e.g., "Jane is the internal expert on <customer>
    (3 signals) and is attending tomorrow's meeting."
 
 3. timing_reason (str) — one sentence explaining WHY this Whisper is
-   firing now. e.g., "Globex Quarterly Review is tomorrow at 10:00 —
+   firing now. e.g., "<customer> Quarterly Review is tomorrow at 10:00 —
    22 hours lead time."
 
 4. depth (str) — how deeply to deliver. Values: "headline" (1 sentence),
@@ -43,6 +43,7 @@ will add learning on top of this data model.
 
 from __future__ import annotations
 
+import os
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -56,7 +57,7 @@ class DeliveryIntelligence:
     Usage:
         di = DeliveryIntelligence(signals=signals, now=now)
         delivery = di.compute(
-            entity="Globex",
+            entity="<customer>",
             meeting=event,
             whisper_last_shown=last_shown_iso,
             whisper_type="commitment_exists",
@@ -111,12 +112,14 @@ class DeliveryIntelligence:
         Returns (recipient, reason).
         """
         # Get internal attendees from the meeting
+        # C4 fix: use configurable org domain instead of hardcoded "example.com"
+        org_domain = os.environ.get("MAESTRO_ORG_DOMAIN", "").lower().strip()
         internal_attendees: list[str] = []
         if meeting is not None and hasattr(meeting, "attendees"):
             for email in meeting.attendees:
-                # Heuristic: internal = acme.com domain (demo org)
-                # In production, this would be configurable per org.
-                if "@" in email and email.split("@", 1)[1].lower() == "acme.com":
+                if "@" not in email:
+                    continue
+                if org_domain and email.split("@", 1)[1].lower() == org_domain:
                     internal_attendees.append(email)
 
         if not internal_attendees:

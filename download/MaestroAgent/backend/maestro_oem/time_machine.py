@@ -31,7 +31,7 @@ class TimeMachine:
 
     Usage:
         tm = TimeMachine(model, signals)
-        results = tm.search("bottleneck", "priya.m@acme.com")
+        results = tm.search("bottleneck", "priya.m@example.com")
         # results = [{situation, recommendation, outcome, lesson, ...}]
     """
 

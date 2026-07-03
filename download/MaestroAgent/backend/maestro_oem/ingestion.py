@@ -648,7 +648,7 @@ class SimulatedFetcher(PageFetcher):
             return {
                 "event_type": "pull_request",
                 "repository": f"acme/repo-{idx % 50}",
-                "actor": f"user-{idx % 200}@acme.com",
+                "actor": f"user-{idx % 200}@example.com",
                 "artifact": f"github:acme/repo-{idx % 50}/pull/{idx}",
                 "timestamp": (datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(hours=idx)).isoformat(),
                 "metadata": {"action": "opened", "domain": "engineering", "title": f"PR #{idx}"},
@@ -657,7 +657,7 @@ class SimulatedFetcher(PageFetcher):
             return {
                 "event_type": "issue_created",
                 "project": f"PROJ-{idx % 20}",
-                "actor": f"user-{idx % 200}@acme.com",
+                "actor": f"user-{idx % 200}@example.com",
                 "artifact": f"jira:PROJ-{idx % 20}-{idx}",
                 "timestamp": (datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(hours=idx)).isoformat(),
                 "metadata": {"priority": "P2" if idx % 5 else "P1", "issue_type": "Task"},
@@ -666,9 +666,9 @@ class SimulatedFetcher(PageFetcher):
             return {
                 "event_type": "message",
                 "channel": f"#channel-{idx % 30}",
-                "actor": f"user-{idx % 200}@acme.com",
+                "actor": f"user-{idx % 200}@example.com",
                 "artifact": f"slack:C-{idx % 30}/p-{idx}",
                 "timestamp": (datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(minutes=idx)).isoformat(),
-                "metadata": {"text": f"Message {idx}", "participants": [f"user-{idx % 200}@acme.com"]},
+                "metadata": {"text": f"Message {idx}", "participants": [f"user-{idx % 200}@example.com"]},
             }
-        return {"event_type": "generic", "actor": f"user-{idx}@acme.com", "artifact": f"item-{idx}"}
+        return {"event_type": "generic", "actor": f"user-{idx}@example.com", "artifact": f"item-{idx}"}

@@ -71,9 +71,9 @@ class CustomerJudgmentEngine:
 
     Usage:
         engine = CustomerJudgmentEngine(model, signals, decisions)
-        brief = engine.executive_brief("Globex")
-        committee = engine.buying_committee("Initech")
-        answer = engine.ask("Why is Initech slowing down?")
+        brief = engine.executive_brief("<customer>")
+        committee = engine.buying_committee("<customer_b>")
+        answer = engine.ask("Why is <customer_b> slowing down?")
     """
 
     def __init__(self, model: Any, signals: list[ExecutionSignal], decisions: Any = None) -> None:
@@ -773,9 +773,9 @@ class CustomerJudgmentEngine:
         """Natural-language query about customer relationships.
 
         Examples:
-          "Why is Initech slowing down?"
-          "Who actually influences Globex?"
-          "Why did we lose Hooli?"
+          "Why is <customer_b> slowing down?"
+          "Who actually influences <customer>?"
+          "Why did we lose <customer_c>?"
           "What promises have we made?"
           "Which engineering work unlocks the most ARR?"
 
@@ -1025,7 +1025,7 @@ class CustomerJudgmentEngine:
 
         return {
             "question": query,
-            "answer": f"No customer found matching '{query}'. Try naming a customer: Globex, Initech, or Hooli.",
+            "answer": f"No customer found matching '{query}'. Try naming a customer: <customer>, <customer_b>, or <customer_c>.",
             "evidence": {},
             "counter_evidence": [],
             "unknowns": ["Query did not match any known customer."],

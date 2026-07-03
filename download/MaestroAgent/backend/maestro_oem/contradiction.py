@@ -150,7 +150,7 @@ class ContradictionEngine:
             target_id="rec-abc123",
             action=FeedbackAction.REJECT,
             reasoning="This prediction was wrong — APAC churn didn't increase",
-            actor="jane@acme.com",
+            actor="jane@example.com",
         )
     """
 

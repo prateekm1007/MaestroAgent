@@ -79,7 +79,7 @@ class CustomerScenarioEngine:
         twin = CustomerScenarioEngine(engine)
         report = twin.run_scenario({
             "type": "pricing",
-            "customer": "Globex",
+            "customer": "<customer>",
             "increase_pct": 10,
         })
     """

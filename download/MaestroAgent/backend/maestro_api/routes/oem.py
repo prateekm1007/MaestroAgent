@@ -2128,7 +2128,7 @@ def get_available_scenarios() -> dict[str, Any]:
                 "title": "What happens if this person leaves?",
                 "description": "Remove a person and redistribute their workload. Detects knowledge loss, overload, and bottleneck emergence.",
                 "params": [{"name": "person", "type": "string", "required": True, "description": "Email of the person"}],
-                "example": {"type": "person_leaves", "person": "priya.m@acme.com"},
+                "example": {"type": "person_leaves", "person": "priya.m@example.com"},
             },
             {
                 "type": "move_team",
@@ -2138,7 +2138,7 @@ def get_available_scenarios() -> dict[str, Any]:
                     {"name": "domain", "type": "string", "required": True, "description": "Domain name"},
                     {"name": "new_owner", "type": "string", "required": True, "description": "New owner email"},
                 ],
-                "example": {"type": "move_team", "domain": "payments", "new_owner": "carlos.r@acme.com"},
+                "example": {"type": "move_team", "domain": "payments", "new_owner": "carlos.r@example.com"},
             },
             {
                 "type": "team_doubles",
@@ -2362,9 +2362,9 @@ def customer_ask(q: str = Query(..., description="Natural-language question")) -
     """Ask the Relationship — natural-language customer query.
 
     Examples:
-      ?q=Why is Initech slowing down?
-      ?q=Who actually influences Globex?
-      ?q=Why did we lose Hooli?
+      ?q=Why is <customer_b> slowing down?
+      ?q=Who actually influences <customer>?
+      ?q=Why did we lose <customer_c>?
       ?q=What promises have we made?
       ?q=Which engineering work unlocks the most ARR?
 
@@ -2432,43 +2432,43 @@ def customer_twin_scenarios() -> dict[str, Any]:
                 "type": "pricing",
                 "title": "What if we increase price?",
                 "params": [{"name": "increase_pct", "type": "number", "required": True}],
-                "example": {"type": "pricing", "customer": "Globex", "increase_pct": 10},
+                "example": {"type": "pricing", "customer": "<customer>", "increase_pct": 10},
             },
             {
                 "type": "pilot",
                 "title": "What if we offer a pilot?",
                 "params": [{"name": "days", "type": "integer", "required": False, "default": 90}],
-                "example": {"type": "pilot", "customer": "Initech", "days": 90},
+                "example": {"type": "pilot", "customer": "<customer_b>", "days": 90},
             },
             {
                 "type": "delay",
                 "title": "What if we delay delivery?",
                 "params": [{"name": "weeks", "type": "integer", "required": True}],
-                "example": {"type": "delay", "customer": "Globex", "weeks": 4},
+                "example": {"type": "delay", "customer": "<customer>", "weeks": 4},
             },
             {
                 "type": "champion_leaves",
                 "title": "What if the champion departs?",
                 "params": [],
-                "example": {"type": "champion_leaves", "customer": "Initech"},
+                "example": {"type": "champion_leaves", "customer": "<customer_b>"},
             },
             {
                 "type": "security",
                 "title": "What if a security concern is raised?",
                 "params": [],
-                "example": {"type": "security", "customer": "Globex"},
+                "example": {"type": "security", "customer": "<customer>"},
             },
             {
                 "type": "procurement",
                 "title": "What if procurement delays?",
                 "params": [{"name": "weeks", "type": "integer", "required": False, "default": 3}],
-                "example": {"type": "procurement", "customer": "Globex", "weeks": 3},
+                "example": {"type": "procurement", "customer": "<customer>", "weeks": 3},
             },
             {
                 "type": "legal",
                 "title": "What if legal review takes longer?",
                 "params": [{"name": "weeks", "type": "integer", "required": False, "default": 4}],
-                "example": {"type": "legal", "customer": "Globex", "weeks": 4},
+                "example": {"type": "legal", "customer": "<customer>", "weeks": 4},
             },
         ]
     }
@@ -6084,9 +6084,9 @@ def loop1_5_record_mutation(payload: dict[str, Any] = Body(...)) -> dict[str, An
 
     Body:
       {
-        "entity": "Globex",
+        "entity": "<customer>",
         "commitment_text": "Deliver SSO by 2024-12-15",
-        "actor": "jane.d@acme.com",
+        "actor": "jane.d@example.com",
         "artifact": "crm:globex-1",
         "timestamp": "2026-06-01T10:00:00+00:00" (optional, defaults to now)
       }
@@ -6168,7 +6168,7 @@ def loop1_5_detect_disagreements(payload: dict[str, Any] = Body(...)) -> dict[st
 
     Body:
       {
-        "entity": "Globex",
+        "entity": "<customer>",
         "topic": "SSO",
         "evidence": [
           {"claim": "...", "claim_type": "reported_statement", "observed_facts": [...]},
@@ -6353,9 +6353,9 @@ def loop2_create_meeting(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     Body:
       {
-        "title": "Globex Quarterly Review",
-        "entity": "Globex",
-        "attendees": ["ceo@globex.com", "jane.d@acme.com"],
+        "title": "<customer> Quarterly Review",
+        "entity": "<customer>",
+        "attendees": ["ceo@example.com", "jane.d@example.com"],
         "start": "2026-07-04T10:00:00+00:00",
         "end": "2026-07-04T11:00:00+00:00"
       }

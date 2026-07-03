@@ -95,7 +95,7 @@ class DisagreementDetector:
 
     Usage:
         detector = DisagreementDetector()
-        disagreements = detector.detect(evidence_list, entity="Globex", topic="SSO")
+        disagreements = detector.detect(evidence_list, entity="<customer>", topic="SSO")
     """
 
     # Words that indicate a negative/missed outcome

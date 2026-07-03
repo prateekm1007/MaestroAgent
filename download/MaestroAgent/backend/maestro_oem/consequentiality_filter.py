@@ -30,6 +30,7 @@ This is the difference between "prepare for every meeting" (old) and
 
 from __future__ import annotations
 
+import os
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -180,7 +181,7 @@ class ConsequentialityFilter:
         Heuristic: an email is "external" if its domain is not the
         organization's internal domain. Since we don't know the org
         domain in this context, we use a simpler heuristic: the email
-        domain is not "acme.com" (the demo org). In production, this
+        domain is not the configured org domain (MAESTRO_ORG_DOMAIN). In production, this
         would be configurable.
 
         A more sophisticated implementation would compare against the
@@ -188,13 +189,13 @@ class ConsequentialityFilter:
         """
         if not attendees:
             return False
-        INTERNAL_DOMAINS = {"acme.com"}  # Demo org domain
+        org_domain = os.environ.get("MAESTRO_ORG_DOMAIN", "").lower().strip()
         for email in attendees:
             try:
                 if "@" not in email:
                     continue
                 domain = email.split("@", 1)[1].lower()
-                if domain not in INTERNAL_DOMAINS:
+                if org_domain and domain != org_domain:
                     return True
             except Exception:
                 continue

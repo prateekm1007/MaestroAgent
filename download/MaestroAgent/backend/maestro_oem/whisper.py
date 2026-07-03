@@ -31,7 +31,7 @@ class OrganizationalWhisper:
         whisper = OrganizationalWhisper(model, signals)
         insights = whisper.for_context(
             context="meeting",
-            entity="Globex",
+            entity="<customer>",
             topic="pricing",
         )
 

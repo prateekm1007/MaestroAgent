@@ -32,7 +32,7 @@ class OrganizationalGPS:
 
     Usage:
         gps = OrganizationalGPS(model, signals, decisions)
-        position = gps.locate("priya.m@acme.com")
+        position = gps.locate("priya.m@example.com")
         # position = {where_am_i, blocking, who_knows, whats_next}
     """
 

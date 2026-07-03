@@ -500,7 +500,7 @@ class RecallEngine:
 
             # Match threshold — must pass at least ONE of:
             #   - semantic similarity (the query content matches the insight)
-            #   - strong entity match (cross-entity query like "everything about Globex")
+            #   - strong entity match (cross-entity query like "everything about <customer>")
             #   - explicit temporal filter with whisper in window
             #     (the user said "last week" — they want time-bounded recall,
             #      not semantic match. The time window IS the filter.)

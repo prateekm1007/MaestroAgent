@@ -29,9 +29,9 @@ Signal taxonomy (all map to SignalType enum values):
   - customer.champion_quiet   — champion has gone silent (drift signal)
 
 Every signal carries:
-  - actor: the INTERNAL employee (e.g. "jane.d@acme.com")
-  - metadata.customer: the customer account name (e.g. "Globex")
-  - metadata.contact: the customer-side person (e.g. "raj@globex.com")
+  - actor: the INTERNAL employee (e.g. "jane.d@example.com")
+  - metadata.customer: the customer account name (e.g. "<customer>")
+  - metadata.contact: the customer-side person (e.g. "raj@example.com")
   - metadata.arr_impact: estimated ARR at stake (float, may be 0)
   - metadata.role: inferred committee role of the contact (champion,
     economic_buyer, technical_buyer, legal, security, procurement,
@@ -95,19 +95,19 @@ def normalize_customer(event: dict[str, Any]) -> ExecutionSignal:
                           "support_ticket" | "contract_signed" | "contract_renewed" |
                           "contract_churned" | "decision" | "objection" |
                           "champion_active" | "champion_quiet",
-            "actor": "jane.d@acme.com",        # internal employee
+            "actor": "jane.d@example.com",        # internal employee
             "artifact": "crm:globex-opp-447",  # CRM opportunity / ticket / contract ID
             "timestamp": "2024-11-12T09:14:00Z",
             "metadata": {
-                "customer": "Globex",            # customer account name
-                "contact": "raj@globex.com",     # customer-side person (business role only)
+                "customer": "<customer>",            # customer account name
+                "contact": "raj@example.com",     # customer-side person (business role only)
                 "role": "champion",              # inferred committee role
                 "arr_impact": 3200000,           # estimated ARR at stake
                 "stage": "negotiation",          # pipeline stage (for stage_change)
                 "commitment": "Deliver SSO by Q1",  # for commitment_* events
                 "due_date": "2025-01-15",        # for commitment_* events
                 "subject": "Q4 renewal discussion",  # for meeting/email events
-                "participants": ["jane.d@acme.com", "raj@globex.com"],
+                "participants": ["jane.d@example.com", "raj@example.com"],
                 "sentiment": "positive",         # optional inferred sentiment
             }
         }

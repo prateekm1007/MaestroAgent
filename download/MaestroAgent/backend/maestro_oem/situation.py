@@ -5,14 +5,14 @@ External auditor (AUDITOR-EXTERNAL-REVIEW-3):
 > commitments, evidence, current_state, prior_whispers, timeline).
 
 A Situation is Maestro's working memory for a specific organizational
-moment. When the exec asks "what's going on with Globex?" or when
-Maestro fires a Whisper before the Globex meeting, it reasons over a
+moment. When the exec asks "what's going on with <customer>?" or when
+Maestro fires a Whisper before the <customer> meeting, it reasons over a
 Situation — not over raw signals.
 
 The 7 fields:
-  1. what_is_happening — one sentence: "Globex Quarterly Review tomorrow"
-  2. entities — who/what is involved: ["Globex", "jane.d@acme.com"]
-  3. commitments — active commitments: [{"customer": "Globex", "text": "Deliver SSO by 2024-12-15"}]
+  1. what_is_happening — one sentence: "<customer> Quarterly Review tomorrow"
+  2. entities — who/what is involved: ["<customer>", "jane.d@example.com"]
+  3. commitments — active commitments: [{"customer": "<customer>", "text": "Deliver SSO by 2024-12-15"}]
   4. evidence — Evidence objects from EvidenceBuilder
   5. current_state — "at_risk" | "on_track" | "unknown"
   6. prior_whispers — whisper IDs previously surfaced for this entity
@@ -71,7 +71,7 @@ class SituationBuilder:
 
     Usage:
         builder = SituationBuilder(signals=signals, calendar_source=cal, whisper_store=store, now=now)
-        situation = builder.build_for_entity("Globex", org_id="default")
+        situation = builder.build_for_entity("<customer>", org_id="default")
     """
 
     def __init__(

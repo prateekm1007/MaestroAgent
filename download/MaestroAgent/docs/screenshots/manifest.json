@@ -3,7 +3,7 @@
     "surface": "today",
     "title": "Today \u2014 Morning Brief",
     "status": "ok",
-    "text_len": 3382,
+    "text_len": 3367,
     "filename": "today.png",
     "page_errors": [],
     "console_errors": []
@@ -21,7 +21,7 @@
     "surface": "ask-v2",
     "title": "Ask \u2014 Executive Question",
     "status": "ok",
-    "text_len": 220,
+    "text_len": 287,
     "filename": "ask-v2.png",
     "page_errors": [],
     "console_errors": []
@@ -36,7 +36,7 @@
     "surface": "home",
     "title": "Home \u2014 Executive Cognition Center",
     "status": "ok",
-    "text_len": 7586,
+    "text_len": 7543,
     "filename": "home.png",
     "page_errors": [],
     "console_errors": []

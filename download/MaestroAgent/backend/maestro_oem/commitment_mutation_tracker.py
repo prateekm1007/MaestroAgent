@@ -96,8 +96,8 @@ class CommitmentMutationTracker:
         tracker = CommitmentMutationTracker("mutations.db")
         tracker.record_commitment(signal1)
         tracker.record_commitment(signal2)
-        history = tracker.get_mutation_history("Globex")
-        mutations = tracker.get_mutations("Globex")
+        history = tracker.get_mutation_history("<customer>")
+        mutations = tracker.get_mutations("<customer>")
         tracker.close()
     """
 

@@ -31,12 +31,12 @@ class Evidence:
 
     Usage:
         evidence = Evidence(
-            claim="Engineering already promised SSO to Globex",
+            claim="Engineering already promised SSO to <customer>",
             observed_facts=[{
                 "source": "customer signals",
                 "date": "2024-11-01",
                 "text": "Deliver SSO by 2024-12-15",
-                "people": ["jane.d@acme.com"],
+                "people": ["jane.d@example.com"],
             }],
         )
         whisper["evidence"] = evidence.to_dict()
@@ -79,7 +79,7 @@ class Evidence:
     #   - outcome             — what actually happened ("Commitment was honored/broken")
     #   - proposal            — a suggestion, NOT a promise ("We should support SSO")
     #   - estimate            — a human-reported forecast ("Engineering thinks SSO can be ready by Q4")
-    #   - hypothesis          — a conditional testable prediction ("If we prioritize SSO, Globex will renew")
+    #   - hypothesis          — a conditional testable prediction ("If we prioritize SSO, <customer> will renew")
     #
     # The 3 new types (C2 fix, ADVERSARIAL-AUDIT-24PHASE) are critical:
     #   - proposal vs commitment: Maestro must distinguish "we should" from "we will"
@@ -181,7 +181,7 @@ class EvidenceBuilder:
         builder = EvidenceBuilder(signals)
         evidence = builder.build_for_whisper(
             whisper_type="commitment_exists",
-            entity="Globex",
+            entity="<customer>",
             raw_evidence={"artifact": "crm:globex-commit-1", "timestamp": "..."},
         )
     """
