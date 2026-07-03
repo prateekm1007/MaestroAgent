@@ -190,12 +190,16 @@ class ConsequentialityFilter:
         if not attendees:
             return False
         org_domain = os.environ.get("MAESTRO_ORG_DOMAIN", "").lower().strip()
+        if not org_domain:
+            # No org domain configured — treat all attendees as external
+            # (fail-safe: better to flag than to miss, matching delivery_intelligence.py)
+            return True
         for email in attendees:
             try:
                 if "@" not in email:
                     continue
                 domain = email.split("@", 1)[1].lower()
-                if org_domain and domain != org_domain:
+                if domain != org_domain:
                     return True
             except Exception:
                 continue
