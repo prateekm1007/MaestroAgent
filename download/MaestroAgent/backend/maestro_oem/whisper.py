@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import hashlib
 
 
 class OrganizationalWhisper:
@@ -165,7 +166,7 @@ class OrganizationalWhisper:
             "confidence": raw_confidence,
             "priority": priority,
             "type": raw_type,
-            "whisper_id": f"wspr-{raw_type}-{hash(raw_text) & 0xFFFFFFFF:08x}",
+            "whisper_id": f"wspr-{raw_type}-{hashlib.sha256(raw_text.encode()).hexdigest()[:8]}",
         }
 
     def _build_situation(self, context: str, entity: str, topic: str) -> str:
