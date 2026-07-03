@@ -12,11 +12,14 @@
 
 ## PRE-EXECUTION GATE (Mandatory — Complete Before Writing Any Code)
 
-Before touching any file, answer these 10 questions. Each answer must be
+Before touching any file, answer these questions. Each answer must be
 honest. "I don't know" is a valid answer. "I assume so" is NOT.
 
-### Gate 1: Have you read ALL 10 principles in ENTROPY_RECOVERY.md?
-- [ ] Yes, I read all 10 in this session, not from memory
+### Gate 1: Have you read ALL 19 principles in ENTROPY_RECOVERY.md (v2)?
+- [ ] Yes, I read all 19 in this session, not from memory
+- [ ] Part One (P1-P10): read
+- [ ] Part Two (P11-P15): read — especially P11 (wiring) and P13 (input-derivation)
+- [ ] Part Three (P16-P19): read — especially P16 (call graph scrutiny)
 
 ### Gate 2: What module are you about to touch?
 - Module: ___________
@@ -57,6 +60,24 @@ honest. "I don't know" is a valid answer. "I assume so" is NOT.
 - Self-certification is weak evidence (P5)
 - The auditor will verify. Your job is to make their job easy by
   being honest about what you did and didn't execute.
+
+### Gate 11: For any new engine/module — is it WIRED into the production path? (P11, P15)
+- [ ] Module exists
+- [ ] Module is unit-tested
+- [ ] Module is CALLED from a real production entry point (cite the file:line of the caller)
+- If you can't cite the caller, the module is a demonstration, not a capability (P11)
+- A STATE.md entry with one "done" checkbox is insufficient — use three (P15)
+
+### Gate 12: Does the module derive its inputs from real evidence, or take them as parameters? (P13)
+- [ ] Inputs are DERIVED from stored evidence/signal history
+- [ ] Inputs are NOT taken directly from the caller/request body
+- If the caller supplies the conclusion, you've built a calculator, not a capability (P13)
+
+### Gate 13: Did you check for adjacent failures? (P14)
+- After closing any finding: "given that this was broken, what else near it
+  did I never check because this was in the way?"
+- Bugs migrate one layer deeper — expect the next round to find a new
+  instance of the same disease, not a clean slate.
 
 ## POST-EXECUTION GATE (Mandatory — Complete Before Committing)
 
