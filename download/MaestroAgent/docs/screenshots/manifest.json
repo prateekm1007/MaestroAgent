@@ -3,7 +3,7 @@
     "surface": "today",
     "title": "Today \u2014 Morning Brief",
     "status": "ok",
-    "text_len": 3326,
+    "text_len": 3382,
     "filename": "today.png",
     "page_errors": [],
     "console_errors": []
@@ -21,7 +21,7 @@
     "surface": "ask-v2",
     "title": "Ask \u2014 Executive Question",
     "status": "ok",
-    "text_len": 642,
+    "text_len": 221,
     "filename": "ask-v2.png",
     "page_errors": [],
     "console_errors": []

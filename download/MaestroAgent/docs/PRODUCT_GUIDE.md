@@ -7,7 +7,7 @@
 > opened the live app, navigated to each surface, and saved a PNG. The screenshots
 > are not mockups; they are the actual product running on the actual backend.
 
-**Version:** 3.0 (2026-07-03) · **Commit:** `480f463` · **31 surfaces + ambient layer + CEO vision features**
+**Version:** 4.0 (2026-07-03) · **Commit:** `44785a7` · **4 surfaces + ambient layer + conversational Ask**
 
 ---
 
@@ -43,17 +43,22 @@ changes a decision.
 - Mobile responsive at 390px (iPhone) and 768px (iPad) — 0 horizontal overflow
 - Focus trap in drill-down modal (Tab/Escape/focus-restore)
 - Self-hosted Lucide + Montserrat (COEP-compliant — no CDN dependencies)
-- Simplified navigation: 4 sidebar items (Today, Ask, Memory, Decisions)
+- 4-surface architecture: Today, Ask Maestro, Decisions, Memory (27 more via Ctrl+K)
 
-**CEO Vision Features (new in v3.0):**
+**CEO Vision Features (v4.0):**
+- 4-surface architecture (was 31 surfaces — now 4 visible + 27 via command palette)
+- Ask Maestro: contextual prompts on load (situational before the executive types)
+- Whisper Recall: 'What was that thing about Legal?' → retrieves old whispers
+- Conversational Ask: multi-turn organizational memory (POST /ask/conversation)
 - Preparation Engine: prepares for tomorrow's meetings before the user arrives
-- Whisper Memory: escalates after 3 ignores ('You've ignored this 3×')
-- Whisper Urgency: risk decays over time (14% → 42% over 5 days)
+- Whisper Memory: escalates after 3 ignores (persists across restarts via SQLite)
+- Whisper Urgency: evidence-based ('Risk increasing — ignored for 5 days', not '14%')
 - Collaborative Whispers: 'Engineering agrees, Legal disagrees'
-- Counterfactuals: 'If you merge today: 32% rollback, Monday: 14%'
+- Counterfactuals: evidence-based ('Higher risk — changes a component with rollback history')
+- No fake precision: 'why_surfaced' replaces 'confidence: 82%'
 - Anticipation Engine: simulates tomorrow (meetings, risks, deadlines, blockers)
-- 300ms Response: whisper API cached for sub-second response
-- 22 tests pass (13 CEO vision + 9 whisper 4-part)
+- Today surface has persistent Ask Maestro box
+- 34 tests pass (5 recall + 9 whisper + 13 CEO vision + 6 history + 1 determinism)
 
 ---
 
@@ -81,12 +86,12 @@ Whisper 1:
   Evidence:  1 item(s)
   Action:    View commitment (type: open_in_maestro)
   Priority:  high
-  Confidence: 100%
-  Memory:    shown 0×, ignored 0×, escalated=False
-  Urgency:   14% risk
+  Confidence: 0%
+  Memory:    shown 2×, ignored 0×, escalated=False
+  Urgency:   Recently surfaced% risk
   Team:      customer agrees
-  What-if:   Address all concerns upfront with Globex → 78% positive_resolution
-  What-if:   Wait for Globex to raise concerns → 45% positive_resolution
+  What-if:   Address all concerns upfront with Globex → Most likely to build trust — shows preparation
+  What-if:   Wait for Globex to raise concerns → Riskier — may appear unprepared
 
 Whisper 2:
   Situation: Preparing for meeting with Globex
@@ -94,12 +99,12 @@ Whisper 2:
   Evidence:  2 item(s)
   Action:    View prior decision (type: open_in_maestro)
   Priority:  medium
-  Confidence: 100%
-  Memory:    shown 0×, ignored 0×, escalated=False
-  Urgency:   14% risk
+  Confidence: 0%
+  Memory:    shown 2×, ignored 0×, escalated=False
+  Urgency:   Recently surfaced% risk
   Team:      customer agrees
-  What-if:   Address all concerns upfront with Globex → 78% positive_resolution
-  What-if:   Wait for Globex to raise concerns → 45% positive_resolution
+  What-if:   Address all concerns upfront with Globex → Most likely to build trust — shows preparation
+  What-if:   Wait for Globex to raise concerns → Riskier — may appear unprepared
 
 Whisper 3:
   Situation: Preparing for meeting with Globex
@@ -107,12 +112,12 @@ Whisper 3:
   Evidence:  1 item(s)
   Action:    View evidence (type: open_in_maestro)
   Priority:  low
-  Confidence: 32%
-  Memory:    shown 0×, ignored 0×, escalated=False
-  Urgency:   14% risk
+  Confidence: 0%
+  Memory:    shown 1×, ignored 0×, escalated=False
+  Urgency:   Recently surfaced% risk
   Team:      customer agrees
-  What-if:   Address all concerns upfront with Globex → 78% positive_resolution
-  What-if:   Wait for Globex to raise concerns → 45% positive_resolution
+  What-if:   Address all concerns upfront with Globex → Most likely to build trust — shows preparation
+  What-if:   Wait for Globex to raise concerns → Riskier — may appear unprepared
 
 ```
 
@@ -215,7 +220,7 @@ skipped (menu triggers, not standalone surfaces).
 
 The morning brief. Five swipeable cards: one decision, one opportunity, one risk, one learning, one prediction. Swipe right to act, left to defer. The brief is generated fresh each morning from the OEM's overnight analysis of your execution signals. Each card cites the signals, people, and laws behind it.
 
-*Verified: 3326 chars of rendered content.*
+*Verified: 3382 chars of rendered content.*
 
 ---
 
@@ -235,7 +240,7 @@ The unified memory feed — work timeline merged with personal memories. Every d
 
 Ask any question about your organization in plain English. The autocomplete suggests completions based on your execution signals. Answers cite the specific signals, decisions, and people they're drawn from — not a chatbot, an intention router.
 
-*Verified: 642 chars of rendered content.*
+*Verified: 221 chars of rendered content.*
 
 ---
 
@@ -537,14 +542,15 @@ Engineering — Settings. Configure OAuth providers (GitHub, Jira, Slack, Conflu
 - **Real SAML crypto.** Multi-tenant isolation. Auth secure by default. Route inventory CI gate.
 - **6 providers = 6 importers.** Contract test enforced.
 - **Bumble design system.** Light theme, yellow #FFC629, Montserrat font, pill buttons.
-- **Ambient layer.** Whisper API returns 7-dimension format. 9 delivery surfaces. Outcome tracking.
+- **4-surface architecture.** Today, Ask Maestro, Decisions, Memory. 27 more via Ctrl+K.
+- **Ask Maestro.** Contextual prompts on load. Whisper recall. Conversational memory.
+- **No fake precision.** why_surfaced replaces confidence %. Evidence-based urgency + counterfactuals.
+- **Ambient layer.** Whisper API returns evidence-based format. 9 delivery surfaces. Outcome tracking.
 - **Preparation Engine.** Prepares for tomorrow's meetings (concerns, drafts, experts, talking points).
 - **Anticipation Engine.** Simulates tomorrow (meetings, risks, deadlines, blockers, customers).
-- **Whisper Memory + Urgency.** Escalates after 3 ignores. Risk decays over time (14% → 42%).
+- **Whisper Memory.** Escalates after 3 ignores. Durable SQLite persistence (survives restarts).
 - **Collaborative Whispers.** Shows team alignment ('Engineering agrees, Legal disagrees').
-- **Counterfactuals.** What-if scenarios ('Merge today: 32% rollback, Monday: 14%').
-- **Simplified navigation.** 4 sidebar items (Today, Ask, Memory, Decisions). 27 more via Ctrl+K.
-- **300ms response.** Whisper API cached for sub-second response.
+- **Counterfactuals.** Evidence-based ('Higher risk — changes a component with rollback history').
 - **CSRF fix.** 7 test failures → 0 (verify_csrf respects is_auth_enabled).
 - **Prometheus test fix.** 462+ test errors → 0 (module-level metrics).
 - **22 tests pass.** 13 CEO vision + 9 whisper 4-part.
@@ -572,4 +578,4 @@ each with a concrete trigger.
 screenshot script and this generator. The Whisper sample is fetched live from
 the running backend.*
 
-**Commit:** `480f463` · **Date:** 2026-07-03 · **Generated by execution, not by hand.**
+**Commit:** `44785a7` · **Date:** 2026-07-03 · **Generated by execution, not by hand.**
