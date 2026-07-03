@@ -116,6 +116,19 @@ document.addEventListener('DOMContentLoaded', function() {
   if (el_oc_31) el_oc_31.addEventListener('click', function() { cancelImport() });
   var el_oc_ask_box = document.querySelector('[data-oc="oc-ask-box"]');
   if (el_oc_ask_box) el_oc_ask_box.addEventListener('click', function() { navTo('ask-v2'); });
+  // P0-2: Today Ask input — delegated listener (no inline onkeydown)
+  var todayAskInput = document.getElementById('today-ask-input');
+  if (todayAskInput) {
+    todayAskInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (typeof todayAskSubmit === 'function') {
+          todayAskSubmit(this.value);
+          this.value = '';
+        }
+      }
+    });
+  }
 });
 
 // Mobile nav: wire up click handlers + sync active state with navTo

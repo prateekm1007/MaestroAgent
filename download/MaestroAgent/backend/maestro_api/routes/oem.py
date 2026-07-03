@@ -533,6 +533,8 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
         logger.debug("Personal context line build failed: %s", e)
 
     result["personal_context_line"] = personal_context_line
+    # CEO Directive: "Maestro never invents precision." Remove confidence from /ask response.
+    result.pop("confidence", None)
     return result
 
 

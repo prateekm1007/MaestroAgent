@@ -21,6 +21,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 import hashlib
 
+from maestro_oem.evidence import Evidence, EvidenceBuilder
+
 
 class OrganizationalWhisper:
     """Surfaces what the organization knows but hasn't said.
@@ -157,16 +159,23 @@ class OrganizationalWhisper:
         # Priority: high only for commitments, objections, broken commitments, bottleneck
         priority = self._compute_priority(raw_type, raw_confidence, raw_evidence)
 
-        # CEO Directive: "Why Maestro surfaced this" replaces confidence %
-        # Instead of "Confidence: 82%", explain WHY this matters.
-        why_surfaced = self._build_why_surfaced(raw_type, entity, topic, raw_evidence, context)
+        # Phase 1: Build Evidence object from actual signal data
+        builder = EvidenceBuilder(self.signals)
+        evidence_obj = builder.build_for_whisper(
+            whisper_type=raw_type,
+            entity=entity,
+            topic=topic,
+            raw_evidence=raw_evidence,
+            context=context,
+        )
 
         return {
             "situation": situation,
             "insight": insight,
             "evidence": evidence,
+            "evidence_spine": evidence_obj.to_dict(),
             "action": action,
-            "why_surfaced": why_surfaced,
+            "why_surfaced": evidence_obj.render_why(),
             "priority": priority,
             "type": raw_type,
             "whisper_id": f"wspr-{raw_type}-{hashlib.sha256(raw_text.encode()).hexdigest()[:8]}",

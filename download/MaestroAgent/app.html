@@ -260,7 +260,7 @@
           <input type="text" class="today-ask-input" id="today-ask-input"
                  placeholder="Ask Maestro..."
                  aria-label="Ask Maestro"
-                 onkeydown="if(event.key==='Enter'){todayAskSubmit(this.value);this.value='';}" />
+                 data-action="todayAskSubmit" />
           <div class="ask-box-prompts" id="today-ask-prompts">
             <span class="ask-prompt-tag" data-prompt="Prepare me">Prepare me</span>
             <span class="ask-prompt-tag" data-prompt="Remind me">Remind me</span>
