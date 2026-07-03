@@ -37,7 +37,7 @@ function renderECCTwin(twinState) {
         <div class="space-y-3">
           <!-- Person leaves -->
           <div class="flex items-center gap-2">
-            <select id="twin-person" class="ask-input flex-1 text-[11px]">
+            <select id="twin-person" class="ask-input flex-1 text-[11px]" aria-label="Person to simulate leaving">
               ${people.map(p => `<option value="${escapeHtml(p.email)}">${escapeHtml(p.email)} (wl: ${p.workload}, inf: ${p.influence})</option>`).join('')}
             </select>
             <button class="btn btn-ghost text-[10px]" onclick="runTwinScenario({'type':'person_leaves','person':document.getElementById('twin-person').value})">What if they leave?</button>
@@ -45,16 +45,16 @@ function renderECCTwin(twinState) {
           <!-- Cut meetings -->
           <div class="flex items-center gap-2">
             <label class="text-[11px] text-fg-400">Cut meetings by:</label>
-            <input type="range" min="10" max="80" value="30" id="twin-meeting-cut" class="flex-1" oninput="document.getElementById('twin-meeting-val').textContent=this.value+'%'">
+            <input type="range" min="10" max="80" value="30" id="twin-meeting-cut" class="flex-1" aria-label="Percentage to cut meetings by" oninput="document.getElementById('twin-meeting-val').textContent=this.value+'%'">
             <span class="text-xs font-bold text-brand-cyan mono" id="twin-meeting-val">30%</span>
             <button class="btn btn-ghost text-[10px]" onclick="runTwinScenario({'type':'cut_meetings','reduction_pct':parseInt(document.getElementById('twin-meeting-cut').value)})">Simulate</button>
           </div>
           <!-- Add hires -->
           <div class="flex items-center gap-2">
-            <select id="twin-hire-domain" class="ask-input flex-1 text-[11px]">
+            <select id="twin-hire-domain" class="ask-input flex-1 text-[11px]" aria-label="Domain to add hires to">
               ${domains.map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${d.people.length} people)</option>`).join('')}
             </select>
-            <input type="number" min="1" max="20" value="3" id="twin-hire-count" class="w-16 ask-input text-[11px] text-center">
+            <input type="number" min="1" max="20" value="3" id="twin-hire-count" class="w-16 ask-input text-[11px] text-center" aria-label="Number of hires to add">
             <button class="btn btn-ghost text-[10px]" onclick="runTwinScenario({'type':'add_hires','domain':document.getElementById('twin-hire-domain').value,'count':parseInt(document.getElementById('twin-hire-count').value)})">Add hires</button>
           </div>
         </div>

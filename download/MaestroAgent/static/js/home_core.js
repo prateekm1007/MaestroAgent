@@ -305,7 +305,7 @@ function renderECCSimulator(sim) {
         <div class="text-[10px] uppercase text-fg-500 font-semibold mb-1">Run What-If</div>
         <div class="flex items-center gap-3">
           <label class="text-[11px] text-fg-400">Hire count:</label>
-          <input type="range" min="0" max="10" value="2" id="ecc-sim-hires" class="flex-1" oninput="document.getElementById('ecc-sim-val').textContent=this.value">
+          <input type="range" min="0" max="10" value="2" id="ecc-sim-hires" class="flex-1" aria-label="Hire count for ECC simulation" oninput="document.getElementById('ecc-sim-val').textContent=this.value">
           <span class="text-xs font-bold text-brand-cyan mono" id="ecc-sim-val">2</span>
           <button class="btn btn-primary text-[11px]" onclick="runECCSimulation()">Run</button>
         </div>
