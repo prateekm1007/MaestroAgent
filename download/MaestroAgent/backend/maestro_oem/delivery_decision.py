@@ -73,8 +73,11 @@ def decide_delivery(
     Returns:
         One of the 7 DeliveryDecision options.
     """
-    # 1. Cold-start mode overrides everything (except high-stakes, handled by caller)
-    if is_cold_start:
+    # 1. Cold-start mode overrides everything — UNLESS high-stakes signals
+    #    are present (matching ColdStartMode.should_suppress_whispers() logic:
+    #    high-stakes signals override cold-start suppression because Maestro
+    #    must speak even on day 1 if a customer churns or a commitment breaks)
+    if is_cold_start and not has_high_stakes_signal:
         return DeliveryDecision.DEFER_UNTIL_EVIDENCE
 
     # 2. Exec already acted + nothing changed → remain quiet (the "remain quiet" test)
@@ -97,5 +100,12 @@ def decide_delivery(
     if has_high_stakes_signal:
         return DeliveryDecision.DELIVER_ON_ASK
 
-    # 7. Low stakes → suppress
+    # 7. First-time whisper (shown_count=0) → always deliver, even if low stakes.
+    #    A whisper the user has never seen is NOT redundant — suppression for
+    #    "low stakes" only applies when the whisper has been shown before and
+    #    the user chose not to act on it.
+    if shown_count == 0:
+        return DeliveryDecision.DELIVER_ON_ASK
+
+    # 8. Low stakes + already shown + not acted on → suppress
     return DeliveryDecision.SUPPRESS_LOW_STAKES

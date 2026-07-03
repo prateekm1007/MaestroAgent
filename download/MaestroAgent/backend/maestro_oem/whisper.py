@@ -115,7 +115,15 @@ class OrganizationalWhisper:
             self._add_collaborative_context(w, entity, topic)
             self._add_counterfactuals(w, context, entity)
 
-        confidence = self._compute_confidence(unique_whispers)
+        # CRITICAL-01 FIX (external auditor finding): Wire the delivery decision
+        # gate into the ACTUAL generation path. Before this fix, decide_delivery()
+        # existed as a well-tested pure function but was never called by the
+        # Whisper pipeline — every Whisper was returned without ever asking
+        # "should I stay quiet?" Now the gate runs on every Whisper, deriving
+        # its inputs from the whisper_store history (not caller-supplied booleans).
+        delivered_whispers, suppressed_whispers = self._apply_delivery_gate(unique_whispers, entity)
+
+        confidence = self._compute_confidence(delivered_whispers)
 
         return {
             "context": context,
@@ -123,11 +131,112 @@ class OrganizationalWhisper:
             "topic": topic,
             "user": user,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "whispers": unique_whispers[:10],
+            "whispers": delivered_whispers[:10],
+            "suppressed_whispers": suppressed_whispers,
             "warnings": warnings[:5],
             "precedents": precedents[:5],
-            "narrative": self._narrative(unique_whispers, warnings),
+            "narrative": self._narrative(delivered_whispers, warnings),
         }
+
+    def _apply_delivery_gate(
+        self, whispers: list[dict[str, Any]], entity: str = ""
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Apply the delivery decision gate to each whisper.
+
+        CRITICAL-01 FIX: This method wires decide_delivery() into the actual
+        Whisper generation path. It derives the gate's inputs from the
+        whisper_store history (shown_count, action_taken, last_shown) — NOT
+        from caller-supplied booleans.
+
+        Whispers that the gate says to suppress are moved to the
+        suppressed_whispers list (returned separately, not shown to the user).
+
+        Returns:
+            (delivered_whispers, suppressed_whispers)
+        """
+        from maestro_oem.delivery_decision import decide_delivery, DeliveryDecision
+        from maestro_oem.signal import SignalType
+
+        delivered: list[dict[str, Any]] = []
+        suppressed: list[dict[str, Any]] = []
+
+        # Check if any entity has high-stakes signals (broken commitment, objection, churn)
+        has_high_stakes = False
+        if entity:
+            for s in self.signals:
+                try:
+                    if hasattr(s, "metadata") and s.metadata.get("customer") == entity:
+                        if hasattr(s, "type") and s.type in (
+                            SignalType.CUSTOMER_COMMITMENT_BROKEN,
+                            SignalType.CUSTOMER_OBJECTION,
+                            SignalType.CUSTOMER_CONTRACT_CHURNED,
+                            SignalType.CUSTOMER_CHAMPION_QUIET,
+                        ):
+                            has_high_stakes = True
+                            break
+                except Exception:
+                    continue
+
+        # Check cold-start mode (few signals overall)
+        signal_count = len(self.signals) if self.signals else 0
+        is_cold_start = signal_count < 5  # matches ColdStartMode.RETRIEVAL_ONLY threshold
+
+        for w in whispers:
+            wid = w.get("whisper_id", "")
+            history = self.whisper_store.get(wid, {}) if self.whisper_store else {}
+            shown_count = history.get("shown_count", 0) if isinstance(history, dict) else 0
+            action_taken = history.get("action_taken") if isinstance(history, dict) else None
+            last_shown = history.get("last_shown") if isinstance(history, dict) else None
+
+            # Derive "materially_changed_since_last_shown" from signals
+            # If any signal for this entity is newer than last_shown, it changed
+            materially_changed = True  # Default: if never shown, everything is "new"
+            if last_shown and entity:
+                try:
+                    if last_shown.endswith("Z"):
+                        last_shown_dt = datetime.fromisoformat(last_shown[:-1] + "+00:00")
+                    else:
+                        last_shown_dt = datetime.fromisoformat(last_shown)
+                    if last_shown_dt.tzinfo is None:
+                        last_shown_dt = last_shown_dt.replace(tzinfo=timezone.utc)
+                    for s in self.signals:
+                        if hasattr(s, "metadata") and s.metadata.get("customer") == entity:
+                            if hasattr(s, "timestamp") and s.timestamp and s.timestamp > last_shown_dt:
+                                materially_changed = True
+                                break
+                    else:
+                        materially_changed = False
+                except Exception:
+                    pass  # If parsing fails, default to True (don't suppress on error)
+
+            exec_already_acted = action_taken == "acted"
+
+            # Run the gate
+            decision = decide_delivery(
+                exec_already_acted=exec_already_acted,
+                materially_changed_since_last_shown=materially_changed,
+                has_high_stakes_signal=has_high_stakes,
+                is_cold_start=is_cold_start,
+                shown_count=shown_count,
+            )
+
+            # Attach the decision to the whisper (for transparency)
+            w["delivery_decision"] = decision.name
+
+            # Check if the decision is a suppression
+            suppression_decisions = {
+                DeliveryDecision.SUPPRESS_ALREADY_UNDERSTOOD,
+                DeliveryDecision.SUPPRESS_REDUNDANT,
+                DeliveryDecision.SUPPRESS_LOW_STAKES,
+                DeliveryDecision.DEFER_UNTIL_EVIDENCE,
+            }
+
+            if decision in suppression_decisions:
+                suppressed.append(w)
+            else:
+                delivered.append(w)
+
+        return delivered, suppressed
 
     # ─── 4-part format transformation ────────────────────────────────
 

@@ -294,18 +294,34 @@ def test_delivery_decision_deliver_now_when_high_stakes_and_changed(now):
 
 
 def test_delivery_decision_defer_until_evidence_in_cold_start(now):
-    """In cold-start mode (few signals), DEFER_UNTIL_EVIDENCE."""
+    """In cold-start mode (few signals) WITHOUT high-stakes, DEFER_UNTIL_EVIDENCE.
+
+    CRITICAL-01 fix: cold-start with high-stakes signals NO LONGER defers
+    (matching ColdStartMode's high-stakes override safety valve).
+    """
     from maestro_oem.delivery_decision import DeliveryDecision, decide_delivery
 
+    # Cold-start + NO high-stakes → DEFER_UNTIL_EVIDENCE
     decision = decide_delivery(
         exec_already_acted=False,
         materially_changed_since_last_shown=True,
-        has_high_stakes_signal=True,
-        is_cold_start=True,  # Day 1, few signals
+        has_high_stakes_signal=False,
+        is_cold_start=True,
         shown_count=0,
     )
     assert decision == DeliveryDecision.DEFER_UNTIL_EVIDENCE, \
-        f"Cold-start mode → DEFER_UNTIL_EVIDENCE. Got: {decision}"
+        f"Cold-start (no high-stakes) → DEFER_UNTIL_EVIDENCE. Got: {decision}"
+
+    # Cold-start + high-stakes → does NOT defer (safety valve override)
+    decision_override = decide_delivery(
+        exec_already_acted=False,
+        materially_changed_since_last_shown=True,
+        has_high_stakes_signal=True,
+        is_cold_start=True,
+        shown_count=0,
+    )
+    assert decision_override != DeliveryDecision.DEFER_UNTIL_EVIDENCE, \
+        f"Cold-start + high-stakes → must NOT defer (safety valve). Got: {decision_override}"
 
 
 # ─── 4. Minimal Situation Abstraction ──────────────────────────────────────

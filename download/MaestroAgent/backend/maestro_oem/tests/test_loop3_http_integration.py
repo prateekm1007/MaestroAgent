@@ -30,6 +30,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_LEARNING_DB", str(tmp_path / "learning.db"))
+    monkeypatch.setenv("MAESTRO_WHISPER_DB", str(tmp_path / "whisper.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")

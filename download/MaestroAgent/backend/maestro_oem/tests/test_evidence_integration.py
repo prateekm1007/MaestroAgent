@@ -24,6 +24,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_LEARNING_DB", str(tmp_path / "learning.db"))
+    monkeypatch.setenv("MAESTRO_WHISPER_DB", str(tmp_path / "whisper.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
@@ -34,12 +35,17 @@ def client(tmp_path, monkeypatch):
     oem_state._demo_seeded = False
     oem_state._contradiction_log = None
     import_state._initialized = False
+    # CRITICAL-01 fix: reset the whisper history store singleton so each
+    # test gets a fresh DB (otherwise prior tests' shown_count persists)
+    import maestro_api.routes.oem as _oem_routes
+    _oem_routes._whisper_history_store = None
     app = create_app(db_path=str(tmp_path / "maestro.db"))
     with TestClient(app) as c:
         yield c
     oem_state._initialized = False
     oem_state.engine = None
     oem_state.signals = []
+    _oem_routes._whisper_history_store = None
 
 
 def test_whisper_returns_evidence_spine(client):

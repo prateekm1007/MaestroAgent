@@ -38,6 +38,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_APP_DIR", app_dir)
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_LEARNING_DB", str(tmp_path / "learning.db"))
+    monkeypatch.setenv("MAESTRO_WHISPER_DB", str(tmp_path / "whisper.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
@@ -236,18 +237,34 @@ def test_loop1_5_delivery_decision_deliver_now_via_http(client):
 
 
 def test_loop1_5_delivery_decision_defer_in_cold_start_via_http(client):
-    """POST inputs in cold-start mode → DEFER_UNTIL_EVIDENCE."""
+    """POST inputs in cold-start mode WITHOUT high-stakes → DEFER_UNTIL_EVIDENCE.
+
+    CRITICAL-01 fix: cold-start with high-stakes no longer defers.
+    """
     r = client.post("/api/oem/loop1.5/delivery-decision", json={
         "exec_already_acted": False,
         "materially_changed_since_last_shown": True,
-        "has_high_stakes_signal": True,
+        "has_high_stakes_signal": False,  # No high-stakes → defer
         "is_cold_start": True,
         "shown_count": 0,
     }, headers=_headers())
     assert r.status_code == 200
     data = r.json()
     assert data["decision"] == "DEFER_UNTIL_EVIDENCE", \
-        f"Cold-start → DEFER_UNTIL_EVIDENCE. Got: {data['decision']}"
+        f"Cold-start (no high-stakes) → DEFER_UNTIL_EVIDENCE. Got: {data['decision']}"
+
+    # Cold-start + high-stakes → does NOT defer (safety valve)
+    r2 = client.post("/api/oem/loop1.5/delivery-decision", json={
+        "exec_already_acted": False,
+        "materially_changed_since_last_shown": True,
+        "has_high_stakes_signal": True,
+        "is_cold_start": True,
+        "shown_count": 0,
+    }, headers=_headers())
+    assert r2.status_code == 200
+    data2 = r2.json()
+    assert data2["decision"] != "DEFER_UNTIL_EVIDENCE", \
+        f"Cold-start + high-stakes → must NOT defer. Got: {data2['decision']}"
 
 
 # ─── 4. Situation — HTTP ───────────────────────────────────────────────────
