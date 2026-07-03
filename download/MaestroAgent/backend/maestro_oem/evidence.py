@@ -67,10 +67,28 @@ class Evidence:
 
     what_changed_since: str | None = None
 
+    # Loop 1.5 debt (AUDIT-b3f7b26): claim_type is the epistemic type of
+    # this Evidence. It tells Maestro (and downstream consumers like Loop 1.5's
+    # disagreement detection) whether this claim is:
+    #   - observed_fact       — directly witnessed ("the release failed Tuesday")
+    #   - reported_statement  — someone said something ("Engineering believes Legal caused the delay")
+    #   - commitment          — a promise was made ("Deliver SSO by 2024-12-15")
+    #   - assumption          — an unverified belief ("The deadline has not been renegotiated")
+    #   - inference           — a derived conclusion ("Moving Legal earlier may reduce delay")
+    #   - prediction          — a forecast ("The release will likely slip")
+    #   - outcome             — what actually happened ("Commitment was honored/broken")
+    #
+    # Default is "observed_fact" — the most conservative epistemic type. This is
+    # fail-safe (P6): an unspecified claim_type is treated as a directly
+    # witnessed fact rather than as None (which would break downstream logic).
+    # The EvidenceBuilder sets claim_type appropriately per whisper type.
+    claim_type: str = "observed_fact"
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for JSON API responses."""
         return {
             "claim": self.claim,
+            "claim_type": self.claim_type,
             "observed_facts": self.observed_facts,
             "source_artifacts": self.source_artifacts,
             "people_involved": self.people_involved,
@@ -195,6 +213,7 @@ class EvidenceBuilder:
             return Evidence(
                 claim="Maestro detected relevant organizational knowledge",
                 observed_facts=[{"source": "OEM", "date": "", "text": "", "people": []}],
+                claim_type="observed_fact",
             )
 
     def _build_commitment_evidence(self, entity: str, raw: dict) -> Evidence:
@@ -253,6 +272,7 @@ class EvidenceBuilder:
             timestamps={"first_observed": date_str, "last_observed": date_str, "event_date": date_str},
             conflicting_evidence=conflicting,
             assumptions=["The commitment is still active"],
+            claim_type="commitment",
         )
 
     def _build_objection_evidence(self, entity: str, raw: dict) -> Evidence:
@@ -293,6 +313,7 @@ class EvidenceBuilder:
             people_involved=[{"name": p, "role": "actor", "why_relevant": "raised the objection"} for p in people],
             timestamps={"first_observed": date_str, "last_observed": date_str},
             assumptions=[f"The {obj_type} concern is still unresolved"] if obj_type else [],
+            claim_type="observed_fact",
         )
 
     def _build_decision_evidence(self, entity: str, raw: dict) -> Evidence:
@@ -302,6 +323,7 @@ class EvidenceBuilder:
             claim=f"{entity} previously made a decision: {outcome}",
             observed_facts=[{"source": "customer signals", "date": "", "text": f"Decision: {outcome}", "people": []}],
             assumptions=["The decision context may still be relevant"],
+            claim_type="outcome",
         )
 
     def _build_expertise_evidence(self, entity: str, raw: dict) -> Evidence:
@@ -312,6 +334,7 @@ class EvidenceBuilder:
             observed_facts=[{"source": "knowledge graph", "date": "", "text": f"Domains: {', '.join(domains)}", "people": [entity]}],
             people_involved=[{"name": entity, "role": "expert", "why_relevant": "has demonstrated expertise"}],
             assumptions=["The expertise is still current"],
+            claim_type="reported_statement",
         )
 
     def _build_law_evidence(self, whisper_type: str, raw: dict) -> Evidence:
@@ -328,6 +351,7 @@ class EvidenceBuilder:
                 "people": [],
             }],
             assumptions=["The law is still applicable to current operations"],
+            claim_type="inference",
         )
 
     def _build_broken_commitment_evidence(self, entity: str) -> Evidence:
@@ -357,6 +381,7 @@ class EvidenceBuilder:
             claim=f"{entity} has broken commitments — trust may be fragile",
             observed_facts=observed_facts,
             assumptions=["The broken commitment has not been remediated"],
+            claim_type="outcome",
         )
 
     def _build_champion_quiet_evidence(self, entity: str) -> Evidence:
@@ -365,6 +390,7 @@ class EvidenceBuilder:
             claim=f"{entity}'s champion has gone quiet — engagement may be waning",
             observed_facts=[{"source": "customer signals", "date": "", "text": "Champion activity has decreased", "people": []}],
             assumptions=["The silence is significant, not just a schedule gap"],
+            claim_type="assumption",
         )
 
     def _build_bottleneck_evidence(self, entity: str, raw: dict) -> Evidence:
@@ -374,6 +400,7 @@ class EvidenceBuilder:
             observed_facts=[{"source": "OEM approvals", "date": "", "text": f"{entity} is a bottleneck", "people": [entity]}],
             people_involved=[{"name": entity, "role": "gate", "why_relevant": "gating multiple decisions"}],
             assumptions=["The bottleneck is due to workload, not process"],
+            claim_type="inference",
         )
 
     def _build_meeting_context_evidence(self, entity: str) -> Evidence:
@@ -382,6 +409,7 @@ class EvidenceBuilder:
             claim=f"You have an upcoming interaction with {entity}" if entity else "You have an upcoming interaction",
             observed_facts=[{"source": "calendar", "date": "", "text": f"Meeting with {entity}", "people": [entity] if entity else []}],
             assumptions=["The meeting will proceed as scheduled"],
+            claim_type="observed_fact",
         )
 
     def _build_cross_team_evidence(self, topic: str, raw: dict) -> Evidence:
@@ -391,4 +419,5 @@ class EvidenceBuilder:
             claim=f"Another team has relevant knowledge about {topic}" if topic else "Cross-team knowledge detected",
             observed_facts=[{"source": "learning objects", "date": "", "text": f"Learning object: {lo_id}", "people": []}],
             assumptions=["The cross-team knowledge is still accurate"],
+            claim_type="inference",
         )
