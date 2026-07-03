@@ -131,7 +131,7 @@ def test_loop3_full_lifecycle_via_http(client):
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "HYPOTHESIS_STATED"
-    assert data["hypothesis"]["claim_type"] == "prediction"
+    assert data["hypothesis"]["claim_type"] == "hypothesis"
 
     # Decide
     r = client.post(f"/api/oem/loop3/decision/{decision_id}/decide", json={

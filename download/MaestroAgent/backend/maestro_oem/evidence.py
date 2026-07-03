@@ -77,6 +77,16 @@ class Evidence:
     #   - inference           — a derived conclusion ("Moving Legal earlier may reduce delay")
     #   - prediction          — a forecast ("The release will likely slip")
     #   - outcome             — what actually happened ("Commitment was honored/broken")
+    #   - proposal            — a suggestion, NOT a promise ("We should support SSO")
+    #   - estimate            — a human-reported forecast ("Engineering thinks SSO can be ready by Q4")
+    #   - hypothesis          — a conditional testable prediction ("If we prioritize SSO, Globex will renew")
+    #
+    # The 3 new types (C2 fix, ADVERSARIAL-AUDIT-24PHASE) are critical:
+    #   - proposal vs commitment: Maestro must distinguish "we should" from "we will"
+    #   - estimate vs prediction: Maestro must distinguish human-reported forecasts
+    #     from system-generated ones
+    #   - hypothesis vs prediction: Maestro must distinguish conditional falsifiable
+    #     predictions ("if X then Y") from direct forecasts ("X will happen")
     #
     # Default is "observed_fact" — the most conservative epistemic type. This is
     # fail-safe (P6): an unspecified claim_type is treated as a directly

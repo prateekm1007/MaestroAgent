@@ -16,7 +16,7 @@ Each transition is meaningful:
   - PROPOSED: a decision is on the table (intent stated)
   - ASSUMPTIONS_RECORDED: the assumptions underpinning the decision are
     recorded (each with claim_type="assumption")
-  - HYPOTHESIS_STATED: a falsifiable prediction is made (claim_type="prediction")
+  - HYPOTHESIS_STATED: a falsifiable prediction is made (claim_type="hypothesis")
   - DECIDED: the decision is made (the chosen course of action)
   - OUTCOME_OBSERVED: what actually happened (claim_type="outcome")
   - LEARNING_RECORDED: a Decision Learning Ledger entry is written
@@ -123,7 +123,7 @@ def test_decision_lifecycle_record_assumptions(now):
 def test_decision_lifecycle_state_hypothesis(now):
     """state_hypothesis() transitions ASSUMPTIONS_RECORDED → HYPOTHESIS_STATED.
 
-    The hypothesis is a falsifiable prediction with claim_type="prediction".
+    The hypothesis is a falsifiable prediction with claim_type="hypothesis".
     """
     from maestro_oem.decision_v2 import Decision, DecisionStatus
     from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
@@ -137,8 +137,8 @@ def test_decision_lifecycle_state_hypothesis(now):
 
     assert decision.status == DecisionStatus.HYPOTHESIS_STATED
     assert decision.hypothesis is not None
-    assert decision.hypothesis.get("claim_type") == "prediction", \
-        f"Hypothesis must have claim_type='prediction'. Got: {decision.hypothesis.get('claim_type')}"
+    assert decision.hypothesis.get("claim_type") == "hypothesis", \
+        f"Hypothesis must have claim_type='hypothesis'. Got: {decision.hypothesis.get('claim_type')}"
 
 
 def test_decision_lifecycle_decide(now):

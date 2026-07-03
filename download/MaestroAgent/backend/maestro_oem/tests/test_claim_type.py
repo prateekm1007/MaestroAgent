@@ -80,6 +80,9 @@ VALID_CLAIM_TYPES = {
     "assumption",
     "inference",
     "prediction",
+    "proposal",
+    "estimate",
+    "hypothesis",
     "outcome",
 }
 

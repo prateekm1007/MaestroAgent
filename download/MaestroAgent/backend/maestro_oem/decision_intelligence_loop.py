@@ -88,7 +88,10 @@ class DecisionIntelligenceLoop:
     ) -> None:
         """Transition ASSUMPTIONS_RECORDED → HYPOTHESIS_STATED.
 
-        The hypothesis is a falsifiable prediction with claim_type="prediction".
+        The hypothesis is a conditional falsifiable prediction with
+        claim_type="hypothesis" (C2 fix: distinct from "prediction" which
+        is a direct forecast. A hypothesis has "if X then Y" structure and
+        is falsifiable — the decision lifecycle tests it against the outcome).
 
         Args:
             decision: The decision to state a hypothesis for
@@ -103,7 +106,7 @@ class DecisionIntelligenceLoop:
 
         decision.hypothesis = {
             "text": hypothesis,
-            "claim_type": "prediction",
+            "claim_type": "hypothesis",
         }
         decision.status = DecisionStatus.HYPOTHESIS_STATED
 
