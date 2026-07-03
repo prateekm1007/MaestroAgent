@@ -8,7 +8,7 @@ predictions. V8 transforms it from producing outputs to producing
 explanations. An explanation is a multi-step causal chain that answers
 "why?" — each step references real model data (laws, learning objects,
 signals, domain holders concentration, health metrics), with
-evidence_count and confidence.
+evidence_count and evidence_strength.
 
 The ExplanationEngine takes a question and synthesizes a causal chain:
 
@@ -51,7 +51,7 @@ class ExplanationEngine:
       2. Searches the model for evidence relevant to that outcome
          (laws, learning objects, signal patterns, knowledge structure).
       3. Composes the evidence into a 3-7 step causal chain where each
-         step has: a label, a narrative, evidence_count, confidence,
+         step has: a label, a narrative, evidence_count, evidence_strength,
          and a reference to the underlying model entity.
 
     Honesty: if the model has insufficient data, the engine returns an
@@ -125,7 +125,7 @@ class ExplanationEngine:
                 summary: str,                 # one-line restatement
                 steps: list[step],            # 3-7 step causal chain
                 step_count: int,
-                overall_confidence: float,    # 0..1, avg of step confidences
+                overall_evidence_strength: float,    # 0..1, avg of step confidences
                 total_evidence: int,          # sum of step evidence_counts
                 source_entities: list[str],   # model entities referenced
                 honest_limitation: str | None,# None if chain is solid
@@ -174,9 +174,9 @@ class ExplanationEngine:
             )
 
         # Compute aggregate confidence + evidence
-        confidences = [s.get("confidence", 0.0) for s in steps]
+        evidence_strengths = [s.get("evidence_strength", 0.0) for s in steps]
         evidence_counts = [s.get("evidence_count", 0) for s in steps]
-        overall_conf = round(sum(confidences) / max(len(confidences), 1), 3)
+        overall_conf = round(sum(evidence_strengths) / max(len(confidences), 1), 3)
         total_evidence = sum(evidence_counts)
         source_entities = sorted({
             src for s in steps for src in s.get("sources", [])
@@ -197,7 +197,7 @@ class ExplanationEngine:
             "summary": outcome_match["summary"],
             "steps": steps,
             "step_count": len(steps),
-            "overall_confidence": overall_conf,
+            "overall_evidence_strength": overall_conf,
             "total_evidence": total_evidence,
             "source_entities": source_entities,
             "honest_limitation": limitation,
@@ -250,7 +250,7 @@ class ExplanationEngine:
                 "label": "PR volume",
                 "narrative": f"{prs_opened} PRs were opened, {prs_merged} merged (merge ratio {merge_ratio:.0%}). High PR volume without proportional merges indicates work is accumulating faster than it's being reviewed.",
                 "evidence_count": prs_opened,
-                "confidence": min(1.0, prs_opened / 20.0),
+                "evidence_strength": min(1.0, prs_opened / 20.0),
                 "sources": [f"signals.pr_opened={prs_opened}", f"signals.pr_merged={prs_merged}"],
             })
 
@@ -265,7 +265,7 @@ class ExplanationEngine:
                              + ("Reviews are keeping pace." if review_ratio > 0.7 else
                                 "Reviews are lagging — PRs wait in queue, blocking downstream work."),
                 "evidence_count": prs_reviewed,
-                "confidence": min(1.0, prs_reviewed / 15.0),
+                "evidence_strength": min(1.0, prs_reviewed / 15.0),
                 "sources": [f"signals.pr_reviewed={prs_reviewed}"],
             })
 
@@ -288,7 +288,7 @@ class ExplanationEngine:
                                 if conc_ratio > 0.3 else
                                 "Knowledge is reasonably distributed across people."),
                 "evidence_count": total_domains,
-                "confidence": min(1.0, conc_count / 3.0),
+                "evidence_strength": min(1.0, conc_count / 3.0),
                 "sources": [f"knowledge.domain_holders={total_domains} domains",
                             f"knowledge.concentrated={conc_count} domains"],
             })
@@ -305,7 +305,7 @@ class ExplanationEngine:
                                 if len(arch_holders) <= 2 else
                                 "Architecture is shared across the team."),
                 "evidence_count": len(arch_holders),
-                "confidence": 0.7 if len(arch_holders) <= 2 else 0.4,
+                "evidence_strength": "supported" if len(arch_holders) <= 2 else "limited evidence",
                 "sources": [f"knowledge.architecture_holders={list(arch_holders)[:3]}"],
             })
 
@@ -327,7 +327,7 @@ class ExplanationEngine:
                 "narrative": f"{len(qa_transitions)} QA-stage transitions and {len(blocked_transitions)} blocked transitions observed. "
                              "When QA is the last gate before release, late QA discovery forces estimate overruns.",
                 "evidence_count": len(qa_transitions) + len(blocked_transitions),
-                "confidence": min(1.0, (len(qa_transitions) + len(blocked_transitions)) / 5.0),
+                "evidence_strength": min(1.0, (len(qa_transitions) + len(blocked_transitions)) / 5.0),
                 "sources": [f"signals.qa_transitions={len(qa_transitions)}",
                             f"signals.blocked_transitions={len(blocked_transitions)}"],
             })
@@ -349,7 +349,7 @@ class ExplanationEngine:
                              f"(confidence {law.confidence:.0%}, {law.evidence_count} evidence, status: {law.status.value if law.status else 'unknown'}). "
                              "This pattern confirms the chain ends in missed estimates.",
                 "evidence_count": law.evidence_count,
-                "confidence": law.confidence,
+                "evidence_strength": law.confidence,
                 "sources": [f"law.{law.code}"],
             })
         else:
@@ -362,7 +362,7 @@ class ExplanationEngine:
                                  "(PR volume → review queue → dependency → architecture → QA) consistently produces "
                                  "estimate overruns in the observed signals. The pattern is emerging.",
                     "evidence_count": sum(s["evidence_count"] for s in steps),
-                    "confidence": 0.4,
+                    "evidence_strength": "limited evidence",
                     "sources": ["synthesis.from_prior_steps"],
                 })
 
@@ -387,7 +387,7 @@ class ExplanationEngine:
                             if release_freq < 5 else
                             "This is within healthy range."),
             "evidence_count": max(1, release_freq),
-            "confidence": 0.7 if release_freq < 5 else 0.4,
+            "evidence_strength": "supported" if release_freq < 5 else "limited evidence",
             "sources": ["health.release_frequency"],
         })
 
@@ -404,7 +404,7 @@ class ExplanationEngine:
                                 if merge_ratio < 0.5 else
                                 "Merge rate is healthy."),
                 "evidence_count": prs_opened,
-                "confidence": min(1.0, prs_opened / 20.0),
+                "evidence_strength": min(1.0, prs_opened / 20.0),
                 "sources": [f"signals.pr_opened={prs_opened}", f"signals.pr_merged={prs_merged}"],
             })
 
@@ -431,7 +431,7 @@ class ExplanationEngine:
                              f"domain(s): {', '.join(bottleneck_domains[:3])}. "
                              f"Influence score: {bottleneck_influence:.1f}. Work requiring these domains routes through one person.",
                 "evidence_count": len(bottleneck_domains),
-                "confidence": min(1.0, bottleneck_influence / 10.0),
+                "evidence_strength": min(1.0, bottleneck_influence / 10.0),
                 "sources": [f"knowledge.bottleneck={bottleneck_person}",
                             f"knowledge.bottleneck_domains={bottleneck_domains[:3]}"],
             })
@@ -449,7 +449,7 @@ class ExplanationEngine:
                 "narrative": f"{len(blocked)} blocked issue transitions observed. "
                              "Each blockage stalls dependent work, compounding the velocity drop.",
                 "evidence_count": len(blocked),
-                "confidence": min(1.0, len(blocked) / 5.0),
+                "evidence_strength": min(1.0, len(blocked) / 5.0),
                 "sources": [f"signals.blocked={len(blocked)}"],
             })
 
@@ -465,7 +465,7 @@ class ExplanationEngine:
                                 if review_ratio < 0.6 else
                                 "Reviews are keeping pace."),
                 "evidence_count": prs_reviewed,
-                "confidence": min(1.0, prs_reviewed / 15.0),
+                "evidence_strength": min(1.0, prs_reviewed / 15.0),
                 "sources": [f"signals.pr_reviewed={prs_reviewed}"],
             })
 
@@ -486,7 +486,7 @@ class ExplanationEngine:
                              f"(confidence {law.confidence:.0%}, {law.evidence_count} evidence). "
                              "This pattern confirms the chain ends in a velocity drop.",
                 "evidence_count": law.evidence_count,
-                "confidence": law.confidence,
+                "evidence_strength": law.confidence,
                 "sources": [f"law.{law.code}"],
             })
         elif len(steps) >= 3:
@@ -497,7 +497,7 @@ class ExplanationEngine:
                              "(release frequency → merge ratio → bottleneck → blocks → review lag) "
                              "consistently produces velocity drops. The pattern is emerging.",
                 "evidence_count": sum(s["evidence_count"] for s in steps),
-                "confidence": 0.4,
+                "evidence_strength": "limited evidence",
                 "sources": ["synthesis.from_prior_steps"],
             })
 
@@ -536,7 +536,7 @@ class ExplanationEngine:
                          f"With influence {bottleneck_influence:.1f}, they are the single point through which "
                          f"all work in these domains must pass.",
             "evidence_count": len(bottleneck_domains),
-            "confidence": min(1.0, bottleneck_influence / 10.0),
+            "evidence_strength": min(1.0, bottleneck_influence / 10.0),
             "sources": [f"knowledge.bottleneck={bottleneck_person}"],
         })
 
@@ -547,7 +547,7 @@ class ExplanationEngine:
             "narrative": f"The bottlenecked domains are: {', '.join(bottleneck_domains[:5])}. "
                          "Any PR, review, or decision touching these domains routes through one person.",
             "evidence_count": len(bottleneck_domains),
-            "confidence": 0.8,
+            "evidence_strength": "well-supported",
             "sources": [f"knowledge.bottleneck_domains={bottleneck_domains[:5]}"],
         })
 
@@ -564,7 +564,7 @@ class ExplanationEngine:
                 "narrative": f"{len(gated_prs)} PRs were opened in the bottlenecked domains. "
                              "Each one waits for the bottleneck person to review or approve.",
                 "evidence_count": len(gated_prs),
-                "confidence": min(1.0, len(gated_prs) / 10.0),
+                "evidence_strength": min(1.0, len(gated_prs) / 10.0),
                 "sources": [f"signals.gated_prs={len(gated_prs)}"],
             })
 
@@ -581,7 +581,7 @@ class ExplanationEngine:
                 "narrative": f"{len(blocked)} issue transitions show 'blocked' status. "
                              "Blocked work compounds — each item waits, and items behind it wait too.",
                 "evidence_count": len(blocked),
-                "confidence": min(1.0, len(blocked) / 5.0),
+                "evidence_strength": min(1.0, len(blocked) / 5.0),
                 "sources": [f"signals.blocked={len(blocked)}"],
             })
 
@@ -596,7 +596,7 @@ class ExplanationEngine:
                 "narrative": f"{prs_opened - prs_merged} of {prs_opened} PRs remain unmerged "
                              f"({open_ratio:.0%} accumulation rate). Upstream work is piling up behind the bottleneck.",
                 "evidence_count": prs_opened - prs_merged,
-                "confidence": min(1.0, (prs_opened - prs_merged) / 5.0),
+                "evidence_strength": min(1.0, (prs_opened - prs_merged) / 5.0),
                 "sources": [f"signals.open_prs={prs_opened - prs_merged}"],
             })
 
@@ -617,7 +617,7 @@ class ExplanationEngine:
                              f"(confidence {law.confidence:.0%}, {law.evidence_count} evidence). "
                              "The bottleneck is structural, not transient.",
                 "evidence_count": law.evidence_count,
-                "confidence": law.confidence,
+                "evidence_strength": law.confidence,
                 "sources": [f"law.{law.code}"],
             })
         elif len(steps) >= 3:
@@ -628,7 +628,7 @@ class ExplanationEngine:
                              "(bottleneck person → domains → gated work → blocks → accumulation) "
                              "is structural. The bottleneck persists until knowledge is distributed.",
                 "evidence_count": sum(s["evidence_count"] for s in steps),
-                "confidence": 0.4,
+                "evidence_strength": "limited evidence",
                 "sources": ["synthesis.from_prior_steps"],
             })
 
@@ -653,7 +653,7 @@ class ExplanationEngine:
                             if incident_rate > 0.1 else
                             "This is within acceptable range."),
             "evidence_count": max(1, int(incident_rate * 20)),
-            "confidence": 0.7 if incident_rate > 0.1 else 0.4,
+            "evidence_strength": "supported" if incident_rate > 0.1 else "limited evidence",
             "sources": ["health.incident_rate"],
         })
 
@@ -671,7 +671,7 @@ class ExplanationEngine:
                              "appear to have been merged without a corresponding review. "
                              "Unreviewed merges are the leading indicator of incidents.",
                 "evidence_count": unreviewed_merges,
-                "confidence": min(1.0, unreviewed_merges / 5.0),
+                "evidence_strength": min(1.0, unreviewed_merges / 5.0),
                 "sources": [f"signals.unreviewed_merges={unreviewed_merges}"],
             })
 
@@ -688,7 +688,7 @@ class ExplanationEngine:
                              "When a single reviewer is overloaded, PRs get merged under pressure to unblock "
                              "downstream work — reviews get shorter, incidents get through.",
                 "evidence_count": len(single_holder_domains),
-                "confidence": min(1.0, len(single_holder_domains) / 3.0),
+                "evidence_strength": min(1.0, len(single_holder_domains) / 3.0),
                 "sources": [f"knowledge.single_holder_domains={len(single_holder_domains)}"],
             })
 
@@ -702,7 +702,7 @@ class ExplanationEngine:
                             if p1_risk > 0.5 else
                             "Critical component distribution is acceptable."),
             "evidence_count": max(1, int(p1_risk * 10)),
-            "confidence": 0.7 if p1_risk > 0.5 else 0.4,
+            "evidence_strength": "supported" if p1_risk > 0.5 else "limited evidence",
             "sources": ["health.p1_cluster_risk"],
         })
 
@@ -723,7 +723,7 @@ class ExplanationEngine:
                              f"(confidence {law.confidence:.0%}, {law.evidence_count} evidence). "
                              "This pattern confirms the chain ends in an incident.",
                 "evidence_count": law.evidence_count,
-                "confidence": law.confidence,
+                "evidence_strength": law.confidence,
                 "sources": [f"law.{law.code}"],
             })
         elif len(steps) >= 3:
@@ -734,7 +734,7 @@ class ExplanationEngine:
                              "(incident rate → unreviewed merges → bottleneck fatigue → P1 risk) "
                              "consistently produces incidents. The pattern is emerging.",
                 "evidence_count": sum(s["evidence_count"] for s in steps),
-                "confidence": 0.4,
+                "evidence_strength": "limited evidence",
                 "sources": ["synthesis.from_prior_steps"],
             })
 
@@ -763,7 +763,7 @@ class ExplanationEngine:
                                 if avg_top > 5 else
                                 "Influence is reasonably distributed."),
                 "evidence_count": len(top_influencers),
-                "confidence": min(1.0, avg_top / 10.0),
+                "evidence_strength": min(1.0, avg_top / 10.0),
                 "sources": [f"knowledge.top_influencers={[p for p, _ in top_influencers]}"],
             })
 
@@ -777,7 +777,7 @@ class ExplanationEngine:
                 "narrative": f"The top 3 people hold {top_share:.0%} of total organizational influence. "
                              "Concentrated influence means a single departure is catastrophic.",
                 "evidence_count": len(influence),
-                "confidence": min(1.0, top_share),
+                "evidence_strength": min(1.0, top_share),
                 "sources": [f"knowledge.influence_concentration={top_share:.2f}"],
             })
 
@@ -790,7 +790,7 @@ class ExplanationEngine:
                 "narrative": f"{len(hidden_experts)} high-influence people have no documentation of their expertise. "
                              "When experts feel their knowledge isn't recognized or shared, they leave.",
                 "evidence_count": len(hidden_experts),
-                "confidence": min(1.0, len(hidden_experts) / 3.0),
+                "evidence_strength": min(1.0, len(hidden_experts) / 3.0),
                 "sources": [f"knowledge.hidden_experts={[e['entity'] for e in hidden_experts[:3]]}"],
             })
 
@@ -804,7 +804,7 @@ class ExplanationEngine:
                              "If any of them leaves, the organization loses that domain entirely. "
                              "This is the leading indicator of attrition-driven capability loss.",
                 "evidence_count": len(concentration_risk),
-                "confidence": min(1.0, len(concentration_risk) / 3.0),
+                "evidence_strength": min(1.0, len(concentration_risk) / 3.0),
                 "sources": [f"knowledge.concentration_risk={list(concentration_risk.keys())[:3]}"],
             })
 
@@ -825,7 +825,7 @@ class ExplanationEngine:
                              f"(confidence {law.confidence:.0%}, {law.evidence_count} evidence). "
                              "This pattern confirms the chain ends in attrition.",
                 "evidence_count": law.evidence_count,
-                "confidence": law.confidence,
+                "evidence_strength": law.confidence,
                 "sources": [f"law.{law.code}"],
             })
         elif len(steps) >= 3:
@@ -836,7 +836,7 @@ class ExplanationEngine:
                              "(bottleneck load → influence concentration → undocumented experts → departure risk) "
                              "is the canonical attrition pattern. The pattern is emerging.",
                 "evidence_count": sum(s["evidence_count"] for s in steps),
-                "confidence": 0.4,
+                "evidence_strength": "limited evidence",
                 "sources": ["synthesis.from_prior_steps"],
             })
 
@@ -852,7 +852,7 @@ class ExplanationEngine:
             "summary": reason,
             "steps": [],
             "step_count": 0,
-            "overall_confidence": 0.0,
+            "overall_evidence_strength": 0.0,
             "total_evidence": 0,
             "source_entities": [],
             "honest_limitation": reason,
