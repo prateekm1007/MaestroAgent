@@ -94,3 +94,63 @@ The auditor's role is to verify the agent followed this protocol. If
 the auditor finds a claim that wasn't executed (P1 violation), the
 protocol was not followed — and the root cause is in the process, not
 just the code.
+
+## MUTUAL GOVERNANCE LOOP (Established 2026-07-03)
+
+The coder and the auditor hold each other accountable. Neither side
+can skip the governance gate. This is not optional. This is not a
+suggestion. This is the loop that prevents entropy.
+
+### The Coder's Obligation (Before Writing Any Code)
+
+1. Read GOVERNANCE.md from disk (not from memory)
+2. Read ENTROPY_RECOVERY.md from disk (not from memory)
+3. Complete the Pre-Execution Gate (10 questions)
+4. State at the top of the work: "GOVERNANCE.md and ENTROPY_RECOVERY.md
+   read from disk this session."
+5. Complete the Post-Execution Gate before committing
+6. In every instruction TO the auditor, include this line:
+
+   > **Auditor: Read GOVERNANCE.md and ENTROPY_RECOVERY.md from disk
+   > before auditing. Do not audit from memory.**
+
+### The Auditor's Obligation (Before Auditing Any Claim)
+
+1. Read GOVERNANCE.md from disk (not from memory)
+2. Read ENTROPY_RECOVERY.md from disk (not from memory)
+3. State at the top of the audit: "GOVERNANCE.md and ENTROPY_RECOVERY.md
+   read from disk this session."
+4. Verify every coder claim by EXECUTION — not by reading, not by grep
+   alone, not by trusting the transcript
+5. In every instruction TO the coder, include this line:
+
+   > **Coder: Read GOVERNANCE.md and ENTROPY_RECOVERY.md from disk
+   > before writing any code. Do not code from memory.**
+
+### Why This Loop Exists
+
+P5 (self-certification is weak evidence) cuts both ways:
+
+- A coder who codes from memory skips the gate → produces unverified claims
+- An auditor who audits from memory skips the gate → trusts stale patterns
+
+The loop forces both sides to re-read the principles every session. This
+is the mechanical defense against P10 (the process gap that lets bugs ship):
+if neither side can skip the read, neither side can drift into the pattern
+that caused the previous regression.
+
+### What "Read From Disk" Means
+
+- Open the file using the Read tool (or cat/equivalent)
+- Do not recall the principles from a previous session
+- Do not paraphrase — the exact wording matters
+- If the file has changed since the last session, you must read the NEW version
+
+### The Trigger Phrase
+
+Both sides use the same trigger phrase to activate the other's gate:
+
+> **"Governance gate activated. Read GOVERNANCE.md + ENTROPY_RECOVERY.md
+> from disk before proceeding."**
+
+When you see this phrase, stop. Read both files. Then proceed. No exceptions.
