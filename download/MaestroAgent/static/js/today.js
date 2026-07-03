@@ -1386,3 +1386,78 @@ function insertPrepDraft(draft) {
     if (typeof showToast === 'function') showToast('Could not copy draft', 'error');
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P0-2: INLINE ASK ON TODAY SURFACE — the exec types, the answer appears inline
+// ═══════════════════════════════════════════════════════════════════════════
+// Auditor: "Make it a real input. On Enter, POST to /ask/conversation and
+// render the answer INLINE on the Today surface. Do NOT navigate away."
+
+async function todayAskSubmit(query) {
+  if (!query || !query.trim()) return;
+  const answerEl = document.getElementById('today-ask-answer');
+  if (!answerEl) return;
+  answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Thinking...</div>';
+
+  try {
+    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query, history: [] }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    let html = '<div class="today-ask-response">';
+    // Render the answer as markdown-ish (split on ### for headers)
+    const parts = data.answer.split('\n');
+    for (const line of parts) {
+      if (line.startsWith('# ')) {
+        html += `<div class="ask-answer-title">${escapeHtml(line.substring(2))}</div>`;
+      } else if (line.startsWith('### ')) {
+        html += `<div class="ask-answer-h3">${escapeHtml(line.substring(4))}</div>`;
+      } else if (line.startsWith('**') && line.endsWith('**')) {
+        html += `<div class="ask-answer-bold">${escapeHtml(line.substring(2, line.length - 2))}</div>`;
+      } else if (line.startsWith('- ')) {
+        html += `<div class="ask-answer-bullet">${escapeHtml(line.substring(2))}</div>`;
+      } else if (line.trim()) {
+        html += `<div class="ask-answer-line">${escapeHtml(line)}</div>`;
+      }
+    }
+    html += '</div>';
+
+    // Render follow-up suggestions
+    if (data.follow_ups && data.follow_ups.length > 0) {
+      html += '<div class="ask-follow-up">';
+      for (const fu of data.follow_ups) {
+        html += `<span class="ask-follow-up-tag" onclick="todayAskSubmit('${escapeJs(fu)}')">${escapeHtml(fu)}</span>`;
+      }
+      html += '</div>';
+    }
+
+    // Render actions
+    if (data.actions && data.actions.length > 0) {
+      for (const a of data.actions) {
+        html += `<button class="ds-btn ds-btn-secondary ds-btn-small" onclick="navTo('ask-v2')">${escapeHtml(a.label)}</button>`;
+      }
+    }
+
+    answerEl.innerHTML = html;
+  } catch (e) {
+    answerEl.innerHTML = `<div class="ds-error">Failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// Wire up prompt tags
+document.addEventListener('DOMContentLoaded', function() {
+  const promptContainer = document.getElementById('today-ask-prompts');
+  if (promptContainer) {
+    promptContainer.addEventListener('click', function(e) {
+      const tag = e.target.closest('.ask-prompt-tag');
+      if (tag) {
+        const prompt = tag.getAttribute('data-prompt');
+        if (prompt) todayAskSubmit(prompt);
+      }
+    });
+  }
+});

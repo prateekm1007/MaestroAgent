@@ -54,13 +54,29 @@ async function loadAskContext(el) {
     "What am I missing?",
   ];
 
-  // If there's an upcoming meeting, show meeting-specific prompts
+  // If there are upcoming meetings, show ALL meetings and prioritize the risky one
   if (prep && prep.meetings && prep.meetings.length > 0) {
-    const meeting = prep.meetings[0];
-    header = `You have ${meeting.title} coming up.`;
+    // Find the riskiest meeting (most concerns + objections + commitments)
+    const meetingsWithRisk = prep.meetings.map(m => {
+      const p = m.preparation || {};
+      const riskScore = (p.customer_concerns || []).length + (p.previous_objections || []).length + (p.relevant_commitments || []).length;
+      return { ...m, riskScore };
+    });
+    meetingsWithRisk.sort((a, b) => b.riskScore - a.riskScore);
+    const riskyMeeting = meetingsWithRisk[0];
+
+    if (prep.meetings.length === 1) {
+      header = `You have ${riskyMeeting.title} coming up.`;
+    } else {
+      header = `You have ${prep.meetings.length} meetings coming up. ${riskyMeeting.title} is the risky one.`;
+      const concerns = (riskyMeeting.preparation || {}).customer_concerns || [];
+      if (concerns.length > 0) {
+        header += ` (${concerns.length} unresolved concern${concerns.length === 1 ? '' : 's'})`;
+      }
+    }
     subheader = 'I can prepare you, explain what changed, or find previous decisions.';
     prompts = [
-      'Prepare me for the meeting',
+      `Prepare me for ${riskyMeeting.title}`,
       'What am I likely to be asked?',
       "What hasn't been resolved?",
       'What should I remember?',

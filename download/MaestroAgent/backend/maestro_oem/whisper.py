@@ -175,40 +175,105 @@ class OrganizationalWhisper:
     def _build_why_surfaced(
         self, whisper_type: str, entity: str, topic: str, evidence: dict[str, Any], context: str
     ) -> str:
-        """Explain WHY Maestro surfaced this whisper — evidence-based, no fake percentages.
+        """Explain WHY Maestro surfaced this whisper — dynamic evidence, not static templates.
 
         CEO: "Instead of 'Confidence: 82%' say:
         'Customer asked twice. Promise made in Slack. Deadline is next week.'
         Evidence creates trust. Numbers create skepticism unless earned."
+
+        Auditor P0-1: Replace 11 static template strings with dynamic evidence
+        pulled from actual signal data (who said it, when, in what channel).
         """
         reasons = []
 
         if whisper_type == "commitment_exists":
-            reasons.append("A commitment was made to this customer")
-            if evidence.get("artifact"):
-                reasons.append(f"Recorded in {evidence['artifact']}")
+            # Dynamic: pull the actual commitment text, who made it, when
+            artifact = evidence.get("artifact", "")
+            timestamp = evidence.get("timestamp", "")
+            date_str = timestamp[:10] if timestamp else "recently"
+            if artifact:
+                reasons.append(f"Recorded in {artifact} on {date_str}")
+            else:
+                reasons.append("A commitment was made to this customer")
+            # Count how many times this customer has raised concerns
+            concern_count = sum(1 for s in self.signals
+                               if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+                               and hasattr(s, "type")
+                               and "objection" in str(s.type).lower())
+            if concern_count > 0:
+                reasons.append(f"Customer has raised {concern_count} concern{'s' if concern_count != 1 else ''} in total")
+
         elif whisper_type == "objection_history":
-            reasons.append(f"This customer has raised this concern before")
-            if evidence.get("objection_type"):
-                reasons.append(f"Objection type: {evidence['objection_type']}")
+            obj_type = evidence.get("objection_type", "")
+            timestamp = evidence.get("timestamp", "")
+            date_str = timestamp[:10] if timestamp else "previously"
+            if obj_type:
+                reasons.append(f"Customer raised '{obj_type}' concern on {date_str}")
+            else:
+                reasons.append("Customer has raised this concern before")
+            # Count total objections from this customer
+            total_objections = sum(1 for s in self.signals
+                                  if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+                                  and hasattr(s, "type")
+                                  and "objection" in str(s.type).lower())
+            if total_objections > 1:
+                reasons.append(f"This is 1 of {total_objections} objections from this customer")
+
         elif whisper_type == "decision_history":
-            reasons.append("This customer has made a similar decision before")
+            outcome = evidence.get("outcome", "")
+            if outcome:
+                reasons.append(f"Customer previously decided: {outcome}")
+            else:
+                reasons.append("Customer has made a similar decision before")
+
         elif whisper_type == "expertise":
-            reasons.append("This person has demonstrated expertise in relevant domains")
+            domains = evidence.get("domains", [])
+            if domains:
+                reasons.append(f"This person has demonstrated expertise in: {', '.join(domains[:3])}")
+            else:
+                reasons.append("This person has demonstrated expertise in relevant domains")
+
         elif whisper_type == "law_exists":
-            reasons.append("This is a validated organizational law")
+            validated = evidence.get("validated", 0)
+            failed = evidence.get("failed", 0)
+            if validated or failed:
+                reasons.append(f"Validated {validated}x, failed {failed}x in production")
+            else:
+                reasons.append("This is a validated organizational law")
+
         elif whisper_type == "relevant_law":
-            reasons.append("A relevant law was discovered from execution data")
+            code = evidence.get("code", "")
+            if code:
+                reasons.append(f"Discovered as organizational law {code}")
+            else:
+                reasons.append("A relevant law was discovered from execution data")
+
         elif whisper_type == "broken_commitments":
-            reasons.append("This customer has broken commitments — trust may be fragile")
+            # Count broken commitments
+            broken_count = sum(1 for s in self.signals
+                              if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+                              and hasattr(s, "type")
+                              and "broken" in str(s.type).lower())
+            if broken_count > 0:
+                reasons.append(f"Customer has {broken_count} broken commitment{'s' if broken_count != 1 else ''} — trust may be fragile")
+            else:
+                reasons.append("Customer has broken commitments — trust may be fragile")
+
         elif whisper_type == "champion_quiet":
-            reasons.append("This customer's champion has gone quiet — engagement may be waning")
+            reasons.append(f"Customer's champion has gone quiet — engagement may be waning")
+
         elif whisper_type == "bottleneck":
-            reasons.append("This person is gating multiple items — they may be overloaded")
+            reasons.append(f"This person is gating multiple items — they may be overloaded")
+
         elif whisper_type == "meeting_context":
-            reasons.append(f"You have an upcoming interaction with {entity}")
+            if entity:
+                reasons.append(f"You have an upcoming interaction with {entity}")
+            else:
+                reasons.append("You have an upcoming interaction")
+
         elif whisper_type == "cross_team":
             reasons.append("Another team has relevant knowledge about this topic")
+
         else:
             reasons.append("Maestro detected relevant organizational knowledge")
 

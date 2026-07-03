@@ -255,16 +255,20 @@
         <div id="today-content">
           <div class="ds-loading"><span class="spinner"></span> Preparing your morning brief…</div>
         </div>
-        <div id="today-ask-box" class="today-ask-box" data-oc="oc-ask-box" role="button" tabindex="0" aria-label="Ask Maestro" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo('ask-v2');}">
+        <div id="today-ask-box" class="today-ask-box">
           <i data-lucide="help-circle" class="ask-box-icon"></i>
-          <span class="ask-box-text">Ask Maestro...</span>
-          <div class="ask-box-prompts">
-            <span class="ask-prompt-tag">Prepare me</span>
-            <span class="ask-prompt-tag">Remind me</span>
-            <span class="ask-prompt-tag">Explain</span>
-            <span class="ask-prompt-tag">Investigate</span>
+          <input type="text" class="today-ask-input" id="today-ask-input"
+                 placeholder="Ask Maestro..."
+                 aria-label="Ask Maestro"
+                 onkeydown="if(event.key==='Enter'){todayAskSubmit(this.value);this.value='';}" />
+          <div class="ask-box-prompts" id="today-ask-prompts">
+            <span class="ask-prompt-tag" data-prompt="Prepare me">Prepare me</span>
+            <span class="ask-prompt-tag" data-prompt="Remind me">Remind me</span>
+            <span class="ask-prompt-tag" data-prompt="Explain">Explain</span>
+            <span class="ask-prompt-tag" data-prompt="Investigate">Investigate</span>
           </div>
         </div>
+        <div id="today-ask-answer" class="today-ask-answer"></div>
       </section>
 
       <!-- SURFACE: MEMORY — Round 46 unified memory feed (work timeline + personal memories) -->
@@ -1117,14 +1121,14 @@
   <button class="mobile-nav-item active" data-surface="today" aria-label="Today">
     <i data-lucide="sunrise"></i><span>Today</span>
   </button>
+  <button class="mobile-nav-item" data-surface="ask-v2" aria-label="Ask Maestro">
+    <i data-lucide="help-circle"></i><span>Ask</span>
+  </button>
   <button class="mobile-nav-item" data-surface="memory" aria-label="Memory">
     <i data-lucide="brain"></i><span>Memory</span>
   </button>
-  <button class="mobile-nav-item" data-surface="ask-v2" aria-label="Ask">
-    <i data-lucide="help-circle"></i><span>Ask</span>
-  </button>
-  <button class="mobile-nav-item" data-surface="home" aria-label="Home">
-    <i data-lucide="layout-dashboard"></i><span>Home</span>
+  <button class="mobile-nav-item" data-surface="inbox" aria-label="Decisions">
+    <i data-lucide="inbox"></i><span>Decisions</span>
   </button>
 </nav>
 
