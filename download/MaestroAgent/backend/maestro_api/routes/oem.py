@@ -5245,20 +5245,36 @@ def get_organizational_pattern() -> dict[str, Any]:
 
 @router.post("/ask/recall")
 def ask_recall(payload: dict[str, Any]) -> dict[str, Any]:
-    """Recall old whispers by vague description.
+    """Recall old whispers + signals + decisions by vague description.
 
     CEO: "What was that thing Maestro warned me about Legal a few weeks ago?"
 
-    Returns matching whispers with what_changed_since, executive_action,
-    and a conversational recall message.
+    Phase 2 (2026-07-03): replaced keyword-only WhisperRecall with the
+    hybrid RecallEngine. The new engine:
+      - Parses temporal phrases ("last month" → date range)
+      - Resolves entities via synonym map ("legal" → {compliance, contract, ...})
+      - Embeds query + insights with all-MiniLM-L6-v2 (384-dim)
+      - Traverses signals + decisions for cross-entity recall
+      - Returns Evidence objects (Phase 1 spine) with source_artifacts,
+        people_involved, timestamps populated
+      - Computes what_changed_since from the actual signal diff
+        (NOT hardcoded template strings)
+
+    The old keyword-only WhisperRecall is still available at
+    maestro_oem.whisper_recall for backward-compat testing, but is no
+    longer wired to any endpoint.
     """
     query = payload.get("query", "")
     if not query:
         raise HTTPException(400, "Query is required")
 
-    from maestro_oem.whisper_recall import WhisperRecall
+    from maestro_oem.recall_engine import RecallEngine
     store = _get_whisper_history_store()
-    recall = WhisperRecall(whisper_history_store=store, oem_state=oem_state)
+    recall = RecallEngine(
+        whisper_history_store=store,
+        signals=oem_state.signals if oem_state else [],
+        oem_state=oem_state,
+    )
     return recall.recall(query, org_id="default")
 
 
@@ -5303,22 +5319,27 @@ def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]
     # Check if this is a recall query ("What was that thing about...")
     if any(phrase in query_lower for phrase in ["what was that", "remind me", "you showed me", "you warned me", "you told me"]):
         store = _get_whisper_history_store()
-        from maestro_oem.whisper_recall import WhisperRecall
-        recall = WhisperRecall(whisper_history_store=store, oem_state=oem_state)
+        # Phase 2: use the hybrid RecallEngine (semantic + temporal + entity + graph)
+        from maestro_oem.recall_engine import RecallEngine
+        recall = RecallEngine(
+            whisper_history_store=store,
+            signals=oem_state.signals if oem_state else [],
+            oem_state=oem_state,
+        )
         result = recall.recall(query, org_id="default")
-        # Phase 1: Return Evidence objects, not ad-hoc dicts
-        from maestro_oem.evidence import EvidenceBuilder
-        builder = EvidenceBuilder(oem_state.signals)
+        # Phase 2: the RecallEngine already returns Evidence objects on
+        # each item. Pass them through to the conversation surface — no
+        # need to re-build ad-hoc evidence dicts.
         evidence_spines = []
         for w in result.get("whispers", []):
             evidence_spines.append({
                 "source": "whisper_history",
-                "text": w["original_insight"],
-                "evidence_spine": {
-                    "claim": w["original_insight"],
-                    "observed_facts": [{"source": "whisper_history", "date": w.get("last_shown", ""), "text": w["original_insight"], "people": []}],
+                "text": w.get("original_insight", ""),
+                "evidence_spine": w.get("evidence_spine", {
+                    "claim": w.get("original_insight", ""),
+                    "observed_facts": [{"source": "whisper_history", "date": w.get("last_shown", ""), "text": w.get("original_insight", ""), "people": []}],
                     "what_changed_since": w.get("what_changed", ""),
-                },
+                }),
             })
         return {
             "answer": result["message"],
@@ -5579,11 +5600,41 @@ def organizational_whisper(
     result = w.for_context(context=context, entity=entity, topic=topic, user=user)
 
     # H1 FIX: Persist that each whisper was shown (increment shown_count)
+    # Phase 2: also persist entity + type + insight embedding (BLOB) so
+    # the hybrid RecallEngine can do semantic search without re-embedding
+    # every insight on every recall call.
+    from maestro_oem.recall_engine import _embed
     for whisper in result.get("whispers", []):
         wid = whisper.get("whisper_id", "")
         insight = whisper.get("insight", "")
+        entity = whisper.get("entity", "") or entity or ""
+        whisper_type = whisper.get("type", "")
         if wid:
-            store.record_shown(wid, org_id="default", insight=insight[:200])
+            # Compute embedding (lazy-loaded MiniLM). On failure, None —
+            # the engine will fall back to on-the-fly embedding at recall time.
+            try:
+                emb_bytes = None
+                vec = _embed(insight[:500]) if insight else None
+                if vec is not None:
+                    import struct
+                    emb_bytes = struct.pack(f"{len(vec)}f", *vec)
+                store.record_shown(
+                    wid,
+                    org_id="default",
+                    insight=insight[:200],
+                    embedding=emb_bytes,
+                    entity=entity,
+                    whisper_type=whisper_type,
+                )
+            except Exception:
+                # Fallback: persist without embedding (engine will embed on-the-fly)
+                store.record_shown(
+                    wid,
+                    org_id="default",
+                    insight=insight[:200],
+                    entity=entity,
+                    whisper_type=whisper_type,
+                )
 
     return result
 

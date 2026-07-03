@@ -38,11 +38,23 @@ CREATE TABLE IF NOT EXISTS whisper_history (
     first_shown TEXT,
     last_shown TEXT,
     insight TEXT,
+    embedding BLOB,
+    entity TEXT,
+    type TEXT,
     PRIMARY KEY (whisper_id, org_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_whisper_history_org ON whisper_history(org_id);
 """
+
+# Phase 2: idempotent column adds for existing databases that pre-date
+# the embedding/entity/type columns. ALTER TABLE ... ADD COLUMN fails
+# silently if the column already exists (caught by the try/except below).
+_MIGRATIONS = [
+    "ALTER TABLE whisper_history ADD COLUMN embedding BLOB",
+    "ALTER TABLE whisper_history ADD COLUMN entity TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN type TEXT",
+]
 
 
 class WhisperHistoryStore:
@@ -80,25 +92,50 @@ class WhisperHistoryStore:
                 stmt = stmt.strip()
                 if stmt:
                     cursor.execute(stmt)
+            # Phase 2 migrations: add embedding/entity/type columns to
+            # pre-existing databases. Each ALTER fails silently if the
+            # column already exists (idempotent).
+            for stmt in _MIGRATIONS:
+                try:
+                    cursor.execute(stmt)
+                except Exception:
+                    pass  # Column already exists
         except Exception as e:
             logger.warning("WhisperHistoryStore schema init: %s", e)
 
-    def record_shown(self, whisper_id: str, org_id: str = "default", insight: str = "") -> None:
-        """Record that a whisper was shown. Increments shown_count."""
+    def record_shown(
+        self,
+        whisper_id: str,
+        org_id: str = "default",
+        insight: str = "",
+        embedding: bytes | None = None,
+        entity: str = "",
+        whisper_type: str = "",
+    ) -> None:
+        """Record that a whisper was shown. Increments shown_count.
+
+        Phase 2: optionally persists the insight embedding (BLOB), entity,
+        and whisper type. These power the hybrid RecallEngine's semantic +
+        entity search without re-embedding on every recall.
+        """
         now = datetime.now(timezone.utc).isoformat()
         with self._lock:
             assert self._conn is not None
             cur = self._conn.cursor()
             # Upsert: insert or update
             cur.execute(
-                """INSERT INTO whisper_history (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown, insight)
-                   VALUES (?, ?, 1, NULL, ?, ?, ?)
+                """INSERT INTO whisper_history
+                   (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown, insight, embedding, entity, type)
+                   VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(whisper_id, org_id) DO UPDATE SET
                     shown_count = shown_count + 1,
                     last_shown = excluded.last_shown,
-                    insight = COALESCE(excluded.insight, whisper_history.insight)
+                    insight = COALESCE(excluded.insight, whisper_history.insight),
+                    embedding = COALESCE(excluded.embedding, whisper_history.embedding),
+                    entity = COALESCE(excluded.entity, whisper_history.entity),
+                    type = COALESCE(excluded.type, whisper_history.type)
                 """,
-                (whisper_id, org_id, now, now, insight),
+                (whisper_id, org_id, now, now, insight, embedding, entity, whisper_type),
             )
 
     def record_outcome(self, whisper_id: str, action: str, org_id: str = "default") -> None:
@@ -159,7 +196,12 @@ class WhisperHistoryStore:
                 }
 
     def get_all_history(self, org_id: str = "default") -> dict[str, dict[str, Any]]:
-        """Get all whisper history for an org. Returns {whisper_id: {history}}."""
+        """Get all whisper history for an org. Returns {whisper_id: {history}}.
+
+        Phase 2: also returns entity, type, and embedding (BLOB) if present.
+        The embedding is returned as raw bytes — the caller (RecallEngine)
+        decodes it via numpy.frombuffer if it needs to compute cosine.
+        """
         with self._lock:
             assert self._conn is not None
             cur = self._conn.cursor()
@@ -178,15 +220,22 @@ class WhisperHistoryStore:
                         "first_shown": row.get("first_shown"),
                         "last_shown": row.get("last_shown"),
                         "insight": row.get("insight", ""),
+                        "entity": row.get("entity", ""),
+                        "type": row.get("type", ""),
+                        "embedding": row.get("embedding"),
                     }
                 else:
+                    keys = row.keys()
                     wid = row["whisper_id"]
                     result[wid] = {
                         "shown_count": row["shown_count"],
                         "action_taken": row["action_taken"],
                         "first_shown": row["first_shown"],
                         "last_shown": row["last_shown"],
-                        "insight": row["insight"] if "insight" in row.keys() else "",
+                        "insight": row["insight"] if "insight" in keys else "",
+                        "entity": row["entity"] if "entity" in keys else "",
+                        "type": row["type"] if "type" in keys else "",
+                        "embedding": row["embedding"] if "embedding" in keys else None,
                     }
             return result
 
