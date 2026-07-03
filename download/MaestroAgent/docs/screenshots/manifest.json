@@ -11,7 +11,7 @@
     "surface": "memory",
     "title": "Memory \u2014 Unified Feed",
     "status": "ok",
-    "text_len": 161,
+    "text_len": 768,
     "filename": "memory.png",
     "page_errors": []
   },
@@ -33,7 +33,7 @@
     "surface": "home",
     "title": "Home \u2014 Executive Cognition Center",
     "status": "ok",
-    "text_len": 7574,
+    "text_len": 7586,
     "filename": "home.png",
     "page_errors": []
   },
@@ -49,7 +49,7 @@
     "surface": "simulator",
     "title": "Simulator \u2014 Decision Simulator",
     "status": "ok",
-    "text_len": 648,
+    "text_len": 667,
     "filename": "simulator.png",
     "page_errors": []
   },
@@ -57,7 +57,7 @@
     "surface": "hayek",
     "title": "Hayek \u2014 Knowledge Graph",
     "status": "ok",
-    "text_len": 197,
+    "text_len": 700,
     "filename": "hayek.png",
     "page_errors": []
   },
@@ -73,7 +73,7 @@
     "surface": "ask",
     "title": "Ask \u2014 Legacy Ask",
     "status": "ok",
-    "text_len": 159,
+    "text_len": 802,
     "filename": "ask.png",
     "page_errors": []
   },
@@ -81,7 +81,7 @@
     "surface": "customer",
     "title": "Customer \u2014 Judgment Engine",
     "status": "ok",
-    "text_len": 1761,
+    "text_len": 1847,
     "filename": "customer.png",
     "page_errors": []
   },
@@ -97,7 +97,7 @@
     "surface": "debate",
     "title": "Debate \u2014 Active Debates",
     "status": "ok",
-    "text_len": 230,
+    "text_len": 1101,
     "filename": "debate.png",
     "page_errors": []
   },
@@ -161,7 +161,7 @@
     "surface": "eng-audit",
     "title": "Engineering \u2014 Audit Log",
     "status": "ok",
-    "text_len": 130,
+    "text_len": 6528,
     "filename": "eng-audit.png",
     "page_errors": []
   },
@@ -169,7 +169,7 @@
     "surface": "eng-settings",
     "title": "Engineering \u2014 Settings",
     "status": "ok",
-    "text_len": 1184,
+    "text_len": 1476,
     "filename": "eng-settings.png",
     "page_errors": []
   },
@@ -184,8 +184,10 @@
   {
     "surface": "coordination",
     "title": "Coordination \u2014 Coordination Engine",
-    "status": "skipped",
-    "reason": "no DOM element"
+    "status": "ok",
+    "text_len": 398,
+    "filename": "coordination.png",
+    "page_errors": []
   },
   {
     "surface": "work",
@@ -239,7 +241,7 @@
     "surface": "personal",
     "title": "Personal \u2014 Personal Mode",
     "status": "ok",
-    "text_len": 147,
+    "text_len": 1074,
     "filename": "personal.png",
     "page_errors": []
   },
