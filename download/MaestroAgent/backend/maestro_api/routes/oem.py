@@ -6320,5 +6320,199 @@ def loop1_5_cold_start(
     return cold_start.to_dict()
 
 
+# ─── Loop 2: Meeting Intelligence HTTP endpoints ───────────────────────────
+# CEO directive: build Loop 2 — Meeting Intelligence. Per the established
+# pattern (Loop 1 + Loop 1.5 Iteration), capabilities ship with HTTP
+# endpoints in the same commit.
+#
+# 7 endpoints:
+#   POST /loop2/meeting                       — create/schedule a meeting
+#   GET  /loop2/meeting/{meeting_id}          — get a meeting by ID
+#   POST /loop2/meeting/{meeting_id}/prepare  — prepare (assemble Situation)
+#   POST /loop2/meeting/{meeting_id}/occur    — record topics + commitments
+#   POST /loop2/meeting/{meeting_id}/outcome  — observe outcome
+#   GET  /loop2/meeting/{meeting_id}/learning — get/write learning entry
+#   GET  /loop2/patterns                      — detect cross-meeting patterns
+
+# Module-level meeting store (persists across requests within a process)
+_loop2_meeting_store = None
+
+
+def _get_meeting_store():
+    """Get or create the module-level MeetingStore."""
+    global _loop2_meeting_store
+    if _loop2_meeting_store is None:
+        from maestro_oem.meeting_store import MeetingStore
+        _loop2_meeting_store = MeetingStore()
+    return _loop2_meeting_store
+
+
+@router.post("/loop2/meeting")
+def loop2_create_meeting(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Create/schedule a meeting.
+
+    Body:
+      {
+        "title": "Globex Quarterly Review",
+        "entity": "Globex",
+        "attendees": ["ceo@globex.com", "jane.d@acme.com"],
+        "start": "2026-07-04T10:00:00+00:00",
+        "end": "2026-07-04T11:00:00+00:00"
+      }
+
+    Returns the created meeting (with meeting_id).
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    from maestro_oem.meeting import Meeting
+
+    title = payload.get("title")
+    entity = payload.get("entity")
+    if not title or not entity:
+        raise HTTPException(400, "title and entity are required")
+
+    def _parse_dt(s):
+        if not s:
+            return _dt.now(_tz.utc)
+        try:
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            dt = _dt.fromisoformat(s)
+            return dt if dt.tzinfo else dt.replace(tzinfo=_tz.utc)
+        except Exception:
+            return _dt.now(_tz.utc)
+
+    meeting = Meeting(
+        title=title,
+        entity=entity,
+        attendees=payload.get("attendees", []),
+        start=_parse_dt(payload.get("start")),
+        end=_parse_dt(payload.get("end")),
+    )
+    _get_meeting_store().record(meeting)
+    return meeting.to_dict()
+
+
+@router.get("/loop2/meeting/{meeting_id}")
+def loop2_get_meeting(meeting_id: str) -> dict[str, Any]:
+    """Get a meeting by ID."""
+    meeting = _get_meeting_store().get(meeting_id)
+    if meeting is None:
+        raise HTTPException(404, f"Meeting {meeting_id} not found")
+    return meeting.to_dict()
+
+
+@router.post("/loop2/meeting/{meeting_id}/prepare")
+def loop2_prepare_meeting(meeting_id: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    """Prepare a meeting — assemble a Situation (SCHEDULED → PREPARED)."""
+    from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
+
+    meeting = _get_meeting_store().get(meeting_id)
+    if meeting is None:
+        raise HTTPException(404, f"Meeting {meeting_id} not found")
+
+    loop = MeetingIntelligenceLoop(
+        signals=oem_state.signals if oem_state else [],
+        now=datetime.now(timezone.utc),
+        whisper_store=_get_whisper_history_store(),
+    )
+    loop.prepare(meeting)
+    _get_meeting_store().record(meeting)
+    return meeting.to_dict()
+
+
+@router.post("/loop2/meeting/{meeting_id}/occur")
+def loop2_meeting_occurred(meeting_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record that a meeting occurred — topics + commitments (PREPARED → OCCURRED)."""
+    from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
+
+    meeting = _get_meeting_store().get(meeting_id)
+    if meeting is None:
+        raise HTTPException(404, f"Meeting {meeting_id} not found")
+
+    loop = MeetingIntelligenceLoop(
+        signals=oem_state.signals if oem_state else [],
+        now=datetime.now(timezone.utc),
+    )
+    loop.occur(
+        meeting,
+        topics_discussed=payload.get("topics_discussed", []),
+        commitments_made=payload.get("commitments_made", []),
+    )
+    _get_meeting_store().record(meeting)
+    return meeting.to_dict()
+
+
+@router.post("/loop2/meeting/{meeting_id}/outcome")
+def loop2_meeting_outcome(meeting_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Observe a meeting's outcome (OCCURRED → OUTCOME_OBSERVED)."""
+    from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
+
+    meeting = _get_meeting_store().get(meeting_id)
+    if meeting is None:
+        raise HTTPException(404, f"Meeting {meeting_id} not found")
+
+    outcome = payload.get("outcome")
+    if not outcome:
+        raise HTTPException(400, "outcome is required")
+
+    loop = MeetingIntelligenceLoop(
+        signals=oem_state.signals if oem_state else [],
+        now=datetime.now(timezone.utc),
+    )
+    loop.observe_outcome(meeting, outcome=outcome)
+    _get_meeting_store().record(meeting)
+    return meeting.to_dict()
+
+
+@router.get("/loop2/meeting/{meeting_id}/learning")
+def loop2_meeting_learning(meeting_id: str) -> dict[str, Any]:
+    """Get (or write) the Meeting Learning Ledger entry.
+
+    If the meeting is in OUTCOME_OBSERVED state, this writes the learning
+    entry (transitioning to LEARNING_RECORDED). If already LEARNING_RECORDED,
+    returns the existing entry.
+    """
+    from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
+    from maestro_oem.meeting import MeetingStatus
+
+    meeting = _get_meeting_store().get(meeting_id)
+    if meeting is None:
+        raise HTTPException(404, f"Meeting {meeting_id} not found")
+
+    if meeting.status == MeetingStatus.OUTCOME_OBSERVED:
+        # Write the learning entry now
+        loop = MeetingIntelligenceLoop(
+            signals=oem_state.signals if oem_state else [],
+            now=datetime.now(timezone.utc),
+        )
+        loop.record_learning(meeting)
+        _get_meeting_store().record(meeting)
+    elif meeting.status != MeetingStatus.LEARNING_RECORDED:
+        raise HTTPException(
+            400,
+            f"Meeting must be in OUTCOME_OBSERVED or LEARNING_RECORDED state. Current: {meeting.status.name}",
+        )
+
+    return meeting.to_dict()
+
+
+@router.get("/loop2/patterns")
+def loop2_detect_patterns(min_meetings: int = Query(2, description="Minimum meetings for a pattern")) -> dict[str, Any]:
+    """Detect cross-meeting patterns.
+
+    Returns patterns where a topic has come up in >= min_meetings meetings
+    for the same entity.
+    """
+    from maestro_oem.cross_meeting_patterns import CrossMeetingPatternDetector
+
+    meetings = _get_meeting_store().get_all()
+    detector = CrossMeetingPatternDetector()
+    patterns = detector.detect(meetings, min_meetings=min_meetings)
+    return {
+        "patterns": [p.to_dict() for p in patterns],
+        "total_meetings_analyzed": len(meetings),
+    }
+
+
 # Phase 1: stamp USER auth policy on all routes in this router
 set_router_policy(router, AuthPolicy.USER)
