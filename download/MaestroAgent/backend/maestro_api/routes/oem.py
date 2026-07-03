@@ -6052,5 +6052,273 @@ def loop1_list_whispers() -> dict[str, Any]:
     }
 
 
+# ─── Loop 1.5 Iteration: HTTP endpoints for the 5 capabilities ─────────────
+# CEO directive: Option A — Loop 1.5 Iteration. Wire HTTP endpoints for
+# the 5 capabilities built in commit a7c981e. Same pattern as Loop 1
+# Iteration: HTTP integration tests verify the production delivery path.
+#
+# 5 endpoints (well, 6 — mutation has record + GET):
+#   POST /loop1.5/mutation/record        — record a commitment (detects mutation)
+#   GET  /loop1.5/mutation/{entity}      — get mutation history + events
+#   POST /loop1.5/disagreements/detect   — post evidence list, get disagreements
+#   POST /loop1.5/delivery-decision      — post inputs, get decision
+#   GET  /loop1.5/situation/{entity}     — get the Situation for an entity
+#   GET  /loop1.5/cold-start             — get current rung + suppression state
+
+# Module-level mutation tracker (persists across requests within a process)
+_loop1_5_mutation_tracker = None
+
+
+def _get_mutation_tracker():
+    """Get or create the module-level CommitmentMutationTracker."""
+    global _loop1_5_mutation_tracker
+    if _loop1_5_mutation_tracker is None:
+        from maestro_oem.commitment_mutation_tracker import CommitmentMutationTracker
+        _loop1_5_mutation_tracker = CommitmentMutationTracker()
+    return _loop1_5_mutation_tracker
+
+
+@router.post("/loop1.5/mutation/record")
+def loop1_5_record_mutation(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record a commitment, detecting mutations.
+
+    Body:
+      {
+        "entity": "Globex",
+        "commitment_text": "Deliver SSO by 2024-12-15",
+        "actor": "jane.d@acme.com",
+        "artifact": "crm:globex-1",
+        "timestamp": "2026-06-01T10:00:00+00:00" (optional, defaults to now)
+      }
+
+    Returns:
+      {
+        "status": "recorded",
+        "mutation_detected": bool,
+        "entity": ...
+      }
+    """
+    from datetime import datetime as _dt, timezone as _tz
+
+    entity = payload.get("entity")
+    commitment_text = payload.get("commitment_text")
+    if not entity or not commitment_text:
+        raise HTTPException(400, "entity and commitment_text are required")
+
+    # Build a signal-like object for the tracker
+    timestamp_str = payload.get("timestamp")
+    if timestamp_str:
+        try:
+            if timestamp_str.endswith("Z"):
+                timestamp_str = timestamp_str[:-1] + "+00:00"
+            timestamp = _dt.fromisoformat(timestamp_str)
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=_tz.utc)
+        except Exception:
+            timestamp = _dt.now(_tz.utc)
+    else:
+        timestamp = _dt.now(_tz.utc)
+
+    class _SignalLike:
+        pass
+    signal = _SignalLike()
+    signal.metadata = {"customer": entity, "commitment": commitment_text}
+    signal.timestamp = timestamp
+    signal.actor = payload.get("actor", "")
+    signal.artifact = payload.get("artifact", "")
+
+    tracker = _get_mutation_tracker()
+    # Check if mutation will be detected (compare to previous)
+    prev_history = tracker.get_mutation_history(entity)
+    will_mutate = len(prev_history) > 0 and prev_history[-1].commitment_text != commitment_text
+
+    tracker.record_commitment(signal)
+
+    return {
+        "status": "recorded",
+        "mutation_detected": will_mutate,
+        "entity": entity,
+    }
+
+
+@router.get("/loop1.5/mutation/{entity}")
+def loop1_5_get_mutation_history(entity: str) -> dict[str, Any]:
+    """Get the mutation history for an entity.
+
+    Returns:
+      {
+        "entity": ...,
+        "history": [{commitment_text, timestamp, actor, artifact}, ...],
+        "mutations": [{old_text, new_text, old_timestamp, new_timestamp, actor}, ...]
+      }
+    """
+    tracker = _get_mutation_tracker()
+    history = tracker.get_mutation_history(entity)
+    mutations = tracker.get_mutations(entity)
+    return {
+        "entity": entity,
+        "history": [e.to_dict() for e in history],
+        "mutations": [m.to_dict() for m in mutations],
+    }
+
+
+@router.post("/loop1.5/disagreements/detect")
+def loop1_5_detect_disagreements(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Detect disagreements in a list of Evidence objects.
+
+    Body:
+      {
+        "entity": "Globex",
+        "topic": "SSO",
+        "evidence": [
+          {"claim": "...", "claim_type": "reported_statement", "observed_facts": [...]},
+          {"claim": "...", "claim_type": "observed_fact", "observed_facts": [...]}
+        ]
+      }
+
+    Returns:
+      { "disagreements": [...] }
+    """
+    from maestro_oem.disagreement_detector import DisagreementDetector
+    from maestro_oem.evidence import Evidence
+
+    evidence_data = payload.get("evidence", [])
+    if len(evidence_data) < 2:
+        return {"disagreements": []}
+
+    # Reconstruct Evidence objects from the JSON payload
+    evidence_list = []
+    for ev_data in evidence_data:
+        evidence_list.append(Evidence(
+            claim=ev_data.get("claim", ""),
+            observed_facts=ev_data.get("observed_facts", []),
+            claim_type=ev_data.get("claim_type", "observed_fact"),
+        ))
+
+    detector = DisagreementDetector()
+    disagreements = detector.detect(
+        evidence_list,
+        entity=payload.get("entity", ""),
+        topic=payload.get("topic", ""),
+    )
+    return {
+        "disagreements": [d.to_dict() for d in disagreements],
+    }
+
+
+@router.post("/loop1.5/delivery-decision")
+def loop1_5_delivery_decision(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Compute the delivery_decision for a Whisper.
+
+    Body:
+      {
+        "exec_already_acted": bool,
+        "materially_changed_since_last_shown": bool,
+        "has_high_stakes_signal": bool,
+        "is_cold_start": bool,
+        "shown_count": int,
+        "has_upcoming_meeting": bool (optional)
+      }
+
+    Returns:
+      { "decision": "DELIVER_NOW" | "DELIVER_AT_MEETING_TIME" | ... | "DEFER_UNTIL_EVIDENCE" }
+    """
+    from maestro_oem.delivery_decision import decide_delivery
+
+    decision = decide_delivery(
+        exec_already_acted=payload.get("exec_already_acted", False),
+        materially_changed_since_last_shown=payload.get("materially_changed_since_last_shown", False),
+        has_high_stakes_signal=payload.get("has_high_stakes_signal", False),
+        is_cold_start=payload.get("is_cold_start", False),
+        shown_count=payload.get("shown_count", 0),
+        has_upcoming_meeting=payload.get("has_upcoming_meeting", False),
+    )
+    return {"decision": decision.name}
+
+
+@router.get("/loop1.5/situation/{entity}")
+def loop1_5_get_situation(entity: str) -> dict[str, Any]:
+    """Get the Situation for an entity.
+
+    Constructs a Situation from the current signals + calendar + whisper
+    history. The Situation has 7 fields: what_is_happening, entities,
+    commitments, evidence, current_state, prior_whispers, timeline.
+
+    Returns 404 if the entity has no signals.
+    """
+    from maestro_oem.situation import SituationBuilder
+    from maestro_oem.calendar_source import DemoCalendarSource
+
+    # Check if the entity has any signals
+    entity_signals = [
+        s for s in (oem_state.signals if oem_state else [])
+        if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+    ]
+    if not entity_signals:
+        raise HTTPException(404, f"No signals found for entity '{entity}'")
+
+    store = _get_whisper_history_store()
+    builder = SituationBuilder(
+        signals=oem_state.signals if oem_state else [],
+        calendar_source=DemoCalendarSource(oem_state.signals if oem_state else []),
+        whisper_store=store,
+    )
+    situation = builder.build_for_entity(entity, org_id="default")
+    if situation is None:
+        raise HTTPException(404, f"Could not build Situation for entity '{entity}'")
+
+    return {"situation": situation.to_dict()}
+
+
+@router.get("/loop1.5/cold-start")
+def loop1_5_cold_start(
+    signal_count: int | None = Query(None, description="Override signal count for testing"),
+    has_high_stakes_signal: bool | None = Query(None, description="Override high-stakes flag for testing"),
+) -> dict[str, Any]:
+    """Get the current cold-start trust ladder rung.
+
+    Query params (optional, for testing):
+      - signal_count: override the actual signal count
+      - has_high_stakes_signal: override the high-stakes flag
+
+    Returns:
+      {
+        "rung": "RETRIEVAL_ONLY" | "LOW_CONFIDENCE_WHISPERS" | "FULL_WHISPERS",
+        "signal_count": int,
+        "has_high_stakes_signal": bool,
+        "should_suppress_whispers": bool,
+        "whisper_confidence_level": "low" | "full",
+        "thresholds": {...}
+      }
+    """
+    from maestro_oem.cold_start_mode import ColdStartMode
+    from maestro_oem.signal import SignalType
+
+    # Use overrides if provided, otherwise compute from actual state
+    if signal_count is not None:
+        actual_count = signal_count
+    else:
+        actual_count = len(oem_state.signals) if oem_state else 0
+
+    if has_high_stakes_signal is not None:
+        actual_high_stakes = has_high_stakes_signal
+    else:
+        # Compute from actual signals
+        actual_high_stakes = any(
+            hasattr(s, "type") and s.type in (
+                SignalType.CUSTOMER_COMMITMENT_BROKEN,
+                SignalType.CUSTOMER_CONTRACT_CHURNED,
+                SignalType.CUSTOMER_CHAMPION_QUIET,
+            )
+            for s in (oem_state.signals if oem_state else [])
+        )
+
+    cold_start = ColdStartMode(
+        signal_count=actual_count,
+        has_high_stakes_signal=actual_high_stakes,
+    )
+    return cold_start.to_dict()
+
+
 # Phase 1: stamp USER auth policy on all routes in this router
 set_router_policy(router, AuthPolicy.USER)

@@ -113,7 +113,7 @@ class ColdStartMode:
     def to_dict(self) -> dict:
         """Serialize for API responses / debugging."""
         return {
-            "rung": self._rung.value,
+            "rung": self._rung.name,  # Use .name (FULL_WHISPERS) not .value (full_whispers)
             "signal_count": self._signal_count,
             "has_high_stakes_signal": self._has_high_stakes,
             "should_suppress_whispers": self.should_suppress_whispers(),
