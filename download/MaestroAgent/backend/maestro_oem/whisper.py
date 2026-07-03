@@ -115,6 +115,15 @@ class OrganizationalWhisper:
             self._add_collaborative_context(w, entity, topic)
             self._add_counterfactuals(w, context, entity)
 
+        # H2 FIX (adversarial audit finding): Wire CommitmentMutationTracker
+        # and DisagreementDetector into the ACTUAL Whisper generation path.
+        # Before this fix, both were demonstration endpoints only (P11 violation).
+        # Now they run on every Whisper, enriching the evidence_spine with
+        # mutation history and detected disagreements.
+        for w in unique_whispers:
+            self._apply_mutation_tracking(w, entity)
+            self._apply_disagreement_detection(w, entity, topic)
+
         # CRITICAL-01 FIX (external auditor finding): Wire the delivery decision
         # gate into the ACTUAL generation path. Before this fix, decide_delivery()
         # existed as a well-tested pure function but was never called by the
@@ -237,6 +246,106 @@ class OrganizationalWhisper:
                 delivered.append(w)
 
         return delivered, suppressed
+
+    def _apply_mutation_tracking(self, whisper: dict[str, Any], entity: str) -> None:
+        """H2 FIX: Wire CommitmentMutationTracker into the Whisper pipeline.
+
+        For each whisper about an entity with commitment signals, check if
+        the commitment has mutated (wording changed). If so, attach the
+        mutation history to the whisper's evidence_spine.
+
+        This is the same pattern as _apply_delivery_gate (CRITICAL-01 fix):
+        derive the data from real signals, not caller-supplied inputs.
+        """
+        if not entity or not self.signals:
+            return
+
+        from maestro_oem.commitment_mutation_tracker import CommitmentMutationTracker
+        from maestro_oem.signal import SignalType
+
+        # Find commitment signals for this entity
+        commitment_signals = [
+            s for s in self.signals
+            if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+            and hasattr(s, "type") and s.type == SignalType.CUSTOMER_COMMITMENT_MADE
+        ]
+
+        if not commitment_signals:
+            return
+
+        # Record commitments in the tracker and check for mutations
+        tracker = CommitmentMutationTracker()
+        for s in commitment_signals:
+            tracker.record_commitment(s)
+
+        mutations = tracker.get_mutations(entity)
+        history = tracker.get_mutation_history(entity)
+
+        if not history:
+            return
+
+        # Attach mutation history to the whisper's evidence_spine
+        es = whisper.get("evidence_spine", {})
+        es["mutation_history"] = [e.to_dict() for e in history]
+        es["commitment_mutations"] = [m.to_dict() for m in mutations]
+        whisper["evidence_spine"] = es
+
+    def _apply_disagreement_detection(
+        self, whisper: dict[str, Any], entity: str, topic: str
+    ) -> None:
+        """H2 FIX: Wire DisagreementDetector into the Whisper pipeline.
+
+        For each whisper, run the DisagreementDetector on the evidence
+        in the evidence_spine. If disagreements are detected across
+        different claim_types, attach them to the whisper.
+
+        This is the same pattern as _apply_delivery_gate (CRITICAL-01 fix):
+        derive the data from real evidence, not caller-supplied inputs.
+        """
+        from maestro_oem.disagreement_detector import DisagreementDetector
+        from maestro_oem.evidence import Evidence
+
+        es = whisper.get("evidence_spine", {})
+        if not es:
+            return
+
+        # Build Evidence objects from the evidence_spine's observed_facts
+        # and conflicting_evidence
+        evidence_objects: list[Evidence] = []
+
+        # The main claim
+        claim = es.get("claim", "")
+        claim_type = es.get("claim_type", "observed_fact")
+        observed_facts = es.get("observed_facts", [])
+        if claim:
+            evidence_objects.append(Evidence(
+                claim=claim,
+                observed_facts=observed_facts,
+                claim_type=claim_type,
+            ))
+
+        # Conflicting evidence (already detected by EvidenceBuilder)
+        for conflict in es.get("conflicting_evidence", []):
+            conflict_claim = conflict.get("claim", "")
+            if conflict_claim:
+                evidence_objects.append(Evidence(
+                    claim=conflict_claim,
+                    observed_facts=[{"source": conflict.get("source", ""), "text": conflict_claim}],
+                    claim_type="observed_fact",  # conflicts are observed
+                ))
+
+        if len(evidence_objects) < 2:
+            # Not enough evidence to detect disagreements
+            es["detected_disagreements"] = []
+            whisper["evidence_spine"] = es
+            return
+
+        # Run the DisagreementDetector
+        detector = DisagreementDetector()
+        disagreements = detector.detect(evidence_objects, entity=entity, topic=topic)
+
+        es["detected_disagreements"] = [d.to_dict() for d in disagreements]
+        whisper["evidence_spine"] = es
 
     # ─── 4-part format transformation ────────────────────────────────
 
