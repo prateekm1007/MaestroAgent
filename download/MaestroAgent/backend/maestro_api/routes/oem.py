@@ -6074,7 +6074,7 @@ def _get_mutation_tracker():
     global _loop1_5_mutation_tracker
     if _loop1_5_mutation_tracker is None:
         from maestro_oem.commitment_mutation_tracker import CommitmentMutationTracker
-        _loop1_5_mutation_tracker = CommitmentMutationTracker()
+        _loop1_5_mutation_tracker = CommitmentMutationTracker(os.environ.get("MAESTRO_MUTATION_DB", str(Path("mutations.db"))))
     return _loop1_5_mutation_tracker
 
 
@@ -6343,7 +6343,7 @@ def _get_meeting_store():
     global _loop2_meeting_store
     if _loop2_meeting_store is None:
         from maestro_oem.meeting_store import MeetingStore
-        _loop2_meeting_store = MeetingStore()
+        _loop2_meeting_store = MeetingStore(os.environ.get("MAESTRO_MEETING_DB", str(Path("meetings.db"))))
     return _loop2_meeting_store
 
 
@@ -6529,12 +6529,16 @@ def loop2_detect_patterns(min_meetings: int = Query(2, description="Minimum meet
 #   GET  /loop3/decision/{decision_id}/learning      — get/write learning entry
 #   GET  /loop3/patterns                             — detect cross-decision patterns
 
-# Module-level decision store (persists across requests within a process)
-_loop3_decision_store: dict = {}
+# Module-level decision store (SQLite-backed, persists across requests + restarts)
+_loop3_decision_store = None
 
 
 def _get_decision_store():
-    """Get the module-level decision store (in-memory dict)."""
+    """Get the module-level DecisionStore (SQLite-backed)."""
+    global _loop3_decision_store
+    if _loop3_decision_store is None or isinstance(_loop3_decision_store, dict):
+        from maestro_oem.decision_store import DecisionStore
+        _loop3_decision_store = DecisionStore(os.environ.get("MAESTRO_DECISION_DB", str(Path("decisions.db"))))
     return _loop3_decision_store
 
 
@@ -6553,7 +6557,7 @@ def loop3_create_decision(payload: dict[str, Any] = Body(...)) -> dict[str, Any]
         raise HTTPException(400, "intent and entity are required")
 
     decision = Decision(intent=intent, entity=entity)
-    _get_decision_store()[decision.decision_id] = decision
+    _get_decision_store().record(decision)
     return decision.to_dict()
 
 
@@ -6563,6 +6567,7 @@ def loop3_get_decision(decision_id: str) -> dict[str, Any]:
     decision = _get_decision_store().get(decision_id)
     if decision is None:
         raise HTTPException(404, f"Decision {decision_id} not found")
+    _get_decision_store().record(decision)
     return decision.to_dict()
 
 
@@ -6577,6 +6582,7 @@ def loop3_record_assumptions(decision_id: str, payload: dict[str, Any] = Body(..
 
     loop = DecisionIntelligenceLoop()
     loop.record_assumptions(decision, assumptions=payload.get("assumptions", []))
+    _get_decision_store().record(decision)
     return decision.to_dict()
 
 
@@ -6595,6 +6601,7 @@ def loop3_state_hypothesis(decision_id: str, payload: dict[str, Any] = Body(...)
 
     loop = DecisionIntelligenceLoop()
     loop.state_hypothesis(decision, hypothesis=hypothesis)
+    _get_decision_store().record(decision)
     return decision.to_dict()
 
 
@@ -6613,6 +6620,7 @@ def loop3_decide(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[
 
     loop = DecisionIntelligenceLoop()
     loop.decide(decision, decision_text=decision_text)
+    _get_decision_store().record(decision)
     return decision.to_dict()
 
 
@@ -6631,6 +6639,7 @@ def loop3_observe_outcome(decision_id: str, payload: dict[str, Any] = Body(...))
 
     loop = DecisionIntelligenceLoop()
     loop.observe_outcome(decision, outcome=outcome)
+    _get_decision_store().record(decision)
     return decision.to_dict()
 
 
@@ -6653,6 +6662,7 @@ def loop3_get_learning(decision_id: str) -> dict[str, Any]:
             f"Decision must be in OUTCOME_OBSERVED or LEARNING_RECORDED state. Current: {decision.status.name}",
         )
 
+    _get_decision_store().record(decision)
     return decision.to_dict()
 
 
@@ -6661,7 +6671,7 @@ def loop3_detect_patterns(min_decisions: int = Query(2, description="Minimum dec
     """Detect cross-decision patterns."""
     from maestro_oem.cross_decision_patterns import CrossDecisionPatternDetector
 
-    decisions = list(_get_decision_store().values())
+    decisions = _get_decision_store().get_all()
     detector = CrossDecisionPatternDetector()
     patterns = detector.detect(decisions, min_decisions=min_decisions)
     return {
@@ -6694,7 +6704,7 @@ def _get_org_learning_ledger():
     global _loop4_ledger
     if _loop4_ledger is None:
         from maestro_oem.organizational_learning_ledger import OrganizationalLearningLedger
-        _loop4_ledger = OrganizationalLearningLedger()
+        _loop4_ledger = OrganizationalLearningLedger(os.environ.get("MAESTRO_ORG_LEARNING_DB", str(Path("org_learning.db"))))
     return _loop4_ledger
 
 
