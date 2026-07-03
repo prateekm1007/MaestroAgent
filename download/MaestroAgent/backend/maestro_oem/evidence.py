@@ -337,21 +337,34 @@ class EvidenceBuilder:
         )
 
     def _build_expertise_evidence(self, entity: str, raw: dict) -> Evidence:
-        """Build evidence for an expertise whisper."""
+        """Build evidence for an expertise whisper.
+
+        H1 fix: expertise is an 'estimate' — a human-reported forecast
+        of what they know. Not just a 'reported_statement' (generic).
+        An estimate specifically means the person is forecasting or
+        estimating their own capabilities.
+        """
         domains = raw.get("domains", [])
         return Evidence(
             claim=f"{entity} has expertise in {', '.join(domains[:3])}",
             observed_facts=[{"source": "knowledge graph", "date": "", "text": f"Domains: {', '.join(domains)}", "people": [entity]}],
             people_involved=[{"name": entity, "role": "expert", "why_relevant": "has demonstrated expertise"}],
             assumptions=["The expertise is still current"],
-            claim_type="reported_statement",
+            claim_type="estimate",
         )
 
     def _build_law_evidence(self, whisper_type: str, raw: dict) -> Evidence:
-        """Build evidence for a law whisper."""
+        """Build evidence for a law whisper.
+
+        H1 fix: law with 0 validations is a 'proposal' (suggested rule,
+        not yet validated). Law with >0 validations is an 'inference'
+        (derived from observed patterns).
+        """
         code = raw.get("code", "")
         validated = raw.get("validated", 0)
         failed = raw.get("failed", 0)
+        # H1 fix: unvalidated law = proposal; validated law = inference
+        law_claim_type = "proposal" if validated == 0 else "inference"
         return Evidence(
             claim=f"Organizational law {code}" if code else "Organizational law detected",
             observed_facts=[{
@@ -361,7 +374,7 @@ class EvidenceBuilder:
                 "people": [],
             }],
             assumptions=["The law is still applicable to current operations"],
-            claim_type="inference",
+            claim_type=law_claim_type,
         )
 
     def _build_broken_commitment_evidence(self, entity: str) -> Evidence:
@@ -404,13 +417,19 @@ class EvidenceBuilder:
         )
 
     def _build_bottleneck_evidence(self, entity: str, raw: dict) -> Evidence:
-        """Build evidence for a bottleneck whisper."""
+        """Build evidence for a bottleneck whisper.
+
+        H1 fix: bottleneck is a 'prediction' — a forecast that this person
+        will continue to gate decisions based on past patterns. Not just
+        an 'inference' (derived conclusion). A prediction forecasts
+        future behavior.
+        """
         return Evidence(
             claim=f"{entity} is gating multiple items",
             observed_facts=[{"source": "OEM approvals", "date": "", "text": f"{entity} is a bottleneck", "people": [entity]}],
             people_involved=[{"name": entity, "role": "gate", "why_relevant": "gating multiple decisions"}],
             assumptions=["The bottleneck is due to workload, not process"],
-            claim_type="inference",
+            claim_type="prediction",
         )
 
     def _build_meeting_context_evidence(self, entity: str) -> Evidence:
