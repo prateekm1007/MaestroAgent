@@ -54,11 +54,31 @@ class PreparationEngine:
         prepared_meetings = []
         for meeting in meetings:
             prep = self._prepare_for_meeting(meeting)
+            # Phase 1: Build Evidence Spine for this meeting from actual signals
+            from maestro_oem.evidence import EvidenceBuilder
+            builder = EvidenceBuilder(self.signals)
+            entity = meeting.get("entity", "") or meeting.get("customer", "")
+            if entity:
+                evidence_obj = builder.build_for_whisper(
+                    whisper_type="commitment_exists",
+                    entity=entity,
+                    topic="",
+                    raw_evidence={},
+                    context="meeting",
+                )
+            else:
+                from maestro_oem.evidence import Evidence
+                evidence_obj = Evidence(
+                    claim=f"Preparation for {meeting.get('title', 'meeting')}",
+                    observed_facts=[{"source": "calendar", "date": tomorrow, "text": meeting.get("title", ""), "people": []}],
+                    assumptions=["The meeting will proceed as scheduled"],
+                )
             prepared_meetings.append({
                 "title": meeting["title"],
                 "time": meeting["time"],
                 "entity": meeting.get("entity", ""),
                 "preparation": prep,
+                "evidence_spine": evidence_obj.to_dict(),
             })
 
         # Decisions likely to be made tomorrow

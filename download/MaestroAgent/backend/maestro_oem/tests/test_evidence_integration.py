@@ -72,13 +72,44 @@ def test_ask_conversation_prepare_returns_evidence_spine(client):
 
 
 def test_ask_conversation_default_returns_evidence_spine(client):
-    """Default query must return evidence_spine in evidence field."""
+    """Default query must return evidence_spine in evidence field — NON-VACUOUS.
+
+    Auditor P3 fix: the old test asserted on an empty list (vacuous pass).
+    Now asserts evidence is non-empty AND contains real data (not placeholders).
+    """
     r = client.post("/api/oem/ask/conversation", json={"query": "What is the bottleneck?"})
     assert r.status_code == 200
     data = r.json()
     evidence = data.get("evidence", [])
-    # If evidence exists, it must have evidence_spine
+    # NON-VACUOUS: evidence must be non-empty
+    assert len(evidence) > 0, "Default path must return at least 1 evidence item"
     for e in evidence:
         assert "evidence_spine" in e, f"Missing evidence_spine in default evidence: {e}"
         es = e["evidence_spine"]
         assert "claim" in es, f"evidence_spine missing claim: {es}"
+        assert "observed_facts" in es, f"evidence_spine missing observed_facts: {es}"
+        assert len(es.get("observed_facts", [])) > 0, f"evidence_spine has no observed_facts: {es}"
+        # Reject placeholder strings
+        for fact in es["observed_facts"]:
+            text = fact.get("text", "")
+            assert text not in ("", "No specific commitments found"), \
+                f"Placeholder text in observed_facts: {fact}"
+
+
+def test_preparation_returns_evidence_spine(client):
+    """Preparation must return evidence_spine on each meeting.
+
+    Auditor Debt 2: /preparation/tomorrow was never integrated with Evidence Spine.
+    This test will FAIL until preparation_engine.py uses EvidenceBuilder.
+    """
+    r = client.get("/api/oem/preparation/tomorrow")
+    assert r.status_code == 200
+    data = r.json()
+    meetings = data.get("meetings", [])
+    assert len(meetings) > 0, "Must have at least 1 meeting"
+    for m in meetings:
+        assert "evidence_spine" in m, f"Meeting missing evidence_spine: {m.get('title')}"
+        es = m["evidence_spine"]
+        assert "claim" in es, f"evidence_spine missing claim: {es}"
+        assert "observed_facts" in es, f"evidence_spine missing observed_facts: {es}"
+        assert len(es.get("observed_facts", [])) > 0, f"evidence_spine has no observed_facts: {es}"

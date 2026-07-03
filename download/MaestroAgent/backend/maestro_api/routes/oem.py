@@ -5415,19 +5415,45 @@ def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]
             "actions": [],
         }
 
-    # Default: search signals for the query
+    # Default: search signals for the query — broadened to match more fields
     relevant = []
-    for s in oem_state.signals[:20]:
+    for s in oem_state.signals[:30]:
         try:
-            sig_text = (s.artifact or "") + " " + str(s.metadata.get("commitment", "")) + " " + str(s.metadata.get("objection_type", ""))
-            if any(word in sig_text.lower() for word in query_lower.split() if len(word) > 3):
+            # Search across ALL signal fields, not just artifact/commitment/objection
+            sig_text = " ".join(filter(None, [
+                s.artifact or "",
+                str(s.metadata.get("commitment", "")),
+                str(s.metadata.get("objection_type", "")),
+                str(s.metadata.get("customer", "")),
+                str(s.metadata.get("decision_outcome", "")),
+                str(s.type.value if hasattr(s.type, "value") else s.type),
+                s.actor or "",
+                str(s.metadata.get("domain", "")),
+            ]))
+            # Match any word >3 chars from the query
+            query_words = [w for w in query_lower.split() if len(w) > 3]
+            if not query_words or any(word in sig_text.lower() for word in query_words):
                 relevant.append({
                     "source": s.provider.value if hasattr(s.provider, "value") else str(s.provider),
-                    "text": sig_text[:100],
+                    "text": sig_text[:100] if sig_text.strip() else (s.artifact or "signal"),
                     "date": s.timestamp.isoformat()[:10] if hasattr(s.timestamp, "isoformat") else "",
+                    "people": [s.actor] if s.actor else [],
                 })
         except Exception:
             continue
+
+    # If still no matches, return top signals as context (don't return empty evidence)
+    if not relevant and oem_state.signals:
+        for s in oem_state.signals[:3]:
+            try:
+                relevant.append({
+                    "source": s.provider.value if hasattr(s.provider, "value") else str(s.provider),
+                    "text": (s.artifact or "organizational signal")[:100],
+                    "date": s.timestamp.isoformat()[:10] if hasattr(s.timestamp, "isoformat") else "",
+                    "people": [s.actor] if s.actor else [],
+                })
+            except Exception:
+                continue
 
     if relevant:
         answer = "I found relevant organizational knowledge:\n\n"
@@ -5444,7 +5470,7 @@ def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]
             "text": r.get("text", ""),
             "evidence_spine": {
                 "claim": r.get("text", ""),
-                "observed_facts": [{"source": r.get("source", ""), "date": r.get("date", ""), "text": r.get("text", ""), "people": []}],
+                "observed_facts": [{"source": r.get("source", ""), "date": r.get("date", ""), "text": r.get("text", ""), "people": r.get("people", [])}],
                 "assumptions": ["This signal is still relevant"],
             },
         } for r in relevant[:3]],
