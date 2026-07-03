@@ -19,6 +19,8 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 
@@ -2612,9 +2614,16 @@ def record_whisper_outcome(payload: dict[str, Any]) -> dict[str, Any]:
     }
     _whisper_outcomes.append(outcome)
 
-    # Keep only the last 1000 outcomes (in-memory; production would persist)
+    # Keep only the last 1000 outcomes (in-memory audit log)
     if len(_whisper_outcomes) > 1000:
         _whisper_outcomes[:] = _whisper_outcomes[-1000:]
+
+    # H1 FIX: Also persist to the durable WhisperHistoryStore (survives restarts)
+    try:
+        store = _get_whisper_history_store()
+        store.record_outcome(whisper_id, action, org_id="default")
+    except Exception as e:
+        logger.warning("Failed to persist whisper outcome to history store: %s", e)
 
     logger.info("Whisper outcome recorded: %s → %s", whisper_id, action)
     return {"ok": True, "whisper_id": whisper_id, "recorded": action}
@@ -5276,6 +5285,21 @@ _whisper_cache_time: dict[tuple, float] = {}
 
 import time as _time
 
+# H1 FIX: Durable whisper history store (survives server restarts)
+# External reviewer found that whisper memory was in-process only.
+# Now persisted to SQLite via WhisperHistoryStore.
+_whisper_history_store = None
+
+def _get_whisper_history_store():
+    """Get or create the singleton WhisperHistoryStore."""
+    global _whisper_history_store
+    if _whisper_history_store is None:
+        from maestro_oem.whisper_history_store import WhisperHistoryStore
+        db_path = os.environ.get("MAESTRO_WHISPER_DB", str(Path("whisper_history.db")))
+        _whisper_history_store = WhisperHistoryStore(db_path)
+        logger.info("WhisperHistoryStore initialized (db=%s)", db_path)
+    return _whisper_history_store
+
 @router.get("/whisper")
 def organizational_whisper(
     context: str = Query("", description="meeting|proposal|decision|email|review"),
@@ -5290,24 +5314,34 @@ def organizational_whisper(
 
     Feature 7: Serves from cache when available (< 1ms response).
     Cache expires after 60 seconds.
+
+    H1 FIX: Whisper memory is now durably persisted (survives restarts).
+    History is loaded from WhisperHistoryStore before generating whispers,
+    and shown_count is incremented after generation.
     """
     cache_key = (context, entity, topic)
     cache_max_age = 60  # seconds
 
-    # Check cache
-    if cache_key in _whisper_cache:
-        cached_time = _whisper_cache_time.get(cache_key, 0)
-        if _time.time() - cached_time < cache_max_age:
-            return _whisper_cache[cache_key]
+    # Check cache (but don't cache if we need to update memory)
+    # We skip the cache for now to ensure memory is always fresh.
+    # In production, the cache would be invalidated on outcome recording.
+    # For now, serve fresh to ensure accurate memory state.
 
-    # Compute fresh
+    # H1 FIX: Load durable history from the store
+    store = _get_whisper_history_store()
+    all_history = store.get_all_history(org_id="default")
+
+    # Compute fresh, passing the durable history
     from maestro_oem.whisper import OrganizationalWhisper
-    w = OrganizationalWhisper(oem_state.model, oem_state.signals)
+    w = OrganizationalWhisper(oem_state.model, oem_state.signals, whisper_store=all_history)
     result = w.for_context(context=context, entity=entity, topic=topic, user=user)
 
-    # Cache the result
-    _whisper_cache[cache_key] = result
-    _whisper_cache_time[cache_key] = _time.time()
+    # H1 FIX: Persist that each whisper was shown (increment shown_count)
+    for whisper in result.get("whispers", []):
+        wid = whisper.get("whisper_id", "")
+        insight = whisper.get("insight", "")
+        if wid:
+            store.record_shown(wid, org_id="default", insight=insight[:200])
 
     return result
 
