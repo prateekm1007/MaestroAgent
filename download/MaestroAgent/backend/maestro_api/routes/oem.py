@@ -6670,5 +6670,140 @@ def loop3_detect_patterns(min_decisions: int = Query(2, description="Minimum dec
     }
 
 
+# ─── Loop 4: Organizational Learning HTTP endpoints ────────────────────────
+# CEO directive (auditor recommendation, CEO-validated): "Loop 4 —
+# Organizational Learning: cross-case pattern detection and delivery-policy
+# learning. This is the final loop — it connects the first three loops into
+# a unified learning system."
+#
+# 7 endpoints:
+#   POST /loop4/commitment-learning  — record a commitment learning
+#   POST /loop4/meeting-learning     — record a meeting learning
+#   POST /loop4/decision-learning    — record a decision learning
+#   GET  /loop4/entries              — get all learning entries
+#   GET  /loop4/patterns             — detect cross-loop patterns
+#   GET  /loop4/policies             — learn delivery policies
+#   GET  /loop4/compose              — compose the Org Learning entry
+
+# Module-level organizational learning ledger
+_loop4_ledger = None
+
+
+def _get_org_learning_ledger():
+    """Get or create the module-level OrganizationalLearningLedger."""
+    global _loop4_ledger
+    if _loop4_ledger is None:
+        from maestro_oem.organizational_learning_ledger import OrganizationalLearningLedger
+        _loop4_ledger = OrganizationalLearningLedger()
+    return _loop4_ledger
+
+
+@router.post("/loop4/commitment-learning")
+def loop4_record_commitment_learning(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record a commitment learning entry (from Loop 1)."""
+    ledger = _get_org_learning_ledger()
+    ledger.record_commitment_learning(
+        entity=payload.get("entity", ""),
+        whisper_id=payload.get("whisper_id", ""),
+        action=payload.get("action", ""),
+        outcome=payload.get("outcome", ""),
+        learning_entry=payload.get("learning_entry", ""),
+        delivery_context=payload.get("delivery_context"),
+    )
+    return {"status": "recorded", "source_loop": "commitment"}
+
+
+@router.post("/loop4/meeting-learning")
+def loop4_record_meeting_learning(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record a meeting learning entry (from Loop 2)."""
+    ledger = _get_org_learning_ledger()
+    ledger.record_meeting_learning(
+        entity=payload.get("entity", ""),
+        meeting_id=payload.get("meeting_id", ""),
+        outcome=payload.get("outcome", ""),
+        learning_entry=payload.get("learning_entry", ""),
+    )
+    return {"status": "recorded", "source_loop": "meeting"}
+
+
+@router.post("/loop4/decision-learning")
+def loop4_record_decision_learning(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record a decision learning entry (from Loop 3)."""
+    ledger = _get_org_learning_ledger()
+    ledger.record_decision_learning(
+        entity=payload.get("entity", ""),
+        decision_id=payload.get("decision_id", ""),
+        hypothesis=payload.get("hypothesis", ""),
+        outcome=payload.get("outcome", ""),
+        learning_entry=payload.get("learning_entry", ""),
+    )
+    return {"status": "recorded", "source_loop": "decision"}
+
+
+@router.get("/loop4/entries")
+def loop4_get_entries() -> dict[str, Any]:
+    """Get all learning entries from all 3 loops."""
+    ledger = _get_org_learning_ledger()
+    entries = ledger.get_all_entries()
+    return {
+        "entries": [e.to_dict() for e in entries],
+        "total": len(entries),
+    }
+
+
+@router.get("/loop4/patterns")
+def loop4_detect_patterns() -> dict[str, Any]:
+    """Detect cross-loop patterns."""
+    from maestro_oem.cross_loop_patterns import CrossLoopPatternDetector
+
+    ledger = _get_org_learning_ledger()
+    detector = CrossLoopPatternDetector()
+    patterns = detector.detect(ledger)
+    return {
+        "patterns": [p.to_dict() for p in patterns],
+        "total_entries_analyzed": ledger.total_entries(),
+    }
+
+
+@router.get("/loop4/policies")
+def loop4_learn_policies() -> dict[str, Any]:
+    """Learn delivery policies."""
+    from maestro_oem.delivery_policy_learner import DeliveryPolicyLearner
+
+    ledger = _get_org_learning_ledger()
+    learner = DeliveryPolicyLearner()
+    policies = learner.learn(ledger)
+    return {
+        "policies": [p.to_dict() for p in policies],
+        "total_entries_analyzed": ledger.total_entries(),
+    }
+
+
+@router.get("/loop4/compose")
+def loop4_compose_entry() -> dict[str, Any]:
+    """Compose the Organizational Learning Ledger entry."""
+    from maestro_oem.cross_loop_patterns import CrossLoopPatternDetector
+    from maestro_oem.delivery_policy_learner import DeliveryPolicyLearner
+    from maestro_oem.organizational_learning_composer import OrganizationalLearningComposer
+
+    ledger = _get_org_learning_ledger()
+
+    detector = CrossLoopPatternDetector()
+    patterns = detector.detect(ledger)
+
+    learner = DeliveryPolicyLearner()
+    policies = learner.learn(ledger)
+
+    composer = OrganizationalLearningComposer()
+    entry = composer.compose(patterns, sample_size=ledger.total_entries(), delivery_policies=policies)
+
+    return {
+        "organizational_learning_entry": entry,
+        "patterns_found": len(patterns),
+        "policies_learned": len(policies),
+        "sample_size": ledger.total_entries(),
+    }
+
+
 # Phase 1: stamp USER auth policy on all routes in this router
 set_router_policy(router, AuthPolicy.USER)
