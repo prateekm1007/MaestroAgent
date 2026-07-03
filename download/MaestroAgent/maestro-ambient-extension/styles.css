@@ -272,3 +272,98 @@
     max-height: 60vh;
   }
 }
+
+/* ─── CEO Feature 2: Whisper Memory ──────────────────────────────────── */
+.maestro-ambient-memory {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.memory-escalated {
+  color: #FF1744;
+  background: #FFEBEE;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.memory-shown {
+  color: #666;
+  background: #F5F5F5;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ─── CEO Feature 3: Urgency Decay ───────────────────────────────────── */
+.maestro-ambient-urgency {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.urgency-text {
+  color: #FF6B6B;
+  min-width: 60px;
+}
+.urgency-bar {
+  flex: 1;
+  height: 6px;
+  background: #E5E5E5;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.urgency-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* ─── CEO Feature 4: Collaborative Whispers ──────────────────────────── */
+.maestro-ambient-collaboration {
+  margin-top: 8px;
+}
+.collab-team {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+  margin-top: 4px;
+}
+.collab-agrees {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+.collab-disagrees {
+  background: #FFEBEE;
+  color: #C62828;
+}
+.collab-has\ not\ reviewed {
+  background: #F5F5F5;
+  color: #999;
+}
+
+/* ─── CEO Feature 5: Counterfactuals ──────────────────────────────────── */
+.maestro-ambient-counterfactuals {
+  margin-top: 8px;
+}
+.maestro-ambient-counterfactual {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 4px 0;
+  border-bottom: 1px solid #F0F0F0;
+}
+.maestro-ambient-counterfactual:last-child {
+  border-bottom: none;
+}
+.cf-scenario {
+  color: #555;
+  font-weight: 600;
+}
+.cf-probability {
+  font-weight: 700;
+}

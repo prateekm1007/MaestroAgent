@@ -182,10 +182,10 @@
       <!-- (in the Today surface) narrows the view — it does not switch modes.-->
       <!-- ════════════════════════════════════════════════════════════════ -->
       <div class="sidebar-v2-primary">
-        <div class="sidebar-link active" data-surface="today" tabindex="0"><i data-lucide="sun" class="nav-icon"></i>Today</div>
+        <div class="sidebar-link active" data-surface="today" tabindex="0"><i data-lucide="sunrise" class="nav-icon"></i>Today</div>
+        <div class="sidebar-link" data-surface="ask-v2" tabindex="0"><i data-lucide="help-circle" class="nav-icon"></i>Ask</div>
         <div class="sidebar-link" data-surface="memory" tabindex="0"><i data-lucide="brain" class="nav-icon"></i>Memory</div>
-        <div class="sidebar-link" data-surface="ask-v2" tabindex="0"><i data-lucide="message-circle" class="nav-icon"></i>Ask</div>
-        <div class="sidebar-link" data-surface="more" tabindex="0" data-oc="oc-12" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMoreMenu();}" role="button" aria-label="More surfaces"><i data-lucide="more-horizontal" class="nav-icon"></i>More</div>
+        <div class="sidebar-link" data-surface="inbox" tabindex="0"><i data-lucide="inbox" class="nav-icon"></i>Decisions</div>
       </div>
 
       <!-- Constitution v2: the 22 old surfaces are NOT in the sidebar.
@@ -251,6 +251,7 @@
 
       <!-- SURFACE: TODAY — the morning brief (Round 46 — unified deck) -->
       <section class="surface active" id="surface-today">
+        <div id="today-prep-container"></div>
         <div id="today-content">
           <div class="ds-loading"><span class="spinner"></span> Preparing your morning brief…</div>
         </div>

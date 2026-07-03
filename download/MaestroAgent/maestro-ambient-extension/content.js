@@ -174,6 +174,34 @@
           <span class="maestro-ambient-label">Evidence</span>
           <div class="maestro-ambient-evidence-list">${evidenceHtml}</div>
         </div>` : ''}
+        ${w.counterfactuals ? `
+        <div class="maestro-ambient-counterfactuals">
+          <span class="maestro-ambient-label">What If</span>
+          ${w.counterfactuals.map(cf => `
+            <div class="maestro-ambient-counterfactual">
+              <span class="cf-scenario">${esc(cf.scenario)}</span>
+              <span class="cf-probability">${esc(cf.probability)} ${esc(cf.outcome)}</span>
+            </div>
+          `).join('')}
+        </div>` : ''}
+        ${w.collaboration ? `
+        <div class="maestro-ambient-collaboration">
+          <span class="maestro-ambient-label">Team</span>
+          ${Object.entries(w.collaboration).map(([team, status]) => `
+            <span class="collab-team collab-${status.status}">${esc(team)} ${esc(status.status)}</span>
+          `).join('')}
+        </div>` : ''}
+        ${w.memory && w.memory.times_shown > 0 ? `
+        <div class="maestro-ambient-memory">
+          ${w.memory.ignored_count > 0
+            ? `<span class="memory-escalated">Ignored ${w.memory.ignored_count}× — risk increasing</span>`
+            : `<span class="memory-shown">Shown ${w.memory.times_shown}×</span>`}
+        </div>` : ''}
+        ${w.urgency ? `
+        <div class="maestro-ambient-urgency">
+          <span class="urgency-text">${w.urgency}% risk</span>
+          <span class="urgency-bar"><span class="urgency-fill" data-urgency="${w.urgency}"></span></span>
+        </div>` : ''}
         <button class="maestro-ambient-action"
                 data-action="${esc(actionType)}"
                 data-payload="${actionPayload}"

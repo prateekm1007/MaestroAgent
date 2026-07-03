@@ -3326,3 +3326,96 @@ section + section { margin-top: 32px; }
 .skeleton-line-h12 { height: 12px; }
 .icon-inline { display: inline-block; vertical-align: middle; }
 .lucide-icon { display: inline-block; vertical-align: middle; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CEO FEATURE 1: PREPARATION BRIEF — Chief of Staff capability
+   ═══════════════════════════════════════════════════════════════════════════ */
+.prep-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--maestro-yellow-dark, #F0B500);
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+.prep-header-icon {
+  width: 16px;
+  height: 16px;
+}
+.prep-card {
+  border-left: 4px solid var(--maestro-yellow, #FFC629);
+  margin-bottom: 12px;
+}
+.prep-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.prep-card-time {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--maestro-yellow-dark, #F0B500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  min-width: 50px;
+}
+.prep-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--maestro-black, #000);
+}
+.prep-section {
+  margin-top: 10px;
+}
+.prep-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #999;
+  margin-bottom: 4px;
+}
+.prep-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.prep-talking-points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.prep-talking-points li {
+  font-size: 13px;
+  color: #555;
+  padding: 4px 0;
+  padding-left: 16px;
+  position: relative;
+}
+.prep-talking-points li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--maestro-yellow, #FFC629);
+  font-weight: 700;
+}
+.prep-expert-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.prep-icon-sm {
+  width: 14px;
+  height: 14px;
+  color: var(--maestro-yellow-dark, #F0B500);
+}
+.prep-expert-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--maestro-black, #000);
+}

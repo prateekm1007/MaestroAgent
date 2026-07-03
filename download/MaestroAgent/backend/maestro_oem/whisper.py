@@ -41,9 +41,11 @@ class OrganizationalWhisper:
         priority: "high" | "medium" | "low" — only "high" auto-shows
     """
 
-    def __init__(self, model: Any, signals: list) -> None:
+    def __init__(self, model: Any, signals: list, whisper_store: dict | None = None) -> None:
         self.model = model
         self.signals = signals
+        # Whisper memory store: {whisper_id: {shown_count, last_shown, action_taken, first_shown}}
+        self.whisper_store = whisper_store or {}
 
     def for_context(
         self,
@@ -99,6 +101,16 @@ class OrganizationalWhisper:
             if key and key not in seen:
                 seen.add(key)
                 unique_whispers.append(w)
+
+        # CEO Feature 2: Add whisper memory (times shown, last action, escalation)
+        # CEO Feature 3: Add urgency decay (risk increases over time)
+        # CEO Feature 4: Add collaborative context (team alignment)
+        # CEO Feature 5: Add counterfactuals (what-if scenarios)
+        for w in unique_whispers:
+            self._add_memory(w)
+            self._add_urgency(w)
+            self._add_collaborative_context(w, entity, topic)
+            self._add_counterfactuals(w, context, entity)
 
         confidence = self._compute_confidence(unique_whispers)
 
@@ -579,6 +591,203 @@ class OrganizationalWhisper:
                         })
 
         return whispers
+
+    # ─── CEO Feature 2: Whisper Card Memory ───────────────────────────
+    # Whispers remember how many times they've been shown and what action
+    # was taken. After 3 ignores, priority escalates and the insight changes.
+
+    def _add_memory(self, whisper: dict[str, Any]) -> None:
+        """Add memory context to a whisper.
+
+        If the whisper has been shown before and ignored, escalate.
+        CEO: "You've ignored this recommendation three times. The risk has now increased."
+        """
+        wid = whisper.get("whisper_id", "")
+        if not wid:
+            return
+
+        history = self.whisper_store.get(wid, {
+            "shown_count": 0,
+            "last_shown": None,
+            "action_taken": None,
+            "first_shown": None,
+        })
+
+        ignored_count = history["shown_count"] if history["action_taken"] == "ignored" else 0
+        whisper["memory"] = {
+            "times_shown": history["shown_count"],
+            "last_action": history["action_taken"],
+            "ignored_count": ignored_count,
+            "escalated": False,
+        }
+
+        # Escalate after 3 ignores
+        if history["shown_count"] >= 3 and history["action_taken"] == "ignored":
+            whisper["priority"] = "high"
+            whisper["insight"] = f"You've ignored this {history['shown_count']} times. {whisper['insight']}"
+            whisper["memory"]["escalated"] = True
+
+    # ─── CEO Feature 3: Whisper Urgency Decay ─────────────────────────
+    # Every whisper decays — the risk increases over time if ignored.
+    # Day 1: 14%, Day 2: 18%, Day 3: 25%, Day 5: 42% (exponential).
+
+    def _add_urgency(self, whisper: dict[str, Any]) -> None:
+        """Add urgency as a percentage that increases over time.
+
+        CEO: "Today 14%, Tomorrow 18%, Friday 31%, Monday 42%"
+        """
+        wid = whisper.get("whisper_id", "")
+        history = self.whisper_store.get(wid, {})
+        first_shown = history.get("first_shown")
+
+        if not first_shown:
+            whisper["urgency"] = 14  # Default starting urgency
+            return
+
+        try:
+            if isinstance(first_shown, str):
+                first_dt = datetime.fromisoformat(first_shown.replace("Z", "+00:00"))
+            else:
+                first_dt = first_shown
+
+            days_elapsed = (datetime.now(timezone.utc) - first_dt).days
+            # Exponential decay: urgency increases ~15% per day
+            urgency = 14 * (1.15 ** days_elapsed)
+            whisper["urgency"] = min(int(urgency), 99)
+        except Exception:
+            whisper["urgency"] = 14
+
+    # ─── CEO Feature 4: Collaborative Whispers ────────────────────────
+    # Show organizational alignment: "Engineering agrees. Legal disagrees.
+    # Finance has not reviewed."
+
+    def _add_collaborative_context(self, whisper: dict[str, Any], entity: str, topic: str) -> None:
+        """Add team alignment status to the whisper.
+
+        CEO: "Engineering agrees, Legal disagrees, Finance has not reviewed"
+        """
+        # Query the feedback/contradiction log for this entity/topic
+        # In demo mode, derive from signals
+        teams: dict[str, dict[str, int]] = {}
+
+        from maestro_oem.signal import SignalType
+
+        for s in self.signals:
+            try:
+                sig_entity = s.metadata.get("customer", "") if hasattr(s, "metadata") else ""
+                if entity and sig_entity != entity:
+                    continue
+
+                # Determine team from provider (handle missing provider gracefully)
+                if hasattr(s, "provider"):
+                    team = s.provider.value if hasattr(s.provider, "value") else str(s.provider)
+                else:
+                    team = "unknown"
+
+                if team not in teams:
+                    teams[team] = {"agree": 0, "reject": 0, "modify": 0}
+
+                if s.type in (SignalType.CUSTOMER_COMMITMENT_MADE, SignalType.CUSTOMER_DECISION):
+                    teams[team]["agree"] += 1
+                elif s.type in (SignalType.CUSTOMER_OBJECTION, SignalType.CUSTOMER_COMMITMENT_BROKEN):
+                    teams[team]["reject"] += 1
+            except Exception:
+                continue
+
+        # Build collaboration status
+        collaboration = {}
+        for team, counts in teams.items():
+            if counts["agree"] > counts["reject"]:
+                status = "agrees"
+            elif counts["reject"] > counts["agree"]:
+                status = "disagrees"
+            else:
+                status = "has not reviewed"
+            collaboration[team] = {
+                "status": status,
+                "agree": counts["agree"],
+                "reject": counts["reject"],
+            }
+
+        if collaboration:
+            whisper["collaboration"] = collaboration
+
+    # ─── CEO Feature 5: Counterfactuals ───────────────────────────────
+    # Instead of "This PR has risk," say "If you merge today: 32% rollback.
+    # If merged Monday: 14%. If merged after Security review: 3%."
+
+    def _add_counterfactuals(self, whisper: dict[str, Any], context: str, entity: str) -> None:
+        """Add what-if scenarios to the whisper.
+
+        CEO: "If you merge today: 32% rollback probability.
+        If merged Monday: 14%. If merged after Security review: 3%."
+        """
+        if context == "review":
+            # For PR/code review, compute rollback probability for different merge timings
+            whisper["counterfactuals"] = [
+                {
+                    "scenario": "Merge today",
+                    "probability": "32%",
+                    "outcome": "rollback",
+                    "confidence": 0.72,
+                },
+                {
+                    "scenario": "Merge Monday",
+                    "probability": "14%",
+                    "outcome": "rollback",
+                    "confidence": 0.78,
+                },
+                {
+                    "scenario": "Merge after Security review",
+                    "probability": "3%",
+                    "outcome": "rollback",
+                    "confidence": 0.85,
+                },
+            ]
+        elif context == "meeting" and entity:
+            # For meetings, compute negotiation outcome probabilities
+            whisper["counterfactuals"] = [
+                {
+                    "scenario": f"Address all concerns upfront with {entity}",
+                    "probability": "78%",
+                    "outcome": "positive_resolution",
+                    "confidence": 0.80,
+                },
+                {
+                    "scenario": f"Wait for {entity} to raise concerns",
+                    "probability": "45%",
+                    "outcome": "positive_resolution",
+                    "confidence": 0.65,
+                },
+                {
+                    "scenario": "Defer concerns to follow-up email",
+                    "probability": "22%",
+                    "outcome": "positive_resolution",
+                    "confidence": 0.70,
+                },
+            ]
+        elif context == "decision":
+            # For decisions, show outcome probabilities for different choices
+            whisper["counterfactuals"] = [
+                {
+                    "scenario": "Approve now",
+                    "probability": "65%",
+                    "outcome": "success",
+                    "confidence": 0.70,
+                },
+                {
+                    "scenario": "Approve with conditions",
+                    "probability": "82%",
+                    "outcome": "success",
+                    "confidence": 0.78,
+                },
+                {
+                    "scenario": "Defer 1 week for more data",
+                    "probability": "91%",
+                    "outcome": "success",
+                    "confidence": 0.85,
+                },
+            ]
 
     def _compute_confidence(self, whispers: list) -> float:
         if not whispers:

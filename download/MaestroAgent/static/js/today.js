@@ -21,6 +21,10 @@ async function loadToday() {
   if (!el) return;
   el.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div><div class="skeleton skeleton-line skeleton-line-w50"></div></div>';
 
+  // CEO Feature 1: Load the Preparation Brief (Chief of Staff capability)
+  // Maestro prepares for tomorrow's meetings before the user arrives.
+  loadPreparationBrief();
+
   try {
     // Compose the brief from existing API endpoints — no new backend needed
     const [briefing, pulse, contradictionsResp, personality] = await Promise.all([
@@ -1322,3 +1326,63 @@ async function rejectWriteBack(actionId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CEO FEATURE 1: PREPARATION BRIEF — The Chief of Staff capability
+// ═══════════════════════════════════════════════════════════════════════════
+// Maestro prepares for tomorrow's meetings before the user arrives.
+// Shows: customer concerns, draft responses, internal experts, talking points.
+// This is the difference between an assistant and a Chief of Staff.
+
+async function loadPreparationBrief() {
+  const prepContainer = document.getElementById('today-prep-container');
+  if (!prepContainer) return;
+
+  try {
+    const resp = await fetch((MAESTRO_API || '') + '/api/oem/preparation/tomorrow');
+    if (!resp.ok) return;
+    const prep = await resp.json();
+
+    if (!prep.meetings || prep.meetings.length === 0) {
+      prepContainer.innerHTML = '';
+      return;
+    }
+
+    let html = '<div class="prep-section-header"><i data-lucide="calendar-clock" class="prep-header-icon"></i><span>Prepared for tomorrow</span></div>';
+
+    html += prep.meetings.map(m => {
+      const p = m.preparation || {};
+      const concerns = (p.customer_concerns || []).map(c => `<span class="ds-tag ds-tag-warn">${escapeHtml(c)}</span>`).join('');
+      const talkingPoints = (p.suggested_talking_points || []).map(t => `<li>${escapeHtml(t)}</li>`).join('');
+      const expert = p.internal_expert ? `<div class="prep-expert-row"><i data-lucide="user-check" class="prep-icon-sm"></i><span class="prep-expert-name">${escapeHtml(p.internal_expert)}</span></div>` : '';
+      const draft = p.draft_email ? `<button class="ds-btn ds-btn-secondary ds-btn-small" onclick="insertPrepDraft('${escapeJs(p.draft_email.substring(0, 500))}')">Insert Draft Response</button>` : '';
+
+      return `
+        <div class="maestro-card prep-card">
+          <div class="prep-card-header">
+            <div class="prep-card-time">${escapeHtml(m.time || '')}</div>
+            <div class="prep-card-title">${escapeHtml(m.title)}</div>
+          </div>
+          ${concerns ? `<div class="prep-section"><div class="prep-label">Likely concerns</div><div class="prep-tags">${concerns}</div></div>` : ''}
+          ${talkingPoints ? `<div class="prep-section"><div class="prep-label">Suggested talking points</div><ul class="prep-talking-points">${talkingPoints}</ul></div>` : ''}
+          ${expert ? `<div class="prep-section"><div class="prep-label">Internal expert</div>${expert}</div>` : ''}
+          ${draft ? `<div class="prep-section">${draft}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    prepContainer.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  } catch (e) {
+    // Non-fatal — the morning brief still loads without preparation
+  }
+}
+
+function insertPrepDraft(draft) {
+  // Copy to clipboard and show toast
+  navigator.clipboard.writeText(draft).then(() => {
+    if (typeof showToast === 'function') showToast('Draft copied to clipboard', 'success');
+  }).catch(() => {
+    if (typeof showToast === 'function') showToast('Could not copy draft', 'error');
+  });
+}

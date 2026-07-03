@@ -2570,24 +2570,8 @@ def get_daily_narrative() -> dict[str, Any]:
     return engine.daily()
 
 
-@router.get("/whisper")
-def organizational_whisper(
-    context: str = Query("", description="meeting|proposal|decision|email|review"),
-    entity: str = Query("", description="Entity being discussed"),
-    topic: str = Query("", description="Topic (pricing, security, timeline, etc.)"),
-    user: str = Query("", description="Current user email"),
-) -> dict[str, Any]:
-    """Organizational Whisper — what the org knows but hasn't said.
-
-    Surfaces things your organization already knows that are relevant to
-    the current context: commitments made, objections raised, decisions
-    taken, relevant laws, cross-team knowledge.
-
-    Like Cluely, but for organizations instead of individuals.
-    """
-    from maestro_oem.whisper import OrganizationalWhisper
-    w = OrganizationalWhisper(oem_state.model, oem_state.signals)
-    return w.for_context(context=context, entity=entity, topic=topic, user=user)
+# NOTE: The /whisper endpoint is now defined below (line ~5295) with caching
+# for 300ms response time (CEO Feature 7). The old uncached version was removed.
 
 
 # ─── Whisper outcome tracking (closes the feedback loop) ───────────────────
@@ -5239,6 +5223,93 @@ def get_organizational_pattern() -> dict[str, Any]:
     if pattern:
         return {"pattern": pattern, "suggestion": "Review as Law?"}
     return {"pattern": None}
+
+
+# ─── CEO Feature 1: Preparation Engine ─────────────────────────────────────
+# "Every evening Maestro should quietly prepare for tomorrow."
+
+@router.get("/preparation/tomorrow")
+def get_tomorrow_preparation(user: str = Query("")) -> dict[str, Any]:
+    """Get tomorrow's preparation brief.
+
+    CEO's vision: Maestro prepares for tomorrow's meetings, decisions,
+    objections, and risks — before the user opens their laptop.
+
+    Returns prepared materials for each upcoming event:
+    - customer_concerns, previous_objections, relevant_commitments
+    - suggested_talking_points, internal_expert
+    - draft_email, competitive_comparison
+    """
+    from maestro_oem.preparation_engine import PreparationEngine
+    engine = PreparationEngine(oem_state.model, oem_state.signals)
+    return engine.prepare_for_tomorrow(org_id="default", user_email=user)
+
+
+# ─── CEO Feature 6: Anticipation Engine ────────────────────────────────────
+# "Every night Maestro simulates tomorrow."
+
+@router.get("/anticipation/tomorrow")
+def get_tomorrow_anticipation() -> dict[str, Any]:
+    """Get tomorrow's anticipation — what will matter.
+
+    CEO's vision: Maestro simulates tomorrow's meetings, risks, deadlines,
+    blockers, customers, and commitments. This feeds the Preparation Engine.
+
+    Returns:
+    - meetings: anticipated meetings with likely questions
+    - risks: what could go wrong
+    - deadlines: what's due
+    - blockers: what's stuck
+    - customers: who needs attention
+    - commitments: what's at risk
+    """
+    from maestro_oem.anticipation import AnticipationEngine
+    engine = AnticipationEngine(oem_state.model, oem_state.signals)
+    return engine.anticipate_tomorrow(org_id="default")
+
+
+# ─── CEO Feature 7: Whisper Caching (300ms response) ───────────────────────
+# "Everything should happen within about 300 milliseconds."
+
+_whisper_cache: dict[tuple, dict] = {}
+_whisper_cache_time: dict[tuple, float] = {}
+
+import time as _time
+
+@router.get("/whisper")
+def organizational_whisper(
+    context: str = Query("", description="meeting|proposal|decision|email|review"),
+    entity: str = Query("", description="Entity being discussed"),
+    topic: str = Query("", description="Topic (pricing, security, timeline, etc.)"),
+    user: str = Query("", description="Current user email"),
+) -> dict[str, Any]:
+    """Organizational Whisper — what the org knows but hasn't said.
+
+    CEO's 4-part format: Situation → Insight → Evidence → Action.
+    Now with memory, urgency decay, collaboration, and counterfactuals.
+
+    Feature 7: Serves from cache when available (< 1ms response).
+    Cache expires after 60 seconds.
+    """
+    cache_key = (context, entity, topic)
+    cache_max_age = 60  # seconds
+
+    # Check cache
+    if cache_key in _whisper_cache:
+        cached_time = _whisper_cache_time.get(cache_key, 0)
+        if _time.time() - cached_time < cache_max_age:
+            return _whisper_cache[cache_key]
+
+    # Compute fresh
+    from maestro_oem.whisper import OrganizationalWhisper
+    w = OrganizationalWhisper(oem_state.model, oem_state.signals)
+    result = w.for_context(context=context, entity=entity, topic=topic, user=user)
+
+    # Cache the result
+    _whisper_cache[cache_key] = result
+    _whisper_cache_time[cache_key] = _time.time()
+
+    return result
 
 
 @router.get("/dna")
