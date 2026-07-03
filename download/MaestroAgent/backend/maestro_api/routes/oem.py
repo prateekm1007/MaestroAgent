@@ -6514,5 +6514,161 @@ def loop2_detect_patterns(min_meetings: int = Query(2, description="Minimum meet
     }
 
 
+# ─── Loop 3: Decision Intelligence HTTP endpoints ──────────────────────────
+# CEO directive (auditor recommendation, CEO-validated): "Loop 3 — Decision
+# Intelligence." Per the established pattern, capabilities ship with HTTP
+# endpoints in the same commit.
+#
+# 8 endpoints:
+#   POST /loop3/decision                              — create/propose a decision
+#   GET  /loop3/decision/{decision_id}               — get a decision by ID
+#   POST /loop3/decision/{decision_id}/assumptions   — record assumptions
+#   POST /loop3/decision/{decision_id}/hypothesis    — state hypothesis
+#   POST /loop3/decision/{decision_id}/decide        — make the decision
+#   POST /loop3/decision/{decision_id}/outcome       — observe outcome
+#   GET  /loop3/decision/{decision_id}/learning      — get/write learning entry
+#   GET  /loop3/patterns                             — detect cross-decision patterns
+
+# Module-level decision store (persists across requests within a process)
+_loop3_decision_store: dict = {}
+
+
+def _get_decision_store():
+    """Get the module-level decision store (in-memory dict)."""
+    return _loop3_decision_store
+
+
+@router.post("/loop3/decision")
+def loop3_create_decision(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Create/propose a decision.
+
+    Body: {"intent": "...", "entity": "..."}
+    Returns the created decision (with decision_id, status=PROPOSED).
+    """
+    from maestro_oem.decision_v2 import Decision
+
+    intent = payload.get("intent")
+    entity = payload.get("entity")
+    if not intent or not entity:
+        raise HTTPException(400, "intent and entity are required")
+
+    decision = Decision(intent=intent, entity=entity)
+    _get_decision_store()[decision.decision_id] = decision
+    return decision.to_dict()
+
+
+@router.get("/loop3/decision/{decision_id}")
+def loop3_get_decision(decision_id: str) -> dict[str, Any]:
+    """Get a decision by ID."""
+    decision = _get_decision_store().get(decision_id)
+    if decision is None:
+        raise HTTPException(404, f"Decision {decision_id} not found")
+    return decision.to_dict()
+
+
+@router.post("/loop3/decision/{decision_id}/assumptions")
+def loop3_record_assumptions(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record assumptions for a decision (PROPOSED → ASSUMPTIONS_RECORDED)."""
+    from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
+
+    decision = _get_decision_store().get(decision_id)
+    if decision is None:
+        raise HTTPException(404, f"Decision {decision_id} not found")
+
+    loop = DecisionIntelligenceLoop()
+    loop.record_assumptions(decision, assumptions=payload.get("assumptions", []))
+    return decision.to_dict()
+
+
+@router.post("/loop3/decision/{decision_id}/hypothesis")
+def loop3_state_hypothesis(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """State a hypothesis for a decision (ASSUMPTIONS_RECORDED → HYPOTHESIS_STATED)."""
+    from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
+
+    decision = _get_decision_store().get(decision_id)
+    if decision is None:
+        raise HTTPException(404, f"Decision {decision_id} not found")
+
+    hypothesis = payload.get("hypothesis")
+    if not hypothesis:
+        raise HTTPException(400, "hypothesis is required")
+
+    loop = DecisionIntelligenceLoop()
+    loop.state_hypothesis(decision, hypothesis=hypothesis)
+    return decision.to_dict()
+
+
+@router.post("/loop3/decision/{decision_id}/decide")
+def loop3_decide(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Make the decision (HYPOTHESIS_STATED → DECIDED)."""
+    from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
+
+    decision = _get_decision_store().get(decision_id)
+    if decision is None:
+        raise HTTPException(404, f"Decision {decision_id} not found")
+
+    decision_text = payload.get("decision_text")
+    if not decision_text:
+        raise HTTPException(400, "decision_text is required")
+
+    loop = DecisionIntelligenceLoop()
+    loop.decide(decision, decision_text=decision_text)
+    return decision.to_dict()
+
+
+@router.post("/loop3/decision/{decision_id}/outcome")
+def loop3_observe_outcome(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Observe the outcome (DECIDED → OUTCOME_OBSERVED)."""
+    from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
+
+    decision = _get_decision_store().get(decision_id)
+    if decision is None:
+        raise HTTPException(404, f"Decision {decision_id} not found")
+
+    outcome = payload.get("outcome")
+    if not outcome:
+        raise HTTPException(400, "outcome is required")
+
+    loop = DecisionIntelligenceLoop()
+    loop.observe_outcome(decision, outcome=outcome)
+    return decision.to_dict()
+
+
+@router.get("/loop3/decision/{decision_id}/learning")
+def loop3_get_learning(decision_id: str) -> dict[str, Any]:
+    """Get (or write) the Decision Learning Ledger entry."""
+    from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
+    from maestro_oem.decision_v2 import DecisionStatus
+
+    decision = _get_decision_store().get(decision_id)
+    if decision is None:
+        raise HTTPException(404, f"Decision {decision_id} not found")
+
+    if decision.status == DecisionStatus.OUTCOME_OBSERVED:
+        loop = DecisionIntelligenceLoop()
+        loop.record_learning(decision)
+    elif decision.status != DecisionStatus.LEARNING_RECORDED:
+        raise HTTPException(
+            400,
+            f"Decision must be in OUTCOME_OBSERVED or LEARNING_RECORDED state. Current: {decision.status.name}",
+        )
+
+    return decision.to_dict()
+
+
+@router.get("/loop3/patterns")
+def loop3_detect_patterns(min_decisions: int = Query(2, description="Minimum decisions for a pattern")) -> dict[str, Any]:
+    """Detect cross-decision patterns."""
+    from maestro_oem.cross_decision_patterns import CrossDecisionPatternDetector
+
+    decisions = list(_get_decision_store().values())
+    detector = CrossDecisionPatternDetector()
+    patterns = detector.detect(decisions, min_decisions=min_decisions)
+    return {
+        "patterns": [p.to_dict() for p in patterns],
+        "total_decisions_analyzed": len(decisions),
+    }
+
+
 # Phase 1: stamp USER auth policy on all routes in this router
 set_router_policy(router, AuthPolicy.USER)
