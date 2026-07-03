@@ -579,7 +579,7 @@
               <div class="space-y-3">
                 <div>
                   <label class="text-xs text-fg-400 block mb-1">Hire count (adjusts P1 cluster risk)</label>
-                  <input type="range" id="sim-hires" min="0" max="10" value="0" class="w-full" oninput="document.getElementById('sim-hires-val').textContent=this.value">
+                  <input type="range" id="sim-hires" min="0" max="10" value="0" class="w-full" aria-label="Number of hires to simulate" oninput="document.getElementById('sim-hires-val').textContent=this.value">
                   <div class="text-xs text-fg-500 mt-1">Value: <span id="sim-hires-val" class="mono text-brand-cyan">0</span></div>
                 </div>
                 <button class="btn btn-primary" data-oc="oc-16">Run Simulation</button>
@@ -1028,8 +1028,8 @@
             <div class="panel-header"><span>API Configuration</span></div>
             <div class="panel-body space-y-3">
               <div>
-                <div class="text-xs text-fg-400 mb-1">OEM API Base URL</div>
-                <input type="text" class="ask-input input-sm" id="settings-api-url" value="" readonly>
+                <label for="settings-api-url" class="text-xs text-fg-400 mb-1">OEM API Base URL</label>
+                <input type="text" class="ask-input input-sm" id="settings-api-url" value="" readonly aria-label="OEM API Base URL">
               </div>
               <div>
                 <div class="text-xs text-fg-400 mb-1">OEM Engine Status</div>
@@ -1077,7 +1077,7 @@
               </div>
               <div>
                 <div class="text-xs text-fg-400 mb-1">Redirect URI (optional — defaults to server config)</div>
-                <input type="text" id="oauth-redirect-uri" class="ask-input input-sm" placeholder="https://your-domain/api/oauth/callback">
+                <input type="text" id="oauth-redirect-uri" class="ask-input input-sm" placeholder="https://your-domain/api/oauth/callback" aria-label="OAuth Redirect URI">
               </div>
               <div class="text-[10px] text-fg-500">
                 The secret is encrypted before storage and decrypted only during the OAuth token exchange.
