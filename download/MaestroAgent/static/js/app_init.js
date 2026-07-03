@@ -114,6 +114,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (el_oc_30) el_oc_30.addEventListener('click', function() { saveOAuthProvider() });
   var el_oc_31 = document.querySelector('[data-oc="oc-31"]');
   if (el_oc_31) el_oc_31.addEventListener('click', function() { cancelImport() });
+  var el_oc_ask_box = document.querySelector('[data-oc="oc-ask-box"]');
+  if (el_oc_ask_box) el_oc_ask_box.addEventListener('click', function() { navTo('ask-v2'); });
 });
 
 // Mobile nav: wire up click handlers + sync active state with navTo

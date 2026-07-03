@@ -255,7 +255,7 @@
         <div id="today-content">
           <div class="ds-loading"><span class="spinner"></span> Preparing your morning brief…</div>
         </div>
-        <div id="today-ask-box" class="today-ask-box" onclick="navTo('ask-v2')" role="button" tabindex="0" aria-label="Ask Maestro">
+        <div id="today-ask-box" class="today-ask-box" data-oc="oc-ask-box" role="button" tabindex="0" aria-label="Ask Maestro" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo('ask-v2');}">
           <i data-lucide="help-circle" class="ask-box-icon"></i>
           <span class="ask-box-text">Ask Maestro...</span>
           <div class="ask-box-prompts">

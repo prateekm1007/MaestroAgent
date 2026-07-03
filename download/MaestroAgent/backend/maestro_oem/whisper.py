@@ -124,7 +124,6 @@ class OrganizationalWhisper:
             "whispers": unique_whispers[:10],
             "warnings": warnings[:5],
             "precedents": precedents[:5],
-            "confidence": confidence,
             "narrative": self._narrative(unique_whispers, warnings),
         }
 
