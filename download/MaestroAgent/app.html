@@ -183,7 +183,7 @@
       <!-- ════════════════════════════════════════════════════════════════ -->
       <div class="sidebar-v2-primary">
         <div class="sidebar-link active" data-surface="today" tabindex="0"><i data-lucide="sunrise" class="nav-icon"></i>Today</div>
-        <div class="sidebar-link" data-surface="ask-v2" tabindex="0"><i data-lucide="help-circle" class="nav-icon"></i>Ask</div>
+        <div class="sidebar-link" data-surface="ask-v2" tabindex="0"><i data-lucide="help-circle" class="nav-icon"></i>Ask Maestro</div>
         <div class="sidebar-link" data-surface="memory" tabindex="0"><i data-lucide="brain" class="nav-icon"></i>Memory</div>
         <div class="sidebar-link" data-surface="inbox" tabindex="0"><i data-lucide="inbox" class="nav-icon"></i>Decisions</div>
       </div>
@@ -254,6 +254,16 @@
         <div id="today-prep-container"></div>
         <div id="today-content">
           <div class="ds-loading"><span class="spinner"></span> Preparing your morning brief…</div>
+        </div>
+        <div id="today-ask-box" class="today-ask-box" onclick="navTo('ask-v2')" role="button" tabindex="0" aria-label="Ask Maestro">
+          <i data-lucide="help-circle" class="ask-box-icon"></i>
+          <span class="ask-box-text">Ask Maestro...</span>
+          <div class="ask-box-prompts">
+            <span class="ask-prompt-tag">Prepare me</span>
+            <span class="ask-prompt-tag">Remind me</span>
+            <span class="ask-prompt-tag">Explain</span>
+            <span class="ask-prompt-tag">Investigate</span>
+          </div>
         </div>
       </section>
 

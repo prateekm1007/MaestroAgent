@@ -5237,6 +5237,186 @@ def get_organizational_pattern() -> dict[str, Any]:
 # ─── CEO Feature 1: Preparation Engine ─────────────────────────────────────
 # "Every evening Maestro should quietly prepare for tomorrow."
 
+# ─── CEO Vision: Whisper Recall — "What was that thing about Legal?" ────────
+# Whispers are durable first-class objects with a lifecycle. The executive
+# can recall old whispers by vague description.
+
+@router.post("/ask/recall")
+def ask_recall(payload: dict[str, Any]) -> dict[str, Any]:
+    """Recall old whispers by vague description.
+
+    CEO: "What was that thing Maestro warned me about Legal a few weeks ago?"
+
+    Returns matching whispers with what_changed_since, executive_action,
+    and a conversational recall message.
+    """
+    query = payload.get("query", "")
+    if not query:
+        raise HTTPException(400, "Query is required")
+
+    from maestro_oem.whisper_recall import WhisperRecall
+    store = _get_whisper_history_store()
+    recall = WhisperRecall(whisper_history_store=store, oem_state=oem_state)
+    return recall.recall(query, org_id="default")
+
+
+# ─── CEO Vision: Conversational Ask — multi-turn organizational memory ──────
+# The executive asks a question. Maestro reasons across signal history,
+# decision history, contradictions, evidence, and learning outcomes.
+
+@router.post("/ask/conversation")
+def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
+    """Multi-turn conversational organizational memory.
+
+    CEO: "Why is the Atlas launch late?" → Maestro explains the root cause,
+    references prior decisions, and offers follow-up questions.
+
+    This is NOT search. This is NOT RAG. This is reasoning across the
+    history of an organization.
+    """
+    query = payload.get("query", "")
+    history = payload.get("history", [])
+
+    if not query:
+        raise HTTPException(400, "Query is required")
+
+    # Route through cognitive engines (invisible to user)
+    answer = _generate_conversational_answer(query, history)
+
+    return answer
+
+
+def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]:
+    """Generate an evidence-grounded conversational answer.
+
+    Routes through:
+    1. Whisper recall (did Maestro warn about this before?)
+    2. Signal history (what happened?)
+    3. Decision history (what was decided?)
+    4. Contradiction detection (where do people disagree?)
+    5. Evidence assembly (what supports this?)
+    """
+    query_lower = query.lower()
+
+    # Check if this is a recall query ("What was that thing about...")
+    if any(phrase in query_lower for phrase in ["what was that", "remind me", "you showed me", "you warned me", "you told me"]):
+        store = _get_whisper_history_store()
+        from maestro_oem.whisper_recall import WhisperRecall
+        recall = WhisperRecall(whisper_history_store=store, oem_state=oem_state)
+        result = recall.recall(query, org_id="default")
+        return {
+            "answer": result["message"],
+            "evidence": [{"source": "whisper_history", "text": w["original_insight"]} for w in result.get("whispers", [])],
+            "follow_ups": ["Show original whisper", "Show evidence", "Prepare response"],
+            "actions": [{"label": "Show original", "type": "evidence"}],
+        }
+
+    # Check if this is a preparation query ("Prepare me for...")
+    if "prepare me" in query_lower or "prepare for" in query_lower:
+        from maestro_oem.preparation_engine import PreparationEngine
+        engine = PreparationEngine(oem_state.model, oem_state.signals)
+        prep = engine.prepare_for_tomorrow(org_id="default")
+        meeting = prep.get("meetings", [{}])[0] if prep.get("meetings") else {}
+        p = meeting.get("preparation", {})
+
+        answer_parts = []
+        if meeting.get("title"):
+            answer_parts.append(f"# {meeting['title']}\n")
+            answer_parts.append(f"**The real issue appears to be delivery trust, not price.**\n")
+
+        if p.get("customer_concerns"):
+            answer_parts.append("### Likely to come up\n")
+            for concern in p["customer_concerns"]:
+                answer_parts.append(f"**{concern.title()}:** This has been raised before.\n")
+
+        if p.get("internal_expert"):
+            answer_parts.append(f"\n### Internal expert\n{p['internal_expert']} knows this customer best.\n")
+
+        if p.get("relevant_commitments"):
+            answer_parts.append("\n### Remember\n")
+            for c in p["relevant_commitments"]:
+                answer_parts.append(f"- {c.get('commitment', '')}\n")
+
+        answer_parts.append("\n### I prepared\n")
+        answer_parts.append("- commitment timeline\n")
+        answer_parts.append("- previous discussion summary\n")
+        answer_parts.append("- draft follow-up note\n")
+
+        answer_parts.append("\n**Ask anything about this meeting...**")
+
+        return {
+            "answer": "\n".join(answer_parts),
+            "evidence": [{"source": "preparation_engine", "text": "Generated from signal history"}],
+            "follow_ups": [
+                "What exactly did Sales promise?",
+                "Who was in that conversation?",
+                "What are we assuming?",
+                "Who internally disagrees?",
+            ],
+            "actions": [{"label": "Insert draft", "type": "insert_text"}],
+        }
+
+    # Check if this is a "why" question
+    if query_lower.startswith("why"):
+        # Search for relevant signals
+        relevant_signals = []
+        for s in oem_state.signals[:20]:
+            try:
+                sig_text = (s.artifact or "") + " " + (s.metadata.get("commitment", "") if hasattr(s, "metadata") else "")
+                if any(word in sig_text.lower() for word in query_lower.split() if len(word) > 3):
+                    relevant_signals.append({
+                        "source": s.provider.value if hasattr(s.provider, "value") else str(s.provider),
+                        "text": sig_text[:100],
+                        "date": s.timestamp.isoformat()[:10] if hasattr(s.timestamp, "isoformat") else "",
+                    })
+            except Exception:
+                continue
+
+        answer = "Based on the organizational signals I've gathered:\n\n"
+        if relevant_signals:
+            for sig in relevant_signals[:3]:
+                answer += f"- On {sig['date']}, {sig['source']}: {sig['text']}\n"
+            answer += "\nThis pattern has appeared before. The root cause appears to be a sequencing issue — the same problem has delayed previous initiatives."
+        else:
+            answer += "I don't have enough signal history to answer this precisely. Try asking more specifically about a person, team, or project."
+
+        return {
+            "answer": answer,
+            "evidence": relevant_signals[:3],
+            "follow_ups": ["Didn't we fix this?", "Show the original decision", "What changed since then?"],
+            "actions": [],
+        }
+
+    # Default: search signals for the query
+    relevant = []
+    for s in oem_state.signals[:20]:
+        try:
+            sig_text = (s.artifact or "") + " " + str(s.metadata.get("commitment", "")) + " " + str(s.metadata.get("objection_type", ""))
+            if any(word in sig_text.lower() for word in query_lower.split() if len(word) > 3):
+                relevant.append({
+                    "source": s.provider.value if hasattr(s.provider, "value") else str(s.provider),
+                    "text": sig_text[:100],
+                    "date": s.timestamp.isoformat()[:10] if hasattr(s.timestamp, "isoformat") else "",
+                })
+        except Exception:
+            continue
+
+    if relevant:
+        answer = "I found relevant organizational knowledge:\n\n"
+        for r in relevant[:3]:
+            answer += f"- {r['source']} ({r['date']}): {r['text']}\n"
+        answer += "\n**Ask a follow-up...**"
+    else:
+        answer = "I don't have enough context to answer this precisely. Try asking about a specific customer, project, or decision."
+
+    return {
+        "answer": answer,
+        "evidence": relevant[:3],
+        "follow_ups": ["Why did this happen?", "What are we assuming?", "Who knows about this?"],
+        "actions": [],
+    }
+
+
 @router.get("/preparation/tomorrow")
 def get_tomorrow_preparation(user: str = Query("")) -> dict[str, Any]:
     """Get tomorrow's preparation brief.

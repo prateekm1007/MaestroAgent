@@ -177,6 +177,7 @@ class WhisperHistoryStore:
                         "action_taken": row.get("action_taken"),
                         "first_shown": row.get("first_shown"),
                         "last_shown": row.get("last_shown"),
+                        "insight": row.get("insight", ""),
                     }
                 else:
                     wid = row["whisper_id"]
@@ -185,6 +186,7 @@ class WhisperHistoryStore:
                         "action_taken": row["action_taken"],
                         "first_shown": row["first_shown"],
                         "last_shown": row["last_shown"],
+                        "insight": row["insight"] if "insight" in row.keys() else "",
                     }
             return result
 

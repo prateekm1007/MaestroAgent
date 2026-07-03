@@ -24,7 +24,79 @@ let _askIntentionMode = true; // true = show prompts, false = show answer
 function loadAskV2() {
   const el = document.getElementById('ask-v2-content');
   if (!el) return;
-  renderAskIntention(el);
+  // CEO Vision: Ask must be situational before the executive types
+  loadAskContext(el);
+}
+
+async function loadAskContext(el) {
+  // Fetch preparation + whispers to determine context
+  let prep = null;
+  let whispers = null;
+  try {
+    const [prepResp, whisperResp] = await Promise.all([
+      fetch((MAESTRO_API || '') + '/api/oem/preparation/tomorrow').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch((MAESTRO_API || '') + '/api/oem/whisper?context=meeting').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    prep = prepResp;
+    whispers = whisperResp;
+  } catch (e) {
+    // Non-fatal — fall back to default prompts
+  }
+
+  // Determine context
+  let header = 'What do you need?';
+  let subheader = '';
+  let prompts = [
+    'Prepare me',
+    'Remind me',
+    'Explain this',
+    'Find who knows',
+    "What am I missing?",
+  ];
+
+  // If there's an upcoming meeting, show meeting-specific prompts
+  if (prep && prep.meetings && prep.meetings.length > 0) {
+    const meeting = prep.meetings[0];
+    header = `You have ${meeting.title} coming up.`;
+    subheader = 'I can prepare you, explain what changed, or find previous decisions.';
+    prompts = [
+      'Prepare me for the meeting',
+      'What am I likely to be asked?',
+      "What hasn't been resolved?",
+      'What should I remember?',
+    ];
+  }
+
+  // If there are high-priority whispers, show them
+  let whisperNote = '';
+  if (whispers && whispers.whispers) {
+    const highPriority = whispers.whispers.filter(w => w.priority === 'high');
+    if (highPriority.length > 0) {
+      whisperNote = `${highPriority.length} ${highPriority.length === 1 ? 'thing' : 'things'} deserve your attention.`;
+    }
+  }
+
+  el.innerHTML = `
+    <div class="meta-surface">
+      <div class="ask-contextual-header">${escapeHtml(header)}</div>
+      ${subheader ? `<div class="ask-contextual-subheader">${escapeHtml(subheader)}</div>` : ''}
+      ${whisperNote ? `<div class="ask-contextual-whisper-note">${escapeHtml(whisperNote)}</div>` : ''}
+
+      <div class="ask-contextual-prompts">
+        ${prompts.map(p => `
+          <button class="ask-contextual-prompt" onclick="askSubmit('${escapeJs(p)}')">${escapeHtml(p)}</button>
+        `).join('')}
+      </div>
+
+      <div class="pos-relative ask-input-container">
+        <input type="text" class="ask-input" id="ask-v2-input"
+               placeholder="Or ask anything about your organization..."
+               onkeydown="if(event.key==='Enter') askSubmit(this.value)"
+               aria-label="Ask Maestro" />
+      </div>
+    </div>
+  `;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function renderAskIntention(el) {
