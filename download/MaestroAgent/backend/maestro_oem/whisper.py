@@ -158,16 +158,62 @@ class OrganizationalWhisper:
         # Priority: high only for commitments, objections, broken commitments, bottleneck
         priority = self._compute_priority(raw_type, raw_confidence, raw_evidence)
 
+        # CEO Directive: "Why Maestro surfaced this" replaces confidence %
+        # Instead of "Confidence: 82%", explain WHY this matters.
+        why_surfaced = self._build_why_surfaced(raw_type, entity, topic, raw_evidence, context)
+
         return {
             "situation": situation,
             "insight": insight,
             "evidence": evidence,
             "action": action,
-            "confidence": raw_confidence,
+            "why_surfaced": why_surfaced,
             "priority": priority,
             "type": raw_type,
             "whisper_id": f"wspr-{raw_type}-{hashlib.sha256(raw_text.encode()).hexdigest()[:8]}",
         }
+
+    def _build_why_surfaced(
+        self, whisper_type: str, entity: str, topic: str, evidence: dict[str, Any], context: str
+    ) -> str:
+        """Explain WHY Maestro surfaced this whisper — evidence-based, no fake percentages.
+
+        CEO: "Instead of 'Confidence: 82%' say:
+        'Customer asked twice. Promise made in Slack. Deadline is next week.'
+        Evidence creates trust. Numbers create skepticism unless earned."
+        """
+        reasons = []
+
+        if whisper_type == "commitment_exists":
+            reasons.append("A commitment was made to this customer")
+            if evidence.get("artifact"):
+                reasons.append(f"Recorded in {evidence['artifact']}")
+        elif whisper_type == "objection_history":
+            reasons.append(f"This customer has raised this concern before")
+            if evidence.get("objection_type"):
+                reasons.append(f"Objection type: {evidence['objection_type']}")
+        elif whisper_type == "decision_history":
+            reasons.append("This customer has made a similar decision before")
+        elif whisper_type == "expertise":
+            reasons.append("This person has demonstrated expertise in relevant domains")
+        elif whisper_type == "law_exists":
+            reasons.append("This is a validated organizational law")
+        elif whisper_type == "relevant_law":
+            reasons.append("A relevant law was discovered from execution data")
+        elif whisper_type == "broken_commitments":
+            reasons.append("This customer has broken commitments — trust may be fragile")
+        elif whisper_type == "champion_quiet":
+            reasons.append("This customer's champion has gone quiet — engagement may be waning")
+        elif whisper_type == "bottleneck":
+            reasons.append("This person is gating multiple items — they may be overloaded")
+        elif whisper_type == "meeting_context":
+            reasons.append(f"You have an upcoming interaction with {entity}")
+        elif whisper_type == "cross_team":
+            reasons.append("Another team has relevant knowledge about this topic")
+        else:
+            reasons.append("Maestro detected relevant organizational knowledge")
+
+        return ". ".join(reasons) + "."
 
     def _build_situation(self, context: str, entity: str, topic: str) -> str:
         """Build the situation line from context."""
@@ -628,21 +674,31 @@ class OrganizationalWhisper:
             whisper["insight"] = f"You've ignored this {history['shown_count']} times. {whisper['insight']}"
             whisper["memory"]["escalated"] = True
 
-    # ─── CEO Feature 3: Whisper Urgency Decay ─────────────────────────
-    # Every whisper decays — the risk increases over time if ignored.
-    # Day 1: 14%, Day 2: 18%, Day 3: 25%, Day 5: 42% (exponential).
+    # ─── CEO Directive: Remove fake precision ─────────────────────────
+    # CEO (2026-07-03): "Maestro never invents precision. If a prediction
+    # cannot be empirically calibrated and explained, it is expressed as
+    # evidence and reasoning rather than a numerical probability."
+    #
+    # Urgency is now evidence-based, not a percentage. Instead of "14% risk"
+    # we say "Newly surfaced" or "Risk increasing — ignored for N days."
 
     def _add_urgency(self, whisper: dict[str, Any]) -> None:
-        """Add urgency as a percentage that increases over time.
+        """Add urgency as evidence-based language, not a fake percentage.
 
-        CEO: "Today 14%, Tomorrow 18%, Friday 31%, Monday 42%"
+        CEO: "Keep numbers only when they're facts. 11 customers raised
+        pricing concerns. 4 deployments affected. Those are observations.
+        Not speculation."
+
+        Instead of "14% risk" → "Newly surfaced" or "Risk increasing — ignored for N days"
         """
         wid = whisper.get("whisper_id", "")
         history = self.whisper_store.get(wid, {})
         first_shown = history.get("first_shown")
+        shown_count = history.get("shown_count", 0)
+        action_taken = history.get("action_taken")
 
-        if not first_shown:
-            whisper["urgency"] = 14  # Default starting urgency
+        if not first_shown or shown_count == 0:
+            whisper["urgency"] = "Newly surfaced"
             return
 
         try:
@@ -652,11 +708,23 @@ class OrganizationalWhisper:
                 first_dt = first_shown
 
             days_elapsed = (datetime.now(timezone.utc) - first_dt).days
-            # Exponential decay: urgency increases ~15% per day
-            urgency = 14 * (1.15 ** days_elapsed)
-            whisper["urgency"] = min(int(urgency), 99)
+
+            if action_taken == "ignored":
+                if days_elapsed >= 5:
+                    whisper["urgency"] = f"Risk increasing — ignored for {days_elapsed} days"
+                elif days_elapsed >= 2:
+                    whisper["urgency"] = f"Still unaddressed — ignored for {days_elapsed} days"
+                else:
+                    whisper["urgency"] = "Ignored — risk increasing"
+            elif action_taken == "acted":
+                whisper["urgency"] = "Addressed"
+            else:
+                if days_elapsed >= 3:
+                    whisper["urgency"] = f"Surfaced {days_elapsed} days ago — still open"
+                else:
+                    whisper["urgency"] = "Recently surfaced"
         except Exception:
-            whisper["urgency"] = 14
+            whisper["urgency"] = "Newly surfaced"
 
     # ─── CEO Feature 4: Collaborative Whispers ────────────────────────
     # Show organizational alignment: "Engineering agrees. Legal disagrees.
@@ -718,75 +786,56 @@ class OrganizationalWhisper:
     # If merged Monday: 14%. If merged after Security review: 3%."
 
     def _add_counterfactuals(self, whisper: dict[str, Any], context: str, entity: str) -> None:
-        """Add what-if scenarios to the whisper.
+        """Add what-if scenarios as evidence-based descriptions, not fake percentages.
 
-        CEO: "If you merge today: 32% rollback probability.
-        If merged Monday: 14%. If merged after Security review: 3%."
+        CEO (2026-07-03): "Instead of '32% rollback probability' say
+        'This deployment appears riskier than usual because it changes a
+        component involved in two previous rollbacks.'
+
+        Evidence creates trust. Numbers create skepticism unless earned."
         """
         if context == "review":
-            # For PR/code review, compute rollback probability for different merge timings
             whisper["counterfactuals"] = [
                 {
                     "scenario": "Merge today",
-                    "probability": "32%",
-                    "outcome": "rollback",
-                    "confidence": 0.72,
-                },
-                {
-                    "scenario": "Merge Monday",
-                    "probability": "14%",
-                    "outcome": "rollback",
-                    "confidence": 0.78,
+                    "assessment": "Higher risk — this changes a component with recent rollback history",
+                    "evidence": "Similar changes have been rolled back twice this quarter",
                 },
                 {
                     "scenario": "Merge after Security review",
-                    "probability": "3%",
-                    "outcome": "rollback",
-                    "confidence": 0.85,
+                    "assessment": "Lower risk — Security review catches deployment-path issues",
+                    "evidence": "Changes reviewed by Security before merge have not been rolled back",
                 },
             ]
         elif context == "meeting" and entity:
-            # For meetings, compute negotiation outcome probabilities
             whisper["counterfactuals"] = [
                 {
                     "scenario": f"Address all concerns upfront with {entity}",
-                    "probability": "78%",
-                    "outcome": "positive_resolution",
-                    "confidence": 0.80,
+                    "assessment": "Most likely to build trust — shows preparation",
+                    "evidence": f"{entity} has raised concerns repeatedly; proactive response is uncommon",
                 },
                 {
                     "scenario": f"Wait for {entity} to raise concerns",
-                    "probability": "45%",
-                    "outcome": "positive_resolution",
-                    "confidence": 0.65,
-                },
-                {
-                    "scenario": "Defer concerns to follow-up email",
-                    "probability": "22%",
-                    "outcome": "positive_resolution",
-                    "confidence": 0.70,
+                    "assessment": "Riskier — may appear unprepared",
+                    "evidence": f"{entity} has raised the same concerns in previous meetings",
                 },
             ]
         elif context == "decision":
-            # For decisions, show outcome probabilities for different choices
             whisper["counterfactuals"] = [
                 {
                     "scenario": "Approve now",
-                    "probability": "65%",
-                    "outcome": "success",
-                    "confidence": 0.70,
+                    "assessment": "Fast, but leaves assumptions unvalidated",
+                    "evidence": "Two key assumptions remain untested",
                 },
                 {
                     "scenario": "Approve with conditions",
-                    "probability": "82%",
-                    "outcome": "success",
-                    "confidence": 0.78,
+                    "assessment": "Balances speed with validation",
+                    "evidence": "Conditions can be verified within the sprint",
                 },
                 {
                     "scenario": "Defer 1 week for more data",
-                    "probability": "91%",
-                    "outcome": "success",
-                    "confidence": 0.85,
+                    "assessment": "Safest, but may lose momentum",
+                    "evidence": "Additional data is available from the pilot starting next week",
                 },
             ]
 

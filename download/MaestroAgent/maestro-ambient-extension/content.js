@@ -150,7 +150,7 @@
       </div>
     `).join('');
 
-    const confidencePct = Math.round((w.confidence || 0.5) * 100);
+    // CEO Directive: confidence % removed — replaced with why_surfaced (evidence-based)
     const priorityClass = `priority-${w.priority || 'medium'}`;
     const priorityBadge = w.priority === 'high'
       ? `<span class="maestro-ambient-priority-badge high">High Priority</span>` : '';
@@ -180,8 +180,9 @@
           ${w.counterfactuals.map(cf => `
             <div class="maestro-ambient-counterfactual">
               <span class="cf-scenario">${esc(cf.scenario)}</span>
-              <span class="cf-probability">${esc(cf.probability)} ${esc(cf.outcome)}</span>
+              <span class="cf-assessment">${esc(cf.assessment)}</span>
             </div>
+            ${cf.evidence ? `<div class="cf-evidence">${esc(cf.evidence)}</div>` : ''}
           `).join('')}
         </div>` : ''}
         ${w.collaboration ? `
@@ -199,8 +200,7 @@
         </div>` : ''}
         ${w.urgency ? `
         <div class="maestro-ambient-urgency">
-          <span class="urgency-text">${w.urgency}% risk</span>
-          <span class="urgency-bar"><span class="urgency-fill" data-urgency="${w.urgency}"></span></span>
+          <span class="urgency-text">${esc(w.urgency)}</span>
         </div>` : ''}
         <button class="maestro-ambient-action"
                 data-action="${esc(actionType)}"
@@ -209,12 +209,11 @@
                 data-insight="${esc(w.insight)}">
           ${esc(actionLabel)} ↓
         </button>
-        <div class="maestro-ambient-confidence">
-          Confidence: ${confidencePct}%
-          <span class="maestro-ambient-confidence-bar">
-            <span class="maestro-ambient-confidence-fill" data-confidence="${confidencePct}"></span>
-          </span>
-        </div>
+        ${w.why_surfaced ? `
+        <div class="maestro-ambient-why">
+          <span class="maestro-ambient-label">Why Maestro surfaced this</span>
+          <span class="maestro-ambient-why-text">${esc(w.why_surfaced)}</span>
+        </div>` : ''}
       </div>
     `;
   }
@@ -242,11 +241,7 @@
       btn.addEventListener('click', () => handleAction(btn));
     });
 
-    // Set confidence bar widths from data attributes (no inline styles)
-    panel.querySelectorAll('.maestro-ambient-confidence-fill').forEach(el => {
-      const pct = el.getAttribute('data-confidence') || '50';
-      el.style.width = pct + '%';
-    });
+    // CEO Directive: confidence bar removed — replaced with why_surfaced text
 
     // Auto-dismiss after 5 seconds (CEO's spec: "Less than five seconds")
     clearTimeout(dismissTimer);

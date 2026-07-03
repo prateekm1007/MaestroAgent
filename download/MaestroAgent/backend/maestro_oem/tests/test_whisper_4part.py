@@ -115,7 +115,8 @@ def test_whisper_returns_4_part_format(whisper):
         assert "payload" in w["action"], f"Action missing payload: {w['action']}"
         assert "priority" in w, f"Missing priority: {w}"
         assert w["priority"] in ("high", "medium", "low"), f"Invalid priority: {w['priority']}"
-        assert "confidence" in w, f"Missing confidence: {w}"
+        assert "why_surfaced" in w, f"Missing why_surfaced: {w}"
+        assert isinstance(w["why_surfaced"], str), f"why_surfaced should be a string: {w['why_surfaced']}"
         assert "whisper_id" in w, f"Missing whisper_id: {w}"
 
 
@@ -160,7 +161,7 @@ def test_action_has_label_and_type(whisper):
 def test_commitment_whispers_are_high_priority(whisper):
     """Commitment and objection whispers should be high priority (golden rule)."""
     result = whisper.for_context(context="meeting", entity="Globex")
-    high_priority = [w for w in result["whispers"] if w["priority"] == "high"]
+    high_priority = [w for w in result["whispers"] if w.get("priority") == "high"]
     assert len(high_priority) > 0, "Should have at least one high-priority whisper"
 
     # Verify commitment whispers are high priority
@@ -169,12 +170,12 @@ def test_commitment_whispers_are_high_priority(whisper):
         assert w["priority"] == "high", f"Commitment should be high priority: {w}"
 
 
-def test_low_confidence_whispers_are_low_priority(whisper):
-    """Low-confidence whispers should not be high priority."""
+def test_whispers_have_why_surfaced(whisper):
+    """Every whisper should have a why_surfaced explanation (not a fake confidence %)."""
     result = whisper.for_context(context="meeting", entity="Globex")
     for w in result["whispers"]:
-        if w["confidence"] < 0.5:
-            assert w["priority"] != "high", f"Low-confidence whisper should not be high priority: {w}"
+        assert "why_surfaced" in w, f"Missing why_surfaced: {w}"
+        assert len(w["why_surfaced"]) > 10, f"why_surfaced should be descriptive: {w['why_surfaced']}"
 
 
 # ─── Test 6: behavior change detection ─────────────────────────────────────

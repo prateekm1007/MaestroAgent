@@ -205,13 +205,14 @@ def test_whisper_escalates_after_3_ignores(mock_model, mock_signals):
 # ─── FEATURE 3: Whisper Urgency Decay ──────────────────────────────────────
 
 def test_whisper_has_urgency_field(mock_model, mock_signals):
-    """Every whisper should have an urgency field (14-99)."""
+    """Every whisper should have an urgency field (evidence-based string, not a fake %)."""
     whisper = OrganizationalWhisper(mock_model, mock_signals)
     result = whisper.for_context(context="meeting", entity="Globex")
 
     for w in result["whispers"]:
         assert "urgency" in w, f"Missing urgency field: {w}"
-        assert 14 <= w["urgency"] <= 99, f"Urgency out of range: {w['urgency']}"
+        assert isinstance(w["urgency"], str), f"Urgency should be a string: {w['urgency']}"
+        assert len(w["urgency"]) > 3, f"Urgency should be descriptive: {w['urgency']}"
 
 
 def test_whisper_urgency_increases_over_time(mock_model, mock_signals):
@@ -233,7 +234,8 @@ def test_whisper_urgency_increases_over_time(mock_model, mock_signals):
         # Find the same whisper
         for w in result2["whispers"]:
             if w["whisper_id"] == wid:
-                assert w["urgency"] > 14, f"Urgency should increase over time: {w['urgency']}"
+                assert "ignored" in w["urgency"].lower() or "increasing" in w["urgency"].lower(), \
+                    f"Urgency should reflect ignored state: {w['urgency']}"
 
 
 # ─── FEATURE 4: Collaborative Whispers ─────────────────────────────────────
@@ -270,6 +272,5 @@ def test_whisper_has_counterfactuals_for_meeting(mock_model, mock_signals):
         # Check each counterfactual has the right structure
         for cf in w["counterfactuals"]:
             assert "scenario" in cf
-            assert "probability" in cf
-            assert "outcome" in cf
-            assert "confidence" in cf
+            assert "assessment" in cf
+            assert "evidence" in cf

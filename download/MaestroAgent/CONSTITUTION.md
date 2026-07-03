@@ -518,3 +518,55 @@ stored state; it is a view filter.
    function without personal context. The user can filter to "personal
    only" and function without work context. The user can close the app
    and function without Maestro.
+
+---
+
+## Product Principle: Maestro Never Invents Precision
+
+> **Maestro never invents precision. If a prediction cannot be empirically
+> calibrated and explained, it is expressed as evidence and reasoning
+> rather than a numerical probability.**
+
+### Why this matters
+
+An executive sees "32% rollback probability" and immediately asks:
+"According to what?" If there is no answer, trust is broken.
+
+Evidence creates trust. Numbers create skepticism unless they are earned.
+
+### The rules
+
+1. **Facts use numbers.** "11 customers raised pricing concerns."
+   "4 deployments affected." "2 broken commitments." These are observations.
+
+2. **Historical patterns use evidence summaries.** "This deployment
+   appears riskier than usual because it changes a component involved
+   in two previous rollbacks." Not "32% rollback probability."
+
+3. **Predictions use plain language unless calibrated.** "Higher
+   deployment risk than similar changes." "Worth a second review
+   before merging." Not "78% positive outcome."
+
+4. **Calibrated forecasting (Prediction Market) is the ONLY place
+   probabilities appear.** There, predictions are resolved against
+   actual outcomes, Brier scores are computed, and the calibration
+   is empirically validated. Over 2,431 predictions, forecasts
+   labelled "High Confidence" resolved correctly 84% of the time.
+   That's science.
+
+### What this means for the whisper card
+
+The whisper card has **Situation → Insight → Evidence → Action**.
+
+It does NOT have:
+- Confidence: 82%
+- Urgency: 14% risk
+- Probability: 32% rollback
+
+It DOES have:
+- **Why Maestro surfaced this:** "A commitment was made to this customer. Recorded in crm:globex-commit-1."
+- **Urgency:** "Newly surfaced" or "Risk increasing — ignored for 5 days"
+- **Counterfactuals:** "Merge today: Higher risk — this changes a component with recent rollback history"
+
+The one exception is the Prediction Market surface, where probabilities
+are empirically calibrated and can be verified against historical outcomes.
