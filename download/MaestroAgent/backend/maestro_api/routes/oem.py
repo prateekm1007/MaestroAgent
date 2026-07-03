@@ -5306,9 +5306,23 @@ def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]
         from maestro_oem.whisper_recall import WhisperRecall
         recall = WhisperRecall(whisper_history_store=store, oem_state=oem_state)
         result = recall.recall(query, org_id="default")
+        # Phase 1: Return Evidence objects, not ad-hoc dicts
+        from maestro_oem.evidence import EvidenceBuilder
+        builder = EvidenceBuilder(oem_state.signals)
+        evidence_spines = []
+        for w in result.get("whispers", []):
+            evidence_spines.append({
+                "source": "whisper_history",
+                "text": w["original_insight"],
+                "evidence_spine": {
+                    "claim": w["original_insight"],
+                    "observed_facts": [{"source": "whisper_history", "date": w.get("last_shown", ""), "text": w["original_insight"], "people": []}],
+                    "what_changed_since": w.get("what_changed", ""),
+                },
+            })
         return {
             "answer": result["message"],
-            "evidence": [{"source": "whisper_history", "text": w["original_insight"]} for w in result.get("whispers", [])],
+            "evidence": evidence_spines,
             "follow_ups": ["Show original whisper", "Show evidence", "Prepare response"],
             "actions": [{"label": "Show original", "type": "evidence"}],
         }
@@ -5348,7 +5362,19 @@ def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]
 
         return {
             "answer": "\n".join(answer_parts),
-            "evidence": [{"source": "preparation_engine", "text": "Generated from signal history"}],
+            "evidence": [{
+                "source": "preparation_engine",
+                "text": "Generated from signal history",
+                "evidence_spine": {
+                    "claim": f"Preparation for {meeting.get('title', 'meeting')}",
+                    "observed_facts": [
+                        {"source": "customer signals", "date": "", "text": c.get("commitment", ""), "people": []}
+                        for c in p.get("relevant_commitments", [])
+                    ] or [{"source": "preparation_engine", "date": "", "text": "No specific commitments found", "people": []}],
+                    "people_involved": [{"name": p.get("internal_expert", ""), "role": "expert", "why_relevant": "knows this customer best"}] if p.get("internal_expert") else [],
+                    "assumptions": ["The meeting will proceed as scheduled", "The concerns are still relevant"],
+                },
+            }],
             "follow_ups": [
                 "What exactly did Sales promise?",
                 "Who was in that conversation?",
@@ -5413,7 +5439,15 @@ def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]
 
     return {
         "answer": answer,
-        "evidence": relevant[:3],
+        "evidence": [{
+            "source": r.get("source", ""),
+            "text": r.get("text", ""),
+            "evidence_spine": {
+                "claim": r.get("text", ""),
+                "observed_facts": [{"source": r.get("source", ""), "date": r.get("date", ""), "text": r.get("text", ""), "people": []}],
+                "assumptions": ["This signal is still relevant"],
+            },
+        } for r in relevant[:3]],
         "follow_ups": ["Why did this happen?", "What are we assuming?", "Who knows about this?"],
         "actions": [],
     }

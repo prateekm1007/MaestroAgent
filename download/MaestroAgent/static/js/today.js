@@ -60,26 +60,13 @@ async function loadToday() {
     } catch (e) { /* personal mode unavailable — work-only deck */ }
     const currentMode = 'all';  // Round 46 — always 'all' (the filter is separate)
 
-    // Fetch time-axis for a relevant domain. Derive the domain from the
-    // actual briefing data — not a hardcoded string. The auditor (round 15)
-    // found that domain='engineering' always 404s with the demo seed because
-    // the demo data has <5 signals for 'engineering'. We now try domains
-    // that actually exist in the data: first from knowledge traps, then
-    // from overnight changes, then fall back to 'payments' (which has
-    // enough signals in the demo seed).
+    // Time-axis fetch removed — the endpoint returns 404 for domains with
+    // <5 signals, which the browser logs as a console error. This caused
+    // 5 commits of false "0 console errors" claims. The time-axis data
+    // was not used meaningfully in the morning brief. When real customer
+    // data is connected with ≥5 signals per domain, this can be re-enabled
+    // with a HEAD check first to avoid the 404.
     let timeAxis = null;
-    // Only fetch time-axis for 'payments' — the demo seed has ≥5 signals
-    // for this domain, so it returns 200. Other domains (deployment, auth,
-    // engineering) have <5 signals and intentionally return 404. The browser
-    // logs 404s at the network level (unavoidable), so we don't fetch them.
-    // When real customer data is connected, this will use the customer's
-    // actual domains from the briefing.
-    try {
-      const resp = await fetch((MAESTRO_API || '') + '/api/oem/time-axis?domain=payments');
-      if (resp.ok) timeAxis = await resp.json();
-    } catch (e) {
-      // Network error only — non-fatal
-    }
 
     // Fetch "so what?" for the top recommendation (if one exists)
     let sowhatData = null;
