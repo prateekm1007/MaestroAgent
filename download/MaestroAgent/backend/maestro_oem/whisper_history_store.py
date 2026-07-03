@@ -41,6 +41,15 @@ CREATE TABLE IF NOT EXISTS whisper_history (
     embedding BLOB,
     entity TEXT,
     type TEXT,
+    recipient TEXT,
+    reason_recipient_chosen TEXT,
+    timing_reason TEXT,
+    depth TEXT,
+    materially_changed_since_last_shown BOOLEAN,
+    decision_influenced TEXT,
+    follow_up_questions TEXT,
+    outcome TEXT,
+    learning_entry TEXT,
     PRIMARY KEY (whisper_id, org_id)
 );
 
@@ -54,6 +63,16 @@ _MIGRATIONS = [
     "ALTER TABLE whisper_history ADD COLUMN embedding BLOB",
     "ALTER TABLE whisper_history ADD COLUMN entity TEXT",
     "ALTER TABLE whisper_history ADD COLUMN type TEXT",
+    # Loop 1 iteration: Delivery Intelligence + Learning Ledger columns
+    "ALTER TABLE whisper_history ADD COLUMN recipient TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN reason_recipient_chosen TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN timing_reason TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN depth TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN materially_changed_since_last_shown BOOLEAN",
+    "ALTER TABLE whisper_history ADD COLUMN decision_influenced TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN follow_up_questions TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN outcome TEXT",
+    "ALTER TABLE whisper_history ADD COLUMN learning_entry TEXT",
 ]
 
 
@@ -111,12 +130,22 @@ class WhisperHistoryStore:
         embedding: bytes | None = None,
         entity: str = "",
         whisper_type: str = "",
+        recipient: str = "",
+        reason_recipient_chosen: str = "",
+        timing_reason: str = "",
+        depth: str = "",
+        materially_changed_since_last_shown: bool | None = None,
     ) -> None:
         """Record that a whisper was shown. Increments shown_count.
 
         Phase 2: optionally persists the insight embedding (BLOB), entity,
         and whisper type. These power the hybrid RecallEngine's semantic +
         entity search without re-embedding on every recall.
+
+        Loop 1 iteration: also persists Delivery Intelligence fields
+        (recipient, reason_recipient_chosen, timing_reason, depth,
+        materially_changed_since_last_shown). These power the Loop 1
+        CommitmentIntelligenceLoop's delivery decisions.
         """
         now = datetime.now(timezone.utc).isoformat()
         with self._lock:
@@ -125,44 +154,145 @@ class WhisperHistoryStore:
             # Upsert: insert or update
             cur.execute(
                 """INSERT INTO whisper_history
-                   (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown, insight, embedding, entity, type)
-                   VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?)
+                   (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown,
+                    insight, embedding, entity, type,
+                    recipient, reason_recipient_chosen, timing_reason, depth,
+                    materially_changed_since_last_shown)
+                   VALUES (?, ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(whisper_id, org_id) DO UPDATE SET
                     shown_count = shown_count + 1,
                     last_shown = excluded.last_shown,
                     insight = COALESCE(excluded.insight, whisper_history.insight),
                     embedding = COALESCE(excluded.embedding, whisper_history.embedding),
                     entity = COALESCE(excluded.entity, whisper_history.entity),
-                    type = COALESCE(excluded.type, whisper_history.type)
+                    type = COALESCE(excluded.type, whisper_history.type),
+                    recipient = COALESCE(excluded.recipient, whisper_history.recipient),
+                    reason_recipient_chosen = COALESCE(excluded.reason_recipient_chosen, whisper_history.reason_recipient_chosen),
+                    timing_reason = COALESCE(excluded.timing_reason, whisper_history.timing_reason),
+                    depth = COALESCE(excluded.depth, whisper_history.depth),
+                    materially_changed_since_last_shown = excluded.materially_changed_since_last_shown
                 """,
-                (whisper_id, org_id, now, now, insight, embedding, entity, whisper_type),
+                (whisper_id, org_id, now, now, insight, embedding, entity, whisper_type,
+                 recipient, reason_recipient_chosen, timing_reason, depth,
+                 materially_changed_since_last_shown),
             )
 
-    def record_outcome(self, whisper_id: str, action: str, org_id: str = "default") -> None:
-        """Record what the user did with a whisper (acted/ignored/overrode)."""
+    def record_outcome(
+        self,
+        whisper_id: str,
+        action: str,
+        org_id: str = "default",
+        decision_influenced: str | None = None,
+        follow_up_questions: list[str] | None = None,
+    ) -> None:
+        """Record what the user did with a whisper (acted/ignored/overrode).
+
+        Loop 1 iteration: also persists decision_influenced (which decision
+        the Whisper affected) and follow_up_questions (what the exec asked
+        after seeing the Whisper). follow_up_questions is stored as a JSON
+        array string.
+        """
         now = datetime.now(timezone.utc).isoformat()
+        # Serialize follow_up_questions as JSON
+        follow_ups_json = json.dumps(follow_up_questions) if follow_up_questions else None
         with self._lock:
             assert self._conn is not None
             cur = self._conn.cursor()
             # Update the existing record (it must have been shown first)
             cur.execute(
                 """UPDATE whisper_history
-                   SET action_taken = ?, last_shown = ?
+                   SET action_taken = ?, last_shown = ?,
+                       decision_influenced = COALESCE(?, decision_influenced),
+                       follow_up_questions = COALESCE(?, follow_up_questions)
                    WHERE whisper_id = ? AND org_id = ?
                 """,
-                (action, now, whisper_id, org_id),
+                (action, now, decision_influenced, follow_ups_json, whisper_id, org_id),
             )
             # If no row was updated (whisper not yet in DB), insert it
             if cur.rowcount == 0:
                 cur.execute(
-                    """INSERT INTO whisper_history (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown, insight)
-                       VALUES (?, ?, 0, ?, ?, ?, '')
+                    """INSERT INTO whisper_history
+                       (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown, insight,
+                        decision_influenced, follow_up_questions)
+                       VALUES (?, ?, 0, ?, ?, ?, '', ?, ?)
                     """,
-                    (whisper_id, org_id, action, now, now),
+                    (whisper_id, org_id, action, now, now, decision_influenced, follow_ups_json),
+                )
+
+    def record_outcome_signal(
+        self,
+        whisper_id: str,
+        outcome: str,
+        org_id: str = "default",
+    ) -> None:
+        """Record the outcome signal observed after the meeting.
+
+        Loop 1 iteration: outcome is a label string — 'honored', 'broken',
+        'renegotiated', or 'unknown'. This is the signal that closes the
+        loop — it tells Maestro what actually happened.
+        """
+        with self._lock:
+            assert self._conn is not None
+            cur = self._conn.cursor()
+            cur.execute(
+                """UPDATE whisper_history
+                   SET outcome = ?
+                   WHERE whisper_id = ? AND org_id = ?
+                """,
+                (outcome, whisper_id, org_id),
+            )
+            # If no row was updated, insert a minimal record
+            if cur.rowcount == 0:
+                now = datetime.now(timezone.utc).isoformat()
+                cur.execute(
+                    """INSERT INTO whisper_history
+                       (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown, insight, outcome)
+                       VALUES (?, ?, 0, NULL, ?, ?, '', ?)
+                    """,
+                    (whisper_id, org_id, now, now, outcome),
+                )
+
+    def record_learning_entry(
+        self,
+        whisper_id: str,
+        learning_entry: str,
+        org_id: str = "default",
+    ) -> None:
+        """Record the Learning Ledger entry (one honest sentence).
+
+        Loop 1 iteration: the LearningLedger module composes this sentence
+        from the actual entity, commitment, action, and outcome. This method
+        persists it to the store.
+        """
+        with self._lock:
+            assert self._conn is not None
+            cur = self._conn.cursor()
+            cur.execute(
+                """UPDATE whisper_history
+                   SET learning_entry = ?
+                   WHERE whisper_id = ? AND org_id = ?
+                """,
+                (learning_entry, whisper_id, org_id),
+            )
+            # If no row was updated, insert a minimal record
+            if cur.rowcount == 0:
+                now = datetime.now(timezone.utc).isoformat()
+                cur.execute(
+                    """INSERT INTO whisper_history
+                       (whisper_id, org_id, shown_count, action_taken, first_shown, last_shown, insight, learning_entry)
+                       VALUES (?, ?, 0, NULL, ?, ?, '', ?)
+                    """,
+                    (whisper_id, org_id, now, now, learning_entry),
                 )
 
     def get_history(self, whisper_id: str, org_id: str = "default") -> dict[str, Any]:
-        """Get the history for a whisper. Returns empty dict if not found."""
+        """Get the history for a whisper. Returns empty dict if not found.
+
+        Loop 1 iteration: returns all Loop 1 fields (recipient,
+        timing_reason, depth, materially_changed_since_last_shown,
+        decision_influenced, follow_up_questions, outcome,
+        learning_entry) in addition to the Phase 1/2 fields.
+        """
         with self._lock:
             assert self._conn is not None
             cur = self._conn.cursor()
@@ -179,28 +309,15 @@ class WhisperHistoryStore:
                     "last_shown": None,
                 }
 
-            # Handle both dict (sqlite_compat) and sqlite3.Row
-            if isinstance(row, dict):
-                return {
-                    "shown_count": row.get("shown_count", 0),
-                    "action_taken": row.get("action_taken"),
-                    "first_shown": row.get("first_shown"),
-                    "last_shown": row.get("last_shown"),
-                }
-            else:
-                return {
-                    "shown_count": row["shown_count"],
-                    "action_taken": row["action_taken"],
-                    "first_shown": row["first_shown"],
-                    "last_shown": row["last_shown"],
-                }
+            return self._row_to_history_dict(row)
 
     def get_all_history(self, org_id: str = "default") -> dict[str, dict[str, Any]]:
         """Get all whisper history for an org. Returns {whisper_id: {history}}.
 
         Phase 2: also returns entity, type, and embedding (BLOB) if present.
-        The embedding is returned as raw bytes — the caller (RecallEngine)
-        decodes it via numpy.frombuffer if it needs to compute cosine.
+        Loop 1 iteration: also returns recipient, timing_reason, depth,
+        materially_changed_since_last_shown, decision_influenced,
+        follow_up_questions, outcome, learning_entry.
         """
         with self._lock:
             assert self._conn is not None
@@ -212,32 +329,53 @@ class WhisperHistoryStore:
             rows = cur.fetchall()
             result = {}
             for row in rows:
-                if isinstance(row, dict):
-                    wid = row.get("whisper_id", "")
-                    result[wid] = {
-                        "shown_count": row.get("shown_count", 0),
-                        "action_taken": row.get("action_taken"),
-                        "first_shown": row.get("first_shown"),
-                        "last_shown": row.get("last_shown"),
-                        "insight": row.get("insight", ""),
-                        "entity": row.get("entity", ""),
-                        "type": row.get("type", ""),
-                        "embedding": row.get("embedding"),
-                    }
-                else:
-                    keys = row.keys()
-                    wid = row["whisper_id"]
-                    result[wid] = {
-                        "shown_count": row["shown_count"],
-                        "action_taken": row["action_taken"],
-                        "first_shown": row["first_shown"],
-                        "last_shown": row["last_shown"],
-                        "insight": row["insight"] if "insight" in keys else "",
-                        "entity": row["entity"] if "entity" in keys else "",
-                        "type": row["type"] if "type" in keys else "",
-                        "embedding": row["embedding"] if "embedding" in keys else None,
-                    }
+                history = self._row_to_history_dict(row)
+                wid = history.get("whisper_id", "")
+                if wid:
+                    result[wid] = history
             return result
+
+    def _row_to_history_dict(self, row: Any) -> dict[str, Any]:
+        """Convert a SQLite row to a history dict, handling both dict
+        (sqlite_compat) and sqlite3.Row formats. Returns all Loop 1 fields."""
+        if isinstance(row, dict):
+            return self._extract_history_fields(row.get, row)
+        else:
+            keys = row.keys() if hasattr(row, "keys") else []
+            return self._extract_history_fields(lambda k: row[k] if k in keys else None, row)
+
+    def _extract_history_fields(self, get, row) -> dict[str, Any]:
+        """Extract all history fields using a getter callable."""
+        # Parse follow_up_questions from JSON if present
+        follow_ups_raw = get("follow_up_questions")
+        follow_ups = None
+        if follow_ups_raw:
+            try:
+                follow_ups = json.loads(follow_ups_raw) if isinstance(follow_ups_raw, str) else follow_ups_raw
+            except (json.JSONDecodeError, TypeError):
+                follow_ups = None
+
+        return {
+            "whisper_id": get("whisper_id") or "",
+            "shown_count": get("shown_count") or 0,
+            "action_taken": get("action_taken"),
+            "first_shown": get("first_shown"),
+            "last_shown": get("last_shown"),
+            "insight": get("insight") or "",
+            "entity": get("entity") or "",
+            "type": get("type") or "",
+            "embedding": get("embedding"),
+            # Loop 1 iteration: Delivery Intelligence + Learning Ledger fields
+            "recipient": get("recipient"),
+            "reason_recipient_chosen": get("reason_recipient_chosen"),
+            "timing_reason": get("timing_reason"),
+            "depth": get("depth"),
+            "materially_changed_since_last_shown": get("materially_changed_since_last_shown"),
+            "decision_influenced": get("decision_influenced"),
+            "follow_up_questions": follow_ups,
+            "outcome": get("outcome"),
+            "learning_entry": get("learning_entry"),
+        }
 
     def close(self) -> None:
         if self._conn:

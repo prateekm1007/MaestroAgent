@@ -24,7 +24,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from fastapi import APIRouter, HTTPException, Query, Depends, Request, Body
 
 from maestro_api.oem_state import oem_state
 from maestro_api.security.policy import set_router_policy, AuthPolicy
@@ -5785,6 +5785,272 @@ def record_surface_open(payload: dict[str, Any]) -> dict[str, Any]:
     from maestro_oem.pilot_metrics import PilotMetrics
     PilotMetrics.record_surface_open(payload.get("surface", ""))
     return {"recorded": True}
+
+
+# ─── Loop 1: Commitment Intelligence HTTP endpoints ────────────────────────
+# CEO directive (2026-07-03): "Wire the Loop 1 lifecycle to HTTP so it
+# can be exercised end-to-end via curl."
+#
+# 5 endpoints:
+#   POST /loop1/evening-preparation  — fires Whispers for tomorrow's meetings
+#   POST /loop1/action               — records executive action on a Whisper
+#   POST /loop1/outcome              — records outcome signal (honored/broken)
+#   GET  /loop1/learning/{wid}       — returns the Learning Ledger entry
+#   GET  /loop1/whispers             — returns all Whispers with DI fields
+
+@router.post("/loop1/evening-preparation")
+def loop1_evening_preparation(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    """Run the evening preparation phase — fires Whispers for consequential
+    meetings on tomorrow's calendar.
+
+    Each Whisper carries:
+      - Evidence Spine from commitment signals for the meeting's entity
+      - Delivery Intelligence fields (recipient, timing_reason, depth,
+        materially_changed_since_last_shown)
+      - Persisted to the WhisperHistoryStore (with all Loop 1 fields)
+
+    Body (optional):
+      {
+        "calendar_source": "demo"  # or "static" (reads calendar.json)
+      }
+
+    Returns:
+      {
+        "whispers_fired": int,
+        "whispers": [...],
+        "total_events": int,
+        "consequential_events": int,
+        "generated_at": iso8601
+      }
+    """
+    from maestro_oem.loop1_commitment_intelligence import CommitmentIntelligenceLoop
+    from maestro_oem.learning_ledger import LearningLedger
+    from maestro_oem.calendar_source import DemoCalendarSource, StaticCalendarSource
+    from datetime import datetime, timezone
+    from pathlib import Path as _Path
+
+    # Choose calendar source
+    source_type = (payload or {}).get("calendar_source", "demo")
+    if source_type == "static":
+        cal_path = _Path(payload.get("calendar_path", "calendar.json"))
+        if not cal_path.is_absolute():
+            cal_path = _Path(__file__).resolve().parents[2] / cal_path
+        if cal_path.exists():
+            try:
+                import json as _json
+                with open(cal_path) as f:
+                    cal_data = _json.load(f)
+                from maestro_oem.calendar_source import CalendarEvent
+                events = []
+                for ev in cal_data.get("events", []):
+                    from datetime import datetime as _dt
+                    events.append(CalendarEvent(
+                        title=ev.get("title", ""),
+                        start=_dt.fromisoformat(ev["start"].replace("Z", "+00:00")) if "start" in ev else _dt.now(timezone.utc),
+                        end=_dt.fromisoformat(ev["end"].replace("Z", "+00:00")) if "end" in ev else _dt.now(timezone.utc),
+                        entity=ev.get("entity", ""),
+                        attendees=ev.get("attendees", []),
+                    ))
+                calendar_source = StaticCalendarSource(events)
+            except Exception as e:
+                logger.warning("loop1: failed to load static calendar from %s: %s — using demo", cal_path, e)
+                calendar_source = DemoCalendarSource(oem_state.signals if oem_state else [])
+        else:
+            logger.warning("loop1: calendar.json not found at %s — using demo", cal_path)
+            calendar_source = DemoCalendarSource(oem_state.signals if oem_state else [])
+    else:
+        calendar_source = DemoCalendarSource(oem_state.signals if oem_state else [])
+
+    store = _get_whisper_history_store()
+    ledger = LearningLedger(store=store)
+    loop = CommitmentIntelligenceLoop(
+        signals=oem_state.signals if oem_state else [],
+        calendar_source=calendar_source,
+        whisper_store=store,
+        learning_ledger=ledger,
+        now=datetime.now(timezone.utc),
+    )
+    return loop.run_evening_preparation(org_id="default")
+
+
+@router.post("/loop1/action")
+def loop1_record_action(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record the executive's action on a Whisper.
+
+    Body:
+      {
+        "whisper_id": "wspr-loop1-...",
+        "action": "acted" | "ignored" | "overrode",
+        "decision_influenced": "Q4 SSO prioritized" (optional),
+        "follow_up_questions": ["What did we promise?"] (optional)
+      }
+
+    Returns:
+      { "status": "recorded", "whisper_id": ..., "action_taken": ... }
+    """
+    whisper_id = payload.get("whisper_id")
+    action = payload.get("action")
+    if not whisper_id:
+        raise HTTPException(400, "whisper_id is required")
+    if not action:
+        raise HTTPException(400, "action is required")
+    if action not in ("acted", "ignored", "overrode"):
+        raise HTTPException(400, f"action must be acted/ignored/overrode, got {action!r}")
+
+    store = _get_whisper_history_store()
+    store.record_outcome(
+        whisper_id=whisper_id,
+        action=action,
+        org_id="default",
+        decision_influenced=payload.get("decision_influenced"),
+        follow_up_questions=payload.get("follow_up_questions"),
+    )
+    history = store.get_history(whisper_id, org_id="default")
+    return {
+        "status": "recorded",
+        "whisper_id": whisper_id,
+        "action_taken": action,
+        "decision_influenced": history.get("decision_influenced"),
+        "follow_up_questions": history.get("follow_up_questions"),
+    }
+
+
+@router.post("/loop1/outcome")
+def loop1_record_outcome(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Record the outcome signal observed after the meeting.
+
+    Body:
+      {
+        "whisper_id": "wspr-loop1-...",
+        "outcome": "honored" | "broken" | "renegotiated" | "unknown"
+      }
+
+    Returns:
+      { "status": "recorded", "whisper_id": ..., "outcome": ... }
+    """
+    whisper_id = payload.get("whisper_id")
+    outcome = payload.get("outcome")
+    if not whisper_id:
+        raise HTTPException(400, "whisper_id is required")
+    if not outcome:
+        raise HTTPException(400, "outcome is required")
+    if outcome not in ("honored", "broken", "renegotiated", "unknown"):
+        raise HTTPException(400, f"outcome must be honored/broken/renegotiated/unknown, got {outcome!r}")
+
+    store = _get_whisper_history_store()
+    store.record_outcome_signal(
+        whisper_id=whisper_id,
+        outcome=outcome,
+        org_id="default",
+    )
+    return {
+        "status": "recorded",
+        "whisper_id": whisper_id,
+        "outcome": outcome,
+    }
+
+
+@router.get("/loop1/learning/{whisper_id}")
+def loop1_get_learning(whisper_id: str) -> dict[str, Any]:
+    """Get the Learning Ledger entry for a Whisper.
+
+    If not yet written, generates it from the stored action + outcome +
+    commitment signals. The entry is one honest sentence about what
+    happened — signal-derived, not templated.
+
+    Returns:
+      {
+        "whisper_id": ...,
+        "learning_entry": "...",
+        "entity": ...,
+        "action_taken": ...,
+        "outcome": ...,
+        "decision_influenced": ...
+      }
+    """
+    store = _get_whisper_history_store()
+    history = store.get_history(whisper_id, org_id="default")
+    if not history or not history.get("insight") and not history.get("entity"):
+        raise HTTPException(404, f"Whisper {whisper_id} not found")
+
+    # If learning entry already persisted, return it
+    if history.get("learning_entry"):
+        return {
+            "whisper_id": whisper_id,
+            "learning_entry": history["learning_entry"],
+            "entity": history.get("entity", ""),
+            "action_taken": history.get("action_taken"),
+            "outcome": history.get("outcome"),
+            "decision_influenced": history.get("decision_influenced"),
+        }
+
+    # Otherwise, generate it now via the LearningLedger
+    from maestro_oem.learning_ledger import LearningLedger
+    from maestro_oem.signal import SignalType
+    from maestro_oem.loop1_commitment_intelligence import CommitmentIntelligenceLoop
+
+    ledger = LearningLedger(store=store)
+    loop = CommitmentIntelligenceLoop(
+        signals=oem_state.signals if oem_state else [],
+        calendar_source=DemoCalendarSource_placeholder(),
+        whisper_store=store,
+        learning_ledger=ledger,
+    )
+    entry = loop.write_learning_entry(whisper_id=whisper_id, org_id="default")
+    return {
+        "whisper_id": whisper_id,
+        "learning_entry": entry,
+        "entity": history.get("entity", ""),
+        "action_taken": history.get("action_taken"),
+        "outcome": history.get("outcome"),
+        "decision_influenced": history.get("decision_influenced"),
+    }
+
+
+def DemoCalendarSource_placeholder():
+    """Placeholder for the loop1_get_learning endpoint — the calendar source
+    is not needed for write_learning_entry (it only reads from the store +
+    signals), but CommitmentIntelligenceLoop requires one to instantiate.
+    Returns an empty StaticCalendarSource.
+    """
+    from maestro_oem.calendar_source import StaticCalendarSource
+    return StaticCalendarSource([])
+
+
+@router.get("/loop1/whispers")
+def loop1_list_whispers() -> dict[str, Any]:
+    """Return all Whispers with Delivery Intelligence fields + learning entries.
+
+    For the auditor's inspection — shows the full Loop 1 state per Whisper.
+    """
+    store = _get_whisper_history_store()
+    all_history = store.get_all_history(org_id="default")
+    whispers = []
+    for wid, history in all_history.items():
+        whispers.append({
+            "whisper_id": wid,
+            "insight": history.get("insight", ""),
+            "entity": history.get("entity", ""),
+            "type": history.get("type", ""),
+            "shown_count": history.get("shown_count", 0),
+            "action_taken": history.get("action_taken"),
+            "recipient": history.get("recipient"),
+            "reason_recipient_chosen": history.get("reason_recipient_chosen"),
+            "timing_reason": history.get("timing_reason"),
+            "depth": history.get("depth"),
+            "materially_changed_since_last_shown": history.get("materially_changed_since_last_shown"),
+            "decision_influenced": history.get("decision_influenced"),
+            "follow_up_questions": history.get("follow_up_questions"),
+            "outcome": history.get("outcome"),
+            "learning_entry": history.get("learning_entry"),
+            "first_shown": history.get("first_shown"),
+            "last_shown": history.get("last_shown"),
+        })
+    return {
+        "whispers": whispers,
+        "count": len(whispers),
+    }
+
 
 # Phase 1: stamp USER auth policy on all routes in this router
 set_router_policy(router, AuthPolicy.USER)
