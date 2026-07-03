@@ -58,18 +58,23 @@ def main():
         context = browser.new_context(viewport={"width": 1440, "height": 900},
                                        device_scale_factor=2)
         page = context.new_page()
-        # Capture BOTH page errors AND console errors per-surface
-        page_errors: list[str] = []
-        console_errors: list[str] = []
-        page.on("pageerror", lambda e: page_errors.append(str(e)))
-        page.on("console", lambda m: console_errors.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") else None)
+        # Capture BOTH page errors AND console errors per-surface.
+        # FIX: Use per-surface snapshot lists instead of clearing shared lists.
+        # The old approach cleared the buffer BEFORE navigating, which missed
+        # async errors (like time-axis 404) that fired after the clear.
+        all_page_errors: list[str] = []
+        all_console_errors: list[str] = []
+        page.on("pageerror", lambda e: all_page_errors.append(str(e)))
+        page.on("console", lambda m: all_console_errors.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") else None)
 
         page.goto(URL, wait_until="networkidle", timeout=30000)
         page.wait_for_timeout(3000)  # Let Today surface render
 
         for surface_id, title in SURFACES:
-            page_errors.clear()
-            console_errors.clear()
+            # Record the error count BEFORE navigating, then after wait,
+            # capture only the NEW errors (the delta).
+            error_count_before = len(all_page_errors)
+            console_count_before = len(all_console_errors)
             # Check the surface element exists in DOM before navigating
             exists = page.evaluate(
                 f"() => !!document.getElementById('surface-{surface_id}')"
@@ -96,16 +101,20 @@ def main():
             filepath = OUT_DIR / filename
             page.screenshot(path=str(filepath), full_page=False)
 
+            # Capture only NEW errors since this surface's navigation (the delta)
+            surface_page_errors = all_page_errors[error_count_before:]
+            surface_console_errors = all_console_errors[console_count_before:]
+
             # Status is "ok" only if text > 50 AND no errors
-            has_errors = len(page_errors) > 0 or len(console_errors) > 0
+            has_errors = len(surface_page_errors) > 0 or len(surface_console_errors) > 0
             status = "ok" if (text_len > 50 and not has_errors) else ("error" if has_errors else "thin")
-            error_flag = f"  [pageerrors: {len(page_errors)}, console: {len(console_errors)}]" if has_errors else ""
+            error_flag = f"  [pageerrors: {len(surface_page_errors)}, console: {len(surface_console_errors)}]" if has_errors else ""
             print(f"  {status:5s} {surface_id:20s} → {filename}  ({text_len} chars){error_flag}")
             results.append({
                 "surface": surface_id, "title": title, "status": status,
                 "text_len": text_len, "filename": filename,
-                "page_errors": list(page_errors),
-                "console_errors": list(console_errors),
+                "page_errors": list(surface_page_errors),
+                "console_errors": list(surface_console_errors),
             })
 
         # Also screenshot the command palette (Ctrl+K)
