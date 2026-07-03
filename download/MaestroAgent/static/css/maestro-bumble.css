@@ -4,7 +4,15 @@
    swipe cards, mode tabs. Adapted for Maestro's Work/Personal/Both modes.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap');
+/* Montserrat — self-hosted (COEP compliance: Google Fonts CDN is blocked by
+   cross-origin-embedder-policy: require-corp. Downloaded locally instead.) */
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/static/fonts/montserrat-latin.woff2') format('woff2');
+  font-weight: 100 900;  /* Variable font — covers all weights */
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   /* Bumble Yellow — signature brand color */

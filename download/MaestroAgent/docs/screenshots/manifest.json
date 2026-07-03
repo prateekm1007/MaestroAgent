@@ -5,7 +5,8 @@
     "status": "ok",
     "text_len": 2655,
     "filename": "today.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "memory",
@@ -13,7 +14,8 @@
     "status": "ok",
     "text_len": 768,
     "filename": "memory.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "ask-v2",
@@ -21,7 +23,8 @@
     "status": "ok",
     "text_len": 642,
     "filename": "ask-v2.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "more",
@@ -35,7 +38,8 @@
     "status": "ok",
     "text_len": 7586,
     "filename": "home.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "inbox",
@@ -43,7 +47,8 @@
     "status": "ok",
     "text_len": 606,
     "filename": "inbox.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "simulator",
@@ -51,7 +56,8 @@
     "status": "ok",
     "text_len": 667,
     "filename": "simulator.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "hayek",
@@ -59,7 +65,8 @@
     "status": "ok",
     "text_len": 700,
     "filename": "hayek.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "flow",
@@ -67,7 +74,8 @@
     "status": "ok",
     "text_len": 419,
     "filename": "flow.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "ask",
@@ -75,7 +83,8 @@
     "status": "ok",
     "text_len": 802,
     "filename": "ask.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "customer",
@@ -83,7 +92,8 @@
     "status": "ok",
     "text_len": 1847,
     "filename": "customer.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "physics",
@@ -91,7 +101,8 @@
     "status": "ok",
     "text_len": 5486,
     "filename": "physics.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "debate",
@@ -99,7 +110,8 @@
     "status": "ok",
     "text_len": 1101,
     "filename": "debate.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "live",
@@ -107,7 +119,8 @@
     "status": "ok",
     "text_len": 539,
     "filename": "live.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "intents",
@@ -115,7 +128,8 @@
     "status": "ok",
     "text_len": 554,
     "filename": "intents.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "contradictions",
@@ -123,7 +137,8 @@
     "status": "ok",
     "text_len": 507,
     "filename": "contradictions.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "predictions",
@@ -131,7 +146,8 @@
     "status": "ok",
     "text_len": 402,
     "filename": "predictions.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "assumptions",
@@ -139,7 +155,8 @@
     "status": "ok",
     "text_len": 1011,
     "filename": "assumptions.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "eng-signals",
@@ -147,7 +164,8 @@
     "status": "ok",
     "text_len": 529,
     "filename": "eng-signals.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "eng-oem",
@@ -155,7 +173,8 @@
     "status": "ok",
     "text_len": 353,
     "filename": "eng-oem.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "eng-audit",
@@ -163,7 +182,8 @@
     "status": "ok",
     "text_len": 6528,
     "filename": "eng-audit.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "eng-settings",
@@ -171,7 +191,8 @@
     "status": "ok",
     "text_len": 1476,
     "filename": "eng-settings.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "canvas",
@@ -179,7 +200,8 @@
     "status": "ok",
     "text_len": 453,
     "filename": "canvas.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "coordination",
@@ -187,7 +209,8 @@
     "status": "ok",
     "text_len": 398,
     "filename": "coordination.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "work",
@@ -195,7 +218,8 @@
     "status": "ok",
     "text_len": 660,
     "filename": "work.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "learn",
@@ -203,7 +227,8 @@
     "status": "ok",
     "text_len": 1363,
     "filename": "learn.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "evolution",
@@ -211,7 +236,8 @@
     "status": "ok",
     "text_len": 936,
     "filename": "evolution.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "cognition",
@@ -219,7 +245,8 @@
     "status": "ok",
     "text_len": 5994,
     "filename": "cognition.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "autobiography",
@@ -227,7 +254,8 @@
     "status": "ok",
     "text_len": 1184,
     "filename": "autobiography.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "playbook",
@@ -235,7 +263,8 @@
     "status": "ok",
     "text_len": 603,
     "filename": "playbook.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "personal",
@@ -243,12 +272,15 @@
     "status": "ok",
     "text_len": 1074,
     "filename": "personal.png",
-    "page_errors": []
+    "page_errors": [],
+    "console_errors": []
   },
   {
     "surface": "command-palette",
     "title": "Command Palette (\u2318K)",
     "status": "ok",
-    "filename": "command-palette.png"
+    "filename": "command-palette.png",
+    "page_errors": [],
+    "console_errors": []
   }
 ]

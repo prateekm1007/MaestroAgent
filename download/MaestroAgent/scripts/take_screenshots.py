@@ -58,15 +58,18 @@ def main():
         context = browser.new_context(viewport={"width": 1440, "height": 900},
                                        device_scale_factor=2)
         page = context.new_page()
-        # Capture console errors per-surface
+        # Capture BOTH page errors AND console errors per-surface
         page_errors: list[str] = []
+        console_errors: list[str] = []
         page.on("pageerror", lambda e: page_errors.append(str(e)))
+        page.on("console", lambda m: console_errors.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") else None)
 
         page.goto(URL, wait_until="networkidle", timeout=30000)
         page.wait_for_timeout(3000)  # Let Today surface render
 
         for surface_id, title in SURFACES:
             page_errors.clear()
+            console_errors.clear()
             # Check the surface element exists in DOM before navigating
             exists = page.evaluate(
                 f"() => !!document.getElementById('surface-{surface_id}')"
@@ -93,13 +96,16 @@ def main():
             filepath = OUT_DIR / filename
             page.screenshot(path=str(filepath), full_page=False)
 
-            status = "ok" if text_len > 50 else "thin"
-            print(f"  {status:4s} {surface_id:20s} → {filename}  ({text_len} chars)"
-                  + (f"  [pageerrors: {len(page_errors)}]" if page_errors else ""))
+            # Status is "ok" only if text > 50 AND no errors
+            has_errors = len(page_errors) > 0 or len(console_errors) > 0
+            status = "ok" if (text_len > 50 and not has_errors) else ("error" if has_errors else "thin")
+            error_flag = f"  [pageerrors: {len(page_errors)}, console: {len(console_errors)}]" if has_errors else ""
+            print(f"  {status:5s} {surface_id:20s} → {filename}  ({text_len} chars){error_flag}")
             results.append({
                 "surface": surface_id, "title": title, "status": status,
                 "text_len": text_len, "filename": filename,
                 "page_errors": list(page_errors),
+                "console_errors": list(console_errors),
             })
 
         # Also screenshot the command palette (Ctrl+K)
@@ -111,7 +117,8 @@ def main():
             page.screenshot(path=str(OUT_DIR / "command-palette.png"), full_page=False)
             print(f"  ok   command-palette       → command-palette.png")
             results.append({"surface": "command-palette", "title": "Command Palette (⌘K)",
-                            "status": "ok", "filename": "command-palette.png"})
+                            "status": "ok", "filename": "command-palette.png",
+                            "page_errors": [], "console_errors": []})
         except Exception as e:
             print(f"  FAIL command-palette: {e}")
 
@@ -125,7 +132,8 @@ def main():
     ok = sum(1 for r in results if r["status"] == "ok")
     thin = sum(1 for r in results if r["status"] == "thin")
     skipped = sum(1 for r in results if r["status"] == "skipped")
-    print(f"  ok={ok}  thin={thin}  skipped={skipped}")
+    errors = sum(1 for r in results if r["status"] == "error")
+    print(f"  ok={ok}  thin={thin}  skipped={skipped}  error={errors}")
     print(f"  manifest → {manifest_path}")
 
 

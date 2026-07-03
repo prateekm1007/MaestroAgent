@@ -36,12 +36,13 @@ changes a decision.
 
 **What's verified by execution:**
 - 31 surfaces render real content (0 thin, 0 empty)
-- 0 page errors, 0 console errors, 0 CSP violations
+- 0 page errors, 0 console errors — verified by execution (manifest.json)
 - 0 inline styles (CSP-safe)
 - 0 axe-critical accessibility violations (WCAG 2.1)
 - Lucide icons on every surface (breadcrumb + sidebar + mobile nav)
 - Mobile responsive at 390px (iPhone) and 768px (iPad) — 0 horizontal overflow
 - Focus trap in drill-down modal (Tab/Escape/focus-restore)
+- Self-hosted Lucide + Montserrat (COEP-compliant — no CDN dependencies)
 - 1958+ tests; 17 passed in test_oauth_self_service (was 7 failed)
 
 ---
@@ -441,7 +442,7 @@ Engineering — Settings. Configure OAuth providers (GitHub, Jira, Slack, Conflu
 ### What genuinely works (verified by execution)
 
 - **31 surfaces render real content.** 0 thin, 0 empty. Every surface has ≥200 chars.
-- **0 page errors, 0 console errors, 0 CSP violations.** First time ever 0 console errors.
+- **0 page errors, 0 console errors.** Verified by execution — manifest.json records 0 errors across all 31 surfaces. Self-hosted Lucide + Montserrat (COEP-compliant).
 - **0 inline styles.** All styles extracted to CSS classes (CSP-safe).
 - **0 axe-critical accessibility violations.** WCAG 2.1 Level A compliant.
 - **Lucide icons on every surface.** Breadcrumb + sidebar + mobile nav.
