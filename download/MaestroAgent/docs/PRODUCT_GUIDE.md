@@ -87,8 +87,8 @@ Whisper 1:
   Action:    View commitment (type: open_in_maestro)
   Priority:  high
   Confidence: 0%
-  Memory:    shown 2×, ignored 0×, escalated=False
-  Urgency:   Recently surfaced% risk
+  Memory:    shown 0×, ignored 0×, escalated=False
+  Urgency:   Newly surfaced
   Team:      customer agrees
   What-if:   Address all concerns upfront with Globex → Most likely to build trust — shows preparation
   What-if:   Wait for Globex to raise concerns → Riskier — may appear unprepared
@@ -100,8 +100,8 @@ Whisper 2:
   Action:    View prior decision (type: open_in_maestro)
   Priority:  medium
   Confidence: 0%
-  Memory:    shown 2×, ignored 0×, escalated=False
-  Urgency:   Recently surfaced% risk
+  Memory:    shown 0×, ignored 0×, escalated=False
+  Urgency:   Newly surfaced
   Team:      customer agrees
   What-if:   Address all concerns upfront with Globex → Most likely to build trust — shows preparation
   What-if:   Wait for Globex to raise concerns → Riskier — may appear unprepared
@@ -113,8 +113,8 @@ Whisper 3:
   Action:    View evidence (type: open_in_maestro)
   Priority:  low
   Confidence: 0%
-  Memory:    shown 1×, ignored 0×, escalated=False
-  Urgency:   Recently surfaced% risk
+  Memory:    shown 0×, ignored 0×, escalated=False
+  Urgency:   Newly surfaced
   Team:      customer agrees
   What-if:   Address all concerns upfront with Globex → Most likely to build trust — shows preparation
   What-if:   Wait for Globex to raise concerns → Riskier — may appear unprepared
@@ -185,8 +185,8 @@ The whisper card now has **7 dimensions** (was 4):
 | Evidence | Where it came from | customer signals, 2024-11-01, crm:globex-commit-1 |
 | Action | What to do next | View commitment → opens customer surface |
 | Memory | Shown/ignored count | Ignored 3× — risk increasing |
-| Urgency | Risk decay over time | 14% today → 42% on day 5 |
-| Counterfactuals | What-if scenarios | Merge today: 32% rollback, Monday: 14% |
+| Urgency | Evidence-based risk language | 'Risk increasing — ignored for 5 days' |
+| Counterfactuals | What-if scenarios | 'Merge today: Higher risk — changes a component with rollback history' |
 | Collaboration | Team alignment | Engineering agrees, Legal disagrees |
 
 ### Simplified Navigation
@@ -201,6 +201,17 @@ thinking in moments.'
 The Whisper API now serves from a 60-second cache. Repeat requests return in
 < 1ms. The CEO's mandate: 'Everything should happen within about 300
 milliseconds. Tiny. Fast. Gone.'
+
+### No Fake Precision (Constitution Principle)
+
+> **Maestro never invents precision. If a prediction cannot be empirically
+> calibrated and explained, it is expressed as evidence and reasoning
+> rather than a numerical probability.**
+
+- **Facts use numbers:** '11 customers raised pricing concerns'
+- **Patterns use evidence:** 'This deployment appears riskier than usual because it changes a component involved in two previous rollbacks'
+- **Predictions use plain language:** 'Higher deployment risk than similar changes'
+- **The ONE exception:** The Prediction Market, where probabilities are empirically calibrated against historical outcomes (Brier scores)
 
 ---
 
