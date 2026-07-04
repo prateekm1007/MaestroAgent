@@ -227,12 +227,23 @@ class EvidenceBuilder:
             )
 
     def _build_commitment_evidence(self, entity: str, raw: dict) -> Evidence:
-        """Build evidence for a commitment whisper."""
+        """Build evidence for a commitment whisper.
+
+        Priority 4: claim_type is now derived from the ACTUAL commitment
+        text via ContentEpistemicClassifier, not hardcoded to "commitment".
+        A signal typed CUSTOMER_COMMITMENT_MADE but with text "we should
+        support SSO" is classified as "proposal" — because the content
+        says "should" (suggestion), not "will" (promise).
+        """
         from maestro_oem.signal import SignalType
+        from maestro_oem.content_epistemic_classifier import ContentEpistemicClassifier
 
         artifact = raw.get("artifact", "")
         timestamp = raw.get("timestamp", "")
         date_str = timestamp[:10] if timestamp else ""
+
+        # Priority 4: Content-level epistemic classifier
+        classifier = ContentEpistemicClassifier()
 
         # Find the actual commitment signal
         commitment_signals = [
@@ -243,6 +254,11 @@ class EvidenceBuilder:
 
         observed_facts = []
         people = set()
+        # Priority 4: classify the epistemic type from the actual text
+        # Start with "commitment" as the fallback (signal-type-based).
+        # The classifier will override it if the text clearly indicates a
+        # different type (proposal, estimate, hypothesis, etc.).
+        resolved_claim_type = "commitment"  # default fallback
         for s in commitment_signals[:3]:
             commitment_text = s.metadata.get("commitment", "")
             actor = s.actor or ""
@@ -256,6 +272,11 @@ class EvidenceBuilder:
                 "people": [actor] if actor else [],
                 "authority_weight": getattr(s, "authority_weight", 0.5),  # H-05
             })
+            # Priority 4: classify the first commitment text we find
+            if commitment_text and resolved_claim_type == "commitment":
+                resolved_claim_type = classifier.classify(
+                    commitment_text, fallback="commitment",
+                )
 
         if not observed_facts:
             observed_facts = [{"source": "customer signals", "date": date_str, "text": artifact, "people": []}]
@@ -283,7 +304,7 @@ class EvidenceBuilder:
             timestamps={"first_observed": date_str, "last_observed": date_str, "event_date": date_str},
             conflicting_evidence=conflicting,
             assumptions=["The commitment is still active"],
-            claim_type="commitment",
+            claim_type=resolved_claim_type,  # Priority 4: content-derived
         )
 
     def _build_objection_evidence(self, entity: str, raw: dict) -> Evidence:
