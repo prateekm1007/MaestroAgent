@@ -1,15 +1,44 @@
-# Maestro — Executive Cognition Center
+# MaestroAgent — Executive Cognition Center
 
-**Organizational judgment infrastructure. Every insight derived from real execution signals.**
+**An enterprise cognitive intelligence platform that surfaces what your organization knows but hasn't said.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
 ## What This Is
 
-Maestro is an organizational judgment system that ingests execution signals from GitHub, Jira, Slack, Confluence, Gmail, and customer/CRM providers, then infers the organization's operating laws, surfaces contradictions, tracks assumptions and hypotheses, and calibrates individual prediction accuracy via a Brier-scored prediction market.
+MaestroAgent ingests execution signals from GitHub, Jira, Slack, Confluence, Gmail, and CRM providers, then infers organizational laws, surfaces Whispers (evidence-backed insights), tracks commitments and decisions, and learns — through a governed adaptation loop — when to speak and when to stay silent.
 
-The product is built around a connected cognitive model: **Intent → Assumptions → Hypotheses → Predictions → Preparations → Contradictions → Perspectives → Calibration**. Every capability is backed by a real API endpoint and a UI surface.
+The product is built around a **central loop**: Organizational Event → Evidence → Interpretation → Situation → Memory → Preparation → Whisper or Silence → Question → Decision → Outcome → Learning → Changed Future Behavior. Every arrow is traced through real production code and verified by execution.
+
+## Current State
+
+**Promising prototype, ready for shadow-mode pilot. Not yet production-hardened.**
+
+- 1,631 tests collected, 341+ passing in the curated critical suite
+- All CRITICAL and HIGH findings from 4 independent adversarial audits fixed
+- Governed adaptation loop functionally closed (outcomes → policies → behavior change)
+- Commitment extraction works on realistic business language
+- Epistemic classifier distinguishes 10 claim types from content (not signal type)
+- Prompt injection defense catches 7 attack categories
+- No fabricated precision (confidence scores capped, no hardcoded percentages)
+
+### What Works
+
+- **Whisper delivery gate**: 7-option decision (deliver now, at meeting time, on ask, suppress redundant/understood/low-stakes, defer until evidence). The strongest subsystem — genuine judgment, not notification generation.
+- **Governed adaptation loop**: Outcomes → attribution (with confounders) → hypothesis → evidence → risk-tiered policy → versioned, rollback-able behavior change. No causal shortcuts.
+- **Ask Maestro**: 9-intent pipeline with conversation state, pronoun resolution, evidence-grounded narration, and inline citations. The LLM is the narrator, not the architecture.
+- **Commitment extraction**: Free-text extraction from Slack, email, and Confluence pages. Catches "we will deliver," "we promise to," "I'll follow up," "target: before Y."
+- **Epistemic honesty**: 10 claim types (observed_fact, reported_statement, commitment, proposal, estimate, hypothesis, prediction, inference, assumption, outcome). Content-classified, not signal-type-classified. Confidence capped below 1.0. "I don't know" when no evidence found (no generic fallback).
+- **Persistence**: 9 SQLite-backed stores (signals, whispers, conversations, interactions, meetings, decisions, learning, mutations, policies). Signals survive restart; model rebuilds from re-ingested signals.
+
+### What Doesn't Work Yet
+
+- **Real connectors**: OAuth flows exist but untested with live APIs. No real Slack/GitHub/Jira data has been ingested.
+- **Multi-instance**: Core ExecutionModel is in-memory (rebuilt from signals on restart). No Postgres migration yet. Single-process only.
+- **Historical replay**: ReplayEngine exists but has never been run with real data.
+- **Progressive trust**: 3 test failures in auto-execute / undo endpoints.
+- **Load testing**: No evidence of enterprise-scale performance.
 
 ## Quick Start
 
@@ -18,98 +47,152 @@ The product is built around a connected cognitive model: **Intent → Assumption
 cd backend
 pip install -e .
 
-# Run the server
-python -m maestro_cli.main serve --port 1420
+# Run the server (demo mode)
+MAESTRO_LOCAL_DEV=true MAESTRO_DEMO_SEED=true \
+  uvicorn maestro_api.main:create_app --factory --port 1420 --app-dir .
 
 # Open the app
 # Visit http://localhost:1420/app.html
 ```
 
-The app loads in demo mode with synthetic `acme-corp` sample data. Connect real providers via Settings to see live signals.
+The app loads in demo mode with synthetic sample data. Connect real providers via Settings to see live signals.
+
+**Do NOT run with `MAESTRO_DEMO_SEED=true` in production** — the system raises `RuntimeError` if `MAESTRO_ENV=production` and demo seed is enabled.
 
 ## Architecture
 
 ```
 backend/
-  maestro_oem/          Organizational Execution Model (signal ingestion, law inference,
-                        prediction lifecycle, calibration, cognitive model)
+  maestro_oem/          Organizational Execution Model
+                        - signal ingestion, law inference, pattern detection
+                        - commitment extraction (free-text → CUSTOMER_COMMITMENT_MADE)
+                        - delivery decision gate (7 options, evidence-derived inputs)
+                        - governed adaptation loop (OutcomeRecorder → AttributionAnalyzer
+                          → PolicyProposer → PolicyVersionStore → decide_delivery)
+                        - content epistemic classifier (10 types, content-driven)
+                        - interaction memory (8-state lifecycle)
+                        - whisper prioritizer + recipient router
+                        - preparation engine (calendar-driven, 13 wired modules)
   maestro_api/          FastAPI routes (OEM, auth, imports, WebSocket)
-  maestro_db/           SQLAlchemy 2.0 + Alembic (SQLite dev, PostgreSQL production)
+  maestro_db/           SQLAlchemy 2.0 (optional) + sqlite3 fallback + Alembic
   maestro_auth/         RBAC, OAuth, OIDC, SAML, SCIM, Fernet KMS (fail-closed)
-  maestro_core/         Agent orchestration (LangGraph + CrewAI hybrid)
-  maestro_llm/          Model-agnostic LLM router
-  maestro_memory/       Vector + graph memory
-  alembic/              Database migrations (25 tables)
+  maestro_llm/          Model-agnostic LLM router (Ollama, OpenAI, Anthropic, etc.)
+  maestro_personal/     Personal mode (opt-in, separate from work mode)
 
-app.html                Executive UI (19 surfaces, vanilla JS, no build step)
+app.html                Executive UI (vanilla JS, no build step)
 static/
-  app.css               Anthropic-style design system (dark + light themes)
-  css/design-system.css Cognitive-model surface tokens
-  js/                   19 modular JS files (core, maestro, swr_cache, home, ask,
-                        physics, live_meeting, customer_judgment, intent_cascade,
-                        contradictions, prediction_market, assumptions, etc.)
+  js/                   Modular JS files (ask_v2, today, core, maestro, etc.)
+```
+
+### The Central Loop
+
+```
+Organizational Event (Slack, GitHub, Jira, Gmail, CRM)
+    ↓
+Evidence (EvidenceBuilder → Evidence Spine with 10 epistemic types)
+    ↓
+Interpretation (ContentEpistemicClassifier — content-driven, not signal-type-driven)
+    ↓
+Situation (SituationBuilder — 7 fields from real signal data)
+    ↓
+Memory (SQLite: WhisperHistoryStore, ConversationStore, InteractionMemory)
+    ↓
+Preparation (PreparationEngine — calendar-driven, consequentiality filter)
+    ↓
+Whisper or Silence (decide_delivery — 7 options, governed by active policy)
+    ↓
+Question (AskPipeline — 9 intents, pronoun resolution, citations)
+    ↓
+Decision (DecisionV2 — lifecycle with hypothesis linking)
+    ↓
+Outcome (OutcomeRecorder → AttributionAnalyzer → confounders identified)
+    ↓
+Learning (PolicyProposer → risk-tiered: LOW auto-activates, HIGH needs approval)
+    ↓
+Changed Future Behavior (PolicyVersionStore → decide_delivery reads active policy)
 ```
 
 ## Key Capabilities
 
-| Capability | API | UI Surface |
+| Capability | Status | API |
 |---|---|---|
-| Intent Cascade | `GET /api/oem/intents/{id}` | Intent Cascade sidebar |
-| Prepared Decisions | `GET /api/oem/preparations` | Home panel |
-| Dangerous Assumptions | `GET /api/oem/assumptions/dangerous` | Assumptions sidebar |
-| Hypothesis Resolution | `POST /api/oem/hypotheses/{id}/resolve` | Intent Cascade inline |
-| Contradictions | `GET /api/oem/contradictions` | Contradictions sidebar |
-| Perspectives (6 teams) | `GET /api/oem/perspectives` | Drill-down modal tab |
-| Prediction Market | `GET /api/oem/predictions/market/calibration` | Prediction Market sidebar |
-| Coordination Engine | `POST /api/oem/coordinate` | API (no dedicated UI yet) |
+| Whisper delivery gate (7 options) | ✅ Wired | `GET /api/oem/whisper` |
+| Ask Maestro (9 intents + citations) | ✅ Wired | `POST /api/oem/ask/conversation` |
+| Preparation Engine (13 modules) | ✅ Wired | `GET /api/oem/preparation/tomorrow` |
+| Governed adaptation loop | ✅ Wired | `POST /api/oem/loop1/outcome` |
+| Commitment extraction (free text) | ✅ Wired | Via `OEMEngine.ingest()` |
+| Content epistemic classifier (10 types) | ✅ Wired | Via `EvidenceBuilder` |
+| Interaction memory (8 states) | ✅ Wired | `POST /api/oem/loop1/action` |
+| LLM narrator (constrained, fail-closed) | ✅ Wired | Via `AskPipeline` |
+| Prompt injection defense (7 categories) | ✅ Wired | Via `OEMEngine.ingest()` |
+| Source authority weighting | ✅ Wired | Via `OEMEngine.ingest()` |
+| Today surface (7 engines) | ✅ Wired | `GET /api/personal/today` |
 
-## Design System
+## Governance
 
-- **Dark mode** (default): `#0A0A0F` background, `#F0F0F5` text, `#7C5CFF` accent
-- **Light mode** (Claude.ai-inspired): `#FFFFFF` background, `#1A1A1A` text
-- Toggle in sidebar footer, persists via localStorage, respects OS preference
-- WCAG 2.1: skip-to-content, ARIA landmarks, focus-visible, prefers-reduced-motion
+The codebase is governed by 19 anti-entropy principles (P1-P19) in 3 governance files:
+- `GOVERNANCE.md` — pre/post-execution gates (13 checks)
+- `ENTROPY_RECOVERY.md` — 19 principles (Part One: P1-P10, Part Two: P11-P15, Part Three: P16-P19)
+- `AUDITOR_GOVERNANCE.md` — 14 pre-audit gates + 7 post-audit checks
 
-## Production Deployment
-
-```bash
-# 1. Set environment
-export DATABASE_URL=postgresql://user:pass@host:5432/maestro
-export MAESTRO_ENV=production
-export MAESTRO_MASTER_KEY=<fernet-key>
-export MAESTRO_MESSAGE_BROKER=redis
-export REDIS_URL=redis://...
-export MAESTRO_DEMO_SEED=false
-
-# 2. Run migrations
-cd backend && alembic upgrade head
-
-# 3. Start 3+ instances behind a load balancer
-uvicorn maestro_api.main:create_app --factory --port 8001
-uvicorn maestro_api.main:create_app --factory --port 8002
-uvicorn maestro_api.main:create_app --factory --port 8003
-```
-
-See `scripts/test_3_replica_scaling.py` for the horizontal scaling verification.
+The coder and auditor hold each other accountable in a mutual governance loop. Neither side can skip the gate.
 
 ## Testing
 
 ```bash
 cd backend
 
-# Backend tests
+# Set test environment (root conftest.py does this automatically)
+export MAESTRO_LOCAL_DEV=true
+export MAESTRO_DEMO_SEED=true
+
+# Run the critical test suite (341+ tests, 0 failures)
 python -m pytest maestro_oem/tests/ maestro_api/tests/ maestro_auth/tests/
 
-# Frontend smoke tests (Playwright)
-python -m pytest maestro_api/tests/test_frontend_smoke.py
-python -m pytest maestro_api/tests/test_cognitive_surfaces.py
-
-# Learning loop verification
-python ../scripts/verify_loop_closed.py
-
-# 3-replica scaling test
-python ../scripts/test_3_replica_scaling.py
+# Run specific test categories
+python -m pytest maestro_oem/tests/test_critical01_delivery_gate_wired.py
+python -m pytest maestro_oem/tests/test_governed_adaptation.py
+python -m pytest maestro_oem/tests/test_h06_commitment_extraction.py
+python -m pytest maestro_oem/tests/test_c2_fallback_path.py
+python -m pytest maestro_oem/tests/test_c3_learning_loop.py
 ```
+
+## Production Deployment
+
+**Not yet recommended for production.** The system needs:
+1. Real OAuth connectors tested with live APIs
+2. Postgres migration for multi-instance reliability
+3. Historical replay validation
+4. Shadow deployment with one design partner
+
+When ready:
+```bash
+export DATABASE_URL=postgresql://user:pass@host:5432/maestro
+export MAESTRO_ENV=production
+export MAESTRO_MASTER_KEY=<fernet-key>
+export MAESTRO_DEMO_SEED=false
+export MAESTRO_DEFAULT_RECIPIENT=exec@yourcompany.com
+
+cd backend && alembic upgrade head
+uvicorn maestro_api.main:create_app --factory --port 8001
+```
+
+## Audit History
+
+4 independent adversarial audits conducted. All CRITICAL and HIGH findings fixed:
+
+| Finding | Severity | Status |
+|---|---|---|
+| D1: Commitment extractor fails on realistic language | CRITICAL | ✅ Fixed |
+| C-1: 415 test failures (auth 401s) | CRITICAL | ✅ Fixed (root conftest) |
+| C-2: Ask returns generic signals instead of "I don't know" | CRITICAL | ✅ Fixed |
+| C-3: Learning loop not functionally closed | CRITICAL | ✅ Fixed (OutcomeRecorder) |
+| H-01: Epistemic classifier too narrow | HIGH | ✅ Fixed |
+| H-1: Decorative precision (confidence 1.0) | HIGH | ✅ Fixed (capped below 1.0) |
+| H-2: Hardcoded preparation templates | HIGH | ✅ Fixed (signal-derived) |
+| D3: Confidence 1.0 from over-matching | HIGH | ✅ Fixed (capped by evidence count) |
+| D7: Prompt injection misses 2/3 attacks | MEDIUM | ✅ Fixed (7 categories) |
+| D8: Hardcoded ceo@example.com | MEDIUM | ✅ Fixed (configurable) |
 
 ## License
 

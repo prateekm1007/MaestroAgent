@@ -108,6 +108,18 @@ class PromptInjectionFilter:
         ("code_execution", r"\b__import__\s*\("),
         ("code_execution", r"\bos\.system\s*\("),
         ("code_execution", r"\bsubprocess\.(?:call|run|Popen)\s*\("),
+
+        # 6. D7 fix: Data exfiltration — attempting to send data to external addresses
+        ("data_exfiltration", r"send\s+(?:confidential|sensitive|secret|private)\s+(?:data|information|details?)\s+to\s+\S+@\S+"),
+        ("data_exfiltration", r"forward\s+(?:all\s+)?(?:confidential|sensitive|secret|private)\s+(?:data|information|details?)\s+to\s+\S+@\S+"),
+        ("data_exfiltration", r"email\s+(?:confidential|sensitive|secret|private)\s+(?:data|information|details?)\s+to\s+\S+@\S+"),
+        ("data_exfiltration", r"transmit\s+(?:confidential|sensitive|secret|private)\s+(?:data|information|details?)\s+to\s+\S+@\S+"),
+
+        # 7. D7 fix: Epistemic override — attempting to manipulate evidence classification
+        ("epistemic_override", r"this\s+document\s+is\s+authoritative\b"),
+        ("epistemic_override", r"mark\s+all\s+(?:evidence|signals?)\s+(?:against|contradicting)\s+(?:it|this)\s+as\s+(?:false|irrelevant|invalid)"),
+        ("epistemic_override", r"(?:ignore|disregard|discard)\s+all\s+(?:conflicting|contradicting)\s+(?:evidence|signals?|data)"),
+        ("epistemic_override", r"this\s+(?:document|message|instruction)\s+(?:overrides?|supersedes?|replaces?)\s+all\s+(?:prior|previous|existing)\s+(?:analysis|evidence|context)"),
     ]
 
     # Pre-compile patterns for performance

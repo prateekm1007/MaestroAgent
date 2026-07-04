@@ -18,6 +18,7 @@ Privacy by design:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 import hashlib
@@ -151,7 +152,8 @@ class OrganizationalWhisper:
         # Route each delivered whisper to the right recipient
         router = RecipientRouter(
             signals=self.signals,
-            default_recipient=user or "ceo@example.com",
+            # D8 fix: use configurable default instead of hardcoded email
+            default_recipient=user or os.environ.get("MAESTRO_DEFAULT_RECIPIENT", ""),
         )
         for w in top_whispers:
             w["recipient"] = router.route(

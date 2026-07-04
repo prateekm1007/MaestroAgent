@@ -189,6 +189,30 @@ class ConfidenceCalculator:
 
         # Final confidence
         confidence = posterior_mean * evidence_weight * recency_factor * diversity_factor
+
+        # D3 fix: Cap confidence below 1.0 to prevent false certainty.
+        # The Beta-Binomial formula can produce 0.994+ when validated_runtimes
+        # is high and failed_runtimes is 0. But 81 validations from 65 signals
+        # means the law was validated by signals that may not be truly related
+        # (over-matching relevance heuristic). An executive seeing "100% confident
+        # Organizational Law" from a handful of signals is the opposite of the
+        # product's epistemic honesty thesis.
+        #
+        # Cap: confidence can NEVER reach 1.0 (epistemic humility).
+        # With <10 unique signals, cap at 0.80.
+        # With <50 unique signals, cap at 0.90.
+        # With <200 unique signals, cap at 0.95.
+        # With 200+ signals, cap at 0.98.
+        # This preserves ranking while preventing false certainty.
+        if evidence_count < 10:
+            confidence = min(confidence, 0.80)
+        elif evidence_count < 50:
+            confidence = min(confidence, 0.90)
+        elif evidence_count < 200:
+            confidence = min(confidence, 0.95)
+        else:
+            confidence = min(confidence, 0.98)
+
         confidence = max(0.0, min(1.0, confidence))
 
         formula = (
