@@ -1007,8 +1007,30 @@ class ExecutionModel(BaseModel):
         chain.add(receipt)
 
     def _recompute_confidence(self) -> None:
-        """Recompute all confidence scores after a model update."""
+        """Recompute all confidence scores after a model update.
+
+        Phase 2.4 fix: If a CalibrationEngine is available, pass the real
+        calibration_shr to compute_law_confidence. Before this fix, the SHR
+        defaulted to 0.0 → silently substituted with 0.5 (uniform prior)
+        on every call, meaning calibration data was never used even when
+        it existed. The CalibrationEngine accumulates hit/miss data from
+        resolved predictions; without wiring it here, that data is wasted.
+        """
         calc = ConfidenceCalculator()
+
+        # Phase 2.4: Try to get real calibration SHR from CalibrationEngine
+        calibration_shr = 0.0  # Default = no history → uniform prior
+        try:
+            from maestro_oem.learning import CalibrationEngine
+            # CalibrationEngine needs a DB path; use the env var or default
+            import os
+            cal_db = os.environ.get("MAESTRO_CALIBRATION_DB", "calibration.db")
+            cal_engine = CalibrationEngine(cal_db)
+            shr = cal_engine.get_calibration_shr()
+            if shr > 0:
+                calibration_shr = shr
+        except Exception:
+            pass  # P6: fail-closed — use uniform prior if calibration unavailable
 
         for lo in self.learning_objects.values():
             lo.confidence = calc.compute_lo_confidence(
@@ -1028,6 +1050,7 @@ class ExecutionModel(BaseModel):
                 evidence_count=law.evidence_count,
                 providers=law.providers,
                 last_validated=law.last_validated,
+                calibration_shr=calibration_shr,  # Phase 2.4: real SHR from CalibrationEngine
             )
 
     def get_summary(self) -> dict[str, Any]:
