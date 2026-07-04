@@ -81,9 +81,21 @@ class LearningObject(BaseModel):
     first_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # C-002 fix: Track content hashes for dedup (stored in metadata to avoid Pydantic private attr issue)
+    # C-002 fix: Track content hashes for dedup
+    content_hashes: set[str] = Field(default_factory=set, exclude=True)
 
-    def add_evidence(self, signal_id: UUID, provider: str) -> None:
-        """Add a supporting signal."""
+    def add_evidence(self, signal_id: UUID, provider: str, content_hash: str | None = None) -> None:
+        """Add a supporting signal.
+
+        C-002 fix: If content_hash is provided and already seen, the evidence
+        is counted as a DUPLICATE — not a new independent source.
+        """
+        # C-002: Check content hash for dedup
+        if content_hash:
+            if content_hash in self.content_hashes:
+                return  # Duplicate content
+            self.content_hashes.add(content_hash)
         if signal_id not in self.signal_ids:
             self.signal_ids.append(signal_id)
             self.evidence_count += 1

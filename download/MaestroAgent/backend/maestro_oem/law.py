@@ -49,6 +49,9 @@ class OrganizationalLaw(BaseModel):
     counter_examples: int = 0
     validated_runtimes: int = 0  # Times the law held true
     failed_runtimes: int = 0  # Times it didn't
+    # C-002 fix: Track content hashes to prevent duplicate-content inflation.
+    # Same text via Slack + email + Jira + Confluence = 1 source, not 4.
+    content_hashes: set[str] = Field(default_factory=set, exclude=True)
 
     # Provenance
     pattern_ids: list[UUID] = Field(default_factory=list)
@@ -74,8 +77,20 @@ class OrganizationalLaw(BaseModel):
     drift_detected: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    def add_validation(self, signal_id: UUID | None = None) -> None:
-        """Record that the law held true in a new runtime."""
+    def add_validation(self, signal_id: UUID | None = None, content_hash: str | None = None) -> None:
+        """Record that the law held true in a new runtime.
+
+        C-002 fix: If content_hash is provided and already seen, the validation
+        is counted as a DUPLICATE — not a new independent source. This prevents
+        the same text arriving via Slack + email + Jira + Confluence from
+        inflating validated_runtimes 4x.
+        """
+        # C-002: Check content hash for dedup
+        if content_hash and content_hash in self.content_hashes:
+            return  # Duplicate content — don't count as new validation
+        if content_hash:
+            self.content_hashes.add(content_hash)
+
         self.validated_runtimes += 1
         self.evidence_count = max(self.evidence_count, self.validated_runtimes + self.failed_runtimes)
         self.last_validated = datetime.now(timezone.utc)
