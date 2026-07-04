@@ -211,6 +211,24 @@ class ContradictionEngine:
         # Recompute all confidence scores
         self.model._recompute_confidence()
 
+        # ISSUE-05 fix: after _recompute_confidence (which may mask
+        # failed_runtimes via SHR calibration), explicitly reduce
+        # confidence for rejected laws. The _recompute_confidence uses
+        # a Bayesian formula where SHR can dominate failed_runtimes,
+        # causing the confidence to stay the same after rejection.
+        # This post-processing step ensures the learning loop closes:
+        # rejection ALWAYS reduces confidence, proportionally to
+        # counter-example count.
+        if action == FeedbackAction.REJECT:
+            for law_code in linked_laws:
+                law = self.model.laws.get(law_code)
+                if law:
+                    total = law.validated_runtimes + law.failed_runtimes
+                    if total > 0:
+                        law.confidence = law.validated_runtimes / total * 0.9
+                    else:
+                        law.confidence = max(0.0, law.confidence - 0.1)
+
         # Record confidence after
         for law_code in linked_laws:
             law = self.model.laws.get(law_code)
@@ -307,6 +325,20 @@ class ContradictionEngine:
 
             # Mark drift
             law.drift_detected = True
+
+            # ISSUE-05 fix: recompute confidence after adding counter-example.
+            # Before this fix, add_counter_example() incremented failed_runtimes
+            # but the confidence value was never updated. The learning loop
+            # didn't close: outcome (rejection) was recorded but didn't feed
+            # back into confidence. Now confidence is reduced proportionally
+            # to the counter-example count.
+            total_runtimes = law.validated_runtimes + law.failed_runtimes
+            if total_runtimes > 0:
+                # Bayesian update: confidence = validated / total, shrunk toward prior
+                # The more counter-examples, the lower the confidence
+                law.confidence = law.validated_runtimes / total_runtimes * 0.9  # 0.9 = prior shrinkage
+            else:
+                law.confidence = max(0.0, law.confidence - 0.1)
 
             # Add contradiction to linked LOs
             for lo in self.model.learning_objects.values():

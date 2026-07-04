@@ -336,17 +336,26 @@ class ContentEpistemicClassifier:
         return fallback if fallback in VALID_TYPES else "unclassified"
 
     def classify_with_confidence(
-        self, text: str, fallback: str = OBSERVED_FACT,
+        self, text: str, fallback: str = "unclassified",
     ) -> tuple[str, float]:
         """Classify and return (type, confidence).
+
+        ISSUE-01 fix: fallback default changed from OBSERVED_FACT to
+        'unclassified'. Before this fix, classify() defaulted to
+        'unclassified' but classify_with_confidence() defaulted to
+        'observed_fact' — the two methods DISAGREED on unclassified text.
+        A tentative statement ('we might') was recorded as a directly-
+        witnessed fact with 0.0 confidence. This is epistemically wrong
+        and internally inconsistent. Now both methods default to
+        'unclassified' — they agree.
 
         Confidence is 0.0 for fallback (no pattern matched).
         """
         if not text or not isinstance(text, str):
-            return (fallback if fallback in VALID_TYPES else OBSERVED_FACT, 0.0)
+            return (fallback if fallback in VALID_TYPES else "unclassified", 0.0)
 
         for pattern, epistemic_type, confidence in _PATTERNS:
             if pattern.search(text):
                 return (epistemic_type, confidence)
 
-        return (fallback if fallback in VALID_TYPES else OBSERVED_FACT, 0.0)
+        return (fallback if fallback in VALID_TYPES else "unclassified", 0.0)

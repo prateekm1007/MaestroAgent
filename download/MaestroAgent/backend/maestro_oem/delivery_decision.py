@@ -133,9 +133,11 @@ def decide_delivery(
     if has_high_stakes_signal:
         return DeliveryDecision.DELIVER_ON_ASK
 
-    # 7. First-time whisper (shown_count=0) → always deliver, even if low stakes.
-    if shown_count == 0:
-        return DeliveryDecision.DELIVER_ON_ASK
-
-    # 8. Low stakes + already shown + not acted on → suppress
+    # 7. Low stakes → SUPPRESS_LOW_STAKES
+    # ISSUE-04 fix: removed the undocumented "First-time whisper → always
+    # deliver" branch (was shown_count==0 → DELIVER_ON_ASK). This preempted
+    # the low-stakes suppression for EVERY first-time whisper, meaning
+    # Maestro could never stay silent on first observation. The docstring
+    # says case 7 is "Low stakes → SUPPRESS_LOW_STAKES" — no first-time
+    # exception. Now aligned with the docstring.
     return DeliveryDecision.SUPPRESS_LOW_STAKES

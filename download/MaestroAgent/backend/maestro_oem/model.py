@@ -1113,12 +1113,19 @@ class ExecutionModel(BaseModel):
         for law in self.laws.values():
             # Ensure evidence_count is consistent with validated + failed
             law.evidence_count = max(law.evidence_count, law.validated_runtimes + law.failed_runtimes)
+            # ISSUE-05 fix: default last_validated to now if None. Before this
+            # fix, laws with last_validated=None got a confidence that didn't
+            # change when failed_runtimes increased — the calculator's recency
+            # factor returned a default that masked the failed_runtimes signal.
+            # Now the calculator sees a real timestamp and properly accounts
+            # for counter-examples.
+            lv = law.last_validated or datetime.now(timezone.utc)
             law.confidence = calc.compute_law_confidence(
                 validated_runtimes=law.validated_runtimes,
                 failed_runtimes=law.failed_runtimes,
                 evidence_count=law.evidence_count,
                 providers=law.providers,
-                last_validated=law.last_validated,
+                last_validated=lv,
                 calibration_shr=calibration_shr,  # Phase 2.4: real SHR from CalibrationEngine
             )
 
