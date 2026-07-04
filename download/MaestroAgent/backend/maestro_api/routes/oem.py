@@ -6593,8 +6593,31 @@ def loop2_meeting_learning(meeting_id: str) -> dict[str, Any]:
             signals=oem_state.visible_signals if oem_state else [],
             now=datetime.now(timezone.utc),
         )
-        loop.record_learning(meeting)
+        learning_entry = loop.record_learning(meeting)
         _get_meeting_store().record(meeting)
+
+        # Phase 2: Bridge Loop 2 → Loop 4. The learning entry is now on
+        # meeting.learning_entry, but it also needs to flow to the
+        # OrganizationalLearningLedger so it contributes to org-level
+        # learning patterns. Before this fix, the learning entry lived
+        # only on the Meeting object — invisible to Loop 4. P11: the
+        # ledger.record_meeting_learning() method existed, the HTTP
+        # endpoint existed, but neither was called from the Loop 2 path.
+        if learning_entry and meeting.entity:
+            try:
+                ledger = _get_org_learning_ledger()
+                ledger.record_meeting_learning(
+                    entity=meeting.entity,
+                    meeting_id=meeting.meeting_id,
+                    outcome=meeting.outcome or "unknown",
+                    learning_entry=learning_entry,
+                )
+                logger.info(
+                    "Phase 2: bridged Loop 2 → Loop 4 for meeting %s (entity=%s)",
+                    meeting.meeting_id, meeting.entity,
+                )
+            except Exception as e:
+                logger.warning("Phase 2: Loop 2 → Loop 4 bridge failed: %s", e)
     elif meeting.status != MeetingStatus.LEARNING_RECORDED:
         raise HTTPException(
             400,
