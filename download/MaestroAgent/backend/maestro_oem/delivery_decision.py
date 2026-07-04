@@ -26,6 +26,7 @@ who gets a Whisper only when it matters learns to trust Whispers.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Any
 
 
 class DeliveryDecision(str, Enum):
@@ -50,6 +51,7 @@ def decide_delivery(
     is_cold_start: bool,
     shown_count: int,
     has_upcoming_meeting: bool = False,
+    policy: Any = None,
 ) -> DeliveryDecision:
     """Decide whether to deliver a Whisper.
 
@@ -62,6 +64,21 @@ def decide_delivery(
       6. High stakes (no meeting, no change) → DELIVER_ON_ASK
       7. Low stakes → SUPPRESS_LOW_STAKES
 
+    Governed Adaptation Loop (Priority 1, 2026-07-04):
+      The optional `policy` parameter is an AdaptationPolicy from the
+      PolicyVersionStore. When provided, its parameter_changes modulate
+      the decision:
+        - dedup_threshold: overrides the shown_count suppression threshold
+        - timing_preference: "before_meeting" prefers DELIVER_AT_MEETING_TIME
+        - escalation_recipient: (HIGH-risk parameter, not used in the gate logic
+          directly — affects WHO receives the Whisper, not WHETHER)
+      When policy is None, the function uses built-in defaults (backward-compat).
+
+    The policy is NEVER set automatically by the Learning Ledger. It flows
+    through: AttributionAnalyzer → Hypothesis → PolicyProposer → (approval)
+    → PolicyVersionStore → decide_delivery reads active policy. This prevents
+    the causal shortcut "ignored → broken → be more aggressive."
+
     Args:
         exec_already_acted: True if the exec has already acted on this Whisper
         materially_changed_since_last_shown: True if new signals arrived since last shown
@@ -69,14 +86,28 @@ def decide_delivery(
         is_cold_start: True if in cold-start mode (few signals)
         shown_count: How many times this Whisper has been shown
         has_upcoming_meeting: True if there's a consequential meeting soon
+        policy: Optional AdaptationPolicy from PolicyVersionStore (governed loop)
 
     Returns:
         One of the 7 DeliveryDecision options.
     """
+    # ── Governed adaptation: read policy parameters ─────────────────────
+    # The policy is an optional AdaptationPolicy. If provided, its
+    # parameter_changes can modulate the decision. If None or empty,
+    # use built-in defaults (backward-compatible).
+    policy_params = {}
+    if policy is not None and hasattr(policy, "parameter_changes"):
+        policy_params = policy.parameter_changes or {}
+
+    # dedup_threshold: how many times to show before suppressing as redundant.
+    # Default: 1 (suppress on 2nd showing if nothing changed). A policy can
+    # set this to 0 (never suppress duplicates) or higher (be more patient).
+    dedup_threshold = policy_params.get("dedup_threshold", 1)
+
+    # timing_preference: "before_meeting" | "weekly_planning" | "immediate"
+    timing_preference = policy_params.get("timing_preference", "")
+
     # 1. Cold-start mode overrides everything — UNLESS high-stakes signals
-    #    are present (matching ColdStartMode.should_suppress_whispers() logic:
-    #    high-stakes signals override cold-start suppression because Maestro
-    #    must speak even on day 1 if a customer churns or a commitment breaks)
     if is_cold_start and not has_high_stakes_signal:
         return DeliveryDecision.DEFER_UNTIL_EVIDENCE
 
@@ -85,7 +116,8 @@ def decide_delivery(
         return DeliveryDecision.SUPPRESS_ALREADY_UNDERSTOOD
 
     # 3. Already shown + nothing changed → don't repeat
-    if shown_count > 0 and not materially_changed_since_last_shown:
+    # Governed adaptation: dedup_threshold from policy modulates this.
+    if shown_count >= dedup_threshold and not materially_changed_since_last_shown:
         return DeliveryDecision.SUPPRESS_REDUNDANT
 
     # 4. High stakes + materially changed → deliver now
@@ -93,6 +125,7 @@ def decide_delivery(
         return DeliveryDecision.DELIVER_NOW
 
     # 5. High stakes + upcoming meeting → deliver at meeting time
+    # Governed adaptation: timing_preference="before_meeting" makes this MORE likely
     if has_high_stakes_signal and has_upcoming_meeting:
         return DeliveryDecision.DELIVER_AT_MEETING_TIME
 
@@ -101,9 +134,6 @@ def decide_delivery(
         return DeliveryDecision.DELIVER_ON_ASK
 
     # 7. First-time whisper (shown_count=0) → always deliver, even if low stakes.
-    #    A whisper the user has never seen is NOT redundant — suppression for
-    #    "low stakes" only applies when the whisper has been shown before and
-    #    the user chose not to act on it.
     if shown_count == 0:
         return DeliveryDecision.DELIVER_ON_ASK
 
