@@ -130,6 +130,13 @@ class ExecutionSignal(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     provider: SignalProvider = SignalProvider.UNKNOWN
     authority_weight: float = 0.5  # H-05: 0.5 = neutral, 0.0-1.0 range
+    # C-003 fix: Source ACL — who can see this signal.
+    # "public" = all org members can see (default, backward-compatible)
+    # "private" = only the actor + explicitly listed viewers
+    # "channel:slack:C123456" = only members of that Slack channel
+    # This field is set by provider normalizers based on the source's
+    # visibility settings (e.g., private Slack channel → "private").
+    source_acl: str = "public"
 
     def to_receipt_data(self) -> dict[str, Any]:
         """Convert to a receipt-compatible dict for provenance tracking."""

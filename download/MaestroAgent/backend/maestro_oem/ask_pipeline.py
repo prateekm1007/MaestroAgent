@@ -103,6 +103,7 @@ class AskPipeline:
         self._model = model
         self._conversation_store = conversation_store
         self._narrator = None  # Lazy-loaded
+        self._user_email = ""  # C-003: set by execute() for permission filtering
 
     # ─── Step 1: Intent classification ───────────────────────────────
 
@@ -196,7 +197,7 @@ class AskPipeline:
 
     # ─── Step 3-5: Execute the full pipeline ─────────────────────────
 
-    def execute(self, query: str, org_id: str = "default", session_id: str = "") -> dict[str, Any]:
+    def execute(self, query: str, org_id: str = "default", session_id: str = "", user_email: str = "") -> dict[str, Any]:
         """Execute the full pipeline: classify → resolve → retrieve → assemble → narrate.
 
         Step 3 (conversation state): if session_id provided, load prior turns
@@ -213,6 +214,9 @@ class AskPipeline:
                 "entities": list[str],   # resolved entities
             }
         """
+        # C-003: Store user_email for permission-aware signal filtering
+        self._user_email = user_email
+
         # Step 1: Classify intent
         intent = self.classify_intent(query)
 
@@ -555,7 +559,7 @@ class AskPipeline:
         P5: Wire CausalEngine — move from correlation to causation by
         discovering intervention-outcome pairs in law causal chains.
         """
-        evidence, answer_parts = self._search_signals(entities, query, focus="why")
+        evidence, answer_parts = self._search_signals(entities, query, focus="why", user_email=self._user_email or "")
 
         # P5: CausalEngine — discover causal chains
         try:
@@ -621,7 +625,7 @@ class AskPipeline:
 
     def _retrieve_what(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
         """Retrieve commitments/decisions related to the entities."""
-        return self._search_signals(entities, query, focus="what")
+        return self._search_signals(entities, query, focus="what", user_email=self._user_email or "")
 
     def _retrieve_wisdom(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
         """Phase A: Wire WisdomEngine — 'What should we do?' → value synthesis."""
@@ -698,12 +702,18 @@ class AskPipeline:
 
     def _retrieve_default(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
         """Default retrieval: search signals for the query."""
-        return self._search_signals(entities, query, focus="default")
+        return self._search_signals(entities, query, focus="default", user_email=self._user_email or "")
 
     def _search_signals(
-        self, entities: list[str], query: str, focus: str = "default"
+        self, entities: list[str], query: str, focus: str = "default",
+        user_email: str = "",
     ) -> tuple[list[dict], list[str]]:
-        """Search signals for entities + query words."""
+        """Search signals for entities + query words.
+
+        C-003 fix: Filters signals by source_acl. Private signals are only
+        visible to the actor or explicitly listed viewers. Public signals
+        are visible to all org members (backward-compatible default).
+        """
         from maestro_oem.signal import SignalType
 
         evidence = []
@@ -712,6 +722,15 @@ class AskPipeline:
         query_words = [w for w in query_lower.split() if len(w) > 3]
 
         for s in self._signals[:30]:
+            # C-003: Permission-aware filtering
+            acl = getattr(s, "source_acl", "public")
+            if acl == "private":
+                # Only the actor or explicitly listed viewers can see private signals
+                viewers = s.metadata.get("viewers", [])
+                if user_email and s.actor != user_email and user_email not in viewers:
+                    continue  # Skip — user doesn't have permission
+                if not user_email:
+                    continue  # No user context — can't verify permission, skip (fail-closed)
             try:
                 sig_text = " ".join(filter(None, [
                     s.artifact or "",

@@ -78,6 +78,11 @@ def normalize_slack(event: dict[str, Any]) -> ExecutionSignal:
     # confidence is 0.8 because sentiment inference is imperfect
     confidence = 0.8 if sig_type in (SignalType.DECISION_SIGNAL, SignalType.CONFLICT) else 1.0
 
+    # C-003: Set source_acl based on channel visibility
+    channel = metadata.get("channel", "")
+    is_private = event.get("metadata", {}).get("is_private", False) or channel.startswith("##")
+    source_acl = "private" if is_private else "public"
+
     return ExecutionSignal(
         type=sig_type,
         timestamp=_parse_timestamp(timestamp),
@@ -88,6 +93,7 @@ def normalize_slack(event: dict[str, Any]) -> ExecutionSignal:
         confidence=confidence,
         metadata=metadata,
         provider=SignalProvider.SLACK,
+        source_acl=source_acl,  # C-003: private channels get "private" ACL
     )
 
 

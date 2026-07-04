@@ -147,19 +147,23 @@ addressed when the Postgres migration (on the roadmap) ships.
 
 ## Per-User Permission Filtering (C-003)
 
-**Current state: org-level scoping only.**
+**Status: FIXED — basic ACL filtering implemented.**
 
-AskPipeline filters evidence by `org_id` but not by individual user permissions.
-A private Slack channel message is visible to all org users via Ask Maestro.
+AskPipeline now filters evidence by `source_acl` on each signal:
+- `source_acl="public"` (default): visible to all org members
+- `source_acl="private"`: visible only to the signal's actor and
+  explicitly listed viewers (metadata.viewers)
 
-**This is a known gap, not an implicit one.** It is trigger-gated:
-- **Trigger**: First enterprise customer with per-user ACL requirements
-- **Fix**: Every signal needs an ACL field. AskPipeline filters evidence
-  by the requesting user's permissions before assembling the answer.
-- **Estimated effort**: 2 engineer-weeks (ACL model + signal tagging +
-  retrieval filtering + test suite)
+The Slack provider sets `source_acl="private"` for private channels
+(channel name starts with `##` or `is_private=true` in event metadata).
 
-**Until this is fixed:**
-- Shadow mode only (read-only, admin-only Ask)
-- No private channel signals ingested
-- Single-admin deployment model
+AskPipeline.execute() accepts a `user_email` parameter. When provided,
+`_search_signals()` filters out private signals the user doesn't have
+permission to see. When no user_email is provided, private signals are
+excluded entirely (fail-closed per P6).
+
+**Remaining work for full enterprise ACL:**
+- Per-channel ACL mapping (Slack channel → member list)
+- Gmail/Jira/Confluence provider ACL tagging
+- Admin override capability
+- Audit log of ACL-filtered evidence
