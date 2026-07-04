@@ -303,6 +303,9 @@ class AttributionAnalyzer:
               - outcome: "commitment_broken" | "commitment_kept" | "objection_raised" | ...
               - entity: str
               - context_signals: list of dicts with "type" and optional "note"
+              - interaction_history: optional list of interaction events
+                (Priority 3: enriches attribution with full engagement lifecycle)
+                Each event: {"event_type": "SHOWN"|"OPENED"|..., "timestamp": ...}
 
         Returns:
             dict with keys:
@@ -316,6 +319,20 @@ class AttributionAnalyzer:
         exec_action = outcome.get("exec_action", "")
         outcome_type = outcome.get("outcome", "")
         context_signals = outcome.get("context_signals", [])
+        interaction_history = outcome.get("interaction_history", [])
+
+        # Priority 3: Enrich with interaction memory
+        # The interaction_history tells us HOW the exec engaged with the Whisper:
+        #   - "shown but never opened" = the exec didn't even look at it
+        #   - "shown, opened, dismissed" = the exec looked but rejected it
+        #   - "shown, opened, deferred" = the exec intended to revisit but didn't
+        # These have different attribution implications.
+        interaction_summary = self._summarize_interaction(interaction_history)
+        was_opened = interaction_summary["opened"]
+        was_dismissed = interaction_summary["dismissed"]
+        was_deferred = interaction_summary["deferred"]
+        was_delegated = interaction_summary["delegated"]
+        was_contradicted = interaction_summary["contradicted"]
 
         # Identify confounders from context signals
         confounders: list[str] = []
@@ -327,18 +344,65 @@ class AttributionAnalyzer:
                 confounders.append(sig["note"])
 
         # Form a hedged hypothesis — NEVER claim causation
+        # Priority 3: The hypothesis now reflects the interaction lifecycle,
+        # not just the coarse exec_action. This gives the governed adaptation
+        # loop richer signal for forming hypotheses.
         if whisper_shown and exec_action == "ignored" and outcome_type == "commitment_broken":
-            hypothesis = (
-                "Acting on commitment warnings earlier may reduce broken commitments. "
-                "This is a hypothesis, not a proven causal link."
-            )
-            causal_strength = "weak"  # one data point, uncontrolled confounders
+            if not was_opened:
+                # The exec never even opened the Whisper
+                hypothesis = (
+                    "The executive did not open the commitment warning. Delivering "
+                    "commitment warnings in a way that earns opening (different timing, "
+                    "different depth, different recipient) may reduce broken commitments. "
+                    "This is a hypothesis, not a proven causal link."
+                )
+                causal_strength = "weak"
+            elif was_deferred:
+                # The exec opened it but deferred — intended to revisit but didn't
+                hypothesis = (
+                    "The executive opened the commitment warning but deferred action. "
+                    "Reducing deferral (shorter defer windows, follow-up reminders) may "
+                    "reduce broken commitments. This is a hypothesis, not a proven causal link."
+                )
+                causal_strength = "weak"
+            elif was_dismissed:
+                # The exec explicitly dismissed it
+                hypothesis = (
+                    "The executive dismissed the commitment warning. The warning may not "
+                    "have been actionable or relevant in the exec's judgment. Improving "
+                    "warning relevance may reduce broken commitments. This is a hypothesis, "
+                    "not a proven causal link."
+                )
+                causal_strength = "weak"
+            else:
+                # Generic "ignored" — no interaction detail
+                hypothesis = (
+                    "Acting on commitment warnings earlier may reduce broken commitments. "
+                    "This is a hypothesis, not a proven causal link."
+                )
+                causal_strength = "weak"
         elif whisper_shown and exec_action == "acted" and outcome_type == "commitment_kept":
+            if was_delegated:
+                hypothesis = (
+                    "The executive delegated action on the commitment warning, and the "
+                    "commitment was kept. Delegation may be an effective response pattern. "
+                    "This is a hypothesis; the outcome may also be explained by other factors."
+                )
+                causal_strength = "weak"
+            else:
+                hypothesis = (
+                    "Acting on commitment warnings may have helped maintain the commitment. "
+                    "This is a hypothesis; the outcome may also be explained by other factors."
+                )
+                causal_strength = "weak"
+        elif was_contradicted:
+            # The exec disagreed with the Whisper — important negative feedback
             hypothesis = (
-                "Acting on commitment warnings may have helped maintain the commitment. "
-                "This is a hypothesis; the outcome may also be explained by other factors."
+                "The executive contradicted the Whisper. The Whisper's content or framing "
+                "may not match the executive's understanding. This is valuable feedback for "
+                "improving Whisper relevance, not evidence for a policy change."
             )
-            causal_strength = "weak"
+            causal_strength = "unknown"
         else:
             hypothesis = (
                 f"The relationship between the Whisper and the outcome ({outcome_type}) is unclear. "
@@ -353,6 +417,39 @@ class AttributionAnalyzer:
             "causal_strength": causal_strength,
             "evidence_for": [{"outcome": outcome_type, "exec_action": exec_action}] if outcome_type else [],
             "evidence_against": [],
+        }
+
+    @staticmethod
+    def _summarize_interaction(interaction_history: list[dict]) -> dict[str, bool]:
+        """Summarize the interaction history for attribution.
+
+        Priority 3: The interaction_history is a list of events from
+        InteractionMemory. This helper extracts the engagement signals
+        that matter for attribution:
+          - opened: did the exec open the Whisper? (vs just shown)
+          - dismissed: did the exec explicitly dismiss it?
+          - deferred: did the exec defer it?
+          - delegated: did the exec delegate the action?
+          - contradicted: did the exec disagree with the Whisper?
+
+        These distinguish between engagement patterns that the coarse
+        exec_action="ignored" conflates.
+        """
+        if not interaction_history:
+            return {"opened": False, "dismissed": False, "deferred": False,
+                    "delegated": False, "contradicted": False}
+
+        event_types = set()
+        for evt in interaction_history:
+            et = evt.get("event_type", "").upper()
+            event_types.add(et)
+
+        return {
+            "opened": "OPENED" in event_types,
+            "dismissed": "DISMISSED" in event_types,
+            "deferred": "DEFERRED" in event_types,
+            "delegated": "DELEGATED" in event_types,
+            "contradicted": "CONTRADICTED" in event_types,
         }
 
 

@@ -244,6 +244,18 @@ class OrganizationalWhisper:
                 suppressed.append(w)
             else:
                 delivered.append(w)
+                # Priority 3: Record SHOWN event in InteractionMemory
+                # This enriches the AttributionAnalyzer with the full engagement
+                # lifecycle (shown → opened → dismissed/deferred/acted/...).
+                # Fail-closed (P6): if InteractionMemory is unavailable, the
+                # Whisper is still delivered — interaction tracking is additive.
+                try:
+                    from maestro_oem.interaction_memory import get_default_memory, InteractionEventType
+                    get_default_memory().record(
+                        wid, InteractionEventType.SHOWN, org_id="default",
+                    )
+                except Exception as ie:
+                    logger.debug("InteractionMemory SHOWN record failed for %s: %s", wid, ie)
 
         return delivered, suppressed
 
