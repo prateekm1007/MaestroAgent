@@ -265,11 +265,72 @@ class AskPipeline:
         }
 
     def _get_narrator(self):
-        """Lazy-load the EvidenceNarrator."""
+        """Lazy-load the narrator.
+
+        Priority 5: When an LLM provider is available (configured via env
+        or injected), uses LLMNarrator for evidence-grounded prose generation.
+        When no LLM is available, falls back to the template EvidenceNarrator.
+        Both implement the same interface (P6: fail-closed).
+        """
         if self._narrator is None:
-            from maestro_oem.narrator import EvidenceNarrator
-            self._narrator = EvidenceNarrator()
+            # Priority 5: Try LLMNarrator first
+            try:
+                from maestro_oem.llm_narrator import LLMNarrator
+                llm_provider = self._get_llm_provider()
+                if llm_provider is not None:
+                    self._narrator = LLMNarrator(llm_provider=llm_provider)
+                    logger.info("AskPipeline: using LLMNarrator")
+                else:
+                    from maestro_oem.narrator import EvidenceNarrator
+                    self._narrator = EvidenceNarrator()
+                    logger.info("AskPipeline: using template EvidenceNarrator (no LLM configured)")
+            except Exception as e:
+                logger.warning("AskPipeline: LLMNarrator init failed, using template: %s", e)
+                from maestro_oem.narrator import EvidenceNarrator
+                self._narrator = EvidenceNarrator()
         return self._narrator
+
+    def _get_llm_provider(self):
+        """Get an LLM provider if one is configured.
+
+        Returns None if no provider is available (P6: fail-closed to template).
+        This checks for the maestro_llm LLMRouter via env vars.
+        """
+        try:
+            import os
+            # Check if any LLM env vars are set
+            has_llm = any(os.environ.get(k) for k in [
+                "OLLAMA_BASE_URL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+                "OPENROUTER_API_KEY", "XAI_API_KEY",
+            ])
+            if not has_llm:
+                # Also check if Ollama is running locally at default port
+                import urllib.request
+                try:
+                    urllib.request.urlopen("http://localhost:11434/api/tags", timeout=1)
+                    has_llm = True
+                except Exception:
+                    pass
+
+            if not has_llm:
+                return None
+
+            # Use the LLMRouter's from_env factory (async, so we need to run it)
+            from maestro_llm.router import LLMRouter
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                # Already in async context — can't use asyncio.run
+                return None  # Fall back to template for now
+            except RuntimeError:
+                router = asyncio.run(LLMRouter.from_env())
+                if router.providers:
+                    # Return a simple sync wrapper around the async router
+                    return _LLMRouterSyncWrapper(router)
+                return None
+        except Exception as e:
+            logger.debug("AskPipeline._get_llm_provider: %s", e)
+            return None
 
     # ─── Retrieval (Step 3) ──────────────────────────────────────────
 
@@ -679,3 +740,18 @@ class AskPipeline:
             return [{"label": "Insert draft", "type": "insert_text"}]
         else:
             return []
+
+
+class _LLMRouterSyncWrapper:
+    """Sync wrapper around the async LLMRouter.
+
+    The LLMNarrator expects a provider with an async complete() method.
+    This wrapper adapts the LLMRouter's complete() to that interface.
+    """
+
+    def __init__(self, router: Any) -> None:
+        self._router = router
+
+    async def complete(self, system: str, user: str, **kwargs: Any) -> Any:
+        """Call the LLMRouter's async complete()."""
+        return await self._router.complete(system=system, user=user, **kwargs)
