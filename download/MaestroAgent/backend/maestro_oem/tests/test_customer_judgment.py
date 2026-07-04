@@ -48,6 +48,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
+    # C6 fix: isolate OEMStore DB per test (same as test_phase3.py)
+    monkeypatch.setenv("MAESTRO_OEM_STORE_DB", str(tmp_path / "oem_store.db"))
 
     oem_state._initialized = False
     oem_state.engine = None
@@ -57,6 +59,7 @@ def client(tmp_path, monkeypatch):
     oem_state._live_signals_ingested = 0
     oem_state._contradiction_log = None
     oem_state._demo_seeded = False
+    oem_state._oem_store = None  # C6 fix: clear the store so it re-inits
 
     import_state._initialized = False
     import_state.store = None

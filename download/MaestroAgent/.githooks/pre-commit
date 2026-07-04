@@ -293,5 +293,56 @@ if [ $P6_VIOLATIONS -gt 0 ]; then
 fi
 echo "  P6: no bare 'except.*pass' found in staged files."
 
+# ─── P23: verification scripts on fix(cX) commits ──────────────────────
+# If the commit message references a finding (fix(c1), fix(c2), etc.),
+# run the corresponding verify_*.sh script. If the script fails, the
+# commit is blocked — the fix is theater.
+# This extends mechanical enforcement from P20+P6 to P23 (commit cites
+# executed output — the script IS the output).
+COMMIT_MSG_FILE="$1"
+if [ -z "$COMMIT_MSG_FILE" ]; then
+  # During a pre-commit hook, the commit message file is passed as $1
+  # by git. If not available (e.g., running manually), skip P23 check.
+  echo "─── P23: skipped (no commit message file) ───"
+else
+  echo "─── P23: verification scripts for fix(cX) commits ───"
+  P23_RAN=0
+  P23_FAILED=0
+  # Extract finding IDs from the commit message (e.g., "fix(c6)" → "c6")
+  FINDINGS=$(grep -oE 'fix\((c[0-9]+[a-z]?)\)' "$COMMIT_MSG_FILE" 2>/dev/null | sed 's/fix(//;s/)//' || true)
+  for finding in $FINDINGS; do
+    # Map finding ID to script name
+    # c1 → verify_c1_loop1_suppression.sh, c2 → verify_c2_ask_window.sh, etc.
+    SCRIPT=""
+    case "$finding" in
+      c1) SCRIPT="audit_scripts/verify_c1_loop1_suppression.sh" ;;
+      c2) SCRIPT="audit_scripts/verify_c2_ask_window.sh" ;;
+      c3) SCRIPT="audit_scripts/verify_c3_coherence.sh" ;;
+      c4) SCRIPT="audit_scripts/verify_c4_confidence_display.sh" ;;
+      c5) SCRIPT="audit_scripts/verify_c5_api_key.sh" ;;
+      c6) SCRIPT="audit_scripts/verify_c6_persistence.sh" ;;
+      c7) SCRIPT="audit_scripts/verify_c7_admin_cli.sh" ;;
+      c002) SCRIPT="audit_scripts/verify_c002_dedup.sh" ;;
+    esac
+    if [ -n "$SCRIPT" ] && [ -f "$PROJECT_ROOT/$SCRIPT" ]; then
+      echo "  P23: running $SCRIPT for finding $finding..."
+      P23_RAN=$((P23_RAN + 1))
+      if ! bash "$PROJECT_ROOT/$SCRIPT" 2>&1 | tail -1; then
+        echo "  P23: FAIL — $SCRIPT failed. Commit blocked."
+        P23_FAILED=$((P23_FAILED + 1))
+      fi
+    fi
+  done
+  if [ $P23_FAILED -gt 0 ]; then
+    echo "  P23: FAILED — $P23_FAILED verification script(s) failed. Fix the finding before committing."
+    exit 1
+  fi
+  if [ $P23_RAN -gt 0 ]; then
+    echo "  P23: $P23_RAN verification script(s) passed."
+  else
+    echo "  P23: no fix(cX) findings in commit message — skipped."
+  fi
+fi
+
 echo "─── pre-commit hook PASSED ───"
 exit 0

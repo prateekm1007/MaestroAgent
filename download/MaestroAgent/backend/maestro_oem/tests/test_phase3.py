@@ -19,11 +19,17 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
+    # C6 fix: isolate OEMStore DB per test so the C6 persistence fix
+    # doesn't leak state across tests. Without this, the first test's
+    # demo seed persists to oem_store.db, and subsequent tests load the
+    # stale state instead of demo-seeding fresh → 0 recommendations.
+    monkeypatch.setenv("MAESTRO_OEM_STORE_DB", str(tmp_path / "oem_store.db"))
     oem_state._initialized = False
     oem_state.engine = None
     oem_state.signals = []
     oem_state._demo_seeded = False
     oem_state._contradiction_log = None
+    oem_state._oem_store = None  # C6 fix: clear the store so it re-inits with the new path
     import_state._initialized = False
     app = create_app(db_path=str(tmp_path / "maestro.db"))
     with TestClient(app) as c:

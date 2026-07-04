@@ -151,6 +151,32 @@ jobs:
         run: |
           python download/MaestroAgent/scripts/verify_loop_closed.py
 
+      # ─── Phase 4.2: Finding verification scripts ─────────────────────
+      # Each verify_*.sh script is the canonical authority for its finding.
+      # If any script fails, CI fails — no "I executed it" claims without
+      # the script passing. This is the mechanical enforcement layer.
+      - name: Run finding verification scripts
+        working-directory: download/MaestroAgent
+        run: |
+          chmod +x audit_scripts/verify_*.sh audit_scripts/audit_gates.sh
+          PASS=0; FAIL=0
+          for script in audit_scripts/verify_*.sh; do
+            RESULT=$(bash "$script" 2>&1 | tail -1)
+            if echo "$RESULT" | grep -q "^PASS:"; then
+              echo "  $RESULT"
+              PASS=$((PASS + 1))
+            else
+              echo "  $RESULT"
+              FAIL=$((FAIL + 1))
+            fi
+          done
+          echo ""
+          echo "Verification scripts: $PASS passed, $FAIL failed"
+          if [ $FAIL -gt 0 ]; then
+            echo "::error::$FAIL verification script(s) failed"
+            exit 1
+          fi
+
       # ─── Error suppression gate ──────────────────────────────────────
       - name: Verify no error suppression in tests
         run: |
