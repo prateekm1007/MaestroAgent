@@ -560,7 +560,7 @@ def get_unified_today(
     # P11: These modules were built, tested, and exposed via
     # /api/oem/consciousness and /api/oem/metacognition — but never
     # called from /today. Now they are.
-    # P13: Inputs are DERIVED from oem_state.model + oem_state.signals.
+    # P13: Inputs are DERIVED from oem_state.engine.get_model() + oem_state.visible_signals.
     # Each block fails closed (P6): logs loudly and returns {} on error.
     org_state = _compute_org_state_for_today()
     meta_gap = _compute_meta_gap_for_today()
@@ -602,11 +602,11 @@ def _compute_org_state_for_today() -> dict[str, Any]:
     the deck was task-only.
     """
     try:
-        from maestro_api import oem_state
+        from maestro_api.oem_state import oem_state
         from maestro_oem.consciousness import ConsciousnessEngine
-        if not oem_state.model or not oem_state.signals:
+        if not oem_state.engine.get_model() or not oem_state.visible_signals:
             return {}
-        engine = ConsciousnessEngine(oem_state.model, oem_state.signals)
+        engine = ConsciousnessEngine(oem_state.engine.get_model(), oem_state.visible_signals)
         return engine.state_vector()
     except Exception as e:
         import logging
@@ -625,11 +625,11 @@ def _compute_meta_gap_for_today() -> dict[str, Any]:
     deck was missing.
     """
     try:
-        from maestro_api import oem_state
+        from maestro_api.oem_state import oem_state
         from maestro_oem.metacognition import MetacognitionEngine
-        if not oem_state.model or not oem_state.signals:
+        if not oem_state.engine.get_model() or not oem_state.visible_signals:
             return {}
-        engine = MetacognitionEngine(oem_state.model, oem_state.signals)
+        engine = MetacognitionEngine(oem_state.engine.get_model(), oem_state.visible_signals)
         return engine.analyze()
     except Exception as e:
         import logging
@@ -642,11 +642,11 @@ def _compute_meta_gap_for_today() -> dict[str, Any]:
 def _compute_org_pulse_for_today() -> dict[str, Any]:
     """P4: OrganizationalPulse — org health indicators (temperature, momentum, trust, energy)."""
     try:
-        from maestro_api import oem_state
+        from maestro_api.oem_state import oem_state
         from maestro_oem.pulse import OrganizationalPulse
-        if not oem_state.model or not oem_state.signals:
+        if not oem_state.engine.get_model() or not oem_state.visible_signals:
             return {}
-        pulse = OrganizationalPulse(oem_state.model, oem_state.signals)
+        pulse = OrganizationalPulse(oem_state.engine.get_model(), oem_state.visible_signals)
         return pulse.compute()
     except Exception as e:
         import logging
@@ -659,11 +659,11 @@ def _compute_org_pulse_for_today() -> dict[str, Any]:
 def _compute_curiosity_for_today() -> dict[str, Any]:
     """P8: CuriosityEngine — untested assumptions the org has never questioned."""
     try:
-        from maestro_api import oem_state
+        from maestro_api.oem_state import oem_state
         from maestro_oem.curiosity import CuriosityEngine
-        if not oem_state.model or not oem_state.signals:
+        if not oem_state.engine.get_model() or not oem_state.visible_signals:
             return {}
-        engine = CuriosityEngine(oem_state.model, oem_state.signals)
+        engine = CuriosityEngine(oem_state.engine.get_model(), oem_state.visible_signals)
         return engine.generate()
     except Exception as e:
         import logging
@@ -676,11 +676,11 @@ def _compute_curiosity_for_today() -> dict[str, Any]:
 def _compute_trajectories_for_today() -> dict[str, Any]:
     """P9: TrajectoryEngine — org-wide trend memory (7 dims over time with slope)."""
     try:
-        from maestro_api import oem_state
+        from maestro_api.oem_state import oem_state
         from maestro_oem.trajectories import TrajectoryEngine
-        if not oem_state.model or not oem_state.signals:
+        if not oem_state.engine.get_model() or not oem_state.visible_signals:
             return {}
-        engine = TrajectoryEngine(oem_state.model, oem_state.signals)
+        engine = TrajectoryEngine(oem_state.engine.get_model(), oem_state.visible_signals)
         return engine.compute()
     except Exception as e:
         import logging
@@ -693,11 +693,11 @@ def _compute_trajectories_for_today() -> dict[str, Any]:
 def _compute_identity_for_today() -> dict[str, Any]:
     """P10: IdentityEngine — gap between org self-image and actual behavior."""
     try:
-        from maestro_api import oem_state
+        from maestro_api.oem_state import oem_state
         from maestro_oem.identity import IdentityEngine
-        if not oem_state.model or not oem_state.signals:
+        if not oem_state.engine.get_model() or not oem_state.visible_signals:
             return {}
-        engine = IdentityEngine(oem_state.model, oem_state.signals)
+        engine = IdentityEngine(oem_state.engine.get_model(), oem_state.visible_signals)
         return engine.compute()
     except Exception as e:
         import logging
@@ -710,11 +710,11 @@ def _compute_identity_for_today() -> dict[str, Any]:
 def _compute_attention_for_today() -> dict[str, Any]:
     """P11: AttentionEngine — where org attention IS vs SHOULD BE + attention thieves."""
     try:
-        from maestro_api import oem_state
+        from maestro_api.oem_state import oem_state
         from maestro_oem.attention import AttentionEngine
-        if not oem_state.model or not oem_state.signals:
+        if not oem_state.engine.get_model() or not oem_state.visible_signals:
             return {}
-        engine = AttentionEngine(oem_state.model, oem_state.signals)
+        engine = AttentionEngine(oem_state.engine.get_model(), oem_state.visible_signals)
         return engine.allocate()
     except Exception as e:
         import logging

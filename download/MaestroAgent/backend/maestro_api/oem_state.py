@@ -344,6 +344,23 @@ class OEMState:
                     logger.warning("Demo seed ingest failed for %s: %s", provider, e)
 
         self._demo_seeded = True
+        # C-01 fix: purge stale whisper_history.db on demo seed initialization.
+        # Before this fix, the whisper history store loaded prior-run history
+        # (shown_count=1 for all whispers), causing decide_delivery to
+        # SUPPRESS_REDUNDANT every whisper. The demo seed should start with
+        # fresh whisper history — no prior showings.
+        try:
+            whisper_db = os.environ.get("MAESTRO_WHISPER_DB", "whisper_history.db")
+            if os.path.exists(whisper_db):
+                os.remove(whisper_db)
+                logger.info("C-01 fix: purged stale whisper_history.db on demo seed init")
+            # Also reset the singleton so the next access creates a fresh store
+            import maestro_api.routes.oem as _oem_routes
+            if hasattr(_oem_routes, '_whisper_history_store'):
+                _oem_routes._whisper_history_store = None
+                logger.info("C-01 fix: reset whisper history store singleton")
+        except Exception as e:
+            logger.warning("C-01 fix: failed to purge whisper_history.db: %s", e)
         # Round 67 Phase 2.1: _vary_lo_confidence_for_demo REMOVED.
         # The method hash-seeded evidence_count/provider_count/days_old to
         # fabricate confidence diversity in demo mode. This was dishonest —

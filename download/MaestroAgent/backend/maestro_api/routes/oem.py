@@ -5565,7 +5565,13 @@ def _get_whisper_history_store():
     global _whisper_history_store
     if _whisper_history_store is None:
         from maestro_oem.whisper_history_store import WhisperHistoryStore
-        db_path = os.environ.get("MAESTRO_WHISPER_DB", str(Path("whisper_history.db")))
+        # C-01 fix: in dev mode, use :memory: so the store is always fresh
+        # and writable. Before this fix, the store used whisper_history.db
+        # which could become read-only after the C-01 purge + re-create cycle.
+        if os.environ.get("MAESTRO_LOCAL_DEV", "").lower() in ("true", "1", "yes"):
+            db_path = ":memory:"
+        else:
+            db_path = os.environ.get("MAESTRO_WHISPER_DB", str(Path("whisper_history.db")))
         _whisper_history_store = WhisperHistoryStore(db_path)
         logger.info("WhisperHistoryStore initialized (db=%s)", db_path)
     return _whisper_history_store
@@ -5620,8 +5626,11 @@ def organizational_whisper(
     all_history = store.get_all_history(org_id="default")
 
     # Compute fresh, passing the durable history
+    # C-01 fix: use visible_signals (not signals) so shadow + injected
+    # signals don't generate whispers. Also ensures the whisper engine
+    # sees the same filtered signal set as other surfaces.
     from maestro_oem.whisper import OrganizationalWhisper
-    w = OrganizationalWhisper(oem_state.model, oem_state.signals, whisper_store=all_history)
+    w = OrganizationalWhisper(oem_state.model, oem_state.visible_signals if oem_state else [], whisper_store=all_history)
     result = w.for_context(context=context, entity=entity, topic=topic, user=user)
 
     # H1 FIX: Persist that each whisper was shown (increment shown_count)
