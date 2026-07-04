@@ -519,6 +519,25 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
     """
     result = oem_state.decisions.answer_question(q)
 
+    # P2 FIX: Also run RecallEngine for semantic + temporal + entity recall.
+    # The DecisionEngine provides law + learning-object search (TF-IDF).
+    # The RecallEngine provides whisper-history recall (embeddings + temporal
+    # + entity + graph). Combining both gives the exec the richest answer.
+    try:
+        from maestro_oem.recall_engine import RecallEngine
+        store = _get_whisper_history_store()
+        recall = RecallEngine(
+            whisper_history_store=store,
+            signals=oem_state.signals if oem_state else [],
+            oem_state=oem_state,
+        )
+        recall_result = recall.recall(q, org_id="default")
+        if recall_result.get("found"):
+            result["recall_results"] = recall_result.get("whispers", [])[:3]
+            result["recall_message"] = recall_result.get("message", "")
+    except Exception as e:
+        logger.debug("RecallEngine in /ask failed: %s", e)
+
     # Round 44 — append ONE optional personal-context line.
     # The line is informational only. It never modifies the recommendation
     # or the confidence. It appears as a separate field so the UI can
