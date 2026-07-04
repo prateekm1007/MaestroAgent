@@ -219,15 +219,25 @@ class DecisionEngine:
                 last_seen=datetime.now(timezone.utc),
             )
             confidence = confidence_expl.value
+            # H-1 fix: Replace fabricated "probability" with honest risk label.
+            # p1_cluster_risk is a linear heuristic (incident_count × 0.15),
+            # not a calibrated probability. Present it as a risk level.
+            risk = self.model.health.p1_cluster_risk
+            if risk > 0.6:
+                risk_label = "critical"
+            elif risk > 0.3:
+                risk_label = "elevated"
+            else:
+                risk_label = "moderate"
             recs.append(Recommendation(
-                title=f"P1 cluster risk: {self.model.health.p1_cluster_risk:.0%} probability of velocity drop",
-                description=f"{self.model.health.incident_rate:.0f} incidents detected. Velocity drop predicted.",
+                title=f"P1 cluster risk: {risk_label} risk of velocity drop ({self.model.health.incident_rate:.0f} incidents detected)",
+                description=f"{self.model.health.incident_rate:.0f} incidents detected. Elevated risk of velocity drop based on incident clustering.",
                 recommendation="Pause non-critical work and address incident cluster",
                 confidence=confidence,
                 decision_question="Should we delay the next release to address the incident cluster?",
                 provenance=[{"oem_change": "p1_cluster_risk.computed", "risk": self.model.health.p1_cluster_risk, "confidence_formula": confidence_expl.formula}],
                 linked_laws=[l.code for l in linked_laws],
-                impact="Velocity predicted to drop 22% in the following week",
+                impact="Velocity may slow as the team addresses the incident cluster",  # H-1: removed fabricated percentage
                 urgency="urgent",
             ))
         return recs
@@ -236,13 +246,15 @@ class DecisionEngine:
         recs: list[Recommendation] = []
         for entity, prob in self.model.risks.departure_risks.items():
             if prob > 0.5:
+                # H-1 fix: Use honest risk label instead of fabricated "P=X%"
+                dep_label = "high" if prob > 0.7 else "elevated"
                 recs.append(Recommendation(
-                    title=f"Departure risk: {entity} (P={prob:.0%})",
+                    title=f"Departure risk: {entity} ({dep_label} risk)",
                     description=f"Signals indicate {entity} may leave within 30 days.",
                     recommendation="Initiate retention conversation and knowledge transfer",
                     confidence=prob,
                     decision_question=f"Should we prioritize retention of {entity}?",
-                    provenance=[{"oem_change": "departure_risk.detected", "entity": entity, "probability": prob}],
+                    provenance=[{"oem_change": "departure_risk.detected", "entity": entity, "risk_score": prob}],
                     impact=f"Loss of {entity} would degrade outcomes in their domains",
                     urgency="urgent",
                 ))
