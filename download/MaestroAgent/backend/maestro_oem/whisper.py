@@ -50,7 +50,15 @@ class OrganizationalWhisper:
 
     def __init__(self, model: Any, signals: list, whisper_store: dict | None = None) -> None:
         self.model = model
-        self.signals = signals
+        # Phase 4.2: filter out shadow signals. Shadow signals are real
+        # signals ingested from connected providers but NOT surfaced to users
+        # (shadow mode = verify pipeline before going live). Without this
+        # filter, shadow signals would generate whispers — defeating the
+        # purpose of shadow mode.
+        self.signals = [
+            s for s in (signals or [])
+            if not (hasattr(s, "metadata") and s.metadata and s.metadata.get("shadow"))
+        ]
         # Whisper memory store: {whisper_id: {shown_count, last_shown, action_taken, first_shown}}
         self.whisper_store = whisper_store or {}
 

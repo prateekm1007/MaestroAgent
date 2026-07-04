@@ -118,6 +118,14 @@ class OEMState:
         self._contradiction_log = None  # Set on first contradict() call
         self._demo_seeded = False
         self._signal_store: SignalStore | None = None
+        # Phase 4.2: Shadow mode flag. When True, live-ingested signals are
+        # marked with metadata["shadow"] = True and NOT surfaced to users
+        # (filtered out of whispers, briefings, Ask answers). This lets the
+        # CEO verify the real-connector pipeline works end-to-end before
+        # flipping to live mode. Set via MAESTRO_SHADOW_MODE=true env var.
+        self._shadow_mode = os.environ.get("MAESTRO_SHADOW_MODE", "false").lower() in ("1", "true", "yes")
+        if self._shadow_mode:
+            logger.info("Phase 4.2: SHADOW MODE active — real signals ingested but NOT surfaced to users")
         # Phase 5.1: OEMStore for persisting laws, patterns, learning objects.
         # The ExecutionModel is in-memory; OEMStore persists its components
         # so they survive restart. On initialize(), load_model_state() is
@@ -381,6 +389,13 @@ class OEMState:
             assert self.engine is not None
             for sig in new_signals:
                 try:
+                    # Phase 4.2: mark signals as shadow if shadow_mode is active.
+                    # Shadow signals are ingested (the pipeline runs) but NOT
+                    # surfaced to users (filtered out of whispers/briefings/Ask).
+                    if self._shadow_mode:
+                        if not hasattr(sig, "metadata") or sig.metadata is None:
+                            sig.metadata = {}
+                        sig.metadata["shadow"] = True
                     self.engine.ingest([sig])
                     self.signals.append(sig)
                     self._live_signals_ingested += 1
@@ -599,6 +614,49 @@ class OEMState:
             self.initialize()
         assert self.evidence_graph is not None
         return self.evidence_graph
+
+    @property
+    def shadow_mode(self) -> bool:
+        """Phase 4.2: is shadow mode active? (real signals ingested but not surfaced)"""
+        return self._shadow_mode
+
+    @property
+    def visible_signals(self) -> list:
+        """Phase 4.2: signals WITHOUT the shadow flag — for surfacing to users.
+
+        When shadow_mode is active, live-ingested signals are marked
+        metadata["shadow"] = True. This property returns ONLY the non-shadow
+        signals, so whispers/briefings/Ask answers never surface shadow data.
+        Routes that surface user-visible content should use this instead of
+        self.signals directly.
+        """
+        return [
+            s for s in self.signals
+            if not (hasattr(s, "metadata") and s.metadata and s.metadata.get("shadow"))
+        ]
+
+    def get_shadow_signals(self, limit: int = 100) -> list[dict]:
+        """Phase 4.2: return shadow signals for debug inspection.
+
+        Shadow signals are real signals ingested from connected providers
+        but marked shadow=True so they're not surfaced to users. The CEO
+        uses this to verify the pipeline works before flipping to live mode.
+        """
+        shadow_sigs = []
+        for sig in self.signals:
+            if hasattr(sig, "metadata") and sig.metadata and sig.metadata.get("shadow"):
+                shadow_sigs.append({
+                    "signal_id": str(sig.signal_id) if hasattr(sig, "signal_id") else "",
+                    "type": sig.type.value if hasattr(sig.type, "value") else str(sig.type),
+                    "actor": sig.actor or "",
+                    "artifact": sig.artifact or "",
+                    "timestamp": sig.timestamp.isoformat() if hasattr(sig, "timestamp") and sig.timestamp else "",
+                    "provider": sig.provider.value if hasattr(sig.provider, "value") else str(sig.provider),
+                    "metadata": dict(sig.metadata) if sig.metadata else {},
+                })
+                if len(shadow_sigs) >= limit:
+                    break
+        return shadow_sigs
 
     def check_tenant_access(self) -> None:
         """Enforce tenant isolation at the route level — ALWAYS, even in single-tenant mode.

@@ -251,8 +251,12 @@ class HistoricalImportEngine:
             return False
 
         # Create fetcher
+        # Phase 4.2 fix: pass org_id to factory.create() so GitHub imports
+        # scope to /orgs/{org}/repos instead of /user/repos (ALL repos the
+        # OAuth user can access). Without org_id, shadow mode would import
+        # from every org the user belongs to — a tenant-isolation risk.
         try:
-            fetcher = self.factory.create(provider)
+            fetcher = self.factory.create(provider, org_id=org_id)
         except Exception as e:
             self.tracker.mark_provider_failed(job_id, provider, str(e))
             return False

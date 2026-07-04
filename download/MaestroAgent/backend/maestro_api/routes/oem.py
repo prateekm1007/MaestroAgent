@@ -225,6 +225,8 @@ def get_oem_state() -> dict[str, Any]:
     """
     model = oem_state.model
     summary = model.get_summary()
+    # Phase 4.2: include shadow_mode status in state response
+    summary["shadow_mode"] = oem_state.shadow_mode
 
     # Check real OAuth state for each provider
     from maestro_api.oem_state import import_state
@@ -558,7 +560,7 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
         from maestro_oem.ask_pipeline import AskPipeline
         from maestro_oem.preparation_engine import PreparationEngine
         pipeline = AskPipeline(
-            signals=oem_state.signals if oem_state else [],
+            signals=oem_state.visible_signals if oem_state else [],
             whisper_store=_get_whisper_history_store(),
             oem_state=oem_state,
             preparation_engine=PreparationEngine(
@@ -597,7 +599,7 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
         store = _get_whisper_history_store()
         recall = RecallEngine(
             whisper_history_store=store,
-            signals=oem_state.signals if oem_state else [],
+            signals=oem_state.visible_signals if oem_state else [],
             oem_state=oem_state,
         )
         recall_result = recall.recall(q, org_id="default")
@@ -889,6 +891,33 @@ def _extract_action(signal) -> str:
         if key in md:
             return str(md[key])
     return ""
+
+
+@router.get("/shadow-signals")
+def get_shadow_signals(
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    """Phase 4.2: inspect shadow signals (real signals ingested but NOT surfaced).
+
+    Shadow mode is activated via MAESTRO_SHADOW_MODE=true. When active:
+      - Real signals from connected providers are ingested (pipeline runs)
+      - Signals are marked metadata["shadow"] = True
+      - Shadow signals are filtered out of whispers, briefings, Ask answers
+      - This endpoint lets the CEO verify the pipeline works before going live
+
+    Returns:
+      {
+        "shadow_mode": bool,
+        "shadow_signal_count": int,
+        "signals": [{signal_id, type, actor, artifact, timestamp, provider, metadata}, ...]
+      }
+    """
+    shadow_sigs = oem_state.get_shadow_signals(limit=limit) if oem_state else []
+    return {
+        "shadow_mode": oem_state.shadow_mode if oem_state else False,
+        "shadow_signal_count": len(shadow_sigs),
+        "signals": shadow_sigs,
+    }
 
 
 @router.get("/signals")
@@ -5371,7 +5400,7 @@ def ask_recall(payload: dict[str, Any]) -> dict[str, Any]:
     store = _get_whisper_history_store()
     recall = RecallEngine(
         whisper_history_store=store,
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         oem_state=oem_state,
     )
     return recall.recall(query, org_id="default")
@@ -5405,7 +5434,7 @@ def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
     from maestro_oem.ask_pipeline import AskPipeline
     from maestro_oem.preparation_engine import PreparationEngine
     pipeline = AskPipeline(
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         whisper_store=_get_whisper_history_store(),
         oem_state=oem_state,
         preparation_engine=PreparationEngine(
@@ -5439,7 +5468,7 @@ def _generate_conversational_answer(query: str, history: list) -> dict[str, Any]
         from maestro_oem.recall_engine import RecallEngine
         recall = RecallEngine(
             whisper_history_store=store,
-            signals=oem_state.signals if oem_state else [],
+            signals=oem_state.visible_signals if oem_state else [],
             oem_state=oem_state,
         )
         result = recall.recall(query, org_id="default")
@@ -5998,7 +6027,7 @@ def loop1_evening_preparation(payload: dict[str, Any] = Body(default={})) -> dic
     store = _get_whisper_history_store()
     ledger = LearningLedger(store=store)
     loop = CommitmentIntelligenceLoop(
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         calendar_source=calendar_source,
         whisper_store=store,
         learning_ledger=ledger,
@@ -6175,7 +6204,7 @@ def loop1_get_learning(whisper_id: str) -> dict[str, Any]:
 
     ledger = LearningLedger(store=store)
     loop = CommitmentIntelligenceLoop(
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         calendar_source=DemoCalendarSource_placeholder(),
         whisper_store=store,
         learning_ledger=ledger,
@@ -6502,7 +6531,7 @@ def loop1_5_get_situation(entity: str) -> dict[str, Any]:
 
     store = _get_whisper_history_store()
     builder = SituationBuilder(
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         calendar_source=DemoCalendarSource(oem_state.signals if oem_state else []),
         whisper_store=store,
     )
@@ -6654,7 +6683,7 @@ def loop2_prepare_meeting(meeting_id: str, payload: dict[str, Any] = Body(defaul
         raise HTTPException(404, f"Meeting {meeting_id} not found")
 
     loop = MeetingIntelligenceLoop(
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         now=datetime.now(timezone.utc),
         whisper_store=_get_whisper_history_store(),
     )
@@ -6673,7 +6702,7 @@ def loop2_meeting_occurred(meeting_id: str, payload: dict[str, Any] = Body(...))
         raise HTTPException(404, f"Meeting {meeting_id} not found")
 
     loop = MeetingIntelligenceLoop(
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         now=datetime.now(timezone.utc),
     )
     loop.occur(
@@ -6699,7 +6728,7 @@ def loop2_meeting_outcome(meeting_id: str, payload: dict[str, Any] = Body(...)) 
         raise HTTPException(400, "outcome is required")
 
     loop = MeetingIntelligenceLoop(
-        signals=oem_state.signals if oem_state else [],
+        signals=oem_state.visible_signals if oem_state else [],
         now=datetime.now(timezone.utc),
     )
     loop.observe_outcome(meeting, outcome=outcome)
@@ -6725,7 +6754,7 @@ def loop2_meeting_learning(meeting_id: str) -> dict[str, Any]:
     if meeting.status == MeetingStatus.OUTCOME_OBSERVED:
         # Write the learning entry now
         loop = MeetingIntelligenceLoop(
-            signals=oem_state.signals if oem_state else [],
+            signals=oem_state.visible_signals if oem_state else [],
             now=datetime.now(timezone.utc),
         )
         loop.record_learning(meeting)
