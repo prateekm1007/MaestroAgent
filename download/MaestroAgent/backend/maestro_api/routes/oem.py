@@ -1659,15 +1659,26 @@ def get_ceo_briefing() -> dict[str, Any]:
     commitments_due: list[dict[str, Any]] = []
     try:
         from maestro_oem.commitment_tracker import CommitmentTracker
-        from datetime import datetime, timezone
+        from datetime import datetime, timezone, timedelta
         tracker = CommitmentTracker(model, oem_state.signals)
         track_result = tracker.track()
         today_str = datetime.now(timezone.utc).date().isoformat()
+        # P14 fix: show commitments due in the next 30 days too, not just
+        # today/overdue. A commitment due in 2 weeks is MORE actionable
+        # than one already overdue — the user can still meet it. The old
+        # filter (`due <= today_str`) hid future commitments entirely,
+        # meaning the Trajectory button never appeared for commitments
+        # that weren't yet overdue. Window: 30 days forward, no backward
+        # limit (overdue commitments still show).
+        horizon_str = (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat()
         for c in track_result.get("commitments", []):
             if c.get("status") != "open":
                 continue
             due = c.get("due_date")
-            if due and due <= today_str:
+            if not due:
+                continue
+            # Show if overdue OR due within the next 30 days
+            if due <= horizon_str:
                 commitments_due.append({
                     "description": c["description"],
                     "who_committed": c.get("who_committed", ""),
@@ -6333,8 +6344,31 @@ def loop1_5_get_timeline_projection(
     """
     from maestro_oem.commitment_timeline_simulator import CommitmentTimelineSimulator
 
+    # P14 fix: the module-level mutation tracker (SQLite-backed) is only
+    # populated via POST /loop1.5/mutation/record. If the user hasn't
+    # recorded mutations manually, the tracker is empty and the projection
+    # returns 'stable' with history_count=0 — even when real commitment
+    # signals exist in oem_state.signals. Fall back to building a fresh
+    # in-memory tracker from oem_state.signals (same pattern whisper.py
+    # uses in _apply_timeline_projection). This makes the Trajectory panel
+    # work out of the box on the unmodified Today surface.
     tracker = _get_mutation_tracker()
-    sim = CommitmentTimelineSimulator(tracker=tracker)
+    existing_history = tracker.get_mutation_history(entity)
+    if not existing_history and oem_state and oem_state.signals:
+        # Build a fresh in-memory tracker from the real signals
+        from maestro_oem.commitment_mutation_tracker import CommitmentMutationTracker
+        from maestro_oem.signal import SignalType
+        fresh_tracker = CommitmentMutationTracker()
+        commitment_signals = [
+            s for s in oem_state.signals
+            if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+            and hasattr(s, "type") and s.type == SignalType.CUSTOMER_COMMITMENT_MADE
+        ]
+        for s in commitment_signals:
+            fresh_tracker.record_commitment(s)
+        sim = CommitmentTimelineSimulator(tracker=fresh_tracker)
+    else:
+        sim = CommitmentTimelineSimulator(tracker=tracker)
     projection = sim.simulate(entity, horizon_days=horizon_days)
     return projection.to_dict()
 

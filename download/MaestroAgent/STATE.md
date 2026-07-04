@@ -9,12 +9,12 @@
 > P9: deferrals need concrete triggers | P10: document WHY a bug was missed
 
 ## Last Updated
-2026-07-04 — Phase 2.2 frontend Trajectory panel wired + verified by execution (commit pending).
+2026-07-04 — C2 fix (closes C2+C3) + Trajectory panel on unmodified Today surface + demo seed (commit pending).
 
 ## Current Status: 6/10 — Pilot-ready with scoped claims. Not contract-ready.
 
 > **Push verified:** `origin/main` is at `edc99c3` (Phase 2.4 SHR calibration + C-003 ACL filtering).
-> Phase 2.2 (CommitmentTimelineSimulator) + frontend Trajectory panel is the next commit.
+> Local HEAD has 4 commits past `edc99c3`: Phase 2.2 simulator + frontend panel + SQLite fix + (this commit) C2 fix + demo seed.
 
 ---
 
@@ -205,3 +205,51 @@ Everything in this file was verified by the same session that wrote it. That is 
 - **Honest gap (P5):** verification used an injected synthetic commitment card (because seeding real `ceo-briefing` commitment signals via HTTP is non-trivial). The DOM structure of the injected card mirrors exactly what `today.js` generates. The auditor should re-verify by running the app against a real `signals.db` with commitment signals.
 
 
+
+---
+
+## Round 78 — C2 fix (closes C2+C3) + Trajectory panel on unmodified Today surface + demo seed
+
+### What landed in this commit
+
+**C2 fix (audit directive, highest-leverage one-line fix):**
+- `backend/maestro_oem/ask_pipeline.py:724` — changed `for s in self._signals[:30]:` to `for s in self._signals:`. The old 30-signal window silently dropped commitments at index ≥30, returning "I don't have enough organizational memory" while the data existed. This closes **C2** (Ask 30-signal window) AND **C3** (cross-surface coherence) for the Ask surface — the Ask surface now sees the same commitments the Whisper and Today surfaces already see.
+- 3 adversarial tests in `test_c2_ask_signal_window.py` (written FIRST, watched fail, then fixed — P2):
+  - `test_ask_pipeline_finds_commitment_at_index_42` — exact audit scenario: Globex commitment at index 42, was missed, now found.
+  - `test_ask_pipeline_no_artificial_signal_cap` — 100 signals, commitment at index 99, still found.
+  - `test_ask_pipeline_performance_with_large_signal_set` — 500 signals, <2s response time (no perf regression).
+
+**Trajectory panel on unmodified Today surface (out of the box):**
+- Refactored `showTrajectoryPanel` into shared utility `static/js/trajectory_panel.js` (loaded by both today.js and personal.js).
+- Seeded a real MUTATED Globex commitment into the demo data (`backend/maestro_oem/importers/demo_provider.py`) — second commitment with `commitment="Deliver SSO + MFA by 2026-07-15"`, `due_date="2026-07-15"`. This gives the CommitmentMutationTracker real history (deadline + scope both changed → mixed/scope_expansion pattern) so the Trajectory panel shows a real projection out of the box.
+- Verified by execution (P1): Playwright headless Chromium on the UNMODIFIED Today surface (no synthetic DOM injection). 11/11 checks pass: Trajectory button found on real commitment card, panel renders deadline_slippage pattern + medium risk + Day 1/7/30/60 trajectory + recommendation + evidence summary, no failed API calls, no page errors. Verification script: `/home/z/my-project/scripts/verify_trajectory_unmodified.py`.
+
+**P14 adjacent failures found and fixed (4 of them):**
+1. `CommitmentTracker._TEXT_FIELDS` didn't include `"commitment"` — the field demo CRM signals use. Added it. Without this, `/api/oem/commitments` returned 0 even when commitment_made signals existed.
+2. `CommitmentTracker._PATTERNS` only matched first-person promises ("I will follow up by..."), not imperative commitments ("Deliver SSO by 2024-12-15"). Added an imperative pattern. Without this, structured CRM commitments were invisible to the tracker.
+3. `CommitmentTracker._build_commitment` only extracted `to_whom` from `participants`. Added fallback to `customer` field. Without this, the Trajectory button never rendered (no `to_whom`).
+4. `ceo-briefing` commitment filter was `due <= today_str` — only showed overdue/today commitments. Extended to 30-day forward window. Without this, future commitments (the actionable ones) never appeared on the Today surface.
+5. `/loop1.5/timeline/{entity}` endpoint used the module-level SQLite tracker (only populated via POST /mutation/record). Added fallback: if no history, build a fresh in-memory tracker from `oem_state.signals` (same pattern whisper.py uses). Without this, the endpoint returned "stable" with history_count=0 even when real commitment signals existed.
+
+**Personal.js symmetry (P12 honest scope):**
+- Personal mode's `work_context` card has a `commitments_summary` (one-line count) but NO customer entity field. The Trajectory panel needs a `to_whom` entity to query the timeline endpoint. Per P12 (don't let the audit author the product) and P18 (scope honesty), I did NOT force-fit a Trajectory button onto a surface that lacks the entity field. The shared `trajectory_panel.js` utility IS loaded for personal.js and is available if personal mode ever surfaces customer entities. The real symmetry win is the demo seed (above), which makes the Trajectory button appear on the unmodified Today surface out of the box.
+
+### Wiring (P11, P15 — three checkboxes)
+- [x] **exists** — `trajectory_panel.js` (shared utility), `commitment_timeline_simulator.py`, C2 fix in `ask_pipeline.py`
+- [x] **unit-tested** — 90/90 tests pass (C2 + timeline simulator + loop1_5 + c1_sqlite + critical01 + h3_ask + loop1_commitment + h2 + oem_routes)
+- [x] **called from real production entry points** — FIVE call sites:
+  1. `maestro_api/routes/oem.py:6317` — `GET /loop1.5/timeline/{entity}` (with P14 fallback to oem_state.signals)
+  2. `maestro_oem/whisper.py:166` — `_apply_timeline_projection()` on every Whisper
+  3. `static/js/today.js:577` — Trajectory button onclick (commitment cards)
+  4. `static/js/trajectory_panel.js` — shared utility loaded in app.html
+  5. `maestro_oem/ask_pipeline.py:735` — C2 fix (Ask pipeline iterates ALL signals)
+
+### Regression (P14 — adjacent failures checked)
+- 90/90 tests pass across 9 test files.
+- Pre-existing `test_ambient` failures (3) confirmed at HEAD `edc99c3` BEFORE this work — NOT a regression.
+
+### Process notes (P10 — root cause / process gap)
+- **C2 root cause:** the `[:30]` slice was likely added as a "performance optimization" early in development, when signal counts were small. It was never revisited as the signal store grew. The process gap: no test ever ingested >30 signals and asked about a commitment past index 29. P2's "write the test first" discipline caught it.
+- **P14 cascade:** closing C2 surfaced 4 adjacent failures (commitment tracker field name, pattern coverage, to_whom extraction, briefing filter, timeline endpoint population). Each was real. Each would have blocked the demo seed from working. This is exactly P14 — "bugs migrate one layer deeper."
+- **What I did NOT verify this session:** C7 (admin bootstrap CLI) and C1 (loop1 whisper suppression) — both flagged in the audit directive as "this week" priority. Deferred to next session (trigger: this commit lands + auditor re-verifies).
+- **Self-certification limitation (P5):** this work is verified by the same session that wrote it. The auditor should re-run the 90-test suite + the Playwright unmodified-surface script from a fresh clone.

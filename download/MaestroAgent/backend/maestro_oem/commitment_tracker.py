@@ -72,6 +72,20 @@ class CommitmentTracker:
             r'(.+?)(?=\s+by\s+|\s+before\s+|[.;!]|\n|$)',
             re.IGNORECASE,
         ),
+        # P14 fix: structured commitment signals use imperative form
+        # "Deliver SSO by 2024-12-15" / "Send the report by Friday" /
+        # "Provide SOC2 report by Q3". These don't have a first-person
+        # subject ("I will...") — they're imperative commitments recorded
+        # directly from CRM commitment_made events. Without this pattern,
+        # the tracker ignores structured commitment signals entirely and
+        # /api/oem/commitments returns 0 even when commitment_made signals
+        # exist with a `commitment` metadata field.
+        re.compile(
+            r'\b(deliver|send|provide|share|ship|build|complete|finish|implement|deploy|roll\s+out|launch)\s+'
+            r'(.+?)\s+by\s+'
+            r'(.+?)(?=[.;!]|\n|$)',
+            re.IGNORECASE,
+        ),
     ]
 
     # Due-date extraction
@@ -82,7 +96,11 @@ class CommitmentTracker:
         re.IGNORECASE,
     )
 
-    _TEXT_FIELDS = ("text", "title", "description", "body", "content", "summary")
+    # P14 fix: added "commitment" — structured CRM commitment_made signals
+    # store the commitment text in this field. Without it, the tracker only
+    # found commitments in free-text fields (text/title/description/body/
+    # content/summary) and missed structured commitment signals entirely.
+    _TEXT_FIELDS = ("text", "title", "description", "body", "content", "summary", "commitment")
 
     def __init__(self, model: Any, signals: list) -> None:
         self.model = model
@@ -165,6 +183,17 @@ class CommitmentTracker:
         if participants:
             # Find a participant that isn't the actor
             to_whom = next((p for p in participants if p != who_committed), "")
+        # P14 fix: if no participants, fall back to the customer field.
+        # The customer is the entity the commitment is TO — it's the most
+        # reliable to_whom value (participants can be empty for CRM events
+        # that record a commitment without listing attendees). Without this
+        # fallback, the Trajectory button on the Today surface won't render
+        # for commitments seeded from the demo provider (which has customer
+        # but not participants on commitment_made events).
+        if not to_whom:
+            customer = signal.metadata.get("customer", "")
+            if customer:
+                to_whom = customer
 
         return {
             "description": description,

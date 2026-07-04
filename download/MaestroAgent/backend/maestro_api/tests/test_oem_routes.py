@@ -323,8 +323,10 @@ class TestNoHardcodedInsights:
         data = client.get("/api/oem/state").json()
         summary = data["summary"]
         # 39 base signals + 26 customer signals (3 enterprise customers)
-        assert summary["signals_processed"] == 65, \
-            f"Expected 65 signals (39 base + 26 customer), got {summary['signals_processed']} — OEM not wired"
+        # Phase 2.2: 66 signals (39 base + 27 customer — added 1 mutated Globex commitment
+        # so the Trajectory panel has real mutation history to project from out of the box)
+        assert summary["signals_processed"] == 66, \
+            f"Expected 66 signals (39 base + 27 customer), got {summary['signals_processed']} — OEM not wired"
         # Note: laws_inferred was previously >= 3, but the L-0001/L-0003
         # near-duplicate (same person, same bottleneck, different evidence
         # counts) is now deduplicated to a single law. With the customer

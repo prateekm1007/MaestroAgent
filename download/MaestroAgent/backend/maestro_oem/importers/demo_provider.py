@@ -209,6 +209,20 @@ _CUSTOMER_ITEMS = [
      "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",
                   "arr_impact": 3200000, "commitment": "Deliver SSO by 2024-12-15",
                   "due_date": "2024-12-15"}},
+    # Phase 2.2 demo seed: a MUTATED Globex commitment with a near-term due date.
+    # This gives the CommitmentMutationTracker real history to project from
+    # (commitment wording + deadline changed), so the Trajectory panel on
+    # the Today surface shows scope_expansion pattern + medium risk +
+    # Day-1/7/30/60 trajectory out of the box — without manual API seeding.
+    # The due date (2026-07-15) is within the briefing's 30-day forward
+    # window, so the commitment appears in the ceo-briefing's "due soon"
+    # list and the Trajectory button is reachable on the unmodified Today
+    # surface.
+    {"event_type": "commitment_made", "actor": "jane.d@acme.com",
+     "artifact": "crm:globex-commit-2", "timestamp": "2025-06-01T14:00:00Z",
+     "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",
+                  "arr_impact": 3200000, "commitment": "Deliver SSO + MFA by 2026-07-15",
+                  "due_date": "2026-07-15"}},
     {"event_type": "commitment_kept", "actor": "chris.t@acme.com",
      "artifact": "crm:globex-commit-1-kept", "timestamp": "2024-12-10T16:00:00Z",
      "metadata": {"customer": "Globex", "contact": "raj@globex.com", "role": "champion",

@@ -713,6 +713,15 @@ class AskPipeline:
         C-003 fix: Filters signals by source_acl. Private signals are only
         visible to the actor or explicitly listed viewers. Public signals
         are visible to all org members (backward-compatible default).
+
+        C2 fix (external audit at 8103ff6, verified at edc99c3):
+        Previously iterated `self._signals[:30]` — an artificial 30-signal
+        window that silently dropped commitments at index >= 30. The user
+        would see "I don't have enough organizational memory" while the
+        data existed in the system. The fix iterates ALL signals; the
+        C-003 ACL filter is the only legitimate exclusion. Performance
+        test (test_ask_pipeline_performance_with_large_signal_set)
+        confirms 500 signals still return in <2s.
         """
         from maestro_oem.signal import SignalType
 
@@ -721,7 +730,9 @@ class AskPipeline:
         query_lower = query.lower()
         query_words = [w for w in query_lower.split() if len(w) > 3]
 
-        for s in self._signals[:30]:
+        # C2 fix: iterate ALL signals (was `self._signals[:30]`).
+        # The old cap silently dropped commitments past index 29.
+        for s in self._signals:
             # C-003: Permission-aware filtering
             acl = getattr(s, "source_acl", "public")
             if acl == "private":
