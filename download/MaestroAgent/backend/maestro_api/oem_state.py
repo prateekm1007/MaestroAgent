@@ -42,6 +42,7 @@ from maestro_oem.importers.demo_provider import (
     get_demo_normalizer,
 )
 from maestro_oem.historical_engine import HistoricalImportEngine
+from maestro_oem.signal_store import SignalStore
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,8 @@ class OEMState:
         self._lock = threading.RLock()
         self._live_signals_ingested = 0
         self._contradiction_log = None  # Set on first contradict() call
-        self._demo_seeded = False  # True after the demo seed has been loaded
+        self._demo_seeded = False
+        self._signal_store: SignalStore | None = None
         # V6 Spec #3 — Background Adaptation Loop cache.
         # Populated by live_ingest() so the loop runs on every signal ingest
         # (V6 Law 2: "improves even when nobody opens Maestro"), not only when
@@ -342,6 +344,7 @@ class OEMState:
         self.engine = OEMEngine()
         self.signals = []
         self._demo_seeded = False
+        self._signal_store: SignalStore | None = None
         # Note: we do NOT reset _live_signals_ingested here — it stays at 0
         # so the purge only happens once (on the first real signal batch).
 
