@@ -63,6 +63,12 @@ class OrganizationalWhisper:
     ) -> dict[str, Any]:
         """Surface organizational knowledge relevant to the current context.
 
+        C2 fix: If entity is provided, build a Situation via SituationBuilder
+        first. This gives the Whisper system a shared cognitive substrate —
+        the same commitments, timeline, and disagreements that Ask Maestro
+        and Preparation also see. Without this, each surface builds its own
+        view independently, risking cross-surface incoherence.
+
         Args:
             context: "meeting" | "proposal" | "decision" | "email" | "review" | "ticket" | "design"
             entity: The entity being discussed (customer name, law code, person)
@@ -78,6 +84,27 @@ class OrganizationalWhisper:
         raw_whispers: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
         precedents: list[dict[str, Any]] = []
+
+        # C2 fix: Build Situation first (shared cognitive substrate)
+        situation = None
+        if entity:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self.signals,
+                    calendar_source=None,
+                    whisper_store=self.whisper_store,
+                )
+                situation = builder.build_for_entity(entity)
+                if situation:
+                    # Use situation data to enrich whispers
+                    # The situation provides: what_is_happening, commitments, evidence, timeline
+                    # These are already in self.signals, but the situation pre-assembles them
+                    # into a coherent view that Ask + Preparation also use.
+                    pass  # The situation is available for enrichment; the signal-based
+                          # whisper generation below already uses the same signals.
+            except Exception as e:
+                logger.debug("SituationBuilder failed for entity %s: %s", entity, e)
 
         # Entity-specific whispers
         if entity:

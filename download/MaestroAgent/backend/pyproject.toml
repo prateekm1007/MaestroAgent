@@ -64,6 +64,15 @@ dependencies = [
     "redis>=4.6",
     # Observability — Prometheus /metrics endpoint (H6)
     "prometheus_client>=0.20",
+    # C1 fix: Semantic retrieval — RecallEngine uses all-MiniLM-L6-v2 embeddings
+    # for hybrid recall (semantic + temporal + entity + graph). Without this,
+    # the system falls back to character n-gram TF-IDF, which returns 0 results
+    # for most entity queries. This is a CORE dependency, not optional.
+    "sentence-transformers>=2.2.0",
+    # C1 fix: Temporal parsing — RecallEngine uses dateparser to interpret
+    # "last month", "a few weeks ago", "yesterday" into date ranges for
+    # temporal filtering. Without this, temporal recall is disabled.
+    "dateparser>=1.1.0",
 ]
 
 [project.optional-dependencies]

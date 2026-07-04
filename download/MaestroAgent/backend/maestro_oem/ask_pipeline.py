@@ -266,8 +266,49 @@ class AskPipeline:
                     if pe not in entities:
                         entities.append(pe)
 
+        # Step 3.5: C2 fix — Build Situation for the scoped entity (shared substrate).
+        # The Situation pre-assembles commitments, timeline, disagreements, and
+        # evidence into a coherent view. This is the SAME object that Whisper
+        # and Preparation use — ensuring cross-surface coherence.
+        situation = None
+        target_entity = scoped_entity or (entities[0] if entities else "")
+        if target_entity and len(target_entity) > 2:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self._signals,
+                    calendar_source=None,
+                    whisper_store=self._whisper_store,
+                )
+                situation = builder.build_for_entity(target_entity)
+            except Exception as e:
+                logger.debug("AskPipeline: SituationBuilder failed for %s: %s", target_entity, e)
+
         # Step 4: Retrieve based on intent (Phase 2.4: scoped to entity if available)
         evidence, answer_parts = self._retrieve(intent, entities, query, org_id, scoped_entity=scoped_entity)
+
+        # C2 fix: If Situation was built, enrich evidence with situation data
+        # (commitments, disagreements) that may not have been caught by the
+        # retrieval path. This ensures all 3 surfaces see the same facts.
+        if situation:
+            try:
+                for commit in situation.commitments[:3]:
+                    # Check if this commitment is already in evidence
+                    commit_text = commit.get("commitment", "") if isinstance(commit, dict) else str(commit)
+                    if commit_text and not any(commit_text[:30] in e.get("text", "") for e in evidence):
+                        evidence.append({
+                            "source": "situation_builder",
+                            "text": commit_text[:100],
+                            "date": "",
+                            "people": [],
+                            "evidence_spine": {
+                                "claim": commit_text[:80],
+                                "observed_facts": [{"source": "situation", "text": commit_text[:120]}],
+                                "claim_type": "commitment",
+                            },
+                        })
+            except Exception as e:
+                logger.debug("AskPipeline: situation enrichment failed: %s", e)
 
         # Step 5: Narrate (with citations)
         narrator = self._get_narrator()

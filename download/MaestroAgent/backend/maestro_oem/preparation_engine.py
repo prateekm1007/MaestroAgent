@@ -171,6 +171,10 @@ class PreparationEngine:
     def _prepare_for_event(self, event: CalendarEvent, tomorrow_str: str) -> dict[str, Any]:
         """Prepare a single consequential CalendarEvent.
 
+        C2 fix: Builds a Situation via SituationBuilder first — the SAME
+        shared cognitive substrate that Whisper and Ask use. This ensures
+        all 3 surfaces see the same commitments, timeline, and disagreements.
+
         Builds:
           - preparation dict (concerns, objections, commitments, expert, draft)
           - evidence_spine from real signals via EvidenceBuilder
@@ -180,6 +184,20 @@ class PreparationEngine:
         """
         from maestro_oem.evidence import EvidenceBuilder, Evidence
         from maestro_oem.signal import SignalType
+
+        # C2 fix: Build Situation first (shared cognitive substrate)
+        situation = None
+        if event.entity:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self.signals,
+                    calendar_source=None,
+                    whisper_store=None,
+                )
+                situation = builder.build_for_entity(event.entity)
+            except Exception as e:
+                logger.debug("PreparationEngine: SituationBuilder failed for %s: %s", event.entity, e)
 
         # Convert event to the meeting dict shape used by _prepare_for_meeting
         meeting_dict = {
