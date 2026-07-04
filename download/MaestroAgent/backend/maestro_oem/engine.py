@@ -98,7 +98,13 @@ class OEMEngine:
         from org chart data (P13), not caller-supplied. Authority
         modulates confidence, never silences the signal (P6).
 
-        Returns a list of ModelDeltas, one per signal.
+        H-06 fix: free-text commitments are extracted from MESSAGE_SENT
+        and EMAIL signals BEFORE processing. Extracted commitments are
+        ADDITIONAL signals — the originals are never dropped (P6).
+        Extracted commitments inherit authority_weight from their source
+        (H-05 integration).
+
+        Returns a list of ModelDeltas, one per signal (originals + extracted).
         """
         # H-05: Apply authority weights from the default SourceAuthorityModel.
         # This is a no-op if no org chart has been loaded (all weights stay 0.5).
@@ -107,6 +113,19 @@ class OEMEngine:
             get_default_model().apply_to_signals(signals)
         except Exception as e:
             logger.warning("OEMEngine.ingest: failed to apply authority weights: %s", e)
+
+        # H-06: Extract commitments from free text BEFORE processing.
+        # Extracted signals are ADDITIONAL — originals are never dropped (P6).
+        try:
+            from maestro_oem.commitment_extractor import CommitmentExtractor
+            extractor = CommitmentExtractor()
+            extracted = extractor.extract(signals)
+            if extracted:
+                logger.info("CommitmentExtractor: extracted %d commitment(s) from %d signal(s)",
+                            len(extracted), len(signals))
+                signals = signals + extracted  # originals + extracted
+        except Exception as e:
+            logger.warning("OEMEngine.ingest: CommitmentExtractor failed: %s", e)
 
         deltas: list[ModelDelta] = []
         for signal in signals:
