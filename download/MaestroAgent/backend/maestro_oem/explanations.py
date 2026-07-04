@@ -174,9 +174,13 @@ class ExplanationEngine:
             )
 
         # Compute aggregate confidence + evidence
-        evidence_strengths = [s.get("evidence_strength", 0.0) for s in steps]
+        # C3 fix: evidence_strength can be a float (0..1) OR a label string
+        # ("supported", "limited evidence"). Only aggregate numeric values;
+        # non-numeric values are excluded from the average (not summed).
+        raw_strengths = [s.get("evidence_strength", 0.0) for s in steps]
+        evidence_strengths = [v for v in raw_strengths if isinstance(v, (int, float))]
         evidence_counts = [s.get("evidence_count", 0) for s in steps]
-        overall_conf = round(sum(evidence_strengths) / max(len(confidences), 1), 3)
+        overall_conf = round(sum(evidence_strengths) / max(len(evidence_strengths), 1), 3) if evidence_strengths else 0.0
         total_evidence = sum(evidence_counts)
         source_entities = sorted({
             src for s in steps for src in s.get("sources", [])

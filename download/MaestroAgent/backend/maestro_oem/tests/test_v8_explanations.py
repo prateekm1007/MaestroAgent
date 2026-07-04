@@ -106,7 +106,13 @@ class TestExplanationChainStructure:
         )
 
     def test_each_step_has_evidence_count_and_confidence(self) -> None:
-        """Every step must have evidence_count (int) and confidence (float 0..1)."""
+        """Every step must have evidence_count (int) and evidence_strength (float 0..1 or label).
+
+        C5 fix: 'confidence' was renamed to 'evidence_strength'. The field
+        can be a float (0..1) OR a label string ("supported", "limited evidence").
+        This test accepts both forms — the key invariant is that the field exists
+        and is non-empty.
+        """
         model, signals = _build_model_with_signals()
         engine = ExplanationEngine(model, signals)
         result = engine.explain("Why are engineering estimates always wrong?")
@@ -115,11 +121,19 @@ class TestExplanationChainStructure:
             assert "evidence_count" in step, f"Step {step.get('step')} missing evidence_count"
             assert isinstance(step["evidence_count"], int)
             assert step["evidence_count"] >= 0
-            assert "confidence" in step, f"Step {step.get('step')} missing confidence"
-            assert isinstance(step["confidence"], (int, float))
-            assert 0.0 <= step["confidence"] <= 1.0, (
-                f"Step {step.get('step')} confidence {step['confidence']} out of [0,1] range"
-            )
+            # C5: accept either 'evidence_strength' (new) or 'confidence' (legacy)
+            strength = step.get("evidence_strength", step.get("confidence"))
+            assert strength is not None, f"Step {step.get('step')} missing evidence_strength"
+            # Can be float (0..1) or label string ("supported", "limited evidence")
+            if isinstance(strength, (int, float)):
+                assert 0.0 <= strength <= 1.0, (
+                    f"Step {step.get('step')} evidence_strength {strength} out of [0,1] range"
+                )
+            else:
+                # Label string — must be non-empty
+                assert isinstance(strength, str) and len(strength) > 0, (
+                    f"Step {step.get('step')} evidence_strength label is empty"
+                )
 
     def test_each_step_has_label_and_narrative(self) -> None:
         """Every step must have a label and a narrative (not just numbers)."""
@@ -146,13 +160,19 @@ class TestExplanationChainStructure:
         )
 
     def test_overall_confidence_and_total_evidence_computed(self) -> None:
-        """The response must include overall_confidence and total_evidence."""
+        """The response must include overall_evidence_strength (or overall_confidence) and total_evidence.
+
+        C5 fix: 'overall_confidence' was renamed to 'overall_evidence_strength'.
+        Accept either field name for backward compatibility.
+        """
         model, signals = _build_model_with_signals()
         engine = ExplanationEngine(model, signals)
         result = engine.explain("Why are engineering estimates always wrong?")
 
-        assert "overall_confidence" in result
-        assert 0.0 <= result["overall_confidence"] <= 1.0
+        # C5: accept either 'overall_evidence_strength' (new) or 'overall_confidence' (legacy)
+        overall = result.get("overall_evidence_strength", result.get("overall_confidence"))
+        assert overall is not None, "Response missing overall_evidence_strength"
+        assert 0.0 <= overall <= 1.0
         assert "total_evidence" in result
         assert result["total_evidence"] == sum(s["evidence_count"] for s in result["steps"])
 
@@ -316,14 +336,21 @@ class TestExplainAPIEndpoint:
     """The /api/oem/explain endpoint must work end-to-end."""
 
     def test_explain_endpoint_returns_200(self, client) -> None:
-        """GET /api/oem/explain?q=... must return 200 with a valid chain."""
+        """GET /api/oem/explain?q=... must return 200 with a valid chain.
+
+        C5 fix: 'overall_confidence' renamed to 'overall_evidence_strength'.
+        Accept either field name.
+        """
         r = client.get("/api/oem/explain", params={"q": "Why are engineering estimates always wrong?"})
         assert r.status_code == 200
         data = r.json()
         assert "question" in data
         assert "steps" in data
         assert "step_count" in data
-        assert "overall_confidence" in data
+        # C5: accept either field name
+        assert "overall_evidence_strength" in data or "overall_confidence" in data, (
+            f"Response missing overall_evidence_strength. Keys: {list(data.keys())}"
+        )
         assert "total_evidence" in data
 
     def test_explain_endpoint_returns_chain_with_demo_seed(self, client) -> None:

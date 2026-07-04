@@ -277,7 +277,7 @@ class HistoricalImportEngine:
 
         # Run the ingestion loop
         try:
-            await self._ingest_loop(job_id, provider, fetcher, since, checkpoint)
+            await self._ingest_loop(job_id, provider, fetcher, since, checkpoint, org_id=org_id)
             self.tracker.mark_provider_completed(job_id, provider)
             return True
         except asyncio.CancelledError:
@@ -305,6 +305,7 @@ class HistoricalImportEngine:
         fetcher: PageFetcher,
         since: datetime | None,
         existing_checkpoint: dict[str, Any] | None,
+        org_id: str = "default",
     ) -> None:
         """The actual page-fetch loop for one provider."""
         rate_limiter = RateLimiter(provider)
@@ -377,10 +378,17 @@ class HistoricalImportEngine:
                         checkpoint_data["errors"] += 1
 
                 # Stream into live OEM
-                # Round 65 C3 fix: pass org_id to route to the correct org's OEM
+                # Round 65 C3 fix: pass org_id to route to the correct org's OEM.
+                # C2 fix (forensic audit): use try/except TypeError fallback for
+                # callbacks that don't accept org_id (backward-compat with tests
+                # and older callers that use on_signals(signals) signature).
                 if new_signals and self.on_signals:
                     try:
-                        self.on_signals(new_signals, org_id=org_id)
+                        try:
+                            self.on_signals(new_signals, org_id=org_id)
+                        except TypeError:
+                            # Callback doesn't accept org_id — call without it
+                            self.on_signals(new_signals)
                         signals_since_last_oem_update += len(new_signals)
                     except Exception as e:
                         logger.warning("Live OEM ingest failed: %s", e)

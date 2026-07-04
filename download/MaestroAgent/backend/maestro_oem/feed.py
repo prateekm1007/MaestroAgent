@@ -55,7 +55,7 @@ class FeedEvent:
         self.why_it_matters = why_it_matters
         self.business_impact = business_impact
         self.recommended_action = recommended_action
-        self.evidence_strength = confidence
+        self.evidence_strength = evidence_strength
         self.timestamp = timestamp or datetime.now(timezone.utc)
         self.entity_id = entity_id
         self.entity_type = entity_type
