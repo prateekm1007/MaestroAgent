@@ -230,6 +230,21 @@ class OrganizationalWhisper:
                 except Exception:
                     continue
 
+        # Phase 4.1: Also check for open commitment-interpretation disagreements.
+        # A customer with an active mutation (wording changed) or disagreement
+        # (internal teams interpret the commitment differently) is higher-stakes
+        # than one without — the exec needs to know about the disagreement
+        # before the meeting, not after.
+        if not has_high_stakes and entity:
+            try:
+                from maestro_oem.commitment_mutation_tracker import CommitmentMutationTracker
+                tracker = CommitmentMutationTracker(self.signals)
+                mutations = tracker.get_mutations(entity)
+                if mutations:
+                    has_high_stakes = True  # Active mutation = high stakes
+            except Exception:
+                pass  # P6: fail-closed, don't block whisper generation
+
         # Check cold-start mode (few signals overall)
         signal_count = len(self.signals) if self.signals else 0
         is_cold_start = signal_count < 5  # matches ColdStartMode.RETRIEVAL_ONLY threshold
