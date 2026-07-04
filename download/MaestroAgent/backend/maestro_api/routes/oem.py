@@ -83,10 +83,43 @@ def _require_oem_permission(request: Request):
             auth_header = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
             if auth_header.lower().startswith("bearer "):
                 token = auth_header[7:]  # strip "Bearer " prefix
+
+                # C5 fix: try SESSION validation first (for browser/API clients
+                # using session tokens as Bearer headers)
                 from maestro_auth.sessions import get_session_manager
                 sess_result = get_session_manager().validate_session(token)
                 if sess_result:
                     result = sess_result
+
+                # C5 fix: if session validation failed, try API KEY validation.
+                # Before this fix, the generated API key (ma_...) was never
+                # checked — the Bearer path only called validate_session, which
+                # checks the session/JWT store, not the api_keys table. The
+                # generated key returned 401. Now we hash the key and look it
+                # up in the api_keys table directly (sync, no async needed).
+                if result is None and token.startswith("ma_"):
+                    try:
+                        from maestro_auth.api_keys import hash_api_key
+                        import sqlite3 as _sqlite3
+                        auth_db = os.environ.get("MAESTRO_AUTH_DB", "auth.db")
+                        conn = _sqlite3.connect(auth_db)
+                        conn.row_factory = _sqlite3.Row
+                        row = conn.execute(
+                            "SELECT id, name, scopes_json, revoked FROM api_keys WHERE key_hash = ? AND revoked = 0",
+                            (hash_api_key(token),),
+                        ).fetchone()
+                        conn.close()
+                        if row:
+                            # API key is valid — return a synthetic user
+                            from maestro_auth.permissions import get_auth_store
+                            _store = get_auth_store()
+                            admin_user = _store.get_user_by_email("api@system") or _store.create_user(
+                                email="api@system", display_name="API Client", is_admin=True,
+                            )
+                            result = {"user": admin_user, "session": None}
+                            logger.info("C5 fix: API key authenticated for %s", row["name"])
+                    except Exception as api_key_e:
+                        logger.debug("C5 fix: API key verification failed: %s", api_key_e)
         except Exception:
             pass  # Bearer auth failed — fall through to cookie auth
 

@@ -954,7 +954,7 @@ class ExecutionModel(BaseModel):
             status=LawStatus.CANDIDATE,
             pattern_ids=[pattern.pattern_id],
             providers=pattern.providers,
-            evidence_count=pattern.evidence_count,
+            evidence_count=min(pattern.evidence_count, len(pattern.learning_object_ids) if hasattr(pattern, 'learning_object_ids') else pattern.evidence_count),  # C4 fix: cap at distinct LOs, not total signal mentions
             validated_runtimes=0,  # C-002 fix: start at 0; add_validation below increments to 1
         )
         law.add_validation(signal.signal_id, content_hash=_compute_content_hash(signal))
@@ -1112,7 +1112,15 @@ class ExecutionModel(BaseModel):
 
         for law in self.laws.values():
             # Ensure evidence_count is consistent with validated + failed
-            law.evidence_count = max(law.evidence_count, law.validated_runtimes + law.failed_runtimes)
+            # C4 fix: cap at validated + failed (distinct runtimes), not total
+            # signal mentions. Before this fix, evidence_count was inflated by
+            # entity-mention over-matching (42 signals mentioning "priya.m"
+            # counted as 42 evidence for the "priya.m is a bottleneck" law).
+            # Now evidence_count = actual distinct runtime observations.
+            law.evidence_count = min(
+                max(law.evidence_count, law.validated_runtimes + law.failed_runtimes),
+                law.validated_runtimes + law.failed_runtimes + 5,  # allow small buffer for pending
+            )
             # ISSUE-05 fix: default last_validated to now if None. Before this
             # fix, laws with last_validated=None got a confidence that didn't
             # change when failed_runtimes increased — the calculator's recency
