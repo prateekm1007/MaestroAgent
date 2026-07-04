@@ -660,28 +660,18 @@ class AskPipeline:
                 continue
 
         if not evidence:
-            # Fallback: return top signals as context (don't return empty evidence)
-            # This matches the old keyword-routing code's behavior — better to
-            # provide some context than nothing.
-            for s in self._signals[:3]:
-                try:
-                    sig_date = s.timestamp.isoformat()[:10] if hasattr(s.timestamp, "isoformat") else ""
-                    sig_source = s.provider.value if hasattr(s.provider, "value") else str(s.provider)
-                    sig_text = (s.artifact or "organizational signal")[:100]
-                    evidence.append({
-                        "source": sig_source,
-                        "text": sig_text,
-                        "date": sig_date,
-                        "people": [s.actor] if s.actor else [],
-                        "evidence_spine": {
-                            "claim": sig_text,
-                            "observed_facts": [{"source": sig_source, "date": sig_date, "text": sig_text, "people": [s.actor] if s.actor else []}],
-                            "claim_type": "observed_fact",
-                        },
-                    })
-                    answer_parts.append(f"- {sig_date} ({sig_source}): {sig_text}")
-                except Exception:
-                    continue
+            # C-2 FIX (external audit's most dangerous illusion):
+            # Previously, when no entity matched, this code returned the first
+            # 3 signals as "context" — producing plausible-looking but irrelevant
+            # answers. An executive who asks "What about the weather?" and sees
+            # a response with dates and sources assumes the system understood.
+            # It did not.
+            #
+            # Now: return EMPTY evidence. The narrator will honestly say
+            # "I don't have enough organizational memory to answer this."
+            # This is the difference between a trustworthy system and a
+            # sophisticated demo.
+            pass
 
         if not evidence:
             answer_parts.append("I don't have enough relevant signals to answer this.")
