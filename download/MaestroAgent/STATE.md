@@ -9,12 +9,12 @@
 > P9: deferrals need concrete triggers | P10: document WHY a bug was missed
 
 ## Last Updated
-2026-07-04 — Phase 2.2 CommitmentTimelineSimulator built, wired, tested (commit pending).
+2026-07-04 — Phase 2.2 frontend Trajectory panel wired + verified by execution (commit pending).
 
 ## Current Status: 6/10 — Pilot-ready with scoped claims. Not contract-ready.
 
 > **Push verified:** `origin/main` is at `edc99c3` (Phase 2.4 SHR calibration + C-003 ACL filtering).
-> Phase 2.2 (CommitmentTimelineSimulator) is the next commit.
+> Phase 2.2 (CommitmentTimelineSimulator) + frontend Trajectory panel is the next commit.
 
 ---
 
@@ -192,4 +192,16 @@ Everything in this file was verified by the same session that wrote it. That is 
 - **Root cause the prior session missed this:** the 6-Parameter Roadmap named Phase 2.2 (Commitment Timeline Simulator) as a target, but the prior session's week-1 stabilization focused on C-001/2/3 + SHR calibration (Phases 2.4, 5). Phase 2.2 was the only roadmap item that had no code at all — not even a stub. The process gap: the roadmap was tracked as a checklist without an owner-per-item, so items could remain "not started" indefinitely without anyone noticing.
 - **What I did NOT verify this session:** frontend wiring (the timeline endpoint is reachable from the API but no JS file calls it yet — same "engine built, UI doesn't call it" pattern as Round 3). Trigger for closing: next iteration when frontend work resumes.
 - **Self-certification limitation (P5):** this work is verified by the same session that wrote it. The auditor should re-run the 12 tests + the 42-test regression suite + the integration endpoint from a fresh clone.
+
+### Round 77 update — Frontend Trajectory panel wired (P11 closed for the engine-built-UI-doesn't-call-it gap)
+- **New file changes:** `static/js/today.js`
+  - Added `showTrajectoryPanel(idx, entity)` async function (toggle button + skeleton + fetch + render, same UX pattern as `showInlineWhy`).
+  - Added a "Trajectory" button next to "Remind" on each commitment card with a `to_whom` entity.
+  - Renders: pattern label, risk badge (color-coded: high=risk, medium=accent, low=primary-2), Day 1/7/30/60 trajectory chips (color-coded by projected_state), recommendation (derived server-side), and an evidence summary line ("Derived from N commitments · M mutations · K-day span") for transparency.
+  - Fetches `GET /api/oem/loop1.5/timeline/{entity}` via the existing `api.getOEM()` SWR helper.
+- **P13 preserved:** the UI never supplies the rate, pattern, risk, or recommendation. It only renders what the server DERIVED from the mutation history.
+- **P14 — adjacent failure found and fixed:** the new traffic to `/loop1.5/mutation/record` + `/loop1.5/timeline/{entity}` surfaced a latent SQLite threading bug in `CommitmentMutationTracker._connect()`. FastAPI runs endpoints in a threadpool, so the lazily-created SQLite connection was being used from a different thread than the one that created it → `sqlite3.ProgrammingError` 500 on every concurrent record call. Fix: pass `check_same_thread=False` (the existing RLock already serializes access). 32/32 commitment tests still pass after the fix. This is exactly P14 — "bugs migrate one layer deeper; expect the next round to find a new instance of the same disease."
+- **Verification by execution (P1):** Playwright headless Chromium, real HTTP backend on port 8766, real Globex commitments seeded via the mutation/record endpoint. 11/11 panel checks pass: Trajectory button present, panel header, RISK label, Day 1 chip, Day 60 chip, deadline_slippage pattern, recommendation text, "Derived from" evidence summary, Close button, no failed timeline API calls, no page errors. Verification script persisted at `/home/z/my-project/scripts/verify_trajectory_panel.py`.
+- **Honest gap (P5):** verification used an injected synthetic commitment card (because seeding real `ceo-briefing` commitment signals via HTTP is non-trivial). The DOM structure of the injected card mirrors exactly what `today.js` generates. The auditor should re-verify by running the app against a real `signals.db` with commitment signals.
+
 

@@ -135,12 +135,22 @@ class CommitmentMutationTracker:
 
     def _connect(self):
         import sqlite3 as _sqlite3
+        # P14 fix: FastAPI runs endpoints in a threadpool, so the tracker's
+        # SQLite connection (created lazily on first request) ends up being
+        # used from a different thread than the one that created it. Pass
+        # check_same_thread=False + rely on the RLock in record_commitment/
+        # get_mutation_history to serialize access. Without this fix, the
+        # timeline + mutation/record endpoints 500 on every concurrent request.
         try:
             from maestro_db import sqlite_compat as sqlite3_compat
-            self._conn = sqlite3_compat.connect(self._db_path, isolation_level=None)
+            self._conn = sqlite3_compat.connect(
+                self._db_path, isolation_level=None, check_same_thread=False,
+            )
             self._conn.row_factory = sqlite3_compat.Row
         except Exception:
-            self._conn = _sqlite3.connect(self._db_path, isolation_level=None)
+            self._conn = _sqlite3.connect(
+                self._db_path, isolation_level=None, check_same_thread=False,
+            )
             self._conn.row_factory = _sqlite3.Row
         try:
             cursor = self._conn.cursor()
