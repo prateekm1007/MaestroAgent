@@ -6303,6 +6303,42 @@ def loop1_5_get_mutation_history(entity: str) -> dict[str, Any]:
     }
 
 
+@router.get("/loop1.5/timeline/{entity}")
+def loop1_5_get_timeline_projection(
+    entity: str,
+    horizon_days: int = Query(60, description="Projection horizon in days (default 60)."),
+) -> dict[str, Any]:
+    """Phase 2.2 — Project a commitment's lifecycle forward from mutation history.
+
+    This endpoint wires the CommitmentTimelineSimulator into the production
+    path (P11, P15). It DERIVES the projection from the mutation history
+    stored in the CommitmentMutationTracker — the caller does NOT supply
+    the rate, pattern, risk, or recommendation (P13).
+
+    Returns a TimelineProjection with:
+      - pattern_type: stable | deadline_slippage | scope_expansion | scope_contraction | mixed | volatile
+      - mutation_rate_per_30d: observed rate (derived from history)
+      - projected_mutations_by_day_60: extrapolated count
+      - risk_level: low | medium | high
+      - baseline_trajectory: [{day, projected_state, projected_wording_hint}, ...]
+      - recommendation: derived from pattern + risk
+      - evidence_summary: what the projection was derived from (transparency)
+
+    Args:
+        entity: the customer name (query key, not a conclusion).
+        horizon_days: how far forward to project. Default 60.
+
+    Returns 200 with the projection. Always succeeds (returns 'stable' for
+    entities with no history — P6 fail-closed-honest, not 500).
+    """
+    from maestro_oem.commitment_timeline_simulator import CommitmentTimelineSimulator
+
+    tracker = _get_mutation_tracker()
+    sim = CommitmentTimelineSimulator(tracker=tracker)
+    projection = sim.simulate(entity, horizon_days=horizon_days)
+    return projection.to_dict()
+
+
 @router.post("/loop1.5/disagreements/detect")
 def loop1_5_detect_disagreements(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Detect disagreements in a list of Evidence objects.

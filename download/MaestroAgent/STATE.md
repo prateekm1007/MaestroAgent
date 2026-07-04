@@ -9,14 +9,12 @@
 > P9: deferrals need concrete triggers | P10: document WHY a bug was missed
 
 ## Last Updated
-2026-07-03 — Governance enforcement protocol installed (commit pending).
+2026-07-04 — Phase 2.2 CommitmentTimelineSimulator built, wired, tested (commit pending).
 
 ## Current Status: 6/10 — Pilot-ready with scoped claims. Not contract-ready.
 
-> **Push verified:** `origin/main` is now at `7b25a79` (was `004adc3`).
-> An auditor pulling a fresh clone WILL see the C1 fix, the SAML fix, the 106
-> tests, the ENTROPY_RECOVERY.md principles, and the CONTRIBUTING.md Verification
-> Protocol. The work is no longer a diary of intentions — it is on the remote.
+> **Push verified:** `origin/main` is at `edc99c3` (Phase 2.4 SHR calibration + C-003 ACL filtering).
+> Phase 2.2 (CommitmentTimelineSimulator) is the next commit.
 
 ---
 
@@ -148,3 +146,50 @@ Everything in this file was verified by the same session that wrote it. That is 
 - **Fix:** replaced `import saml` with `import xmlsec` + `from lxml import etree` (the actual crypto deps). Replaced the TODO with real `xmlsec.SignatureContext().verify()` against the IdP cert. Added `ctx.register_id(assertion, "ID")` so URI="#<id>" references resolve.
 - **Test (P3 — real crypto, not mocks):** 6 tests using real fixtures (self-signed cert, real XML-DSig signed SAML response, tampered response, unsigned response). 3 real-crypto tests verify: signed doc verifies + extracts email, tampered doc REJECTED, wrong cert REJECTED. No MagicMock of xmlsec.
 - **Root cause (P10):** the SAML module had zero tests, and the prior test (in a different repo copy) mocked the crypto itself — proving nothing.
+
+---
+
+## Round 77 — Phase 2.2: CommitmentTimelineSimulator (commit pending)
+
+### What was built
+- **New module:** `backend/maestro_oem/commitment_timeline_simulator.py`
+  - `CommitmentTimelineSimulator.simulate(entity, horizon_days=60, now=None)` → `TimelineProjection`
+  - DERIVES pattern_type, mutation_rate_per_30d, projected_mutations_by_day_60, risk_level, recommendation, baseline_trajectory (Day 1/7/30/60), evidence_summary — all from `CommitmentMutationTracker` history.
+  - P13 ENFORCED: `simulate()` signature does NOT accept rate, pattern, risk, or recommendation as inputs (verified by adversarial test `test_simulator_signature_does_not_accept_rate_or_pattern_as_input`).
+  - Pattern classification: `stable` | `deadline_slippage` | `scope_expansion` | `scope_contraction` | `mixed` | `volatile` (≥3 mutations in 30 days → volatile, overrides per-mutation type).
+  - Risk derivation: stable→low, deadline_slippage/scope_expansion/scope_contraction→medium, mixed→medium-high, volatile→high.
+
+### Wiring (P11, P15 — three checkboxes)
+- [x] **exists** — `commitment_timeline_simulator.py` shipped
+- [x] **unit-tested** — 12/12 adversarial tests pass (`test_commitment_timeline_simulator.py`); written FIRST, watched fail, then built (P2 proof-by-negation confirmed)
+- [x] **called from a real production entry point (cite the call site)** — TWO integration call sites:
+  1. `backend/maestro_api/routes/oem.py` line ~6306: `@router.get("/loop1.5/timeline/{entity}")` → `loop1_5_get_timeline_projection()` → `CommitmentTimelineSimulator.simulate()`
+  2. `backend/maestro_oem/whisper.py` line ~166 + ~402: `_apply_timeline_projection()` runs on every Whisper about an entity with commitment history, attaching `evidence_spine.timeline_projection`
+
+### Tests (P2 — adversarial, written first)
+- 12/12 tests pass:
+  - `test_simulator_class_exists_and_importable`
+  - `test_simulator_returns_timeline_projection_object` (8 required fields)
+  - `test_simulator_signature_does_not_accept_rate_or_pattern_as_input` (P13 guard)
+  - `test_simulator_derives_pattern_from_history_deadline_slippage`
+  - `test_simulator_derives_pattern_scope_expansion`
+  - `test_simulator_classifies_volatile_when_3_plus_mutations_in_30_days`
+  - `test_simulator_returns_stable_when_no_mutations` (counter-test — don't cry wolf)
+  - `test_simulator_projects_mutations_by_day_60` (rate × time derivation)
+  - `test_simulator_recommendation_uses_pattern_not_caller_input` (P13)
+  - `test_simulator_baseline_trajectory_has_day_checkpoints` (Day 1/7/30/60)
+  - `test_simulator_endpoint_reachable_via_oem_route` (integration — real HTTP path)
+  - `test_simulator_handles_entity_with_no_history_gracefully` (cold-start, P6)
+
+### Regression (P14 — adjacent failures checked)
+- 42/42 pass: timeline + loop1_5 + c1_sqlite_persistence + h2_hardcoded_templates + critical01_delivery_gate_wired + loop1_commitment_intelligence
+- 23/23 v8_unknowns pass
+- 36/36 oem_routes pass
+- 3/3 critical01_delivery_gate_wired pass
+- Pre-existing `test_ambient` failures (3) confirmed at HEAD `edc99c3` BEFORE my changes (verified via `git stash` + re-run) — NOT a regression from this work.
+
+### Process notes (P10 — root cause / process gap)
+- **Root cause the prior session missed this:** the 6-Parameter Roadmap named Phase 2.2 (Commitment Timeline Simulator) as a target, but the prior session's week-1 stabilization focused on C-001/2/3 + SHR calibration (Phases 2.4, 5). Phase 2.2 was the only roadmap item that had no code at all — not even a stub. The process gap: the roadmap was tracked as a checklist without an owner-per-item, so items could remain "not started" indefinitely without anyone noticing.
+- **What I did NOT verify this session:** frontend wiring (the timeline endpoint is reachable from the API but no JS file calls it yet — same "engine built, UI doesn't call it" pattern as Round 3). Trigger for closing: next iteration when frontend work resumes.
+- **Self-certification limitation (P5):** this work is verified by the same session that wrote it. The auditor should re-run the 12 tests + the 42-test regression suite + the integration endpoint from a fresh clone.
+

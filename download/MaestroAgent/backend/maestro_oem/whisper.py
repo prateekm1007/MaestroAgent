@@ -155,6 +155,16 @@ class OrganizationalWhisper:
             self._apply_mutation_tracking(w, entity)
             self._apply_disagreement_detection(w, entity, topic)
 
+        # Phase 2.2 FIX: Wire CommitmentTimelineSimulator into the ACTUAL
+        # Whisper generation path. Before this fix, the simulator existed
+        # only as an endpoint (P11 violation: "engine built, not wired").
+        # Now every Whisper about an entity with commitment history carries
+        # the timeline projection in its evidence_spine — so the executive
+        # sees not just what's happening now, but the projected Day-1 →
+        # Day-60 trajectory of the customer relationship.
+        for w in unique_whispers:
+            self._apply_timeline_projection(w, entity)
+
         # CRITICAL-01 FIX (external auditor finding): Wire the delivery decision
         # gate into the ACTUAL generation path. Before this fix, decide_delivery()
         # existed as a well-tested pure function but was never called by the
@@ -387,6 +397,62 @@ class OrganizationalWhisper:
         es = whisper.get("evidence_spine", {})
         es["mutation_history"] = [e.to_dict() for e in history]
         es["commitment_mutations"] = [m.to_dict() for m in mutations]
+        whisper["evidence_spine"] = es
+
+    def _apply_timeline_projection(self, whisper: dict[str, Any], entity: str) -> None:
+        """Phase 2.2 FIX: Wire CommitmentTimelineSimulator into the Whisper pipeline.
+
+        For each whisper about an entity, derive the Day-1 → Day-60
+        trajectory projection from the entity's commitment mutation
+        history and attach it to the whisper's evidence_spine.
+
+        P13: the projection is DERIVED from the tracker's history — the
+        whisper pipeline does NOT supply the rate, pattern, risk, or
+        recommendation. The simulator derives them.
+
+        P11/P15: this is the integration call site that closes the
+        "engine built, not wired" gap for the timeline simulator.
+        Cite: whisper.py line ~166 (the for-loop calling this method).
+        """
+        if not entity:
+            return
+
+        try:
+            from maestro_oem.commitment_timeline_simulator import CommitmentTimelineSimulator
+            from maestro_oem.commitment_mutation_tracker import CommitmentMutationTracker
+            from maestro_oem.signal import SignalType
+        except ImportError as ie:
+            # P6: log loudly, don't silently swallow
+            logger.warning("CommitmentTimelineSimulator import failed: %s", ie)
+            return
+
+        # Reuse the same commitment signals _apply_mutation_tracking uses,
+        # so the simulator sees the same history the mutation tracker saw.
+        commitment_signals = [
+            s for s in (self.signals or [])
+            if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+            and hasattr(s, "type") and s.type == SignalType.CUSTOMER_COMMITMENT_MADE
+        ]
+
+        if not commitment_signals:
+            return
+
+        # Build a tracker populated with this entity's commitment history,
+        # then ask the simulator to project forward.
+        tracker = CommitmentMutationTracker()
+        for s in commitment_signals:
+            tracker.record_commitment(s)
+
+        sim = CommitmentTimelineSimulator(tracker=tracker)
+        projection = sim.simulate(entity)
+
+        # Only attach if there's something meaningful (P6: don't pollute
+        # the evidence_spine with empty projections).
+        if projection.evidence_summary.get("history_count", 0) == 0:
+            return
+
+        es = whisper.get("evidence_spine", {})
+        es["timeline_projection"] = projection.to_dict()
         whisper["evidence_spine"] = es
 
     def _apply_disagreement_detection(
