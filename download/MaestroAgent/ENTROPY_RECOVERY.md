@@ -148,6 +148,8 @@ P11 and P15 existed in Part Two. Both were violated repeatedly — not because t
 
 > **Rule:** At the start of every session, re-read P11, P15, and P20-P25 FROM DISK (not from memory). Paste the re-read timestamp in the worklog. For every fix commit, cite which P-number principle the fix satisfies (e.g., "P20: 27/27 callers pass content_hash, grep output pasted below"). The citation is the enforcement — it forces you to re-apply the principle to the specific work, not just remember it exists. Principles without citation are prose. Principles with citation are checklist items.
 
+> **Enforcement fixture:** `GOVERNANCE_LOOP.md` at the repo root is the mutual read protocol. Both sides read it at the start of every session, paste a read receipt (timestamp + key line), and read the OTHER side's files. The CEO rejects any message without a receipt. This is the mechanical enforcement of P26 — re-application, not recall.
+
 ---
 
 ## HOW TO USE THIS

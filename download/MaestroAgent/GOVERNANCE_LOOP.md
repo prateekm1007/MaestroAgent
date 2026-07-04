@@ -1,0 +1,131 @@
+# GOVERNANCE LOOP — Mutual Read Protocol
+
+> **Both sides read this file from disk at the start of every session.**
+> **Both sides read the files the OTHER side is told to read.**
+> **Both sides paste a read receipt (timestamp + key line) in their first message.**
+
+This is the loop that worked. It worked because both sides read from disk (not memory), cited what they applied, and checked the other side's work. This file makes that loop a fixture — not a suggestion.
+
+---
+
+## The Problem This Solves
+
+Principles (P1-P26) were prose. Gates (1-20) were checklists. Both were violated repeatedly because neither side re-read them before each session. P26 says: "Principles don't enforce themselves. Re-application does." This fixture IS the re-application — it forces both sides to read the load-bearing files before publishing anything.
+
+---
+
+## What the Coder Must Read (at the start of every session)
+
+### 1. `ENTROPY_RECOVERY.md` Part Four (P20-P26)
+**Why:** These are the principles the Coder has violated most. P20 (call-site parameter rule), P21 (all-paths trigger), P22 (regression = production path), P23 (commit cites output), P24 (cross-surface coherence), P25 (confidence display gate), P26 (re-application meta-principle).
+
+**Read receipt:** Paste the timestamp + one key sentence from P20 and one from P26.
+
+### 2. `AUDITOR_GOVERNANCE.md` Gates 15-20
+**Why:** These are the gates the auditor will verify against. If the Coder reads them before committing, the Coder knows exactly what the auditor will check — and can self-check first.
+
+**Read receipt:** Paste the timestamp + one key sentence from Gate 15 and one from Gate 17.
+
+### 3. `audit_scripts/audit_gates.sh`
+**Why:** This is the script the auditor MUST run before publishing. Reading it reminds the Coder what the auditor will execute — and that the Coder should run it too before claiming done.
+
+**Read receipt:** Paste the timestamp + confirm you understand it enforces Gate 11 (fetch first) + full suite + all verify scripts.
+
+---
+
+## What the Auditor Must Read (at the start of every session)
+
+### 1. `audit_scripts/audit_gates.sh`
+**Why:** This is YOUR enforcement mechanism. You proposed it. You must run it before publishing any audit. If you don't run it, your audit is unverifiable.
+
+**Read receipt:** Paste the timestamp + confirm you will run it and paste output inline.
+
+### 2. `ENTROPY_RECOVERY.md` Part Four (P20-P26)
+**Why:** These are the principles the Coder should be following. If you don't know them, you can't verify the Coder applied them. P22 (unit ≠ integration) and P24 (cross-surface coherence) are the ones that catch theater.
+
+**Read receipt:** Paste the timestamp + one key sentence from P22 and one from P24.
+
+### 3. `AUDITOR_GOVERNANCE.md` Gates 15-20
+**Why:** These are YOUR gates. You proposed them. If you don't re-read them, you'll skip them — as you did 3 times.
+
+**Read receipt:** Paste the timestamp + one key sentence from Gate 18 and one from Gate 20.
+
+### 4. `test_cross_surface_coherence.py`
+**Why:** This is the authority test. Not the 11 verify scripts. This test queries all surfaces horizontally and asserts agreement. If you don't read it, you can't verify the Coder's coherence claims.
+
+**Read receipt:** Paste the timestamp + confirm the test covers Briefing/Ask/Whisper/Preparation/Situation/Timeline.
+
+---
+
+## The Mutual Read-Back Protocol
+
+**Step 1 — Coder's first message of the session:**
+```
+GOVERNANCE LOOP READ RECEIPT (Coder):
+- ENTROPY_RECOVERY.md Part Four read at <timestamp>
+  P20 key line: "<paste one sentence>"
+  P26 key line: "<paste one sentence>"
+- AUDITOR_GOVERNANCE.md Gates 15-20 read at <timestamp>
+  Gate 15 key line: "<paste one sentence>"
+  Gate 17 key line: "<paste one sentence>"
+- audit_scripts/audit_gates.sh read at <timestamp>
+  Confirmed: enforces Gate 11 + full suite + all verify scripts
+```
+
+**Step 2 — Auditor's first message of the session:**
+```
+GOVERNANCE LOOP READ RECEIPT (Auditor):
+- audit_scripts/audit_gates.sh read at <timestamp>
+  Confirmed: I will run it and paste output inline before publishing.
+- ENTROPY_RECOVERY.md Part Four read at <timestamp>
+  P22 key line: "<paste one sentence>"
+  P24 key line: "<paste one sentence>"
+- AUDITOR_GOVERNANCE.md Gates 15-20 read at <timestamp>
+  Gate 18 key line: "<paste one sentence>"
+  Gate 20 key line: "<paste one sentence>"
+- test_cross_surface_coherence.py read at <timestamp>
+  Confirmed: covers Briefing/Ask/Whisper/Preparation/Situation/Timeline
+```
+
+**Step 3 — Both sides read the OTHER side's receipt:**
+- The Coder reads the Auditor's receipt (did the auditor actually read the files?)
+- The Auditor reads the Coder's receipt (did the coder actually read the files?)
+- If either receipt is missing or incomplete, the other side calls it out BEFORE any work begins
+
+---
+
+## The CEO's Enforcement (the load-bearing piece)
+
+1. **Reject any Coder claim that doesn't include a read receipt.** If the receipt is missing, the Coder skipped the governance loop. No exceptions.
+2. **Reject any Auditor report that doesn't include `audit_gates.sh` output pasted inline.** If the output is missing, the auditor skipped their own gate. No exceptions.
+3. **Every 3rd audit, pick 2 random `verify_*.sh` scripts and re-run them.** Don't tell either side which ones until after the audit is published.
+
+---
+
+## Why This Works (and prior attempts didn't)
+
+| Prior attempt | Why it failed |
+|---------------|---------------|
+| Principles (P1-P26) | Prose. Not enforced. Violated repeatedly. |
+| Gates (1-20) | Checklist. Not enforced. Skipped repeatedly. |
+| Pre-commit hook | Mechanical, but only enforces P20 + P6 + P23. |
+| Verify scripts | Mechanical, but only as good as the auditor running them. |
+
+**This fixture works because:**
+1. It requires a **read receipt** — a timestamp + key line that proves the file was read THIS session, not recalled from memory.
+2. It's **mutual** — both sides read the OTHER side's files. The Coder reads the auditor's gates. The auditor reads the Coder's principles.
+3. The **CEO enforces** — rejects any message without a receipt. This is the one part that requires a human, and the human is the CEO.
+4. The **read-back** catches stale-clone auditing (Gate 11), code-path-tracing (Gate 17), and unit-vs-integration confusion (P22) — the 3 blindspots that recurred across this engagement.
+
+---
+
+## The Files (canonical paths)
+
+```
+ENTROPY_RECOVERY.md                          — Coder's principles (P1-P26, Part Four is P20-P26)
+AUDITOR_GOVERNANCE.md                        — Auditor's gates (Gates 1-20, 15-20 are new)
+audit_scripts/audit_gates.sh                 — Auditor's enforcement script
+audit_scripts/verify_*.sh                    — 11 canonical verification scripts
+backend/maestro_oem/tests/test_cross_surface_coherence.py — The authority test (P24)
+.githooks/pre-commit                         — Coder's enforcement (P20 + P6 + P23)
+```
