@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)/download/MaestroAgent/backend"
 
-RESULT=$(python3 -m pytest -k "learning_loop or loop4 or learning_ledger" -q --tb=line 2>&1 || true)
+RESULT=$(python3 -m pytest -k "learning or loop4 or ledger" -q --tb=line 2>&1 || true)
 PASSED=$(echo "$RESULT" | grep -oP '\d+ passed' | grep -oP '\d+' || echo "0")
 FAILED=$(echo "$RESULT" | grep -oP '\d+ failed' | grep -oP '\d+' || echo "0")
 

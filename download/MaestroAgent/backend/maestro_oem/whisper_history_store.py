@@ -101,7 +101,7 @@ class WhisperHistoryStore:
             self._conn.row_factory = sqlite3_compat.Row
         except Exception:
             # Fall back to raw sqlite3 if sqlite_compat is unavailable
-            self._conn = sqlite3.connect(self._db_path, isolation_level=None)
+            self._conn = sqlite3.connect(self._db_path, isolation_level=None, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
 
         # Execute schema (idempotent)

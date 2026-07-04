@@ -69,7 +69,7 @@ class OAuthConfigStore:
 
     def _init_db(self) -> None:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.db_path, isolation_level=None)
+        conn = sqlite3.connect(self.db_path, isolation_level=None, check_same_thread=False)
         try:
             conn.executescript(_SCHEMA)
         finally:
@@ -77,7 +77,7 @@ class OAuthConfigStore:
 
     @contextmanager
     def _cursor(self):
-        conn = sqlite3.connect(self.db_path, isolation_level=None)
+        conn = sqlite3.connect(self.db_path, isolation_level=None, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         try:

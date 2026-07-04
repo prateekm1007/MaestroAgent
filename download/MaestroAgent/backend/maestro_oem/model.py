@@ -356,33 +356,41 @@ class ExecutionModel(BaseModel):
         # 4. Generate LearningObjects from this signal
         los = self._generate_learning_objects(signal)
         # C-002 fix: dedup new LOs against existing ones by content_hash.
-        # Before this fix, 4 identical signals created 4 separate LOs each
-        # with evidence_count=1 (4x inflation). Now: if an existing LO
-        # already has this signal's content_hash, the signal is a duplicate
-        # — add evidence to the EXISTING LO instead of creating a new one.
-        # The content_hash is computed from (type + actor + artifact + metadata),
-        # so 4 identical CRM events with 4 different UUIDs produce the same
-        # hash → dedup fires → 1 LO with evidence_count=1 (not 4 LOs).
+        # P14 fix: the dedup must use a per-LO content_hash (type + title +
+        # description), NOT the signal's content_hash. A single signal can
+        # produce MULTIPLE LOs (e.g., an objection produces both a
+        # CUSTOMER_COMMITTEE_ROLE LO and a CUSTOMER_RISK LO). Using the
+        # signal's content_hash for LO-level dedup incorrectly suppresses
+        # the second LO because both share the same signal hash.
+        # The signal content_hash is for EVIDENCE dedup (preventing the same
+        # signal from inflating evidence_count on the same LO). The LO-level
+        # dedup is for preventing duplicate LOs (same type + title) from
+        # being created.
         sig_content_hash = _compute_content_hash(signal)
         for lo in los:
-            # Check if any existing LO already has this content_hash
-            existing_lo_with_same_hash = None
+            # Check if an existing LO has the same TYPE + title (LO identity).
+            # This is the correct dedup: don't create a duplicate LO of the
+            # same type for the same entity. Different LO types (COMMITTEE_ROLE
+            # vs CUSTOMER_RISK) are NOT duplicates — they're different aspects
+            # of the same signal.
+            existing_lo_with_same_identity = None
             for existing_lo in self.learning_objects.values():
-                if sig_content_hash in existing_lo.content_hashes:
-                    existing_lo_with_same_hash = existing_lo
+                if (existing_lo.type == lo.type
+                    and existing_lo.title == lo.title):
+                    existing_lo_with_same_identity = existing_lo
                     break
-            if existing_lo_with_same_hash is not None:
-                # Duplicate signal — add evidence to the existing LO
-                # (the dedup in add_evidence will skip the increment
-                # because the hash is already in content_hashes, but
-                # this still records the signal_id in the existing LO).
-                existing_lo_with_same_hash.add_evidence(
+            if existing_lo_with_same_identity is not None:
+                # Same LO type + title — add evidence to the existing LO
+                # (the signal content_hash prevents evidence_count inflation
+                # if this is the same signal; a different signal with the
+                # same LO identity legitimately increments evidence_count).
+                existing_lo_with_same_identity.add_evidence(
                     signal.signal_id, signal.provider.value,
                     content_hash=sig_content_hash,
                 )
-                self._add_receipt(signal, existing_lo_with_same_hash.lo_id, "learning_object.deduped", str(existing_lo_with_same_hash.lo_id), delta)
+                self._add_receipt(signal, existing_lo_with_same_identity.lo_id, "learning_object.deduped", str(existing_lo_with_same_identity.lo_id), delta)
             else:
-                # New content — store the new LO
+                # New LO — store it
                 self.learning_objects[lo.lo_id] = lo
                 delta.new_learning_objects.append(lo.lo_id)
                 self._add_receipt(signal, lo.lo_id, "learning_object.created", str(lo.lo_id), delta)

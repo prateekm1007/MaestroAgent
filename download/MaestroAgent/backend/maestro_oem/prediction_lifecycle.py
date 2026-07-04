@@ -113,7 +113,7 @@ class PredictionRecorder:
         self._init_db()
 
     def _init_db(self) -> None:
-        conn = sqlite3.connect(self.db_path, isolation_level=None)
+        conn = sqlite3.connect(self.db_path, isolation_level=None, check_same_thread=False)
         try:
             conn.executescript(_SCHEMA)
         finally:
@@ -121,7 +121,7 @@ class PredictionRecorder:
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Cursor]:
-        conn = sqlite3.connect(self.db_path, isolation_level=None)
+        conn = sqlite3.connect(self.db_path, isolation_level=None, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         try:

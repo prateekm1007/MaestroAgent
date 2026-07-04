@@ -76,8 +76,22 @@ class LongTermMemory:
         DB file must never see each other's episodes. Before this fix, the
         episodes table had no org_id column — any tenant could read any
         other tenant's episodic memories.
+
+        Phase 4.2 fix (auditor recommendation #4): default to
+        InMemoryVectorMemory when no vector backend is provided. Before this
+        fix, LongTermMemory(db_path=':memory:') had vector=None and fell
+        back to SQL LIKE. Now it always has a vector backend (TF-IDF by
+        default, ChromaDB when available, neural when sentence-transformers
+        is installed).
         """
         self.db_path = str(db_path)
+        # Default to InMemoryVectorMemory so search() always has a vector
+        # backend. The caller can override with ChromaVectorMemory or a
+        # neural backend. Without this default, search() falls back to SQL
+        # LIKE — which the auditor correctly flagged as "not semantic."
+        if vector is None:
+            from maestro_memory.vector import InMemoryVectorMemory
+            vector = InMemoryVectorMemory()
         self.vector = vector
         self.org_id = org_id
         conn = sqlite3.connect(self.db_path)

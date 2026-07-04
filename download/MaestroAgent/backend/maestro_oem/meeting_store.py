@@ -67,7 +67,7 @@ class MeetingStore:
             self._conn = sqlite3_compat.connect(self._db_path, isolation_level=None)
             self._conn.row_factory = sqlite3_compat.Row
         except Exception:
-            self._conn = sqlite3.connect(self._db_path, isolation_level=None)
+            self._conn = sqlite3.connect(self._db_path, isolation_level=None, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
         try:
             cursor = self._conn.cursor()
