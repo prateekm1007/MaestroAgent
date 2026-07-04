@@ -524,7 +524,12 @@ class EncryptionManager:
             return None
 
     def encrypt(self, plaintext: str) -> str:
-        """Encrypt a string. Returns a Fernet token (base64)."""
+        """Encrypt a string. Returns a Fernet token (base64).
+
+        HIGH-03 fix: fail-closed in production when encryption is unavailable.
+        The old code fell back to insecure XOR (base64-encoded) — secrets
+        could be trivially decoded. Now raises RuntimeError in production.
+        """
         if self._fernet:
             return self._fernet.encrypt(plaintext.encode()).decode()
 
@@ -533,7 +538,14 @@ class EncryptionManager:
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         except ImportError:
-            logger.warning("cryptography not installed — using insecure XOR fallback")
+            # HIGH-03: fail-closed in production, insecure XOR only in local dev
+            is_production = os.environ.get("MAESTRO_ENV", "development") == "production"
+            if is_production:
+                raise RuntimeError(
+                    "cryptography not installed — cannot encrypt secrets in production. "
+                    "Install with: pip install cryptography"
+                )
+            logger.warning("cryptography not installed — using insecure XOR fallback (dev only)")
             return "xor:" + base64.b64encode(
                 bytes(a ^ b for a, b in zip(plaintext.encode(), self._key * 100))
             ).decode()

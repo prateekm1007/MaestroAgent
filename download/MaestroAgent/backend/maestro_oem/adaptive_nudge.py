@@ -4,7 +4,7 @@ V6 Spec #1 — Adaptive Nudge Engine.
 Maestro quietly suggests work restructuring based on what has worked before.
 Instead of reporting "Legal is the bottleneck," it suggests: "Route OAuth
 approvals through Alice first. Historical evidence: 3 similar routing
-changes produced an 18% reduction in review time."
+changes produced a measurable reduction in review time."
 
 Composes:
   - causal.py (what interventions worked — V5 #6)

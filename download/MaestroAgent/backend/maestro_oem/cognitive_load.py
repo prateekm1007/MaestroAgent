@@ -256,28 +256,28 @@ class CognitiveLoadEngine:
             recs.append({
                 "factor": "decision_fatigue",
                 "recommendation": "Batch decisions. Maestro's Morning Brief surfaces only the 3 highest-impact decisions — let the rest wait.",
-                "expected_reduction": "15-20% decision load",
+                "expected_reduction": "meaningful reduction in decision load",
             })
 
         if factors["context_switching"]["score"] > 50:
             recs.append({
                 "factor": "context_switching",
                 "recommendation": "Group work by domain. Maestro's Organizational GPS shows each person's active domains — consolidate where possible.",
-                "expected_reduction": "10-15% context-switch cost",
+                "expected_reduction": "meaningful reduction in context-switch cost",
             })
 
         if factors["knowledge_hunting"]["score"] > 40:
             recs.append({
                 "factor": "knowledge_hunting",
                 "recommendation": "Document hidden experts. Maestro identifies who knows what — formalize it to reduce hunting time.",
-                "expected_reduction": "20-30% time-to-knowledge",
+                "expected_reduction": "meaningful reduction in time-to-knowledge",
             })
 
         if factors["duplicate_thinking"]["score"] > 30:
             recs.append({
                 "factor": "duplicate_thinking",
                 "recommendation": "Check Maestro's autocomplete before starting new work. It surfaces duplicate-work patterns automatically.",
-                "expected_reduction": "100% of detected duplicate effort",
+                "expected_reduction": "eliminates detected duplicate effort",
             })
 
         if factors["attention_fragmentation"]["score"] > 50:

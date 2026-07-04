@@ -285,6 +285,7 @@ class CommitmentExtractor:
                 metadata=new_metadata,
                 provider=sig.provider,  # Inherit provider from source
                 authority_weight=getattr(sig, "authority_weight", 0.5),  # H-05: inherit authority
+                timestamp=sig.timestamp,  # HIGH-01: preserve source timestamp, not datetime.now()
             )
 
             extracted.append(new_sig)
