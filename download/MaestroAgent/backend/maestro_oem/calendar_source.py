@@ -161,3 +161,56 @@ class DemoCalendarSource(CalendarSource):
             ))
 
         return events
+
+
+class MeetingStoreCalendarSource(CalendarSource):
+    """Phase 2 hardening: CalendarSource backed by MeetingStore.
+
+    This adapter connects the Loop 2 meeting lifecycle (prepare → occur →
+    observe_outcome → record_learning) into the daily brief. Before this
+    adapter, PreparationEngine used DemoCalendarSource which synthesized
+    fake meetings from signals. Real meetings stored in MeetingStore
+    (via /loop2/meeting endpoints) were invisible to /preparation/tomorrow.
+
+    P11 fix: the MeetingStore existed, the PreparationEngine existed, but
+    they were never connected. This adapter is the wiring.
+    """
+
+    def __init__(self, meeting_store: Any) -> None:
+        self._store = meeting_store
+
+    def get_events_for_date(self, date: datetime) -> list[CalendarEvent]:
+        if not self._store:
+            return []
+        try:
+            meetings = self._store.get_all()
+        except Exception as e:
+            logger.warning("MeetingStoreCalendarSource: get_all failed: %s", e)
+            return []
+
+        events: list[CalendarEvent] = []
+        for m in meetings:
+            # Filter to meetings on the requested date
+            if hasattr(m, "start") and m.start:
+                try:
+                    meeting_date = m.start
+                    if hasattr(meeting_date, "date"):
+                        if meeting_date.date() != date.date():
+                            continue
+                    elif hasattr(meeting_date, "replace"):
+                        # datetime or string — try to parse
+                        pass
+                    else:
+                        continue
+                except Exception:
+                    continue
+
+            events.append(CalendarEvent(
+                title=getattr(m, "title", "Meeting"),
+                start=getattr(m, "start", date.replace(hour=10, minute=0)),
+                end=getattr(m, "end", date.replace(hour=11, minute=0)),
+                entity=getattr(m, "entity", ""),
+                attendees=getattr(m, "attendees", []),
+            ))
+
+        return events

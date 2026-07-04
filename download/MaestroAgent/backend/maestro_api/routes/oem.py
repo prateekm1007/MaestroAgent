@@ -562,6 +562,7 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
         pipeline = AskPipeline(
             signals=oem_state.visible_signals if oem_state else [],
             whisper_store=_get_whisper_history_store(),
+            meeting_store=_get_meeting_store(),
             oem_state=oem_state,
             preparation_engine=PreparationEngine(
                 oem_state.model if oem_state else None,
@@ -5436,6 +5437,7 @@ def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
     pipeline = AskPipeline(
         signals=oem_state.visible_signals if oem_state else [],
         whisper_store=_get_whisper_history_store(),
+        meeting_store=_get_meeting_store(),
         oem_state=oem_state,
         preparation_engine=PreparationEngine(
             oem_state.model if oem_state else None,
@@ -5658,7 +5660,29 @@ def get_tomorrow_preparation(user: str = Query("")) -> dict[str, Any]:
     - draft_email, competitive_comparison
     """
     from maestro_oem.preparation_engine import PreparationEngine
-    engine = PreparationEngine(oem_state.model, oem_state.signals)
+    from maestro_oem.calendar_source import MeetingStoreCalendarSource, DemoCalendarSource
+
+    # Phase 2 hardening: use MeetingStoreCalendarSource if meetings exist,
+    # fall back to DemoCalendarSource (synthetic from signals) if no real
+    # meetings have been recorded. Before this fix, PreparationEngine
+    # ALWAYS used DemoCalendarSource — real meetings in MeetingStore were
+    # invisible to the daily brief (P11 violation: capability existed,
+    # was not wired).
+    meeting_store = _get_meeting_store()
+    calendar_source = None
+    try:
+        if meeting_store and meeting_store.get_all():
+            calendar_source = MeetingStoreCalendarSource(meeting_store)
+    except Exception:
+        pass
+    if calendar_source is None:
+        calendar_source = DemoCalendarSource(oem_state.signals if oem_state else [])
+
+    engine = PreparationEngine(
+        oem_state.model if oem_state else None,
+        oem_state.visible_signals if oem_state else [],
+        calendar_source=calendar_source,
+    )
     return engine.prepare_for_tomorrow(org_id="default", user_email=user)
 
 

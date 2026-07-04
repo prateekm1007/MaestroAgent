@@ -41,8 +41,15 @@ class EvidenceNarrator:
         self,
         question: str,
         evidence: list[dict[str, Any]],
+        synthesis_hints: list[str] | None = None,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Render evidence into prose answer with inline citations.
+
+        Phase 2 hardening: if synthesis_hints is provided (intent-specific
+        synthesis from CausalEngine, WisdomEngine, PreparationEngine, etc.),
+        render each hint as a prose sentence with inline citations referencing
+        the supporting evidence. Before this fix, the narrator just re-listed
+        raw evidence — the intent-specific analysis was computed and discarded.
 
         Returns:
             (answer_string, citations_list)
@@ -63,7 +70,28 @@ class EvidenceNarrator:
                 "date": ev.get("date", ""),
             })
 
-        # Build answer with inline citations
+        # Phase 2 hardening: if synthesis_hints are provided, use them as the
+        # answer body (they're intent-specific analysis, not just raw evidence).
+        # Append citations referencing the evidence by source/date.
+        if synthesis_hints:
+            parts: list[str] = []
+            for hint in synthesis_hints:
+                if hint and hint.strip():
+                    parts.append(hint.strip())
+
+            # Append a "Sources:" section with inline [N] citations
+            if citations:
+                parts.append("")
+                parts.append("Sources:")
+                for i, ev in enumerate(evidence, 1):
+                    source = ev.get("source", "unknown")
+                    date = ev.get("date", "")
+                    text = ev.get("text", "")
+                    parts.append(f"[{i}] {source} ({date}): {text[:80]}")
+
+            return "\n".join(parts), citations
+
+        # Fallback: original evidence-list format (no synthesis hints)
         parts: list[str] = []
         parts.append(f"Based on the organizational evidence I found:")
 

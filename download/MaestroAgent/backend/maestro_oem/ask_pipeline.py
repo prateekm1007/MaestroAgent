@@ -315,8 +315,14 @@ class AskPipeline:
                 logger.debug("AskPipeline: situation enrichment failed: %s", e)
 
         # Step 5: Narrate (with citations)
+        # Phase 2 hardening: pass answer_parts (intent-specific synthesis from
+        # CausalEngine, WisdomEngine, PreparationEngine, etc.) into the narrator.
+        # Before this fix, answer_parts was computed by each _retrieve_* method
+        # but discarded — the narrator just re-listed raw evidence.
         narrator = self._get_narrator()
-        answer, citations = narrator.narrate_with_citations(query, evidence)
+        answer, citations = narrator.narrate_with_citations(
+            query, evidence, synthesis_hints=answer_parts,
+        )
 
         # Step 6: Save conversation turn
         if session_id and self._conversation_store:
