@@ -121,10 +121,17 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     # "Sarah said the deployment failed"
     # "The team reported that..."
     # "John mentioned that..."
+    # H-01 fix: also catch:
+    #   "[team] says we promised..." (Sales says, Product says, etc.)
+    #   "The customer expects/considers/believes..."
+    #   "considers the commitment unmet"
     (
         re.compile(
-            r"\b(?:\w+\s+(?:believes|said|reports?|mentioned|stated|claims?))\b|"
-            r"\b(?:the\s+team\s+reports?)\b",
+            r"\b(?:\w+\s+(?:believes|said|reports?|mentioned|stated|claims?|says?))\b|"
+            r"\b(?:the\s+team\s+reports?)\b|"
+            r"\b(?:the\s+customer\s+(?:expects?|considers?|believes?|stated?|says?))\b|"
+            r"\b(?:customer\s+(?:expects?|considers?|believes?))\b|"
+            r"\b(?:considers?\s+the\s+(?:commitment|agreement|delivery)\s+(?:unmet|met|broken|honored))\b",
             re.IGNORECASE,
         ),
         REPORTED_STATEMENT,
@@ -150,14 +157,16 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     # "The commitment was honored"
     # "The customer churned"
     # "The customer renewed"
-    # Note: "The release failed Tuesday" is an observed_fact, not an outcome.
-    # An outcome specifically refers to the resolution of a commitment/
-    # prediction/decision — "was broken/honored/kept", "churned/renewed".
+    # H-01 fix: also catch deployment/release outcomes:
+    #   "deployed successfully" / "shipped" / "launched" / "completed"
+    #   "rolled out" / "went live"
     (
         re.compile(
             r"\b(?:was\s+(?:broken|honored|kept)|"
             r"customer\s+(?:churned|renewed|cancelled)|"
-            r"commitment\s+(?:was\s+broken|was\s+honored|broke))\b",
+            r"commitment\s+(?:was\s+broken|was\s+honored|broke)|"
+            r"(?:deployed|shipped|launched|completed|rolled\s+out|went\s+live)\s+successfully|"
+            r"successfully\s+(?:deployed|shipped|launched|completed|rolled\s+out))\b",
             re.IGNORECASE,
         ),
         OUTCOME,
@@ -169,11 +178,18 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     # "We promise to ship the API"
     # "We commit to delivering by Friday"
     # "We'll have it ready by..."
+    # H-01 fix: also catch:
+    #   "I'll confirm/deliver/ship/send..." (first-person commitment)
+    #   "We will have SSO ready before renewal" (have + noun + ready)
+    #   "I'll have it ready by..." (first-person have + ready)
     (
         re.compile(
             r"\b(?:we\s+will\s+(?:deliver|ship|build|provide|implement|have\s+\w+\s+ready)|"
             r"we['']?ll\s+(?:deliver|ship|build|provide|implement|have\s+\w+\s+ready)|"
-            r"we\s+promise\s+to|we\s+commit\s+to\s+(?:delivering|shipping|building))\b",
+            r"we\s+promise\s+to|we\s+commit\s+to\s+(?:delivering|shipping|building)|"
+            r"i['']?ll\s+(?:confirm|deliver|ship|send|build|provide|implement|have\s+\w+\s+ready|get\s+\w+\s+ready|follow\s+up)|"
+            r"i\s+will\s+(?:confirm|deliver|ship|send|build|provide|implement|have\s+\w+\s+ready)|"
+            r"we\s+will\s+have\s+\w+\s+(?:ready|before|by))\b",
             re.IGNORECASE,
         ),
         COMMITMENT,
