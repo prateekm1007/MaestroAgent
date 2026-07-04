@@ -120,7 +120,7 @@ class CommitmentTimelineSimulator:
         # ... record commitments via tracker.record_commitment(signal) ...
 
         sim = CommitmentTimelineSimulator(tracker=tracker)
-        projection = sim.simulate("Globex", horizon_days=60)
+        projection = sim.simulate("<customer>", horizon_days=60)
 
     The simulator derives pattern_type, mutation_rate, risk_level, and
     recommendation from the tracker's history. The caller cannot

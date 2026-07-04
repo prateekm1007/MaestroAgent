@@ -177,7 +177,7 @@ class SemanticAutocompleteEngine:
         engine = SemanticAutocompleteEngine(model, graph, decisions, contradiction_log)
         result = engine.suggest(
             query="We should hire more engineers",
-            context={"surface": "ask", "user": "ceo@example.com", "org": "acme"},
+            context={"surface": "ask", "user": "", "org": ""},
             limit=10,
         )
     """

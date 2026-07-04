@@ -6463,7 +6463,7 @@ def loop2_create_meeting(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
       {
         "title": "<customer> Quarterly Review",
         "entity": "<customer>",
-        "attendees": ["ceo@example.com", "jane.d@example.com"],
+        "attendees": [],
         "start": "2026-07-04T10:00:00+00:00",
         "end": "2026-07-04T11:00:00+00:00"
       }

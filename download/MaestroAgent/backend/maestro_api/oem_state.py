@@ -629,10 +629,16 @@ class OEMState:
         signals, so whispers/briefings/Ask answers never surface shadow data.
         Routes that surface user-visible content should use this instead of
         self.signals directly.
+
+        ISSUE-10: also filters out prompt-injected signals. Before this fix,
+        flagged signals entered the evidence graph and flowed into user-visible
+        surfaces. Now quarantined — they're stored but never surfaced.
         """
         return [
             s for s in self.signals
             if not (hasattr(s, "metadata") and s.metadata and s.metadata.get("shadow"))
+            and not (hasattr(s, "metadata") and s.metadata and s.metadata.get("prompt_injection_risk"))
+            and not (hasattr(s, "prompt_injection_risk") and getattr(s, "prompt_injection_risk"))
         ]
 
     def get_shadow_signals(self, limit: int = 100) -> list[dict]:

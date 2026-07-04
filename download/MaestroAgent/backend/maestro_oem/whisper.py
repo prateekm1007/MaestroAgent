@@ -58,6 +58,11 @@ class OrganizationalWhisper:
         self.signals = [
             s for s in (signals or [])
             if not (hasattr(s, "metadata") and s.metadata and s.metadata.get("shadow"))
+            # ISSUE-10: quarantine prompt-injected signals from Whisper generation.
+            # Before this fix, flagged signals could generate Whispers — meaning
+            # injected content would surface to the exec. Now quarantined.
+            and not (hasattr(s, "metadata") and s.metadata and s.metadata.get("prompt_injection_risk"))
+            and not (hasattr(s, "prompt_injection_risk") and getattr(s, "prompt_injection_risk"))
         ]
         # Whisper memory store: {whisper_id: {shown_count, last_shown, action_taken, first_shown}}
         self.whisper_store = whisper_store or {}

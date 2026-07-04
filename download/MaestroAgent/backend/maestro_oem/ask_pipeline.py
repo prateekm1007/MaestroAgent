@@ -739,6 +739,14 @@ class AskPipeline:
         # C2 fix: iterate ALL signals (was `self._signals[:30]`).
         # The old cap silently dropped commitments past index 29.
         for s in self._signals:
+            # ISSUE-10 fix: quarantine prompt-injected signals. Before this
+            # fix, flagged signals entered the evidence graph and flowed into
+            # Ask answers. Now they're skipped — a suspicious signal can't
+            # contribute evidence to any answer.
+            if hasattr(s, "metadata") and s.metadata and s.metadata.get("prompt_injection_risk"):
+                continue  # Skip — quarantined signal
+            if hasattr(s, "prompt_injection_risk") and getattr(s, "prompt_injection_risk"):
+                continue  # Skip — quarantined (attribute form)
             # C-003: Permission-aware filtering
             acl = getattr(s, "source_acl", "public")
             if acl == "private":

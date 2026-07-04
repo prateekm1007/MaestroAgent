@@ -16,7 +16,7 @@ Routing priority:
   3. Default — fall back to a configured default (e.g., the CEO)
 
 Usage:
-    router = RecipientRouter(signals=signals, default_recipient="ceo@example.com")
+    router = RecipientRouter(signals=signals, default_recipient="")
     recipient = router.route(whisper_entity="TestCorp", meeting_attendees=["jane@example.com"])
     # recipient = "jane@example.com" (signal actor or meeting attendee)
 """
