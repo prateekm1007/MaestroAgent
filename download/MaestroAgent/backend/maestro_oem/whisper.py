@@ -132,7 +132,31 @@ class OrganizationalWhisper:
         # its inputs from the whisper_store history (not caller-supplied booleans).
         delivered_whispers, suppressed_whispers = self._apply_delivery_gate(unique_whispers, entity)
 
-        confidence = self._compute_confidence(delivered_whispers)
+        # Round 3 Fix 2: Cross-whisper prioritization + recipient routing.
+        # The delivery gate decides which whispers are ELIGIBLE. The prioritizer
+        # decides which of those get surfaced NOW vs. batched for a morning
+        # digest. The router determines WHO receives each whisper (based on
+        # signal actors + meeting attendees, not a generic default).
+        from maestro_oem.whisper_prioritizer import WhisperPrioritizer
+        from maestro_oem.whisper_router import RecipientRouter
+
+        prioritizer = WhisperPrioritizer(top_n=3)
+        prioritized = prioritizer.prioritize(delivered_whispers)
+        top_whispers = prioritized["delivered"]
+        batched_whispers = prioritized["batched_whispers"]
+
+        # Route each delivered whisper to the right recipient
+        router = RecipientRouter(
+            signals=self.signals,
+            default_recipient=user or "ceo@example.com",
+        )
+        for w in top_whispers:
+            w["recipient"] = router.route(
+                whisper_entity=w.get("entity", entity),
+                meeting_attendees=w.get("meeting_attendees", []),
+            )
+
+        confidence = self._compute_confidence(top_whispers)
 
         return {
             "context": context,
@@ -140,11 +164,12 @@ class OrganizationalWhisper:
             "topic": topic,
             "user": user,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "whispers": delivered_whispers[:10],
+            "whispers": top_whispers,  # Round 3: top N prioritized + routed
+            "batched_whispers": batched_whispers,  # Round 3: batched for morning digest
             "suppressed_whispers": suppressed_whispers,
             "warnings": warnings[:5],
             "precedents": precedents[:5],
-            "narrative": self._narrative(delivered_whispers, warnings),
+            "narrative": self._narrative(top_whispers, warnings),
         }
 
     def _apply_delivery_gate(

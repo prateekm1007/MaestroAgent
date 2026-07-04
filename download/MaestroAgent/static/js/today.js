@@ -1387,10 +1387,25 @@ async function todayAskSubmit(query) {
   answerEl.innerHTML = '<div class="ds-loading"><span class="spinner"></span> Thinking...</div>';
 
   try {
+    // Round 3 fix: generate + send session_id so pronoun resolution works.
+    // Without this, the AskPipeline's conversation-state path is unreachable
+    // — "What did we promise?" after "Prepare me for Globex" won't resolve
+    // "we" → Globex. P11: the engine was built, the UI didn't send the param.
+    if (!window._todayAskSessionId) {
+      try {
+        window._todayAskSessionId = crypto.randomUUID();
+      } catch (e) {
+        window._todayAskSessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+      }
+    }
     const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, history: [] }),
+      body: JSON.stringify({
+        query: query,
+        history: [],
+        session_id: window._todayAskSessionId,  // enables pronoun resolution
+      }),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
@@ -1412,6 +1427,23 @@ async function todayAskSubmit(query) {
       }
     }
     html += '</div>';
+
+    // Round 3 fix: Render inline citations [1][2] from the AskPipeline.
+    // The new response format includes `citations` linking the answer to
+    // the Evidence Spine artifacts. This is the "source citations" feature
+    // (Step 5) that was built but never rendered in the UI.
+    if (data.citations && data.citations.length > 0) {
+      html += '<details class="ask-citations"><summary class="b-cursor-pointer b-fs12 text-muted">Sources (' + data.citations.length + ')</summary><div class="b-mt4">';
+      for (const cite of data.citations) {
+        html += `<div class="b-mb4 b-fs12">
+          <span class="b-fw600">[${cite.number}]</span>
+          <span class="text-muted">${escapeHtml(cite.source || 'unknown')}</span>
+          ${cite.date ? `<span class="text-muted"> · ${escapeHtml(cite.date)}</span>` : ''}
+          <div class="text-muted">${escapeHtml((cite.text || '').slice(0, 100))}</div>
+        </div>`;
+      }
+      html += '</div></details>';
+    }
 
     // Render follow-up suggestions
     if (data.follow_ups && data.follow_ups.length > 0) {

@@ -21,6 +21,24 @@ const _intentionPrompts = [
 
 let _askIntentionMode = true; // true = show prompts, false = show answer
 
+// Round 3 fix: Generate a session_id for multi-turn conversation.
+// This enables pronoun resolution ("What did we promise?" after "Prepare me
+// for Globex" resolves "we" → Globex). Persisted for the page session.
+// P11: without this, the AskPipeline's conversation-state path is unreachable
+// from the UI — the engine works in tests but the user never benefits.
+let _askSessionId = null;
+function getAskSessionId() {
+  if (!_askSessionId) {
+    try {
+      _askSessionId = crypto.randomUUID();
+    } catch (e) {
+      // Fallback for browsers without crypto.randomUUID
+      _askSessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+    }
+  }
+  return _askSessionId;
+}
+
 function loadAskV2() {
   const el = document.getElementById('ask-v2-content');
   if (!el) return;
@@ -212,7 +230,24 @@ async function submitAskV2(question) {
   answerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   try {
-    const data = await api.getOEM(`/ask?q=${encodeURIComponent(question)}`);
+    // Round 3 fix: Use POST /ask/conversation (AskPipeline) instead of
+    // GET /ask?q= (old TF-IDF DecisionEngine). This activates:
+    //   - 9 intent types (WISDOM, WHAT_IF, SIMULATE, RECALL, PREPARE, etc.)
+    //   - Conversation state (pronoun resolution via session_id)
+    //   - Evidence-grounded narration with inline citations [1][2]
+    // P11: the AskPipeline was built (commit 78aa7d7) but the UI never called
+    // it. Same disease as CRITICAL-01, one layer up.
+    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: question,
+        history: [],
+        session_id: getAskSessionId(),  // enables pronoun resolution
+      }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
     renderAskV2Answer(answerEl, question, data);
   } catch (e) {
     answerEl.innerHTML = `<div class="ds-error">Maestro couldn't answer that right now. ${escapeHtml(e.message)}</div>`;
@@ -241,6 +276,38 @@ function renderAskV2Answer(el, question, data) {
       <summary class="b-cursor-pointer">Show evidence</summary>
       <div class="b-mt8-p12">${escapeHtml(humanize(evidenceDetail))}</div>
     </details>`;
+  }
+
+  // Round 3 fix: Render citations from the AskPipeline.
+  // The new response format includes `citations` (list of {number, source,
+  // text, date}) and `evidence` (list of evidence items). These are the
+  // inline [1][2] citations that link the answer to the Evidence Spine.
+  if (data.citations && data.citations.length > 0) {
+    html += `<details class="b-mt8-mb12">
+      <summary class="b-cursor-pointer">Sources (${data.citations.length})</summary>
+      <div class="b-mt8-p12">`;
+    for (const cite of data.citations) {
+      const citeText = cite.text || '';
+      const citeSource = cite.source || 'unknown';
+      const citeDate = cite.date || '';
+      html += `<div class="b-mb8">
+        <span class="b-fw600">[${cite.number}]</span>
+        <span class="text-muted">${escapeHtml(citeSource)}</span>
+        ${citeDate ? `<span class="text-muted"> · ${escapeHtml(citeDate)}</span>` : ''}
+        <div class="b-fs13-text-muted">${escapeHtml(humanize(citeText))}</div>
+      </div>`;
+    }
+    html += `</div></details>`;
+  }
+
+  // Also render the intent + entities (transparency — proves the pipeline ran)
+  if (data.intent || (data.entities && data.entities.length > 0)) {
+    html += `<div class="b-mt8 b-fs12 text-muted">`;
+    if (data.intent) html += `Intent: ${escapeHtml(data.intent)}`;
+    if (data.entities && data.entities.length > 0) {
+      html += ` · Entities: ${escapeHtml(data.entities.join(', '))}`;
+    }
+    html += `</div>`;
   }
 
   // P0-4: Bold confidence labels — VERIFIED / CONFIDENT / EXPLORING
