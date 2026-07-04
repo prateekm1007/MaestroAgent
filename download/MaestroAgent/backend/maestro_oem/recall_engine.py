@@ -82,7 +82,7 @@ ENTITY_SYNONYMS: dict[str, list[str]] = {
     "security": ["security", "vulnerability", "cve", "auth", "oauth", "sso", "breach"],
     "pricing": ["pricing", "price", "cost", "budget", "discount", "invoice"],
     "engineering": ["engineering", "deploy", "deployment", "pr", "merge", "rollback", "release"],
-    "customer": ["customer", "client", "account", "globex", "initech", "hooli", "acme", "umbrella"],
+    "customer": ["customer", "client", "account"],
     "timeline": ["timeline", "deadline", "delay", "late", "schedule", "due"],
     "hiring": ["hiring", "hire", "recruit", "staff", "headcount"],
     "commitment": ["commitment", "promise", "pledge", "deliverable", "due date"],
@@ -437,6 +437,33 @@ class RecallEngine:
         # ── Step 1: Parse query ────────────────────────────────────────
         builder = RecallQueryBuilder(now=self._now)
         parsed = builder.parse(query)
+
+        # ── Step 1b: L-01 fix — derive customer names from signal metadata ──
+        # P13: Customer names are DERIVED from evidence (signal metadata),
+        # not hardcoded in ENTITY_SYNONYMS. The synonym map only contains
+        # generic topic terms ("customer", "client", "account"). Specific
+        # customer names ("Globex", "AcmeCorp") are extracted from the
+        # `metadata.customer` field of stored signals.
+        #
+        # This is the same pattern AskPipeline uses (Phase A, line 167).
+        # Without this, "everything about Globex" would not resolve to
+        # entity "Globex" — only to the generic "customer" topic.
+        #
+        # Names are lowercased because the entire entity-matching pipeline
+        # (ENTITY_SYNONYMS, _entity_match_score, graph expansion) operates
+        # case-insensitively. Storing mixed-case names would break matches.
+        query_lower = query.lower()
+        for sig in self.signals:
+            try:
+                customer = sig.metadata.get("customer", "") if hasattr(sig, "metadata") else ""
+                if customer and customer.lower() in query_lower:
+                    cust_lower = customer.lower()
+                    if cust_lower not in parsed.entities:
+                        parsed.entities.append(cust_lower)
+                    if cust_lower not in parsed.entity_synonyms:
+                        parsed.entity_synonyms.append(cust_lower)
+            except Exception:
+                continue
 
         # ── Step 2: Fetch all whisper history ──────────────────────────
         all_history: dict[str, dict[str, Any]] = {}

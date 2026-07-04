@@ -45,6 +45,27 @@ def db_path():
             os.unlink(path)
 
 
+@pytest.fixture(autouse=True)
+def _setup_env(monkeypatch, tmp_path):
+    """M-05 fix: set MAESTRO_LOCAL_DEV + demo seed so the model has
+    learning objects for pattern decay tests.
+
+    Root cause: oem_state.initialize() without MAESTRO_LOCAL_DEV=true
+    produces an empty model (0 learning objects), so
+    get_pattern_decay_report() returns [] and the test fails.
+
+    Same pattern as test_prediction_lifecycle.py (P3 fix).
+    """
+    monkeypatch.setenv("MAESTRO_LOCAL_DEV", "true")
+    monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
+    monkeypatch.setenv("MAESTRO_SIGNAL_DB", str(tmp_path / "signals.db"))
+    monkeypatch.setenv("MAESTRO_WHISPER_DB", str(tmp_path / "whisper.db"))
+    monkeypatch.setenv("MAESTRO_MEETING_DB", str(tmp_path / "meetings.db"))
+    monkeypatch.setenv("MAESTRO_DECISION_DB", str(tmp_path / "decisions.db"))
+    monkeypatch.setenv("MAESTRO_ORG_LEARNING_DB", str(tmp_path / "org_learning.db"))
+    monkeypatch.setenv("MAESTRO_MUTATION_DB", str(tmp_path / "mutations.db"))
+
+
 @pytest.fixture
 def engine(db_path):
     oem_state.initialize()
