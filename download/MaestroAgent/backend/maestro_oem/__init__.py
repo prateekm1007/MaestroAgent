@@ -35,30 +35,16 @@ from maestro_oem.contradiction import (
     ContradictionLog,
     FeedbackAction,
 )
-from maestro_oem.replay import (
-    HistoricalReplay,
-    HistoricalPrediction,
-    PredictionOutcome,
-    ReplayMetrics,
-    ReplayResult,
-)
+# Dead code removed: replay.py, dependency.py, multiuser.py (1,519 lines)
+# All 3 had 0 production callers (verified by grep). Removed at auditor's
+# directive. If any of these capabilities are needed in the future, they
+# should be rebuilt with tests from the start (P2).
 try:
     from maestro_oem.persistence import OEMStore, PersistentOEM
 except ImportError:
     # sqlalchemy not available in all environments — don't block all imports
     OEMStore = None
     PersistentOEM = None
-from maestro_oem.dependency import DependencyGraph, DependencyManager, DependencyImpact
-from maestro_oem.multiuser import (
-    SharedOEM,
-    UserSession,
-    UserRole,
-    SyncEvent,
-    SyncEventType,
-    OptimisticUpdate,
-    SharedDecision,
-    ConflictResolution,
-)
 from maestro_oem.ingestion import (
     IngestionPipeline,
     IngestionResult,
