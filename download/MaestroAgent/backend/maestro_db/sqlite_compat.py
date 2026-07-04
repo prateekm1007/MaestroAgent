@@ -23,8 +23,17 @@ from contextlib import contextmanager
 from typing import Any
 from datetime import datetime
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+try:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import Engine
+    _HAS_SQLALCHEMY = True
+except ImportError:
+    _HAS_SQLALCHEMY = False
+    # Fall back to standard sqlite3 when SQLAlchemy is not available
+    import sqlite3 as _sqlite3
+    create_engine = None
+    text = None
+    Engine = None
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +63,13 @@ def _normalize_path(db_path: str) -> str:
 
 
 def _get_engine(db_path: str) -> Engine:
-    """Get or create a SQLAlchemy engine for the given path/URL."""
+    """Get or create a SQLAlchemy engine for the given path/URL.
+
+    Falls back to standard sqlite3 when SQLAlchemy is not available.
+    """
+    if not _HAS_SQLALCHEMY:
+        raise RuntimeError("SQLAlchemy not available — use standard sqlite3 fallback")
+
     normalized = _normalize_path(db_path)
 
     with _engines_lock:
@@ -74,30 +89,51 @@ def _get_engine(db_path: str) -> Engine:
             # with pooled connections. SQLite doesn't benefit from pooling
             # (file-based, no network round-trip). NullPool ensures each
             # connect() gets a fresh DBAPI connection.
-            from sqlalchemy.pool import NullPool
-            engine = create_engine(
-                normalized,
-                pool_pre_ping=True,
-                connect_args={"check_same_thread": False},
-                poolclass=NullPool,
-            )
+            try:
+                from sqlalchemy.pool import NullPool
+                engine = create_engine(
+                    normalized,
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False},
+                    poolclass=NullPool,
+                )
+            except (ImportError, TypeError):
+                engine = create_engine(
+                    normalized,
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False},
+                )
         elif normalized == ":memory:":
-            from sqlalchemy.pool import StaticPool
-            engine = create_engine(
-                "sqlite://",
-                pool_pre_ping=True,
-                connect_args={"check_same_thread": False},
-                poolclass=StaticPool,  # StaticPool for :memory: (shared across threads)
-            )
+            try:
+                from sqlalchemy.pool import StaticPool
+                engine = create_engine(
+                    "sqlite://",
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False},
+                    poolclass=StaticPool,  # StaticPool for :memory: (shared across threads)
+                )
+            except (ImportError, TypeError):
+                engine = create_engine(
+                    "sqlite://",
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False},
+                )
         else:
             # File path — treat as SQLite with NullPool
-            from sqlalchemy.pool import NullPool
-            engine = create_engine(
-                f"sqlite:///{normalized}",
-                pool_pre_ping=True,
-                connect_args={"check_same_thread": False},
-                poolclass=NullPool,
-            )
+            try:
+                from sqlalchemy.pool import NullPool
+                engine = create_engine(
+                    f"sqlite:///{normalized}",
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False},
+                    poolclass=NullPool,
+                )
+            except (ImportError, TypeError):
+                engine = create_engine(
+                    f"sqlite:///{normalized}",
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False},
+                )
 
         _engines[normalized] = engine
         return engine
@@ -308,7 +344,7 @@ class _CompatSavepoint:
         pass
 
 
-def connect(db_path: str, **kwargs) -> _CompatConnection:
+def connect(db_path: str, **kwargs):
     """Create a connection — drop-in replacement for sqlite3.connect().
 
     Works with:
@@ -317,9 +353,21 @@ def connect(db_path: str, **kwargs) -> _CompatConnection:
       - PostgreSQL URLs: "postgresql://user:pass@host:5432/db"
       - In-memory: ":memory:"
 
+    Falls back to standard sqlite3 when SQLAlchemy is not available.
+
     kwargs:
       - isolation_level: None (autocommit, default) or "DEFERRED" (transactional)
     """
+    if not _HAS_SQLALCHEMY:
+        # Fallback: use standard sqlite3 directly
+        import sqlite3 as _stdlib_sqlite3
+        normalized = _normalize_path(db_path)
+        if normalized.startswith("sqlite:///"):
+            normalized = normalized.replace("sqlite:///", "", 1)
+        conn = _stdlib_sqlite3.connect(normalized, isolation_level=kwargs.get('isolation_level'))
+        conn.row_factory = _stdlib_sqlite3.Row
+        return conn
+
     engine = _get_engine(db_path)
     return _CompatConnection(engine, db_path, isolation_level=kwargs.get('isolation_level'))
 

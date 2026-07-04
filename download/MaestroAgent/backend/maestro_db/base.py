@@ -23,10 +23,21 @@ import logging
 from contextlib import contextmanager
 from typing import Any, Generator
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
-from sqlalchemy.engine.url import make_url
-from sqlalchemy.orm import sessionmaker, Session, DeclarativeBase
+try:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import Engine
+    from sqlalchemy.engine.url import make_url
+    from sqlalchemy.orm import sessionmaker, Session, DeclarativeBase
+    _HAS_SQLALCHEMY = True
+except ImportError:
+    _HAS_SQLALCHEMY = False
+    create_engine = None
+    text = None
+    Engine = None
+    make_url = None
+    sessionmaker = None
+    Session = None
+    DeclarativeBase = object
 
 logger = logging.getLogger(__name__)
 

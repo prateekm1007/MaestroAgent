@@ -16,8 +16,15 @@ import os
 from contextlib import contextmanager
 from typing import Any, Generator
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+try:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import Engine
+    _HAS_SQLALCHEMY = True
+except ImportError:
+    _HAS_SQLALCHEMY = False
+    create_engine = None
+    text = None
+    Engine = None
 
 logger = logging.getLogger(__name__)
 

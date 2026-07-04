@@ -42,7 +42,12 @@ from maestro_oem.replay import (
     ReplayMetrics,
     ReplayResult,
 )
-from maestro_oem.persistence import OEMStore, PersistentOEM
+try:
+    from maestro_oem.persistence import OEMStore, PersistentOEM
+except ImportError:
+    # sqlalchemy not available in all environments — don't block all imports
+    OEMStore = None
+    PersistentOEM = None
 from maestro_oem.dependency import DependencyGraph, DependencyManager, DependencyImpact
 from maestro_oem.multiuser import (
     SharedOEM,

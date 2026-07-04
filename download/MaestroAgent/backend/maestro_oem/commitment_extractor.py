@@ -62,17 +62,17 @@ logger = logging.getLogger(__name__)
 _COMMITMENT_PATTERNS: list[re.Pattern] = [
     # "we'll deliver X by Y" / "we will deliver X by Y"
     re.compile(
-        r"\bwe['']?ll\s+deliver\s+(.+?)\s+(?:by\s+|before\s+|until\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        r"\bwe\s*(?:will|['\u2019]?ll)\s+deliver\s+(.+?)\s+(?:by\s+|before\s+|until\s+)([\w\s\d]+?)(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
-    # "we promise to X by Y" / "we promise to ship X by Y"
+    # "we promise to X by Y" / "we promise to ship X by Y" — deadline optional
     re.compile(
-        r"\bwe\s+promise\s+to\s+(?:ship\s+|deliver\s+|build\s+|provide\s+|implement\s+)?(.+?)\s+(?:by\s+|before\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        r"\bwe\s+promise\s+to\s+(?:ship\s+|deliver\s+|build\s+|provide\s+|implement\s+)?(.+?)(?:\s+(?:by\s+|before\s+)([\w\s\d]+?))?(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
-    # "we'll have X ready by Y"
+    # "we'll have X ready by Y" / "we will have X ready by Y"
     re.compile(
-        r"\bwe['']?ll\s+have\s+(.+?)\s+ready\s+(?:by\s+|before\s+|for\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        r"\bwe\s*(?:will|['\u2019]?ll)\s+have\s+(.+?)\s+ready\s+(?:by\s+|before\s+|for\s+)([\w\s\d]+?)(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
     # "we commit to X by Y"
@@ -80,9 +80,24 @@ _COMMITMENT_PATTERNS: list[re.Pattern] = [
         r"\bwe\s+commit\s+to\s+(?:delivering\s+|shipping\s+|building\s+|providing\s+|implementing\s+)?(.+?)\s+(?:by\s+|before\s+)([\w\s\d]+?)(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
-    # "we'll ship X by Y"
+    # "we'll ship X by Y" / "we will ship X by Y"
     re.compile(
-        r"\bwe['']?ll\s+ship\s+(.+?)\s+(?:by\s+|before\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        r"\bwe\s*(?:will|['\u2019]?ll)\s+ship\s+(.+?)\s+(?:by\s+|before\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        re.IGNORECASE,
+    ),
+    # D1 fix: "we will have X available/ready/live by/before Y"
+    re.compile(
+        r"\bwe\s+will\s+have\s+(.+?)\s+(?:available|ready|live|deployed|live)\s+(?:by\s+|before\s+|for\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        re.IGNORECASE,
+    ),
+    # D1 fix: "I will follow up on X" / "I'll follow up on X"
+    re.compile(
+        r"\bi\s*(?:will|['\u2019]?ll)\s+(?:follow\s+up|confirm|send|share|provide|update)\s+(?:on\s+|the\s+)?(.+?)(?=[.!?;]|$)",
+        re.IGNORECASE,
+    ),
+    # D1 fix: "target: before Y" / "target: by Y" (from Confluence/ docs)
+    re.compile(
+        r"\b(?:target|goal|deadline|eta)\s*:\s*(?:before\s+|by\s+)([\w\s\d]+?)(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
 ]
@@ -207,7 +222,7 @@ class CommitmentExtractor:
 
         for sig in signals:
             # Only scan free-text signals
-            if sig.type not in (SignalType.MESSAGE_SENT, SignalType.EMAIL_SENT, SignalType.EMAIL_RECEIVED, SignalType.CUSTOMER_EMAIL, SignalType.THREAD_STARTED):
+            if sig.type not in (SignalType.MESSAGE_SENT, SignalType.EMAIL_SENT, SignalType.EMAIL_RECEIVED, SignalType.CUSTOMER_EMAIL, SignalType.THREAD_STARTED, SignalType.PAGE_CREATED, SignalType.PAGE_EDITED):
                 continue
 
             # Get the text from metadata
