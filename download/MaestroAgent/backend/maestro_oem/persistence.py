@@ -571,7 +571,17 @@ class OEMStore:
     # ─── Model State ───
 
     def save_model_state(self, model: ExecutionModel) -> None:
-        """Save the entire model state (health, knowledge, approvals, risks, metadata)."""
+        """Save the ENTIRE model state — health, knowledge, approvals, risks,
+        AND cognitive state (laws, learning_objects, patterns).
+
+        Phase 4.2 fix (auditor's Gap 2): before this fix, save_model_state()
+        only saved health/knowledge/approvals/risks but NOT laws/LOs/patterns.
+        Those were saved by separate methods (save_law, save_learning_object,
+        save_pattern). Callers like oem_state.py:_save_model_state() called
+        BOTH save_model_state() AND the separate methods. But direct callers
+        who used only save_model_state() lost cognitive state on restart.
+        Now save_model_state() saves EVERYTHING.
+        """
         cursor = self._conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO model_state
@@ -590,7 +600,25 @@ class OEMStore:
         ))
         self._conn.commit()
 
+        # Also save cognitive state (laws, learning_objects, patterns)
+        for law in model.laws.values():
+            self.save_law(law)
+        for lo in model.learning_objects.values():
+            self.save_learning_object(lo)
+        if hasattr(model, 'patterns') and model.patterns:
+            for pattern in model.patterns:
+                self.save_pattern(pattern)
+
     def load_model_state(self) -> dict[str, Any] | None:
+        """Load the ENTIRE model state — health, knowledge, approvals, risks,
+        AND cognitive state (laws, learning_objects, patterns).
+
+        Phase 4.2 fix (auditor's Gap 2): before this fix, load_model_state()
+        returned only health/knowledge/approvals/risks but NOT laws/LOs/
+        patterns. Callers who used load_model_state() directly (not via
+        oem_state.py:_load_model_state()) got partial state — cognitive
+        state was lost. Now load_model_state() returns EVERYTHING.
+        """
         cursor = self._conn.cursor()
         cursor.execute("SELECT * FROM model_state WHERE id = 1")
         row = cursor.fetchone()
@@ -602,6 +630,11 @@ class OEMStore:
         risks = RiskSurface.model_validate_json(row["risks"])
         knowledge = _deserialize_knowledge(row["knowledge"])
 
+        # Phase 4.2 fix: also load cognitive state
+        laws = self.load_laws()
+        learning_objects = self.load_learning_objects()
+        patterns = self.load_patterns()
+
         return {
             "health": health,
             "knowledge": knowledge,
@@ -611,6 +644,10 @@ class OEMStore:
             "next_law_number": row["next_law_number"],
             "created_at": datetime.fromisoformat(row["created_at"]),
             "last_updated": datetime.fromisoformat(row["last_updated"]),
+            # Phase 4.2 fix: cognitive state now included
+            "laws": laws,
+            "learning_objects": learning_objects,
+            "patterns": patterns,
         }
 
 
