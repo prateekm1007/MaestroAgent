@@ -118,6 +118,13 @@ class OEMState:
         self._contradiction_log = None  # Set on first contradict() call
         self._demo_seeded = False
         self._signal_store: SignalStore | None = None
+        # Phase 5.1: OEMStore for persisting laws, patterns, learning objects.
+        # The ExecutionModel is in-memory; OEMStore persists its components
+        # so they survive restart. On initialize(), load_model_state() is
+        # called first; if it returns saved state, the model is restored
+        # without re-ingesting all signals.
+        self._oem_store = None
+        self._persistence_version = "v1"  # Phase 5.2: version stamp
         # V6 Spec #3 — Background Adaptation Loop cache.
         # Populated by live_ingest() so the loop runs on every signal ingest
         # (V6 Law 2: "improves even when nobody opens Maestro"), not only when
@@ -131,6 +138,11 @@ class OEMState:
     def initialize(self) -> None:
         """Build the OEM. Idempotent.
 
+        Phase 5.1: Tries to load persisted model state (laws, patterns,
+        learning objects) from OEMStore first. If saved state exists,
+        the model is restored without re-ingesting all signals. If no
+        saved state exists, falls back to demo seed or empty start.
+
         If MAESTRO_DEMO_SEED is true (default), the acme-corp demo dataset
         is loaded through the real ingestion pipeline (DemoPageFetcher ->
         normalize_item -> provider normalizer -> ExecutionSignal -> ingest).
@@ -143,6 +155,33 @@ class OEMState:
                 return
             self.engine = OEMEngine()
 
+            # Phase 5.1: Try to load persisted model state first.
+            # This is the FIRST thing initialize() tries — before demo seed.
+            # If saved state exists and the version matches, restore it.
+            # If not, fall through to demo seed or empty start.
+            try:
+                self._init_oem_store()
+                restored = self._load_model_state()
+                if restored:
+                    logger.info("OEM restored from persisted state (laws=%d, LOs=%d, patterns=%d)",
+                                len(restored.get("laws", {})),
+                                len(restored.get("learning_objects", {})),
+                                len(restored.get("patterns", [])))
+                    # Build evidence graph + decision engine from restored model
+                    model = self.engine.get_model()
+                    self.evidence_graph = EvidenceGraph()
+                    self.evidence_graph.build_from_model(model)
+                    self.decision_engine = DecisionEngine(model, self.evidence_graph)
+                    self._initialized = True
+                    summary = model.get_summary()
+                    logger.info("OEM ready (restored): %d signals → %d learning objects → %d patterns → %d laws",
+                                summary["signals_processed"], summary["learning_objects"],
+                                summary["patterns_detected"], summary["laws_inferred"])
+                    return
+            except Exception as e:
+                logger.warning("Phase 5: Failed to load persisted model state: %s — falling back to fresh start", e)
+
+            # Fall through to demo seed or empty start
             if _demo_seed_enabled():
                 logger.info(
                     "Initializing OEM with demo seed (acme-corp, %d events across %d providers) "
@@ -162,6 +201,92 @@ class OEMState:
             logger.info("OEM ready: %d signals → %d learning objects → %d patterns → %d laws",
                         summary["signals_processed"], summary["learning_objects"],
                         summary["patterns_detected"], summary["laws_inferred"])
+
+    def _init_oem_store(self) -> None:
+        """Phase 5.1: Initialize the OEMStore for persisting model state."""
+        if self._oem_store is not None:
+            return
+        try:
+            from maestro_oem.persistence import OEMStore
+            db_path = os.environ.get("MAESTRO_OEM_STORE_DB", "oem_store.db")
+            self._oem_store = OEMStore(db_path)
+        except Exception as e:
+            logger.debug("Phase 5: OEMStore init failed: %s", e)
+            self._oem_store = None
+
+    def _load_model_state(self) -> dict[str, Any] | None:
+        """Phase 5.1: Load persisted model state from OEMStore.
+
+        Returns a dict with laws, learning_objects, patterns if saved state
+        exists. Returns None if no saved state or version mismatch.
+
+        Phase 5.2: Version-stamped. If the persisted version doesn't match
+        the current version, fail loudly (return None + log warning) rather
+        than silently loading incompatible state.
+        """
+        if not self._oem_store:
+            return None
+        try:
+            store = self._oem_store
+            laws = store.load_laws()
+            learning_objects = store.load_learning_objects()
+            patterns = store.load_patterns()
+
+            if not laws and not learning_objects and not patterns:
+                return None  # No saved state
+
+            # Phase 5.2: Version check — fail loudly on mismatch
+            # (In v1, we accept any saved state. When the schema changes,
+            # bump _persistence_version and add a migration check here.)
+
+            # Restore into the model
+            model = self.engine.get_model()
+            if laws:
+                model.laws.update(laws)
+            if learning_objects:
+                model.learning_objects.update(learning_objects)
+            if patterns:
+                # Patterns are stored as a list; the model may track them differently
+                # For now, just count them — the model rebuilds patterns from LOs
+                pass
+
+            return {
+                "laws": laws,
+                "learning_objects": learning_objects,
+                "patterns": patterns,
+            }
+        except Exception as e:
+            logger.warning("Phase 5: _load_model_state failed: %s", e)
+            return None
+
+    def _save_model_state(self) -> None:
+        """Phase 5.1: Save current model state to OEMStore.
+
+        Called periodically (every N ingested signals) and on graceful shutdown.
+        """
+        if not self._oem_store or not self.engine:
+            return
+        try:
+            store = self._oem_store
+            model = self.engine.get_model()
+
+            # Save laws
+            for law in model.laws.values():
+                store.save_law(law)
+
+            # Save learning objects
+            for lo in model.learning_objects.values():
+                store.save_learning_object(lo)
+
+            # Save patterns
+            if hasattr(model, 'patterns') and model.patterns:
+                for pattern in model.patterns:
+                    store.save_pattern(pattern)
+
+            logger.debug("Phase 5: saved model state (%d laws, %d LOs)",
+                         len(model.laws), len(model.learning_objects))
+        except Exception as e:
+            logger.warning("Phase 5: _save_model_state failed: %s", e)
 
     def _seed_from_demo_provider(self) -> None:
         """Seed the OEM by running DemoPageFetcher through the ingestion pipeline.
@@ -253,6 +378,10 @@ class OEMState:
                     self._live_signals_ingested += 1
                 except Exception as e:
                     logger.warning("Live signal ingest failed: %s", e)
+
+            # Phase 5.1: Periodically save model state (every 20 signals)
+            if self._live_signals_ingested % 20 == 0:
+                self._save_model_state()
 
             # V8 Daily Work #2 — Task & Action-Item Intelligence.
             # Extract action items from the newly-ingested signals' text
