@@ -260,13 +260,23 @@ class ContradictionEngine:
         """
         from maestro_oem.confidence import ConfidenceCalculator
 
+        # P20 fix: compute content_hash for the CEO feedback event so the
+        # dedup logic in law.add_validation() fires. Without this, the same
+        # CEO feedback event processed twice (e.g., via retry) would inflate
+        # validated_runtimes. The hash is derived from the event_id + linked
+        # laws so different events produce different hashes.
+        import hashlib
+        ceo_feedback_hash = hashlib.sha256(
+            f"ceo_feedback|{event.event_id}|{'|'.join(sorted(linked_laws))}".encode()
+        ).hexdigest()[:16]
+
         for law_code in linked_laws:
             law = self.model.laws.get(law_code)
             if not law:
                 continue
 
-            # Add a validation
-            law.add_validation()
+            # Add a validation (P20: pass content_hash for dedup)
+            law.add_validation(content_hash=ceo_feedback_hash)
 
             # If law was stressed, it can recover
             # (handled by add_validation which checks status)
@@ -274,7 +284,7 @@ class ContradictionEngine:
         # Add supporting evidence to LOs linked to these laws
         for lo in self.model.learning_objects.values():
             if any(law_code in lo.metadata.get("linked_laws", []) for law_code in linked_laws):
-                lo.add_evidence(event.event_id, "ceo_feedback")
+                lo.add_evidence(event.event_id, "ceo_feedback", content_hash=ceo_feedback_hash)
 
     def _apply_reject(self, event: ContradictionEvent, linked_laws: list[str]) -> None:
         """
@@ -322,13 +332,19 @@ class ContradictionEngine:
         - LOs gain both evidence and a contradiction
         - Confidence adjusts slightly downward
         """
+        # P20 fix: compute content_hash for partial-feedback events
+        import hashlib
+        partial_feedback_hash = hashlib.sha256(
+            f"partial_feedback|{event.event_id}|{'|'.join(sorted(linked_laws))}".encode()
+        ).hexdigest()[:16]
+
         for law_code in linked_laws:
             law = self.model.laws.get(law_code)
             if not law:
                 continue
 
-            # Partial: add both validation and counter-example
-            law.add_validation()
+            # Partial: add both validation and counter-example (P20: pass content_hash)
+            law.add_validation(content_hash=partial_feedback_hash)
             law.add_counter_example()
 
             # Mark drift (mild)

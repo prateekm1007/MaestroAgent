@@ -105,6 +105,53 @@ This engagement's turning point was always "I ran it myself" instead of "the tra
 
 ---
 
+## PART FOUR — NEW, FROM THIS ENGAGEMENT'S WIRING-VS-EXISTENCE FAILURES
+
+### The meta-failure this engagement revealed
+
+P11 (wiring) already existed in Part Two. The Coder violated it **5 times** in 4 commits (C-002, C6, C1, C5, C4). The first paragraph of this file already says "having principles doesn't stop entropy." Both sides read it. Both sides violated it anyway.
+
+**The gap is not missing principles. The gap is mechanical enforcement.** Principles that exist only as prose will be violated. Principles that exist as checklist items with specific commands to run have a chance. Every principle below specifies the exact command and the exact output that must be pasted.
+
+### 20. Call-site parameter rule — when a function gains a parameter, EVERY caller must pass it
+C-002: the `content_hash` parameter was added to `add_evidence()` and `add_validation()`. The dedup logic existed. But 0 of 27 call sites in `model.py` passed it (and 2 more in `contradiction.py` were missed in the first fix). The function signature had the parameter; the production path didn't use it. This is P11 (wiring) one layer deeper — not "is the function called?" but "is the function called WITH THE RIGHT ARGUMENTS?"
+
+> **Rule:** When you add a parameter to a function, run `grep -rn "<func>(" --include="*.py" | grep -v test_ | grep -v "def <func>"` to list every call site. For each call site, verify it passes the new parameter. If M of N call sites pass it, the fix is (M/N)% done — not "done." Paste the grep output + the count in the commit message.
+
+### 21. All-paths trigger rule — save/persist functions must fire from EVERY path that creates state
+C6: `_save_model_state()` existed. It was called from `live_ingest()` (every 20 signals). It was NOT called from `_seed_from_demo_provider()` (demo seed created 66 signals' worth of state, then never saved). It was NOT called from the lifespan shutdown. So demo-seeded state was lost on every restart. The function existed; the triggers were incomplete.
+
+> **Rule:** For every save/persist function, list every code path that creates or mutates the state being saved. Verify the save is called from each path. Execute the restart cycle for each: create state via path X → kill → restart → verify state survived. Paste the before/after counts. "The save function exists" is not evidence — "the save function fired from path X and the state survived restart" is evidence.
+
+### 22. Regression test must execute the production path — unit tests don't prove wiring
+C-002: the unit test called `add_validation(content_hash=...)` directly and passed. The production path (`model.py.process_signal`) didn't pass `content_hash`. The unit test was green; the bug was present. This is P19 (unit ≠ integration) one layer deeper — the unit test proves the function works; it does NOT prove the function is called from the real entry point with the right arguments.
+
+> **Rule:** For every fix, write TWO tests: (1) a unit test that calls the function directly and verifies the behavior, (2) an integration test that sends input through the REAL production entry point (e.g., `engine.ingest()`, `oem_state.live_ingest()`, a real HTTP request) and observes the real output. Both must pass. The integration test is the one that catches wiring gaps. State in the commit message which of the two you wrote.
+
+### 23. Commit message must cite executed output — claims without output are not evidence
+C-002: the commit message said "validated_runtimes=1 ✓". Execution showed `validated_runtimes=4`. The checkmark was a claim, not evidence. The auditor trusted the claim for 3 commits before executing the reproduction.
+
+> **Rule:** Every commit claiming a fix must include a `VERIFICATION:` section with the exact command run and its output pasted. Format: `VERIFICATION: $ <command>\n<output>`. "✓ VERIFIED" without pasted output is a P1 violation. The output must be from THIS session, not a prior session (P4).
+
+### 24. Cross-surface coherence check — same entity through all surfaces must agree
+C3: 3 of 5 surfaces (Whisper, Today, Preparation) saw the Globex commitment. 2 surfaces (Ask, Briefing) did not — because the Ask pipeline had a `[:30]` signal window that dropped the commitment at index 42. Each surface was verified vertically (does it work in isolation?). No one verified horizontally (do all surfaces agree on the same entity?).
+
+> **Rule:** For each demo entity, query it through every surface that should see it (Situation, Ask, Whisper, Preparation, Briefing, Timeline). Assert they agree on: commitments, state, people, evidence. If 3 of 5 surfaces see the entity and 2 do not, that's a coherence failure — even if each surface passes its own tests. Paste the cross-surface comparison table in the commit message.
+
+### 25. Confidence display gate — gate display on calibration sample size
+C4: the confidence value `0.8484` was displayed with 4-decimal precision. The denominator was 0 outcomes. The formula was correct; the display was dishonest — 4-decimal precision implies a calibration rigor that 0 outcomes cannot support. This is "decorative precision" — the most dangerous illusion per the external auditor.
+
+> **Rule:** For every confidence value displayed to the user, the display code must check the calibration sample size. If the denominator (resolved predictions, outcomes, evidence count) is < 10, display "insufficient calibration history" — never bare 4-decimal precision. The threshold (10) is conservative; adjust per surface, but the gate must exist. A confidence value with no denominator is a claim, not a measurement.
+
+### 26. Meta: principles don't enforce themselves, re-application does
+P11 and P15 existed in Part Two. Both were violated repeatedly — not because the Coder didn't know them, but because the Coder didn't re-apply them to the specific work in front of them. The first paragraph of this file says "having principles doesn't stop entropy. Only re-applying them, every session, against your own newest work, does." Both sides read it. Both sides violated it anyway.
+
+> **Rule:** At the start of every session, re-read P11, P15, and P20-P25 FROM DISK (not from memory). Paste the re-read timestamp in the worklog. For every fix commit, cite which P-number principle the fix satisfies (e.g., "P20: 27/27 callers pass content_hash, grep output pasted below"). The citation is the enforcement — it forces you to re-apply the principle to the specific work, not just remember it exists. Principles without citation are prose. Principles with citation are checklist items.
+
+---
+
 ## HOW TO USE THIS
 
-Read Part One and Part Two before writing code. Read Part Three before auditing. Read the whole thing before writing instructions for either. Every N rounds, pick one item marked "done" at random — not the one you're worried about, the one you're confident is fine — and re-verify it at the deepest level (principle #15's third checkbox). That's where entropy hides: not in the things anyone is still worried about, but in the things everyone stopped checking because they were marked done two rounds ago.
+Read Part One and Part Two before writing code. Read Part Three before auditing. Read Part Four before either — the wiring-vs-existence failures it documents are the most recent and most common. Read the whole thing before writing instructions for either. Every N rounds, pick one item marked "done" at random — not the one you're worried about, the one you're confident is fine — and re-verify it at the deepest level (principle #15's third checkbox). That's where entropy hides: not in the things anyone is still worried about, but in the things everyone stopped checking because they were marked done two rounds ago.
+
+**P26 is the load-bearing principle of Part Four.** Principles don't enforce themselves. Re-application does. The mechanical checks in P20-P25 ARE the enforcement — "did you run `grep` and count the callers?" is enforceable; "did you remember the wiring principle?" is not. Every session, re-read P11, P15, and P20-P25 from disk, and cite the P-number in every fix commit.

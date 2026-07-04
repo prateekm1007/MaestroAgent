@@ -76,6 +76,36 @@ Before reviewing any coder claim, answer these questions honestly.
       capability (P13)
 - [ ] I will check whether inputs are DERIVED from evidence, not caller-supplied
 
+### Gate 15 (NEW): For "wired" claims, will you verify callers pass the parameter?
+- [ ] Yes — a function signature with a new parameter proves nothing (P20, C-002)
+- [ ] I will run `grep -rn "<func>(" --include="*.py" | grep -v test_ | grep -v "def <func>"` and count callers that pass the new parameter
+- [ ] If M < N, the fix is (M/N)% done — I will mark it INCOMPLETE, not FIXED
+
+### Gate 16 (NEW): For "persisted" claims, will you execute the restart cycle?
+- [ ] Yes — a save function that exists but doesn't fire from the right trigger is theater (P21, C6)
+- [ ] I will: start server → create state via path X → SIGKILL → restart → verify state survived
+- [ ] I will paste before/after counts. "The save function exists" is not evidence.
+
+### Gate 17 (NEW): For "dedup" claims, will you send duplicate input?
+- [ ] Yes — reading the dedup logic proves nothing; executing it with duplicates does (P22, C-002)
+- [ ] I will send 4 identical signals through the REAL production entry point (not a unit test)
+- [ ] I will verify: 1 LO (not 4), evidence_count ≤ 2 (not 4), content_hashes set non-empty
+
+### Gate 18 (NEW): For "coherence" claims, will you query all surfaces horizontally?
+- [ ] Yes — vertical verification (each surface in isolation) misses cross-surface failures (P24, C3)
+- [ ] I will query each demo entity through ALL surfaces (Situation/Ask/Whisper/Preparation/Briefing/Timeline)
+- [ ] I will assert they agree on commitments/state/people/evidence — paste the comparison table
+
+### Gate 19 (NEW): For confidence values, will you ask "what is the denominator?"
+- [ ] Yes — a confidence value without a denominator is decorative precision (P25, C4)
+- [ ] For every confidence value displayed to the user: what is the sample size? calibrated?
+- [ ] If denominator < 10, the display must say "insufficient calibration history" — never bare 4-decimal precision
+
+### Gate 20 (NEW): For commit messages claiming a fix, will you execute the reproduction?
+- [ ] Yes — commit message claims are not evidence (P23, C-002)
+- [ ] I will read the claim → find/write the reproduction script → execute → compare to claimed output
+- [ ] I will not trust "✓ VERIFIED" without pasted output from THIS session
+
 ---
 
 ## POST-REVIEW CHECKS (Mandatory — Complete Before Delivering Verdict)
@@ -120,23 +150,41 @@ suggestion. This is the loop that prevents entropy.
 
 ### The Auditor's Obligation (Before Auditing Any Claim)
 1. Read GOVERNANCE.md from disk (not from memory)
-2. Read ENTROPY_RECOVERY.md from disk (not from memory)
-3. Read AUDITOR_GOVERNANCE.md from disk (not from memory)
-4. Complete the Pre-Review Gate (14 questions)
+2. Read ENTROPY_RECOVERY.md from disk (not from memory) — now includes Part Four (P20-P26)
+3. Read AUDITOR_GOVERNANCE.md from disk (not from memory) — now includes Gates 15-20
+4. Complete the Pre-Review Gate (20 questions)
 5. Verify every coder claim by EXECUTION — not by reading, not by grep
    alone, not by trusting the transcript
-6. In every instruction TO the coder, include this line:
+6. For every fix commit, cite which P-number principle the fix satisfies
+   and which Gate the auditor used to verify it (the mutual enforcement)
+7. In every instruction TO the coder, include this line:
    > **Coder: Read GOVERNANCE.md and ENTROPY_RECOVERY.md from disk
    > before writing any code. Do not code from memory.**
 
 ### The Coder's Obligation (Before Writing Any Code)
 1. Read GOVERNANCE.md from disk (not from memory)
-2. Read ENTROPY_RECOVERY.md from disk (not from memory)
+2. Read ENTROPY_RECOVERY.md from disk (not from memory) — Part Four (P20-P26) is NEW
 3. Complete the Pre-Execution Gate (13 questions)
 4. Complete the Post-Execution Gate before each commit
-5. In every instruction TO the auditor, include this line:
+5. For every fix commit, cite which P-number principle the fix satisfies
+   (e.g., "P20: 27/27 callers pass content_hash") — the citation IS the enforcement
+6. In every instruction TO the auditor, include this line:
    > **Auditor: Read GOVERNANCE.md and ENTROPY_RECOVERY.md from disk
    > before auditing. Do not audit from memory.**
+
+### The Alignment Table (NEW — the mutual enforcement map)
+
+The auditor's gates and the coder's principles **mirror** each other. The auditor checks what the coder should have done. The coder's principles make the auditor's checks pass. Every fix commit should cite BOTH the P-number (what the coder did) AND the Gate (what the auditor will verify).
+
+| Coder Principle | Auditor Gate | Failure it prevents |
+|-----------------|--------------|---------------------|
+| P20 Call-site parameter rule | Gate 15 Verify callers pass | C-002 theater (0/27 callers) |
+| P21 All-paths trigger rule | Gate 16 Execute restart cycle | C6 persistence theater |
+| P22 Regression = production path | Gate 17 Send duplicate input | C-002 unit green, bug present |
+| P23 Commit cites executed output | Gate 20 Execute reproduction | C-002 false commit message |
+| P24 Cross-surface coherence | Gate 18 Query all surfaces | C3 coherence failure |
+| P25 Confidence display gate | Gate 19 Ask "denominator?" | C4 decorative precision |
+| P26 Re-application (meta) | All Gates (re-read from disk) | Stale-clone auditing |
 
 ### Why This Loop Exists
 
