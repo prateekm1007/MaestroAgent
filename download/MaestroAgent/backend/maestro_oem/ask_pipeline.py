@@ -814,60 +814,6 @@ class AskPipeline:
 
         return evidence, answer_parts
 
-    # ─── Synthesis (Step 5) ──────────────────────────────────────────
-
-    def _synthesize(
-        self,
-        intent: AskIntent,
-        entities: list[str],
-        evidence: list[dict],
-        answer_parts: list[str],
-        query: str,
-    ) -> str:
-        """Compose a natural-language answer from the evidence.
-
-        Template-based but evidence-grounded. No hardcoded phrases like
-        "The real issue appears to be delivery trust, not price."
-        """
-        if not evidence:
-            # Honest empty — not a hardcoded template
-            entity_str = f" about {', '.join(entities)}" if entities else ""
-            return f"I don't have enough organizational knowledge to answer this{entity_str}. Try asking about a specific customer, project, or decision."
-
-        # Build answer from evidence
-        parts = []
-
-        # Intent-specific prefix
-        if intent == AskIntent.RECALL:
-            parts.append("I found this in my memory:")
-        elif intent == AskIntent.PREPARE:
-            parts.append("Here's what I've prepared:")
-        elif intent == AskIntent.WHY:
-            parts.append("Based on the organizational signals:")
-        elif intent == AskIntent.WHO:
-            parts.append("Based on signal activity:")
-        elif intent == AskIntent.WHAT:
-            parts.append("Here's what I found:")
-        else:
-            parts.append("I found relevant organizational knowledge:")
-
-        # Add evidence-derived content
-        for ap in answer_parts:
-            if ap.startswith("- "):
-                parts.append(ap)
-            else:
-                parts.append(ap)
-
-        # Add entity reference if present
-        if entities:
-            parts.append(f"\nThis relates to: {', '.join(entities)}")
-
-        parts.append("\n**Ask a follow-up...**")
-
-        return "\n".join(parts)
-
-    # ─── Follow-ups and actions ──────────────────────────────────────
-
     def suggest_autocomplete(self, partial_query: str, limit: int = 5) -> list[dict[str, Any]]:
         """P14: SemanticAutocompleteEngine — type-ahead suggestions for Ask Maestro.
 
