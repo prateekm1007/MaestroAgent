@@ -130,11 +130,12 @@ class ConfidenceCalculator:
         providers: set[str],
         last_validated: datetime | None = None,
         calibration_shr: float = 0.0,
+        signal_texts: list[str] | None = None,
     ) -> float:
         """Compute confidence for an OrganizationalLaw. Returns float only."""
         return ConfidenceCalculator.compute_law_confidence_explained(
             validated_runtimes, failed_runtimes, evidence_count,
-            providers, last_validated, calibration_shr
+            providers, last_validated, calibration_shr, signal_texts
         ).value
 
     @staticmethod
@@ -145,6 +146,7 @@ class ConfidenceCalculator:
         providers: set[str],
         last_validated: datetime | None = None,
         calibration_shr: float = 0.0,
+        signal_texts: list[str] | None = None,  # C-002: for content-hash dedup
     ) -> ConfidenceExplanation:
         """
         Compute confidence for an OrganizationalLaw with full explanation.
@@ -154,13 +156,32 @@ class ConfidenceCalculator:
         alpha = ALPHA_PRIOR * shr + validated_runtimes
         beta  = BETA_PRIOR * (1 - shr) + failed_runtimes
 
-        posterior_mean = alpha / (alpha + beta)
-        evidence_weight = 1 - exp(-evidence_count / EVIDENCE_SCALE)
-        diversity_factor = 1 + log2(1 + num_providers) / 10
-        recency_factor = max(RECENCY_FLOOR, 0.5 ^ (days / HALF_LIFE))
-
-        confidence = posterior_mean * evidence_weight * recency_factor * diversity_factor
+        C-002 fix: If signal_texts is provided, deduplicate by content hash
+        before counting evidence. The same text arriving from Slack + email +
+        Jira + Confluence is 1 source, not 4. Without dedup, evidence_count
+        is inflated 2-4x, producing false confidence in laws backed by
+        copied (not independent) content.
         """
+
+        # C-002: Content-hash deduplication
+        if signal_texts:
+            import hashlib as _hashlib
+            seen_hashes = set()
+            deduped_count = 0
+            for text in signal_texts:
+                if not text:
+                    continue
+                content_hash = _hashlib.md5(text.strip().lower().encode()).hexdigest()
+                if content_hash not in seen_hashes:
+                    seen_hashes.add(content_hash)
+                    deduped_count += 1
+            # Use deduped count if it's lower (never inflate)
+            evidence_count = min(evidence_count, deduped_count)
+            # Also dedup providers: if all evidence came from the same text,
+            # only count 1 provider
+            if deduped_count < len(providers):
+                providers = {next(iter(providers))} if providers else set()
+
         # Use SHR to calibrate the prior
         # If SHR=0 (no history), use uniform prior (alpha=1, beta=1)
         # If SHR=0.83 (good track record), prior shifts: alpha=0.83, beta=0.17

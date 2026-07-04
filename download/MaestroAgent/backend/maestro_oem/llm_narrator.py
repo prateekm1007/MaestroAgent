@@ -131,17 +131,19 @@ class LLMNarrator:
         When the LLM is unavailable or fails, falls back to the template
         EvidenceNarrator (P6: fail-closed).
         """
-        # Phase 6.3: Filter out evidence flagged as epistemic_override.
-        # Flagged content stays in the evidence graph for audit, but is
-        # excluded from the narrator context so it cannot influence the answer.
+        # C-001 fix: Filter out ALL evidence flagged with ANY prompt injection risk.
+        # The previous filter (Phase 6.3) only excluded epistemic_override.
+        # The external audit found that instruction_override, data_exfiltration,
+        # role_hijack, and other injection categories also flow into the LLM
+        # prompt unsanitized. Now ALL flagged evidence is excluded.
         safe_evidence = [
             e for e in evidence
-            if not e.get("prompt_injection_risk", {}).get("detected_patterns", [])
-            or "epistemic_override" not in e.get("prompt_injection_risk", {}).get("detected_patterns", [])
+            if not e.get("prompt_injection_risk", {}).get("is_suspicious", False)
+            and not e.get("prompt_injection_risk", {}).get("detected_patterns", [])
         ]
         if len(safe_evidence) < len(evidence):
             logger.warning(
-                "LLMNarrator: excluded %d evidence item(s) flagged as epistemic_override",
+                "LLMNarrator: excluded %d evidence item(s) flagged with prompt injection risk",
                 len(evidence) - len(safe_evidence),
             )
 

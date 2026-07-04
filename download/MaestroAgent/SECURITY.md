@@ -143,3 +143,23 @@ model is not truly isolated at the runtime level.
 
 This is a stated architectural constraint, not an implicit gap. It will be
 addressed when the Postgres migration (on the roadmap) ships.
+
+
+## Per-User Permission Filtering (C-003)
+
+**Current state: org-level scoping only.**
+
+AskPipeline filters evidence by `org_id` but not by individual user permissions.
+A private Slack channel message is visible to all org users via Ask Maestro.
+
+**This is a known gap, not an implicit one.** It is trigger-gated:
+- **Trigger**: First enterprise customer with per-user ACL requirements
+- **Fix**: Every signal needs an ACL field. AskPipeline filters evidence
+  by the requesting user's permissions before assembling the answer.
+- **Estimated effort**: 2 engineer-weeks (ACL model + signal tagging +
+  retrieval filtering + test suite)
+
+**Until this is fixed:**
+- Shadow mode only (read-only, admin-only Ask)
+- No private channel signals ingested
+- Single-admin deployment model
