@@ -5298,8 +5298,20 @@ def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
     if not query:
         raise HTTPException(400, "Query is required")
 
-    # Route through cognitive engines (invisible to user)
-    answer = _generate_conversational_answer(query, history)
+    # H3 FIX: Route through the structured AskPipeline (intent → entity →
+    # retrieval → evidence → synthesis) instead of keyword routing.
+    from maestro_oem.ask_pipeline import AskPipeline
+    from maestro_oem.preparation_engine import PreparationEngine
+    pipeline = AskPipeline(
+        signals=oem_state.signals if oem_state else [],
+        whisper_store=_get_whisper_history_store(),
+        oem_state=oem_state,
+        preparation_engine=PreparationEngine(
+            oem_state.model if oem_state else None,
+            oem_state.signals if oem_state else [],
+        ) if oem_state else None,
+    )
+    answer = pipeline.execute(query, org_id="default")
 
     return answer
 
