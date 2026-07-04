@@ -43,6 +43,17 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_AUTH_DB", str(tmp_path / "auth.db"))
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
+    # P3 fix: set MAESTRO_LOCAL_DEV=true so auth is not enforced in tests
+    # (same pattern as test_evidence_integration.py and other HTTP test fixtures)
+    monkeypatch.setenv("MAESTRO_LOCAL_DEV", "true")
+    monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
+    # P3 fix: also set the cognitive store DB paths (C1 fix pattern)
+    monkeypatch.setenv("MAESTRO_WHISPER_DB", str(tmp_path / "whisper.db"))
+    monkeypatch.setenv("MAESTRO_MEETING_DB", str(tmp_path / "meetings.db"))
+    monkeypatch.setenv("MAESTRO_DECISION_DB", str(tmp_path / "decisions.db"))
+    monkeypatch.setenv("MAESTRO_ORG_LEARNING_DB", str(tmp_path / "org_learning.db"))
+    monkeypatch.setenv("MAESTRO_MUTATION_DB", str(tmp_path / "mutations.db"))
+    monkeypatch.setenv("MAESTRO_SIGNAL_DB", str(tmp_path / "signals.db"))
 
     import_state._initialized = False
     import_state.store = None
@@ -52,9 +63,33 @@ def client(tmp_path, monkeypatch):
     import_state.factory = None
     import_state.engine = None
 
+    # P3 fix: reset store singletons (same pattern as other HTTP test fixtures)
+    import maestro_api.routes.oem as _oem_routes
+    _oem_routes._whisper_history_store = None
+    _oem_routes._loop3_decision_store = None
+    _oem_routes._loop2_meeting_store = None
+    _oem_routes._loop4_ledger = None
+    _oem_routes._loop1_5_mutation_tracker = None
+
+    from maestro_api.oem_state import oem_state
+    oem_state._initialized = False
+    oem_state.engine = None
+    oem_state.signals = []
+    oem_state._demo_seeded = False
+    oem_state._contradiction_log = None
+
     app = create_app(db_path=str(tmp_path / "maestro.db"))
     with TestClient(app) as c:
         yield c
+
+    oem_state._initialized = False
+    oem_state.engine = None
+    oem_state.signals = []
+    _oem_routes._whisper_history_store = None
+    _oem_routes._loop3_decision_store = None
+    _oem_routes._loop2_meeting_store = None
+    _oem_routes._loop4_ledger = None
+    _oem_routes._loop1_5_mutation_tracker = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
