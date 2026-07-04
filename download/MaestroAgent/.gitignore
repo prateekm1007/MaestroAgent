@@ -60,3 +60,6 @@ api_key.txt
 # Sandbox workspace
 workspace/
 .env
+*.db-wal
+*.db-shm
+*.db

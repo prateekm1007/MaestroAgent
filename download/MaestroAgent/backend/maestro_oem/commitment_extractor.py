@@ -86,20 +86,34 @@ _COMMITMENT_PATTERNS: list[re.Pattern] = [
         re.IGNORECASE,
     ),
     # D1 fix: "we will have X available/ready/live by/before Y"
+    # Also catches: "we'll have X available before Y"
     re.compile(
-        r"\bwe\s+will\s+have\s+(.+?)\s+(?:available|ready|live|deployed|live)\s+(?:by\s+|before\s+|for\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        r"\bwe\s*(?:will|['\u2019]?ll)\s+have\s+(.+?)\s+(?:available|ready|live|deployed)\s+(?:by\s+|before\s+|for\s+)([\w\s\d]+?)(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
+    # D1 fix: "we should be able to support/provide X by/before Y"
+    # This is a qualified commitment — not as strong as "we will" but still a commitment
+    re.compile(
+        r"\bwe\s+should\s+be\s+able\s+to\s+(?:support|provide|deliver|ship|build|implement)\s+(.+?)(?:\s+(?:by\s+|before\s+)([\w\s\d]+?))?(?=[.!?;]|$)",
+        re.IGNORECASE,
+    ),
+    # D1 fix: "X work is complete" / "X is done" / "X shipped" — outcome, not commitment
+    # But "X remains conditional" is an assumption about a pending state
     # D1 fix: "I will follow up on X" / "I'll follow up on X"
     re.compile(
         r"\bi\s*(?:will|['\u2019]?ll)\s+(?:follow\s+up|confirm|send|share|provide|update)\s+(?:on\s+|the\s+)?(.+?)(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
-    # D1 fix: "target: before Y" / "target: by Y" (from Confluence/ docs)
+    # D1 fix: "target: before Y" / "target: by Y" (from Confluence/docs)
+    # Group 1 = the full "target: before Y" as the commitment text
+    # Group 2 = empty (no separate deadline — the deadline IS the target)
     re.compile(
-        r"\b(?:target|goal|deadline|eta)\s*:\s*(?:before\s+|by\s+)([\w\s\d]+?)(?=[.!?;]|$)",
+        r"\b((?:target|goal|deadline|eta)\s*:\s*(?:before\s+|by\s+)[\w\s\d]+?)(?=[.!?;]|$)",
         re.IGNORECASE,
     ),
+    # D1 fix: "X remains conditional" — this is an assumption, not a commitment.
+    # Don't extract it. The anti-pattern should catch "remains conditional" but
+    # if it doesn't, the extractor should also not match it.
 ]
 
 # ─── Anti-patterns (NOT commitments) ────────────────────────────────────────

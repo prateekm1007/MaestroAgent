@@ -517,7 +517,44 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
       - It is None when the toggle is OFF, incognito is active, or no
         relevant state exists.
     """
-    result = oem_state.decisions.answer_question(q)
+    # D2 FIX: Route through AskPipeline (same as /ask/conversation) to get
+    # intent classification, entity resolution, evidence-grounded narration,
+    # and honest "I don't know" when no evidence matches. The old
+    # DecisionEngine.answer_question() returned cross-customer answers
+    # because it searched all signals without entity filtering.
+    try:
+        from maestro_oem.ask_pipeline import AskPipeline
+        from maestro_oem.preparation_engine import PreparationEngine
+        pipeline = AskPipeline(
+            signals=oem_state.signals if oem_state else [],
+            whisper_store=_get_whisper_history_store(),
+            oem_state=oem_state,
+            preparation_engine=PreparationEngine(
+                oem_state.model if oem_state else None,
+                oem_state.signals if oem_state else [],
+            ) if oem_state else None,
+            model=oem_state.model if oem_state else None,
+            conversation_store=_get_conversation_store(),
+        )
+        pipeline_result = pipeline.execute(q, org_id="default")
+        # Merge: keep the old format for backward compat but use pipeline answer
+        result = {
+            "answer": pipeline_result.get("answer", ""),
+            "evidence": pipeline_result.get("evidence", []),
+            "citations": pipeline_result.get("citations", []),
+            "follow_ups": pipeline_result.get("follow_ups", []),
+            "actions": pipeline_result.get("actions", []),
+            "intent": pipeline_result.get("intent", ""),
+            "entities": pipeline_result.get("entities", []),
+            "sources": [e.get("source", "") for e in pipeline_result.get("evidence", [])],
+            "evidence_path": pipeline_result.get("evidence", []),
+            "laws": [],
+            "experts": [],
+            "bottlenecks": [],
+        }
+    except Exception as e:
+        logger.warning("AskPipeline in /ask failed, falling back to DecisionEngine: %s", e)
+        result = oem_state.decisions.answer_question(q)
 
     # P2 FIX: Also run RecallEngine for semantic + temporal + entity recall.
     # The DecisionEngine provides law + learning-object search (TF-IDF).
