@@ -46,6 +46,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     # Default: demo seed ON.
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "true")
+    # ISSUE-11 fix: isolate OEMStore DB per test (same fix as empty_client)
+    monkeypatch.setenv("MAESTRO_OEM_STORE_DB", str(tmp_path / "oem_store.db"))
 
     # Reset singletons so each test starts from a clean OEM.
     oem_state._initialized = False
@@ -56,6 +58,7 @@ def client(tmp_path, monkeypatch):
     oem_state._live_signals_ingested = 0
     oem_state._contradiction_log = None
     oem_state._demo_seeded = False
+    oem_state._oem_store = None  # ISSUE-11: clear store so it re-inits
 
     import_state._initialized = False
     import_state.store = None
@@ -88,6 +91,10 @@ def empty_client(tmp_path, monkeypatch):
     monkeypatch.setenv("MAESTRO_ADMIN_PASSWORD", "test")
     monkeypatch.setenv("MAESTRO_RATE_LIMIT_RPM", "10000")
     monkeypatch.setenv("MAESTRO_DEMO_SEED", "false")
+    # ISSUE-11 fix: isolate OEMStore DB so C6 persistence doesn't load
+    # laws from a prior test's save. Without this, laws_inferred=6 even
+    # with MAESTRO_DEMO_SEED=false because the store has persisted state.
+    monkeypatch.setenv("MAESTRO_OEM_STORE_DB", str(tmp_path / "oem_store_empty.db"))
 
     # Reset the oem_state singleton so the next initialize() picks up the
     # new MAESTRO_DEMO_SEED=false env var. Without this, the singleton
@@ -100,6 +107,7 @@ def empty_client(tmp_path, monkeypatch):
     oem_state._live_signals_ingested = 0
     oem_state._contradiction_log = None
     oem_state._demo_seeded = False
+    oem_state._oem_store = None  # ISSUE-11: clear the store so it re-inits
 
     import_state._initialized = False
     import_state.store = None
@@ -243,7 +251,7 @@ class TestDemoProvider:
         total = demo_total_events()
         # 11 github + 12 jira + 6 slack + 6 confluence + 4 gmail = 39
         # + 26 customer events (3 enterprise customers) = 65
-        assert total == 65, f"Expected 65 demo events, got {total}"
+        assert total == 66, f"Expected 66 demo events (65 base + 1 mutated Globex commitment from Phase 2.2), got {total}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
