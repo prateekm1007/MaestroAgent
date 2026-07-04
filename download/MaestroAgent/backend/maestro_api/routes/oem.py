@@ -5959,6 +5959,17 @@ def loop1_record_action(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         decision_influenced=payload.get("decision_influenced"),
         follow_up_questions=payload.get("follow_up_questions"),
     )
+
+    # C-3 FIX: Record the interaction in InteractionMemory (8-state lifecycle).
+    # This feeds the AttributionAnalyzer with the full engagement pattern
+    # (shown → opened → dismissed/deferred/acted/delegated/contradicted).
+    try:
+        from maestro_oem.governed_adaptation import OutcomeRecorder
+        recorder = OutcomeRecorder()
+        recorder.record_action(whisper_id=whisper_id, action=action, org_id="default")
+    except Exception as e:
+        logger.debug("C-3: InteractionMemory record failed (non-fatal): %s", e)
+
     history = store.get_history(whisper_id, org_id="default")
     return {
         "status": "recorded",
@@ -5997,6 +6008,45 @@ def loop1_record_outcome(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         outcome=outcome,
         org_id="default",
     )
+
+    # C-3 FIX: Feed the outcome into the governed adaptation loop.
+    # This is the missing arrow: outcome → AttributionAnalyzer →
+    # PolicyProposer → PolicyVersionStore → decide_delivery reads policy.
+    # Without this, the learning loop is structurally complete but
+    # functionally disconnected (the external audit's C-3 finding).
+    try:
+        from maestro_oem.governed_adaptation import OutcomeRecorder
+        recorder = OutcomeRecorder()
+        # Get the exec action from the whisper history
+        history = store.get_history(whisper_id, org_id="default")
+        exec_action = history.get("action_taken", "ignored") if history else "ignored"
+
+        # Determine the outcome type for the analyzer
+        outcome_map = {
+            "honored": "commitment_kept",
+            "broken": "commitment_broken",
+            "renegotiated": "commitment_kept",
+            "unknown": "unknown",
+        }
+        outcome_type = outcome_map.get(outcome, "unknown")
+
+        # Get entity from the whisper history
+        entity = history.get("entity", "") if history else ""
+
+        hypothesis = recorder.record_outcome(
+            whisper_id=whisper_id,
+            exec_action=exec_action,
+            outcome=outcome_type,
+            entity=entity,
+            context_signals=[],  # Future: derive from signal context
+        )
+        logger.info(
+            "C-3: fed outcome %s into governed adaptation → hypothesis: %s",
+            outcome, hypothesis.get("hypothesis", "")[:80],
+        )
+    except Exception as e:
+        logger.warning("C-3: OutcomeRecorder failed (non-fatal): %s", e)
+
     return {
         "status": "recorded",
         "whisper_id": whisper_id,

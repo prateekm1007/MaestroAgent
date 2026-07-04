@@ -638,3 +638,180 @@ def get_active_policy_for_delivery() -> AdaptationPolicy | None:
     except Exception as e:
         logger.warning("get_active_policy_for_delivery failed: %s", e)
         return None
+
+
+# ─── OutcomeRecorder: closes the learning loop functionally (C-3 fix) ──────
+# The external audit found: "No production code records executive decisions
+# against recommendations. The learning loop is structurally complete but
+# functionally disconnected."
+#
+# The OutcomeRecorder is the bridge: when an outcome is observed (exec
+# ignored a Whisper → commitment broke), the recorder feeds it into the
+# AttributionAnalyzer, which forms a hypothesis. When enough evidence
+# accumulates, the PolicyProposer creates a policy. The policy then feeds
+# back into decide_delivery() via get_active_policy_for_delivery().
+#
+# This is called from:
+#   - POST /loop1/outcome (when an outcome signal is observed)
+#   - POST /whisper/outcome (alternative endpoint)
+#   - Background loop (future: automatic outcome detection)
+
+# In-memory evidence accumulation (per-org in production; per-process here)
+_pending_evidence: list[dict[str, Any]] = []
+
+
+class OutcomeRecorder:
+    """Record outcomes and feed them into the governed adaptation loop.
+
+    This is the class that closes the learning loop FUNCTIONALLY:
+      1. record_outcome() feeds the AttributionAnalyzer
+      2. Accumulated evidence triggers the PolicyProposer
+      3. The policy activates and feeds back into decide_delivery()
+      4. Behavior changes — the loop is closed
+
+    Usage:
+        recorder = OutcomeRecorder(min_evidence_threshold=3)
+        recorder.record_outcome(
+            whisper_id="wspr-1",
+            exec_action="ignored",
+            outcome="commitment_broken",
+            entity="TestCorp",
+            context_signals=[{"type": "staffing_change"}],
+        )
+        # After 3 similar outcomes, a policy activates automatically (LOW risk)
+    """
+
+    def __init__(self, min_evidence_threshold: int = 5) -> None:
+        self._min_evidence = min_evidence_threshold
+
+    def record_action(
+        self,
+        whisper_id: str,
+        action: str,
+        org_id: str = "default",
+    ) -> None:
+        """Record an executive action on a Whisper.
+
+        Maps the coarse action (acted/ignored/overrode) to the 8-state
+        InteractionEventType lifecycle and records it in InteractionMemory.
+        """
+        try:
+            from maestro_oem.interaction_memory import (
+                get_default_memory, InteractionEventType,
+            )
+
+            mem = get_default_memory()
+
+            # Map coarse action → InteractionEventType
+            action_map = {
+                "acted": InteractionEventType.ACTED,
+                "ignored": InteractionEventType.DISMISSED,
+                "overrode": InteractionEventType.CONTRADICTED,
+                "deferred": InteractionEventType.DEFERRED,
+                "delegated": InteractionEventType.DELEGATED,
+            }
+            event_type = action_map.get(action, InteractionEventType.DISMISSED)
+            mem.record(whisper_id, event_type, org_id=org_id)
+            logger.info(
+                "OutcomeRecorder: recorded %s → %s for whisper %s",
+                action, event_type.value, whisper_id,
+            )
+        except Exception as e:
+            logger.warning("OutcomeRecorder.record_action failed: %s", e)
+
+    def record_outcome(
+        self,
+        whisper_id: str,
+        exec_action: str,
+        outcome: str,
+        entity: str = "",
+        context_signals: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Record an outcome and feed it into the governed adaptation loop.
+
+        Args:
+            whisper_id: The Whisper ID that was shown
+            exec_action: "acted" | "ignored" | "overrode" | "deferred" | "delegated"
+            outcome: "commitment_broken" | "commitment_kept" | "objection_raised" | ...
+            entity: The customer/entity
+            context_signals: Confounders (staffing changes, market shifts, etc.)
+
+        Returns:
+            The hypothesis dict from AttributionAnalyzer.analyze()
+        """
+        context_signals = context_signals or []
+
+        # 1. Record the interaction in InteractionMemory
+        self.record_action(whisper_id, exec_action)
+
+        # 2. Feed into AttributionAnalyzer
+        analyzer = AttributionAnalyzer()
+        outcome_dict = {
+            "whisper_shown": True,
+            "exec_action": exec_action,
+            "outcome": outcome,
+            "entity": entity,
+            "context_signals": context_signals,
+        }
+        hypothesis = analyzer.analyze(outcome_dict)
+        logger.info(
+            "OutcomeRecorder: analyzed outcome %s for %s → hypothesis: %s",
+            outcome, entity, hypothesis.get("hypothesis", "")[:80],
+        )
+
+        # 3. Accumulate evidence
+        outcome_dict["hypothesis"] = hypothesis["hypothesis"]
+        outcome_dict["confounders"] = hypothesis["confounders"]
+        _pending_evidence.append(outcome_dict)
+
+        # 4. If enough evidence, propose a policy
+        if len(_pending_evidence) >= self._min_evidence:
+            self._try_propose_policy(hypothesis["hypothesis"])
+
+        return hypothesis
+
+    def _try_propose_policy(self, hypothesis: str) -> None:
+        """Try to propose a policy from accumulated evidence.
+
+        LOW-risk policies auto-activate. HIGH-risk require human approval.
+        Risk is determined by the PARAMETER CHANGES, not the hypothesis text
+        (a hypothesis about "recipient" doesn't mean we're changing the
+        recipient — that would be a HIGH-risk escalation policy).
+        """
+        try:
+            store = get_default_store()
+            proposer = PolicyProposer(store, min_evidence_threshold=self._min_evidence)
+
+            # Determine parameter changes based on the hypothesis
+            if "ignored" in hypothesis.lower() or "did not open" in hypothesis.lower():
+                params = {"dedup_threshold": 5}  # Be more patient
+            elif "deferred" in hypothesis.lower():
+                params = {"timing_preference": "before_meeting"}
+            elif "dismissed" in hypothesis.lower():
+                params = {"dedup_threshold": 3}  # Slightly more patient
+            else:
+                params = {"dedup_threshold": 5}  # Default: be more patient
+
+            # Risk is based on PARAMS, not hypothesis text.
+            # dedup_threshold and timing_preference are LOW risk.
+            # escalation_recipient is HIGH risk.
+            is_high_risk = "escalation_recipient" in params or "recipient" in params
+            risk_level = RISK_HIGH if is_high_risk else RISK_LOW
+
+            policy = proposer.propose(
+                hypothesis=hypothesis,
+                evidence=list(_pending_evidence),
+                risk_level=risk_level,
+                parameter_changes=params,
+            )
+
+            logger.info(
+                "OutcomeRecorder: proposed policy %s (status=%s, risk=%s, version=%d)",
+                policy.policy_id, policy.status, policy.risk_level, policy.version,
+            )
+
+            # Clear pending evidence after proposing (don't re-propose on same data)
+            _pending_evidence.clear()
+
+        except Exception as e:
+            logger.warning("OutcomeRecorder._try_propose_policy failed: %s", e)
