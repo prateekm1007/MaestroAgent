@@ -44,6 +44,16 @@ class Situation:
     """Maestro's working memory for a specific organizational moment.
 
     7 fields — populated from real signals + calendar + whisper history.
+
+    Phase 2 (auditor Option A): Situation is intentionally DERIVED, not stored.
+    It is rebuilt on every surface request from persisted signals + commitments
+    + evidence. The situations table in OEMStore is a cache for performance,
+    not the source of truth. Do not rely on persisted Situation objects —
+    always rebuild from signals for canonical state.
+
+    The builder NEVER returns None — it always returns a valid Situation with
+    clear provenance. If no signals exist for an entity, the Situation has
+    what_is_happening="No data available for this entity" and current_state="unknown".
     """
 
     what_is_happening: str = ""
@@ -64,6 +74,14 @@ class Situation:
             "prior_whispers": self.prior_whispers,
             "timeline": self.timeline,
         }
+
+    def is_derived(self) -> bool:
+        """Phase 2 (auditor Option A): Situation is intentionally derived/deterministic.
+
+        It is rebuilt on every surface request from persisted signals + model state.
+        The situations table in OEMStore is a cache, not the source of truth.
+        """
+        return True
 
 
 class SituationBuilder:
@@ -86,13 +104,20 @@ class SituationBuilder:
         self._store = whisper_store
         self._now = now or datetime.now(timezone.utc)
 
-    def build_for_entity(self, entity: str, org_id: str = "default") -> Situation | None:
+    def build_for_entity(self, entity: str, org_id: str = "default") -> Situation:
         """Build a Situation for a specific entity.
 
-        Returns None if the entity has no signals (nothing to build from).
+        Phase 2 (auditor Option A): NEVER returns None. If the entity has no
+        signals, returns a valid Situation with what_is_happening="No data
+        available for this entity" and current_state="unknown". This prevents
+        surfaces from silently degrading when an entity is new or has minimal data.
         """
         if not entity:
-            return None
+            return Situation(
+                what_is_happening="No entity specified",
+                entities=[],
+                current_state="unknown",
+            )
 
         # Filter signals for this entity
         entity_signals = [
@@ -100,7 +125,12 @@ class SituationBuilder:
             if hasattr(s, "metadata") and s.metadata.get("customer") == entity
         ]
         if not entity_signals:
-            return None
+            # Phase 2: return a valid (not None) Situation with clear provenance
+            return Situation(
+                what_is_happening=f"No data available for {entity}",
+                entities=[entity],
+                current_state="unknown",
+            )
 
         # 1. what_is_happening — from the next consequential meeting
         what_is_happening = self._compute_what_is_happening(entity)
