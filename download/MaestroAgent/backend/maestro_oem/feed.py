@@ -43,7 +43,7 @@ class FeedEvent:
         why_it_matters: str,
         business_impact: str,
         recommended_action: str,
-        confidence: float,
+        evidence_strength: float,
         timestamp: datetime | None = None,
         entity_id: str = "",
         entity_type: str = "",
@@ -55,7 +55,7 @@ class FeedEvent:
         self.why_it_matters = why_it_matters
         self.business_impact = business_impact
         self.recommended_action = recommended_action
-        self.confidence = confidence
+        self.evidence_strength = confidence
         self.timestamp = timestamp or datetime.now(timezone.utc)
         self.entity_id = entity_id
         self.entity_type = entity_type
@@ -69,7 +69,7 @@ class FeedEvent:
             "why_it_matters": self.why_it_matters,
             "business_impact": self.business_impact,
             "recommended_action": self.recommended_action,
-            "confidence": round(self.confidence, 4),
+            "evidence_strength": self.evidence_strength,
             "timestamp": self.timestamp.isoformat(),
             "entity_id": self.entity_id,
             "entity_type": self.entity_type,
@@ -125,7 +125,7 @@ class ExecutiveFeed:
                     why_it_matters=f"This organizational pattern has been validated {law.validated_runtimes} times with {law.failed_runtimes} failures.",
                     business_impact="Confidence in this pattern is high — future recommendations based on it are more reliable.",
                     recommended_action="Consider operationalizing this law into a documented process.",
-                    confidence=law.confidence,
+                    evidence_strength=law.confidence,
                     timestamp=law.last_validated or datetime.now(timezone.utc),
                     entity_id=law.code,
                     entity_type="law",
@@ -143,7 +143,7 @@ class ExecutiveFeed:
                     why_it_matters=f"This organizational pattern is {status}. {law.failed_runtimes} failures detected.",
                     business_impact="Recommendations based on this law should be treated with lower confidence.",
                     recommended_action="Review the pattern and update or retire the law.",
-                    confidence=law.confidence,
+                    evidence_strength=law.confidence,
                     timestamp=law.last_validated or datetime.now(timezone.utc),
                     entity_id=law.code,
                     entity_type="law",
@@ -173,7 +173,7 @@ class ExecutiveFeed:
                 why_it_matters="Champion disengagement is the strongest leading indicator of relationship decay.",
                 business_impact=f"${arr:,.0f} ARR at stake." if arr else "ARR impact unknown.",
                 recommended_action="Schedule a check-in with the champion. Identify if a competitor is influencing the relationship.",
-                confidence=0.7,
+                evidence_strength="supported",
                 timestamp=drift_sigs[-1].timestamp,
                 entity_id=customer,
                 entity_type="customer",
@@ -199,7 +199,7 @@ class ExecutiveFeed:
                     why_it_matters="Broken commitments erode trust and predict renewal failure.",
                     business_impact=f"${arr:,.0f} ARR at stake." if arr else "Trust impact: negative.",
                     recommended_action="Acknowledge the miss, provide a new timeline, and deliver on the next commitment.",
-                    confidence=1.0,
+                    evidence_strength="observed",
                     timestamp=s.timestamp,
                     entity_id=customer,
                     entity_type="customer",
@@ -223,7 +223,7 @@ class ExecutiveFeed:
                     why_it_matters="Bottlenecks slow execution and create single points of failure.",
                     business_impact=f"{count} items are blocked behind this gate.",
                     recommended_action="Redistribute approval authority or streamline the gate.",
-                    confidence=0.8,
+                    evidence_strength="well-supported",
                     timestamp=datetime.now(timezone.utc),
                     entity_id=gate,
                     entity_type="person",
@@ -247,7 +247,7 @@ class ExecutiveFeed:
                     why_it_matters="If this person leaves, the organization loses critical expertise.",
                     business_impact=f"Departure would degrade outcomes in {domain}.",
                     recommended_action="Cross-train or document critical knowledge in this domain.",
-                    confidence=0.75,
+                    evidence_strength="well-supported",
                     timestamp=datetime.now(timezone.utc),
                     entity_id=domain,
                     entity_type="domain",
@@ -276,7 +276,7 @@ class ExecutiveFeed:
                         why_it_matters="Renewal validates the relationship and the product.",
                         business_impact=f"${arr:,.0f} ARR secured." if arr else "Revenue secured.",
                         recommended_action="Identify upsell opportunities from the healthy relationship.",
-                        confidence=1.0,
+                        evidence_strength="observed",
                         timestamp=s.timestamp,
                         entity_id=customer,
                         entity_type="customer",
@@ -290,7 +290,7 @@ class ExecutiveFeed:
                         why_it_matters="Churn signals a pattern that may repeat.",
                         business_impact=f"${arr:,.0f} ARR lost." if arr else "Revenue lost.",
                         recommended_action="Conduct loss review. Analyze the pattern to prevent recurrence.",
-                        confidence=1.0,
+                        evidence_strength="observed",
                         timestamp=s.timestamp,
                         entity_id=customer,
                         entity_type="customer",
@@ -325,7 +325,7 @@ class ExecutiveFeed:
                 if pred.get("status") in ("correct", "incorrect"):
                     status = pred["status"]
                     entity = pred.get("entity_id", "unknown")
-                    confidence = pred.get("confidence", 0)
+                    confidence = pred.get("evidence_strength", 0)
                     events.append(FeedEvent(
                         event_type="prediction_resolved",
                         title=f"Prediction {status}: {entity[:50]}",
@@ -334,7 +334,7 @@ class ExecutiveFeed:
                         business_impact="The learning loop is getting smarter." if status == "correct"
                                         else "The prediction was wrong — calibration will adjust.",
                         recommended_action="No action needed — the loop is self-correcting.",
-                        confidence=confidence,
+                        evidence_strength=confidence,
                         timestamp=datetime.fromisoformat(pred.get("resolved_at", "").replace("Z", "+00:00"))
                                    if pred.get("resolved_at") else datetime.now(timezone.utc),
                         entity_id=pred.get("prediction_id", ""),
