@@ -368,18 +368,20 @@ class PreparationEngine:
             suggested_talking_points.append("Review status of open commitments")
         suggested_talking_points.append("Confirm next steps and timeline")
 
-        # Draft email
+        # Draft email — H-2 fix: derive from actual signal content, not generic template
         draft_email = ""
         if customer and customer_concerns:
-            draft_email = self._generate_draft_email(customer, customer_concerns)
+            draft_email = self._generate_draft_email(customer, customer_concerns, relevant_commitments)
 
-        # Competitive comparison (simplified)
+        # Competitive comparison — H-2 fix: derive from signal data, not hardcoded string
         competitive_comparison = {}
         if customer:
+            signal_count = len([s for s in self.signals if s.metadata.get("customer") == customer])
             competitive_comparison = {
                 "customer": customer,
                 "position": "strong" if len(relevant_commitments) > 0 else "unknown",
-                "key_differentiator": "Organizational intelligence platform",
+                "signal_count": signal_count,
+                "engagement_summary": f"{signal_count} signals, {len(relevant_commitments)} commitments, {len(previous_objections)} objections",
             }
 
         return {
@@ -392,21 +394,37 @@ class PreparationEngine:
             "competitive_comparison": competitive_comparison,
         }
 
-    def _generate_draft_email(self, customer: str, concerns: list[str]) -> str:
-        """Generate a draft email addressing the customer's concerns."""
+    def _generate_draft_email(self, customer: str, concerns: list[str], commitments: list[dict] = None) -> str:
+        """Generate a draft email derived from actual signal content.
+
+        H-2 fix: The email now references the actual customer concerns and
+        open commitments, not generic template phrases. The content is
+        assembled from what the signals say, not from a static template.
+        """
+        commitments = commitments or []
         concern_text = ", ".join(concerns[:3])
-        return (
-            f"Dear {customer} team,\n\n"
-            f"Following up on our recent discussions, I wanted to address "
-            f"your concerns about {concern_text}. We take these seriously "
-            f"and have prepared the following:\n\n"
-            f"1. Detailed response to each concern\n"
-            f"2. Evidence from similar engagements\n"
-            f"3. Proposed timeline for resolution\n\n"
-            f"Looking forward to our conversation.\n\n"
-            f"Best regards,\n"
-            f"The Maestro Team"
-        )
+        lines = [f"Dear {customer} team,", ""]
+        lines.append(f"Following up on our recent discussions, I wanted to address")
+        lines.append(f"your concerns about {concern_text}.")
+        lines.append("")
+        # Reference actual commitments if any exist
+        if commitments:
+            lines.append("Open commitments we should review:")
+            for c in commitments[:3]:
+                commit_text = c.get("commitment", "")
+                commit_date = c.get("date", "")
+                if commit_text:
+                    lines.append(f"  - {commit_text} (committed {commit_date})")
+            lines.append("")
+        # Reference actual concerns with specific response language
+        lines.append("For each concern, we can discuss:")
+        for concern in concerns[:3]:
+            lines.append(f"  - {concern}: current status and proposed path forward")
+        lines.append("")
+        lines.append("Looking forward to our conversation.")
+        lines.append("")
+        lines.append("Best regards,")
+        return "\n".join(lines)
 
     def _get_likely_decisions(self) -> list[dict[str, Any]]:
         """What decisions will likely be made tomorrow?
@@ -425,12 +443,9 @@ class PreparationEngine:
         except Exception as e:
             logger.warning("Failed to get recommendations: %s", e)
 
-        if not decisions:
-            decisions.append({
-                "title": "Q3 budget allocation",
-                "type": "financial",
-                "urgency": "high",
-            })
+        # H-2 fix: when no recommendations exist, return empty list —
+        # don't fabricate a hardcoded fallback decision.
+        # An honest empty list is better than a fake decision.
 
         return decisions
 
