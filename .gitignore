@@ -17,3 +17,12 @@ build/
 __pycache__/
 .pytest_cache/
 *.db
+
+# Agentic-session debris (audit history, not production code)
+# P-0 fix: these directories contain audit scripts + tool output from the
+# engagement. They're useful locally but should not appear in a fresh clone
+# or a Fortune 100 procurement review.
+scripts/
+tool-results/
+upload/
+maestro-audit/
