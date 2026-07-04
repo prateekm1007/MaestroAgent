@@ -223,8 +223,8 @@ class TestOemAsk:
     def test_returns_answer_with_confidence(self, client):
         data = client.get("/api/oem/ask?q=bottleneck").json()
         assert "answer" in data
-        assert "confidence" in data
-        assert 0.0 <= data["confidence"] <= 1.0
+        # CEO directive: confidence was intentionally removed from /ask
+        # ("Maestro never invents precision"). Don't assert on it.
         assert "sources" in data
         assert "evidence_path" in data
 
@@ -236,7 +236,7 @@ class TestOemAsk:
     def test_returns_fallback_for_nonsense(self, client):
         data = client.get("/api/oem/ask?q=zzz nonsense xyzzy").json()
         assert "answer" in data
-        assert "confidence" in data
+        # CEO directive: confidence was intentionally removed from /ask
 
 
 # ============================================================
