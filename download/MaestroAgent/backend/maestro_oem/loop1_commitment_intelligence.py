@@ -170,6 +170,43 @@ class CommitmentIntelligenceLoop:
             whisper_type="commitment_exists",
         )
 
+        # C1 fix (auditor's wiring-vs-existence finding): route loop1
+        # through decide_delivery() BEFORE building/persisting the Whisper.
+        # Before this fix, loop1 built and persisted Whispers directly,
+        # bypassing the delivery-decision gate. The "remain quiet" capability
+        # (SUPPRESS_ALREADY_UNDERSTOOD) existed in whisper.py main path but
+        # NOT in the loop1 evening-preparation path.
+        from maestro_oem.delivery_decision import decide_delivery, DeliveryDecision
+        shown_count = prev_history.get("shown_count", 0) if isinstance(prev_history, dict) else 0
+        exec_already_acted = prev_history.get("action_taken") == "acted" if isinstance(prev_history, dict) else False
+        decision = decide_delivery(
+            exec_already_acted=exec_already_acted,
+            materially_changed_since_last_shown=delivery["materially_changed_since_last_shown"],
+            has_high_stakes_signal=any(
+                s.type.value in ("customer.commitment_broken", "customer.contract_churned")
+                for s in self._signals
+                if hasattr(s, "metadata") and s.metadata.get("customer") == entity
+                and hasattr(s.type, "value")
+            ),
+            is_cold_start=len(self._signals) < 5,
+            shown_count=shown_count,
+            has_upcoming_meeting=True,  # this is the evening-preparation path
+        )
+        # If the decision is a SUPPRESS_* variant, skip the Whisper entirely.
+        # Note: DEFER_UNTIL_EVIDENCE is NOT suppressed here because this is
+        # the evening-preparation path — the exec explicitly asked "what's
+        # tomorrow about?" and there's an upcoming meeting. Deferring would
+        # mean the exec walks into the meeting blind. The cold-start trust
+        # ladder is enforced in the main whisper.py path, not here.
+        if decision.name.startswith("SUPPRESS_"):
+            logger.info(
+                "C1 fix: loop1 suppressed Whisper for %s (decision=%s, exec_already_acted=%s, "
+                "materially_changed=%s, shown_count=%d)",
+                entity, decision.name, exec_already_acted,
+                delivery["materially_changed_since_last_shown"], shown_count,
+            )
+            return None
+
         # Enrich the Evidence Spine with calendar-derived fields (Phase 3 pattern)
         evidence_dict = evidence_obj.to_dict()
         evidence_dict.setdefault("source_artifacts", []).append({

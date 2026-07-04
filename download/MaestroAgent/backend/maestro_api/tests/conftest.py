@@ -5,6 +5,7 @@ Prevents prometheus_client duplicate registry errors when running multiple
 test files in the same session.
 """
 import os
+import tempfile
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,6 +22,13 @@ def app():
     os.environ.setdefault("MAESTRO_LOCAL_DEV", "true")
     os.environ.setdefault("MAESTRO_DEMO_SEED", "true")
     os.environ.setdefault("MAESTRO_APP_DIR", os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    # C6 fix: isolate OEMStore DB to a temp path per test session so the
+    # C6 persistence fix doesn't leak state across test runs. Without this,
+    # the demo seed persists to oem_store.db, and subsequent test runs load
+    # the stale state instead of demo-seeding fresh → test_state_matches_seed_data
+    # fails with "got 0 signals".
+    _tmpdir = tempfile.mkdtemp(prefix="maestro_test_oem_store_")
+    os.environ["MAESTRO_OEM_STORE_DB"] = os.path.join(_tmpdir, "oem_store.db")
     from maestro_api.main import create_app
     return create_app()
 

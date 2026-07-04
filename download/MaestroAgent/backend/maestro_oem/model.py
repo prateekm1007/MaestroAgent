@@ -21,6 +21,8 @@ The model maintains:
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
@@ -34,6 +36,38 @@ from maestro_oem.learning_object import LearningObject, LearningObjectType
 from maestro_oem.pattern import Pattern, PatternDetector, PatternType
 from maestro_oem.receipt import Receipt, ReceiptChain
 from maestro_oem.signal import ExecutionSignal, SignalProvider, SignalType
+
+
+def _compute_content_hash(signal: Any) -> str:
+    """Compute a content hash for a signal — used for deduplication.
+
+    C-002 fix (auditor's wiring-vs-existence finding):
+    The dedup logic in law.py.add_validation() and learning_object.py.add_evidence()
+    accepts a `content_hash` parameter, but it's only useful if callers PASS it.
+    Before this helper existed, 0 of 27 call sites passed content_hash →
+    duplicate signals inflated evidence_count and validated_runtimes 4x.
+
+    The hash is computed from the signal's CONTENT (type + actor + artifact +
+    metadata), NOT from the signal_id (which is unique per signal even for
+    duplicates). This means 4 identical CRM events with 4 different UUIDs
+    all produce the same hash → dedup fires → 1 evidence entry, not 4.
+
+    The hash is deterministic and stable across restarts (same signal
+    content → same hash). It uses SHA-256 truncated to 16 hex chars (64 bits
+    — enough collision resistance for dedup; this isn't a security hash).
+    """
+    # Build a stable canonical representation of the signal's content.
+    # Sort dict keys so {"a":1,"b":2} and {"b":2,"a":1} hash identically.
+    try:
+        metadata_canonical = json.dumps(signal.metadata or {}, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        # If metadata isn't JSON-serializable, fall back to repr (less
+        # canonical but still deterministic for the same object shape).
+        metadata_canonical = repr(sorted((signal.metadata or {}).items()))
+
+    sig_type = signal.type.value if hasattr(signal.type, "value") else str(signal.type)
+    content = f"{sig_type}|{signal.actor or ''}|{signal.artifact or ''}|{metadata_canonical}"
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
 
 
 class ExecutionHealth(BaseModel):
@@ -321,10 +355,37 @@ class ExecutionModel(BaseModel):
 
         # 4. Generate LearningObjects from this signal
         los = self._generate_learning_objects(signal)
+        # C-002 fix: dedup new LOs against existing ones by content_hash.
+        # Before this fix, 4 identical signals created 4 separate LOs each
+        # with evidence_count=1 (4x inflation). Now: if an existing LO
+        # already has this signal's content_hash, the signal is a duplicate
+        # — add evidence to the EXISTING LO instead of creating a new one.
+        # The content_hash is computed from (type + actor + artifact + metadata),
+        # so 4 identical CRM events with 4 different UUIDs produce the same
+        # hash → dedup fires → 1 LO with evidence_count=1 (not 4 LOs).
+        sig_content_hash = _compute_content_hash(signal)
         for lo in los:
-            self.learning_objects[lo.lo_id] = lo
-            delta.new_learning_objects.append(lo.lo_id)
-            self._add_receipt(signal, lo.lo_id, "learning_object.created", str(lo.lo_id), delta)
+            # Check if any existing LO already has this content_hash
+            existing_lo_with_same_hash = None
+            for existing_lo in self.learning_objects.values():
+                if sig_content_hash in existing_lo.content_hashes:
+                    existing_lo_with_same_hash = existing_lo
+                    break
+            if existing_lo_with_same_hash is not None:
+                # Duplicate signal — add evidence to the existing LO
+                # (the dedup in add_evidence will skip the increment
+                # because the hash is already in content_hashes, but
+                # this still records the signal_id in the existing LO).
+                existing_lo_with_same_hash.add_evidence(
+                    signal.signal_id, signal.provider.value,
+                    content_hash=sig_content_hash,
+                )
+                self._add_receipt(signal, existing_lo_with_same_hash.lo_id, "learning_object.deduped", str(existing_lo_with_same_hash.lo_id), delta)
+            else:
+                # New content — store the new LO
+                self.learning_objects[lo.lo_id] = lo
+                delta.new_learning_objects.append(lo.lo_id)
+                self._add_receipt(signal, lo.lo_id, "learning_object.created", str(lo.lo_id), delta)
 
         # 5. Detect patterns from accumulated LOs
         all_los = list(self.learning_objects.values())
@@ -385,7 +446,7 @@ class ExecutionModel(BaseModel):
                 providers={"github"},
                 metadata={"reviewer": reviewer, "author": author, "domain": domain},
             )
-            lo.add_evidence(signal.signal_id, "github")
+            lo.add_evidence(signal.signal_id, "github", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.PR_MERGED:
@@ -399,7 +460,7 @@ class ExecutionModel(BaseModel):
                 providers={"github"},
                 metadata={"domain": domain},
             )
-            lo.add_evidence(signal.signal_id, "github")
+            lo.add_evidence(signal.signal_id, "github", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.COMMIT:
@@ -414,7 +475,7 @@ class ExecutionModel(BaseModel):
                 providers={"github"},
                 metadata={"domain": domain},
             )
-            lo.add_evidence(signal.signal_id, "github")
+            lo.add_evidence(signal.signal_id, "github", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         return los
@@ -436,7 +497,7 @@ class ExecutionModel(BaseModel):
                     providers={"jira"},
                     metadata={"gate": assignee, "transition": transition},
                 )
-                lo.add_evidence(signal.signal_id, "jira")
+                lo.add_evidence(signal.signal_id, "jira", content_hash=_compute_content_hash(signal))
                 los.append(lo)
 
         elif signal.type == SignalType.ISSUE_CREATED:
@@ -451,7 +512,7 @@ class ExecutionModel(BaseModel):
                     providers={"jira"},
                     metadata={"priority": priority},
                 )
-                lo.add_evidence(signal.signal_id, "jira")
+                lo.add_evidence(signal.signal_id, "jira", content_hash=_compute_content_hash(signal))
                 los.append(lo)
 
         elif signal.type == SignalType.SPRINT_COMPLETED:
@@ -465,7 +526,7 @@ class ExecutionModel(BaseModel):
                 providers={"jira"},
                 metadata={"velocity": velocity},
             )
-            lo.add_evidence(signal.signal_id, "jira")
+            lo.add_evidence(signal.signal_id, "jira", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         return los
@@ -484,7 +545,7 @@ class ExecutionModel(BaseModel):
                 providers={"slack"},
                 metadata={"channel": signal.metadata.get("channel", "")},
             )
-            lo.add_evidence(signal.signal_id, "slack")
+            lo.add_evidence(signal.signal_id, "slack", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.QUESTION_ASKED:
@@ -499,7 +560,7 @@ class ExecutionModel(BaseModel):
                 providers={"slack"},
                 metadata={"channel": signal.metadata.get("channel", ""), "question": True},
             )
-            lo.add_evidence(signal.signal_id, "slack")
+            lo.add_evidence(signal.signal_id, "slack", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.AGREEMENT:
@@ -514,7 +575,7 @@ class ExecutionModel(BaseModel):
                 providers={"slack"},
                 metadata={"channel": signal.metadata.get("channel", ""), "agreement": True},
             )
-            lo.add_evidence(signal.signal_id, "slack")
+            lo.add_evidence(signal.signal_id, "slack", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.CONFLICT:
@@ -528,7 +589,7 @@ class ExecutionModel(BaseModel):
                 providers={"slack"},
                 metadata={"conflict": True, "participants": participants},
             )
-            lo.add_evidence(signal.signal_id, "slack")
+            lo.add_evidence(signal.signal_id, "slack", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         return los
@@ -548,7 +609,7 @@ class ExecutionModel(BaseModel):
                 providers={"confluence"},
                 metadata={"domain": domain},
             )
-            lo.add_evidence(signal.signal_id, "confluence")
+            lo.add_evidence(signal.signal_id, "confluence", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.RFC_CREATED:
@@ -563,7 +624,7 @@ class ExecutionModel(BaseModel):
                 providers={"confluence"},
                 metadata={"domain": domain, "rfc": True},
             )
-            lo.add_evidence(signal.signal_id, "confluence")
+            lo.add_evidence(signal.signal_id, "confluence", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.POSTMORTEM_CREATED:
@@ -579,7 +640,7 @@ class ExecutionModel(BaseModel):
                 providers={"confluence"},
                 metadata={"has_owner": has_owner},
             )
-            lo.add_evidence(signal.signal_id, "confluence")
+            lo.add_evidence(signal.signal_id, "confluence", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         return los
@@ -599,7 +660,7 @@ class ExecutionModel(BaseModel):
                 providers={"gmail"},
                 metadata={"participants": participants, "duration": signal.metadata.get("duration", 0)},
             )
-            lo.add_evidence(signal.signal_id, "gmail")
+            lo.add_evidence(signal.signal_id, "gmail", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.EMAIL_SENT:
@@ -615,7 +676,7 @@ class ExecutionModel(BaseModel):
                     providers={"gmail"},
                     metadata={"recipient": recipient, "external": True},
                 )
-                lo.add_evidence(signal.signal_id, "gmail")
+                lo.add_evidence(signal.signal_id, "gmail", content_hash=_compute_content_hash(signal))
                 los.append(lo)
 
         return los
@@ -667,7 +728,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         # ─── Commitment signals ──────────────────────────────────────────
@@ -694,7 +755,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.CUSTOMER_COMMITMENT_KEPT:
@@ -712,7 +773,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.CUSTOMER_COMMITMENT_BROKEN:
@@ -733,7 +794,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         # ─── Drift signals ───────────────────────────────────────────────
@@ -759,7 +820,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.CUSTOMER_CHAMPION_ACTIVE:
@@ -778,7 +839,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         # ─── Risk signals ────────────────────────────────────────────────
@@ -805,7 +866,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         elif signal.type == SignalType.CUSTOMER_CONTRACT_CHURNED:
@@ -825,7 +886,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         # ─── Decision pattern signals ────────────────────────────────────
@@ -851,7 +912,7 @@ class ExecutionModel(BaseModel):
                     "arr_impact": arr,
                 },
             )
-            lo.add_evidence(signal.signal_id, "customer")
+            lo.add_evidence(signal.signal_id, "customer", content_hash=_compute_content_hash(signal))
             los.append(lo)
 
         return los
@@ -868,7 +929,7 @@ class ExecutionModel(BaseModel):
             existing_key = self._law_dedup_key(existing.statement)
             if new_key and existing_key and new_key == existing_key:
                 # Merge: this pattern's evidence reinforces the existing law.
-                existing.add_validation(signal.signal_id)
+                existing.add_validation(signal.signal_id, content_hash=_compute_content_hash(signal))
                 if pattern.pattern_id not in existing.pattern_ids:
                     existing.pattern_ids.append(pattern.pattern_id)
                 return existing
@@ -886,9 +947,9 @@ class ExecutionModel(BaseModel):
             pattern_ids=[pattern.pattern_id],
             providers=pattern.providers,
             evidence_count=pattern.evidence_count,
-            validated_runtimes=1,
+            validated_runtimes=0,  # C-002 fix: start at 0; add_validation below increments to 1
         )
-        law.add_validation(signal.signal_id)
+        law.add_validation(signal.signal_id, content_hash=_compute_content_hash(signal))
         self.laws[code] = law
         return law
 
@@ -924,7 +985,7 @@ class ExecutionModel(BaseModel):
                 if signal.metadata.get("contradicts", False):
                     law.add_counter_example(signal.signal_id)
                 else:
-                    law.add_validation(signal.signal_id)
+                    law.add_validation(signal.signal_id, content_hash=_compute_content_hash(signal))
                 delta.law_updates.append(law.code)
                 self._add_receipt(signal, law.law_id, "law.evidence_added", law.code, delta)
 

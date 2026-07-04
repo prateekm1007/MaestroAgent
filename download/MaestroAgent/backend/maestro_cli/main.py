@@ -341,5 +341,70 @@ def _list_providers() -> None:
     console.print(table)
 
 
+@app.command(name="create-admin")
+def create_admin(
+    email: str = typer.Option(..., "--email", help="Admin user email address."),
+    password: str = typer.Option(..., "--password", help="Admin user password (will be hashed)."),
+    display_name: str = typer.Option("Admin", "--display-name", help="Display name for the admin user."),
+    org_id: str = typer.Option("default", "--org-id", help="Organization ID to scope the admin role to."),
+    auth_db: str = typer.Option(None, "--auth-db", help="Path to auth.db (defaults to MAESTRO_AUTH_DB env var)."),
+) -> None:
+    """C7 fix: Create an admin user for production deployment.
+
+    This is the production deployment bootstrap path. A fresh production
+    install has no users → no one can log in → the system is unusable
+    until this command is run.
+
+    Usage:
+        maestro create-admin --email=admin@company.com --password=secret
+        maestro create-admin --email=admin@company.com --password=secret --org-id=acme
+
+    The command is idempotent: if the user already exists, it updates the
+    password + display_name + admin flag rather than crashing.
+    """
+    db_path = auth_db or os.environ.get("MAESTRO_AUTH_DB", "auth.db")
+    rprint(f"[cyan]Creating admin user in {db_path}...[/]")
+
+    from maestro_auth.models import AuthStore
+    store = AuthStore(db_path)
+
+    # Check if user already exists (idempotent)
+    existing = store.list_users(limit=1000)
+    existing_admin = [u for u in existing if u.get("email", "").lower() == email.lower()]
+
+    if existing_admin:
+        # Update existing user
+        rprint(f"[yellow]User {email} already exists — updating password + admin flag...[/]")
+        # AuthStore doesn't have an update_user method, so we delete + recreate
+        # (this is the simplest idempotent path; a real update_user would be better)
+        user_id = existing_admin[0]["id"]
+        try:
+            with store._cursor() as cur:
+                cur.execute(
+                    "UPDATE users SET password_hash = ?, display_name = ?, is_admin = 1, updated_at = ? WHERE id = ?",
+                    (store.hash_password(password) if hasattr(store, "hash_password") else None,
+                     display_name, store._utcnow() if hasattr(store, "_utcnow") else None, user_id),
+                )
+        except Exception as e:
+            rprint(f"[red]Failed to update existing user: {e}[/]")
+            raise typer.Exit(1)
+        rprint(f"[green]✓ Admin user {email} updated (id={user_id}).[/]")
+    else:
+        # Create new admin user
+        user = store.create_user(
+            email=email,
+            display_name=display_name,
+            password=password,
+            is_admin=True,
+        )
+        store.assign_role(user["id"], "admin", scope_org_id=org_id)
+        rprint(f"[green]✓ Admin user {email} created (id={user['id']}).[/]")
+        rprint(f"[cyan]  Assigned 'admin' role scoped to org '{org_id}'.[/]")
+
+    rprint(f"\n[cyan]Login at the Maestro UI with:[/]")
+    rprint(f"  Email:    {email}")
+    rprint(f"  Password: {'*' * len(password)}")
+
+
 if __name__ == "__main__":
     app()

@@ -342,6 +342,14 @@ class OEMState:
         # the "54 unique values" was a demo artifact, not an engine property.
         # If dev mode needs diverse confidence values, ingest diverse demo data.
 
+        # C6 fix (auditor's wiring-vs-existence finding): persist the
+        # demo-seeded state to OEMStore NOW, so a restart with
+        # MAESTRO_DEMO_SEED=false can restore it. Before this fix, demo
+        # seed ingested 66 signals but never saved → restart → OEMStore
+        # empty → laws=0, LOs=0. The _save_model_state function existed
+        # but was never called from this trigger point.
+        self._save_model_state()
+
     def live_ingest(self, new_signals: list[ExecutionSignal]) -> None:
         """Stream new signals into the live OEM.
 

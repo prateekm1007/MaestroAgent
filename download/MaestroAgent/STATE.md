@@ -9,12 +9,12 @@
 > P9: deferrals need concrete triggers | P10: document WHY a bug was missed
 
 ## Last Updated
-2026-07-04 — C2 fix (closes C2+C3) + Trajectory panel on unmodified Today surface + demo seed (commit pending).
+2026-07-04 — Auditor's corrected directive executed: content-hash dedup WIRED + C6 persistence + C1 loop1 suppression + C7 admin CLI (commit pending).
 
 ## Current Status: 6/10 — Pilot-ready with scoped claims. Not contract-ready.
 
-> **Push verified:** `origin/main` is at `edc99c3` (Phase 2.4 SHR calibration + C-003 ACL filtering).
-> Local HEAD has 4 commits past `edc99c3`: Phase 2.2 simulator + frontend panel + SQLite fix + (this commit) C2 fix + demo seed.
+> **Push verified:** `origin/main` is at `edc99c3`.
+> Local HEAD has 6 commits past `edc99c3`: Phase 2.2 simulator + frontend panel + SQLite fix + C2 fix + demo seed + (this commit) content-hash dedup wiring + C6 + C1 + C7.
 
 ---
 
@@ -253,3 +253,43 @@ Everything in this file was verified by the same session that wrote it. That is 
 - **P14 cascade:** closing C2 surfaced 4 adjacent failures (commitment tracker field name, pattern coverage, to_whom extraction, briefing filter, timeline endpoint population). Each was real. Each would have blocked the demo seed from working. This is exactly P14 — "bugs migrate one layer deeper."
 - **What I did NOT verify this session:** C7 (admin bootstrap CLI) and C1 (loop1 whisper suppression) — both flagged in the audit directive as "this week" priority. Deferred to next session (trigger: this commit lands + auditor re-verifies).
 - **Self-certification limitation (P5):** this work is verified by the same session that wrote it. The auditor should re-run the 90-test suite + the Playwright unmodified-surface script from a fresh clone.
+
+---
+
+## Round 79 — Auditor's corrected directive: content-hash dedup WIRED + C6 + C1 + C7
+
+### What landed in this commit
+
+The external auditor caught that my prior "FIXED" verdicts for C6 and content-hash dedup were wiring-vs-existence errors (Blindspot #6). I documented the blindspot, then immediately committed it again. This commit applies the auditor's corrected directive: every fix gets all four parts (function change + caller update + trigger + regression test).
+
+**Content-hash dedup WIRING (C-002 — actually fixed this time):**
+- Added `_compute_content_hash(signal)` helper to `model.py` (SHA-256 of type+actor+artifact+metadata, 16 hex chars).
+- Wired ALL 27 call sites: 24 `add_evidence()` calls + 3 `add_validation()` calls now pass `content_hash=_compute_content_hash(signal)`.
+- Added LO-level dedup: before creating a new LO, check if an existing LO has the same content_hash. If so, add evidence to the existing LO instead of creating a new one.
+- Fixed double-count bug: `_promote_to_law` was setting `validated_runtimes=1` in the constructor AND calling `add_validation` (which incremented to 2). Now starts at 0.
+- 5 adversarial tests in `test_content_hash_dedup_wiring.py`: helper exists, deterministic, differs for different content, 4 identical signals → evidence_count≤2 (was 4), validated_runtimes≤1 (was 4).
+
+**C6 OEM persistence (actually fixed this time):**
+- `_seed_from_demo_provider()` now calls `_save_model_state()` at the end → demo-seeded state persists to OEMStore.
+- `main.py` lifespan `finally` block now calls `_save_model_state()` on graceful shutdown → no more lost state between save intervals.
+- 3 adversarial tests in `test_c6_oem_persistence.py`: source-inspection (call sites exist), restart-cycle test (demo seed → save → fresh OEMState → verify restored). The restart-cycle test is the auditor's exact scenario.
+- Test conftest updated to isolate OEMStore DB to a temp path per session (prevents stale-state leakage across test runs).
+
+**C1 loop1 whisper suppression (actually fixed this time):**
+- `_fire_whisper_for_event` in `loop1_commitment_intelligence.py` now calls `decide_delivery()` BEFORE building/persisting the Whisper. If it returns SUPPRESS_*, the Whisper is skipped (returns None).
+- DEFER_UNTIL_EVIDENCE is NOT suppressed in loop1 (this is the evening-preparation path — the exec explicitly asked about tomorrow's meetings; deferring would mean walking in blind).
+- 3 adversarial tests in `test_c1_loop1_suppression.py`: source-inspection (decide_delivery called), suppression test (exec_already_acted + not-cold-start → 0 whispers fired), counter-test (high-stakes + materially_changed → whisper fires).
+
+**C7 admin bootstrap CLI:**
+- Added `maestro create-admin --email --password --display-name --org-id --auth-db` command to `maestro_cli/main.py`.
+- Idempotent: if user exists, updates password + admin flag; if not, creates new admin + assigns admin role.
+- 3 tests in `test_c7_create_admin.py`: command exists, creates user in AuthStore, idempotent.
+
+### Regression (P14 — adjacent failures checked)
+- 92/92 tests pass across 11 test files (content-hash dedup + C6 + C1 + C7 + C2 + timeline simulator + loop1_5 + critical01 + h3_ask + loop1_commitment + oem_routes).
+
+### Process notes (P10 — root cause / process gap)
+- **Root cause of the wiring-vs-existence pattern:** I checked the DESTINATION (function exists, parameter in signature) but not the SOURCE (is the function actually called with the right arguments from the right places). The external auditor's verification pattern is: grep for call sites, not just function definitions; execute the restart cycle, not just trace the code path; send duplicate input and verify dedup fires.
+- **Gate 12 added to my protocol:** for every "X is wired" claim, the verification must include: (1) grep for call sites, (2) verify callers pass the parameter, (3) for save/persist claims execute the restart cycle, (4) for dedup claims send duplicate input and verify the dedup fires.
+- **Honest gap (P5):** C5 (API key wiring) and C4 (decorative precision display) still deferred per audit directive. Trigger: next session.
+- **Self-certification limitation (P5):** this work is verified by the same session that wrote it. The auditor should re-run the 92-test suite + the C6 restart-cycle test from a fresh clone.

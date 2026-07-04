@@ -195,6 +195,18 @@ def create_app(
                 await _snapshot_task
             except asyncio.CancelledError:
                 pass
+            # C6 fix (auditor's wiring-vs-existence finding): save OEM model
+            # state on graceful shutdown. Before this fix, any model state
+            # changes since the last periodic save (every 20 live signals)
+            # were lost on shutdown. Now the finally block persists the
+            # current state to OEMStore before stopping AppState.
+            try:
+                from maestro_api.oem_state import oem_state as _oem_state_for_shutdown
+                if _oem_state_for_shutdown and _oem_state_for_shutdown._initialized:
+                    _oem_state_for_shutdown._save_model_state()
+                    logger.info("C6 fix: saved OEM model state on shutdown")
+            except Exception as e:
+                logger.warning("C6 fix: failed to save OEM model state on shutdown: %s", e)
             await app.state.maestro.stop()
 
     app = FastAPI(
