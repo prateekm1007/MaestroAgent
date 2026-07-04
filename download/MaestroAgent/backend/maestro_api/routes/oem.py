@@ -29,6 +29,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends, Request, Body
 from maestro_api.oem_state import oem_state
 from maestro_api.security.policy import set_router_policy, AuthPolicy
 from maestro_db.db_helper import get_db_url_for_learning
+from maestro_oem.confidence import format_confidence_for_display  # ISSUE-07: display gate
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +173,7 @@ def _law_to_dict(law: Any) -> dict[str, Any]:
         "outcome": law.outcome,
         "status": law.status.value,
         "confidence": format_confidence_for_display(law.confidence, sample_size),
-        "confidence_raw": round(law.confidence, 4),  # programmatic, not for display
+        "confidence_raw": format_confidence_for_display(law.confidence, law.validated_runtimes + law.failed_runtimes),  # programmatic, not for display
         "calibration_sample_size": sample_size,
         "evidence_count": law.evidence_count,
         "validated_runtimes": law.validated_runtimes,
@@ -199,7 +200,7 @@ def _rec_to_dict(rec: Any) -> dict[str, Any]:
         "title": rec.title,
         "description": rec.description,
         "recommendation": rec.recommendation,
-        "confidence": round(rec.confidence, 4),
+        "confidence": format_confidence_for_display(rec.confidence, getattr(rec, "evidence_count", 0)),
         "decision_question": rec.decision_question,
         "provenance": rec.provenance,
         "linked_laws": rec.linked_laws,
@@ -325,7 +326,7 @@ def get_dashboard() -> dict[str, Any]:
             changes.append({
                 "type": "law_strengthened",
                 "title": f"Law strengthened: {law.code}",
-                "detail": f"{law.statement} — validated {law.validated_runtimes}/{law.validated_runtimes + law.failed_runtimes} runtimes, confidence {law.confidence:.2f}",
+                "detail": f"{law.statement} — validated {law.validated_runtimes}/{law.validated_runtimes + law.failed_runtimes} runtimes, confidence {law.confidence}",
                 "severity": "info",
                 "timestamp": law.last_validated.isoformat() if law.last_validated else None,
             })
@@ -643,7 +644,7 @@ def get_simulator() -> dict[str, Any]:
             "title": top_rec.title if top_rec else "No active scenario",
             "description": top_rec.description if top_rec else "",
             "recommendation": top_rec.recommendation if top_rec else "",
-            "confidence": round(top_rec.confidence, 4) if top_rec else 0.0,
+            "confidence": format_confidence_for_display(top_rec.confidence, getattr(top_rec, "evidence_count", 0)) if top_rec else 0.0,
             "decision_question": top_rec.decision_question if top_rec else "",
         },
         "current_health": {
@@ -717,7 +718,7 @@ def get_knowledge(
             "description": lo.description,
             "entities": lo.entities,
             "boundary": lo.metadata.get("boundary", "unknown"),
-            "confidence": round(lo.confidence, 4),
+            "confidence": format_confidence_for_display(lo.confidence, lo.evidence_count),
             "evidence_count": lo.evidence_count,
             "providers": sorted(lo.providers),
         }
@@ -732,7 +733,7 @@ def get_knowledge(
             "description": lo.description,
             "entities": lo.entities,
             "domain": lo.metadata.get("domain", "unknown"),
-            "confidence": round(lo.confidence, 4),
+            "confidence": format_confidence_for_display(lo.confidence, lo.evidence_count),
             "evidence_count": lo.evidence_count,
             "providers": sorted(lo.providers),
         }
@@ -1181,7 +1182,7 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
         "affected_laws": [
             {
                 "code": code,
-                "confidence_before": round(event.confidence_before.get(code, 0), 4),
+                "confidence_before": format_confidence_for_display(event.confidence_before.get(code, 0), 0),
                 "confidence_after": round(
                     oem_state.model.laws[code].confidence if code in oem_state.model.laws else 0,
                     4,
@@ -1257,7 +1258,7 @@ def get_entity_drilldown(
         result["prediction"] = {
             "condition": law.condition,
             "outcome": law.outcome,
-            "confidence": round(law.confidence, 4),
+            "confidence": format_confidence_for_display(law.confidence, law.validated_runtimes + law.failed_runtimes),
             "validated_runtimes": law.validated_runtimes,
             "failed_runtimes": law.failed_runtimes,
         }
@@ -1271,7 +1272,7 @@ def get_entity_drilldown(
         recs = [r for r in oem_state.decisions.get_recommendations() if law.code in (r.linked_laws or [])]
         result["recommendation"] = {
             "available": len(recs) > 0,
-            "items": [{"title": r.title, "recommendation": r.recommendation, "urgency": r.urgency, "confidence": round(r.confidence, 4)} for r in recs[:3]],
+            "items": [{"title": r.title, "recommendation": r.recommendation, "urgency": r.urgency, "confidence": format_confidence_for_display(r.confidence, getattr(r, "evidence_count", 0))} for r in recs[:3]],
         }
 
     elif entity_type == "recommendation":
@@ -1295,7 +1296,7 @@ def get_entity_drilldown(
         result["people"] = _extract_people_from_rec(rec)
         result["prediction"] = {
             "impact": rec.impact,
-            "confidence": round(rec.confidence, 4),
+            "confidence": format_confidence_for_display(rec.confidence, getattr(rec, "evidence_count", 0)),
             "evidence_strength": rec.evidence_strength,
         }
         result["simulation"] = {
@@ -1305,7 +1306,7 @@ def get_entity_drilldown(
         }
         result["recommendation"] = {
             "available": True,
-            "items": [{"title": rec.title, "recommendation": rec.recommendation, "urgency": rec.urgency, "confidence": round(rec.confidence, 4)}],
+            "items": [{"title": rec.title, "recommendation": rec.recommendation, "urgency": rec.urgency, "confidence": format_confidence_for_display(rec.confidence, getattr(rec, "evidence_count", 0))}],
         }
 
     elif entity_type == "expert":
@@ -1380,7 +1381,7 @@ def get_entity_drilldown(
                     "timestamp": sig.timestamp.isoformat() if hasattr(sig.timestamp, "isoformat") else str(sig.timestamp),
                 })
         result["people"] = [{"name": e, "role": lo_type} for e in (lo.entities or [])]
-        result["prediction"] = {"detail": lo.description, "confidence": round(lo.confidence, 4)}
+        result["prediction"] = {"detail": lo.description, "confidence": format_confidence_for_display(lo.confidence, lo.evidence_count)}
 
     elif entity_type == "signal":
         sig = _find_signal(entity_id)
@@ -1555,7 +1556,7 @@ def get_ceo_briefing() -> dict[str, Any]:
             "recommendation": top.recommendation,
             "why": top.description,
             "impact": top.impact or "Impact not yet assessed.",
-            "confidence": round(top.confidence, 4),
+            "confidence": format_confidence_for_display(top.confidence, getattr(top, "evidence_count", 0)),
             "urgency": top.urgency,
             "linked_laws": top.linked_laws or [],
             "rec_id": top.rec_id,
@@ -1680,7 +1681,7 @@ def get_ceo_briefing() -> dict[str, Any]:
                 "title": rec.title,
                 "question": rec.decision_question,
                 "recommendation": rec.recommendation,
-                "confidence": round(rec.confidence, 4),
+                "confidence": format_confidence_for_display(rec.confidence, getattr(rec, "evidence_count", 0)),
                 "linked_laws": rec.linked_laws or [],
             })
 
@@ -1692,7 +1693,7 @@ def get_ceo_briefing() -> dict[str, Any]:
                 "title": lo.title,
                 "question": f"Should we retain {', '.join(lo.entities[:2])}?",
                 "recommendation": "Initiate retention conversation before knowledge is lost.",
-                "confidence": round(lo.confidence, 4),
+                "confidence": format_confidence_for_display(lo.confidence, lo.evidence_count),
                 "linked_laws": [],
             })
 
@@ -1704,7 +1705,7 @@ def get_ceo_briefing() -> dict[str, Any]:
                 "title": f"{law.code}: {law.statement[:80]}",
                 "question": f"Are you aware of this organizational law?",
                 "recommendation": "Acknowledge or reject this law to align leadership with reality.",
-                "confidence": round(law.confidence, 4),
+                "confidence": format_confidence_for_display(law.confidence, law.validated_runtimes + law.failed_runtimes),
                 "linked_laws": [law.code],
             })
 
@@ -1837,7 +1838,7 @@ def _generate_drafted_artifacts(
         evidence_refs = []
         if linked_laws:
             evidence_refs.append(f"Validated patterns: {', '.join(linked_laws[:3])}")
-        evidence_refs.append(f"Confidence: {confidence:.0%}")
+        evidence_refs.append(f"Confidence: {confidence}")
         if impact:
             evidence_refs.append(f"Impact: {impact}")
 
@@ -1966,7 +1967,7 @@ def _generate_drafted_artifacts(
         confidence = decision.get("confidence", 0)
         linked_laws = decision.get("linked_laws", [])
 
-        evidence_refs = [f"Decision type: {dec_type}", f"Confidence: {confidence:.0%}"]
+        evidence_refs = [f"Decision type: {dec_type}", f"Confidence: {confidence}"]
         if linked_laws:
             evidence_refs.append(f"Related patterns: {', '.join(linked_laws[:3])}")
 

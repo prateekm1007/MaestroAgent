@@ -133,11 +133,18 @@ def decide_delivery(
     if has_high_stakes_signal:
         return DeliveryDecision.DELIVER_ON_ASK
 
-    # 7. Low stakes → SUPPRESS_LOW_STAKES
-    # ISSUE-04 fix: removed the undocumented "First-time whisper → always
-    # deliver" branch (was shown_count==0 → DELIVER_ON_ASK). This preempted
-    # the low-stakes suppression for EVERY first-time whisper, meaning
-    # Maestro could never stay silent on first observation. The docstring
-    # says case 7 is "Low stakes → SUPPRESS_LOW_STAKES" — no first-time
-    # exception. Now aligned with the docstring.
+    # 7. Low stakes
+    # ISSUE-04 fix: removed the undocumented "First-time → always deliver" branch.
+    # ISSUE-09 fix: but low-stakes whispers with an upcoming meeting should
+    # still surface (DELIVER_AT_MEETING_TIME) — the meeting makes them
+    # relevant even without high stakes. And first-time whispers (shown_count=0)
+    # with material change should surface (DELIVER_ON_ASK) — the exec hasn't
+    # seen this yet and something changed. Only truly low-stakes + no meeting
+    # + no change + already shown → SUPPRESS_LOW_STAKES.
+    if has_upcoming_meeting:
+        return DeliveryDecision.DELIVER_AT_MEETING_TIME
+
+    if shown_count == 0 and materially_changed_since_last_shown:
+        return DeliveryDecision.DELIVER_ON_ASK
+
     return DeliveryDecision.SUPPRESS_LOW_STAKES
