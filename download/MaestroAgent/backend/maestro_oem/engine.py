@@ -93,8 +93,21 @@ class OEMEngine:
         P1 fix: each signal is checked for prompt injection before
         processing. Flagged signals are marked, not dropped (P6).
 
+        H-05 fix: each signal's authority_weight is set from the
+        SourceAuthorityModel before processing. Authority is DERIVED
+        from org chart data (P13), not caller-supplied. Authority
+        modulates confidence, never silences the signal (P6).
+
         Returns a list of ModelDeltas, one per signal.
         """
+        # H-05: Apply authority weights from the default SourceAuthorityModel.
+        # This is a no-op if no org chart has been loaded (all weights stay 0.5).
+        try:
+            from maestro_oem.source_authority import get_default_model
+            get_default_model().apply_to_signals(signals)
+        except Exception as e:
+            logger.warning("OEMEngine.ingest: failed to apply authority weights: %s", e)
+
         deltas: list[ModelDelta] = []
         for signal in signals:
             self._check_injection(signal)
@@ -107,7 +120,15 @@ class OEMEngine:
         """Process a single signal.
 
         P1 fix: checks for prompt injection before processing.
+        H-05 fix: applies authority weight before processing.
         """
+        # H-05: Apply authority weight
+        try:
+            from maestro_oem.source_authority import get_default_model
+            get_default_model().apply_to_signal(signal)
+        except Exception as e:
+            logger.warning("OEMEngine.ingest_one: failed to apply authority weight: %s", e)
+
         self._check_injection(signal)
         delta = self.model.process_signal(signal)
         self.deltas.append(delta)

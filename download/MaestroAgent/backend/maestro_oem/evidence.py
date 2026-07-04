@@ -254,6 +254,7 @@ class EvidenceBuilder:
                 "date": s_date,
                 "text": commitment_text[:100],
                 "people": [actor] if actor else [],
+                "authority_weight": getattr(s, "authority_weight", 0.5),  # H-05
             })
 
         if not observed_facts:
@@ -312,6 +313,7 @@ class EvidenceBuilder:
                 "date": s_date,
                 "text": f"Objection: {o_type}",
                 "people": [actor] if actor else [],
+                "authority_weight": getattr(s, "authority_weight", 0.5),  # H-05
             })
 
         if not observed_facts:
@@ -395,6 +397,7 @@ class EvidenceBuilder:
                 "date": s_date,
                 "text": "Commitment was broken",
                 "people": [s.actor] if s.actor else [],
+                "authority_weight": getattr(s, "authority_weight", 0.5),  # H-05
             })
 
         if not observed_facts:

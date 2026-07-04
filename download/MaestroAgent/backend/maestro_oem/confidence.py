@@ -226,11 +226,12 @@ class ConfidenceCalculator:
         first_seen: datetime,
         last_seen: datetime,
         calibration_shr: float = 0.0,
+        authority_weights: list[float] | None = None,
     ) -> float:
         """Compute confidence for a LearningObject. Returns float only."""
         return ConfidenceCalculator.compute_lo_confidence_explained(
             evidence_count, contradiction_count, providers,
-            first_seen, last_seen, calibration_shr
+            first_seen, last_seen, calibration_shr, authority_weights
         ).value
 
     @staticmethod
@@ -241,19 +242,41 @@ class ConfidenceCalculator:
         first_seen: datetime,
         last_seen: datetime,
         calibration_shr: float = 0.0,
+        authority_weights: list[float] | None = None,
     ) -> ConfidenceExplanation:
         """
         Compute confidence for a LearningObject with full explanation.
 
         Same Beta-Binomial model, but using evidence/contradiction
         instead of validated/failed.
+
+        H-05 fix: authority_weights modulates evidence contribution.
+        - If None or empty: neutral (1.0 multiplier, backward-compatible)
+        - If provided: mean(authority_weights) scales evidence_count
+          (high-authority evidence counts more toward alpha)
+        - Authority NEVER reduces evidence below 0 — it modulates, never
+          silences (P6).
         """
         shr = calibration_shr if calibration_shr > 0 else 0.5
-        alpha = ALPHA_PRIOR * shr + evidence_count
+
+        # H-05: authority-weighted evidence count
+        # Mean authority > 0.5 boosts evidence; mean < 0.5 reduces it.
+        # Neutral (0.5) produces no change — backward-compatible.
+        if authority_weights:
+            mean_authority = sum(authority_weights) / len(authority_weights)
+            # Scale evidence_count by (2 * mean_authority) so 0.5 → 1.0 (neutral)
+            authority_factor = 2.0 * mean_authority
+            weighted_evidence = evidence_count * authority_factor
+        else:
+            mean_authority = 0.5
+            authority_factor = 1.0
+            weighted_evidence = float(evidence_count)
+
+        alpha = ALPHA_PRIOR * shr + weighted_evidence
         beta = BETA_PRIOR * (1.0 - shr) + contradiction_count
         posterior_mean = alpha / (alpha + beta) if (alpha + beta) > 0 else 0.0
 
-        evidence_weight = 1.0 - exp(-evidence_count / EVIDENCE_SCALE) if evidence_count > 0 else 0.0
+        evidence_weight = 1.0 - exp(-weighted_evidence / EVIDENCE_SCALE) if weighted_evidence > 0 else 0.0
         diversity_factor = 1.0 + log2(1 + len(providers)) / 10.0
 
         now = datetime.now(timezone.utc)
@@ -268,7 +291,9 @@ class ConfidenceCalculator:
             f"posterior({alpha:.2f}, {beta:.2f}) = {posterior_mean:.4f} × "
             f"evidence_weight({evidence_weight:.4f}) × "
             f"recency({recency_factor:.4f}) × "
-            f"diversity({diversity_factor:.4f}) = {confidence:.4f}"
+            f"diversity({diversity_factor:.4f})"
+            + (f" × authority({authority_factor:.4f}, mean={mean_authority:.2f})" if authority_weights else "")
+            + f" = {confidence:.4f}"
         )
 
         return ConfidenceExplanation(

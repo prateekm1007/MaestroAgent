@@ -112,6 +112,11 @@ class ExecutionSignal(BaseModel):
     metadata: provider-specific payload
     provider: which signal source produced this
     signal_id: unique identifier
+    authority_weight: source authority 0..1 (H-05 fix, default 0.5 neutral).
+        Derived from org chart via SourceAuthorityModel — NOT caller-supplied
+        per-signal in production. Modulates confidence contribution, never
+        silences the signal (P6: low authority = lower confidence, not
+        invisibility).
     """
 
     signal_id: UUID = Field(default_factory=uuid4)
@@ -124,6 +129,7 @@ class ExecutionSignal(BaseModel):
     confidence: float = 1.0
     metadata: dict[str, Any] = Field(default_factory=dict)
     provider: SignalProvider = SignalProvider.UNKNOWN
+    authority_weight: float = 0.5  # H-05: 0.5 = neutral, 0.0-1.0 range
 
     def to_receipt_data(self) -> dict[str, Any]:
         """Convert to a receipt-compatible dict for provenance tracking."""
