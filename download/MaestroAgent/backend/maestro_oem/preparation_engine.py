@@ -22,6 +22,20 @@ Phase 3 (2026-07-03, AUDIT-0644916):
   - Flags at_risk meetings when the entity has a broken commitment.
   - Evidence Spine is built from real signals via EvidenceBuilder,
     including objection history in conflicting_evidence.
+
+Phase B (2026-07-04, AUDITOR-DIRECTIVE):
+  - Wires 4 orphan modules into the production preparation path:
+      DigitalTwin         → org_snapshot (people, domains, bottlenecks, at-risk)
+      OrganizationalDNA   → org_dna (7 chromosomes that filter recommendations)
+      PersonalityEngine   → org_personality (6 dimensions of org character)
+      CustomerScenarioEngine → customer_risk_preview per meeting (predicts
+                              delay/champion_leaves/pricing outcomes)
+  - P11: All 4 modules are CALLED from prepare_for_tomorrow() and
+          _prepare_for_event(). They were not called before.
+  - P13: Inputs are DERIVED from self.model + self.signals — the
+          constructor does not take these modules as parameters.
+  - P15: Three-state tracking — each module exists, is unit-tested,
+          and is now called from a production entry point.
 """
 
 from __future__ import annotations
@@ -115,6 +129,16 @@ class PreparationEngine:
         # People to contact
         people_to_contact = self._get_people_to_contact()
 
+        # ── Phase B: Wire 4 orphan modules into the brief ─────────────
+        # P11: These modules were built, tested, and exposed via API —
+        # but never called from PreparationEngine. Now they are.
+        # P13: Inputs are DERIVED from self.model + self.signals.
+        # Each helper fails closed (P6): logs loudly and returns {} on error.
+        org_snapshot = self._compute_org_snapshot()
+        org_dna = self._compute_org_dna()
+        org_personality = self._compute_org_personality()
+        dna_filtered_decisions = self._filter_decisions_against_dna(decisions_likely, org_dna)
+
         return {
             "date": tomorrow_str,
             "user": user_email,
@@ -129,6 +153,11 @@ class PreparationEngine:
                 "consequential_events": len(consequential_events),
                 "filtered_out": len(events) - len(consequential_events),
             },
+            # Phase B: 4 newly-wired modules
+            "org_snapshot": org_snapshot,
+            "org_dna": org_dna,
+            "org_personality": org_personality,
+            "dna_filtered_decisions": dna_filtered_decisions,
         }
 
     def _prepare_for_event(self, event: CalendarEvent, tomorrow_str: str) -> dict[str, Any]:
@@ -241,6 +270,12 @@ class PreparationEngine:
         filt = ConsequentialityFilter(signals=self.signals, now=self._now)
         score = filt.score(event)
 
+        # Phase B: Wire CustomerScenarioEngine → customer_risk_preview.
+        # For each consequential meeting with a customer entity, predict
+        # likely scenarios (delay, champion_leaves, pricing) so the exec
+        # walks in knowing what could go wrong — not just what already did.
+        customer_risk_preview = self._compute_customer_risk_preview(event.entity)
+
         return {
             "title": event.title,
             "time": event.start.strftime("%H:%M"),
@@ -251,6 +286,7 @@ class PreparationEngine:
             "at_risk": at_risk,
             "consequentiality": score.to_dict(),
             "consequentiality_reason": score.reason(),
+            "customer_risk_preview": customer_risk_preview,
         }
 
     def _prepare_for_meeting(self, meeting: dict[str, Any]) -> dict[str, Any]:
@@ -472,3 +508,144 @@ class PreparationEngine:
             })
 
         return meetings
+
+    # ═══ Phase B: 4 newly-wired modules ═══════════════════════════════════════
+    # Each helper:
+    #   - DERIVES its inputs from self.model + self.signals (P13)
+    #   - FAILS CLOSED on error — logs loudly and returns {} (P6)
+    #   - Is CALLED from prepare_for_tomorrow() or _prepare_for_event() (P11)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _compute_org_snapshot(self) -> dict[str, Any]:
+        """DigitalTwin.get_org_summary() — current org-wide state.
+
+        Tells the exec: how many people, domains, bottlenecks, at-risk
+        domains exist RIGHT NOW. This is the org-wide context the brief
+        was missing — without it, the brief was meeting-only.
+        """
+        try:
+            from maestro_oem.digital_twin import DigitalTwin
+            decisions = getattr(self.model, "decisions", None)
+            twin = DigitalTwin(self.model, self.signals, decisions)
+            return twin.get_org_summary()
+        except Exception as e:
+            logger.warning("PreparationEngine._compute_org_snapshot (DigitalTwin) failed: %s", e)
+            return {}
+
+    def _compute_org_dna(self) -> dict[str, Any]:
+        """OrganizationalDNA.sequence() — 7 chromosomes that filter recs.
+
+        The DNA is what YOUR org would do at its best. It's used to
+        flag recommendations that go against the org's character.
+        """
+        try:
+            from maestro_oem.organizational_dna import OrganizationalDNA
+            dna = OrganizationalDNA(self.model, self.signals)
+            return dna.sequence()
+        except Exception as e:
+            logger.warning("PreparationEngine._compute_org_dna (OrganizationalDNA) failed: %s", e)
+            return {"chromosomes": {}}
+
+    def _compute_org_personality(self) -> dict[str, Any]:
+        """PersonalityEngine.infer() — 6 dimensions of org character.
+
+        Adds context: 'Your org decides quickly, tolerates moderate
+        risk, and learns steadily.' This shapes HOW the exec should
+        interpret the brief, not WHAT's in it.
+        """
+        try:
+            from maestro_oem.personality import PersonalityEngine
+            engine = PersonalityEngine(self.model, self.signals)
+            return engine.infer()
+        except Exception as e:
+            logger.warning("PreparationEngine._compute_org_personality (PersonalityEngine) failed: %s", e)
+            return {"dimensions": {}}
+
+    def _compute_customer_risk_preview(self, entity: str) -> dict[str, Any]:
+        """CustomerScenarioEngine — predict likely customer scenarios.
+
+        For each meeting with a customer entity, run 3 low-cost scenarios
+        (delay, champion_leaves, pricing) and surface the predicted
+        outcomes. The exec walks in knowing what could go wrong —
+        not just what already did.
+        """
+        if not entity:
+            return {}
+
+        try:
+            from maestro_oem.customer_judgment import CustomerJudgmentEngine
+            from maestro_oem.customer_twin import CustomerScenarioEngine
+            decisions = getattr(self.model, "decisions", None)
+            judgment = CustomerJudgmentEngine(self.model, self.signals, decisions)
+            twin = CustomerScenarioEngine(judgment)
+
+            scenarios = {}
+            for scenario_type, scenario_payload in [
+                ("delay", {"type": "delay", "customer": entity, "weeks": 2}),
+                ("champion_leaves", {"type": "champion_leaves", "customer": entity}),
+                ("pricing", {"type": "pricing", "customer": entity, "increase_pct": 10}),
+            ]:
+                try:
+                    report = twin.run_scenario(scenario_payload)
+                    scenarios[scenario_type] = {
+                        "expected_outcome": report.expected_outcome,
+                        "confidence": report.confidence,
+                        "risk_level": report.risk_level,
+                        "description": report.description,
+                    }
+                except Exception as inner_e:
+                    logger.debug(
+                        "customer_risk_preview scenario '%s' for '%s' failed: %s",
+                        scenario_type, entity, inner_e,
+                    )
+                    scenarios[scenario_type] = {"error": str(inner_e)}
+            return scenarios
+        except Exception as e:
+            logger.warning(
+                "PreparationEngine._compute_customer_risk_preview (CustomerScenarioEngine) failed for entity '%s': %s",
+                entity, e,
+            )
+            return {}
+
+    def _filter_decisions_against_dna(
+        self,
+        decisions_likely: list[dict[str, Any]],
+        org_dna: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Flag decisions that go against the org's DNA.
+
+        The DNA's risk_appetite chromosome tells us if the org is cautious
+        or aggressive. If a decision_likely is aggressive (e.g., 'Expand
+        into new market', 'aggressive', 'high urgency') but the DNA is
+        cautious, flag it as 'against_your_nature'.
+
+        This is the DNA FILTERING the brief — not just decorating it.
+        """
+        if not org_dna or not decisions_likely:
+            return decisions_likely
+
+        try:
+            chromosomes = org_dna.get("chromosomes", {}) if isinstance(org_dna, dict) else {}
+            risk = chromosomes.get("risk_appetite", {})
+            risk_label = risk.get("label", "") if isinstance(risk, dict) else ""
+            is_cautious = risk_label == "cautious"
+
+            flagged = []
+            aggressive_words = {"expand", "aggressive", "accelerate", "double", "scale", "high urgency"}
+            for d in decisions_likely:
+                title_lower = (d.get("title", "") + " " + d.get("urgency", "")).lower()
+                is_aggressive = any(w in title_lower for w in aggressive_words)
+                entry = dict(d)
+                if is_cautious and is_aggressive:
+                    entry["against_your_nature"] = True
+                    entry["dna_note"] = (
+                        f"Org's risk_appetite is '{risk_label}' — this decision "
+                        f"goes against your character. Consider a smaller step."
+                    )
+                else:
+                    entry["against_your_nature"] = False
+                flagged.append(entry)
+            return flagged
+        except Exception as e:
+            logger.warning("PreparationEngine._filter_decisions_against_dna failed: %s", e)
+            return decisions_likely

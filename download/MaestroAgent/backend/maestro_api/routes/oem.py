@@ -5279,9 +5279,9 @@ def ask_recall(payload: dict[str, Any]) -> dict[str, Any]:
       - Computes what_changed_since from the actual signal diff
         (NOT hardcoded template strings)
 
-    The old keyword-only WhisperRecall is still available at
-    maestro_oem.whisper_recall for backward-compat testing, but is no
-    longer wired to any endpoint.
+    Phase D (2026-07-04): the old keyword-only WhisperRecall module
+    (maestro_oem/whisper_recall.py) and its test file were DELETED as
+    dead code. The hybrid RecallEngine is the sole recall path.
     """
     query = payload.get("query", "")
     if not query:
@@ -5313,12 +5313,15 @@ def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
     """
     query = payload.get("query", "")
     history = payload.get("history", [])
+    session_id = payload.get("session_id", "")
 
     if not query:
         raise HTTPException(400, "Query is required")
 
     # H3 FIX: Route through the structured AskPipeline (intent → entity →
     # retrieval → evidence → synthesis) instead of keyword routing.
+    # Step 3 production wiring: pass session_id + ConversationStore so
+    # the pipeline can resolve pronouns ("their", "we") from prior turns.
     from maestro_oem.ask_pipeline import AskPipeline
     from maestro_oem.preparation_engine import PreparationEngine
     pipeline = AskPipeline(
@@ -5329,8 +5332,10 @@ def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
             oem_state.model if oem_state else None,
             oem_state.signals if oem_state else [],
         ) if oem_state else None,
+        model=oem_state.model if oem_state else None,
+        conversation_store=_get_conversation_store(),
     )
-    answer = pipeline.execute(query, org_id="default")
+    answer = pipeline.execute(query, org_id="default", session_id=session_id)
 
     return answer
 
@@ -5593,6 +5598,24 @@ def _get_whisper_history_store():
         _whisper_history_store = WhisperHistoryStore(db_path)
         logger.info("WhisperHistoryStore initialized (db=%s)", db_path)
     return _whisper_history_store
+
+
+# Step 3 production wiring: SQLite-backed multi-turn conversation state.
+# P11/P15: ConversationStore is now CALLED from the /ask/conversation route
+# (cite: maestro_api/routes/oem.py:ask_conversation). Without this wiring,
+# the AskPipeline's pronoun-resolution path was unreachable from production —
+# only callable from unit tests that constructed the store themselves.
+_conversation_store = None
+
+def _get_conversation_store():
+    """Get or create the singleton ConversationStore (Step 3 production wiring)."""
+    global _conversation_store
+    if _conversation_store is None:
+        from maestro_oem.conversation_store import ConversationStore
+        db_path = os.environ.get("MAESTRO_CONVERSATION_DB", str(Path("conversation_history.db")))
+        _conversation_store = ConversationStore(db_path)
+        logger.info("ConversationStore initialized (db=%s)", db_path)
+    return _conversation_store
 
 @router.get("/whisper")
 def organizational_whisper(

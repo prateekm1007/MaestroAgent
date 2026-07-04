@@ -556,6 +556,15 @@ def get_unified_today(
     work_count = sum(1 for c in cards if c["_mode"] == "work")
     personal_count = sum(1 for c in cards if c["_mode"] == "personal")
 
+    # ── Phase C: Wire consciousness + metacognition into Today ──────
+    # P11: These modules were built, tested, and exposed via
+    # /api/oem/consciousness and /api/oem/metacognition — but never
+    # called from /today. Now they are.
+    # P13: Inputs are DERIVED from oem_state.model + oem_state.signals.
+    # Each block fails closed (P6): logs loudly and returns {} on error.
+    org_state = _compute_org_state_for_today()
+    meta_gap = _compute_meta_gap_for_today()
+
     return {
         "cards": cards,
         "filter": f.value,
@@ -566,7 +575,56 @@ def get_unified_today(
         },
         "default_filter": "all",
         "note": "Round 46 — the filter is a view parameter, not a stored mode.",
+        # Phase C: 2 newly-wired modules
+        "org_state": org_state,
+        "meta_gap": meta_gap,
     }
+
+
+def _compute_org_state_for_today() -> dict[str, Any]:
+    """Phase C: ConsciousnessEngine.state_vector() — org's real-time state.
+
+    Tells the exec: where is the org's attention, knowledge, trust,
+    conflict, energy, uncertainty, and learning RIGHT NOW. This is
+    the org-wide awareness the Today deck was missing — without it,
+    the deck was task-only.
+    """
+    try:
+        from maestro_api import oem_state
+        from maestro_oem.consciousness import ConsciousnessEngine
+        if not oem_state.model or not oem_state.signals:
+            return {}
+        engine = ConsciousnessEngine(oem_state.model, oem_state.signals)
+        return engine.state_vector()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "personal._compute_org_state_for_today (ConsciousnessEngine) failed: %s", e
+        )
+        return {}
+
+
+def _compute_meta_gap_for_today() -> dict[str, Any]:
+    """Phase C: MetacognitionEngine.analyze() — org thinking about its thinking.
+
+    Tells the exec: are individual teams making good decisions while the
+    org as a whole makes poor ones? If so, the gap is in coordination,
+    not in individual intelligence. This is the meta-awareness the Today
+    deck was missing.
+    """
+    try:
+        from maestro_api import oem_state
+        from maestro_oem.metacognition import MetacognitionEngine
+        if not oem_state.model or not oem_state.signals:
+            return {}
+        engine = MetacognitionEngine(oem_state.model, oem_state.signals)
+        return engine.analyze()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "personal._compute_meta_gap_for_today (MetacognitionEngine) failed: %s", e
+        )
+        return {}
 
 
 @router.get("/memory")
