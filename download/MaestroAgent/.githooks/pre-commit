@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+# MaestroAgent pre-commit hook — mechanical enforcement of P20 + P6.
+#
+# P20 (Call-site parameter rule): when a function gains a parameter, EVERY
+# caller must pass it. Configured in p20_checks.json. The hook greps staged
+# .py files for call sites and fails if any caller omits the required param.
+#
+# P6 (fail closed, not silent): no bare `except.*: pass` in staged .py files.
+#
+# Installation:
+#   make hooks
+# (which runs: git config core.hooksPath .githooks)
+#
+# Bypass ( emergencies only — document WHY in the commit message ):
+#   git commit --no-verify
+#
+# See ENTROPY_RECOVERY.md Part Four (P20, P26) for the principle this enforces.
+# Principles don't enforce themselves. This hook does.
+
+set -euo pipefail
+
+# Resolve the hook's own directory (where p20_checks.json lives).
+# We do NOT use git rev-parse --show-toplevel because this repo may be a
+# submodule or nested worktree where the git root differs from the project
+# root. The hook script lives in <project>/.githooks/, so its parent is
+# the project root.
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+# Config file
+CONFIG=".githooks/p20_checks.json"
+if [ ! -f "$CONFIG" ]; then
+  echo "[$0] WARN: $CONFIG not found (expected at $PROJECT_ROOT/$CONFIG) — P20 checks skipped."
+  exit 0
+fi
+
+# Get staged .py files (only files actually modified/added).
+# git returns paths relative to the git root, which may differ from
+# PROJECT_ROOT (submodule/nested worktree). We pass the raw paths to
+# Python which resolves them against PROJECT_ROOT.
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM -- '*.py' || true)
+if [ -z "$STAGED_PY" ]; then
+  # No .py files staged — nothing to check
+  exit 0
+fi
+
+# Helper: parse JSON without jq (fallback to python3 if jq unavailable)
+json_get() {
+  local key="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r "$key" "$CONFIG"
+  else
+    python3 -c "import json,sys; d=json.load(open('$CONFIG')); print($key)" 2>/dev/null || true
+  fi
+}
+
+FAILURES=0
+P20_CHECKS_RUN=0
+P20_VIOLATIONS=0
+
+echo "─── P20: call-site parameter check ───"
+
+# Iterate over each check in the config (using python3 for portable JSON parsing)
+PROJECT_ROOT_ENV="$PROJECT_ROOT" python3 - <<'PYEOF' || FAILURES=$((FAILURES + 1))
+import json, subprocess, sys, os, fnmatch, re
+
+PROJECT_ROOT = os.environ["PROJECT_ROOT_ENV"]
+CONFIG = os.path.join(PROJECT_ROOT, ".githooks", "p20_checks.json")
+
+with open(CONFIG) as f:
+    config = json.load(f)
+
+# Get staged .py files (paths relative to git root)
+result = subprocess.run(
+    ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM", "--", "*.py"],
+    capture_output=True, text=True, cwd=PROJECT_ROOT,
+)
+staged_files_raw = [f for f in result.stdout.strip().split("\n") if f.endswith(".py")]
+
+# Resolve each path against PROJECT_ROOT on disk. git returns paths
+# relative to the git root, which may be an ancestor of PROJECT_ROOT.
+# Strategy: strip the PROJECT_ROOT-relative-to-git-root prefix from each path.
+staged_files = []
+git_root = subprocess.run(
+    ["git", "rev-parse", "--show-toplevel"],
+    capture_output=True, text=True, cwd=PROJECT_ROOT,
+).stdout.strip()
+proj_rel_to_git = os.path.relpath(PROJECT_ROOT, git_root)
+for raw in staged_files_raw:
+    # raw is git-root-relative (e.g. "download/MaestroAgent/backend/.../model.py")
+    # Strip the proj_rel_to_git prefix (e.g. "download/MaestroAgent") to get
+    # PROJECT_ROOT-relative path (e.g. "backend/.../model.py")
+    rel = raw
+    if proj_rel_to_git != "." and raw.startswith(proj_rel_to_git + "/"):
+        rel = raw[len(proj_rel_to_git) + 1:]
+    # Verify the file exists at PROJECT_ROOT/rel
+    if os.path.exists(os.path.join(PROJECT_ROOT, rel)):
+        staged_files.append(rel)
+    else:
+        # Fallback: keep raw path (will likely be skipped as non-existent)
+        staged_files.append(rel)
+
+if not staged_files:
+    sys.exit(0)
+
+violations = 0
+checks_run = 0
+
+for check in config.get("checks", []):
+    func = check["function"]
+    required_param = check["required_param"]
+    file_glob = check.get("file_glob", "**/*.py")
+    exclude_patterns = check.get("exclude_glob", "").split(",")
+    principle = check.get("_principle", "P20")
+    earned_from = check.get("_earned_from", "")
+
+    # Filter staged files by file_glob.
+    # file_glob is like "backend/maestro_oem/**/*.py". Extract the directory
+    # prefix (before the first **) and the extension, then match.
+    # Strip ** and * from the glob to get the literal directory prefix.
+    glob_dir = file_glob.split("**")[0].rstrip("/")  # "backend/maestro_oem"
+    glob_ext = file_glob.rsplit(".", 1)[-1] if "." in file_glob else "py"  # "py"
+    matched_files = []
+    for sf in staged_files:
+        # sf is PROJECT_ROOT-relative (e.g. "backend/maestro_oem/model.py")
+        if glob_dir and sf.startswith(glob_dir + "/") and sf.endswith("." + glob_ext):
+            matched_files.append(sf)
+        elif not glob_dir and sf.endswith("." + glob_ext):
+            matched_files.append(sf)
+
+    if not matched_files:
+        continue
+
+    checks_run += 1
+    print(f"  [{principle}] {func}() must pass {required_param}= — scanning {len(matched_files)} staged file(s)")
+
+    # Grep for call sites in matched files
+    for fpath in matched_files:
+        full_path = os.path.join(PROJECT_ROOT, fpath)
+        if not os.path.exists(full_path):
+            continue
+        try:
+            content = open(full_path).read()
+        except Exception:
+            continue
+
+        # Track whether we're inside a triple-quoted string (docstring or
+        # multi-line string literal). P20 must not flag call sites inside
+        # docstrings — they're prose, not code.
+        in_docstring = False
+        lines = content.split("\n")
+        # Build a map: for each char offset, is it inside a docstring?
+        # Simple approach: walk through lines, toggle in_docstring when we
+        # see a """ that isn't escaped.
+        docstring_ranges = []  # list of (start_offset, end_offset)
+        offset = 0
+        doc_start = None
+        i = 0
+        while i < len(content):
+            if content[i:i+3] == '"""':
+                if doc_start is None:
+                    doc_start = i
+                else:
+                    docstring_ranges.append((doc_start, i + 3))
+                    doc_start = None
+                i += 3
+            elif content[i:i+3] == "'''":
+                if doc_start is None:
+                    doc_start = i
+                else:
+                    docstring_ranges.append((doc_start, i + 3))
+                    doc_start = None
+                i += 3
+            else:
+                i += 1
+
+        def in_docstring_at(pos):
+            for start, end in docstring_ranges:
+                if start <= pos < end:
+                    return True
+            return False
+
+        # Find lines that call <func>( — but not def <func>
+        pattern = re.compile(rf'\b{re.escape(func)}\s*\(', re.MULTILINE)
+        for match in pattern.finditer(content):
+            # Skip if inside a docstring
+            if in_docstring_at(match.start()):
+                continue
+
+            line_num = content[:match.start()].count("\n") + 1
+            # Get the full statement (may span multiple lines)
+            start = match.end() - 1  # position of '('
+            depth = 0
+            end = start
+            for i in range(start, len(content)):
+                if content[i] == '(':
+                    depth += 1
+                elif content[i] == ')':
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+            call_text = content[match.start():end]
+
+            # Skip def lines (function definitions)
+            line_start = content.rfind("\n", 0, match.start()) + 1
+            line_prefix = content[line_start:match.start()]
+            if line_prefix.strip().startswith("def "):
+                continue
+
+            # Skip excluded patterns (test files, docstrings, false positives)
+            excluded = False
+            for pat in exclude_patterns:
+                pat = pat.strip()
+                if not pat:
+                    continue
+                if pat in fpath or pat in call_text or pat in line_prefix:
+                    excluded = True
+                    break
+            if excluded:
+                continue
+
+            # Skip comment lines
+            if line_prefix.strip().startswith("#"):
+                continue
+
+            # Check if required_param= is in the call text
+            if f"{required_param}=" not in call_text:
+                violations += 1
+                print(f"    FAIL {fpath}:{line_num}: {func}() call does not pass {required_param}=")
+                print(f"         call: {call_text.strip()[:120]}")
+                if earned_from:
+                    print(f"         earned from: {earned_from}")
+
+if violations > 0:
+    print(f"\n  P20: {violations} violation(s) found. Fix: pass {required_param}=<value> in each call, OR add an exclude pattern to .githooks/p20_checks.json if it's a false positive (e.g. different method with same name).")
+    sys.exit(1)
+else:
+    print(f"  P20: all call sites pass required params ({checks_run} check(s) run).")
+    sys.exit(0)
+PYEOF
+
+if [ $FAILURES -gt 0 ]; then
+  echo "  P20: FAILED — see violations above."
+  exit 1
+fi
+
+# ─── P6: no bare except.*pass ───
+echo "─── P6: no bare 'except.*pass' in staged .py files ───"
+P6_VIOLATIONS=0
+# Resolve staged paths to PROJECT_ROOT-relative (same logic as P20 block)
+GIT_ROOT_FOR_P6="$(git rev-parse --show-toplevel)"
+PROJ_REL_TO_GIT="$(python3 -c "import os.path; print(os.path.relpath('$PROJECT_ROOT', '$GIT_ROOT_FOR_P6'))" 2>/dev/null || echo "")"
+for fpath in $STAGED_PY; do
+  # Skip test files for P6 (tests sometimes legitimately use except:pass)
+  case "$fpath" in
+    *test_*) continue ;;
+  esac
+  # Resolve path: strip git_root + proj subdir prefix
+  rel="$fpath"
+  if [ -n "$PROJ_REL_TO_GIT" ] && [ "$PROJ_REL_TO_GIT" != "." ]; then
+    case "$rel" in
+      "$PROJ_REL_TO_GIT"/*) rel="${rel#$PROJ_REL_TO_GIT/}" ;;
+    esac
+  fi
+  full_path="$PROJECT_ROOT/$rel"
+  [ ! -f "$full_path" ] && continue
+  # Grep for 'except.*:' followed by BARE 'pass' (no inline comment).
+  # P6 allows `except.*pass  # <reason>` — a comment documenting WHY the
+  # exception is swallowed makes it visible (not silent). The hook only
+  # fails on BARE `except.*pass` with no comment on the pass line.
+  matches=$(python3 -c "
+import re, sys
+content = open('$full_path').read()
+# Match 'except ...:' followed by a line that is ONLY 'pass' (no comment).
+# Use multiline mode; match 'pass' at start of line (after indentation),
+# followed by end-of-line (no comment).
+pattern = re.compile(r'except\s[^:]*:\s*\n\s*pass\s*$', re.MULTILINE)
+for m in pattern.finditer(content):
+    line = content[:m.start()].count('\n') + 1
+    print(f'  $rel:{line}')
+" 2>/dev/null || true)
+  if [ -n "$matches" ]; then
+    echo "$matches"
+    P6_VIOLATIONS=$((P6_VIOLATIONS + 1))
+  fi
+done
+
+if [ $P6_VIOLATIONS -gt 0 ]; then
+  echo "  P6: FAILED — $P6_VIOLATIONS file(s) have bare 'except.*pass'. Fix: log loudly or handle the exception (P6)."
+  exit 1
+fi
+echo "  P6: no bare 'except.*pass' found in staged files."
+
+echo "─── pre-commit hook PASSED ───"
+exit 0

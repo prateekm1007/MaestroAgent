@@ -1,0 +1,28 @@
+{
+  "_comment": "P20 pre-commit hook config. Each entry enforces that every call site of <function> passes <required_param>. Add new entries when a function gains a parameter. The hook greps staged .py files for call sites and fails if any caller omits the required param.",
+  "_format": "function = method name to check (e.g. 'add_evidence'); required_param = keyword arg that must be present; file_glob = which files to scan; exclude_glob = patterns to skip (test files, docstrings, different-method false positives)",
+  "checks": [
+    {
+      "function": "add_evidence",
+      "required_param": "content_hash",
+      "file_glob": "backend/maestro_oem/**/*.py",
+      "exclude_glob": "test_*,intent_model,intent\\.add_evidence,intent_id",
+      "_earned_from": "C-002: 0 of 27 callers passed content_hash (Round 79 wiring fix)",
+      "_principle": "P20"
+    },
+    {
+      "function": "add_validation",
+      "required_param": "content_hash",
+      "file_glob": "backend/maestro_oem/**/*.py",
+      "exclude_glob": "test_*,def add_validation,dedup logic in",
+      "_earned_from": "C-002: 0 of 3 callers passed content_hash (Round 79 wiring fix)",
+      "_principle": "P20"
+    }
+  ],
+  "_p6_check": {
+    "_comment": "P6: no bare 'except.*pass' in staged .py files. The hook greps for 'except.*:' followed by 'pass' on the next line.",
+    "file_glob": "backend/**/*.py",
+    "exclude_glob": "test_*",
+    "pattern": "except.*:\\s*$\\n\\s*pass"
+  }
+}

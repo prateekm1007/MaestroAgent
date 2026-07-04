@@ -9,12 +9,12 @@
 > P9: deferrals need concrete triggers | P10: document WHY a bug was missed
 
 ## Last Updated
-2026-07-04 — Anti-entropy principles P20-P26 + Auditor Gates 15-20 adopted; P20 self-check caught + fixed contradiction.py callers (commit pending).
+2026-07-04 — Pre-commit hook installed (P20 + P6 mechanical enforcement); `make hooks` target + Makefile tab fix (commit pending).
 
 ## Current Status: 6/10 — Pilot-ready with scoped claims. Not contract-ready.
 
 > **Push verified:** `origin/main` is at `edc99c3`.
-> Local HEAD has 7 commits past `edc99c3`: Phase 2.2 simulator + frontend panel + SQLite fix + C2 fix + demo seed + content-hash dedup wiring + C6/C1/C7 + (this commit) P20-P26 principles + contradiction.py P20 fix.
+> Local HEAD has 8 commits past `edc99c3`: Phase 2.2 simulator + frontend panel + SQLite fix + C2 fix + demo seed + content-hash dedup wiring + C6/C1/C7 + P20-P26 principles + (this commit) pre-commit hook.
 
 ---
 
@@ -343,3 +343,45 @@ Each coder principle mirrors an auditor gate. The auditor checks what the coder 
 - **The meta-failure:** P11 (wiring) existed. The Coder violated it 5 times. The auditor's proposal correctly identifies that the gap is not missing principles — it's mechanical enforcement. P20-P25 each specify the exact command to run. P26 is the meta-principle: re-apply, don't recall.
 - **The P20 self-check caught a real bug:** running the mechanical check against my own Round 79 work found 2 missed callers in contradiction.py. This is exactly P14 (bugs migrate one layer deeper) AND exactly P26 (re-application catches what recall misses). The principle paid for itself in the same commit that adopted it.
 - **Honest gap (P5):** the principles are adopted but not yet enforced by tooling. A pre-commit hook that runs the P20 grep and fails if callers < total would be the next step. Trigger: next session.
+
+---
+
+## Round 81 — Pre-commit hook: P20 + P6 mechanical enforcement
+
+### What landed in this commit
+
+The Round 80 honest gap was: "principles adopted but not yet enforced by tooling. A pre-commit hook running the P20 grep would be the next step." This commit is that step.
+
+**New files:**
+- `.githooks/pre-commit` — bash + python3 hook that runs on staged `.py` files
+- `.githooks/p20_checks.json` — data-driven config listing (function, required_param, file_glob, exclude_glob) tuples to enforce
+
+**What the hook enforces:**
+- **P20 (call-site parameter rule):** for each configured function, greps staged files for call sites and fails if any caller omits the required parameter. Currently enforces `add_evidence()` and `add_validation()` must pass `content_hash=`. Configurable — add new function/param pairs to `p20_checks.json` as functions gain parameters.
+- **P6 (no bare except-pass):** fails on `except.*pass` without an inline `# comment` explaining why. A documented `pass  # <reason>` is allowed (visible, not silent).
+
+**Installation:**
+- `make hooks` target runs `git config core.hooksPath .githooks` + `chmod +x .githooks/pre-commit`
+- Documented in CONTRIBUTING.md pre-merge checklist + a new "Pre-commit hook" section
+- Bypass: `git commit --no-verify` (emergencies only — document WHY in commit message)
+
+**Verification by execution (P1 — 3 tests, the auditor's exact pattern):**
+- Test 1 (PASS): staged `model.py` with all callers wired → hook runs 2 P20 checks, 0 violations, P6 passes, exit 0.
+- Test 2 (FAIL): temporarily removed `content_hash=` from one `add_evidence` caller at line 449 → hook correctly identified `backend/maestro_oem/model.py:449: add_evidence() call does not pass content_hash=`, cited the principle ("earned from: C-002: 0 of 27 callers passed content_hash"), exit 1.
+- Test 3 (PASS): restored the caller → hook passes again, exit 0.
+
+**P14 adjacent fix: Makefile tab bug**
+- Discovered the existing Makefile used 8-space indentation instead of tabs → `make` failed with "missing separator" on every target.
+- This was a pre-existing bug — the `make audit` commands in prior worklog entries must have been run via `cd backend && pytest` directly, not via `make`.
+- Fixed: converted all recipe lines to tabs. `make help`, `make hooks`, and `make audit` now all work.
+
+### Wiring (P11, P15 — three checkboxes)
+- [x] **exists** — `.githooks/pre-commit` + `.githooks/p20_checks.json` shipped
+- [x] **unit-tested** — 3 execution tests (pass/fail/restore) verified by running the hook against real staged files
+- [x] **called from real production entry point** — `git commit` invokes the hook via `core.hooksPath = .githooks` (installed by `make hooks`). Cite: `git config core.hooksPath .githooks` sets the hook path; git calls `.githooks/pre-commit` on every `git commit`.
+
+### Process notes (P10 — root cause / process gap)
+- **Root cause of the Makefile tab bug:** the original Makefile was committed with 8-space indentation. Make requires tabs. This passed review because no one ever ran `make` — they ran the underlying commands directly. P14 (bugs migrate one layer deeper): fixing the Makefile to add `make hooks` revealed the Makefile itself was broken.
+- **The hook is the enforcement:** P26 says "principles don't enforce themselves, re-application does." This hook is the mechanical re-application. Every `git commit` now runs the P20 grep automatically. The Coder cannot forget to check callers — the hook checks for them.
+- **Honest gap (P5):** the hook only enforces P20 and P6. P21 (all-paths trigger), P22 (regression = production path), P23 (commit cites output), P24 (cross-surface coherence), P25 (confidence display gate) are still prose-only. Each could be a separate hook or CI check. Trigger: next session.
+- **Honest gap (P18):** the hook was tested manually (3 tests) but not added to CI. A CI step that runs `.githooks/pre-commit` on every PR would close the loop. Trigger: next session.

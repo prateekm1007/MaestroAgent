@@ -96,17 +96,29 @@ correctness-critical (crypto, auth, data isolation), use a real fixture.
 ### Pre-merge checklist (paste this at the top of every PR description)
 
 ```
-- [ ] I read ENTROPY_RECOVERY.md before starting this work
+- [ ] I read ENTROPY_RECOVERY.md (including Part Four: P20-P26) before starting this work
+- [ ] I ran `make hooks` to install the pre-commit hook (P20 + P6 enforcement)
 - [ ] I imported and called the fixed function in isolation, outside test mocks
-- [ ] I pasted the terminal transcript in the commit message
+- [ ] I pasted the terminal transcript in the commit message (VERIFICATION: section per P23)
 - [ ] If the touched module had zero tests, I added a test that FAILS when my fix is reverted (proof by negation outputs pasted)
 - [ ] I did NOT write a bare `except Exception: pass` around new/fixed code (Principle 6 — fail closed, or log loudly)
+- [ ] If I added a parameter to a function, EVERY caller passes it (P20 — verified by the pre-commit hook)
 - [ ] If this changes shared/global state to scoped state, I added a two-instance isolation test (Principle 7)
 - [ ] I did NOT mark anything ✓ VERIFIED in STATE.md that I have not personally executed in this session
+- [ ] I cited which P-number principle this fix satisfies in the commit message (P26)
 ```
 
 If any box is unchecked, the PR cannot merge. Reviewers must reject on
 sight, including the founder's own PRs.
+
+### Pre-commit hook (P20 + P6 mechanical enforcement)
+
+Run `make hooks` once after cloning to install the pre-commit hook. The hook enforces:
+
+- **P20 (call-site parameter rule):** every `add_evidence()` and `add_validation()` caller must pass `content_hash=`. If you add a new parameter to a function, add a check to `.githooks/p20_checks.json` and the hook will enforce that all callers pass it.
+- **P6 (no bare except-pass):** no `except.*pass` without an inline `# comment` explaining why. A bare `pass` is silent error-swallowing; a documented `pass  # <reason>` is visible.
+
+The hook runs on staged `.py` files only. Bypass with `git commit --no-verify` (emergencies only — document WHY in the commit message).
 
 ---
 
