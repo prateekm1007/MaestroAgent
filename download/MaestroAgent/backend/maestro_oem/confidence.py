@@ -542,3 +542,37 @@ class ConfidenceCalculator:
     def compute_confidence_bucket(confidence: float) -> int:
         """Map confidence to a 0-9 bucket for calibration curves."""
         return min(9, int(confidence * 10))
+
+
+# ─── C4 fix: confidence display gate (P25) ───────────────────────────────
+# The auditor found confidence values like 0.8484 displayed with 4-decimal
+# precision when the denominator was 0 outcomes. The formula was correct;
+# the display was dishonest. P25: gate display on calibration sample size.
+# If sample_size < 10, display "insufficient calibration history" — never
+# bare 4-decimal precision. The threshold (10) is conservative.
+
+CONFIDENCE_DISPLAY_SAMPLE_THRESHOLD = 10
+
+
+def format_confidence_for_display(confidence: float, sample_size: int) -> str:
+    """Format a confidence value for user display, gated on sample size.
+
+    P25: if sample_size < CONFIDENCE_DISPLAY_SAMPLE_THRESHOLD, return
+    "insufficient calibration history" instead of a bare numeric value.
+    A confidence value with no denominator is a claim, not a measurement.
+
+    Args:
+        confidence: the confidence value (0.0–1.0)
+        sample_size: the denominator (validated_runtimes + failed_runtimes,
+                     or evidence_count, or resolved predictions count)
+
+    Returns:
+        Either a formatted confidence string (e.g. "0.85") or
+        "insufficient calibration history" (when sample_size < threshold)
+    """
+    if sample_size is None or sample_size < CONFIDENCE_DISPLAY_SAMPLE_THRESHOLD:
+        return "insufficient calibration history"
+    # Round to 2 decimal places for display — 4-decimal precision implies
+    # a calibration rigor that < 10 samples cannot support, and even with
+    # 10+ samples, 2 decimals is sufficient for human display.
+    return f"{confidence:.2f}"

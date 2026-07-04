@@ -175,7 +175,16 @@ class TestOemLaws:
             assert law["statement"], "Law has no statement"
             assert law["condition"], "Law has no condition"
             assert law["outcome"], "Law has no outcome"
-            assert 0.0 <= law["confidence"] <= 1.0
+            # C4 fix: confidence is now a display string (may be "insufficient
+            # calibration history" when sample_size < 10). The raw numeric
+            # value is in confidence_raw. Test both.
+            assert "confidence" in law, "Law has no confidence field"
+            assert "confidence_raw" in law, "Law has no confidence_raw field (C4 fix)"
+            assert 0.0 <= law["confidence_raw"] <= 1.0, \
+                f"confidence_raw must be a float in [0,1]. Got: {law['confidence_raw']}"
+            assert "calibration_sample_size" in law, "Law has no calibration_sample_size (C4 fix)"
+            assert isinstance(law["confidence"], str), \
+                f"confidence must be a display string (C4 fix). Got: {type(law['confidence'])}"
             assert "evidence_count" in law
             assert "validated_runtimes" in law
             assert "failed_runtimes" in law

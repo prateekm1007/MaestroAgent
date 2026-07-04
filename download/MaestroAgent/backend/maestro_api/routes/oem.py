@@ -60,14 +60,38 @@ def _require_oem_permission(request: Request):
     fail-closed when auth is enabled but the store is unavailable.
     """
     try:
-        from maestro_auth.permissions import is_auth_enabled, require_user, get_auth_store
+        from maestro_auth.permissions import is_auth_enabled, require_user, get_auth_store, bearer_user
         from maestro_auth.models import Permissions
 
         if not is_auth_enabled():
             return True  # Dev mode — no auth required
 
-        # Auth is enabled — verify the user has the right permission
-        result = require_user(request)  # Raises 401 if not authed
+        # C5 fix: try Bearer token auth FIRST (for API clients), then fall
+        # back to cookie session auth (for browser users). Before this fix,
+        # only require_user (cookie session) was used — API keys were
+        # generated but never accepted. Now API clients can authenticate
+        # with `Authorization: Bearer <token>` while browser users continue
+        # to use cookies.
+        result = None
+        try:
+            # Try Bearer token from Authorization header
+            from fastapi.security import HTTPBearer
+            _bearer = HTTPBearer(auto_error=False)
+            # Manually extract the token from the header (bearer_user is an
+            # async dependency; we call its logic synchronously here)
+            auth_header = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
+            if auth_header.lower().startswith("bearer "):
+                token = auth_header[7:]  # strip "Bearer " prefix
+                from maestro_auth.sessions import get_session_manager
+                sess_result = get_session_manager().validate_session(token)
+                if sess_result:
+                    result = sess_result
+        except Exception:
+            pass  # Bearer auth failed — fall through to cookie auth
+
+        if result is None:
+            # Fall back to cookie session auth
+            result = require_user(request)  # Raises 401 if not authed
         user = result["user"]
         store = get_auth_store()
 
@@ -135,13 +159,21 @@ def _law_to_dict(law: Any) -> dict[str, Any]:
             chain_display = chain.to_display()
     except Exception:
         pass
+    # C4 fix (P25): gate confidence display on sample size. If the law has
+    # < 10 total runtimes (validated + failed), display "insufficient
+    # calibration history" instead of bare 4-decimal precision. The raw
+    # confidence is still in the "confidence_raw" field for programmatic use.
+    from maestro_oem.confidence import format_confidence_for_display
+    sample_size = law.validated_runtimes + law.failed_runtimes
     return {
         "code": law.code,
         "statement": law.statement,
         "condition": law.condition,
         "outcome": law.outcome,
         "status": law.status.value,
-        "confidence": round(law.confidence, 4),
+        "confidence": format_confidence_for_display(law.confidence, sample_size),
+        "confidence_raw": round(law.confidence, 4),  # programmatic, not for display
+        "calibration_sample_size": sample_size,
         "evidence_count": law.evidence_count,
         "validated_runtimes": law.validated_runtimes,
         "failed_runtimes": law.failed_runtimes,
