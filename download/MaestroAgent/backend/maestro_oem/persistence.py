@@ -185,6 +185,12 @@ CREATE TABLE IF NOT EXISTS processed_signals (
     signal_id TEXT PRIMARY KEY,
     processed_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS situations (
+    entity TEXT PRIMARY KEY,
+    situation_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -440,6 +446,42 @@ class OEMStore:
             )
             laws[law.code] = law
         return laws
+
+    # ─── Situations (Phase 2: Situation persistence) ───
+
+    def save_situation(self, entity: str, situation: Any) -> None:
+        """Save a Situation for an entity (keyed by entity name)."""
+        cursor = self._conn.cursor()
+        sit_dict = situation.to_dict() if hasattr(situation, "to_dict") else situation
+        cursor.execute("""
+            INSERT OR REPLACE INTO situations
+            (entity, situation_json, updated_at)
+            VALUES (?, ?, ?)
+        """, (
+            entity,
+            json.dumps(sit_dict, default=str),
+            datetime.now(timezone.utc).isoformat(),
+        ))
+        self._conn.commit()
+
+    def load_situations(self) -> dict[str, Any]:
+        """Load all saved Situations, keyed by entity."""
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT entity, situation_json FROM situations")
+        rows = cursor.fetchall()
+        return {
+            row["entity"]: json.loads(row["situation_json"])
+            for row in rows
+        } if rows else {}
+
+    def load_situation(self, entity: str) -> Any | None:
+        """Load a single Situation for an entity."""
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT situation_json FROM situations WHERE entity = ?", (entity,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return json.loads(row["situation_json"])
 
     # ─── Receipts ───
 

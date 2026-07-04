@@ -6563,6 +6563,14 @@ def loop1_5_get_situation(entity: str) -> dict[str, Any]:
     if situation is None:
         raise HTTPException(404, f"Could not build Situation for entity '{entity}'")
 
+    # Phase 2: persist the Situation so it survives restart
+    try:
+        store_db = oem_state._oem_store if oem_state else None
+        if store_db:
+            store_db.save_situation(entity, situation)
+    except Exception as e:
+        logger.debug("Failed to persist Situation for %s: %s", entity, e)
+
     return {"situation": situation.to_dict()}
 
 
