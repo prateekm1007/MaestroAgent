@@ -450,8 +450,41 @@ class AskPipeline:
             return [], ["I don't have enough context to prepare for a meeting."]
 
     def _retrieve_why(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
-        """Retrieve signals related to the 'why' question."""
-        return self._search_signals(entities, query, focus="why")
+        """Retrieve signals related to the 'why' question.
+
+        P5: Wire CausalEngine — move from correlation to causation by
+        discovering intervention-outcome pairs in law causal chains.
+        """
+        evidence, answer_parts = self._search_signals(entities, query, focus="why")
+
+        # P5: CausalEngine — discover causal chains
+        try:
+            from maestro_oem.causal import CausalEngine
+            if self._model:
+                causal_engine = CausalEngine(self._model, self._signals)
+                causal_result = causal_engine.discover()
+                chains = causal_result.get("causal_chains", [])
+                if chains:
+                    for chain in chains[:2]:
+                        cause = chain.get("cause", "")
+                        effect = chain.get("effect", "")
+                        if cause and effect:
+                            evidence.append({
+                                "source": "causal_engine",
+                                "text": f"Causal: {cause} → {effect}",
+                                "date": "",
+                                "people": [],
+                                "evidence_spine": {
+                                    "claim": f"{cause} causes {effect}",
+                                    "observed_facts": [{"source": "causal", "text": chain.get("description", f"{cause} → {effect}")}],
+                                    "claim_type": "inference",
+                                },
+                            })
+                            answer_parts.append(f"Causal link: {cause} → {effect}")
+        except Exception as e:
+            logger.debug("CausalEngine in _retrieve_why failed: %s", e)
+
+        return evidence, answer_parts
 
     def _retrieve_who(self, entities: list[str]) -> tuple[list[dict], list[str]]:
         """Retrieve people related to the entities."""
@@ -708,6 +741,23 @@ class AskPipeline:
         return "\n".join(parts)
 
     # ─── Follow-ups and actions ──────────────────────────────────────
+
+    def suggest_autocomplete(self, partial_query: str, limit: int = 5) -> list[dict[str, Any]]:
+        """P14: SemanticAutocompleteEngine — type-ahead suggestions for Ask Maestro.
+
+        Returns a list of {text, type, score} suggestions derived from
+        Learning Objects + patterns in the org's signal history.
+        """
+        try:
+            from maestro_oem.autocomplete import SemanticAutocompleteEngine
+            if not self._model or not self._signals:
+                return []
+            engine = SemanticAutocompleteEngine(self._model, self._signals)
+            suggestions = engine.suggest(partial_query, limit=limit)
+            return [s.to_dict() if hasattr(s, "to_dict") else s for s in suggestions]
+        except Exception as e:
+            logger.debug("AskPipeline.suggest_autocomplete failed: %s", e)
+            return []
 
     def _suggest_follow_ups(self, intent: AskIntent, entities: list[str]) -> list[str]:
         """Suggest follow-up questions based on intent + entities."""

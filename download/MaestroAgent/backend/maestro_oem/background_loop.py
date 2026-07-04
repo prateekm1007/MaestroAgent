@@ -94,6 +94,24 @@ class BackgroundAdaptationLoop:
         # Update last check time
         BackgroundAdaptationLoop._last_check = datetime.now(timezone.utc)
 
+        # P15: ForgettingEngine — assess which old signals/LOs have zero predictive
+        # value (>180 days, <0.05 predictive) and should be archived.
+        forgetting_assessment = {}
+        try:
+            from maestro_oem.forgetting import ForgettingEngine
+            forget_engine = ForgettingEngine(self.model, self.signals)
+            forgetting_assessment = forget_engine.assess()
+            archivable = forgetting_assessment.get("archivable", [])
+            if archivable:
+                notices.append({
+                    "type": "forgetting",
+                    "message": f"{len(archivable)} old signals have zero predictive value and can be archived.",
+                    "detail": "These are >180 days old with <0.05 predictive score. Archiving improves model focus.",
+                    "urgency": "low",
+                })
+        except Exception as e:
+            logger.debug("ForgettingEngine assessment failed: %s", e)
+
         if not notices:
             summary = "Everything is stable. Maestro is watching."
         else:
@@ -107,6 +125,7 @@ class BackgroundAdaptationLoop:
             "improvements": improvements,
             "summary": summary,
             "last_check": BackgroundAdaptationLoop._last_check.isoformat() if BackgroundAdaptationLoop._last_check else None,
+            "forgetting_assessment": forgetting_assessment,  # P15
             "notice_count": len(notices),
         }
 

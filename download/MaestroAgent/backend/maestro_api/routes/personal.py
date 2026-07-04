@@ -564,6 +564,12 @@ def get_unified_today(
     # Each block fails closed (P6): logs loudly and returns {} on error.
     org_state = _compute_org_state_for_today()
     meta_gap = _compute_meta_gap_for_today()
+    # P4, P8, P9, P10, P11: wire 5 more engines into Today
+    org_pulse = _compute_org_pulse_for_today()
+    curiosity = _compute_curiosity_for_today()
+    trajectories = _compute_trajectories_for_today()
+    identity = _compute_identity_for_today()
+    attention = _compute_attention_for_today()
 
     return {
         "cards": cards,
@@ -578,6 +584,12 @@ def get_unified_today(
         # Phase C: 2 newly-wired modules
         "org_state": org_state,
         "meta_gap": meta_gap,
+        # P4, P8, P9, P10, P11: 5 newly-wired engines
+        "org_pulse": org_pulse,
+        "curiosity": curiosity,
+        "trajectories": trajectories,
+        "identity": identity,
+        "attention": attention,
     }
 
 
@@ -623,6 +635,91 @@ def _compute_meta_gap_for_today() -> dict[str, Any]:
         import logging
         logging.getLogger(__name__).warning(
             "personal._compute_meta_gap_for_today (MetacognitionEngine) failed: %s", e
+        )
+        return {}
+
+
+def _compute_org_pulse_for_today() -> dict[str, Any]:
+    """P4: OrganizationalPulse — org health indicators (temperature, momentum, trust, energy)."""
+    try:
+        from maestro_api import oem_state
+        from maestro_oem.pulse import OrganizationalPulse
+        if not oem_state.model or not oem_state.signals:
+            return {}
+        pulse = OrganizationalPulse(oem_state.model, oem_state.signals)
+        return pulse.compute()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "personal._compute_org_pulse_for_today (OrganizationalPulse) failed: %s", e
+        )
+        return {}
+
+
+def _compute_curiosity_for_today() -> dict[str, Any]:
+    """P8: CuriosityEngine — untested assumptions the org has never questioned."""
+    try:
+        from maestro_api import oem_state
+        from maestro_oem.curiosity import CuriosityEngine
+        if not oem_state.model or not oem_state.signals:
+            return {}
+        engine = CuriosityEngine(oem_state.model, oem_state.signals)
+        return engine.generate()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "personal._compute_curiosity_for_today (CuriosityEngine) failed: %s", e
+        )
+        return {}
+
+
+def _compute_trajectories_for_today() -> dict[str, Any]:
+    """P9: TrajectoryEngine — org-wide trend memory (7 dims over time with slope)."""
+    try:
+        from maestro_api import oem_state
+        from maestro_oem.trajectories import TrajectoryEngine
+        if not oem_state.model or not oem_state.signals:
+            return {}
+        engine = TrajectoryEngine(oem_state.model, oem_state.signals)
+        return engine.compute()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "personal._compute_trajectories_for_today (TrajectoryEngine) failed: %s", e
+        )
+        return {}
+
+
+def _compute_identity_for_today() -> dict[str, Any]:
+    """P10: IdentityEngine — gap between org self-image and actual behavior."""
+    try:
+        from maestro_api import oem_state
+        from maestro_oem.identity import IdentityEngine
+        if not oem_state.model or not oem_state.signals:
+            return {}
+        engine = IdentityEngine(oem_state.model, oem_state.signals)
+        return engine.compute()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "personal._compute_identity_for_today (IdentityEngine) failed: %s", e
+        )
+        return {}
+
+
+def _compute_attention_for_today() -> dict[str, Any]:
+    """P11: AttentionEngine — where org attention IS vs SHOULD BE + attention thieves."""
+    try:
+        from maestro_api import oem_state
+        from maestro_oem.attention import AttentionEngine
+        if not oem_state.model or not oem_state.signals:
+            return {}
+        engine = AttentionEngine(oem_state.model, oem_state.signals)
+        return engine.allocate()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "personal._compute_attention_for_today (AttentionEngine) failed: %s", e
         )
         return {}
 

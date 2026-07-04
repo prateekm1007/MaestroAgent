@@ -96,3 +96,26 @@ class Decision:
             "learning_entry": self.learning_entry,
             "created_at": self.created_at.isoformat() if hasattr(self.created_at, "isoformat") else str(self.created_at),
         }
+
+    def link_hypothesis(self, claim: str, falsification_criteria: str = "") -> dict[str, Any]:
+        """P13: Link this decision to a testable Hypothesis from HypothesisStore.
+
+        Creates a Hypothesis linked to this decision's intent + assumptions,
+        enabling prospective falsification tracking.
+        """
+        try:
+            from maestro_oem.hypothesis import Hypothesis, HypothesisStore
+            hyp = Hypothesis(
+                hypothesis_id=f"hyp-{self.decision_id}",
+                claim=claim,
+                linked_intent=self.intent,
+                linked_assumptions=list(self.assumptions),
+                falsification_criteria=falsification_criteria,
+                status="stated",
+            )
+            self.hypothesis = hyp.to_dict() if hasattr(hyp, "to_dict") else {"claim": claim}
+            return self.hypothesis
+        except Exception:
+            # P6: fail-closed — hypothesis linking is best-effort
+            self.hypothesis = {"claim": claim, "falsification_criteria": falsification_criteria}
+            return self.hypothesis

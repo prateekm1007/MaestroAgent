@@ -591,3 +591,50 @@ def get_default_policy() -> AdaptationPolicy:
         activated_at="",
         parameter_changes={},  # empty = use built-in defaults
     )
+
+
+# ─── Module-level singleton (lazy) ──────────────────────────────────────────
+# P0 fix: The PolicyVersionStore must be readable from the production path
+# (whisper.py reads the active policy before calling decide_delivery).
+# This singleton is initialized with a SQLite path from MAESTRO_POLICY_DB.
+
+_default_store: PolicyVersionStore | None = None
+
+
+def get_default_store() -> PolicyVersionStore:
+    """Get the default PolicyVersionStore singleton.
+
+    In production, this is initialized with a SQLite path from
+    MAESTRO_POLICY_DB. In tests, it can be replaced via set_default_store().
+    """
+    global _default_store
+    if _default_store is None:
+        import os
+        db_path = os.environ.get("MAESTRO_POLICY_DB", "adaptation_policies.db")
+        _default_store = PolicyVersionStore(db_path)
+    return _default_store
+
+
+def set_default_store(store: PolicyVersionStore) -> None:
+    """Set the default PolicyVersionStore (for testing)."""
+    global _default_store
+    _default_store = store
+
+
+def get_active_policy_for_delivery() -> AdaptationPolicy | None:
+    """Get the active policy for the delivery gate.
+
+    This is the function whisper.py calls before decide_delivery().
+    Returns None if no active policy exists (P6: backward-compatible defaults).
+    """
+    try:
+        store = get_default_store()
+        policy = store.get_active_policy()
+        # The default policy (version 0, empty parameter_changes) should
+        # be treated as None — it means no governed adaptation has run.
+        if policy and policy.version > 0 and policy.parameter_changes:
+            return policy
+        return None
+    except Exception as e:
+        logger.warning("get_active_policy_for_delivery failed: %s", e)
+        return None

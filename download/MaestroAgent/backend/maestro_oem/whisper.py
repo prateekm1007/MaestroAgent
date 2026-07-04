@@ -17,11 +17,14 @@ Privacy by design:
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 import hashlib
 
 from maestro_oem.evidence import Evidence, EvidenceBuilder
+
+logger = logging.getLogger(__name__)
 
 
 class OrganizationalWhisper:
@@ -191,6 +194,20 @@ class OrganizationalWhisper:
         from maestro_oem.delivery_decision import decide_delivery, DeliveryDecision
         from maestro_oem.signal import SignalType
 
+        # P0 FIX (4th instance of "engine built, not wired"): Read the ACTIVE
+        # governed adaptation policy before calling decide_delivery(). This
+        # closes the learning → behavior arrow. The PolicyVersionStore is
+        # populated by the governed adaptation loop (AttributionAnalyzer →
+        # PolicyProposer → approval → versioned policy). When a policy is
+        # active, its parameter_changes (e.g., dedup_threshold) modulate the
+        # delivery gate. When no policy is active, returns None (P6: defaults).
+        try:
+            from maestro_oem.governed_adaptation import get_active_policy_for_delivery
+            active_policy = get_active_policy_for_delivery()
+        except Exception as e:
+            logger.debug("governed_adaptation policy read failed: %s", e)
+            active_policy = None
+
         delivered: list[dict[str, Any]] = []
         suppressed: list[dict[str, Any]] = []
 
@@ -252,6 +269,7 @@ class OrganizationalWhisper:
                 has_high_stakes_signal=has_high_stakes,
                 is_cold_start=is_cold_start,
                 shown_count=shown_count,
+                policy=active_policy,  # P0: governed adaptation loop wired
             )
 
             # Attach the decision to the whisper (for transparency)
@@ -424,6 +442,40 @@ class OrganizationalWhisper:
             context=context,
         )
 
+        # P3: SoWhatEngine — add "so what?" consequence to every whisper
+        so_what = ""
+        try:
+            from maestro_oem.sowhat import SoWhatEngine
+            sowhat_engine = SoWhatEngine(self.model, self.signals, getattr(self.model, "decisions", None))
+            # SoWhatEngine.synthesize(entity_type, entity_id) — map whisper type to entity_type
+            entity_type_map = {
+                "commitment_exists": "risk",
+                "objection_exists": "risk",
+                "broken_commitment": "risk",
+                "bottleneck": "risk",
+                "law": "law",
+            }
+            sowhat_type = entity_type_map.get(raw_type, "risk")
+            sowhat_result = sowhat_engine.synthesize(sowhat_type, entity or insight[:50])
+            so_what = sowhat_result.get("consequence", sowhat_result.get("so_what", ""))
+        except Exception as e:
+            logger.debug("SoWhatEngine failed for whisper: %s", e)
+
+        # P7: ContradictionDetector — surface contradictions between beliefs and behavior
+        contradictions = []
+        try:
+            from maestro_oem.contradictions import ContradictionDetector
+            detector = ContradictionDetector(self.model, self.signals)
+            all_contradictions = detector.detect_all()
+            # Filter to contradictions involving this entity (if any)
+            for c in all_contradictions[:2]:
+                if isinstance(c, dict):
+                    contradictions.append(c)
+                elif hasattr(c, "to_dict"):
+                    contradictions.append(c.to_dict())
+        except Exception as e:
+            logger.debug("ContradictionDetector failed for entity %s: %s", entity, e)
+
         return {
             "situation": situation,
             "insight": insight,
@@ -434,6 +486,8 @@ class OrganizationalWhisper:
             "priority": priority,
             "type": raw_type,
             "whisper_id": f"wspr-{raw_type}-{hashlib.sha256(raw_text.encode()).hexdigest()[:8]}",
+            "so_what": so_what,  # P3: consequence synthesis
+            "contradictions": contradictions,  # P7: belief vs behavior gaps
         }
 
     def _build_why_surfaced(

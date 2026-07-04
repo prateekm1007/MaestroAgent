@@ -139,6 +139,11 @@ class PreparationEngine:
         org_personality = self._compute_org_personality()
         dna_filtered_decisions = self._filter_decisions_against_dna(decisions_likely, org_dna)
 
+        # P6: AnticipationEngine — simulate tomorrow (meetings, risks, deadlines, blockers)
+        anticipated = self._compute_anticipation()
+        # P12: PerspectiveEngine — per-team perspective on upcoming meeting
+        perspectives = self._compute_perspectives(consequential_events)
+
         return {
             "date": tomorrow_str,
             "user": user_email,
@@ -158,6 +163,9 @@ class PreparationEngine:
             "org_dna": org_dna,
             "org_personality": org_personality,
             "dna_filtered_decisions": dna_filtered_decisions,
+            # P6, P12: 2 more wired modules
+            "anticipated_tomorrow": anticipated,
+            "perspectives": perspectives,
         }
 
     def _prepare_for_event(self, event: CalendarEvent, tomorrow_str: str) -> dict[str, Any]:
@@ -649,3 +657,32 @@ class PreparationEngine:
         except Exception as e:
             logger.warning("PreparationEngine._filter_decisions_against_dna failed: %s", e)
             return decisions_likely
+
+    def _compute_anticipation(self) -> dict[str, Any]:
+        """P6: AnticipationEngine — simulate tomorrow (meetings, risks, deadlines, blockers)."""
+        try:
+            from maestro_oem.anticipation import AnticipationEngine
+            engine = AnticipationEngine(self.model, self.signals)
+            return engine.anticipate_tomorrow(org_id="default")
+        except Exception as e:
+            logger.warning("PreparationEngine._compute_anticipation (AnticipationEngine) failed: %s", e)
+            return {}
+
+    def _compute_perspectives(self, events: list) -> dict[str, Any]:
+        """P12: PerspectiveEngine — per-team perspective on upcoming meetings."""
+        try:
+            from maestro_oem.perspective import PerspectiveEngine
+            engine = PerspectiveEngine(self.model, self.signals)
+            result = {}
+            for event in events[:3]:
+                entity = getattr(event, "entity", "") or ""
+                if entity:
+                    result[entity] = engine.translate(
+                        event_type="meeting",
+                        entity=entity,
+                        context={"attendees": list(getattr(event, "attendees", []))},
+                    )
+            return result
+        except Exception as e:
+            logger.warning("PreparationEngine._compute_perspectives (PerspectiveEngine) failed: %s", e)
+            return {}
