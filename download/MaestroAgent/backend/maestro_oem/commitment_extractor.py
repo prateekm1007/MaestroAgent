@@ -249,19 +249,19 @@ class CommitmentExtractor:
                 continue
 
             # Try to extract a commitment
-            result = self._extract_commitment_text(text)
+            result = self._extract_commitment_text_with_confidence(text)
             if not result:
                 continue
 
-            commitment_text, deadline = result
+            commitment_text, deadline, confidence_level = result
+
+            # Phase 1.3: 3-way outcome
+            # confidence_level: 0.9 = high (strong commitment language: "we will deliver", "we promise to")
+            #                   0.6 = low (weaker language: "we should be able to", "target: before Y")
+            #                   (None = no commitment — already filtered above)
 
             # Infer the customer entity
             customer = _infer_customer(text, sig.metadata)
-            # If we can't identify a customer, skip — commitments need a home
-            # (P13: derived from evidence; without an entity, it's too vague)
-            # But we still allow it if the text is clearly a commitment —
-            # the commitment tracker can handle empty customer (it'll show
-            # up as "unattributed commitment")
 
             # Build the extracted commitment signal
             new_metadata = {
@@ -272,6 +272,7 @@ class CommitmentExtractor:
                 "source_signal_id": str(sig.signal_id),
                 "source_provider": sig.provider.value if hasattr(sig.provider, "value") else str(sig.provider),
                 "extraction_method": "rule_based",  # LLM-ready: could be "llm"
+                "extraction_confidence": "high" if confidence_level >= 0.85 else "low",  # Phase 1.3
             }
 
             new_sig = ExecutionSignal(
@@ -280,7 +281,7 @@ class CommitmentExtractor:
                 team=sig.team,
                 artifact=sig.artifact,
                 decision=False,
-                confidence=0.7,  # Lower than explicit commitments — this is inferred
+                confidence=confidence_level,  # Phase 1.3: 3-way outcome
                 metadata=new_metadata,
                 provider=sig.provider,  # Inherit provider from source
                 authority_weight=getattr(sig, "authority_weight", 0.5),  # H-05: inherit authority
@@ -288,8 +289,8 @@ class CommitmentExtractor:
 
             extracted.append(new_sig)
             logger.debug(
-                "CommitmentExtractor: extracted commitment '%s' (deadline: %s, customer: %s) from signal %s",
-                commitment_text[:60], deadline, customer, sig.signal_id,
+                "CommitmentExtractor: extracted commitment '%s' (deadline: %s, customer: %s, confidence: %.2f) from signal %s",
+                commitment_text[:60], deadline, customer, confidence_level, sig.signal_id,
             )
 
         return extracted
@@ -303,3 +304,41 @@ class CommitmentExtractor:
         Returns (commitment_text, deadline) or None.
         """
         return _extract_commitment_text(text)
+
+    def _extract_commitment_text_with_confidence(self, text: str) -> tuple[str, str, float] | None:
+        """Phase 1.3: Extract commitment text + deadline + confidence level.
+
+        Returns (commitment_text, deadline, confidence) or None.
+        Confidence levels:
+          0.9 = high (strong: "we will deliver", "we promise to", "we'll have X ready")
+          0.6 = low (weaker: "we should be able to", "target: before Y", "I'll follow up")
+        """
+        result = _extract_commitment_text(text)
+        if not result:
+            return None
+
+        commitment_text, deadline = result
+
+        # Phase 1.3: Determine confidence level based on which pattern matched
+        text_lower = text.lower()
+
+        # High confidence: explicit commitment language
+        high_confidence_markers = [
+            "we will deliver", "we'll deliver", "we will ship", "we'll ship",
+            "we promise to", "we commit to", "we will have", "we'll have",
+        ]
+        # Low confidence: qualified or indirect commitment language
+        low_confidence_markers = [
+            "should be able to", "target:", "goal:", "deadline:", "eta:",
+            "i'll follow up", "i will follow up", "i'll confirm", "i will confirm",
+        ]
+
+        if any(marker in text_lower for marker in high_confidence_markers):
+            confidence = 0.9
+        elif any(marker in text_lower for marker in low_confidence_markers):
+            confidence = 0.6
+        else:
+            # Default to medium confidence for any other match
+            confidence = 0.7
+
+        return (commitment_text, deadline, confidence)
