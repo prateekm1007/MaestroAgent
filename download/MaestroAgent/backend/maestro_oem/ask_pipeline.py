@@ -36,13 +36,16 @@ logger = logging.getLogger(__name__)
 
 
 class AskIntent(str, Enum):
-    """The 6 intent types the pipeline can classify."""
+    """The 9 intent types the pipeline can classify."""
 
     RECALL = "recall"       # "What was that thing about..."
     PREPARE = "prepare"     # "Prepare me for..."
     WHY = "why"             # "Why is X happening?"
     WHO = "who"             # "Who is the expert on...?"
     WHAT = "what"           # "What did we promise...?"
+    WISDOM = "wisdom"       # "What should we do about...?"
+    WHAT_IF = "what_if"     # "What if...?" / "What would happen if...?"
+    SIMULATE = "simulate"   # "Simulate..."
     DEFAULT = "default"     # anything else
 
 
@@ -62,6 +65,9 @@ class AskPipeline:
     _PREPARE_PHRASES = ["prepare me", "prepare for", "get me ready"]
     _WHY_PREFIX = "why"
     _WHO_PREFIX = "who"
+    _WISDOM_PHRASES = ["what should we", "what do you recommend", "what would you suggest", "what's your advice", "what do you think we should"]
+    _WHAT_IF_PHRASES = ["what if", "what would happen if", "what could happen if", "suppose we"]
+    _SIMULATE_PHRASES = ["simulate", "run a simulation", "model the impact"]
 
     # Entity synonym map (same as RecallEngine)
     _ENTITY_SYNONYMS = {
@@ -85,6 +91,8 @@ class AskPipeline:
         preparation_engine: Any = None,
         meeting_store: Any = None,
         decision_store: Any = None,
+        model: Any = None,
+        conversation_store: Any = None,
     ) -> None:
         self._signals = list(signals) if signals else []
         self._whisper_store = whisper_store
@@ -92,6 +100,9 @@ class AskPipeline:
         self._preparation_engine = preparation_engine
         self._meeting_store = meeting_store
         self._decision_store = decision_store
+        self._model = model
+        self._conversation_store = conversation_store
+        self._narrator = None  # Lazy-loaded
 
     # ─── Step 1: Intent classification ───────────────────────────────
 
@@ -115,6 +126,16 @@ class AskPipeline:
 
         if query_lower.startswith(self._WHO_PREFIX):
             return AskIntent.WHO
+
+        # Phase A: Check for new intents (WISDOM, WHAT_IF, SIMULATE)
+        if any(phrase in query_lower for phrase in self._WISDOM_PHRASES):
+            return AskIntent.WISDOM
+
+        if any(phrase in query_lower for phrase in self._WHAT_IF_PHRASES):
+            return AskIntent.WHAT_IF
+
+        if any(phrase in query_lower for phrase in self._SIMULATE_PHRASES):
+            return AskIntent.SIMULATE
 
         if query_lower.startswith("what") or query_lower.startswith("which"):
             return AskIntent.WHAT
@@ -175,13 +196,17 @@ class AskPipeline:
 
     # ─── Step 3-5: Execute the full pipeline ─────────────────────────
 
-    def execute(self, query: str, org_id: str = "default") -> dict[str, Any]:
-        """Execute the full pipeline: classify → resolve → retrieve → assemble → synthesize.
+    def execute(self, query: str, org_id: str = "default", session_id: str = "") -> dict[str, Any]:
+        """Execute the full pipeline: classify → resolve → retrieve → assemble → narrate.
+
+        Step 3 (conversation state): if session_id provided, load prior turns
+        and resolve pronouns/entities from conversation history.
 
         Returns:
             {
-                "answer": str,           # evidence-grounded answer
+                "answer": str,           # narrated answer with citations
                 "evidence": list[dict],  # evidence pieces
+                "citations": list[dict], # source citations [1], [2], etc.
                 "follow_ups": list[str], # suggested follow-ups
                 "actions": list[dict],   # suggested actions
                 "intent": str,           # classified intent
@@ -191,25 +216,60 @@ class AskPipeline:
         # Step 1: Classify intent
         intent = self.classify_intent(query)
 
-        # Step 2: Resolve entities
+        # Step 2: Resolve entities (with conversation state for pronoun resolution)
         entities = self.resolve_entities(query)
 
-        # Step 3: Retrieve based on intent
+        # Step 3: Conversation state — resolve pronouns from prior turns
+        if session_id and self._conversation_store:
+            prior_entities = self._conversation_store.get_last_entities(session_id)
+            # If the query has no entities of its own, carry forward from prior turns
+            if not entities and prior_entities:
+                entities = prior_entities
+            # If query has entities, merge with prior (prior entities as context)
+            elif entities and prior_entities:
+                for pe in prior_entities:
+                    if pe not in entities:
+                        entities.append(pe)
+
+        # Step 4: Retrieve based on intent
         evidence, answer_parts = self._retrieve(intent, entities, query, org_id)
 
-        # Step 4: Evidence is already assembled in _retrieve
+        # Step 5: Narrate (with citations)
+        narrator = self._get_narrator()
+        answer, citations = narrator.narrate_with_citations(query, evidence)
 
-        # Step 5: Synthesize answer
-        answer = self._synthesize(intent, entities, evidence, answer_parts, query)
+        # Step 6: Save conversation turn
+        if session_id and self._conversation_store:
+            try:
+                history = self._conversation_store.get_history(session_id)
+                turn_num = len(history) + 1
+                self._conversation_store.add_turn(
+                    session_id=session_id, turn=turn_num, role="user",
+                    content=query, intent=intent.value, entities=entities,
+                )
+                self._conversation_store.add_turn(
+                    session_id=session_id, turn=turn_num + 1, role="maestro",
+                    content=answer, intent=intent.value, entities=entities,
+                )
+            except Exception as e:
+                logger.debug("AskPipeline: failed to save conversation turn: %s", e)
 
         return {
             "answer": answer,
             "evidence": evidence,
+            "citations": citations,
             "follow_ups": self._suggest_follow_ups(intent, entities),
             "actions": self._suggest_actions(intent),
             "intent": intent.value,
             "entities": entities,
         }
+
+    def _get_narrator(self):
+        """Lazy-load the EvidenceNarrator."""
+        if self._narrator is None:
+            from maestro_oem.narrator import EvidenceNarrator
+            self._narrator = EvidenceNarrator()
+        return self._narrator
 
     # ─── Retrieval (Step 3) ──────────────────────────────────────────
 
@@ -241,6 +301,15 @@ class AskPipeline:
 
         elif intent == AskIntent.WHAT:
             evidence, answer_parts = self._retrieve_what(entities, query)
+
+        elif intent == AskIntent.WISDOM:
+            evidence, answer_parts = self._retrieve_wisdom(entities, query)
+
+        elif intent == AskIntent.WHAT_IF:
+            evidence, answer_parts = self._retrieve_what_if(entities, query)
+
+        elif intent == AskIntent.SIMULATE:
+            evidence, answer_parts = self._retrieve_simulate(entities, query)
 
         else:  # DEFAULT
             evidence, answer_parts = self._retrieve_default(entities, query)
@@ -359,6 +428,79 @@ class AskPipeline:
     def _retrieve_what(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
         """Retrieve commitments/decisions related to the entities."""
         return self._search_signals(entities, query, focus="what")
+
+    def _retrieve_wisdom(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
+        """Phase A: Wire WisdomEngine — 'What should we do?' → value synthesis."""
+        evidence = []
+        answer_parts = []
+        try:
+            from maestro_oem.wisdom import WisdomEngine
+            if self._model:
+                engine = WisdomEngine(self._model, self._signals)
+                result = engine.synthesize(context=query)
+                wisdom_text = result.get("wisdom", "")
+                if wisdom_text:
+                    evidence.append({"source": "wisdom_engine", "text": wisdom_text[:200], "date": "",
+                        "people": [], "evidence_spine": {"claim": wisdom_text[:100],
+                        "observed_facts": [{"source": "wisdom", "text": wisdom_text[:120]}], "claim_type": "inference"}})
+                    answer_parts.append(f"Wisdom: {wisdom_text}")
+                else:
+                    answer_parts.append("I don't have enough organizational patterns to synthesize wisdom.")
+            else:
+                answer_parts.append("I don't have enough model data to synthesize wisdom.")
+        except Exception as e:
+            logger.warning("AskPipeline._retrieve_wisdom: %s", e)
+            answer_parts.append("I don't have enough organizational patterns to synthesize wisdom.")
+        return evidence, answer_parts
+
+    def _retrieve_what_if(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
+        """Phase A: Wire ImaginationEngine — 'What if?' → counterfactual."""
+        evidence = []
+        answer_parts = []
+        try:
+            from maestro_oem.imagination import ImaginationEngine
+            if self._model:
+                engine = ImaginationEngine(self._model, self._signals)
+                result = engine.imagine(scenario=query)
+                cf = result.get("counterfactual", "")
+                if cf:
+                    evidence.append({"source": "imagination_engine", "text": cf[:200], "date": "",
+                        "people": [], "evidence_spine": {"claim": cf[:100],
+                        "observed_facts": [{"source": "imagination", "text": cf[:120]}], "claim_type": "inference"}})
+                    answer_parts.append(f"Counterfactual: {cf}")
+                else:
+                    answer_parts.append("I don't have enough organizational data to imagine this scenario.")
+            else:
+                answer_parts.append("I don't have enough model data to imagine this scenario.")
+        except Exception as e:
+            logger.warning("AskPipeline._retrieve_what_if: %s", e)
+            answer_parts.append("I don't have enough organizational data to imagine this scenario.")
+        return evidence, answer_parts
+
+    def _retrieve_simulate(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
+        """Phase A: Wire SimulationEngine — 'Simulate' → metric what-if."""
+        evidence = []
+        answer_parts = []
+        try:
+            from maestro_oem.simulation import SimulationEngine
+            if self._model:
+                decisions = getattr(self._model, 'decisions', None)
+                engine = SimulationEngine(self._model, decisions)
+                result = engine.simulate(scenario=query)
+                summary = result.get("summary", "")
+                if summary:
+                    evidence.append({"source": "simulation_engine", "text": summary[:200], "date": "",
+                        "people": [], "evidence_spine": {"claim": "Simulation results",
+                        "observed_facts": [{"source": "simulation", "text": summary[:120]}], "claim_type": "prediction"}})
+                    answer_parts.append(f"Simulation: {summary}")
+                else:
+                    answer_parts.append("I don't have enough model data to run this simulation.")
+            else:
+                answer_parts.append("I don't have enough model data to run this simulation.")
+        except Exception as e:
+            logger.warning("AskPipeline._retrieve_simulate: %s", e)
+            answer_parts.append("I don't have enough model data to run this simulation.")
+        return evidence, answer_parts
 
     def _retrieve_default(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
         """Default retrieval: search signals for the query."""
@@ -520,6 +662,12 @@ class AskPipeline:
             return [f"What does {entities[0]} know about this?" if entities else "What is their expertise?", "Show their recent activity"]
         elif intent == AskIntent.WHAT:
             return ["Who made this commitment?", "Is this still active?", "What changed since?"]
+        elif intent == AskIntent.WISDOM:
+            return ["What are we assuming?", "Who disagrees with this?", "What if we're wrong?"]
+        elif intent == AskIntent.WHAT_IF:
+            return ["What's the evidence for this?", "Has this happened before?", "What would mitigate this?"]
+        elif intent == AskIntent.SIMULATE:
+            return ["What assumptions drive this?", "What if the inputs change?", "Show the evidence"]
         else:
             return [f"Tell me more about {entities[0]}" if entities else "Show related signals", "What changed recently?"]
 
