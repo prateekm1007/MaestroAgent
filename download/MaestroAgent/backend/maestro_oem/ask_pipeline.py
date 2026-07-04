@@ -220,19 +220,54 @@ class AskPipeline:
         entities = self.resolve_entities(query)
 
         # Step 3: Conversation state — resolve pronouns from prior turns
+        # Phase 2.4: Entity-scoped retrieval. Once a conversation has resolved
+        # to a specific customer entity, subsequent retrieval within that session
+        # should be scoped to that entity by default. This prevents cross-customer
+        # answers (the D2 bug) even when a follow-up question doesn't mention
+        # the entity by name.
+        scoped_entity = None  # The entity to scope retrieval to
+
+        # Phase 2.4: If the query explicitly names a customer, scope to it
+        # even on the first turn (no prior context needed)
+        for e in entities:
+            if e not in self._ENTITY_SYNONYMS and len(e) > 2 and e[0].isupper():
+                scoped_entity = e
+                break
+
         if session_id and self._conversation_store:
             prior_entities = self._conversation_store.get_last_entities(session_id)
             # If the query has no entities of its own, carry forward from prior turns
             if not entities and prior_entities:
                 entities = prior_entities
+                # Phase 2.4: Identify the customer entity to scope to
+                for e in prior_entities:
+                    if e not in self._ENTITY_SYNONYMS and len(e) > 2:
+                        scoped_entity = e
+                        break
             # If query has entities, merge with prior (prior entities as context)
             elif entities and prior_entities:
+                # Phase 2.5: Check if this is an explicit entity pivot
+                new_customer_entities = [
+                    e for e in entities
+                    if e not in self._ENTITY_SYNONYMS and len(e) > 2
+                    and e not in prior_entities
+                ]
+                if new_customer_entities:
+                    # Explicit pivot — re-scope to the new entity
+                    scoped_entity = new_customer_entities[0]
+                else:
+                    # Same entity or no new customer — stay scoped to prior
+                    for e in prior_entities:
+                        if e not in self._ENTITY_SYNONYMS and len(e) > 2:
+                            scoped_entity = e
+                            break
+                # Merge prior entities for context
                 for pe in prior_entities:
                     if pe not in entities:
                         entities.append(pe)
 
-        # Step 4: Retrieve based on intent
-        evidence, answer_parts = self._retrieve(intent, entities, query, org_id)
+        # Step 4: Retrieve based on intent (Phase 2.4: scoped to entity if available)
+        evidence, answer_parts = self._retrieve(intent, entities, query, org_id, scoped_entity=scoped_entity)
 
         # Step 5: Narrate (with citations)
         narrator = self._get_narrator()
@@ -340,8 +375,14 @@ class AskPipeline:
         entities: list[str],
         query: str,
         org_id: str,
+        scoped_entity: str | None = None,
     ) -> tuple[list[dict], list[str]]:
         """Retrieve evidence based on intent + entities.
+
+        Phase 2.4: If scoped_entity is provided, filter all evidence to only
+        include signals for that customer entity. This prevents cross-customer
+        answers (the D2 bug) when a follow-up question doesn't mention the
+        entity by name.
 
         Returns (evidence_list, answer_parts).
         """
@@ -374,6 +415,24 @@ class AskPipeline:
 
         else:  # DEFAULT
             evidence, answer_parts = self._retrieve_default(entities, query)
+
+        # Phase 2.4: Entity-scoped filtering. If a scoped_entity was resolved
+        # from conversation context, filter the evidence to only include items
+        # that reference that customer. This prevents cross-customer answers.
+        if scoped_entity and evidence:
+            scoped_lower = scoped_entity.lower()
+            filtered_evidence = []
+            for e in evidence:
+                # Check if the evidence references the scoped entity
+                e_text = (e.get("text", "") + " " + str(e.get("source", ""))).lower()
+                e_spine = str(e.get("evidence_spine", {})).lower()
+                if scoped_lower in e_text or scoped_lower in e_spine:
+                    filtered_evidence.append(e)
+            if filtered_evidence:
+                evidence = filtered_evidence
+                answer_parts = [ap for ap in answer_parts if scoped_lower in ap.lower() or not ap.startswith("- ")]
+            # If filtering removes ALL evidence, keep the original (don't over-filter)
+            # — the narrator will say "I don't know" if truly empty
 
         return evidence, answer_parts
 

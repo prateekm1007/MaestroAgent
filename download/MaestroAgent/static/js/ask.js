@@ -166,17 +166,29 @@ async function submitAsk(query) {
   document.getElementById('ask-confidence').textContent = '';
   answerDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   try {
-    const data = await api.getOEM('/ask?q=' + encodeURIComponent(q));
-    document.getElementById('ask-answer-text').innerHTML = escapeHtml(humanize(data.answer)).replace(/\n/g, '<br>');
-    const sources = data.sources || [];
+    // Phase 2.2: Migrate from GET /ask (old, cross-customer) to POST /ask/conversation (AskPipeline)
+    if (!window._askSessionId) {
+      try { window._askSessionId = crypto.randomUUID(); }
+      catch(e) { window._askSessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2,11); }
+    }
+    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, history: [], session_id: window._askSessionId }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    document.getElementById('ask-answer-text').innerHTML = escapeHtml(humanize(data.answer || '')).replace(/\n/g, '<br>');
+    const sources = data.sources || (data.evidence || []).map(e => e.source || 'unknown');
     document.getElementById('ask-citations').innerHTML = sources.length === 0
       ? '<span class="text-[11px] text-fg-500">No sources cited (insufficient evidence).</span>'
       : sources.map(s => `<span class="source-cite">${escapeHtml(s)}</span>`).join('');
-    const path = data.evidence_path || [];
+    const path = data.evidence_path || data.evidence || [];
     document.getElementById('ask-path').textContent = path.length === 0
       ? 'No evidence path available.'
-      : path.map(p => p.type + (p.code ? ':' + p.code : p.entity ? ':' + p.entity : p.gate ? ':' + p.gate : '')).join(' → ');
-    document.getElementById('ask-confidence').textContent = `Confidence ${formatConfidence(data.confidence)} · ${sources.length} sources`;
+      : path.map(p => (p.source || p.type || '') + (p.text ? ': ' + p.text.substring(0,40) : '')).join(' → ');
+    // CEO directive: confidence removed from /ask responses
+    document.getElementById('ask-confidence').textContent = `${sources.length} sources`;
   } catch (e) {
     document.getElementById('ask-answer-text').innerHTML = `<span class="text-brand-rose">Error: ${escapeHtml(e.message)}</span>`;
     showError('Ask failed: ' + e.message);

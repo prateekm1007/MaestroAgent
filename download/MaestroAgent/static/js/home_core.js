@@ -394,11 +394,22 @@ async function submitECCAsk(query) {
   ans.style.display = 'block';
   document.getElementById('ecc-ask-answer-text').innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line skeleton-line-w40 skeleton-line-h12"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line skeleton-line-w70"></div></div>';
   try {
-    const data = await api.getOEM('/ask?q=' + encodeURIComponent(q));
-    document.getElementById('ecc-ask-answer-text').innerHTML = escapeHtml(data.answer).replace(/\n/g, '<br>');
-    const sources = data.sources || [];
+    // Phase 2.2: Migrate from GET /ask (old, cross-customer) to POST /ask/conversation (AskPipeline)
+    if (!window._homeAskSessionId) {
+      try { window._homeAskSessionId = crypto.randomUUID(); }
+      catch(e) { window._homeAskSessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2,11); }
+    }
+    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, history: [], session_id: window._homeAskSessionId }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    document.getElementById('ecc-ask-answer-text').innerHTML = escapeHtml(data.answer || '').replace(/\n/g, '<br>');
+    const sources = data.sources || (data.evidence || []).map(e => e.source || 'unknown');
     document.getElementById('ecc-ask-citations').innerHTML = sources.length === 0 ? '<span class="text-[11px] text-fg-500">No sources cited.</span>' : sources.map(s => `<span class="source-cite">${escapeHtml(s)}</span>`).join('');
-    document.getElementById('ecc-ask-confidence').textContent = `Confidence ${formatConfidence(data.confidence)} · ${sources.length} sources`;
+    document.getElementById('ecc-ask-confidence').textContent = `${sources.length} sources`;
   } catch(e) {
     document.getElementById('ecc-ask-answer-text').innerHTML = `<span class="text-brand-rose">Error: ${escapeHtml(e.message)}</span>`;
   }
