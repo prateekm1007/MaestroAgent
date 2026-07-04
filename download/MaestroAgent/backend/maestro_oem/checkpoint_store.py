@@ -137,6 +137,12 @@ class CheckpointStore:
         and adds it if missing. This is defense-in-depth — the Alembic
         migration should also be run, but this ensures the code works
         even if the migration wasn't applied.
+
+        W1.2 fix: The _SCHEMA already creates tables WITH org_id. The
+        auto-migrate then tries to ADD org_id again, causing 'duplicate
+        column name: org_id'. Now we properly check if the column exists
+        before adding, and silently ignore the 'duplicate column' error
+        (it means the column is already there — desired state).
         """
         tables_needing_org_id = [
             "import_jobs",
@@ -145,12 +151,7 @@ class CheckpointStore:
         ]
         for table in tables_needing_org_id:
             try:
-                # Check if org_id column exists.
-                # NOTE: sqlite_compat.fetchall() returns dicts (not tuples),
-                # so we must index by column name, not by position. The old
-                # code used row[1] which raised KeyError(1) — caught by the
-                # broad except below, silently skipping the ALTER. This was
-                # the root cause of the /api/imports 500 (org_id missing).
+                # Check if org_id column exists using PRAGMA table_info
                 cursor = self._conn.execute(f"PRAGMA table_info({table})")
                 rows = cursor.fetchall()
                 columns = []
@@ -158,20 +159,23 @@ class CheckpointStore:
                     if isinstance(row, dict):
                         columns.append(row.get("name", ""))
                     elif hasattr(row, "keys"):
-                        columns.append(row.keys()[1] if len(row.keys()) > 1 else "")
+                        try:
+                            keys = list(row.keys())
+                            columns.append(keys[1] if len(keys) > 1 else "")
+                        except Exception:
+                            columns.append("")
                     else:
-                        # Raw sqlite3.Row or tuple fallback
                         columns.append(row[1] if len(row) > 1 else "")
                 if "org_id" not in columns:
-                    # Add the column with a default value for existing rows
                     self._conn.execute(
                         f"ALTER TABLE {table} ADD COLUMN org_id TEXT NOT NULL DEFAULT 'default'"
                     )
                     logger.info("Auto-migrated: added org_id column to %s", table)
             except Exception as e:
+                # W1.2: 'duplicate column name' = column already exists = OK
+                if "duplicate column" in str(e).lower():
+                    continue  # Desired state — column is already there
                 # Table might not exist yet (first run) — the _SCHEMA will create it.
-                # Log at WARNING (not DEBUG) so silent migration failures are visible —
-                # the old DEBUG level hid the KeyError(1) that broke /api/imports.
                 logger.warning("Auto-migrate check for %s failed: %s", table, e)
 
     @contextmanager
