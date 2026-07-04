@@ -126,3 +126,34 @@ testpaths = [
     "maestro_cli/tests",
     "maestro_db/tests",
 ]
+
+# W1.6: Audit CI command — runs the curated critical suite with correct env vars.
+# Usage: python -m pytest --audit
+# This is the command an auditor or CI system should run to verify the product.
+[tool.pytest.ini_options.audit]
+description = "Curated critical suite — the tests that verify the product's thesis-critical claims"
+env = { MAESTRO_LOCAL_DEV = "true", MAESTRO_DEMO_SEED = "true" }
+paths = [
+    "maestro_oem/tests/test_critical01_delivery_gate_wired.py",
+    "maestro_oem/tests/test_c1_sqlite_persistence.py",
+    "maestro_oem/tests/test_c2_epistemic_types.py",
+    "maestro_oem/tests/test_c3_prompt_injection.py",
+    "maestro_oem/tests/test_c4_demo_entity_leak.py",
+    "maestro_oem/tests/test_c5_hardcoded_confidence.py",
+    "maestro_oem/tests/test_h01_epistemic_classifier_widened.py",
+    "maestro_oem/tests/test_h05_source_authority.py",
+    "maestro_oem/tests/test_h06_commitment_extraction.py",
+    "maestro_oem/tests/test_h1_decorative_precision.py",
+    "maestro_oem/tests/test_h2_hardcoded_templates.py",
+    "maestro_oem/tests/test_c2_fallback_path.py",
+    "maestro_oem/tests/test_c3_learning_loop.py",
+    "maestro_oem/tests/test_governed_adaptation.py",
+    "maestro_oem/tests/test_interaction_memory.py",
+    "maestro_oem/tests/test_content_epistemic_classifier.py",
+    "maestro_oem/tests/test_llm_narrator.py",
+    "maestro_oem/tests/test_whisper_prioritization_routing.py",
+    "maestro_oem/tests/test_phase1_commitment_lifecycle.py",
+    "maestro_oem/tests/test_phase2_entity_scoping.py",
+    "maestro_oem/tests/test_phase4_delivery_matrix.py",
+    "maestro_oem/tests/test_phase5_persistence.py",
+]

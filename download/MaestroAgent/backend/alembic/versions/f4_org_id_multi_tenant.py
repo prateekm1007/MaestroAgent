@@ -19,11 +19,15 @@ depends_on = None
 
 def upgrade() -> None:
     # Tables that need org_id added
+    # W1.2 fix: provider_connections already has org_id in the initial
+    # schema (1a9f8707528a). Adding it again causes "duplicate column
+    # name: org_id" on a fresh migration. Only add to tables that don't
+    # already have it.
     tables = [
         "import_jobs",
         "import_checkpoints",
         "oauth_credentials",
-        "provider_connections",
+        # provider_connections: already has org_id in initial schema — skip
     ]
 
     for table in tables:
@@ -48,7 +52,7 @@ def downgrade() -> None:
         "import_jobs",
         "import_checkpoints",
         "oauth_credentials",
-        "provider_connections",
+        # provider_connections: already has org_id in initial schema — skip
     ]
     for table in reversed(tables):
         op.drop_index(f"ix_{table}_org_id", table_name=table)
