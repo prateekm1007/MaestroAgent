@@ -118,6 +118,11 @@ class LLMNarrator:
     ) -> tuple[str, list[dict[str, Any]]]:
         """Render evidence into prose answer with inline citations.
 
+        Phase 6.3: Evidence flagged as 'epistemic_override' (prompt injection
+        attempting to manipulate evidence classification) is EXCLUDED from the
+        narrator context. The flagged content remains in the evidence graph
+        for audit purposes, but it cannot influence the synthesized answer.
+
         Returns:
             (answer_string, citations_list)
             - answer_string: prose with [1], [2] inline citations
@@ -126,19 +131,33 @@ class LLMNarrator:
         When the LLM is unavailable or fails, falls back to the template
         EvidenceNarrator (P6: fail-closed).
         """
+        # Phase 6.3: Filter out evidence flagged as epistemic_override.
+        # Flagged content stays in the evidence graph for audit, but is
+        # excluded from the narrator context so it cannot influence the answer.
+        safe_evidence = [
+            e for e in evidence
+            if not e.get("prompt_injection_risk", {}).get("detected_patterns", [])
+            or "epistemic_override" not in e.get("prompt_injection_risk", {}).get("detected_patterns", [])
+        ]
+        if len(safe_evidence) < len(evidence):
+            logger.warning(
+                "LLMNarrator: excluded %d evidence item(s) flagged as epistemic_override",
+                len(evidence) - len(safe_evidence),
+            )
+
         # Empty evidence → no LLM call (prevents hallucination)
-        if not evidence:
-            return self._get_template_narrator().narrate_with_citations(question, evidence)
+        if not safe_evidence:
+            return self._get_template_narrator().narrate_with_citations(question, safe_evidence)
 
         # No LLM provider → fall back to template (P6)
         if self._llm_provider is None:
-            return self._get_template_narrator().narrate_with_citations(question, evidence)
+            return self._get_template_narrator().narrate_with_citations(question, safe_evidence)
 
         # Try the LLM
         try:
-            answer = self._call_llm(question, evidence)
+            answer = self._call_llm(question, safe_evidence)
             # Strip hallucinated citations
-            answer = self._strip_hallucinated_citations(answer, len(evidence))
+            answer = self._strip_hallucinated_citations(answer, len(safe_evidence))
             # Build citations list from evidence
             citations = self._build_citations(evidence)
             return answer, citations

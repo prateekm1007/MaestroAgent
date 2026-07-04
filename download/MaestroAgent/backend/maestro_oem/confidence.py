@@ -170,7 +170,8 @@ class ConfidenceCalculator:
         posterior_mean = alpha / (alpha + beta) if (alpha + beta) > 0 else 0.0
 
         # Evidence weight: saturating function
-        # 1 piece → 0.18, 5 pieces → 0.63, 15 pieces → 0.95, 30 pieces → 0.997
+        # Phase 3.4: Fixed stale docstring — EVIDENCE_SCALE=2.0 produces:
+        # 1 piece → 0.39, 5 pieces → 0.92, 15 pieces → 1.00, 30 pieces → 1.0000
         evidence_weight = 1.0 - exp(-evidence_count / EVIDENCE_SCALE) if evidence_count > 0 else 0.0
 
         # Diversity factor: logarithmic in number of providers

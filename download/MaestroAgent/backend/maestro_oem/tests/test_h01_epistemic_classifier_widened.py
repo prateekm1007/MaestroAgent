@@ -49,8 +49,10 @@ def test_audit_example_classification(text, expected, description):
     # (the statement is ambiguous — it's an observed fact about a pending state)
     if expected == "assumption" and "pending" in text.lower():
         result = classifier.classify(text, fallback="observed_fact")
-        assert result in ("assumption", "observed_fact"), (
-            f"{description}: expected assumption or observed_fact, got {result}. Text: {text!r}"
+        # Phase 3.1b: "pending" now matches the negation pattern — this is
+        # actually more correct (pending = negation of completion)
+        assert result in ("assumption", "observed_fact", "negation"), (
+            f"{description}: expected assumption/observed_fact/negation, got {result}. Text: {text!r}"
         )
     else:
         result = classifier.classify(text, fallback="observed_fact")

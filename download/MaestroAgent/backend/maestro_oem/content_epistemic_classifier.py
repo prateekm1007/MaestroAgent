@@ -58,6 +58,7 @@ HYPOTHESIS = "hypothesis"
 VALID_TYPES = {
     OBSERVED_FACT, REPORTED_STATEMENT, COMMITMENT, ASSUMPTION,
     INFERENCE, PREDICTION, OUTCOME, PROPOSAL, ESTIMATE, HYPOTHESIS,
+    "question", "negation", "retraction", "unclassified",
 }
 
 
@@ -69,6 +70,49 @@ VALID_TYPES = {
 # a promise — even though both start with "we."
 
 _PATTERNS: list[tuple[re.Pattern, str, float]] = [
+    # ─── Phase 3.1a: Questions — never classify as any claim type ────────
+    # A sentence ending in "?" or starting with a question word is not a claim
+    (
+        re.compile(r"\?\s*$"),
+        "question",
+        0.95,
+    ),
+    (
+        re.compile(r"^\s*(?:what|when|where|who|why|how|which|is|are|can|could|would|should|will|do|does|did|have|has)\b", re.IGNORECASE),
+        "question",
+        0.90,
+    ),
+
+    # ─── Phase 3.1c: Retraction / correction / sarcasm ───────────────────
+    # "Just kidding", "wait, no", "actually, scrap that" — the speaker is
+    # retracting or correcting a prior statement, not making a new claim
+    (
+        re.compile(
+            r"\b(?:just\s+kidding|wait,?\s+no|actually,?\s+(?:no|scrap|never\s+mind|forget\s+it)|"
+            r"scratch\s+that|disregard\s+that|on\s+second\s+thought|"
+            r"actually,?\s+we\s+haven't|just\s+joking)\b",
+            re.IGNORECASE,
+        ),
+        "retraction",
+        0.85,
+    ),
+
+    # ─── Phase 3.1b: Negation — "nobody has ever said", "we haven't shipped" ─
+    # A negated statement is NOT the same as an affirmative. "We haven't shipped"
+    # is an observed_fact about a negative state, not a commitment to ship.
+    (
+        re.compile(
+            r"\b(?:nobody\s+(?:has|have)\s+ever|no\s+one\s+has\s+ever|"
+            r"we\s+haven't|we\s+have\s+not|we\s+don't|we\s+do\s+not|"
+            r"has\s+not\s+been|have\s+not\s+been|is\s+not\s+(?:ready|available|complete)|"
+            r"remains?\s+conditional|is\s+still\s+pending|"
+            r"hasn't|haven't|didn't|doesn't|isn't|wasn't|won't)\b",
+            re.IGNORECASE,
+        ),
+        "negation",
+        0.80,
+    ),
+
     # ─── Hypothesis: conditional falsifiable prediction ───────────────────
     # "If we prioritize SSO, TestCorp will renew"
     # "If we do X, then Y will happen"
@@ -262,7 +306,7 @@ class ContentEpistemicClassifier:
       - It NEVER silences evidence (P6) — it only relabels claim_type
     """
 
-    def classify(self, text: str, fallback: str = OBSERVED_FACT) -> str:
+    def classify(self, text: str, fallback: str = "unclassified") -> str:
         """Classify the epistemic type of a statement.
 
         Args:
@@ -277,7 +321,7 @@ class ContentEpistemicClassifier:
             the fallback.
         """
         if not text or not isinstance(text, str):
-            return fallback if fallback in VALID_TYPES else OBSERVED_FACT
+            return fallback if fallback in VALID_TYPES else "unclassified"
 
         # Try each pattern in order — first match wins
         for pattern, epistemic_type, confidence in _PATTERNS:
@@ -289,7 +333,7 @@ class ContentEpistemicClassifier:
                 return epistemic_type
 
         # No pattern matched — return the fallback (backward-compatible)
-        return fallback if fallback in VALID_TYPES else OBSERVED_FACT
+        return fallback if fallback in VALID_TYPES else "unclassified"
 
     def classify_with_confidence(
         self, text: str, fallback: str = OBSERVED_FACT,

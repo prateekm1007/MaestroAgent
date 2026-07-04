@@ -118,3 +118,28 @@ POST /api/auth/soc2/cleanup-sessions — trigger expired session cleanup
 3. Session cleanup revokes expired sessions automatically
 4. Refresh token reuse triggers immediate family revocation
 5. SOC2 posture endpoint reports configuration status
+
+
+## Multi-Tenancy Model (Phase 6.5)
+
+**Current architecture: one tenant per deployment.**
+
+MaestroAgent currently supports multi-tenancy via `OEMStateRegistry` (per-org
+state isolation) and `TenantIsolationMiddleware` (org_id-scoped queries).
+However, the core `ExecutionModel` is an in-memory singleton — multiple orgs
+in a single deployment share the same process, and while the isolation
+middleware prevents cross-org data access at the API layer, the in-memory
+model is not truly isolated at the runtime level.
+
+**Supported deployment model:**
+- One organization per deployment instance
+- Multiple instances behind a load balancer (each serving one org)
+- Per-org SQLite databases (or Postgres when the migration ships)
+
+**Not yet supported:**
+- Multiple organizations sharing a single deployment instance with true
+  runtime-level isolation (requires Postgres migration + per-org model
+  reconstruction on each request)
+
+This is a stated architectural constraint, not an implicit gap. It will be
+addressed when the Postgres migration (on the roadmap) ships.
