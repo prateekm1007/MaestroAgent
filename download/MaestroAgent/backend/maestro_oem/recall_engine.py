@@ -95,10 +95,27 @@ ENTITY_SYNONYMS: dict[str, list[str]] = {
 
 # ─── Module-level model singleton (lazy-loaded) ────────────────────────────
 # SentenceTransformer is ~80MB. Load it once per process, not per request.
+# AUDITOR-FIX (HIGH-01): Added preload_model() for lifespan startup.
+# Before this fix, the model was lazy-loaded on the first Ask request,
+# causing a 9s blocking delay. Now the lifespan calls preload_model()
+# at startup so the model is ready before any request arrives.
 
 _MODEL_LOCK = threading.Lock()
 _MODEL: Any = None  # Cached SentenceTransformer instance
 _MODEL_LOAD_ATTEMPTED = False  # True after first load attempt (success or fail)
+
+
+def preload_model() -> None:
+    """Pre-load the embedding model at application startup.
+
+    AUDITOR-FIX (HIGH-01): Call this from the FastAPI lifespan to load
+    the SentenceTransformer model BEFORE any request arrives. This
+    prevents the 9s blocking delay on the first Ask request.
+
+    If sentence-transformers is unavailable, this is a no-op — the
+    RecallEngine will fall back to character n-gram TF-IDF.
+    """
+    _get_embedding_model()
 
 
 def _get_embedding_model() -> Any:

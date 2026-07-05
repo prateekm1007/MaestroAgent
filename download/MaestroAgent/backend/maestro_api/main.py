@@ -187,6 +187,17 @@ def create_app(
 
         _snapshot_task = asyncio.create_task(_weekly_snapshot_loop())
 
+        # AUDITOR-FIX (HIGH-01): Pre-load the embedding model at startup.
+        # Before this fix, the SentenceTransformer was lazy-loaded on the
+        # first Ask request, causing a 9s blocking delay. Now it loads
+        # during lifespan startup — before any request arrives.
+        try:
+            from maestro_oem.recall_engine import preload_model
+            preload_model()
+            logger.info("AUDITOR-FIX HIGH-01: embedding model pre-loaded at startup")
+        except Exception as e:
+            logger.warning("AUDITOR-FIX HIGH-01: model pre-load failed (non-fatal): %s", e)
+
         # AUDITOR-P11-FIX (Reasoning Plane): Initialize SynthesisProvider ONCE
         # during lifespan startup. Stored on app.state, injected into AskPipeline.
         try:
