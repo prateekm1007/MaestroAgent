@@ -575,20 +575,23 @@ class AskPipeline:
                          for i, e in enumerate(evidence)]
             return answer, citations, ReasoningMode.TEMPLATE_ONLY, "", ""
 
-        # AUDITOR-FIX (Round 4): LLM ESCALATION TRIGGER
-        # The external auditor recommended: "Reserve LLM for ~10-15% of queries
-        # where categories don't fit." The rule-based synthesizer handles the 5
-        # known categories well. When evidence contains unclassified signals
-        # (novel shapes the rules can't reason about), escalate to the LLM.
-        # This is the hybrid: deterministic for known patterns, LLM for novelty.
-        should_use_llm = synthesizer.has_unclassified_signals(evidence)
+        # CEO DIRECTIVE: Coverage Assessor — route on REASONING coverage,
+        # not category coverage. The old has_unclassified_signals() trigger
+        # was "too crude" (CEO's word). A query can have perfectly classified
+        # evidence and still require reasoning beyond the rule system.
+        from maestro_oem.coverage_assessor import CoverageAssessor
+        assessor = CoverageAssessor()
+        coverage = assessor.assess(query, evidence, answer_parts)
 
-        if not should_use_llm:
-            # All evidence fits known categories — rule-based synthesis is sufficient
+        if not coverage.should_escalate:
+            # Coverage sufficient — rule-based synthesis is adequate
             answer = synthesizer.synthesize(query, evidence, answer_parts)
             citations = [{"number": i+1, "source": e.get("source", ""), "text": e.get("text", "")[:100], "date": e.get("date", "")}
                          for i, e in enumerate(evidence)]
             return answer, citations, ReasoningMode.TEMPLATE_ONLY, "", ""
+
+        # Coverage insufficient — escalate to LLM
+        logger.info("CoverageAssessor: escalating to LLM (%s)", coverage.reasoning)
 
         # Provider available — call it async
         from maestro_oem.llm_narrator import LLMNarrator, _SYSTEM_PROMPT
