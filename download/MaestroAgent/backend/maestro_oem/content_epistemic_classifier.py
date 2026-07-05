@@ -100,14 +100,15 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     # ─── Phase 3.1b: Negation — "nobody has ever said", "we haven't shipped" ─
     # A negated statement is NOT the same as an affirmative. "We haven't shipped"
     # is an observed_fact about a negative state, not a commitment to ship.
-    # AUDITOR-FIX: added "is still conditional", "is conditional", "still pending"
+    # HIGH-2 fix: removed "still pending", "still conditional", "still under
+    # review", "is conditional", "remains conditional" from negation. These
+    # are statements about CURRENT STATE (observed_fact), not negations.
+    # "Security approval is still pending" → observed_fact (not negation).
     (
         re.compile(
             r"\b(?:nobody\s+(?:has|have)\s+ever|no\s+one\s+has\s+ever|"
             r"we\s+haven't|we\s+have\s+not|we\s+don't|we\s+do\s+not|"
             r"has\s+not\s+been|have\s+not\s+been|is\s+not\s+(?:ready|available|complete)|"
-            r"remains?\s+conditional|is\s+still\s+(?:pending|conditional)|is\s+conditional|"
-            r"still\s+(?:pending|conditional|under\s+review)|"
             r"hasn't|haven't|didn't|doesn't|isn't|wasn't|won't)\b",
             re.IGNORECASE,
         ),
@@ -293,6 +294,30 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
         ),
         OBSERVED_FACT,
         0.65,
+    ),
+
+    # ─── Observed fact: current state (HIGH-2 fix) ────────────────────────
+    # "Security approval is still pending"
+    # "The review is awaiting approval"
+    # "Integration is in progress"
+    # "The PR is under review"
+    # These are statements about CURRENT STATE — what is happening right now.
+    # They are NOT negations (which deny something happened) and NOT commitments
+    # (which promise something will happen). They are observed facts about
+    # the present moment.
+    (
+        re.compile(
+            r"\b(?:is\s+still\s+(?:pending|conditional|under\s+review)|"
+            r"still\s+(?:pending|conditional|under\s+review)|"
+            r"is\s+conditional|remains?\s+conditional|"
+            r"is\s+awaiting|awaiting\s+(?:approval|review|sign-?off)|"
+            r"is\s+in\s+progress|in\s+progress|"
+            r"is\s+under\s+(?:review|investigation|consideration)|"
+            r"remains?\s+(?:pending|open|unresolved))\b",
+            re.IGNORECASE,
+        ),
+        OBSERVED_FACT,
+        0.85,
     ),
 ]
 

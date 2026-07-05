@@ -390,10 +390,36 @@ class ExecutionModel(BaseModel):
                 )
                 self._add_receipt(signal, existing_lo_with_same_identity.lo_id, "learning_object.deduped", str(existing_lo_with_same_identity.lo_id), delta)
             else:
-                # New LO — store it
-                self.learning_objects[lo.lo_id] = lo
-                delta.new_learning_objects.append(lo.lo_id)
-                self._add_receipt(signal, lo.lo_id, "learning_object.created", str(lo.lo_id), delta)
+                # MEDIUM-2 fix: semantic cross-source dedup. Before creating
+                # a new LO, check if an existing LO is semantically similar
+                # (same event reported from a different source with different
+                # wording). If so, add evidence to the existing LO instead.
+                # This prevents "Globex SSO commitment" on Slack, "SSO
+                # delivery promise to Globex" in email, and "Globex SSO
+                # timeline confirmed" in Jira from creating 3 separate LOs.
+                try:
+                    from maestro_oem.semantic_dedup import SemanticDeduplicator
+                    if not hasattr(self, "_semantic_dedup"):
+                        self._semantic_dedup = SemanticDeduplicator()
+                    semantic_dup = self._semantic_dedup.find_semantic_duplicate(
+                        signal, list(self.learning_objects.values()),
+                    )
+                except Exception as e:
+                    logger.debug("Semantic dedup check failed (non-fatal): %s", e)
+                    semantic_dup = None
+
+                if semantic_dup is not None:
+                    # Semantic duplicate found — add evidence to existing LO
+                    semantic_dup.add_evidence(
+                        signal.signal_id, signal.provider.value,
+                        content_hash=sig_content_hash,
+                    )
+                    self._add_receipt(signal, semantic_dup.lo_id, "learning_object.semantic_deduped", str(semantic_dup.lo_id), delta)
+                else:
+                    # New LO — store it
+                    self.learning_objects[lo.lo_id] = lo
+                    delta.new_learning_objects.append(lo.lo_id)
+                    self._add_receipt(signal, lo.lo_id, "learning_object.created", str(lo.lo_id), delta)
 
         # 5. Detect patterns from accumulated LOs
         all_los = list(self.learning_objects.values())
