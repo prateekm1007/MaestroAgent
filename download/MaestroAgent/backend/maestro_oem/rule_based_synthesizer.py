@@ -177,7 +177,41 @@ class RuleBasedSynthesizer:
             if commitments and not negations:
                 sections.append("RECOMMENDED ACTION:\n  • No action needed — the commitment appears on track.")
 
+        # ─── 5. NOTES (novel signals that don't fit known categories) ──────
+        # AUDITOR-FIX (Round 4): The `others` bucket was defined but never
+        # surfaced. Novel signals (CEO gut feeling, market rumor, procurement
+        # review) were silently dropped — producing "no specific synthesis
+        # available" even when evidence existed. Now they're surfaced in a
+        # NOTES section so the executive at least sees them.
+        if others:
+            note_parts = []
+            for e in others:
+                text = self._clean_text(e.get("text", ""))
+                date = e.get("date", "")
+                people = e.get("people", [])
+                who = people[0] if people else "Someone"
+                claim_type = e.get("evidence_spine", {}).get("claim_type", "unclassified")
+                note_parts.append(f"{who} noted: \"{text}\" ({date}) [type: {claim_type}]")
+            sections.append("NOTES (unclassified signals — may warrant further investigation):\n" +
+                           "\n".join(f"  • {n}" for n in note_parts))
+
         return "\n\n".join(sections) if sections else "Based on the evidence, no specific synthesis is available."
+
+    def has_unclassified_signals(self, evidence: list[dict[str, Any]]) -> bool:
+        """Check if evidence contains signals that don't fit the 5 known categories.
+
+        AUDITOR-FIX (Round 4): Used by _synthesize_async() as the LLM
+        escalation trigger. When unclassified signals are present, the
+        system should escalate to the LLM (if available) for synthesis
+        — the rule-based synthesizer can categorize but can't reason
+        about novel signal shapes.
+        """
+        for e in evidence:
+            claim_type = e.get("evidence_spine", {}).get("claim_type", "")
+            if claim_type not in ("commitment", "proposal", "negation",
+                                  "outcome", "reported_statement"):
+                return True
+        return False
 
     def _clean_text(self, text: str) -> str:
         """Extract the meaningful text from a signal's evidence text.
