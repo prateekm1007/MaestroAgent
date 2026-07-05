@@ -526,6 +526,46 @@ class OEMState:
         except Exception as e:
             logger.warning("Background adaptation loop failed on ingest: %s", e)
 
+        # HIGH-3 Phase 1: publish model state to Redis cache (if available).
+        # This allows other replicas to pick up the latest state on their
+        # next read. Fail-safe (P6): if Redis unavailable, skip silently.
+        try:
+            self._publish_to_redis_cache()
+        except Exception as e:
+            logger.debug("Redis cache publish failed (non-fatal): %s", e)
+
+    def _publish_to_redis_cache(self) -> None:
+        """HIGH-3 Phase 1: publish a lightweight model snapshot to Redis.
+
+        When Redis is available (MAESTRO_REDIS_URL set), this writes a
+        snapshot of the model's signal count + law count + LO count to
+        Redis with a 5-minute TTL. Other replicas can read this to detect
+        that state has changed and trigger a reload from DB.
+
+        This is Phase 1 — just a change-notification signal, not a full
+        model serialization. Phase 2 will serialize the full model.
+
+        Fail-safe (P6): if Redis is unavailable, this is a no-op.
+        """
+        try:
+            from maestro_oem.redis_cache import get_redis_cache
+            cache = get_redis_cache()
+            if not cache.available:
+                return  # Single-replica mode — no cache needed
+            model = self.engine.get_model() if self.engine else None
+            if model is None:
+                return
+            snapshot = {
+                "org_id": getattr(self, "org_id", "default"),
+                "signal_count": len(self.signals) if self.signals else 0,
+                "law_count": len(model.laws) if hasattr(model, "laws") else 0,
+                "lo_count": len(model.learning_objects) if hasattr(model, "learning_objects") else 0,
+                "last_updated": model.last_updated.isoformat() if hasattr(model, "last_updated") and model.last_updated else None,
+            }
+            cache.set(f"org:{snapshot['org_id']}:model_snapshot", snapshot, ttl=300)
+        except Exception as e:
+            logger.debug("_publish_to_redis_cache failed (non-fatal): %s", e)
+
     def _purge_demo_seed_locked(self) -> None:
         """Purge demo seed signals from the OEM state.
 

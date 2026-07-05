@@ -5376,37 +5376,10 @@ def get_background_loop(
     return result
 
 
-@router.get("/trajectory-intervention")
-def get_trajectory_intervention() -> dict[str, Any]:
-    """Declining trajectories that need intervention.
-
-    V6 Spec #4 — weak signal → trajectory change → quiet intervention.
-    Computes time_to_failure from slope. Proposes interventions with
-    historical analogues.
-    """
-    from maestro_oem.trajectory_intervention import TrajectoryInterventionEngine
-    engine = TrajectoryInterventionEngine(oem_state.model, oem_state.signals)
-    return engine.assess()
-
-
-@router.get("/org-pattern")
-def get_organizational_pattern() -> dict[str, Any]:
-    """Detect a recurring organizational pattern and suggest a law.
-
-    CEO's 'Friday notification' (2026-07-03): Maestro notices a pattern
-    over weeks and surfaces it as an organizational law suggestion.
-
-    Example: 'Customers have raised pricing concerns 11 times. Suggested
-    operating law: Address pricing proactively in every customer engagement.'
-
-    Returns None if no significant pattern is detected.
-    """
-    from maestro_oem.trajectory_intervention import TrajectoryInterventionEngine
-    engine = TrajectoryInterventionEngine(oem_state.model, oem_state.signals)
-    pattern = engine.detect_organizational_pattern(min_occurrences=5)
-    if pattern:
-        return {"pattern": pattern, "suggestion": "Review as Law?"}
-    return {"pattern": None}
+# CRITICAL-1 Phase 1: trajectory endpoints extracted to trajectory_routes.py.
+# The sub-router is registered at the bottom of this file (search for
+# "include_router" to find the registration block). This is the proof-of-concept
+# extraction prescribed by docs/CRITICAL_1_GOD_FILE_REFACTOR.md.
 
 
 # ─── CEO Feature 1: Preparation Engine ─────────────────────────────────────
@@ -7001,3 +6974,12 @@ def loop4_compose_entry() -> dict[str, Any]:
 
 # Phase 1: stamp USER auth policy on all routes in this router
 set_router_policy(router, AuthPolicy.USER)
+
+
+# ─── CRITICAL-1 Phase 1: Sub-router registration ─────────────────────────
+# Extracted route modules are registered here. Each module defines its own
+# APIRouter and is included with prefix="/api/oem" so endpoints resolve
+# at the same paths as before extraction.
+# See docs/CRITICAL_1_GOD_FILE_REFACTOR.md for the full migration plan.
+from maestro_api.routes.trajectory_routes import router as trajectory_router  # noqa: E402
+router.include_router(trajectory_router)
