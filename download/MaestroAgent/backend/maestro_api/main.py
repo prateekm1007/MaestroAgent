@@ -211,17 +211,31 @@ def create_app(
 
         # AUDITOR-P5: CandidatePatternStore for governed learning.
         # Phase 6: wired into oem_state so OutcomeResolver fires on every signal ingest.
+        # Phase 11: SQLite-backed for durability (restart-safe, tenant-isolated).
         try:
+            candidate_db = _os2.environ.get(
+                "MAESTRO_CANDIDATE_DB",
+                str(Path("maestro.db").parent / "candidate_patterns.db"),
+            )
+            Path(candidate_db).parent.mkdir(parents=True, exist_ok=True)
+            from maestro_oem.candidate_pattern_store_sqlite import SQLiteCandidatePatternStore
+            store = SQLiteCandidatePatternStore(db_path=candidate_db, org_id="default")
+            app.state.candidate_pattern_store = store
+            from maestro_api.oem_state import oem_state as _oem_state_for_store
+            if _oem_state_for_store:
+                _oem_state_for_store.candidate_pattern_store = store
+            logger.info(
+                "AUDITOR-P5 Phase 11: SQLiteCandidatePatternStore initialized (db=%s, durable, tenant-isolated)",
+                candidate_db,
+            )
+        except Exception as e:
+            logger.warning("AUDITOR-P5: SQLite store init failed, falling back to in-memory: %s", e)
             from maestro_oem.pattern_proposer import CandidatePatternStore
             store = CandidatePatternStore()
             app.state.candidate_pattern_store = store
             from maestro_api.oem_state import oem_state as _oem_state_for_store
             if _oem_state_for_store:
                 _oem_state_for_store.candidate_pattern_store = store
-            logger.info("AUDITOR-P5: CandidatePatternStore initialized (wired to oem_state for Phase 6 resolution)")
-        except Exception as e:
-            logger.warning("AUDITOR-P5: CandidatePatternStore init failed: %s", e)
-            app.state.candidate_pattern_store = None
 
         try:
             yield
