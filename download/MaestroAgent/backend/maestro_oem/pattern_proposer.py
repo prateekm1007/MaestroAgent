@@ -287,6 +287,31 @@ class CandidatePatternStore:
                 if c.contradicting_outcomes >= 3 and c.supporting_outcomes == 0:
                     c.status = CandidateStatus.FALSIFIED
                     logger.info("CandidatePattern %s falsified (%d prospective contradictions)", c.candidate_id, c.contradicting_outcomes)
+                # AUDITOR-UNLEARNING: True unlearning — not just scope narrowing.
+                # If 5+ contradictions arrive (even with some supports), the pattern
+                # is RETRACTED — Maestro stops using it entirely. Not merely SCOPE_LIMITED.
+                # "Maestro must be capable of saying: We were wrong."
+                if c.contradicting_outcomes >= 5 and c.supporting_outcomes < c.contradicting_outcomes / 2:
+                    # Contradictions dominate (>2:1 ratio) → RETRACT
+                    old_status = c.status
+                    c.status = CandidateStatus.FALSIFIED
+                    logger.info(
+                        "CandidatePattern %s FALSIFIED via true unlearning "
+                        "(was %s, %d contradictions vs %d supports — Maestro was wrong)",
+                        c.candidate_id, old_status.value, c.contradicting_outcomes, c.supporting_outcomes,
+                    )
+                # AUDITOR-UNLEARNING: If contradictions are significant (3+) but supports
+                # also exist, SUSPEND — stop using while evidence is conflicting.
+                elif c.contradicting_outcomes >= 3 and c.status in (
+                    CandidateStatus.ACTIVE_PATTERN, CandidateStatus.SCOPE_LIMITED,
+                ):
+                    old_status = c.status
+                    c.status = CandidateStatus.SCOPE_LIMITED
+                    logger.info(
+                        "CandidatePattern %s SUSPENDED from active use "
+                        "(was %s, %d contradictions — under review)",
+                        c.candidate_id, old_status.value, c.contradicting_outcomes,
+                    )
                 # Auto-promote: 3+ prospective supports (NOT reasoning_mentions)
                 if c.supporting_outcomes >= 3 and c.status == CandidateStatus.HYPOTHESIS:
                     c.status = CandidateStatus.TESTING
