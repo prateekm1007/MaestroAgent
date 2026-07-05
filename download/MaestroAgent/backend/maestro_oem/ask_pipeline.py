@@ -379,43 +379,28 @@ class AskPipeline:
     def _get_llm_provider(self):
         """Get an LLM provider if one is configured.
 
-        Returns None if no provider is available (P6: fail-closed to template).
-        This checks for the maestro_llm LLMRouter via env vars.
+        AUDITOR-P11-FIX: Uses LLMRouter.from_env_sync() — a sync factory that
+        works inside OR outside an async event loop. The previous implementation
+        called LLMRouter.from_env() (non-existent) inside asyncio.run(), which
+        raised RuntimeError inside FastAPI's event loop and silently returned
+        None — making the LLMNarrator dead code in production.
         """
         try:
-            import os
-            # Check if any LLM env vars are set
-            has_llm = any(os.environ.get(k) for k in [
-                "OLLAMA_BASE_URL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
-                "OPENROUTER_API_KEY", "XAI_API_KEY",
-            ])
-            if not has_llm:
-                # Also check if Ollama is running locally at default port
+            from maestro_llm.router import LLMRouter
+
+            if not LLMRouter.has_env_provider():
                 import urllib.request
                 try:
                     urllib.request.urlopen("http://localhost:11434/api/tags", timeout=1)
-                    has_llm = True
                 except Exception:
-                    pass
+                    return None
 
-            if not has_llm:
+            router = LLMRouter.from_env_sync()
+            if not router.providers:
                 return None
-
-            # Use the LLMRouter's from_env factory (async, so we need to run it)
-            from maestro_llm.router import LLMRouter
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-                # Already in async context — can't use asyncio.run
-                return None  # Fall back to template for now
-            except RuntimeError:
-                router = asyncio.run(LLMRouter.from_env())
-                if router.providers:
-                    # Return a simple sync wrapper around the async router
-                    return _LLMRouterSyncWrapper(router)
-                return None
+            return _LLMRouterSyncWrapper(router)
         except Exception as e:
-            logger.debug("AskPipeline._get_llm_provider: %s", e)
+            logger.warning("AskPipeline._get_llm_provider failed: %s", e)
             return None
 
     # ─── Retrieval (Step 3) ──────────────────────────────────────────

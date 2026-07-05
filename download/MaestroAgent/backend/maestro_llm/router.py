@@ -91,6 +91,48 @@ class LLMRouter:
         return cls(providers=providers, ledger=ledger)
 
     @classmethod
+    def from_env_sync(cls, ledger: CostLedger | None = None) -> "LLMRouter":
+        """SYNC factory — read env vars and build a router without async I/O.
+
+        AUDITOR-P11-FIX: The previous _get_llm_provider() in ask_pipeline.py
+        called LLMRouter.from_env() (a non-existent method) inside asyncio.run().
+        FastAPI runs inside an async event loop, so asyncio.run() raised
+        RuntimeError. The code detected the running loop and silently returned
+        None — making the LLMNarrator unreachable in production. This sync
+        factory works inside OR outside an event loop.
+        """
+        import os
+        providers: dict[str, Provider] = {}
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        providers["ollama"] = OllamaProvider(base_url=ollama_url)
+        providers["lmstudio"] = LMStudioProvider()
+        if os.environ.get("OPENAI_API_KEY"):
+            providers["openai"] = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            providers["anthropic"] = AnthropicProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
+        if os.environ.get("OPENROUTER_API_KEY"):
+            providers["openrouter"] = OpenRouterProvider(api_key=os.environ["OPENROUTER_API_KEY"])
+        if os.environ.get("XAI_API_KEY"):
+            providers["grok"] = GrokProvider(api_key=os.environ["XAI_API_KEY"])
+        default_provider = (
+            "openai" if "openai" in providers else
+            "anthropic" if "anthropic" in providers else
+            "openrouter" if "openrouter" in providers else
+            "grok" if "grok" in providers else
+            "ollama"
+        )
+        return cls(providers=providers, ledger=ledger, default_provider=default_provider)
+
+    @classmethod
+    def has_env_provider(cls) -> bool:
+        """True if any cloud LLM env var is set."""
+        import os
+        return any(os.environ.get(k) for k in [
+            "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+            "OPENROUTER_API_KEY", "XAI_API_KEY",
+        ])
+
+    @classmethod
     async def auto_detect(cls, ledger: CostLedger | None = None) -> "LLMRouter":
         """Auto-detect available local LLM providers (Ollama, LM Studio).
 

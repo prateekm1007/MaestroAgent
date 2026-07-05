@@ -250,9 +250,19 @@ def test_llm_narrator_grounds_in_evidence():
     assert "evidence" in system_lower, (
         f"System prompt must reference evidence. Got: {mock.last_system[:200]!r}"
     )
-    # Must instruct NOT to add information
-    assert "do not add" in system_lower or "only" in system_lower or "grounded" in system_lower, (
-        f"System prompt must constrain the LLM to not add information. Got: {mock.last_system[:200]!r}"
+    # Must instruct NOT to add information (grounding constraint).
+    # AUDITOR-P11-FIX: the new prompt uses "never invent evidence" instead
+    # of the old "do not add information" wording. Both are grounding
+    # constraints — accept either form so the test doesn't break if the
+    # wording changes again.
+    grounding_phrases = [
+        "do not add", "only", "grounded",        # original wording
+        "never invent", "do not state it",        # AUDITOR-P11-FIX wording
+    ]
+    has_grounding = any(p in system_lower for p in grounding_phrases)
+    assert has_grounding, (
+        f"System prompt must contain a grounding constraint (one of "
+        f"{grounding_phrases}). Got: {mock.last_system[:300]!r}"
     )
 
     # The user prompt must include the actual evidence
