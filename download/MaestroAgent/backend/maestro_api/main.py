@@ -187,6 +187,28 @@ def create_app(
 
         _snapshot_task = asyncio.create_task(_weekly_snapshot_loop())
 
+        # AUDITOR-P11-FIX (Reasoning Plane): Initialize SynthesisProvider ONCE
+        # during lifespan startup. Stored on app.state, injected into AskPipeline.
+        try:
+            from maestro_oem.synthesis_provider import SynthesisProvider
+            app.state.synthesis_provider = SynthesisProvider.from_env(
+                timeout_seconds=float(_os2.environ.get("MAESTRO_SYNTHESIS_TIMEOUT", "30")),
+                max_concurrent=int(_os2.environ.get("MAESTRO_SYNTHESIS_MAX_CONCURRENT", "5")),
+            )
+            if app.state.synthesis_provider.available:
+                logger.info(
+                    "AUDITOR-P11-FIX: SynthesisProvider initialized (model=%s, circuit=%s)",
+                    app.state.synthesis_provider.default_model,
+                    app.state.synthesis_provider.circuit_state.value,
+                )
+            else:
+                logger.info(
+                    "AUDITOR-P11-FIX: SynthesisProvider initialized (no LLM configured — TEMPLATE_ONLY)"
+                )
+        except Exception as e:
+            logger.warning("AUDITOR-P11-FIX: SynthesisProvider init failed: %s", e)
+            app.state.synthesis_provider = None
+
         try:
             yield
         finally:

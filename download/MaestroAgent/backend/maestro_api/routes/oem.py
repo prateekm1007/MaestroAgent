@@ -567,29 +567,14 @@ def list_verified_laws() -> dict[str, Any]:
 # ─── 6. GET /api/oem/ask ───────────────────────────────────────────────────
 
 @router.get("/ask")
-def ask(q: str = Query(..., description="Natural-language question")) -> dict[str, Any]:
+async def ask(q: str = Query(..., description="Natural-language question"), request: Request = None) -> dict[str, Any]:
     """Ask the organization — NL question answered from OEM evidence.
 
-    Round 44 (Phase 5) — Constrained personal context:
-    When the personal-context-in-work toggle is ON (default OFF), ONE
-    optional line is appended to the synthesized answer:
-        "Personal context (opt-in): {one-sentence personal state}."
-
-    Constitutional constraints:
-      - The personal context line is INFORMATIONAL, never prescriptive.
-      - It NEVER changes the work recommendation.
-      - It NEVER makes the answer conditional on personal state.
-      - It references ONLY the user's own state (energy, sleep, calendar
-        conflicts) — NEVER a third party.
-      - It is a single sentence, labeled, and dismissible.
-      - It is None when the toggle is OFF, incognito is active, or no
-        relevant state exists.
+    AUDITOR-REASONING-PLANE: calls execute_async() and injects the
+    SynthesisProvider from app.state. Response includes synthesis_trace.
+    Never silent.
     """
-    # D2 FIX: Route through AskPipeline (same as /ask/conversation) to get
-    # intent classification, entity resolution, evidence-grounded narration,
-    # and honest "I don't know" when no evidence matches. The old
-    # DecisionEngine.answer_question() returned cross-customer answers
-    # because it searched all signals without entity filtering.
+    synthesis_provider = getattr(request.app.state, "synthesis_provider", None) if request else None
     try:
         from maestro_oem.ask_pipeline import AskPipeline
         from maestro_oem.preparation_engine import PreparationEngine
@@ -604,9 +589,9 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
             ) if oem_state else None,
             model=oem_state.model if oem_state else None,
             conversation_store=_get_conversation_store(),
+            synthesis_provider=synthesis_provider,
         )
-        pipeline_result = pipeline.execute(q, org_id="default")
-        # Merge: keep the old format for backward compat but use pipeline answer
+        pipeline_result = await pipeline.execute_async(q, org_id="default")
         result = {
             "answer": pipeline_result.get("answer", ""),
             "evidence": pipeline_result.get("evidence", []),
@@ -620,10 +605,17 @@ def ask(q: str = Query(..., description="Natural-language question")) -> dict[st
             "laws": [],
             "experts": [],
             "bottlenecks": [],
+            "synthesis_trace": pipeline_result.get("synthesis_trace", {}),
         }
     except Exception as e:
         logger.warning("AskPipeline in /ask failed, falling back to DecisionEngine: %s", e)
         result = oem_state.decisions.answer_question(q)
+        result["synthesis_trace"] = {
+            "reasoning_mode": "deterministic_fallback",
+            "fallback_triggered": True,
+            "fallback_reason": f"pipeline_error:{type(e).__name__}:{str(e)[:100]}",
+            "model_used": "",
+        }
 
     # P2 FIX: Also run RecallEngine for semantic + temporal + entity recall.
     # The DecisionEngine provides law + learning-object search (TF-IDF).
@@ -5446,14 +5438,13 @@ def ask_recall(payload: dict[str, Any]) -> dict[str, Any]:
 # decision history, contradictions, evidence, and learning outcomes.
 
 @router.post("/ask/conversation")
-def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
+async def ask_conversation(payload: dict[str, Any], request: Request) -> dict[str, Any]:
     """Multi-turn conversational organizational memory.
 
-    CEO: "Why is the Atlas launch late?" → Maestro explains the root cause,
-    references prior decisions, and offers follow-up questions.
-
-    This is NOT search. This is NOT RAG. This is reasoning across the
-    history of an organization.
+    AUDITOR-REASONING-PLANE: calls execute_async() and injects the
+    SynthesisProvider from app.state. Response includes synthesis_trace
+    with reasoning_mode = MODEL | DETERMINISTIC_FALLBACK | TEMPLATE_ONLY.
+    Never silent.
     """
     query = payload.get("query", "")
     history = payload.get("history", [])
@@ -5462,10 +5453,8 @@ def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
     if not query:
         raise HTTPException(400, "Query is required")
 
-    # H3 FIX: Route through the structured AskPipeline (intent → entity →
-    # retrieval → evidence → synthesis) instead of keyword routing.
-    # Step 3 production wiring: pass session_id + ConversationStore so
-    # the pipeline can resolve pronouns ("their", "we") from prior turns.
+    synthesis_provider = getattr(request.app.state, "synthesis_provider", None)
+
     from maestro_oem.ask_pipeline import AskPipeline
     from maestro_oem.preparation_engine import PreparationEngine
     pipeline = AskPipeline(
@@ -5479,8 +5468,9 @@ def ask_conversation(payload: dict[str, Any]) -> dict[str, Any]:
         ) if oem_state else None,
         model=oem_state.model if oem_state else None,
         conversation_store=_get_conversation_store(),
+        synthesis_provider=synthesis_provider,
     )
-    answer = pipeline.execute(query, org_id="default", session_id=session_id)
+    answer = await pipeline.execute_async(query, org_id="default", session_id=session_id)
 
     return answer
 

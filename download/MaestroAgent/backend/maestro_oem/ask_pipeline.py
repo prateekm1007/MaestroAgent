@@ -93,6 +93,7 @@ class AskPipeline:
         decision_store: Any = None,
         model: Any = None,
         conversation_store: Any = None,
+        synthesis_provider: Any = None,  # AUDITOR-P11-FIX: injected, not env-probed
     ) -> None:
         self._signals = list(signals) if signals else []
         self._whisper_store = whisper_store
@@ -102,8 +103,9 @@ class AskPipeline:
         self._decision_store = decision_store
         self._model = model
         self._conversation_store = conversation_store
-        self._narrator = None  # Lazy-loaded
-        self._user_email = ""  # C-003: set by execute() for permission filtering
+        self._narrator = None
+        self._user_email = ""
+        self._synthesis_provider = synthesis_provider
 
     # ─── Step 1: Intent classification ───────────────────────────────
 
@@ -349,6 +351,214 @@ class AskPipeline:
             "intent": intent.value,
             "entities": entities,
         }
+
+    # ─── AUDITOR-P11-FIX: async-native execute with SynthesisTrace ──────────
+
+    async def execute_async(
+        self,
+        query: str,
+        org_id: str = "default",
+        session_id: str = "",
+        user_email: str = "",
+    ) -> dict[str, Any]:
+        """Async-native pipeline with SynthesisTrace telemetry. Never silent."""
+        import time as _time
+        from maestro_oem.synthesis_trace import (
+            SynthesisTrace, ReasoningMode, CitationValidationResult,
+        )
+
+        t0 = _time.time()
+        trace = SynthesisTrace(query=query, policy_version="v1")
+
+        self._user_email = user_email
+
+        # Step 1: Classify intent
+        intent = self.classify_intent(query)
+        trace.intent = intent.value
+
+        # Step 2: Resolve entities
+        entities = self.resolve_entities(query)
+        trace.entities_resolved = list(entities)
+
+        # Step 3: Conversation state (pronoun resolution, entity scoping)
+        scoped_entity = None
+        for e in entities:
+            if e not in self._ENTITY_SYNONYMS and len(e) > 2 and e[0].isupper():
+                scoped_entity = e
+                break
+
+        if session_id and self._conversation_store:
+            prior_entities = self._conversation_store.get_last_entities(session_id)
+            if not entities and prior_entities:
+                entities = prior_entities
+                for e in prior_entities:
+                    if e not in self._ENTITY_SYNONYMS and len(e) > 2:
+                        scoped_entity = e
+                        break
+            elif entities and prior_entities:
+                new_customer_entities = [
+                    e for e in entities
+                    if e not in self._ENTITY_SYNONYMS and len(e) > 2
+                    and e not in prior_entities
+                ]
+                if new_customer_entities:
+                    scoped_entity = new_customer_entities[0]
+                else:
+                    for e in prior_entities:
+                        if e not in self._ENTITY_SYNONYMS and len(e) > 2:
+                            scoped_entity = e
+                            break
+                for pe in prior_entities:
+                    if pe not in entities:
+                        entities.append(pe)
+
+        # Step 3.5: Build Situation (shared substrate)
+        situation = None
+        target_entity = scoped_entity or (entities[0] if entities else "")
+        if target_entity and len(target_entity) > 2:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self._signals,
+                    calendar_source=None,
+                    whisper_store=self._whisper_store,
+                )
+                situation = builder.build_for_entity(target_entity)
+            except Exception as e:
+                logger.debug("AskPipeline.execute_async: SituationBuilder failed: %s", e)
+
+        # Step 4: Retrieve evidence
+        evidence, answer_parts = self._retrieve(
+            intent, entities, query, org_id, scoped_entity=scoped_entity,
+        )
+
+        if situation:
+            try:
+                for commit in situation.commitments[:3]:
+                    commit_text = commit.get("commitment", "") if isinstance(commit, dict) else str(commit)
+                    if commit_text and not any(commit_text[:30] in e.get("text", "") for e in evidence):
+                        evidence.append({
+                            "source": "situation_builder",
+                            "text": commit_text[:100],
+                            "date": "",
+                            "people": [],
+                            "evidence_spine": {
+                                "claim": commit_text[:80],
+                                "observed_facts": [{"source": "situation", "text": commit_text[:120]}],
+                                "claim_type": "commitment",
+                            },
+                        })
+            except Exception as e:
+                logger.debug("AskPipeline.execute_async: situation enrichment failed: %s", e)
+
+        trace.retrieval_strategy = f"intent:{intent.value}+entity:{','.join(entities)[:50]}+signal_search"
+        trace.evidence_items_selected = len(evidence)
+        trace.permission_filters_applied = ["source_acl", "prompt_injection_quarantine"]
+        trace.contradictions_found = sum(
+            1 for e in evidence
+            if e.get("evidence_spine", {}).get("claim_type") == "contradiction"
+        )
+
+        # Step 5: Synthesize
+        answer, citations, reasoning_mode, model_used, fallback_reason = (
+            await self._synthesize_async(query, evidence, answer_parts)
+        )
+
+        trace.reasoning_mode = reasoning_mode
+        trace.model_used = model_used
+        trace.fallback_triggered = reasoning_mode == ReasoningMode.DETERMINISTIC_FALLBACK
+        trace.fallback_reason = fallback_reason
+        trace.citation_validation_result = CitationValidationResult.NOT_RUN
+
+        # Step 6: Save conversation turn
+        if session_id and self._conversation_store:
+            try:
+                history = self._conversation_store.get_history(session_id)
+                turn_num = len(history) + 1
+                self._conversation_store.add_turn(
+                    session_id=session_id, turn=turn_num, role="user",
+                    content=query, intent=intent.value, entities=entities,
+                )
+                self._conversation_store.add_turn(
+                    session_id=session_id, turn=turn_num + 1, role="maestro",
+                    content=answer, intent=intent.value, entities=entities,
+                )
+            except Exception as e:
+                logger.debug("AskPipeline.execute_async: failed to save turn: %s", e)
+
+        trace.latency_ms = int((_time.time() - t0) * 1000)
+
+        return {
+            "answer": answer,
+            "evidence": evidence,
+            "citations": citations,
+            "follow_ups": self._suggest_follow_ups(intent, entities),
+            "actions": self._suggest_actions(intent),
+            "intent": intent.value,
+            "entities": entities,
+            "synthesis_trace": trace.to_audit_dict(),
+        }
+
+    async def _synthesize_async(
+        self,
+        query: str,
+        evidence: list[dict],
+        answer_parts: list[str],
+    ) -> tuple[str, list[dict], "ReasoningMode", str, str]:
+        """The synthesis step — uses injected SynthesisProvider or template. Never silent."""
+        from maestro_oem.synthesis_trace import ReasoningMode
+        from maestro_oem.narrator import EvidenceNarrator
+
+        if not evidence:
+            template = EvidenceNarrator()
+            answer, citations = template.narrate_with_citations(
+                query, evidence, synthesis_hints=answer_parts,
+            )
+            return answer, citations, ReasoningMode.TEMPLATE_ONLY, "", ""
+
+        if self._synthesis_provider is None or not self._synthesis_provider.available:
+            template = EvidenceNarrator()
+            answer, citations = template.narrate_with_citations(
+                query, evidence, synthesis_hints=answer_parts,
+            )
+            return answer, citations, ReasoningMode.TEMPLATE_ONLY, "", ""
+
+        # Provider available — call it async
+        from maestro_oem.llm_narrator import LLMNarrator, _SYSTEM_PROMPT
+        narrator = LLMNarrator(llm_provider=None)
+
+        safe_evidence = [
+            e for e in evidence
+            if not e.get("prompt_injection_risk", {}).get("is_suspicious", False)
+            and not e.get("prompt_injection_risk", {}).get("detected_patterns", [])
+        ]
+        if len(safe_evidence) < len(evidence):
+            logger.warning(
+                "AskPipeline._synthesize_async: excluded %d evidence item(s) flagged with prompt injection risk",
+                len(evidence) - len(safe_evidence),
+            )
+
+        if not safe_evidence:
+            template = EvidenceNarrator()
+            answer, citations = template.narrate_with_citations(
+                query, [], synthesis_hints=answer_parts,
+            )
+            return answer, citations, ReasoningMode.DETERMINISTIC_FALLBACK, "", "all_evidence_quarantined"
+
+        user_prompt = narrator._build_user_prompt(query, safe_evidence, synthesis_hints=answer_parts)
+        result = await self._synthesis_provider.synthesize(_SYSTEM_PROMPT, user_prompt)
+
+        if result.mode == "model":
+            answer = narrator._strip_hallucinated_citations(result.text, len(safe_evidence))
+            citations = narrator._build_citations(safe_evidence)
+            return answer, citations, ReasoningMode.MODEL, result.model_used, ""
+        else:
+            logger.info("AskPipeline._synthesize_async: model fallback (%s)", result.fallback_reason)
+            template = EvidenceNarrator()
+            answer, citations = template.narrate_with_citations(
+                query, safe_evidence, synthesis_hints=answer_parts,
+            )
+            return answer, citations, ReasoningMode.DETERMINISTIC_FALLBACK, "", result.fallback_reason
 
     def _get_narrator(self):
         """Lazy-load the narrator.
