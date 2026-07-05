@@ -167,8 +167,30 @@ class OEMState:
             # This is the FIRST thing initialize() tries — before demo seed.
             # If saved state exists and the version matches, restore it.
             # If not, fall through to demo seed or empty start.
+            #
+            # Auditor hygiene fix: when MAESTRO_DEMO_SEED=true, purge any
+            # stale OEM store DB before loading. Without this, a stale DB
+            # from a prior run can prevent demo seed from loading — Whisper
+            # returns 0, cognitive engines return empty. The stale DB has
+            # state from a different signal set, causing the model to
+            # initialize from wrong data. In production (MAESTRO_DEMO_SEED=false),
+            # the stale DB IS the real state and should persist.
             try:
                 self._init_oem_store()
+                if _demo_seed_enabled():
+                    # Purge stale DB when demo seed is enabled — the demo
+                    # seed should always start from a clean slate.
+                    try:
+                        store_db = os.environ.get("MAESTRO_OEM_STORE_DB", "oem_store.db")
+                        if os.path.exists(store_db) and store_db != ":memory:":
+                            os.remove(store_db)
+                            logger.info("Demo seed: purged stale OEM store DB (%s) for clean demo load", store_db)
+                            # Re-init the store (the old connection is now invalid)
+                            self._oem_store = None
+                            self._init_oem_store()
+                    except Exception as purge_e:
+                        logger.warning("Demo seed: failed to purge stale OEM store DB: %s", purge_e)
+
                 restored = self._load_model_state()
                 if restored:
                     logger.info("OEM restored from persisted state (laws=%d, LOs=%d, patterns=%d)",
