@@ -94,15 +94,19 @@ class WhisperHistoryStore:
         self._connect()
 
     def _connect(self) -> None:
-        """Open the SQLite connection and initialize the schema."""
-        from maestro_db import sqlite_compat as sqlite3_compat
-        try:
-            self._conn = sqlite3_compat.connect(self._db_path, isolation_level=None)
-            self._conn.row_factory = sqlite3_compat.Row
-        except Exception:
-            # Fall back to raw sqlite3 if sqlite_compat is unavailable
-            self._conn = sqlite3.connect(self._db_path, isolation_level=None, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
+        """Open the SQLite connection and initialize the schema.
+
+        AUDITOR-FIX: Use raw sqlite3 with check_same_thread=False to avoid
+        SQLite threading errors when accessed from TestClient's thread.
+        The sqlite_compat layer doesn't pass check_same_thread through.
+        """
+        import sqlite3 as _stdlib_sqlite3
+        # Normalize the path (handle sqlite:/// URLs)
+        db_path = self._db_path
+        if db_path.startswith("sqlite:///"):
+            db_path = db_path.replace("sqlite:///", "", 1)
+        self._conn = _stdlib_sqlite3.connect(db_path, isolation_level=None, check_same_thread=False)
+        self._conn.row_factory = _stdlib_sqlite3.Row
 
         # Execute schema (idempotent)
         try:
