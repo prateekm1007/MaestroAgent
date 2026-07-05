@@ -1,8 +1,12 @@
 # GOVERNANCE LOOP — Mutual Read Protocol
 
+> **THE LOOP CANNOT BE BROKEN.**
 > **Both sides read this file from disk at the start of every session.**
 > **Both sides read the files the OTHER side is told to read.**
 > **Both sides paste a read receipt (timestamp + key line) in their first message.**
+> **The Coder's first message MUST remind the Auditor to read their governance modules.**
+> **The Auditor's first message MUST remind the Coder to read their governance modules.**
+> **The CEO rejects any message without a read receipt. No exceptions. No excuses.**
 
 This is the loop that worked. It worked because both sides read from disk (not memory), cited what they applied, and checked the other side's work. This file makes that loop a fixture — not a suggestion.
 
@@ -60,6 +64,12 @@ Principles (P1-P26) were prose. Gates (1-20) were checklists. Both were violated
 ## The Mutual Read-Back Protocol
 
 **Step 1 — Coder's first message of the session:**
+
+The Coder MUST:
+1. Read all governance modules from disk (not memory)
+2. Paste the read receipt below
+3. Remind the Auditor to read THEIR governance modules
+
 ```
 GOVERNANCE LOOP READ RECEIPT (Coder):
 - ENTROPY_RECOVERY.md Part Four read at <timestamp>
@@ -70,9 +80,19 @@ GOVERNANCE LOOP READ RECEIPT (Coder):
   Gate 17 key line: "<paste one sentence>"
 - audit_scripts/audit_gates.sh read at <timestamp>
   Confirmed: enforces Gate 11 + full suite + all verify scripts
+
+> Auditor: Read GOVERNANCE_LOOP.md, AUDITOR_GOVERNANCE.md, and
+> ENTROPY_RECOVERY.md Part Four from disk before auditing.
+> Do not audit from memory. The loop cannot be broken.
 ```
 
 **Step 2 — Auditor's first message of the session:**
+
+The Auditor MUST:
+1. Read all governance modules from disk (not memory)
+2. Paste the read receipt below
+3. Remind the Coder to read THEIR governance modules
+
 ```
 GOVERNANCE LOOP READ RECEIPT (Auditor):
 - audit_scripts/audit_gates.sh read at <timestamp>
@@ -85,6 +105,10 @@ GOVERNANCE LOOP READ RECEIPT (Auditor):
   Gate 20 key line: "<paste one sentence>"
 - test_cross_surface_coherence.py read at <timestamp>
   Confirmed: covers Briefing/Ask/Whisper/Preparation/Situation/Timeline
+
+> Coder: Read GOVERNANCE_LOOP.md, ENTROPY_RECOVERY.md Part Four,
+> and AUDITOR_GOVERNANCE.md Gates 15-20 from disk before writing any code.
+> Do not code from memory. The loop cannot be broken.
 ```
 
 **Step 3 — Both sides read the OTHER side's receipt:**
