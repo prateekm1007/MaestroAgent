@@ -550,22 +550,29 @@ class AskPipeline:
         evidence: list[dict],
         answer_parts: list[str],
     ) -> tuple[str, list[dict], "ReasoningMode", str, str]:
-        """The synthesis step — uses injected SynthesisProvider or template. Never silent."""
+        """The synthesis step — uses injected SynthesisProvider or rule-based fallback.
+
+        AUDITOR-FIX: The fallback path now uses the RuleBasedSynthesizer —
+        not the EvidenceNarrator data dump. The rule-based synthesizer
+        produces SYNTHESIS (identifies commitments, checks outcomes, flags
+        disagreements, recommends action) even without an LLM. Deterministic.
+        No entropy. No API dependency.
+        """
         from maestro_oem.synthesis_trace import ReasoningMode
-        from maestro_oem.narrator import EvidenceNarrator
+        from maestro_oem.rule_based_synthesizer import RuleBasedSynthesizer
+
+        synthesizer = RuleBasedSynthesizer()
 
         if not evidence:
-            template = EvidenceNarrator()
-            answer, citations = template.narrate_with_citations(
-                query, evidence, synthesis_hints=answer_parts,
-            )
+            answer = synthesizer.synthesize(query, [], answer_parts)
+            citations = []
             return answer, citations, ReasoningMode.TEMPLATE_ONLY, "", ""
 
         if self._synthesis_provider is None or not self._synthesis_provider.available:
-            template = EvidenceNarrator()
-            answer, citations = template.narrate_with_citations(
-                query, evidence, synthesis_hints=answer_parts,
-            )
+            # No LLM available — use rule-based synthesizer (NOT the data dump)
+            answer = synthesizer.synthesize(query, evidence, answer_parts)
+            citations = [{"number": i+1, "source": e.get("source", ""), "text": e.get("text", "")[:100], "date": e.get("date", "")}
+                         for i, e in enumerate(evidence)]
             return answer, citations, ReasoningMode.TEMPLATE_ONLY, "", ""
 
         # Provider available — call it async
@@ -584,10 +591,8 @@ class AskPipeline:
             )
 
         if not safe_evidence:
-            template = EvidenceNarrator()
-            answer, citations = template.narrate_with_citations(
-                query, [], synthesis_hints=answer_parts,
-            )
+            answer = synthesizer.synthesize(query, [], answer_parts)
+            citations = []
             return answer, citations, ReasoningMode.DETERMINISTIC_FALLBACK, "", "all_evidence_quarantined"
 
         user_prompt = narrator._build_user_prompt(query, safe_evidence, synthesis_hints=answer_parts)
@@ -599,10 +604,10 @@ class AskPipeline:
             return answer, citations, ReasoningMode.MODEL, result.model_used, ""
         else:
             logger.info("AskPipeline._synthesize_async: model fallback (%s)", result.fallback_reason)
-            template = EvidenceNarrator()
-            answer, citations = template.narrate_with_citations(
-                query, safe_evidence, synthesis_hints=answer_parts,
-            )
+            # Use rule-based synthesizer for the fallback (NOT the data dump)
+            answer = synthesizer.synthesize(query, safe_evidence, answer_parts)
+            citations = [{"number": i+1, "source": e.get("source", ""), "text": e.get("text", "")[:100], "date": e.get("date", "")}
+                         for i, e in enumerate(safe_evidence)]
             return answer, citations, ReasoningMode.DETERMINISTIC_FALLBACK, "", result.fallback_reason
 
     def _get_narrator(self):

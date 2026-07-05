@@ -64,6 +64,18 @@ WHAT YOU MAY NOT DO:
 3. NEVER include a fact without an inline citation [N] linking to the evidence item that supports it.
 4. NEVER hallucinate citations — [N] must refer to a real evidence item (1-indexed).
 
+EPISTEMIC TYPE RULES — CRITICAL:
+Each evidence item has an epistemic type. You MUST respect it:
+- "commitment" = a firm promise. Use "promised", "committed to", or "pledged".
+- "proposal" = a cautious suggestion, NOT a firm promise. Use "suggested", "indicated", or "proposed" — NEVER "promised" or "committed." If you describe a "proposal" as a "commitment," you are WRONG.
+- "negation" = a conditional or pending state. Use "conditional", "pending", or "not yet confirmed" — NEVER "complete" or "done."
+- "outcome" = an observed result. Use "completed", "achieved", or "reported as done."
+- "reported_statement" = someone's interpretation or understanding. Use "understood", "believed", or "interpreted as" — NEVER state it as fact.
+
+If you describe a "proposal" as a "commitment," you are committing an epistemic violation.
+If you describe a "negation" as an "outcome," you are committing an epistemic violation.
+These violations are serious — they mislead the executive about what was actually promised.
+
 CITATION RULES:
 - Citation numbers [1], [2], etc. correspond to the evidence items provided (1-indexed).
 - Every factual claim MUST have at least one inline citation.

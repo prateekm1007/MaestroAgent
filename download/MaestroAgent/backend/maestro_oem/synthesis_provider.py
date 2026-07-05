@@ -89,7 +89,17 @@ class SynthesisResult:
 
 
 class SynthesisProvider:
-    """Initialized ONCE during lifespan startup. Injected into AskPipeline."""
+    """Initialized ONCE during lifespan startup. Injected into AskPipeline.
+
+    AUDITOR-FIX: The CircuitBreaker now wraps ALL providers — not just
+    the from_env() path. A custom provider injected via wrap_provider()
+    also gets circuit breaking, timeout, and concurrency limits.
+
+    Before this fix, a custom provider (like the ZAIProvider in the
+    1000-iteration test) bypassed the CircuitBreaker entirely, making
+    988 unnecessary failed API calls. No code path should make 988
+    failed API calls.
+    """
 
     def __init__(
         self,
@@ -98,12 +108,18 @@ class SynthesisProvider:
         timeout_seconds: float = 30.0,
         max_concurrent: int = 5,
         circuit: CircuitBreaker | None = None,
+        custom_provider: Any = None,
     ) -> None:
         self._router = router
+        self._custom_provider = custom_provider
         self._timeout = timeout_seconds
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._circuit = circuit or CircuitBreaker()
-        self._available = router is not None and bool(getattr(router, "providers", {}))
+        # Available if we have a router OR a custom provider
+        if custom_provider is not None:
+            self._available = bool(getattr(custom_provider, "available", True))
+        else:
+            self._available = router is not None and bool(getattr(router, "providers", {}))
 
     @classmethod
     def from_env(cls, *, timeout_seconds: float = 30.0, max_concurrent: int = 5) -> "SynthesisProvider":
@@ -114,6 +130,39 @@ class SynthesisProvider:
         except Exception as e:
             logger.warning("SynthesisProvider.from_env failed: %s", e)
             return cls(router=None, timeout_seconds=timeout_seconds, max_concurrent=max_concurrent)
+
+    @classmethod
+    def wrap_provider(
+        cls,
+        provider: Any,
+        *,
+        timeout_seconds: float = 10.0,
+        max_concurrent: int = 3,
+        circuit: CircuitBreaker | None = None,
+    ) -> "SynthesisProvider":
+        """Wrap ANY async provider in a SynthesisProvider with CircuitBreaker.
+
+        AUDITOR-FIX: Before this method, custom providers (like ZAIProvider)
+        could be injected directly into AskPipeline, bypassing the
+        CircuitBreaker. This made 988 unnecessary failed API calls in the
+        1000-iteration test. Now, any custom provider MUST be wrapped:
+
+            provider = SynthesisProvider.wrap_provider(my_custom_provider)
+            pipe = AskPipeline(synthesis_provider=provider)
+
+        The wrapped provider gets:
+        - CircuitBreaker (3 failures → OPEN → probe after 60s)
+        - Timeout (10s default — shorter for custom providers)
+        - Concurrency limit (3 default — lower for custom providers)
+        - Telemetry (synthesis_mode recorded in every answer)
+        """
+        return cls(
+            router=None,
+            custom_provider=provider,
+            timeout_seconds=timeout_seconds,
+            max_concurrent=max_concurrent,
+            circuit=circuit,
+        )
 
     @property
     def available(self) -> bool:
@@ -135,7 +184,11 @@ class SynthesisProvider:
             return ""
 
     async def synthesize(self, system: str, user: str) -> SynthesisResult:
-        """Call the LLM with circuit breaking, timeout, concurrency. NEVER raises."""
+        """Call the LLM with circuit breaking, timeout, concurrency. NEVER raises.
+
+        AUDITOR-FIX: Now handles BOTH router-based and custom provider paths.
+        Both go through the CircuitBreaker — no code path bypasses it.
+        """
         if not self._available:
             return SynthesisResult(mode="deterministic_fallback", fallback_reason="no_provider")
 
@@ -145,16 +198,24 @@ class SynthesisProvider:
         async with self._semaphore:
             t0 = time.time()
             try:
-                response = await asyncio.wait_for(
-                    self._router.complete(system=system, user=user, temperature=0.2),
-                    timeout=self._timeout,
-                )
+                if self._custom_provider is not None:
+                    # Custom provider path (e.g., ZAIProvider)
+                    response = await asyncio.wait_for(
+                        self._custom_provider.synthesize(system, user),
+                        timeout=self._timeout,
+                    )
+                else:
+                    # Router-based path (LLMRouter)
+                    response = await asyncio.wait_for(
+                        self._router.complete(system=system, user=user, temperature=0.2),
+                        timeout=self._timeout,
+                    )
                 latency_ms = int((time.time() - t0) * 1000)
                 self._circuit.record_success()
                 return SynthesisResult(
                     text=response.text,
-                    model_used=getattr(response, "model", "") or self.default_model,
-                    provider_name=getattr(response, "provider", "") or self._router.default_provider,
+                    model_used=getattr(response, "model_used", "") or getattr(response, "model", "") or self.default_model,
+                    provider_name=getattr(response, "provider_name", "") or getattr(response, "provider", "") or "custom",
                     mode="model",
                     latency_ms=latency_ms,
                     prompt_tokens=getattr(response, "prompt_tokens", 0) or 0,
