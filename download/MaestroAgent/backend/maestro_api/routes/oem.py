@@ -567,12 +567,22 @@ def list_verified_laws() -> dict[str, Any]:
 # ─── 6. GET /api/oem/ask ───────────────────────────────────────────────────
 
 @router.get("/ask")
-async def ask(q: str = Query(..., description="Natural-language question"), request: Request = None) -> dict[str, Any]:
+async def ask(
+    q: str = Query(..., description="Natural-language question"),
+    request: Request = None,
+    user_email: str = Query("", description="C2 fix: filter evidence by source_acl"),
+) -> dict[str, Any]:
     """Ask the organization — NL question answered from OEM evidence.
 
     AUDITOR-REASONING-PLANE: calls execute_async() and injects the
     SynthesisProvider from app.state. Response includes synthesis_trace.
     Never silent.
+
+    C2 fix: user_email parameter applies the source_acl filter to both
+    AskPipeline._search_signals (C-003, already present) and RecallEngine
+    (new in this fix). Private signals are only visible to the actor or
+    listed viewers. If user_email is empty, private signals are hidden
+    (fail-closed).
     """
     synthesis_provider = getattr(request.app.state, "synthesis_provider", None) if request else None
     candidate_pattern_store = getattr(request.app.state, "candidate_pattern_store", None) if request else None
@@ -593,7 +603,7 @@ async def ask(q: str = Query(..., description="Natural-language question"), requ
             synthesis_provider=synthesis_provider,
             candidate_pattern_store=candidate_pattern_store,
         )
-        pipeline_result = await pipeline.execute_async(q, org_id="default")
+        pipeline_result = await pipeline.execute_async(q, org_id="default", user_email=user_email)
         result = {
             "answer": pipeline_result.get("answer", ""),
             "evidence": pipeline_result.get("evidence", []),
@@ -631,7 +641,7 @@ async def ask(q: str = Query(..., description="Natural-language question"), requ
             signals=oem_state.visible_signals if oem_state else [],
             oem_state=oem_state,
         )
-        recall_result = recall.recall(q, org_id="default")
+        recall_result = recall.recall(q, org_id="default", user_email=user_email)
         if recall_result.get("found"):
             result["recall_results"] = recall_result.get("whispers", [])[:3]
             result["recall_message"] = recall_result.get("message", "")
@@ -5296,15 +5306,20 @@ def get_imagination(
 @router.get("/recall")
 def get_recall(
     situation: str = Query("", description="Current situation to find analogues for"),
+    user_email: str = Query("", description="C2 fix: filter results by source_acl"),
 ) -> dict[str, Any]:
     """When have we been here before?
 
     V5 Spec #8 — institutional memory recall. Retrieves top 3 similar
     past moments from organizational history. Not documents — memories.
+
+    C2 fix: user_email parameter applies the source_acl filter — private
+    signals are only visible to the actor or listed viewers. If user_email
+    is empty, private signals are hidden (fail-closed).
     """
     from maestro_oem.recall import RecallEngine
     engine = RecallEngine(oem_state.model, oem_state.signals)
-    return engine.recall(situation=situation)
+    return engine.recall(situation=situation, user_email=user_email)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -34,11 +34,41 @@ class RecallEngine:
         self.model = model
         self.signals = signals
 
-    def recall(self, situation: str = "") -> dict[str, Any]:
+    # ─── Permission-aware signal filtering (C2 fix) ─────────────────────
+
+    @staticmethod
+    def _user_can_see_signal(sig: Any, user_email: str) -> bool:
+        """C2 fix: permission-aware signal filtering.
+
+        Mirrors the C-003 ACL filter in AskPipeline._search_signals and
+        recall_engine.RecallEngine._user_can_see_signal. A signal is visible
+        if source_acl == "public" (default) OR if "private" and the user
+        is the actor or in viewers. Fail-closed for unknown ACL values
+        and for missing user_email on private signals.
+        """
+        acl = getattr(sig, "source_acl", "public")
+        if acl == "public":
+            return True
+        if acl == "private":
+            if not user_email:
+                return False
+            viewers = sig.metadata.get("viewers", []) if hasattr(sig, "metadata") and sig.metadata else []
+            if sig.actor == user_email or user_email in viewers:
+                return True
+            return False
+        return False
+
+    def _visible_signals(self, user_email: str = "") -> list:
+        """Return only signals the user can see (C2 fix)."""
+        return [s for s in self.signals if self._user_can_see_signal(s, user_email)]
+
+    def recall(self, situation: str = "", user_email: str = "") -> dict[str, Any]:
         """Retrieve similar past moments.
 
         Args:
             situation: The current situation to find analogues for.
+            user_email: C2 fix — only return moments from signals the user
+                can see (source_acl filter).
         """
         moments = []
 
@@ -51,8 +81,8 @@ class RecallEngine:
         # 3. Recall from contradictions (past tensions and their resolution)
         moments.extend(self._recall_from_contradictions(situation))
 
-        # 4. Recall from signal history (similar events)
-        moments.extend(self._recall_from_signals(situation))
+        # 4. Recall from signal history (similar events) — C2 fix: pass user_email
+        moments.extend(self._recall_from_signals(situation, user_email=user_email))
 
         if not moments:
             return {
@@ -152,8 +182,11 @@ class RecallEngine:
             logger.debug("Contradiction recall failed: %s", e)
         return moments[:1]
 
-    def _recall_from_signals(self, situation: str) -> list[dict[str, Any]]:
-        """Recall from signal history (similar past events)."""
+    def _recall_from_signals(self, situation: str, user_email: str = "") -> list[dict[str, Any]]:
+        """Recall from signal history (similar past events).
+
+        C2 fix: filters by source_acl — only includes signals the user can see.
+        """
         moments = []
         try:
             # Find signals with similar text to the situation
@@ -164,7 +197,8 @@ class RecallEngine:
                 return moments
 
             matching = []
-            for s in self.signals:
+            # C2 fix: only iterate signals the user can see.
+            for s in self._visible_signals(user_email):
                 text = s.metadata.get("text", "").lower()
                 if not text:
                     continue

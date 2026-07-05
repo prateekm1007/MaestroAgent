@@ -432,9 +432,44 @@ class RecallEngine:
         self.oem_state = oem_state
         self._now = now or datetime.now(timezone.utc)
 
+    # ─── Permission-aware signal filtering (C2 fix) ─────────────────────
+
+    @staticmethod
+    def _user_can_see_signal(sig: Any, user_email: str) -> bool:
+        """C2 fix: permission-aware signal filtering.
+
+        Mirrors the C-003 ACL filter in AskPipeline._search_signals.
+        A signal is visible to a user if:
+          - source_acl == "public" (default, backward-compatible), OR
+          - source_acl == "private" AND the user is the actor or in viewers
+
+        If user_email is empty (no user context), private signals are
+        hidden (fail-closed) — matches AskPipeline behavior at line 1087.
+
+        This closes the C2 gap: previously, RecallEngine iterated
+        self.signals without any ACL check, so a user could recall
+        evidence from a private Slack channel they don't have access to.
+        """
+        acl = getattr(sig, "source_acl", "public")
+        if acl == "public":
+            return True
+        if acl == "private":
+            if not user_email:
+                return False  # fail-closed — no user context
+            viewers = sig.metadata.get("viewers", []) if hasattr(sig, "metadata") and sig.metadata else []
+            if sig.actor == user_email or user_email in viewers:
+                return True
+            return False
+        # Unknown ACL value — fail-closed
+        return False
+
+    def _visible_signals(self, user_email: str = "") -> list:
+        """Return only signals the user can see (C2 fix)."""
+        return [s for s in self.signals if self._user_can_see_signal(s, user_email)]
+
     # ─── Public API ─────────────────────────────────────────────────────
 
-    def recall(self, query: str, org_id: str = "default") -> dict[str, Any]:
+    def recall(self, query: str, org_id: str = "default", user_email: str = "") -> dict[str, Any]:
         """Find whispers + signals + decisions matching a vague recollection.
 
         Pipeline:
@@ -470,7 +505,9 @@ class RecallEngine:
         # (ENTITY_SYNONYMS, _entity_match_score, graph expansion) operates
         # case-insensitively. Storing mixed-case names would break matches.
         query_lower = query.lower()
-        for sig in self.signals:
+        # C2 fix: only derive customer names from signals the user can see.
+        visible_signals = self._visible_signals(user_email)
+        for sig in visible_signals:
             try:
                 customer = sig.metadata.get("customer", "") if hasattr(sig, "metadata") else ""
                 if customer and customer.lower() in query_lower:
@@ -563,12 +600,14 @@ class RecallEngine:
                 history=history,
                 entity=history.get("entity", ""),
                 whisper_type=history.get("type", ""),
+                user_email=user_email,
             )
 
             # ── Step 7: Compute what_changed_since ─────────────────────
             what_changed = self._compute_what_changed(
                 whisper_last_shown=history.get("last_shown"),
                 entity=history.get("entity", ""),
+                user_email=user_email,
             )
 
             scored_whispers.append(RecallItem(
@@ -585,7 +624,7 @@ class RecallEngine:
         scored_whispers.sort(key=lambda x: x.relevance_score, reverse=True)
 
         # ── Step 5: Cross-entity expansion (signals + decisions) ───────
-        cross_items = self._cross_entity_recall(parsed, max_items=self.MAX_CROSS_ENTITY_ITEMS)
+        cross_items = self._cross_entity_recall(parsed, max_items=self.MAX_CROSS_ENTITY_ITEMS, user_email=user_email)
 
         # Combine all items
         all_items = scored_whispers[: self.MAX_WHISPERS] + cross_items
@@ -688,6 +727,7 @@ class RecallEngine:
         self,
         parsed: ParsedQuery,
         max_items: int = 5,
+        user_email: str = "",
     ) -> list[RecallItem]:
         """Find signals + decisions involving the resolved entities.
 
@@ -701,7 +741,9 @@ class RecallEngine:
             return []
 
         items: list[RecallItem] = []
-        for sig in self.signals:
+        # C2 fix: only include signals the user can see.
+        visible_signals = self._visible_signals(user_email)
+        for sig in visible_signals:
             try:
                 sig_metadata = sig.metadata if hasattr(sig, "metadata") else {}
                 sig_actor = sig.actor or ""
@@ -764,6 +806,7 @@ class RecallEngine:
         history: dict,
         entity: str,
         whisper_type: str,
+        user_email: str = "",
     ) -> Any:
         """Build a rich Evidence object for a recalled whisper.
 
@@ -774,7 +817,8 @@ class RecallEngine:
         from maestro_oem.evidence import Evidence
 
         # Use signal data to enrich the evidence
-        signals_for_entity = self._signals_for_entity(entity)
+        # C2 fix: only include signals the user can see.
+        signals_for_entity = self._signals_for_entity(entity, user_email=user_email)
         last_shown = history.get("last_shown", "")
         first_shown = history.get("first_shown", "")
 
@@ -914,6 +958,7 @@ class RecallEngine:
         self,
         whisper_last_shown: str | None,
         entity: str,
+        user_email: str = "",
     ) -> str:
         """Compute what changed since the whisper was last shown.
 
@@ -931,8 +976,9 @@ class RecallEngine:
             return ""
 
         # Find signals AFTER the whisper, involving the same entity
+        # C2 fix: only include signals the user can see.
         new_signals: list[Any] = []
-        for sig in self.signals:
+        for sig in self._visible_signals(user_email):
             try:
                 sig_ts = sig.timestamp if hasattr(sig, "timestamp") else None
                 if sig_ts is None:
@@ -996,13 +1042,16 @@ class RecallEngine:
 
     # ─── Helpers ────────────────────────────────────────────────────────
 
-    def _signals_for_entity(self, entity: str) -> list[Any]:
-        """Find all signals involving the given entity."""
+    def _signals_for_entity(self, entity: str, user_email: str = "") -> list[Any]:
+        """Find all signals involving the given entity.
+
+        C2 fix: filters by source_acl — only returns signals the user can see.
+        """
         if not entity or not self.signals:
             return []
         entity_lower = entity.lower()
         matched: list[Any] = []
-        for sig in self.signals:
+        for sig in self._visible_signals(user_email):
             try:
                 sig_meta = sig.metadata if hasattr(sig, "metadata") else {}
                 sig_customer = (sig_meta.get("customer") or "").lower()

@@ -293,7 +293,8 @@ class AskPipeline:
                 logger.debug("AskPipeline: SituationBuilder failed for %s: %s", target_entity, e)
 
         # Step 4: Retrieve based on intent (Phase 2.4: scoped to entity if available)
-        evidence, answer_parts = self._retrieve(intent, entities, query, org_id, scoped_entity=scoped_entity)
+        # C2 fix: pass user_email so _retrieve_recall → RecallEngine applies source_acl filter.
+        evidence, answer_parts = self._retrieve(intent, entities, query, org_id, scoped_entity=scoped_entity, user_email=user_email)
 
         # C2 fix: If Situation was built, enrich evidence with situation data
         # (commitments, disagreements) that may not have been caught by the
@@ -430,8 +431,10 @@ class AskPipeline:
                 logger.debug("AskPipeline.execute_async: SituationBuilder failed: %s", e)
 
         # Step 4: Retrieve evidence
+        # C2 fix: pass user_email so _retrieve_recall → RecallEngine applies source_acl filter.
         evidence, answer_parts = self._retrieve(
             intent, entities, query, org_id, scoped_entity=scoped_entity,
+            user_email=user_email,
         )
 
         if situation:
@@ -690,6 +693,7 @@ class AskPipeline:
         query: str,
         org_id: str,
         scoped_entity: str | None = None,
+        user_email: str = "",
     ) -> tuple[list[dict], list[str]]:
         """Retrieve evidence based on intent + entities.
 
@@ -698,13 +702,16 @@ class AskPipeline:
         answers (the D2 bug) when a follow-up question doesn't mention the
         entity by name.
 
+        C2 fix: user_email is threaded through to _retrieve_recall so
+        RecallEngine applies the source_acl filter.
+
         Returns (evidence_list, answer_parts).
         """
         evidence: list[dict] = []
         answer_parts: list[str] = []
 
         if intent == AskIntent.RECALL:
-            evidence, answer_parts = self._retrieve_recall(query, org_id)
+            evidence, answer_parts = self._retrieve_recall(query, org_id, user_email=user_email)
 
         elif intent == AskIntent.PREPARE:
             evidence, answer_parts = self._retrieve_prepare(entities, org_id)
@@ -750,8 +757,15 @@ class AskPipeline:
 
         return evidence, answer_parts
 
-    def _retrieve_recall(self, query: str, org_id: str) -> tuple[list[dict], list[str]]:
-        """Retrieve from whisper history via RecallEngine."""
+    def _retrieve_recall(self, query: str, org_id: str, user_email: str = "") -> tuple[list[dict], list[str]]:
+        """Retrieve from whisper history via RecallEngine.
+
+        C2 fix: passes user_email to RecallEngine.recall so the source_acl
+        filter is applied. Before this fix, AskPipeline._search_signals
+        filtered by ACL but _retrieve_recall (which calls RecallEngine)
+        did not — a user could see private evidence via recall that they
+        couldn't see via the signal search path.
+        """
         if not self._whisper_store or not hasattr(self._whisper_store, 'get_all_history'):
             return [], ["I don't have enough whisper history to recall this."]
 
@@ -762,7 +776,8 @@ class AskPipeline:
                 signals=self._signals,
                 oem_state=self._oem_state,
             )
-            result = recall.recall(query, org_id=org_id)
+            # C2 fix: pass user_email so RecallEngine applies the source_acl filter.
+            result = recall.recall(query, org_id=org_id, user_email=user_email)
 
             evidence = []
             for w in result.get("whispers", []):

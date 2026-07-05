@@ -50,13 +50,16 @@ def test_recall_engine_referenced_in_ask_endpoint():
         "oem.py must reference RecallEngine somewhere"
 
     # More specific: check that the /ask endpoint (not /ask/conversation)
-    # uses RecallEngine. The ask function starts at `def ask(q:`
-    # and ends before the next @router decorator.
+    # uses RecallEngine. The ask function starts at `def ask(` (which may
+    # span multiple lines for multi-parameter signatures — C2 fix added
+    # user_email as a third parameter) and ends before the next @router
+    # decorator.
     lines = source.split('\n')
     in_ask = False
     ask_uses_recall = False
     for line in lines:
-        if 'def ask(q:' in line or 'def ask(q ' in line:
+        # Match both single-line `def ask(q: ...)` and multi-line `def ask(`
+        if 'def ask(' in line and 'ask' in line.split('(')[0]:
             in_ask = True
         elif in_ask and line.startswith('@router.'):
             break
