@@ -78,7 +78,7 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
         0.95,
     ),
     (
-        re.compile(r"^\s*(?:what|when|where|who|why|how|which|is|are|can|could|would|should|will|do|does|did|have|has)\b", re.IGNORECASE),
+        re.compile(r"^\s*(?:what|when|where|who|why|how|which|is|are|can|could|would|will|do|does|did|have|has)\b|^\s*should\s+(?:we|i|you|they)\b", re.IGNORECASE),
         "question",
         0.90,
     ),
@@ -100,12 +100,14 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     # ─── Phase 3.1b: Negation — "nobody has ever said", "we haven't shipped" ─
     # A negated statement is NOT the same as an affirmative. "We haven't shipped"
     # is an observed_fact about a negative state, not a commitment to ship.
+    # AUDITOR-FIX: added "is still conditional", "is conditional", "still pending"
     (
         re.compile(
             r"\b(?:nobody\s+(?:has|have)\s+ever|no\s+one\s+has\s+ever|"
             r"we\s+haven't|we\s+have\s+not|we\s+don't|we\s+do\s+not|"
             r"has\s+not\s+been|have\s+not\s+been|is\s+not\s+(?:ready|available|complete)|"
-            r"remains?\s+conditional|is\s+still\s+pending|"
+            r"remains?\s+conditional|is\s+still\s+(?:pending|conditional)|is\s+conditional|"
+            r"still\s+(?:pending|conditional|under\s+review)|"
             r"hasn't|haven't|didn't|doesn't|isn't|wasn't|won't)\b",
             re.IGNORECASE,
         ),
@@ -131,11 +133,13 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     # "We ought to prioritize security"
     # "I suggest we..."
     # "Let's consider..."
+    # AUDITOR-FIX: also catch "should be able to" (cautious proposal, not commitment)
     (
         re.compile(
             r"\b(?:we\s+should|we\s+could|we\s+ought\s+to|we\s+need\s+to\s+consider|"
             r"i\s+suggest|let'?s\s+consider|let'?s\s+think\s+about|"
-            r"we\s+might\s+want\s+to|it\s+might\s+be\s+worth)\b",
+            r"we\s+might\s+want\s+to|it\s+might\s+be\s+worth|"
+            r"should\s+be\s+able\s+to|ought\s+to\s+be\s+able\s+to)\b",
             re.IGNORECASE,
         ),
         PROPOSAL,
@@ -169,13 +173,16 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     #   "[team] says we promised..." (Sales says, Product says, etc.)
     #   "The customer expects/considers/believes..."
     #   "considers the commitment unmet"
+    # AUDITOR-FIX: also catch "we understood the commitment as" (customer reinterpretation)
     (
         re.compile(
             r"\b(?:\w+\s+(?:believes|said|reports?|mentioned|stated|claims?|says?))\b|"
             r"\b(?:the\s+team\s+reports?)\b|"
             r"\b(?:the\s+customer\s+(?:expects?|considers?|believes?|stated?|says?))\b|"
             r"\b(?:customer\s+(?:expects?|considers?|believes?))\b|"
-            r"\b(?:considers?\s+the\s+(?:commitment|agreement|delivery)\s+(?:unmet|met|broken|honored))\b",
+            r"\b(?:considers?\s+the\s+(?:commitment|agreement|delivery)\s+(?:unmet|met|broken|honored))\b|"
+            r"\b(?:we\s+understood\s+the\s+(?:commitment|agreement|promise)\s+as)\b|"
+            r"\b(?:understood\s+(?:the\s+)?(?:commitment|agreement)\s+(?:as|to\s+(?:mean|be)))\b",
             re.IGNORECASE,
         ),
         REPORTED_STATEMENT,
@@ -204,13 +211,16 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     # H-01 fix: also catch deployment/release outcomes:
     #   "deployed successfully" / "shipped" / "launched" / "completed"
     #   "rolled out" / "went live"
+    # AUDITOR-FIX: also catch "work is complete", "is done", "is finished"
     (
         re.compile(
             r"\b(?:was\s+(?:broken|honored|kept)|"
             r"customer\s+(?:churned|renewed|cancelled)|"
             r"commitment\s+(?:was\s+broken|was\s+honored|broke)|"
             r"(?:deployed|shipped|launched|completed|rolled\s+out|went\s+live)\s+successfully|"
-            r"successfully\s+(?:deployed|shipped|launched|completed|rolled\s+out))\b",
+            r"successfully\s+(?:deployed|shipped|launched|completed|rolled\s+out)|"
+            r"(?:work\s+)?is\s+(?:complete|done|finished)|"
+            r"\w+\s+is\s+complete)\b",
             re.IGNORECASE,
         ),
         OUTCOME,
@@ -226,14 +236,17 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
     #   "I'll confirm/deliver/ship/send..." (first-person commitment)
     #   "We will have SSO ready before renewal" (have + noun + ready)
     #   "I'll have it ready by..." (first-person have + ready)
+    # AUDITOR-FIX: also catch "we will have X available" (available, not just ready)
+    #   and "target: before renewal" (commitment target with date)
     (
         re.compile(
-            r"\b(?:we\s+will\s+(?:deliver|ship|build|provide|implement|have\s+\w+\s+ready)|"
-            r"we['']?ll\s+(?:deliver|ship|build|provide|implement|have\s+\w+\s+ready)|"
+            r"\b(?:we\s+will\s+(?:deliver|ship|build|provide|implement|have\s+\w+\s+(?:ready|available))|"
+            r"we['']?ll\s+(?:deliver|ship|build|provide|implement|have\s+\w+\s+(?:ready|available))|"
             r"we\s+promise\s+to|we\s+commit\s+to\s+(?:delivering|shipping|building)|"
             r"i['']?ll\s+(?:confirm|deliver|ship|send|build|provide|implement|have\s+\w+\s+ready|get\s+\w+\s+ready|follow\s+up)|"
             r"i\s+will\s+(?:confirm|deliver|ship|send|build|provide|implement|have\s+\w+\s+ready)|"
-            r"we\s+will\s+have\s+\w+\s+(?:ready|before|by))\b",
+            r"we\s+will\s+have\s+\w+\s+(?:ready|available|before|by)|"
+            r"target:\s*\w+|target\s+date:\s*\w+|due\s+(?:by|date))\b",
             re.IGNORECASE,
         ),
         COMMITMENT,
