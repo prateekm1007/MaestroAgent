@@ -132,6 +132,12 @@ class RuleBasedSynthesizer:
                 "from what was internally reported as complete. This could "
                 "lead to a commitment dispute."
             )
+            # Quote the specific reported statements
+            for e in reported:
+                text = self._clean_text(e.get("text", ""))
+                people = e.get("people", [])
+                who = people[0] if people else "The customer"
+                risk_parts.append(f"{who} understood: \"{text}\"")
 
         # Check for proposals (cautious language) treated as commitments
         if proposals and commitments:
