@@ -106,15 +106,16 @@ class LLMNarrator:
             self._template_narrator = EvidenceNarrator()
         return self._template_narrator
 
-    def narrate(self, question: str, evidence: list[dict[str, Any]]) -> str:
+    def narrate(self, question: str, evidence: list[dict[str, Any]], synthesis_hints: list[str] | None = None) -> str:
         """Render evidence into prose answer (without citations list)."""
-        answer, _ = self.narrate_with_citations(question, evidence)
+        answer, _ = self.narrate_with_citations(question, evidence, synthesis_hints=synthesis_hints)
         return answer
 
     def narrate_with_citations(
         self,
         question: str,
         evidence: list[dict[str, Any]],
+        synthesis_hints: list[str] | None = None,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Render evidence into prose answer with inline citations.
 
@@ -149,15 +150,15 @@ class LLMNarrator:
 
         # Empty evidence → no LLM call (prevents hallucination)
         if not safe_evidence:
-            return self._get_template_narrator().narrate_with_citations(question, safe_evidence)
+            return self._get_template_narrator().narrate_with_citations(question, safe_evidence, synthesis_hints=synthesis_hints)
 
         # No LLM provider → fall back to template (P6)
         if self._llm_provider is None:
-            return self._get_template_narrator().narrate_with_citations(question, safe_evidence)
+            return self._get_template_narrator().narrate_with_citations(question, safe_evidence, synthesis_hints=synthesis_hints)
 
         # Try the LLM
         try:
-            answer = self._call_llm(question, safe_evidence)
+            answer = self._call_llm(question, safe_evidence, synthesis_hints=synthesis_hints)
             # Strip hallucinated citations
             answer = self._strip_hallucinated_citations(answer, len(safe_evidence))
             # Build citations list from evidence
@@ -165,15 +166,15 @@ class LLMNarrator:
             return answer, citations
         except Exception as e:
             logger.warning("LLMNarrator: LLM call failed, falling back to template: %s", e)
-            return self._get_template_narrator().narrate_with_citations(question, evidence)
+            return self._get_template_narrator().narrate_with_citations(question, evidence, synthesis_hints=synthesis_hints)
 
-    def _call_llm(self, question: str, evidence: list[dict[str, Any]]) -> str:
+    def _call_llm(self, question: str, evidence: list[dict[str, Any]], synthesis_hints: list[str] | None = None) -> str:
         """Call the LLM provider with a constrained prompt.
 
         Handles the async-to-sync bridge. If called from within an async
         context, uses the running loop; otherwise creates a new one.
         """
-        user_prompt = self._build_user_prompt(question, evidence)
+        user_prompt = self._build_user_prompt(question, evidence, synthesis_hints=synthesis_hints)
 
         # Async-to-sync bridge
         try:
@@ -200,7 +201,7 @@ class LLMNarrator:
 
         return response.text
 
-    def _build_user_prompt(self, question: str, evidence: list[dict[str, Any]]) -> str:
+    def _build_user_prompt(self, question: str, evidence: list[dict[str, Any]], synthesis_hints: list[str] | None = None) -> str:
         """Build the user prompt with the question + structured evidence.
 
         The evidence is formatted as a numbered list so the LLM can cite
@@ -215,6 +216,17 @@ class LLMNarrator:
             people_str = f" (involving: {', '.join(people)})" if people else ""
             parts.append(f"[{i}] {source} ({date}){people_str}: {text}")
         parts.append("")
+        # Phase 2 fix: include synthesis hints from organizational engines
+        # (CausalEngine, WisdomEngine, ImaginationEngine, etc.) so the LLM
+        # has the same context the template narrator uses. Before this fix,
+        # the LLM got evidence but not synthesis — the hints were silently
+        # dropped when LLMNarrator was active.
+        if synthesis_hints:
+            parts.append("Synthesis context from organizational engines:")
+            for hint in synthesis_hints:
+                if hint and hint.strip():
+                    parts.append(f"  - {hint.strip()}")
+            parts.append("")
         parts.append("Narrate what the evidence says about the question. Include inline citations [1], [2], etc.")
         return "\n".join(parts)
 
