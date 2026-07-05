@@ -423,3 +423,75 @@ The auditor's prior report listed 5 remaining verifications. This commit address
 - **C5 root cause:** the `bearer_user` dependency was defined but never added to any route's dependency list. The oem routes used `require_user` (cookie-only). This is P11 (wiring) — the capability existed but wasn't called.
 - **C4 root cause:** every display site independently did `round(confidence, 4)` with no sample-size check. The formula was correct (SHR-calibrated Bayesian), but the DISPLAY was dishonest — 4-decimal precision implies calibration rigor that 0 outcomes cannot support. P25 (confidence display gate) was the principle; this commit is the wiring.
 - **P27 honored:** this commit is PUSHED before claiming done (unlike the prior pattern of local-only commits). The push happens in the same session as the claim.
+
+---
+
+## Round 66 — Auditor-of-Audit + 3 Fixes + H2/H3 Refutation (commits 4fbe51d, 9d662af on origin/main)
+
+### Auditor-of-audit found: H1 REFUTED, M2 REFUTED, M3 REFUTED, 12 components missed
+- H1 ("no test verifies learning changes behavior"): REFUTED by execution —
+  test_active_cognition_production_path.py proves before["answer"] != after["answer"]
+  with "Learned insight" present only after learning. 4/4 tests pass.
+- M2 (TrajectoryIntervention "orphan"): REFUTED — wired to routes/oem.py:5363,5388
+- M3 (preparation.py "unused"): REFUTED — imported at routes/oem.py:2992,3269
+- L1 UNDERSTATED: 2 checkpoint failures, not 1. Second is real schema-migration bug.
+- L2 UNDERSTATED: on_event deprecation (honest correction: test failure was test
+  pollution, not the deprecation itself).
+- 12 architectural components (SynthesisTrace, CircuitBreaker, Active Cognition,
+  True Unlearning, LayeredOutcomeResolver, PatternProposer, Empirical Loop,
+  CandidatePatternStore, Coverage Assessor, Round-6 P22 fix, novel-shape benchmark,
+  hybrid e2e) — 0 mentions in 1,182-line audit. Auditor's job to add to revised audit.
+
+### Fixes shipped (4 defects closed)
+1. **Schema-migration ordering bug** (checkpoint_store.py) — split _SCHEMA into
+   _SCHEMA_TABLES + _SCHEMA_INDEXES, run migration between them. 9/9 checkpoint
+   tests pass. P1, P22 satisfied.
+2. **Stale test_connection_state** — org_id mismatch fixed + cross-tenant isolation
+   assertion added.
+3. **on_event deprecation** (websocket.py) — migrated to lifespan pattern. 0
+   remaining @app.on_event in production code.
+4. **C2 permission-aware retrieval** (recall_engine.py, recall.py, ask_pipeline.py,
+   routes/oem.py) — RecallEngine had ZERO ACL filtering. Added _user_can_see_signal
+   + _visible_signals to both RecallEngine classes. Threaded user_email through.
+   Fail-closed. 5/5 new C2 tests pass.
+
+### H2 (meeting tests) — REFUTED, no new code needed
+Audit claimed "no integration test found" for during-meeting and cross-meeting.
+Execution proves 15 tests exist and pass:
+- test_meeting_intelligence_full_lifecycle (full before/during/after/learning loop)
+- test_loop2_full_lifecycle_via_http (P22 production-path HTTP test)
+- test_cross_meeting_pattern_detects_recurring_topic (across-meeting detection)
+- test_loop2_cross_meeting_patterns_via_http (P22 production-path HTTP test)
+The audit's "LiveMeetingCapture (exists in maestro_oem/live_meeting.py)" is wrong
+about the filename — the module doesn't exist under that name. The capability is
+in MeetingIntelligenceLoop.occur() (meeting_intelligence_loop.py). No new code needed.
+
+### H3 (decision assumptions/hypotheses tests) — REFUTED, no new code needed
+Audit claimed "Assumption and hypothesis tracking exist but have no integration tests."
+Execution proves 33 tests exist and pass across 3 files:
+- test_intent_hypothesis.py (17 tests): intent→assumption→hypothesis cascade,
+  resolution, calibration, full cascade verification
+- test_loop3_decision_intelligence.py (11 tests): decision lifecycle with
+  assumptions + hypotheses, cross-decision patterns, honest learning when wrong
+- test_loop3_http_integration.py (5 tests): P22 production-path HTTP tests for
+  full lifecycle, learning honesty, cross-decision patterns
+Both modules ARE wired into production (routes/oem.py:3159,3290 + decision_v2.py:107).
+No new code needed.
+
+### Pattern across H1, H2, H3, M2, M3
+5 of the audit's findings have been refuted by execution. The consistent pattern:
+the audit didn't run tests and claimed they don't exist. This is P22 (regression =
+production path) violated BY THE AUDITOR — they searched for module names, not for
+test coverage of the capability.
+
+### Tests
+19/19 pass (5 C2 + 1 regression-fixed + 2 H1 + 2 true unlearning + 9 checkpoint).
+15/15 H2 tests pass (pre-existing, audit didn't run them).
+33/33 H3 tests pass (pre-existing, audit didn't run them).
+Zero new regressions.
+
+### What remains
+- C1 (Postgres migration) — 2-4 week sprint, needs design doc
+- H4 (load test execution) — 1 session
+- M1 (BackgroundAdaptationLoop wiring) — 1 session, design decision
+- M4 (terminology leakage) — 1 session, frontend pass
