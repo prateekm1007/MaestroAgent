@@ -1086,17 +1086,31 @@ class AskPipeline:
                     sig_date = s.timestamp.isoformat()[:10] if hasattr(s.timestamp, "isoformat") else ""
                     sig_source = s.provider.value if hasattr(s.provider, "value") else str(s.provider)
 
-                    # Determine claim_type based on signal type
-                    claim_type = "observed_fact"
+                    # AUDITOR-FIX: Use ContentEpistemicClassifier to classify the
+                    # signal's BODY TEXT — not just the signal type. This connects
+                    # the classifier (Stage 2) to the retrieval pipeline (Stage 3).
+                    # Before this fix, only CUSTOMER_COMMITMENT_MADE signals got
+                    # claim_type="commitment" — all other signals got "observed_fact"
+                    # regardless of their actual content. The classifier existed but
+                    # was never consulted. This is the CRITICAL-01 pattern: two
+                    # correct pieces of code, not talking to each other.
+                    claim_type = "observed_fact"  # fallback
+                    body_text = str(s.metadata.get("body", "") or s.metadata.get("subject", "") or s.metadata.get("note", "") or "")
+                    if body_text:
+                        try:
+                            from maestro_oem.content_epistemic_classifier import ContentEpistemicClassifier
+                            classifier = ContentEpistemicClassifier()
+                            claim_type = classifier.classify(body_text)
+                        except Exception:
+                            pass  # fallback to observed_fact
+                    # Also respect structured signal types for non-text signals
                     if hasattr(s, "type"):
-                        if s.type == SignalType.CUSTOMER_COMMITMENT_MADE:
+                        if s.type == SignalType.CUSTOMER_COMMITMENT_MADE and claim_type == "unclassified":
                             claim_type = "commitment"
                         elif s.type == SignalType.CUSTOMER_COMMITMENT_BROKEN:
                             claim_type = "outcome"
                         elif s.type == SignalType.CUSTOMER_DECISION:
                             claim_type = "outcome"
-                        elif s.type == SignalType.CUSTOMER_OBJECTION:
-                            claim_type = "observed_fact"
 
                     evidence.append({
                         "source": sig_source,
@@ -1134,29 +1148,48 @@ class AskPipeline:
             pass
 
         # H-01 fix: generate synthesized answer_parts from the evidence found.
-        # Instead of raw signal listings, produce a natural-language summary
-        # that the narrator can use as the answer body.
+        # AUDITOR-FIX: Include ALL epistemic types — not just commitments.
+        # Before this fix, answer_parts only listed commitments. The security
+        # caveat (negation), the "complete" claim (outcome), and the customer's
+        # disagreement (reported_statement) were in the evidence list but NOT
+        # in answer_parts — so the narrator never saw them in the answer body.
         if evidence:
             entities_str = ", ".join(entities) if entities else "the organization"
             # Count by type
-            commitments = sum(1 for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "commitment")
-            outcomes = sum(1 for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "outcome")
-            observations = sum(1 for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "observed_fact")
+            commitments = [e for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "commitment"]
+            outcomes = [e for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "outcome"]
+            negations = [e for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "negation"]
+            reported = [e for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "reported_statement"]
+            proposals = [e for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "proposal"]
+            other = [e for e in evidence if e.get("evidence_spine", {}).get("claim_type") not in
+                     ("commitment", "outcome", "negation", "reported_statement", "proposal")]
 
             parts = []
+            parts.append(f"Based on {len(evidence)} signal(s) from {entities_str}:")
+
             if commitments:
-                # List the actual commitment texts (not raw signal metadata)
-                commit_texts = [e.get("text", "") for e in evidence
-                               if e.get("evidence_spine", {}).get("claim_type") == "commitment"]
-                parts.append(f"Based on {len(evidence)} signal(s) from {entities_str}:")
-                for ct in commit_texts[:3]:
-                    parts.append(f"  • {ct}")
-                if len(commit_texts) > 3:
-                    parts.append(f"  ... and {len(commit_texts) - 3} more")
-            elif outcomes:
-                parts.append(f"Found {len(evidence)} outcome signal(s) for {entities_str}.")
-            else:
-                parts.append(f"Found {len(evidence)} relevant signal(s) for {entities_str}.")
+                parts.append("Commitments:")
+                for e in commitments[:3]:
+                    parts.append(f"  • {e.get('text', '')[:120]}")
+            if proposals:
+                parts.append("Proposals (cautious, not firm promises):")
+                for e in proposals[:3]:
+                    parts.append(f"  • {e.get('text', '')[:120]}")
+            if negations:
+                parts.append("Conditional/pending:")
+                for e in negations[:3]:
+                    parts.append(f"  • {e.get('text', '')[:120]}")
+            if outcomes:
+                parts.append("Outcomes:")
+                for e in outcomes[:3]:
+                    parts.append(f"  • {e.get('text', '')[:120]}")
+            if reported:
+                parts.append("Reported statements:")
+                for e in reported[:3]:
+                    parts.append(f"  • {e.get('text', '')[:120]}")
+            if other:
+                parts.append(f"Other signals: {len(other)}")
+
             answer_parts = parts
         else:
             answer_parts.append("I don't have enough relevant signals to answer this.")
