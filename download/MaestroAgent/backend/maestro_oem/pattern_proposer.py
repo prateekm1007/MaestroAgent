@@ -20,7 +20,7 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
@@ -166,9 +166,68 @@ class CandidatePatternStore:
             "status": "pending",
             "resolved_at": None,
             "resolution_source": None,
+            "observation_case": None,
         }
         candidate.prospective_predictions += 1
         candidate.unresolved_outcomes += 1
+        return prediction_id
+
+    def register_prospective_prediction_from_case(
+        self,
+        candidate_id: UUID,
+        observation_case: Any,  # ObservationCase from empirical_loop.py
+        expected_outcome: str,
+        observation_window_days: int = 30,
+    ) -> str | None:
+        """Register from a DERIVED ObservationCase. P13: fingerprint is derived, not supplied.
+
+        AUDITOR-DIRECTIVE Phase 2 + Phase 5:
+        - Case identity derived from evidence (situation + entity + time + outcome)
+        - Evidence snapshot frozen at registration time (prevents future-information leakage)
+        - Rejects duplicate cases (same derived fingerprint)
+        - Rejects evidence-lineage-overlapping cases (P14: same event copied across sources)
+        """
+        case_fingerprint = observation_case.case_fingerprint
+
+        # P14: reject if evidence lineage overlaps with existing case for same candidate
+        from maestro_oem.empirical_loop import CaseFingerprintBuilder
+        for pred in self._predictions.values():
+            if pred.get("case_fingerprint") == case_fingerprint:
+                logger.info("CandidatePatternStore: rejected duplicate (derived fingerprint=%s)", case_fingerprint[:16])
+                return None
+            if pred.get("candidate_id") == str(candidate_id):
+                existing_case = pred.get("observation_case")
+                if existing_case and CaseFingerprintBuilder.cases_share_evidence_lineage(observation_case, existing_case):
+                    logger.info("CandidatePatternStore: rejected (evidence lineage overlaps case %s)", pred.get("prediction_id"))
+                    return None
+
+        # Freeze the evidence snapshot
+        evidence_snapshot = {
+            "source_evidence_ids": list(observation_case.source_evidence_ids),
+            "evidence_lineage_ids": list(observation_case.evidence_lineage_ids),
+            "situation_hash": observation_case.situation_hash,
+            "time_window_start": observation_case.time_window_start,
+            "frozen_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        prediction_id = self.register_prospective_prediction(
+            candidate_id=candidate_id,
+            case_fingerprint=case_fingerprint,
+            expected_outcome=expected_outcome,
+            observation_window_days=observation_window_days,
+            evidence_snapshot=evidence_snapshot,
+        )
+
+        if prediction_id is not None:
+            observation_case.prediction_registered_at = datetime.now(timezone.utc)
+            observation_case.observation_window_end = (
+                datetime.now(timezone.utc) + timedelta(days=observation_window_days)
+            )
+            observation_case.expected_outcome = expected_outcome
+            observation_case.candidate_pattern_id = candidate_id
+            # Attach the case to the prediction so the resolver can use it
+            self._predictions[prediction_id]["observation_case"] = observation_case
+
         return prediction_id
 
     def resolve_prospective_prediction(

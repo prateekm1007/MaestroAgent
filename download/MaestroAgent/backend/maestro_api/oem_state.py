@@ -142,6 +142,10 @@ class OEMState:
         from datetime import datetime as _dt
         self._last_background_loop_result: dict[str, Any] | None = None
         self._last_background_loop_at: _dt | None = None
+        # AUDITOR-P5 Phase 6: CandidatePatternStore for the OutcomeResolver.
+        # Set by the FastAPI lifespan so the resolver fires on every signal
+        # ingest — independent of Ask activity (P11/P22).
+        self.candidate_pattern_store: Any = None
 
     def initialize(self) -> None:
         """Build the OEM. Idempotent.
@@ -602,6 +606,25 @@ class OEMState:
                 )
         except Exception as e:
             logger.warning("Closed-loop learning resolution failed (non-fatal): %s", e)
+
+        # AUDITOR-P5 Phase 6: Resolve pending ObservationCases from new signals.
+        # The resolver fires on every signal ingest — INDEPENDENT of Ask activity
+        # (P11/P22). It derives outcomes from the signal stream (P13), never from
+        # a caller-supplied verdict. It never self-validates.
+        if self.candidate_pattern_store is not None:
+            try:
+                from maestro_oem.empirical_loop import OutcomeResolver
+                resolver = OutcomeResolver(store=self.candidate_pattern_store)
+                resolver_result = resolver.resolve_pending(new_signals=self.signals)
+                if resolver_result.get("resolved", 0) or resolver_result.get("expired", 0):
+                    logger.info(
+                        "AUDITOR-P5 Phase 6: OutcomeResolver resolved %d, expired %d, %d still pending",
+                        resolver_result["resolved"],
+                        resolver_result["expired"],
+                        resolver_result["still_pending"],
+                    )
+            except Exception as e:
+                logger.warning("AUDITOR-P5 Phase 6: OutcomeResolver failed (non-fatal): %s", e)
 
     @property
     def is_synthetic(self) -> bool:

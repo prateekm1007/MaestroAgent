@@ -210,10 +210,15 @@ def create_app(
             app.state.synthesis_provider = None
 
         # AUDITOR-P5: CandidatePatternStore for governed learning.
+        # Phase 6: wired into oem_state so OutcomeResolver fires on every signal ingest.
         try:
             from maestro_oem.pattern_proposer import CandidatePatternStore
-            app.state.candidate_pattern_store = CandidatePatternStore()
-            logger.info("AUDITOR-P5: CandidatePatternStore initialized")
+            store = CandidatePatternStore()
+            app.state.candidate_pattern_store = store
+            from maestro_api.oem_state import oem_state as _oem_state_for_store
+            if _oem_state_for_store:
+                _oem_state_for_store.candidate_pattern_store = store
+            logger.info("AUDITOR-P5: CandidatePatternStore initialized (wired to oem_state for Phase 6 resolution)")
         except Exception as e:
             logger.warning("AUDITOR-P5: CandidatePatternStore init failed: %s", e)
             app.state.candidate_pattern_store = None
