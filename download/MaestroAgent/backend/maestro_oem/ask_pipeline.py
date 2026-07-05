@@ -499,6 +499,22 @@ class AskPipeline:
             "candidates": [c.to_audit_dict() for c in candidates[:5]],  # cap at 5 for audit
         }
 
+        # AUDITOR Gap 6: ACTIVE COGNITION — the missing arrow.
+        # If any learned patterns are ACTIVE_PATTERN or SCOPE_LIMITED and relevant
+        # to this query, append a "learned insight" to the answer. This makes the
+        # answer MATERIALLY DIFFERENT from what it would have been before the
+        # pattern was learned. This is the arrow from Governed Learning to
+        # Active Cognition — the difference between "learning internally" and
+        # "becoming wiser externally."
+        from maestro_oem.active_cognition import ActiveCognitionResolver
+        cognition_resolver = ActiveCognitionResolver(store=self._candidate_pattern_store)
+        active_insights = cognition_resolver.find_relevant_patterns(query, entities, evidence)
+        if active_insights:
+            insight_text = cognition_resolver.format_insights(active_insights)
+            if insight_text:
+                answer = answer + "\n\n" + insight_text
+        trace.metadata["active_cognition"] = cognition_resolver.format_for_trace(active_insights)
+
         # Step 6: Save conversation turn
         if session_id and self._conversation_store:
             try:

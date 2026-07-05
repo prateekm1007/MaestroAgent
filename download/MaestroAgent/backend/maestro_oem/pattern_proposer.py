@@ -29,10 +29,28 @@ logger = logging.getLogger(__name__)
 
 
 class CandidateStatus(str, Enum):
-    HYPOTHESIS = "HYPOTHESIS"
-    TESTING = "TESTING"
-    PROMOTED = "PROMOTED"
-    FALSIFIED = "FALSIFIED"
+    """The canonical lifecycle of a candidate hypothesis.
+
+    AUDITOR-CORRECTION (Gap 2): This is the ONE authoritative status enum.
+    The 14-state HypothesisStatus in empirical_loop.py is deprecated — it
+    created a parallel epistemic state machine that caused the formatter bug.
+    This enum now has all the states needed for the full lifecycle.
+
+    Success path:
+      HYPOTHESIS → TESTING → ACTIVE_PATTERN → SCOPE_LIMITED (if scope narrows)
+      → SUPERSEDED (if a better hypothesis replaces it)
+
+    Non-success paths:
+      FALSIFIED — prospective outcomes contradicted the hypothesis
+      SUPERSEDED — a better hypothesis replaced this one
+      SCOPE_LIMITED — the pattern only applies in a narrow scope
+    """
+    HYPOTHESIS = "HYPOTHESIS"          # proposed, not yet tested
+    TESTING = "TESTING"                # 3+ prospective supports, being calibrated
+    ACTIVE_PATTERN = "ACTIVE_PATTERN"  # governance-approved, available to cognition
+    SCOPE_LIMITED = "SCOPE_LIMITED"    # active but only in a narrow scope
+    FALSIFIED = "FALSIFIED"            # 3+ prospective contradictions
+    SUPERSEDED = "SUPERSEDED"          # replaced by a better hypothesis
 
 
 @dataclass
@@ -64,6 +82,13 @@ class CandidatePattern:
     last_detected: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     proposal_query_ids: list[str] = field(default_factory=list)
     calibration_score: float | None = None
+    # Phase 9: Scope — where the pattern applies, is unproven, is invalid
+    valid_scope: dict[str, str] = field(default_factory=dict)
+    unproven_scope: dict[str, str] = field(default_factory=dict)
+    invalid_scope: dict[str, str] = field(default_factory=dict)
+    # Phase 10: Governance — who approved, when, why
+    governance_approved_by: str = ""
+    governance_approved_at: datetime | None = None
 
     @property
     def dedup_key(self) -> str:
@@ -266,6 +291,87 @@ class CandidatePatternStore:
                 if c.supporting_outcomes >= 3 and c.status == CandidateStatus.HYPOTHESIS:
                     c.status = CandidateStatus.TESTING
                     logger.info("CandidatePattern %s promoted to TESTING (%d prospective supports)", c.candidate_id, c.supporting_outcomes)
+                return True
+        return False
+
+    def governance_approve(
+        self,
+        candidate_id: UUID,
+        actor: str = "governance",
+        valid_scope: dict[str, str] | None = None,
+        unproven_scope: dict[str, str] | None = None,
+        invalid_scope: dict[str, str] | None = None,
+    ) -> bool:
+        """Governance approves a candidate for active operational use.
+
+        AUDITOR-DIRECTIVE Phase 10:
+        > Consequential patterns must require governance review before activation.
+        > No irreversible promotion.
+
+        Promotes TESTING → ACTIVE_PATTERN (or SCOPE_LIMITED if scope is narrow).
+        Records the governance approval (actor, timestamp). Only governance
+        (a human) can make this transition — the system never auto-promotes
+        to ACTIVE_PATTERN.
+
+        Returns True if approved, False if candidate not found or not in TESTING.
+        """
+        for c in self._candidates.values():
+            if c.candidate_id == candidate_id:
+                if c.status != CandidateStatus.TESTING:
+                    logger.warning(
+                        "governance_approve: candidate %s is %s, not TESTING — cannot approve",
+                        c.candidate_id, c.status.value,
+                    )
+                    return False
+                # Set scope
+                if valid_scope:
+                    c.valid_scope = valid_scope
+                if unproven_scope:
+                    c.unproven_scope = unproven_scope
+                if invalid_scope:
+                    c.invalid_scope = invalid_scope
+                # If scope is narrow, use SCOPE_LIMITED; otherwise ACTIVE_PATTERN
+                if invalid_scope or (valid_scope and len(valid_scope) < 3):
+                    c.status = CandidateStatus.SCOPE_LIMITED
+                else:
+                    c.status = CandidateStatus.ACTIVE_PATTERN
+                c.governance_approved_by = actor
+                c.governance_approved_at = datetime.now(timezone.utc)
+                logger.info(
+                    "CandidatePattern %s governance-approved → %s (by %s)",
+                    c.candidate_id, c.status.value, actor,
+                )
+                return True
+        return False
+
+    def narrow_scope(
+        self,
+        candidate_id: UUID,
+        valid_scope: dict[str, str] | None = None,
+        unproven_scope: dict[str, str] | None = None,
+        invalid_scope: dict[str, str] | None = None,
+    ) -> bool:
+        """Narrow the scope of an active pattern (unlearning).
+
+        AUDITOR-DIRECTIVE: "Maestro must not defend its previous belief."
+        When contradictory evidence accumulates, the pattern narrows its scope
+        or is falsified. This method narrows the scope — the pattern is still
+        active but only in a narrower context.
+        """
+        for c in self._candidates.values():
+            if c.candidate_id == candidate_id:
+                if valid_scope:
+                    c.valid_scope = valid_scope
+                if unproven_scope:
+                    c.unproven_scope = unproven_scope
+                if invalid_scope:
+                    c.invalid_scope = invalid_scope
+                if c.status == CandidateStatus.ACTIVE_PATTERN:
+                    c.status = CandidateStatus.SCOPE_LIMITED
+                logger.info(
+                    "CandidatePattern %s scope narrowed → %s",
+                    c.candidate_id, c.status.value,
+                )
                 return True
         return False
 
