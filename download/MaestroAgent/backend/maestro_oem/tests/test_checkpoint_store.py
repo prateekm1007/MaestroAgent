@@ -137,13 +137,21 @@ def test_oauth_credentials_crud(store):
 
 
 def test_connection_state(store):
+    # Round 52 multi-tenant fix: set_connection and get_connection must
+    # agree on org_id. The old test called set(org_id="acme") then
+    # get() with default org_id="default" — returned None, raised
+    # TypeError on subscription. Fixed by passing org_id consistently.
     store.set_connection("github", connected=True, org_id="acme")
-    conn = store.get_connection("github")
+    conn = store.get_connection("github", org_id="acme")
+    assert conn is not None, "get_connection must return the row when org_id matches"
     assert conn["connected"] is True
     assert conn["org_id"] == "acme"
 
-    store.set_connection("github", connected=False)
-    assert store.get_connection("github")["connected"] is False
+    store.set_connection("github", connected=False, org_id="acme")
+    assert store.get_connection("github", org_id="acme")["connected"] is False
+
+    # Cross-tenant isolation: a different org must NOT see acme's connection
+    assert store.get_connection("github", org_id="other") is None
 
 
 def test_list_jobs_ordering(store):

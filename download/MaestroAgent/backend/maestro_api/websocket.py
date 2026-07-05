@@ -167,24 +167,52 @@ def register_ws_routes(app: FastAPI) -> None:
             logger.info("Ambient pulse WS closed (total: %d)", _active_connections)
 
     # ─── Background task: publish pulse every 30 seconds ────────────────
-    @app.on_event("startup")
-    async def start_pulse_publisher() -> None:
-        """Background task that computes the pulse every 30 seconds and
-        publishes it to the message broker. All WebSocket subscribers
-        across all instances receive the update.
-        """
-        async def _publish_loop():
-            broker = get_message_broker()
-            while True:
-                await asyncio.sleep(30)
-                try:
-                    message = await _compute_ambient_message()
-                    if message:
-                        await broker.publish("ambient:pulse", message)
-                except Exception as e:
-                    logger.warning("Pulse publish failed: %s", e)
+    # Round 66 L2 fix: migrated from @app.on_event("startup") (deprecated
+    # in FastAPI) to the modern lifespan pattern. The startup function is
+    # now module-level (start_pulse_publisher) and is called from
+    # maestro_api.main.create_app's lifespan handler.
+    app.state.maestro_pulse_task = None  # set by start_pulse_publisher()
 
-        asyncio.create_task(_publish_loop())
+
+async def start_pulse_publisher(app: FastAPI) -> None:
+    """Launch the ambient-pulse background task on app startup.
+
+    Replaces the deprecated `@app.on_event("startup")` decorator. Called
+    from `maestro_api.main.create_app`'s lifespan handler.
+
+    Computes the organizational pulse every 30 seconds and publishes it to
+    the message broker. All WebSocket subscribers across all instances
+    receive the update.
+    """
+    async def _publish_loop():
+        broker = get_message_broker()
+        while True:
+            await asyncio.sleep(30)
+            try:
+                message = await _compute_ambient_message()
+                if message:
+                    await broker.publish("ambient:pulse", message)
+            except Exception as e:
+                logger.warning("Pulse publish failed: %s", e)
+
+    app.state.maestro_pulse_task = asyncio.create_task(_publish_loop())
+
+
+async def stop_pulse_publisher(app: FastAPI) -> None:
+    """Cancel the ambient-pulse background task on app shutdown.
+
+    Pairs with `start_pulse_publisher`. Called from the lifespan handler's
+    finally block to avoid orphaned-task warnings during tests and clean
+    shutdown.
+    """
+    task = getattr(app.state, "maestro_pulse_task", None)
+    if task is not None and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    app.state.maestro_pulse_task = None
 
 
 async def _send_ambient_update(websocket: WebSocket) -> None:

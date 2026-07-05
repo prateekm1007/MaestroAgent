@@ -256,9 +256,20 @@ def create_app(
             if _oem_state_for_store:
                 _oem_state_for_store.candidate_pattern_store = store
 
+        # Round 66 L2 fix: start the ambient-pulse publisher from the
+        # lifespan (modern FastAPI pattern) instead of the deprecated
+        # @app.on_event("startup") decorator.
+        from maestro_api.websocket import start_pulse_publisher, stop_pulse_publisher
+        await start_pulse_publisher(app)
+
         try:
             yield
         finally:
+            # Round 66 L2 fix: cancel the pulse publisher on shutdown.
+            try:
+                await stop_pulse_publisher(app)
+            except Exception as exc:
+                logger.warning("Pulse publisher shutdown failed: %s", exc)
             _snapshot_task.cancel()
             try:
                 await _snapshot_task

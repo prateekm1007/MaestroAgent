@@ -29,7 +29,18 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 
 
-_SCHEMA = """
+# Schema is split into two phases so legacy databases (created before
+# Round 55 introduced org_id) can be auto-migrated BETWEEN table-creation
+# and index-creation. The ordering bug fixed here:
+#   1. _SCHEMA_TABLES  creates tables IF NOT EXISTS (no-op for legacy DBs)
+#   2. _auto_migrate_org_id() adds the org_id column to legacy tables
+#   3. _SCHEMA_INDEXES creates indexes that reference org_id
+# Before this fix, _SCHEMA was a single script: the CREATE INDEX statements
+# referencing org_id fired before _auto_migrate_org_id had a chance to run,
+# so legacy DBs (tables exist WITHOUT org_id) raised
+# `sqlite3.OperationalError: no such column: org_id` at executescript().
+
+_SCHEMA_TABLES = """
 CREATE TABLE IF NOT EXISTS import_jobs (
     job_id              TEXT PRIMARY KEY,
     org_id              TEXT NOT NULL DEFAULT 'default',
@@ -62,10 +73,6 @@ CREATE TABLE IF NOT EXISTS import_checkpoints (
     FOREIGN KEY (job_id) REFERENCES import_jobs(job_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_checkpoints_job ON import_checkpoints(job_id);
-CREATE INDEX IF NOT EXISTS idx_checkpoints_provider ON import_checkpoints(provider);
-CREATE INDEX IF NOT EXISTS idx_import_jobs_org ON import_jobs(org_id);
-
 CREATE TABLE IF NOT EXISTS oauth_credentials (
     provider            TEXT NOT NULL,
     org_id              TEXT NOT NULL DEFAULT 'default',
@@ -80,8 +87,6 @@ CREATE TABLE IF NOT EXISTS oauth_credentials (
     PRIMARY KEY (provider, org_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_oauth_org ON oauth_credentials(org_id);
-
 CREATE TABLE IF NOT EXISTS provider_connections (
     provider            TEXT NOT NULL,
     org_id              TEXT NOT NULL DEFAULT 'default',
@@ -90,9 +95,20 @@ CREATE TABLE IF NOT EXISTS provider_connections (
     metadata            TEXT,
     PRIMARY KEY (provider, org_id)
 );
+"""
 
+_SCHEMA_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_checkpoints_job ON import_checkpoints(job_id);
+CREATE INDEX IF NOT EXISTS idx_checkpoints_provider ON import_checkpoints(provider);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_org ON import_jobs(org_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_org ON oauth_credentials(org_id);
 CREATE INDEX IF NOT EXISTS idx_connections_org ON provider_connections(org_id);
 """
+
+# Kept for backward compatibility (e.g. tests or external callers that
+# reference the old name). New code should use _SCHEMA_TABLES +
+# _SCHEMA_INDEXES via the three-phase _connect() sequence.
+_SCHEMA = _SCHEMA_TABLES + "\n" + _SCHEMA_INDEXES
 
 
 class CheckpointStore:
@@ -120,13 +136,18 @@ class CheckpointStore:
             isolation_level=None,  # autocommit; we manage txns explicitly
         )
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
+        # Three-phase schema initialization (fixes schema-migration ordering
+        # bug: legacy DBs created before Round 55 had tables WITHOUT org_id;
+        # the old single-_SCHEMA executescript() failed on CREATE INDEX ...
+        # ON (org_id) before _auto_migrate_org_id could run).
+        #   Phase 1: create tables IF NOT EXISTS (no-op for legacy DBs)
+        #   Phase 2: auto-migrate org_id columns on legacy tables
+        #   Phase 3: create indexes that reference org_id (now safe)
+        self._conn.executescript(_SCHEMA_TABLES)
+        self._auto_migrate_org_id()
+        self._conn.executescript(_SCHEMA_INDEXES)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
-        # Round 55 C1 fix: auto-migrate org_id columns. The Alembic migration
-        # exists but may not have been applied. This ensures the schema matches
-        # the code on every startup — no manual `alembic upgrade head` needed.
-        self._auto_migrate_org_id()
 
     def _auto_migrate_org_id(self) -> None:
         """Ensure org_id columns exist on all tables. Idempotent.
