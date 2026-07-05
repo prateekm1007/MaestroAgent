@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from maestro_db import sqlite_compat as sqlite3
+from maestro_db.sqlite_compat import is_sqlite, safe_pragma
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -146,8 +147,10 @@ class CheckpointStore:
         self._conn.executescript(_SCHEMA_TABLES)
         self._auto_migrate_org_id()
         self._conn.executescript(_SCHEMA_INDEXES)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
+        # C1 fix: PRAGMA statements are SQLite-specific. Guard them so
+        # the store works with PostgreSQL backends without code changes.
+        safe_pragma(self._conn, self.db_path, "PRAGMA journal_mode=WAL")
+        safe_pragma(self._conn, self.db_path, "PRAGMA foreign_keys=ON")
 
     def _auto_migrate_org_id(self) -> None:
         """Ensure org_id columns exist on all tables. Idempotent.
@@ -172,21 +175,33 @@ class CheckpointStore:
         ]
         for table in tables_needing_org_id:
             try:
-                # Check if org_id column exists using PRAGMA table_info
-                cursor = self._conn.execute(f"PRAGMA table_info({table})")
-                rows = cursor.fetchall()
-                columns = []
-                for row in rows:
-                    if isinstance(row, dict):
-                        columns.append(row.get("name", ""))
-                    elif hasattr(row, "keys"):
-                        try:
-                            keys = list(row.keys())
-                            columns.append(keys[1] if len(keys) > 1 else "")
-                        except Exception:
-                            columns.append("")
-                    else:
-                        columns.append(row[1] if len(row) > 1 else "")
+                # C1 fix: use backend-appropriate column introspection.
+                # SQLite: PRAGMA table_info(table) — returns rows with 'name' field.
+                # Postgres: information_schema.columns — standard SQL.
+                if is_sqlite(self.db_path):
+                    cursor = self._conn.execute(f"PRAGMA table_info({table})")
+                    rows = cursor.fetchall()
+                    columns = []
+                    for row in rows:
+                        if isinstance(row, dict):
+                            columns.append(row.get("name", ""))
+                        elif hasattr(row, "keys"):
+                            try:
+                                keys = list(row.keys())
+                                columns.append(keys[1] if len(keys) > 1 else "")
+                            except Exception:
+                                columns.append("")
+                        else:
+                            columns.append(row[1] if len(row) > 1 else "")
+                else:
+                    # Postgres: use information_schema
+                    cursor = self._conn.execute(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
+                        (table,),
+                    )
+                    rows = cursor.fetchall()
+                    columns = [row.get("column_name", "") if isinstance(row, dict) else row[0] for row in rows]
+
                 if "org_id" not in columns:
                     self._conn.execute(
                         f"ALTER TABLE {table} ADD COLUMN org_id TEXT NOT NULL DEFAULT 'default'"

@@ -378,3 +378,47 @@ def close_all_engines():
         for engine in _engines.values():
             engine.dispose()
         _engines.clear()
+
+
+def is_postgres(db_path: str) -> bool:
+    """Check whether the given db_path/URL targets PostgreSQL.
+
+    C1 fix: stores use this to guard SQLite-specific PRAGMA statements
+    and AUTOINCREMENT syntax. Postgres doesn't support PRAGMA or
+    AUTOINCREMENT — those must be skipped or replaced when the backend
+    is Postgres.
+    """
+    normalized = _normalize_path(db_path)
+    return normalized.startswith(("postgresql://", "postgresql+psycopg2://", "postgres://"))
+
+
+def is_sqlite(db_path: str) -> bool:
+    """Check whether the given db_path/URL targets SQLite."""
+    return not is_postgres(db_path)
+
+
+def autoincrement_syntax(db_path: str) -> str:
+    """Return the appropriate auto-increment syntax for the backend.
+
+    C1 fix: SQLite uses 'INTEGER PRIMARY KEY AUTOINCREMENT', Postgres
+    uses 'SERIAL PRIMARY KEY'. Stores that have auto-increment columns
+    should call this to get the right syntax for their schema.
+    """
+    if is_postgres(db_path):
+        return "SERIAL PRIMARY KEY"
+    return "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+
+def safe_pragma(conn, db_path: str, pragma_sql: str) -> None:
+    """Execute a PRAGMA statement only if the backend is SQLite.
+
+    C1 fix: PRAGMA statements are SQLite-specific. Postgres ignores them
+    silently (or raises an error depending on the statement). This helper
+    guards PRAGMA calls so stores can write 'safe_pragma(conn, db_path,
+    "PRAGMA journal_mode=WAL")' and it will be a no-op on Postgres.
+    """
+    if is_sqlite(db_path):
+        try:
+            conn.execute(pragma_sql)
+        except Exception as e:
+            logger.debug("PRAGMA failed (non-fatal): %s — %s", pragma_sql, e)

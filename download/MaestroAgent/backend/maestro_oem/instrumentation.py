@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from maestro_db import sqlite_compat as sqlite3
+from maestro_db.sqlite_compat import safe_pragma
 
 logger = logging.getLogger(__name__)
 
@@ -138,10 +139,8 @@ class SnapshotStore:
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
-        try:
-            self._conn.execute("PRAGMA journal_mode=WAL")
-        except Exception:
-            pass
+        # C1 fix: PRAGMA is SQLite-specific. Guard for Postgres compatibility.
+        safe_pragma(self._conn, self.db_path, "PRAGMA journal_mode=WAL")
 
     @contextmanager
     def _cursor(self) -> Iterator[sqlite3.Cursor]:
@@ -264,10 +263,8 @@ class DecisionLog:
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
-        try:
-            self._conn.execute("PRAGMA journal_mode=WAL")
-        except Exception:
-            pass
+        # C1 fix: PRAGMA is SQLite-specific. Guard for Postgres compatibility.
+        safe_pragma(self._conn, self.db_path, "PRAGMA journal_mode=WAL")
 
     @contextmanager
     def _cursor(self) -> Iterator[sqlite3.Cursor]:
