@@ -94,6 +94,15 @@ class BackgroundAdaptationLoop:
         # Update last check time
         BackgroundAdaptationLoop._last_check = datetime.now(timezone.utc)
 
+        # M1 fix: Wire high-urgency regressions into the governed adaptation loop.
+        # Before this fix, the background loop was "observational only" — it
+        # detected regressions and cached them, but never fed them back into
+        # delivery policy. Now, high-urgency regressions trigger
+        # OutcomeRecorder.record_outcome, which feeds the AttributionAnalyzer
+        # → PolicyProposer → (after threshold) active policy → decide_delivery().
+        # This closes the loop: background observations change future behavior.
+        self._wire_regressions_to_adaptation(regressions)
+
         # P15: ForgettingEngine — assess which old signals/LOs have zero predictive
         # value (>180 days, <0.05 predictive) and should be archived.
         forgetting_assessment = {}
@@ -196,3 +205,57 @@ class BackgroundAdaptationLoop:
         except Exception as e:
             logger.debug("Contradiction check failed: %s", e)
             return []
+
+    def _wire_regressions_to_adaptation(self, regressions: list[dict[str, Any]]) -> None:
+        """M1 fix: Feed high-urgency regressions into the governed adaptation loop.
+
+        Before this fix, the background loop detected regressions and cached
+        them, but the delivery policy never changed in response. This method
+        closes the loop: each high-urgency regression is recorded as a
+        synthetic outcome via OutcomeRecorder, which feeds:
+          AttributionAnalyzer → PolicyProposer → (after threshold) active policy
+          → decide_delivery() modulates future Whispers.
+
+        This is the wiring the audit's M1 finding identified as missing:
+        "Result is cached but never used to modify delivery policy or surface
+        insights." Now it IS used.
+
+        Failures are swallowed (P6) — a wiring error must never break the
+        background loop or signal ingest.
+        """
+        if not regressions:
+            return
+        try:
+            from maestro_oem.governed_adaptation import OutcomeRecorder
+            recorder = OutcomeRecorder(min_evidence_threshold=3)
+            for reg in regressions:
+                # Only wire regressions that have a clear dimension + narrative
+                dimension = reg.get("dimension", "")
+                narrative = reg.get("narrative", "")
+                if not dimension:
+                    continue
+                # Record as a synthetic outcome: the organization's delivery
+                # on this dimension regressed. This is evidence that current
+                # delivery policy is insufficient — the PolicyProposer will
+                # accumulate this evidence and, after the threshold, propose
+                # a policy change (e.g., increase urgency, decrease dedup
+                # threshold so Whispers surface faster).
+                recorder.record_outcome(
+                    whisper_id=f"background-loop:{dimension}",
+                    exec_action="ignored",  # synthetic: the regression happened without intervention
+                    outcome=f"trajectory_regression:{dimension}",
+                    entity=dimension,
+                    context_signals=[{
+                        "source": "background_loop",
+                        "dimension": dimension,
+                        "previous_trend": reg.get("previous_trend", ""),
+                        "current_trend": reg.get("current_trend", ""),
+                        "narrative": narrative,
+                    }],
+                )
+                logger.info(
+                    "M1 fix: wired regression '%s' to governed adaptation (was %s, now %s)",
+                    dimension, reg.get("previous_trend"), reg.get("current_trend"),
+                )
+        except Exception as e:
+            logger.debug("M1 wiring (regression → adaptation) failed: %s", e)

@@ -30,6 +30,7 @@ from maestro_api.oem_state import oem_state
 from maestro_api.security.policy import set_router_policy, AuthPolicy
 from maestro_db.db_helper import get_db_url_for_learning
 from maestro_oem.confidence import format_confidence_for_display  # ISSUE-07: display gate
+from maestro_oem.terminology_translation import translate_internal_terms  # M4 fix: no internal terms in user-facing responses
 
 logger = logging.getLogger(__name__)
 
@@ -1815,7 +1816,7 @@ def get_ceo_briefing() -> dict[str, Any]:
     except Exception as e:
         logger.debug("Personal context card build failed: %s", e)
 
-    return {
+    return translate_internal_terms({
         "generated_at": model.last_updated.isoformat() if hasattr(model.last_updated, "isoformat") else str(model.last_updated),
         "overnight": overnight_answer,
         "one_thing": one_thing,
@@ -1826,7 +1827,7 @@ def get_ceo_briefing() -> dict[str, Any]:
         "drafted_artifacts": _generate_drafted_artifacts(one_thing, money_losses, knowledge_traps, ceo_decisions, model),
         # Round 44 — last card in the briefing. {} when toggle is OFF.
         "personal_context": personal_context_card,
-    }
+    })
 
 
 def _generate_drafted_artifacts(
