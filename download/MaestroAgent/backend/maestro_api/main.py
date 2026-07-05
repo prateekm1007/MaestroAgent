@@ -209,6 +209,15 @@ def create_app(
             logger.warning("AUDITOR-P11-FIX: SynthesisProvider init failed: %s", e)
             app.state.synthesis_provider = None
 
+        # AUDITOR-P5: CandidatePatternStore for governed learning.
+        try:
+            from maestro_oem.pattern_proposer import CandidatePatternStore
+            app.state.candidate_pattern_store = CandidatePatternStore()
+            logger.info("AUDITOR-P5: CandidatePatternStore initialized")
+        except Exception as e:
+            logger.warning("AUDITOR-P5: CandidatePatternStore init failed: %s", e)
+            app.state.candidate_pattern_store = None
+
         try:
             yield
         finally:

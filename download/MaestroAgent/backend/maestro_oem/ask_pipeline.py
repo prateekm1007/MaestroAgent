@@ -94,6 +94,7 @@ class AskPipeline:
         model: Any = None,
         conversation_store: Any = None,
         synthesis_provider: Any = None,  # AUDITOR-P11-FIX: injected, not env-probed
+        candidate_pattern_store: Any = None,  # AUDITOR-P5: for governed learning
     ) -> None:
         self._signals = list(signals) if signals else []
         self._whisper_store = whisper_store
@@ -106,6 +107,7 @@ class AskPipeline:
         self._narrator = None
         self._user_email = ""
         self._synthesis_provider = synthesis_provider
+        self._candidate_pattern_store = candidate_pattern_store
 
     # ─── Step 1: Intent classification ───────────────────────────────
 
@@ -469,6 +471,33 @@ class AskPipeline:
         trace.fallback_triggered = reasoning_mode == ReasoningMode.DETERMINISTIC_FALLBACK
         trace.fallback_reason = fallback_reason
         trace.citation_validation_result = CitationValidationResult.NOT_RUN
+
+        # AUDITOR-P5 (Priority 5A): Propose candidate patterns from the answer.
+        # The PatternProposer extracts hedged hypotheses from the synthesized
+        # answer. These are NOT evidence — they are hypotheses worth testing.
+        # Repeated reasoning does NOT promote them. Only prospective predictions
+        # (registered before outcome) resolved by independent signals can.
+        from maestro_oem.pattern_proposer import PatternProposer
+        proposer = PatternProposer(store=getattr(self, '_candidate_pattern_store', None))
+        # Build simple claims from the answer for the proposer
+        # (full ClaimVerifier integration is a future enhancement)
+        simple_claims = []
+        if answer and len(answer) > 20:
+            # Treat the answer as an inference claim if it has content
+            simple_claims.append({
+                "text": answer[:300],
+                "citation_numbers": list(range(1, len(evidence) + 1))[:5],
+                "claim_type": "inference",
+            })
+        candidates = proposer.propose(
+            claims=simple_claims,
+            entities=entities,
+            query_id=str(trace.query_id),
+        )
+        trace.metadata["candidate_patterns"] = {
+            "proposed_count": len(candidates),
+            "candidates": [c.to_audit_dict() for c in candidates[:5]],  # cap at 5 for audit
+        }
 
         # Step 6: Save conversation turn
         if session_id and self._conversation_store:

@@ -575,6 +575,7 @@ async def ask(q: str = Query(..., description="Natural-language question"), requ
     Never silent.
     """
     synthesis_provider = getattr(request.app.state, "synthesis_provider", None) if request else None
+    candidate_pattern_store = getattr(request.app.state, "candidate_pattern_store", None) if request else None
     try:
         from maestro_oem.ask_pipeline import AskPipeline
         from maestro_oem.preparation_engine import PreparationEngine
@@ -590,6 +591,7 @@ async def ask(q: str = Query(..., description="Natural-language question"), requ
             model=oem_state.model if oem_state else None,
             conversation_store=_get_conversation_store(),
             synthesis_provider=synthesis_provider,
+            candidate_pattern_store=candidate_pattern_store,
         )
         pipeline_result = await pipeline.execute_async(q, org_id="default")
         result = {
@@ -5454,6 +5456,7 @@ async def ask_conversation(payload: dict[str, Any], request: Request) -> dict[st
         raise HTTPException(400, "Query is required")
 
     synthesis_provider = getattr(request.app.state, "synthesis_provider", None)
+    candidate_pattern_store = getattr(request.app.state, "candidate_pattern_store", None)
 
     from maestro_oem.ask_pipeline import AskPipeline
     from maestro_oem.preparation_engine import PreparationEngine
@@ -5469,6 +5472,7 @@ async def ask_conversation(payload: dict[str, Any], request: Request) -> dict[st
         model=oem_state.model if oem_state else None,
         conversation_store=_get_conversation_store(),
         synthesis_provider=synthesis_provider,
+        candidate_pattern_store=candidate_pattern_store,
     )
     answer = await pipeline.execute_async(query, org_id="default", session_id=session_id)
 
