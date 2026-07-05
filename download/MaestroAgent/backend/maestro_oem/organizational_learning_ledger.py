@@ -81,7 +81,7 @@ class OrganizationalLearningLedger:
 
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS org_learning_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id {pk},
         source_loop TEXT NOT NULL,
         entity TEXT NOT NULL,
         learning_entry TEXT NOT NULL,
@@ -115,7 +115,10 @@ class OrganizationalLearningLedger:
             self._conn.row_factory = _sqlite3.Row
         try:
             cursor = self._conn.cursor()
-            for stmt in self._SCHEMA.strip().split(';'):
+            # C1 fix: format schema with backend-appropriate PK syntax
+            from maestro_db.sqlite_compat import autoincrement_syntax
+            schema = self._SCHEMA.format(pk=autoincrement_syntax(self._db_path))
+            for stmt in schema.strip().split(';'):
                 stmt = stmt.strip()
                 if stmt:
                     cursor.execute(stmt)

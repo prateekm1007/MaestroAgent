@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS weekly_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id {pk},
     snapshot_at TEXT NOT NULL,
     week_label TEXT NOT NULL,
     signals_processed INTEGER DEFAULT 0,
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS weekly_snapshots (
 );
 
 CREATE TABLE IF NOT EXISTS decision_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id {pk},
     logged_at TEXT NOT NULL,
     preparation_id TEXT NOT NULL,
     preparation_type TEXT DEFAULT '',
@@ -138,7 +138,10 @@ class SnapshotStore:
             isolation_level=None,
         )
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
+        # C1 fix: format schema with backend-appropriate PK syntax
+        from maestro_db.sqlite_compat import autoincrement_syntax
+        schema = _SCHEMA.format(pk=autoincrement_syntax(self.db_path))
+        self._conn.executescript(schema)
         # C1 fix: PRAGMA is SQLite-specific. Guard for Postgres compatibility.
         safe_pragma(self._conn, self.db_path, "PRAGMA journal_mode=WAL")
 
@@ -262,7 +265,10 @@ class DecisionLog:
             isolation_level=None,
         )
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
+        # C1 fix: format schema with backend-appropriate PK syntax
+        from maestro_db.sqlite_compat import autoincrement_syntax
+        schema = _SCHEMA.format(pk=autoincrement_syntax(self.db_path))
+        self._conn.executescript(schema)
         # C1 fix: PRAGMA is SQLite-specific. Guard for Postgres compatibility.
         safe_pragma(self._conn, self.db_path, "PRAGMA journal_mode=WAL")
 

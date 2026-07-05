@@ -103,7 +103,7 @@ class CommitmentMutationTracker:
 
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS commitment_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id {pk},
         entity TEXT NOT NULL,
         commitment_text TEXT NOT NULL,
         timestamp TEXT,
@@ -111,7 +111,7 @@ class CommitmentMutationTracker:
         artifact TEXT
     );
     CREATE TABLE IF NOT EXISTS commitment_mutations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id {pk},
         entity TEXT NOT NULL,
         old_text TEXT NOT NULL,
         new_text TEXT NOT NULL,
@@ -154,7 +154,10 @@ class CommitmentMutationTracker:
             self._conn.row_factory = _sqlite3.Row
         try:
             cursor = self._conn.cursor()
-            for stmt in self._SCHEMA.strip().split(';'):
+            # C1 fix: format schema with backend-appropriate PK syntax
+            from maestro_db.sqlite_compat import autoincrement_syntax
+            schema = self._SCHEMA.format(pk=autoincrement_syntax(self._db_path))
+            for stmt in schema.strip().split(';'):
                 stmt = stmt.strip()
                 if stmt:
                     cursor.execute(stmt)

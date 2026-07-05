@@ -189,6 +189,113 @@ def test_checkpoint_store_works_with_sqlite_backend():
     store.close()
 
 
+def test_no_raw_autoincrement_in_production_schema_code():
+    """C1 fix (regression guard): no production store uses raw AUTOINCREMENT.
+
+    All 5 stores that previously had `INTEGER PRIMARY KEY AUTOINCREMENT` in
+    their _SCHEMA strings must now use the {pk} placeholder + format with
+    autoincrement_syntax(db_path). This test grep-verifies by source
+    inspection (P11: wiring check).
+
+    The only files allowed to contain the literal string are:
+    - test_c1_postgres_compatibility.py (this file — test assertions)
+    - sqlite_compat.py (the autoincrement_syntax helper itself)
+    """
+    import inspect
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    stores_to_check = [
+        "maestro_oem/commitment_mutation_tracker.py",
+        "maestro_oem/organizational_learning_ledger.py",
+        "maestro_oem/conversation_store.py",
+        "maestro_oem/interaction_memory.py",
+        "maestro_oem/instrumentation.py",
+        "maestro_oem/checkpoint_store.py",
+    ]
+
+    for rel_path in stores_to_check:
+        full_path = backend / rel_path
+        with open(full_path) as f:
+            source = f.read()
+
+        # Must NOT contain raw AUTOINCREMENT in schema definitions
+        # (the only allowed occurrence is in comments/docstrings)
+        lines = source.split("\n")
+        for i, line in enumerate(lines, 1):
+            if "AUTOINCREMENT" in line:
+                # Allow if it's a comment or docstring
+                stripped = line.strip()
+                if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'"):
+                    continue
+                # Allow if it's inside autoincrement_syntax() call (the helper)
+                if "autoincrement_syntax" in line:
+                    continue
+                # This is a real violation — raw AUTOINCREMENT in schema
+                assert False, \
+                    f"{rel_path}:{i} has raw AUTOINCREMENT: {line.strip()!r}. " \
+                    f"Must use {{pk}} placeholder + autoincrement_syntax(db_path)."
+
+        # Must use {pk} placeholder in schema (for stores that have auto-increment columns)
+        if rel_path != "maestro_oem/checkpoint_store.py":  # checkpoint_store doesn't use AUTOINCREMENT
+            assert "{pk}" in source, \
+                f"{rel_path} must use {{pk}} placeholder in _SCHEMA for Postgres compatibility"
+
+
+def test_all_5_stores_format_schema_with_autoincrement_syntax():
+    """C1 fix: all 5 stores call autoincrement_syntax() at schema init time.
+
+    P11 wiring check: the stores must not just define {pk} in the schema
+    string — they must also CALL autoincrement_syntax(db_path).format(pk=...)
+    at _connect() time.
+    """
+    import inspect
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    stores_to_check = [
+        "maestro_oem/commitment_mutation_tracker.py",
+        "maestro_oem/organizational_learning_ledger.py",
+        "maestro_oem/conversation_store.py",
+        "maestro_oem/interaction_memory.py",
+        "maestro_oem/instrumentation.py",
+    ]
+
+    for rel_path in stores_to_check:
+        full_path = backend / rel_path
+        with open(full_path) as f:
+            source = f.read()
+
+        # Must import or reference autoincrement_syntax
+        assert "autoincrement_syntax" in source, \
+            f"{rel_path} must reference autoincrement_syntax for C1 Postgres compatibility"
+
+        # Must call .format(pk=autoincrement_syntax(...))
+        assert ".format(pk=" in source or ".format(pk =" in source, \
+            f"{rel_path} must call _SCHEMA.format(pk=autoincrement_syntax(...)) at init time"
+
+
+def test_interaction_memory_schema_format_does_not_break_braces():
+    """C1 fix: interaction_memory.py has DEFAULT '{{}}' which .format() renders as '{}'.
+
+    Regression test: the schema string in interaction_memory.py contains
+    `DEFAULT '{{}}'` (escaped braces) so that .format(pk=...) produces
+    `DEFAULT '{}'` (valid SQL). Without the escaping, .format() would
+    raise "Replacement index 0 out of range".
+    """
+    from maestro_oem.interaction_memory import _SCHEMA
+    from maestro_db.sqlite_compat import autoincrement_syntax
+
+    # This must NOT raise
+    formatted = _SCHEMA.format(pk=autoincrement_syntax(":memory:"))
+    # The escaped {{}} must render as {} in the output
+    assert "DEFAULT '{}'" in formatted, \
+        f"Escaped braces must render as literal braces. Got: {formatted!r}"
+    # The {pk} placeholder must be replaced
+    assert "{pk}" not in formatted, \
+        f"{{pk}} placeholder must be replaced. Got: {formatted!r}"
+
+
 if __name__ == "__main__":
     test_is_postgres_detects_postgres_urls()
     print("PASS: test_is_postgres_detects_postgres_urls")

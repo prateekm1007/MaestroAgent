@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversation_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id {pk},
     session_id TEXT NOT NULL,
     turn INTEGER NOT NULL,
     role TEXT NOT NULL,
@@ -50,7 +50,10 @@ class ConversationStore:
             self._conn.row_factory = sqlite3.Row
         try:
             cursor = self._conn.cursor()
-            for stmt in _SCHEMA.strip().split(';'):
+            # C1 fix: format schema with backend-appropriate PK syntax
+            from maestro_db.sqlite_compat import autoincrement_syntax
+            schema = _SCHEMA.format(pk=autoincrement_syntax(self._db_path))
+            for stmt in schema.strip().split(';'):
                 stmt = stmt.strip()
                 if stmt:
                     cursor.execute(stmt)

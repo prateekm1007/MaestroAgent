@@ -63,13 +63,13 @@ class InteractionEventType(str, Enum):
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS interaction_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id {pk},
     event_id TEXT NOT NULL,
     whisper_id TEXT NOT NULL,
     org_id TEXT NOT NULL,
     event_type TEXT NOT NULL,
     timestamp TEXT NOT NULL,
-    metadata TEXT DEFAULT '{}'
+    metadata TEXT DEFAULT '{{}}'
 );
 CREATE INDEX IF NOT EXISTS idx_interaction_whisper ON interaction_events(whisper_id, org_id);
 CREATE INDEX IF NOT EXISTS idx_interaction_timestamp ON interaction_events(timestamp);
@@ -107,7 +107,10 @@ class InteractionMemory:
             self._conn.row_factory = sqlite3.Row
         try:
             cursor = self._conn.cursor()
-            for stmt in _SCHEMA.strip().split(';'):
+            # C1 fix: format schema with backend-appropriate PK syntax
+            from maestro_db.sqlite_compat import autoincrement_syntax
+            schema = _SCHEMA.format(pk=autoincrement_syntax(self._db_path))
+            for stmt in schema.strip().split(';'):
                 stmt = stmt.strip()
                 if stmt:
                     cursor.execute(stmt)
