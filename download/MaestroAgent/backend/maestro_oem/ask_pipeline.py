@@ -1070,6 +1070,9 @@ class AskPipeline:
                     str(s.metadata.get("objection_type", "")),
                     str(s.metadata.get("customer", "")),
                     str(s.metadata.get("decision_outcome", "")),
+                    str(s.metadata.get("body", "")),  # AUDITOR-FIX: include body text
+                    str(s.metadata.get("subject", "")),  # AUDITOR-FIX: include subject
+                    str(s.metadata.get("note", "")),  # AUDITOR-FIX: include notes
                     str(s.type.value if hasattr(s.type, "value") else s.type),
                     s.actor or "",
                 ]))
