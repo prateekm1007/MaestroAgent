@@ -1126,11 +1126,25 @@ class AskPipeline:
                             claim_type = classifier.classify(body_text)
                         except Exception:
                             pass  # fallback to observed_fact
-                    # Also respect structured signal types for non-text signals
+                    # AUDITOR-FIX (Round 6): Removed the CUSTOMER_COMMITMENT_MADE override
+                    # that forced unclassified → commitment. This override was added when
+                    # the classifier wasn't wired in (the original CRITICAL-01 pattern).
+                    # Now that the classifier IS wired in (commit 6952970), the override
+                    # is redundant AND harmful: it defeats the Coverage Assessor for the
+                    # product's flagship use case (customer commitments arrive as
+                    # CUSTOMER_COMMITMENT_MADE → override fires → unclassified forced to
+                    # commitment → Coverage Assessor sees all-commitments → coverage 1.0
+                    # → no escalation, even when the body text is novel vocabulary).
+                    #
+                    # The auditor's recommendation: "The override exists because the old
+                    # code hardcoded observed_fact for everything; now that the classifier
+                    # is wired in, the override is redundant and harmful."
+                    #
+                    # Keep only the structured overrides that add information the classifier
+                    # CAN'T derive from body text (commitment_broken and decision are
+                    # structural events, not text classification).
                     if hasattr(s, "type"):
-                        if s.type == SignalType.CUSTOMER_COMMITMENT_MADE and claim_type == "unclassified":
-                            claim_type = "commitment"
-                        elif s.type == SignalType.CUSTOMER_COMMITMENT_BROKEN:
+                        if s.type == SignalType.CUSTOMER_COMMITMENT_BROKEN:
                             claim_type = "outcome"
                         elif s.type == SignalType.CUSTOMER_DECISION:
                             claim_type = "outcome"
