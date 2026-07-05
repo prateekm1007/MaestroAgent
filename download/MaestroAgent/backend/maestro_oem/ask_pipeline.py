@@ -630,8 +630,39 @@ class AskPipeline:
         return evidence, answer_parts
 
     def _retrieve_what(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
-        """Retrieve commitments/decisions related to the entities."""
-        return self._search_signals(entities, query, focus="what", user_email=self._user_email or "")
+        """Retrieve commitments/decisions related to the entities.
+
+        H-02 fix: if no entity-specific evidence found, surface organizational
+        laws (same fallback as _retrieve_default). This prevents "What are the
+        risks?" from returning "I don't know" when the system HAS laws about
+        risks, bottlenecks, and commitments.
+        """
+        evidence, answer_parts = self._search_signals(entities, query, focus="what", user_email=self._user_email or "")
+
+        # H-02 fix: fallback to laws if no signal evidence
+        if not evidence and self._model:
+            try:
+                laws = self._model.laws
+                if laws:
+                    answer_parts.append(f"The organization has {len(laws)} inferred laws from operational patterns:")
+                    for code, law in list(laws.items())[:3]:
+                        stmt = law.statement[:100] if hasattr(law, 'statement') else str(law)[:100]
+                        answer_parts.append(f"  • {code}: {stmt}")
+                    evidence.append({
+                        "source": "organizational_laws",
+                        "text": f"{len(laws)} laws inferred from operational signals",
+                        "date": "",
+                        "people": [],
+                        "evidence_spine": {
+                            "claim": f"Organization has {len(laws)} laws",
+                            "observed_facts": [{"source": "model", "date": "", "text": stmt[:80]}],
+                            "claim_type": "inference",
+                        },
+                    })
+            except Exception:
+                pass
+
+        return evidence, answer_parts
 
     def _retrieve_wisdom(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
         """Phase A: Wire WisdomEngine — 'What should we do?' → value synthesis."""
@@ -707,8 +738,44 @@ class AskPipeline:
         return evidence, answer_parts
 
     def _retrieve_default(self, entities: list[str], query: str) -> tuple[list[dict], list[str]]:
-        """Default retrieval: search signals for the query."""
-        return self._search_signals(entities, query, focus="default", user_email=self._user_email or "")
+        """Default retrieval: search signals + surface laws/recommendations.
+
+        H-02 fix: before this fix, generic queries like "What are the risks?"
+        returned "I don't have enough organizational memory" because no entity
+        matched and no signals were found. Now: if no signals match, fall back
+        to surfacing organizational laws and recommendations — the system's
+        accumulated intelligence. This gives the exec SOMETHING useful instead
+        of "I don't know."
+        """
+        evidence, answer_parts = self._search_signals(entities, query, focus="default", user_email=self._user_email or "")
+
+        # H-02 fix: if no signal evidence found, surface laws + recommendations
+        if not evidence and self._model:
+            try:
+                laws = self._model.laws
+                if laws:
+                    answer_parts.append(f"The organization has {len(laws)} inferred laws from operational patterns:")
+                    for code, law in list(laws.items())[:3]:
+                        stmt = law.statement[:100] if hasattr(law, 'statement') else str(law)[:100]
+                        answer_parts.append(f"  • {code}: {stmt}")
+                    evidence.append({
+                        "source": "organizational_laws",
+                        "text": f"{len(laws)} laws inferred from operational signals",
+                        "date": "",
+                        "people": [],
+                        "evidence_spine": {
+                            "claim": f"Organization has {len(laws)} laws",
+                            "observed_facts": [{"source": "model", "date": "", "text": stmt[:80]}],
+                            "claim_type": "inference",
+                        },
+                    })
+                else:
+                    answer_parts.append("I don't have enough organizational memory to answer this. "
+                                       "Try asking about a specific customer, project, or decision.")
+            except Exception:
+                pass
+
+        return evidence, answer_parts
 
     def _search_signals(
         self, entities: list[str], query: str, focus: str = "default",
@@ -799,7 +866,13 @@ class AskPipeline:
                             "claim_type": claim_type,
                         },
                     })
-                    answer_parts.append(f"- {sig_date} ({sig_source}): {sig_text[:100]}")
+                # H-01 fix: don't append raw signal lines to answer_parts.
+                # The narrator will use synthesis_hints as the answer body.
+                # Raw signal data goes in evidence[] (which becomes the
+                # "Sources:" section). Before this fix, answer_parts contained
+                # raw signal listings like "- 2024-11-01 (customer): crm:..."
+                # which the narrator rendered as the main answer — a data dump.
+                # Now answer_parts gets a synthesized summary instead.
             except Exception:
                 continue
 
@@ -817,7 +890,32 @@ class AskPipeline:
             # sophisticated demo.
             pass
 
-        if not evidence:
+        # H-01 fix: generate synthesized answer_parts from the evidence found.
+        # Instead of raw signal listings, produce a natural-language summary
+        # that the narrator can use as the answer body.
+        if evidence:
+            entities_str = ", ".join(entities) if entities else "the organization"
+            # Count by type
+            commitments = sum(1 for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "commitment")
+            outcomes = sum(1 for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "outcome")
+            observations = sum(1 for e in evidence if e.get("evidence_spine", {}).get("claim_type") == "observed_fact")
+
+            parts = []
+            if commitments:
+                # List the actual commitment texts (not raw signal metadata)
+                commit_texts = [e.get("text", "") for e in evidence
+                               if e.get("evidence_spine", {}).get("claim_type") == "commitment"]
+                parts.append(f"Based on {len(evidence)} signal(s) from {entities_str}:")
+                for ct in commit_texts[:3]:
+                    parts.append(f"  • {ct}")
+                if len(commit_texts) > 3:
+                    parts.append(f"  ... and {len(commit_texts) - 3} more")
+            elif outcomes:
+                parts.append(f"Found {len(evidence)} outcome signal(s) for {entities_str}.")
+            else:
+                parts.append(f"Found {len(evidence)} relevant signal(s) for {entities_str}.")
+            answer_parts = parts
+        else:
             answer_parts.append("I don't have enough relevant signals to answer this.")
 
         return evidence, answer_parts

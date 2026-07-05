@@ -124,6 +124,24 @@ class OrganizationalWhisper:
             raw_whispers.extend(self._entity_whispers(entity))
             warnings.extend(self._entity_warnings(entity))
             precedents.extend(self._entity_precedents(entity))
+        else:
+            # M-02 fix: ambient whisper — when no entity is specified, surface
+            # top-priority insights across ALL entities. Before this fix, calling
+            # /api/oem/whisper without an entity returned 0 whispers — no ambient
+            # intelligence. Now: find all unique entities in signals, generate
+            # whispers for each, and return the top 3 by priority.
+            try:
+                entities_seen = set()
+                for s in self.signals:
+                    if hasattr(s, "metadata") and s.metadata:
+                        cust = s.metadata.get("customer", "")
+                        if cust and cust not in entities_seen:
+                            entities_seen.add(cust)
+                for ent in list(entities_seen)[:5]:  # limit to 5 entities for performance
+                    ent_whispers = self._entity_whispers(ent)
+                    raw_whispers.extend(ent_whispers)
+            except Exception as e:
+                logger.debug("Ambient whisper generation failed: %s", e)
 
         # Topic-specific whispers
         if topic:
