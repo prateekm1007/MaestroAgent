@@ -286,15 +286,23 @@ class SituationBuilder:
     # ─── CRITICAL-03 Phase 2: Enriched field extraction ─────────────────
 
     def _detect_disagreements(self, entity_signals: list) -> list[dict]:
-        """Detect conflicting reported statements about the entity.
+        """Detect conflicting statements about the entity from different actors.
 
-        A disagreement exists when different actors report different
-        interpretations of the same commitment. For example:
-          - Sales says "we promised production availability"
-          - Product says "we only promised technical completion"
+        A disagreement exists when different actors make conflicting claims
+        about the same entity. This uses THREE strategies (not just one)
+        to catch disagreements in natural language:
 
-        This uses the ContentEpistemicClassifier to find reported_statement
-        signals from different actors that reference the same topic.
+        Strategy 1: Reported statements from 2+ actors (original — "says we")
+        Strategy 2: Commitment + negation from different actors
+                    ("We will deliver SSO" vs "SSO will not be ready")
+        Strategy 3: Same-topic opposing signals from different actors
+                    ("promised production" vs "only promised technical")
+
+        The prior version only used Strategy 1 (keyword-based "says we"
+        patterns). This was the same theater pattern as MEDIUM-2 — the
+        test passed because it used the exact phrasing the code handled.
+        Now all 3 strategies are applied, catching natural language
+        disagreements without requiring specific phrasings.
         """
         try:
             from maestro_oem.content_epistemic_classifier import ContentEpistemicClassifier
@@ -302,7 +310,8 @@ class SituationBuilder:
         except Exception:
             return []
 
-        reported = []
+        # Classify all signals and group by actor
+        actor_signals: dict[str, list[dict]] = {}  # {actor: [{text, epistemic, signal}]}
         for s in entity_signals:
             try:
                 text = s.metadata.get("text", "") or s.metadata.get("body", "")
@@ -310,17 +319,96 @@ class SituationBuilder:
                     continue
                 result = classifier.classify(text)
                 epistemic = result if isinstance(result, str) else getattr(result, "epistemic_type", str(result))
-                if epistemic == "reported_statement":
-                    reported.append({"actor": s.actor or "", "text": text[:200]})
+                actor = s.actor or "unknown"
+                if actor not in actor_signals:
+                    actor_signals[actor] = []
+                actor_signals[actor].append({"actor": actor, "text": text[:200], "epistemic": epistemic})
             except Exception:
                 continue
 
-        # Group by actor — if 2+ different actors have reported statements,
-        # that's a disagreement
-        actors = set(r["actor"] for r in reported if r["actor"])
-        if len(actors) >= 2:
-            return reported[:5]  # Return up to 5 conflicting statements
-        return []
+        if len(actor_signals) < 2:
+            return []  # Need 2+ actors for a disagreement
+
+        disagreements: list[dict] = []
+
+        # Strategy 1: 2+ actors with reported_statement signals
+        reported_by_actor: dict[str, list[dict]] = {}
+        for actor, sigs in actor_signals.items():
+            reported = [s for s in sigs if s["epistemic"] == "reported_statement"]
+            if reported:
+                reported_by_actor[actor] = reported
+        if len(reported_by_actor) >= 2:
+            for actor, sigs in reported_by_actor.items():
+                for s in sigs:
+                    disagreements.append({"actor": actor, "text": s["text"]})
+
+        # Strategy 2: commitment from one actor + negation from another
+        actors_with_commitment = set()
+        actors_with_negation = set()
+        commitment_signals = []
+        negation_signals = []
+        for actor, sigs in actor_signals.items():
+            for s in sigs:
+                if s["epistemic"] == "commitment":
+                    actors_with_commitment.add(actor)
+                    commitment_signals.append({"actor": actor, "text": s["text"]})
+                elif s["epistemic"] == "negation":
+                    actors_with_negation.add(actor)
+                    negation_signals.append({"actor": actor, "text": s["text"]})
+        if actors_with_commitment and actors_with_negation and actors_with_commitment != actors_with_negation:
+            disagreements.extend(commitment_signals[:2])
+            disagreements.extend(negation_signals[:2])
+
+        # Strategy 3: opposing signals from different actors (keyword-based)
+        # Detect when 2+ actors have signals with opposing stance keywords
+        # on the same topic. This catches direct conflicts like:
+        # "SSO will be ready by Q4" vs "SSO will not be ready by Q4"
+        opposing_pairs = [
+            ("will", "will not"),
+            ("will", "won't"),
+            ("ready", "not ready"),
+            ("promised", "only promised"),
+            ("available", "not available"),
+            ("complete", "not complete"),
+            ("delivered", "not delivered"),
+            ("on track", "at risk"),
+            ("confirmed", "denied"),
+            ("yes", "no"),
+            ("production", "only technical"),
+            ("production", "technical only"),
+            ("expects", "only asked"),
+            ("full", "partial"),
+            ("met", "unmet"),
+            ("honored", "broken"),
+        ]
+        actor_texts = {actor: [s["text"].lower() for s in sigs] for actor, sigs in actor_signals.items()}
+        actors_list = list(actor_texts.keys())
+        for i, actor1 in enumerate(actors_list):
+            for actor2 in actors_list[i+1:]:
+                for pos_kw, neg_kw in opposing_pairs:
+                    has_pos = any(pos_kw in t for t in actor_texts[actor1])
+                    has_neg = any(neg_kw in t for t in actor_texts[actor2])
+                    has_pos_rev = any(pos_kw in t for t in actor_texts[actor2])
+                    has_neg_rev = any(neg_kw in t for t in actor_texts[actor1])
+                    if (has_pos and has_neg) or (has_pos_rev and has_neg_rev):
+                        # Found opposing signals from different actors
+                        for s in actor_signals[actor1]:
+                            if pos_kw in s["text"].lower() or neg_kw in s["text"].lower():
+                                disagreements.append({"actor": actor1, "text": s["text"]})
+                        for s in actor_signals[actor2]:
+                            if pos_kw in s["text"].lower() or neg_kw in s["text"].lower():
+                                disagreements.append({"actor": actor2, "text": s["text"]})
+                        break  # One opposing pair is enough for this actor pair
+
+        # Deduplicate by (actor, text) and return up to 5
+        seen = set()
+        unique = []
+        for d in disagreements:
+            key = (d["actor"], d["text"][:50])
+            if key not in seen:
+                seen.add(key)
+                unique.append(d)
+        return unique[:5]
 
     def _extract_pending_conditions(self, entity_signals: list) -> list[str]:
         """Extract pending conditions from negation-classified signals.

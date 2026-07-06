@@ -34,6 +34,46 @@ os.environ.setdefault("MAESTRO_APP_DIR", _app_dir)
 # every test, ensuring hermetic isolation.
 import pytest
 
+# CRITICAL-02 Phase 2: Skip tests for missing optional dependencies.
+# These deps are not installed in the minimal test environment. Tests
+# that REQUIRE them should be skipped, not failed.
+try:
+    import chromadb  # noqa: F401
+    HAS_CHROMADB = True
+except ImportError:
+    HAS_CHROMADB = False
+
+try:
+    import sentence_transformers  # noqa: F401
+    HAS_SENTENCE_TRANSFORMERS = True
+except ImportError:
+    HAS_SENTENCE_TRANSFORMERS = False
+
+try:
+    import crewai  # noqa: F401
+    HAS_CREWAI = True
+except ImportError:
+    HAS_CREWAI = False
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip tests that require missing optional dependencies."""
+    skip_chromadb = pytest.mark.skip(reason="chromadb not installed (optional dep)")
+    skip_st = pytest.mark.skip(reason="sentence-transformers not installed (optional dep)")
+    skip_crewai = pytest.mark.skip(reason="crewai not installed (optional dep)")
+
+    for item in items:
+        # Skip tests that reference chromadb/vector memory if not installed
+        if not HAS_CHROMADB and ("chromadb" in item.nodeid.lower() or "vector" in item.nodeid.lower()):
+            item.add_marker(skip_chromadb)
+        # Skip tests that require sentence-transformers embeddings
+        if not HAS_SENTENCE_TRANSFORMERS and "embedding" in item.nodeid.lower():
+            item.add_marker(skip_st)
+        # Skip crewai tests if not installed
+        if not HAS_CREWAI and "crew" in item.nodeid.lower():
+            item.add_marker(skip_crewai)
+
+
 @pytest.fixture(autouse=True)
 def _reset_oem_state():
     """Reset OEM state before each test to prevent cross-test contamination."""
