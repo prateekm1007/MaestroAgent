@@ -82,6 +82,10 @@ class OrganizationalWhisper:
         and Preparation also see. Without this, each surface builds its own
         view independently, risking cross-surface incoherence.
 
+        CRITICAL-01 fix: filter signals through ACLResolver before generating
+        whispers. Channel-scoped content (e.g. source_acl="channel:slack:C-private")
+        must not leak to unauthorized users. Deny-by-default for non-public ACLs.
+
         Args:
             context: "meeting" | "proposal" | "decision" | "email" | "review" | "ticket" | "design"
             entity: The entity being discussed (customer name, law code, person)
@@ -94,6 +98,34 @@ class OrganizationalWhisper:
           - precedents: list of similar past situations
           - confidence: overall confidence in the whispers
         """
+        # CRITICAL-01 fix: ACL-filter signals for this user before generating
+        # whispers. Temporarily replace self.signals with the filtered list
+        # so all internal methods (_entity_whispers, _entity_warnings, etc.)
+        # use the ACL-filtered view. Restore after the call.
+        original_signals = self.signals
+        if user:
+            try:
+                from maestro_oem.acl_resolver import ACLResolver
+                acl_resolver = ACLResolver()
+                self.signals = [s for s in self.signals if acl_resolver.can_access(s, user)]
+            except Exception:
+                # If ACL resolution fails, fail-closed: use empty signals
+                # rather than leaking restricted content.
+                self.signals = []
+        try:
+            return self._for_context_internal(context, entity, topic, user)
+        finally:
+            # Restore original signals (don't permanently mutate state)
+            self.signals = original_signals
+
+    def _for_context_internal(
+        self,
+        context: str = "",
+        entity: str = "",
+        topic: str = "",
+        user: str = "",
+    ) -> dict[str, Any]:
+        """Internal implementation of for_context (called after ACL filtering)."""
         raw_whispers: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
         precedents: list[dict[str, Any]] = []
