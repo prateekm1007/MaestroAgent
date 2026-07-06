@@ -20,10 +20,10 @@ Principles (P1-P26) were prose. Gates (1-20) were checklists. Both were violated
 
 ## What the Coder Must Read (at the start of every session)
 
-### 1. `ENTROPY_RECOVERY.md` Part Four (P20-P26)
-**Why:** These are the principles the Coder has violated most. P20 (call-site parameter rule), P21 (all-paths trigger), P22 (regression = production path), P23 (commit cites output), P24 (cross-surface coherence), P25 (confidence display gate), P26 (re-application meta-principle).
+### 1. `ENTROPY_RECOVERY.md` Part Four (P20-P26) + Part Five (P27-P34)
+**Why:** Part Four contains the principles the Coder has violated most. P20 (call-site parameter rule), P21 (all-paths trigger), P22 (regression = production path), P23 (commit cites output), P24 (cross-surface coherence), P25 (confidence display gate), P26 (re-application meta-principle). Part Five contains the Auditor's own failures — P27 (read assertions), P28 (test 3+ inputs), P29 (re-run canonical scenario), P30 (verify comprehensiveness by counting), P31 (run verify scripts yourself), P32 (check all derived state), P33 (search for refutation), P34 (re-derive method from failures).
 
-**Read receipt:** Paste the timestamp + one key sentence from P20 and one from P26.
+**Read receipt:** Paste the timestamp + one key sentence from P20 and one from P26 (Part Four) + one from P27 and one from P34 (Part Five).
 
 ### 2. `AUDITOR_GOVERNANCE.md` Gates 15-20
 **Why:** These are the gates the auditor will verify against. If the Coder reads them before committing, the Coder knows exactly what the auditor will check — and can self-check first.
@@ -44,10 +44,10 @@ Principles (P1-P26) were prose. Gates (1-20) were checklists. Both were violated
 
 **Read receipt:** Paste the timestamp + confirm you will run it and paste output inline.
 
-### 2. `ENTROPY_RECOVERY.md` Part Four (P20-P26)
-**Why:** These are the principles the Coder should be following. If you don't know them, you can't verify the Coder applied them. P22 (unit ≠ integration) and P24 (cross-surface coherence) are the ones that catch theater.
+### 2. `ENTROPY_RECOVERY.md` Part Four (P20-P26) + Part Five (P27-P34)
+**Why:** Part Four contains the principles the Coder should be following. If you don't know them, you can't verify the Coder applied them. P22 (unit ≠ integration) and P24 (cross-surface coherence) are the ones that catch theater. Part Five contains YOUR OWN failures — P27 (read assertions, not test names), P28 (test 3+ inputs), P29 (re-run full SSO scenario after shared component changes), P30 (count and check each), P31 (run verify scripts yourself), P32 (check all derived state), P33 (search for refutation of negative claims), P34 (re-derive your method from failures, not memory). These are the principles YOU violated. Read them or repeat the failures.
 
-**Read receipt:** Paste the timestamp + one key sentence from P22 and one from P24.
+**Read receipt:** Paste the timestamp + one key sentence from P22 and P24 (Part Four) + one from P27 and P34 (Part Five).
 
 ### 3. `AUDITOR_GOVERNANCE.md` Gates 15-20
 **Why:** These are YOUR gates. You proposed them. If you don't re-read them, you'll skip them — as you did 3 times.
@@ -72,9 +72,11 @@ The Coder MUST:
 
 ```
 GOVERNANCE LOOP READ RECEIPT (Coder):
-- ENTROPY_RECOVERY.md Part Four read at <timestamp>
+- ENTROPY_RECOVERY.md Part Four (P20-P26) + Part Five (P27-P34) read at <timestamp>
   P20 key line: "<paste one sentence>"
   P26 key line: "<paste one sentence>"
+  P27 key line: "<paste one sentence>"
+  P34 key line: "<paste one sentence>"
 - AUDITOR_GOVERNANCE.md Gates 15-20 read at <timestamp>
   Gate 15 key line: "<paste one sentence>"
   Gate 17 key line: "<paste one sentence>"
@@ -82,7 +84,7 @@ GOVERNANCE LOOP READ RECEIPT (Coder):
   Confirmed: enforces Gate 11 + full suite + all verify scripts
 
 > Auditor: Read GOVERNANCE_LOOP.md, AUDITOR_GOVERNANCE.md, and
-> ENTROPY_RECOVERY.md Part Four from disk before auditing.
+> ENTROPY_RECOVERY.md Part Four + Part Five from disk before auditing.
 > Do not audit from memory. The loop cannot be broken.
 ```
 
@@ -97,16 +99,18 @@ The Auditor MUST:
 GOVERNANCE LOOP READ RECEIPT (Auditor):
 - audit_scripts/audit_gates.sh read at <timestamp>
   Confirmed: I will run it and paste output inline before publishing.
-- ENTROPY_RECOVERY.md Part Four read at <timestamp>
+- ENTROPY_RECOVERY.md Part Four (P20-P26) + Part Five (P27-P34) read at <timestamp>
   P22 key line: "<paste one sentence>"
   P24 key line: "<paste one sentence>"
+  P27 key line: "<paste one sentence>"
+  P34 key line: "<paste one sentence>"
 - AUDITOR_GOVERNANCE.md Gates 15-20 read at <timestamp>
   Gate 18 key line: "<paste one sentence>"
   Gate 20 key line: "<paste one sentence>"
 - test_cross_surface_coherence.py read at <timestamp>
   Confirmed: covers Briefing/Ask/Whisper/Preparation/Situation/Timeline
 
-> Coder: Read GOVERNANCE_LOOP.md, ENTROPY_RECOVERY.md Part Four,
+> Coder: Read GOVERNANCE_LOOP.md, ENTROPY_RECOVERY.md Part Four + Part Five,
 > and AUDITOR_GOVERNANCE.md Gates 15-20 from disk before writing any code.
 > Do not code from memory. The loop cannot be broken.
 ```

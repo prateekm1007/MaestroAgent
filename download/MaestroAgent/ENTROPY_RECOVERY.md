@@ -152,8 +152,74 @@ P11 and P15 existed in Part Two. Both were violated repeatedly — not because t
 
 ---
 
+## PART FIVE — AUDITOR'S OWN FAILURES (NEW, FROM THIS ENGAGEMENT)
+
+### The meta-failure this part reveals
+
+The auditor had P1 ("execute, don't read"), P19 ("unit ≠ integration"), and P22 ("production path"). The auditor still missed MEDIUM-2, M1, M4, HIGH-2, CRITICAL-01, CRITICAL-04, and H1. The principles existed. The auditor didn't apply them to the specific work in front of them. The CEO's intervention — "you are missing a lot this session" — was the load-bearing moment. Without it, the engagement would have closed on false "VERIFIED" stamps.
+
+**P26 applies to the auditor's own method, not just the coder's code.** The auditor's method (read assertions, execute behavior, check regressions, verify comprehensiveness, run the canonical scenario) is not a memory — it's a checklist that must be re-derived from the specific failures of the current session.
+
+### 27. Read the assertion, not the test name — a test that asserts `True` is theater
+
+**The failure I missed:** MEDIUM-2 semantic dedup. The test was named `test_semantic_duplicator_detects_paraphrased_duplicate`. I ran it, saw "6/6 pass," and wrote "VERIFIED." The assertion was `isinstance(is_dup, bool)` — it would have passed even if the deduplicator always returned `False`. The behavior didn't work. I never read the assertion.
+
+**The failure I missed:** M1 background loop wiring. The test `test_background_loop_wiring_feeds_outcome_recorder` asserted `assert True`. I ran it, saw pass, and wrote "VERIFIED." The test verified nothing.
+
+> **Rule:** Before accepting "N/N tests pass" as evidence, read at least the key assertions of the tests you're counting. A test that asserts `isinstance(result, bool)` when the claim is "result should be True" is theater. A test that asserts `assert True` is not a test. Run `grep -n "assert " <test_file>` and read the assertions. If any assertion is weaker than the claim being verified, the test is theater. Paste the assertion line in your verification output.
+
+### 28. Test with 3+ inputs — the exact case, a natural variation, and an edge case
+
+**The failure I missed:** CRITICAL-03 disagreement detector. The coder's golden test used the exact text the detector was written for ("Sales says we promised..."). It passed. But the detector didn't generalize: "We promised SSO by Q4" vs "We only promised technical completion" → 0 disagreements. I verified the coder's test without testing other phrasings.
+
+**The failure I missed:** M4 terminology translation. I verified the CEO briefing endpoint (the one the coder pointed me to) without checking Whisper, Ask, or Preparation. 3 of 5 endpoints still leaked `evidence_spine`.
+
+> **Rule:** For any behavior claim, execute 3+ inputs: (1) the exact case the coder's test uses, (2) a natural variation that uses different words for the same concept, (3) an edge case (empty, adversarial, or boundary). If any input fails, the behavior doesn't generalize. Paste all 3 results. Testing only the coder's exact input is the same as trusting the coder's test — which is self-certification.
+
+### 29. After any change to a shared component, re-run the FULL canonical scenario — not just the fix's own test
+
+**The failure I missed:** HIGH-2 classifier fix. The coder removed "remains conditional" from the negation pattern to fix "still pending" → observed_fact. I ran the 10 adversarial cases, saw 9/10, and wrote "VERIFIED." But the SSO scenario's Day 40 ("security approval remains conditional") was now classified as `observed_fact` instead of `negation`, which broke the "pending conditions" RISK reasoning. I didn't re-run the SSO scenario.
+
+**The failure I missed:** SSO scenario simplification. When I DID re-run the SSO scenario, I used 4 signals instead of 6 (omitting Day 30 and Day 50). The "dispute" RISK requires an outcome signal (Day 50 "SSO work is complete") to fire. Without it, the RISK section was missing "dispute" — and I falsely reported a regression that was actually my own test error.
+
+> **Rule:** After any change to a shared component (classifier, deduplicator, delivery gate, evidence pipeline, terminology translator), re-run the FULL 6-signal SSO scenario (Days 5, 12, 30, 40, 50, 55) and verify BOTH "pending conditions" AND "commitment dispute" appear in the RISK section. Any fewer signals omits a signal type that triggers a different reasoning path. Paste the full answer output. If either RISK phrase is missing, the change broke the canonical scenario — regardless of whether the fix's own test passes.
+
+### 30. Verify comprehensiveness by counting — "applied to all X" requires checking every X
+
+**The failure I missed:** M4 terminology translation. The coder said "translation layer shipped." I checked 1 endpoint. 3 of 5 still leaked. I wrote "VERIFIED" after checking the one the coder pointed me to.
+
+**The failure I missed:** CRITICAL-01 channel ACL. The C2 fix handled "private" ACLs but not "channel:" ACLs. I verified the "private" case and didn't test "channel:slack:C-private" — the exact case the audit identified.
+
+> **Rule:** For any claim of the form "applied to all X" or "enforced on all Y," count X and check each one. Run `grep -c "<pattern>" <file>` to count, then test a representative sample from EACH category. If the claim is "all 5 endpoints translate," hit all 5 endpoints with a test request and check each response. If the claim is "all ACL types enforced," test all 10 ACL types. Paste the count and the per-category results. Checking only the one the coder points to is the same as trusting the coder's claim — which is self-certification.
+
+### 31. Commit messages are claims, not evidence — run the verify scripts yourself
+
+**The failure I missed:** The prior session's commit `ca5cabe` said "0 failures." I accepted this. The new coder ran `verify_c002_dedup.sh` and found it FAILING (32/33 callers). The prior session had either not run the verify scripts or had run them and not reported the failure. I trusted the commit message instead of executing the scripts.
+
+> **Rule:** Never trust a commit message's "0 failures" or "N/N pass" claim. Run `audit_scripts/verify_*.sh` yourself and paste the output. A commit message is a claim made by the same session that wrote the code — it is self-certification (P5). The verify scripts are the independent check. If you don't run them, you are trusting the coder's self-assessment, which is exactly what the auditor exists to prevent.
+
+### 32. When checking "is this truly empty?", check ALL derived state — not just the top-level collection
+
+**The failure I missed:** CRITICAL-04 demo contamination. I checked `oem_state.signals` (which was 0 with `DEMO_SEED=false`) and wrote "FIXED." But `model.laws` was 6 and `model.learning_objects` was 50 — loaded from a stale OEMStore DB. The "fresh empty org" was not fresh. The coder was more thorough than me: they checked the model state, not just the signals.
+
+> **Rule:** For any "is this truly empty?" or "is this truly clean?" check, verify ALL derived state: signals, laws, learning_objects, patterns, whispers, decisions, meetings. Run `model = engine.get_model(); print(len(model.laws), len(model.learning_objects))` and verify all are 0. Checking only the top-level collection (`oem_state.signals`) misses state that was loaded from persistent storage. Paste all counts.
+
+### 33. Don't accept a negative claim without searching for its refutation
+
+**The failure I missed:** H1 "no test verifies learning changes behavior." The audit made this claim. I accepted it without searching for tests named `*active_cognition*` or `*true_unlearning*`. Both existed. Both passed. Both directly refuted H1. The test file even cited "AUDITOR-DIRECTIVE" by name (P17) — which should have triggered extra scrutiny, not less.
+
+> **Rule:** When an audit claims "no test exists for X," search for it before accepting the claim. Run `find . -name "*test*X*" -o -name "*test*X*" | head` and `grep -rn "X" tests/`. If you find a test, execute it. If it passes, the claim is refuted. Accepting a negative claim without searching is the same as trusting the auditor — which is self-certification when you ARE the auditor. Paste your search command and results.
+
+### 34. The auditor's method is itself subject to entropy — re-derive it from your failures, not from your principles
+
+**The meta-failure:** I had P1 ("execute, don't read"), P19 ("unit ≠ integration"), and P22 ("production path"). I still missed MEDIUM-2, M1, M4, HIGH-2, CRITICAL-01, CRITICAL-04, and H1. The principles existed. I didn't apply them to the specific work in front of me. The CEO had to tell me to "level up" before I started reading assertions and testing multiple inputs.
+
+> **Rule:** The auditor's method (read assertions, execute behavior, check regressions, verify comprehensiveness, run the canonical scenario) is not a memory — it's a checklist that must be re-derived from the specific failures of the current session. At the start of each audit session, ask: "What did I miss last session? What method would have caught it? Am I applying that method to THIS session's work?" If you can't name a specific failure from last session and the method that would have caught it, you're auditing from memory — which is P26's failure mode applied to the auditor's own process.
+
+---
+
 ## HOW TO USE THIS
 
-Read Part One and Part Two before writing code. Read Part Three before auditing. Read Part Four before either — the wiring-vs-existence failures it documents are the most recent and most common. Read the whole thing before writing instructions for either. Every N rounds, pick one item marked "done" at random — not the one you're worried about, the one you're confident is fine — and re-verify it at the deepest level (principle #15's third checkbox). That's where entropy hides: not in the things anyone is still worried about, but in the things everyone stopped checking because they were marked done two rounds ago.
+Read Part One and Part Two before writing code. Read Part Three before auditing. Read Part Four before either — the wiring-vs-existence failures it documents are the most recent and most common. Read Part Five before auditing — the auditor's own failures it documents are the most recent and most common audit blindspots. Read the whole thing before writing instructions for either. Every N rounds, pick one item marked "done" at random — not the one you're worried about, the one you're confident is fine — and re-verify it at the deepest level (principle #15's third checkbox). That's where entropy hides: not in the things anyone is still worried about, but in the things everyone stopped checking because they were marked done two rounds ago.
 
-**P26 is the load-bearing principle of Part Four.** Principles don't enforce themselves. Re-application does. The mechanical checks in P20-P25 ARE the enforcement — "did you run `grep` and count the callers?" is enforceable; "did you remember the wiring principle?" is not. Every session, re-read P11, P15, and P20-P25 from disk, and cite the P-number in every fix commit.
+**P26 is the load-bearing principle of Part Four. P34 is the load-bearing principle of Part Five.** Principles don't enforce themselves. Re-application does. The mechanical checks in P20-P25 ARE the enforcement — "did you run `grep` and count the callers?" is enforceable; "did you remember the wiring principle?" is not. The mechanical checks in P27-P34 ARE the enforcement for the auditor — "did you read the assertion?" is enforceable; "did you remember to test 3+ inputs?" is not. Every session, re-read P11, P15, P20-P25, and P27-P34 from disk, and cite the P-number in every fix commit and every audit verdict.
