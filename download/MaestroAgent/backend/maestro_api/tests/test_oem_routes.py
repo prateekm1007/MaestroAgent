@@ -31,6 +31,28 @@ def client():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _reinit_oem_state():
+    """RC3 fix: re-initialize oem_state before each test.
+
+    The root conftest's autouse fixture clears oem_state.signals between
+    tests to prevent cross-test contamination. But this file uses a
+    module-scoped client fixture — the app is built once, and the lifespan
+    startup calls oem_state.initialize() once. After the autouse fixture
+    clears state, the next test's request reads an empty oem_state.signals.
+
+    This fixture re-initializes oem_state before each test so the module-
+    scoped client always sees seeded state. MAESTRO_DEMO_SEED=true (set in
+    root conftest) ensures demo data is loaded.
+    """
+    from maestro_api.oem_state import oem_state
+    oem_state._initialized = False
+    oem_state.signals = []
+    oem_state._demo_seeded = False
+    oem_state.initialize()
+    yield
+
+
 # ============================================================
 # 1. GET /api/oem/state
 # ============================================================

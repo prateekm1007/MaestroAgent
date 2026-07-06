@@ -50,3 +50,27 @@ def _clear_writeback_store():
     except Exception:
         pass
     yield
+
+
+@pytest.fixture(autouse=True)
+def _reinit_oem_state_for_session_client():
+    """RC3 fix: re-initialize oem_state before each test.
+
+    The session-scoped client fixture builds the app once and calls
+    oem_state.initialize() once. The root conftest's autouse fixture
+    clears oem_state.signals between tests. Without re-initialization,
+    the next test's request reads empty state.
+
+    This fixture re-initializes oem_state before each test so the
+    session-scoped client always sees seeded state. MAESTRO_DEMO_SEED=true
+    ensures demo data is loaded on each initialize() call.
+    """
+    from maestro_api.oem_state import oem_state
+    oem_state._initialized = False
+    oem_state.signals = []
+    oem_state._demo_seeded = False
+    try:
+        oem_state.initialize()
+    except Exception:
+        pass  # Tests that want empty state set MAESTRO_DEMO_SEED=false
+    yield
