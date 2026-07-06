@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      MAESTRO_LOCAL_DEV: "true"
+      MAESTRO_DEMO_SEED: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend with dev extras
+        working-directory: download/MaestroAgent/backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run audit gate (13 verify scripts)
+        working-directory: download/MaestroAgent
+        run: |
+          PASS=0
+          FAIL=0
+          for script in audit_scripts/verify_*.sh; do
+            RESULT=$(bash "$script" 2>&1 | tail -1)
+            if echo "$RESULT" | grep -q "^PASS:"; then
+              PASS=$((PASS + 1))
+              echo "  $RESULT"
+            else
+              FAIL=$((FAIL + 1))
+              echo "  FAILED: $script"
+              echo "  $RESULT"
+            fi
+          done
+          echo ""
+          echo "Verify scripts: $PASS passed, $FAIL failed"
+          if [ $FAIL -gt 0 ]; then exit 1; fi
+
+      - name: Run test suite (package-level chunks)
+        working-directory: download/MaestroAgent/backend
+        run: |
+          # Run tests in package-level chunks to avoid the RC3 cross-test
+          # contamination issue (see docs/PHASE_1_TESTING.md).
+          # Each chunk is hermetic and passes in isolation.
+          OVERALL_EXIT=0
+
+          for pkg in \
+            tests/ \
+            maestro_auth/tests/ \
+            maestro_core/tests/ \
+            maestro_loops/tests/ \
+            maestro_memory/tests/ \
+            maestro_verify/tests/ \
+            maestro_llm/tests/ \
+            maestro_hybrid/tests/ \
+            maestro_meta/tests/ \
+            maestro_agents/tests/ \
+            maestro_plugins/tests/ \
+            maestro_cli/tests/ \
+            maestro_db/tests/ \
+            maestro_personal/tests/ \
+            maestro_api/tests/test_oem_routes.py \
+            maestro_api/tests/test_comprehensive_qa.py \
+            maestro_api/tests/test_e2e_journey.py \
+            maestro_oem/tests/; do
+            echo ""
+            echo "=== Running $pkg ==="
+            if python -m pytest "$pkg" --tb=line -q; then
+              echo "PASS: $pkg"
+            else
+              echo "FAIL: $pkg"
+              OVERALL_EXIT=1
+            fi
+          done
+
+          exit $OVERALL_EXIT
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff + black
+        working-directory: download/MaestroAgent/backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff black
+
+      - name: Ruff check
+        working-directory: download/MaestroAgent/backend
+        run: ruff check maestro_api/ maestro_oem/ maestro_auth/ maestro_personal/ maestro_core/
+
+      - name: Black check
+        working-directory: download/MaestroAgent/backend
+        run: black --check maestro_api/ maestro_oem/ maestro_auth/ maestro_personal/ maestro_core/
