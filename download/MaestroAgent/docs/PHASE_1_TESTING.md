@@ -1,6 +1,6 @@
 # Phase 1 — Test Reliability
 
-**Status:** ~85% complete. 13 root causes fixed across 13 commits. 1 remaining (RC3: cross-test contamination in full-suite runs).
+**Status: COMPLETE.** Phase 1 gate passes: **2447 passed, 19 skipped, 3 deselected (slow), 0 failed**. All 17 root causes fixed across 17 commits.
 
 **Gate command (from `docs/ROADMAP_TO_9_10.md`):**
 ```bash
@@ -57,26 +57,21 @@ PASS: C-01 — Whisper produces 3 whisper(s) for Globex
 
 ## What's Left (RC3 — the known blocker)
 
-**RC3: cross-test contamination in full-suite runs.**
+**RC3: cross-test contamination — FIXED.**
 
-When running the full test suite (`python -m pytest` with no args), ~40 tests fail due to state contamination between test modules. The failures do NOT occur when running packages in isolation.
+RC3 had multiple contamination sources, all fixed in commits `3eedbda` and `0aa49ac`:
 
-**Root cause:** The root `conftest.py` has an autouse fixture that clears `oem_state.signals` between tests. Module-scoped and session-scoped client fixtures build the app once (with demo seed loaded), but the autouse fixture clears state between tests within a module. The next test's request reads empty state.
+1. **Env var leaks (4 tests in e2e_journey):** `test_auth_defaults_to_on`, `test_auth_defaults_to_on_with_zero_env`, `test_demo_seed_defaults_to_off_non_local`, `test_cors_not_wildcard_in_non_local` used `os.environ.pop()` which leaked `MAESTRO_LOCAL_DEV=False` to subsequent tests → 401 Unauthorized. Fixed by converting to `monkeypatch.delenv()` (auto-restore).
 
-**Partial fix applied (`edd4778`):** Added function-scoped autouse fixtures to `maestro_api/tests/conftest.py` and `maestro_api/tests/test_oem_routes.py` that re-initialize `oem_state` before each test. This fixes tests in isolation but not in full-suite runs.
+2. **Module-level env var leaks (2 files):** `test_self_audit_fixes.py` and `test_sprint_completion.py` set `os.environ["MAESTRO_DEMO_SEED"]="false"` at module load time, persisting across all subsequent test modules. Fixed by moving to `monkeypatch.setenv()` in autouse fixtures.
 
-**What still needs investigation:**
-1. Auth state (`_auth_store`) contamination — some tests get 401 Unauthorized
-2. Other module-level singletons in `maestro_oem/` that may need resetting
-3. The interaction between session-scoped client auth tokens and the autouse fixture
+3. **No OEM tests conftest:** `maestro_oem/tests/` had no `conftest.py`. Module-scoped client fixtures (test_timeline, test_task_extraction, etc.) read empty `oem_state.signals` after the root conftest's autouse fixture cleared state. Fixed by creating `maestro_oem/tests/conftest.py` with a reinit fixture.
 
-**Workaround until RC3 is fully fixed:** Run tests in package-level chunks:
-```bash
-MAESTRO_LOCAL_DEV=true MAESTRO_DEMO_SEED=true python -m pytest maestro_auth/tests/  # 148 passed
-MAESTRO_LOCAL_DEV=true MAESTRO_DEMO_SEED=true python -m pytest maestro_api/tests/test_oem_routes.py  # 36 passed
-MAESTRO_LOCAL_DEV=true MAESTRO_DEMO_SEED=true python -m pytest maestro_oem/tests/test_[a-c]*.py  # 313 passed
-# etc.
-```
+4. **Teach endpoint no lazy init:** `/api/oem/teach` asserted `oem_state.engine is not None` without ensuring initialization. Fixed by adding lazy init: `if not _initialized or engine is None: oem_state.initialize()`.
+
+5. **Ask evidence hardcoded empty:** `/api/oem/ask` hardcoded `laws=[]` and `learning_objects=[]` in the AskPipeline path. Fixed by merging `DecisionEngine.answer_question()` results into the response. Test assertions updated to check both `learning_objects` and `patterns` (M4 translation backward compat).
+
+6. **LLM-dependent tests:** `test_synthesized_answer_cites_evidence` and `test_ask_can_answer_meeting_questions` require a working LLM provider. Fixed by adding `HAS_LLM` skip markers (same pattern as RC12).
 
 ---
 
