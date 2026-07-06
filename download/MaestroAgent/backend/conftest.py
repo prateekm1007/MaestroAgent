@@ -21,6 +21,12 @@ import os
 os.environ["MAESTRO_LOCAL_DEV"] = "true"
 os.environ["MAESTRO_DEMO_SEED"] = "true"
 os.environ.setdefault("MAESTRO_ADMIN_PASSWORD", "test")
+# Phase 1 fix: set MAESTRO_PURGE_ON_INIT=true so OEMStore DB is purged
+# on every initialization. This prevents stale DB state from prior tests
+# contaminating subsequent tests (the c6 cross-test contamination issue).
+# Tests that need to persist state across restart (like c6) set this to
+# "false" within the test itself.
+os.environ.setdefault("MAESTRO_PURGE_ON_INIT", "true")
 os.environ.setdefault("MAESTRO_RATE_LIMIT_RPM", "10000")
 
 # Set the app dir so create_app() can find app.html
@@ -88,8 +94,30 @@ def _reset_oem_state():
             oem_state._demo_seeded = False
             oem_state._oem_store = None
             oem_state._last_background_loop_result = None
+        # Phase 1 fix: reset MAESTRO_OEM_STORE_DB so tests that set it
+        # (like test_c6_oem_persistence) don't contaminate subsequent tests.
+        # The c6 test sets this to a temp file, but if a prior test also
+        # set it, the c6 test's state2 might pick up the wrong DB.
+        os.environ.pop("MAESTRO_OEM_STORE_DB", None)
     except Exception:
         pass  # During early test collection, imports may not be ready yet
+
+    # Phase 1 fix: unset MAESTRO_PURGE_ON_INIT before each test.
+    # CRITICAL-04 tests set this env var, and it persists across tests.
+    # When other tests (e.g., c6 persistence) try to restart OEMState,
+    # PURGE_ON_INIT=true deletes the saved state — causing false failures.
+    os.environ.pop("MAESTRO_PURGE_ON_INIT", None)
+    # Phase 1 fix: unset MAESTRO_FRONTEND_MODE so tests that call create_app()
+    # don't inherit "app" mode from a prior test that set it. When FRONTEND_MODE=app,
+    # create_app() requires app.html at a specific path — which fails if the
+    # MAESTRO_APP_DIR env var was set by a prior test to a different path.
+    os.environ.pop("MAESTRO_FRONTEND_MODE", None)
+    # Phase 1 fix: ensure MAESTRO_APP_DIR is always set. Some tests (e.g., c6)
+    # delete this env var, which causes subsequent tests that call create_app()
+    # to fail with "app.html not found". Always restore it to the correct path.
+    import pathlib as _p
+    _app_dir = str(_p.Path(__file__).resolve().parent.parent)
+    os.environ.setdefault("MAESTRO_APP_DIR", _app_dir)
 
     yield  # Test runs here
 

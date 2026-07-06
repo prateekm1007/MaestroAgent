@@ -134,6 +134,12 @@ def test_demo_seed_persists_to_oem_store_across_restart():
         # ─── Phase 2: Create a FRESH OEMState pointing to the same store ──
         # Don't re-seed — simulate a restart with MAESTRO_DEMO_SEED=false
         os.environ["MAESTRO_DEMO_SEED"] = "false"
+        # Phase 1 fix: explicitly unset MAESTRO_PURGE_ON_INIT. Other tests
+        # (e.g., CRITICAL-04 test) set this env var, and it persists across
+        # tests. When PURGE_ON_INIT=true, the OEMStore DB is purged on init,
+        # which deletes the state saved in Phase 1 — causing the restart
+        # to load 0 laws instead of the persisted 6.
+        os.environ.pop("MAESTRO_PURGE_ON_INIT", None)
         state2 = OEMState()
         state2.initialize()
 
