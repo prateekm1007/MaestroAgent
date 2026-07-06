@@ -5504,7 +5504,7 @@ def get_tomorrow_preparation(user: str = Query("")) -> dict[str, Any]:
         oem_state.visible_signals if oem_state else [],
         calendar_source=calendar_source,
     )
-    return engine.prepare_for_tomorrow(org_id="default", user_email=user)
+    return translate_internal_terms(engine.prepare_for_tomorrow(org_id="default", user_email=user))
 
 
 # ─── CEO Feature 6: Anticipation Engine ────────────────────────────────────
