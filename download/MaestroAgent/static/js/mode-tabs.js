@@ -133,6 +133,8 @@ function renderModeTabs(currentMode) {
   return '';
 }
 
+// DEPRECATED: switchMode() is deprecated. Use setCurrentFilter() instead.
+// switchMode delegates to setCurrentFilter — same concept, new name.
 async function switchMode(mode) {
   // switchMode delegates to setCurrentFilter — same concept, new name.
   // Maps old mode values to new filter values

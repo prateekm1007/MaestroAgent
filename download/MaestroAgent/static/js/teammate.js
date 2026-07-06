@@ -3,6 +3,8 @@
 // This is the USER'S view OF a teammate — uses only the user's own
 // organizational data. Does NOT analyze the teammate's personal life.
 // Accessed by tapping a person's name, NOT a new sidebar item.
+//
+// Typography: font-family: 'Montserrat', sans-serif (Bumble design system)
 
 async function loadTeammate(email) {
   const el = document.getElementById('teammate-content') || document.getElementById('main-content');

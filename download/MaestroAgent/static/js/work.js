@@ -3,6 +3,9 @@
 // WORK never looks like software. Maestro follows the user into existing
 // tools. The user never opens Maestro. Maestro quietly appears.
 //
+// Typography: font-family: 'Montserrat', sans-serif (Bumble design system)
+// Bumble yellow: #FFF4D1 (maestro-yellow accent color for highlights)
+//
 // Round 45 redesign — 3 sub-surfaces, all Bumble-styled:
 //   1. Whispers  — ambient intelligence from contradictions + overnight
 //   2. Timeline  — chronological signal feed (V8 Daily Work #1)

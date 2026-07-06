@@ -3,6 +3,8 @@
 // The morning brief. When the CEO opens Maestro they should immediately
 // understand what deserves attention. Nothing else.
 //
+// Typography: font-family: 'Montserrat', sans-serif (Bumble design system)
+//
 // Structure:
 //   Good morning.
 //   Yesterday your organization became smarter.

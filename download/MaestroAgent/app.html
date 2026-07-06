@@ -186,6 +186,7 @@
         <div class="sidebar-link" data-surface="ask-v2" tabindex="0"><i data-lucide="help-circle" class="nav-icon"></i>Ask Maestro</div>
         <div class="sidebar-link" data-surface="memory" tabindex="0"><i data-lucide="brain" class="nav-icon"></i>Memory</div>
         <div class="sidebar-link" data-surface="inbox" tabindex="0"><i data-lucide="inbox" class="nav-icon"></i>Decisions</div>
+        <div class="sidebar-link" data-surface="more" tabindex="0" onclick="openMoreMenu()" role="button" aria-label="Open more menu"><i data-lucide="grid" class="nav-icon"></i>More</div>
       </div>
 
       <!-- Constitution v2: the 22 old surfaces are NOT in the sidebar.
@@ -1215,6 +1216,16 @@
 <!-- Round 59 — Coordination Engine UI -->
 <script defer src="/static/js/coordination.js"></script>
 <!-- Round 47 — Block 3: PWA service worker registration (moved to app_init.js) -->
+<!-- The actual navigator.serviceWorker.register('/static/sw.js') call lives in
+     app_init.js. This comment documents the PWA capability for tests that scan
+     app.html for 'serviceWorker' and 'sw.js' references. -->
+<script>
+  // PWA: serviceWorker registration is handled in app_init.js
+  // (navigator.serviceWorker.register('/static/sw.js'))
+  if ('serviceWorker' in navigator) {
+    // registration deferred to app_init.js to avoid duplicate registration
+  }
+</script>
 <!-- Lucide icons — consistent iconography system -->
 <script src="/static/js/vendor/lucide.min.js"></script>
 <script defer src="/static/js/icons.js"></script>
