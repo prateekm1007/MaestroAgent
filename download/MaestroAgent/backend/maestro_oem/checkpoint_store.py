@@ -218,13 +218,24 @@ class CheckpointStore:
     def _cursor(self) -> Iterator[sqlite3.Cursor]:
         assert self._conn is not None
         with self._lock:
-            cur = self._conn.cursor()
+            # Phase 1 fix: re-connect if the connection was created in a different thread.
+            # Same pattern as AuthStore — sqlite_compat wraps SQLAlchemy connections
+            # which are thread-bound.
+            try:
+                cur = self._conn.cursor()
+                cur.execute("SELECT 1")
+            except Exception:
+                self._connect()
+                cur = self._conn.cursor()
             try:
                 cur.execute("BEGIN")
                 yield cur
                 cur.execute("COMMIT")
             except Exception:
-                cur.execute("ROLLBACK")
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
                 raise
 
     def close(self) -> None:

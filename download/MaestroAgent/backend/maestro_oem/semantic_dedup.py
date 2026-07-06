@@ -12,9 +12,9 @@ type + actor + artifact + metadata). This catches:
   - Same Slack message re-ingested (identical content → same hash)
 
 But it MISSES:
-  - "Globex SSO commitment discussed" on Slack
-  - "SSO delivery promise to Globex" in an email
-  - "Globex SSO timeline confirmed" in a Jira comment
+  - "Customer A SSO commitment discussed" on Slack
+  - "SSO delivery promise to Customer A" in an email
+  - "Customer A SSO timeline confirmed" in a Jira comment
   These are semantically the same event but have different text, different
   actors, different providers → different content_hash → 3 LOs created
   instead of 1.
@@ -156,7 +156,7 @@ class SemanticDeduplicator:
         This is the REAL fallback when sentence-transformers is unavailable.
         The TF-IDF character n-gram approach gives 0.0 for paraphrased
         duplicates (different words → no shared n-grams). Keyword overlap
-        catches shared entities ("Globex", "SSO") even when the surrounding
+        catches shared entities ("Customer A", "SSO") even when the surrounding
         text differs.
 
         Returns a float in [0.0, 1.0]. 1.0 = identical keyword sets.
@@ -196,7 +196,7 @@ class SemanticDeduplicator:
             # paraphrases when the model is small)
         # Keyword overlap fallback (or second opinion).
         # Threshold 0.20: catches paraphrased duplicates that share 2+
-        # meaningful words (entities like "Globex", "SSO") even when the
+        # meaningful words (entities like "Customer A", "SSO") even when the
         # surrounding verbs differ. Lower than the embedding threshold
         # because keyword overlap is a weaker signal.
         kw_sim = self._keyword_overlap_similarity(text1, text2)
@@ -220,7 +220,7 @@ class SemanticDeduplicator:
             text. Uses embedding cosine similarity (threshold 0.85) first,
             falls back to keyword overlap (Jaccard, threshold 0.30) when
             embeddings unavailable. The keyword fallback catches shared
-            entities ("Globex", "SSO") even when surrounding text differs.
+            entities ("Customer A", "SSO") even when surrounding text differs.
         """
         sig_text = self._extract_text(signal)
         lo_text = self._extract_lo_text(existing_lo)

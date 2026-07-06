@@ -963,7 +963,7 @@ class AskPipeline:
 
         HIGH-03 fix (corrected): "Who thinks differently?" must return evidence.
         The prior version only checked Situation disagreements — but the demo
-        seed's Globex signals don't have reported_statement or opposing keyword
+        seed's Customer A signals don't have reported_statement or opposing keyword
         patterns, so disagreements=0 and evidence=0.
 
         Fix: 3-tier fallback:
@@ -1049,7 +1049,7 @@ class AskPipeline:
 
         # Tier 2: search signals for people involved with the entity
         # This catches the demo seed case where there are no disagreements
-        # but there ARE people with signals about Globex
+        # but there ARE people with signals about Customer A
         for s in self._signals:
             try:
                 sig_entities = s.metadata.get("customer", "") if hasattr(s, "metadata") else ""
