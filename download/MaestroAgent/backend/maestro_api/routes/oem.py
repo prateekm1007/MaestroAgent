@@ -666,6 +666,27 @@ async def ask(
     except Exception as e:
         logger.debug("RecallEngine in /ask failed: %s", e)
 
+    # RC3 fix: populate laws + learning_objects from DecisionEngine.
+    # The AskPipeline path (above) hardcodes laws=[] and learning_objects=[]
+    # because the pipeline focuses on synthesis + evidence. But tests and the
+    # UI expect these fields to be populated with relevant laws/LOs from the
+    # OEM model. The DecisionEngine.answer_question() does semantic search
+    # over laws + LOs and returns them. Merge them into the result here so
+    # both the pipeline path and the fallback path have populated fields.
+    try:
+        de_result = oem_state.decisions.answer_question(q)
+        if "laws" in de_result:
+            result["laws"] = de_result["laws"]
+        if "learning_objects" in de_result:
+            result["learning_objects"] = de_result["learning_objects"]
+        # Also populate experts + bottlenecks if the DecisionEngine found them
+        if "experts" in de_result:
+            result["experts"] = de_result["experts"]
+        if "bottlenecks" in de_result:
+            result["bottlenecks"] = de_result["bottlenecks"]
+    except Exception as e:
+        logger.debug("DecisionEngine populate in /ask failed: %s", e)
+
     # Round 44 — append ONE optional personal-context line.
     # The line is informational only. It never modifies the recommendation
     # or the confidence. It appears as a separate field so the UI can

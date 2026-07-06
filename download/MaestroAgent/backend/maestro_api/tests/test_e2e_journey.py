@@ -144,7 +144,10 @@ class TestPhase4Autocomplete:
         resp = client.get(f"/api/oem/ask?q={query}")
         assert resp.status_code == 200
         data = resp.json()
-        total = len(data.get("laws", [])) + len(data.get("learning_objects", []))
+        # RC3 fix: M4 terminology translation renames 'learning_objects' → 'patterns'
+        # at the API boundary. Check both keys for backward compat.
+        los = data.get("learning_objects", []) or data.get("patterns", [])
+        total = len(data.get("laws", [])) + len(los)
         assert total > 0, f"Ask returned no evidence for '{query}'"
 
     def test_ask_returns_graceful_empty_for_nonsense(self, client):
@@ -152,7 +155,9 @@ class TestPhase4Autocomplete:
         resp = client.get("/api/oem/ask?q=xxxxrandomnonsense12345")
         assert resp.status_code == 200
         data = resp.json()
-        total = len(data.get("laws", [])) + len(data.get("learning_objects", []))
+        # RC3 fix: M4 terminology translation renames 'learning_objects' → 'patterns'
+        los = data.get("learning_objects", []) or data.get("patterns", [])
+        total = len(data.get("laws", [])) + len(los)
         assert total == 0, "Nonsense query should return no evidence"
 
     def test_ask_has_synthesized_answer(self, client):
@@ -455,10 +460,12 @@ class TestPhase12FailureReport:
         resp2 = client.post(f"/api/oem/writeback/{action_id}/approve", json={"approved_by": "test"})
         assert resp2.status_code in (200, 500), f"Unexpected status: {resp2.status_code}"
 
-    def test_auth_defaults_to_on(self):
+    def test_auth_defaults_to_on(self, monkeypatch):
         """Auth must default to ON with zero env vars (Commandment 2)."""
-        os.environ.pop("MAESTRO_AUTH_ENABLED", None)
-        os.environ.pop("MAESTRO_LOCAL_DEV", None)
+        # RC3 fix: use monkeypatch.delenv to auto-restore env vars after test.
+        # os.environ.pop leaks the change to subsequent tests (causes 401 failures).
+        monkeypatch.delenv("MAESTRO_AUTH_ENABLED", raising=False)
+        monkeypatch.delenv("MAESTRO_LOCAL_DEV", raising=False)
         from maestro_auth.permissions import is_auth_enabled
         assert is_auth_enabled() == True, "Auth must default to ON"
 
@@ -593,17 +600,19 @@ class TestSecurityBaseline:
     The pen test will find deeper issues — these are the basics.
     """
 
-    def test_auth_defaults_to_on_with_zero_env(self):
+    def test_auth_defaults_to_on_with_zero_env(self, monkeypatch):
         """Auth MUST default to ON with zero env vars."""
-        os.environ.pop("MAESTRO_AUTH_ENABLED", None)
-        os.environ.pop("MAESTRO_LOCAL_DEV", None)
+        # RC3 fix: use monkeypatch.delenv to auto-restore.
+        monkeypatch.delenv("MAESTRO_AUTH_ENABLED", raising=False)
+        monkeypatch.delenv("MAESTRO_LOCAL_DEV", raising=False)
         from maestro_auth.permissions import is_auth_enabled
         assert is_auth_enabled() == True, "Auth defaults to OFF — CRITICAL"
 
-    def test_demo_seed_defaults_to_off_non_local(self):
+    def test_demo_seed_defaults_to_off_non_local(self, monkeypatch):
         """Demo seed MUST default to OFF in non-local environments."""
-        os.environ.pop("MAESTRO_DEMO_SEED", None)
-        os.environ.pop("MAESTRO_LOCAL_DEV", None)
+        # RC3 fix: use monkeypatch.delenv to auto-restore.
+        monkeypatch.delenv("MAESTRO_DEMO_SEED", raising=False)
+        monkeypatch.delenv("MAESTRO_LOCAL_DEV", raising=False)
         from maestro_api.oem_state import _demo_seed_enabled
         assert _demo_seed_enabled() == False, "Demo seed defaults to ON — CRITICAL"
 
@@ -679,11 +688,12 @@ class TestSecurityBaseline:
                 assert '"miss"' in line or "'miss'" in line, \
                     f"partially_correct is not 'miss': {line.strip()}"
 
-    def test_cors_not_wildcard_in_non_local(self):
+    def test_cors_not_wildcard_in_non_local(self, monkeypatch):
         """CORS MUST NOT be wildcard in non-local environments."""
         from maestro_auth.config import AuthConfig
-        os.environ.pop("MAESTRO_LOCAL_DEV", None)
-        os.environ.pop("MAESTRO_CORS_ORIGINS", None)
+        # RC3 fix: use monkeypatch.delenv to auto-restore.
+        monkeypatch.delenv("MAESTRO_LOCAL_DEV", raising=False)
+        monkeypatch.delenv("MAESTRO_CORS_ORIGINS", raising=False)
         config = AuthConfig.from_env()
         assert config.cors_origins != ["*"], "CORS is wildcard in non-local environment"
 
