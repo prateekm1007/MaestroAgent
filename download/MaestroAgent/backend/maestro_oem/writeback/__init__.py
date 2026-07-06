@@ -27,6 +27,7 @@ execution. Gmail ONLY creates drafts — never sends.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -345,22 +346,42 @@ class WriteBackService:
         )
 
     def _execute(self, action: WriteBackAction) -> dict[str, Any]:
-        """Execute the action (provider-specific). Returns the result."""
+        """Execute the action (provider-specific). Returns the result.
+
+        RC5 fix: in dev/test mode (MAESTRO_LOCAL_DEV=true), if OAuth token
+        retrieval fails, fall through to the executor with token=None. Each
+        provider's execute_*() function handles token=None by returning a
+        mock result instead of making a real HTTP call. This lets tests
+        verify the writeback flow end-to-end (preview -> approve -> result)
+        without real OAuth credentials.
+
+        In production (MAESTRO_LOCAL_DEV not set), OAuth token retrieval
+        failure still raises RuntimeError (Round 65 CTO Blocker 6: fail closed).
+        The trust ledger records outcome="failed" — never a silent lie.
+        """
         # Get OAuth token (if OAuth manager is available)
         token = None
+        is_dev_mode = os.environ.get("MAESTRO_LOCAL_DEV", "").lower() in ("true", "1", "yes")
         if self.oauth:
             try:
                 token = self.oauth.get_valid_access_token(action.provider)
             except Exception as e:
-                # Round 65 CTO Blocker 6: FAIL CLOSED. The old code substituted
-                # "mock-token-for-testing" and silently returned success. The trust
-                # ledger recorded outcome="success" when nothing actually happened.
-                # This is worse than a failure — it is a silent lie.
-                logger.error("OAuth token retrieval failed for %s: %s", action.provider, e)
-                raise RuntimeError(
-                    f"Cannot execute writeback for {action.provider}: no valid OAuth token. "
-                    f"Reconnect the provider in Settings."
-                )
+                if is_dev_mode:
+                    # RC5: dev/test mode — fall through to executor with token=None,
+                    # which triggers mock mode in execute_*() functions.
+                    logger.warning(
+                        "OAuth token retrieval failed for %s in dev mode: %s — "
+                        "using mock execution (token=None)",
+                        action.provider, e,
+                    )
+                    token = None
+                else:
+                    # Production: fail closed (Round 65 CTO Blocker 6).
+                    logger.error("OAuth token retrieval failed for %s: %s", action.provider, e)
+                    raise RuntimeError(
+                        f"Cannot execute writeback for {action.provider}: no valid OAuth token. "
+                        f"Reconnect the provider in Settings."
+                    )
 
         if action.provider == "jira":
             from maestro_oem.writeback.jira import execute_jira
