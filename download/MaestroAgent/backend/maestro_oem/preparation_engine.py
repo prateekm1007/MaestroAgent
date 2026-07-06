@@ -82,24 +82,26 @@ class PreparationEngine:
     def prepare_for_tomorrow(self, org_id: str = "default", user_email: str = "") -> dict[str, Any]:
         """Generate tomorrow's preparation brief.
 
-        Pipeline:
-          1. Get tomorrow's date
-          2. Fetch events from calendar_source for that date
-          3. Filter to consequential events via ConsequentialityFilter
-          4. For each consequential event, build a preparation brief
-             with Evidence Spine from real signals
-          5. Flag at_risk meetings (entity has broken commitment)
-          6. Return the full brief
-
-        Returns:
-            {
-                "date": "2026-07-04",
-                "meetings": [...],
-                "decisions_likely": [...],
-                "commitments_at_risk": [...],
-                "people_to_contact": [...]
-            }
+        CRITICAL-01 fix: if user_email is provided, signals are filtered
+        through ACLResolver before building the preparation.
         """
+        # CRITICAL-01 fix: ACL-filter signals for this user.
+        original_signals = self.signals
+        if user_email:
+            try:
+                from maestro_oem.acl_resolver import ACLResolver
+                acl_resolver = ACLResolver()
+                self.signals = [s for s in self.signals if acl_resolver.can_access(s, user_email)]
+            except Exception:
+                self.signals = []
+        try:
+            return self._prepare_for_tomorrow_internal(org_id, user_email)
+        finally:
+            self.signals = original_signals
+
+    def _prepare_for_tomorrow_internal(self, org_id: str = "default", user_email: str = "") -> dict[str, Any]:
+        """Internal implementation (called after ACL filtering)."""
+
         tomorrow_dt = self._now + timedelta(days=1)
         tomorrow_str = tomorrow_dt.strftime("%Y-%m-%d")
 

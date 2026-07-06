@@ -97,6 +97,11 @@ class SituationBuilder:
     Usage:
         builder = SituationBuilder(signals=signals, calendar_source=cal, whisper_store=store, now=now)
         situation = builder.build_for_entity("<customer>", org_id="default")
+
+    CRITICAL-01 fix: if user_email is provided, signals are filtered through
+    ACLResolver before building the situation. Channel-scoped content is
+    deny-by-default — unauthorized users see a situation built only from
+    signals they can access.
     """
 
     def __init__(
@@ -105,8 +110,20 @@ class SituationBuilder:
         calendar_source: Any = None,
         whisper_store: Any = None,
         now: datetime | None = None,
+        user_email: str = "",
     ) -> None:
-        self._signals = list(signals) if signals else []
+        # CRITICAL-01 fix: ACL-filter signals for this user before building
+        # the situation. Deny-by-default for non-public ACLs.
+        if signals and user_email:
+            try:
+                from maestro_oem.acl_resolver import ACLResolver
+                acl_resolver = ACLResolver()
+                self._signals = [s for s in signals if acl_resolver.can_access(s, user_email)]
+            except Exception:
+                # If ACL resolution fails, fail-closed: empty signals
+                self._signals = []
+        else:
+            self._signals = list(signals) if signals else []
         self._calendar = calendar_source
         self._store = whisper_store
         self._now = now or datetime.now(timezone.utc)
