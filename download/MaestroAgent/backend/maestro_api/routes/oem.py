@@ -531,8 +531,10 @@ def get_laws(request: Request,
 
 
 @router.get("/laws/{code}")
-def get_law(code: str) -> dict[str, Any]:
+def get_law(request: Request, code: str) -> dict[str, Any]:
     """Single law with full evidence chain."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     law = model.laws.get(code)
     if not law:
@@ -541,7 +543,7 @@ def get_law(code: str) -> dict[str, Any]:
 
 
 @router.post("/laws/{code}/verify")
-def verify_law(code: str, payload: dict[str, Any]) -> dict[str, Any]:
+def verify_law(request: Request, code: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Verify an organizational law — human sign-off.
 
     V8 Competitor Analysis Feature C — Verified Knowledge Layer. The Guru
@@ -554,6 +556,8 @@ def verify_law(code: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     Returns the updated law with verified_by + verified_at set.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     verified_by = payload.get("verified_by", "")
     if not verified_by:
         raise HTTPException(400, "verified_by is required")
@@ -757,21 +761,25 @@ def get_simulator(request: Request) -> dict[str, Any]:
 
 
 @router.post("/simulator")
-def run_simulator(payload: dict[str, Any]) -> dict[str, Any]:
+def run_simulator(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Run a what-if simulation. Delegates to the unified SimulationEngine.
 
     Kept for backward compatibility with UIs that POST to /simulator.
     POST /api/oem/simulate is the canonical endpoint; both return the
     same response shape because they call the same engine.
     """
-    return simulate_scenario(payload)
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
+    return simulate_scenario(request, payload)
 
 
 # ─── 8. GET /api/oem/provenance/{id} ───────────────────────────────────────
 
 @router.get("/provenance/{entity_id}")
-def get_provenance(entity_id: str) -> dict[str, Any]:
+def get_provenance(request: Request, entity_id: str) -> dict[str, Any]:
     """Full provenance chain for any entity (law code, entity name, rec_id)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     # Try receipt chain first
     chain = model.get_provenance_chain(entity_id)
@@ -1063,7 +1071,7 @@ def get_signals(
 # ─── 12. POST /api/oem/meetings/analyze ───────────────────────────────────
 
 @router.post("/meetings/analyze")
-def analyze_meeting(payload: dict[str, Any]) -> dict[str, Any]:
+def analyze_meeting(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Analyze a meeting transcript for objections, laws triggered, action items.
 
     Replaces the hardcoded 5-line Live Meeting script with real OEM-driven
@@ -1077,6 +1085,8 @@ def analyze_meeting(payload: dict[str, Any]) -> dict[str, Any]:
       summary: {objection_count, action_count, law_count},
     }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     transcript = payload.get("transcript", [])
     if not transcript:
         return {
@@ -1172,7 +1182,7 @@ def analyze_meeting(payload: dict[str, Any]) -> dict[str, Any]:
 # ─── 13. POST /api/oem/contradict ─────────────────────────────────────────
 
 @router.post("/contradict")
-def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
+def contradict_law(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Submit contradiction feedback on a law or recommendation.
 
     Payload: {
@@ -1187,6 +1197,8 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
     This is the optimistic-update target — the UI can apply the feedback
     locally and the backend confirms or rolls back.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.contradiction import ContradictionEngine, FeedbackAction, ContradictionLog
 
     target_type = payload.get("target_type", "law")
@@ -1596,7 +1608,7 @@ def _extract_people_from_rec(rec) -> list[dict[str, str]]:
 # ─── 15. Simulation endpoint (for drill-down "Simulation" tab) ──────────────
 
 @router.post("/simulate")
-def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
+def simulate_scenario(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Run a what-if simulation for a specific law or recommendation.
 
     Payload: {law_code?: str, recommendation_id?: str, inputs: {...}}
@@ -1608,6 +1620,8 @@ def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     Returns: {base_health, predicted, confidence, linked_laws, inputs,
               inputs_applied}.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.simulation import SimulationEngine
     engine = SimulationEngine(oem_state.model, oem_state.decisions)
     # Accept both {inputs: {hire_count: N}} (canonical) and {hire_count: N}
@@ -2205,12 +2219,14 @@ def get_calibration_report(request: Request) -> dict[str, Any]:
 
 
 @router.get("/learning/accuracy")
-def get_historical_accuracy(entity_id: str | None = Query(None)) -> dict[str, Any]:
+def get_historical_accuracy(request: Request, entity_id: str | None = Query(None)) -> dict[str, Any]:
     """Historical prediction accuracy — shows improvement over time.
 
     If entity_id is provided, returns accuracy for that specific entity (law code,
     recommendation ID). Otherwise returns overall accuracy.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import CalibrationEngine
@@ -2219,11 +2235,13 @@ def get_historical_accuracy(entity_id: str | None = Query(None)) -> dict[str, An
 
 
 @router.get("/learning/evolution")
-def get_evolution_history(law_code: str | None = Query(None), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+def get_evolution_history(request: Request, law_code: str | None = Query(None), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     """Law evolution history — how laws have changed over time.
 
     Shows promotion/demotion/stress/drift events for each law.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import LawEvolutionEngine, CalibrationEngine
@@ -2234,11 +2252,13 @@ def get_evolution_history(law_code: str | None = Query(None), limit: int = Query
 
 
 @router.get("/learning/drift")
-def get_drift_events(drift_type: str | None = Query(None), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+def get_drift_events(request: Request, drift_type: str | None = Query(None), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     """Drift detection events — concept drift and organization drift.
 
     drift_type: 'concept' or 'organization' (None = all)
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import DriftDetectionEngine, CalibrationEngine
@@ -2277,8 +2297,10 @@ def get_pattern_decay(request: Request) -> dict[str, Any]:
 
 
 @router.get("/learning/feedback")
-def get_feedback_summary(entity_id: str | None = Query(None)) -> dict[str, Any]:
+def get_feedback_summary(request: Request, entity_id: str | None = Query(None)) -> dict[str, Any]:
     """Feedback learning summary — how CEO feedback has adjusted confidence."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import FeedbackLearningEngine, CalibrationEngine
@@ -2343,7 +2365,7 @@ def get_twin_state(request: Request) -> dict[str, Any]:
 
 
 @router.post("/twin/simulate")
-def simulate_twin_scenario(payload: dict[str, Any]) -> dict[str, Any]:
+def simulate_twin_scenario(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Run a what-if scenario on the digital twin.
 
     NOTE: This endpoint is intentionally separate from POST /api/oem/simulate.
@@ -2370,6 +2392,8 @@ def simulate_twin_scenario(payload: dict[str, Any]) -> dict[str, Any]:
       - recommendations: what to do about it
       - risk_level: low | medium | high | critical
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.digital_twin import DigitalTwin, ScenarioEngine
     twin = DigitalTwin(oem_state.model, oem_state.signals, oem_state.decisions)
     engine = ScenarioEngine(twin)
@@ -2461,8 +2485,10 @@ def get_predictions(
 
 
 @router.get("/predictions/{prediction_id}")
-def get_prediction(prediction_id: str) -> dict[str, Any]:
+def get_prediction(request: Request, prediction_id: str) -> dict[str, Any]:
     """Get a single prediction by ID."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.prediction_lifecycle import PredictionRecorder
     recorder = PredictionRecorder(_learning_db_path())
     pred = recorder.get_prediction(prediction_id)
@@ -2578,13 +2604,15 @@ def customer_morning_brief(request: Request) -> dict[str, Any]:
 
 
 @router.get("/customer/brief/{customer}")
-def customer_executive_brief(customer: str) -> dict[str, Any]:
+def customer_executive_brief(request: Request, customer: str) -> dict[str, Any]:
     """Pre-meeting briefing for a customer relationship.
 
     Returns: relationship state, open commitments, recent interactions,
     outstanding risks, likely objections, decision history, recommended
     outcome, things not to say, evidence, confidence, business impact.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().executive_brief(customer)
 
 
@@ -2604,37 +2632,43 @@ def customer_relationship_memory(
 
 
 @router.get("/customer/committee/{customer}")
-def customer_buying_committee(customer: str) -> dict[str, Any]:
+def customer_buying_committee(request: Request, customer: str) -> dict[str, Any]:
     """Inferred buying-committee graph for a customer.
 
     Returns: members with roles, influence, support level, confidence;
     decision radius; role coverage (filled vs missing).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().buying_committee(customer)
 
 
 @router.get("/customer/drift/{customer}")
-def customer_relationship_drift(customer: str) -> dict[str, Any]:
+def customer_relationship_drift(request: Request, customer: str) -> dict[str, Any]:
     """Continuously-computed drift metrics for a customer.
 
     Returns: momentum, trust, executive engagement, response latency,
     decision readiness, champion health, buying velocity, escalation risk.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().relationship_drift(customer)
 
 
 @router.get("/customer/opportunity/{customer}")
-def customer_opportunity_graph(customer: str) -> dict[str, Any]:
+def customer_opportunity_graph(request: Request, customer: str) -> dict[str, Any]:
     """Cross-functional dependencies affecting this customer opportunity.
 
     Connects engineering, legal, finance, security, support, product,
     customer success. NOT pipeline stages — execution dependencies.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().opportunity_graph(customer)
 
 
 @router.get("/customer/ask")
-def customer_ask(q: str = Query(..., description="Natural-language question")) -> dict[str, Any]:
+def customer_ask(request: Request, q: str = Query(..., description="Natural-language question")) -> dict[str, Any]:
     """Ask the Relationship — natural-language customer query.
 
     Examples:
@@ -2646,16 +2680,20 @@ def customer_ask(q: str = Query(..., description="Natural-language question")) -
 
     Returns: answer, evidence, counter-evidence, unknowns, confidence.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().ask(q)
 
 
 @router.get("/customer/physics/{customer}")
-def customer_physics(customer: str) -> dict[str, Any]:
+def customer_physics(request: Request, customer: str) -> dict[str, Any]:
     """Customer Physics — inferred continuous metrics, NOT CRM stages.
 
     Returns: decision velocity, trust velocity, knowledge flow, commitment
     health, organizational gravity, escalation pressure, buying momentum.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().customer_physics(customer)
 
 
@@ -2681,7 +2719,7 @@ def customer_list(request: Request) -> dict[str, Any]:
 
 
 @router.post("/customer/twin/simulate")
-def customer_twin_simulate(payload: dict[str, Any]) -> dict[str, Any]:
+def customer_twin_simulate(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Run a what-if scenario on a customer relationship.
 
     Payload: {
@@ -2694,6 +2732,8 @@ def customer_twin_simulate(payload: dict[str, Any]) -> dict[str, Any]:
     Returns: expected outcome, confidence, supporting evidence,
     counter-evidence, business impact, alternative actions.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.customer_twin import CustomerScenarioEngine
     engine = _customer_engine()
     twin = CustomerScenarioEngine(engine)
@@ -2779,7 +2819,7 @@ def get_organizational_pulse(request: Request) -> dict[str, Any]:
 
 
 @router.get("/feed")
-def get_executive_feed(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
+def get_executive_feed(request: Request, limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
     """Executive Feed — a live stream of meaningful organizational events.
 
     NOT notifications. NOT a log. A Bloomberg-terminal-style feed of only
@@ -2789,6 +2829,8 @@ def get_executive_feed(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
     Each event includes: what, why it matters, business impact, recommended
     action, confidence.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.feed import ExecutiveFeed
     feed = ExecutiveFeed(oem_state.model, oem_state.signals)
     events = feed.generate(limit=limit)
@@ -2878,7 +2920,7 @@ _whisper_outcomes: list[dict[str, Any]] = []
 
 
 @router.post("/whisper/outcome")
-def record_whisper_outcome(payload: dict[str, Any]) -> dict[str, Any]:
+def record_whisper_outcome(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Record what happened after a whisper was shown.
 
     This closes the feedback loop:
@@ -2893,6 +2935,8 @@ def record_whisper_outcome(payload: dict[str, Any]) -> dict[str, Any]:
       - action: "acted" | "ignored" | "overrode"
       - insight: str (the whisper's insight text, for dedup learning)
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     whisper_id = payload.get("whisper_id", "")
     action = payload.get("action", "")
     insight = payload.get("insight", "")
@@ -2924,8 +2968,10 @@ def record_whisper_outcome(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/whisper/outcomes")
-def get_whisper_outcomes(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+def get_whisper_outcomes(request: Request, limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
     """Get recent whisper outcomes (for learning analysis)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return {
         "outcomes": _whisper_outcomes[-limit:],
         "total": len(_whisper_outcomes),
@@ -3150,12 +3196,14 @@ def _get_preparations():
 
 
 @router.get("/preparations")
-def get_preparations(status: str | None = Query(None)) -> dict[str, Any]:
+def get_preparations(request: Request, status: str | None = Query(None)) -> dict[str, Any]:
     """List all prepared work packets.
 
     Each preparation is assembled from OEM data — not LLM-generated.
     The CEO sees 'X is ready' instead of 'X is needed'.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     preps = _get_preparations()
     if status:
         preps = [p for p in preps if p["status"] == status]
@@ -3163,8 +3211,10 @@ def get_preparations(status: str | None = Query(None)) -> dict[str, Any]:
 
 
 @router.get("/preparations/{preparation_id}")
-def get_preparation(preparation_id: str) -> dict[str, Any]:
+def get_preparation(request: Request, preparation_id: str) -> dict[str, Any]:
     """Get a single preparation with full content and evidence."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     preps = _get_preparations()
     prep = next((p for p in preps if p["preparation_id"] == preparation_id), None)
     if not prep:
@@ -3311,18 +3361,20 @@ def _get_assumption_graph():
 
 
 @router.get("/assumptions")
-def list_assumptions(status: str | None = Query(None)) -> dict[str, Any]:
+def list_assumptions(request: Request, status: str | None = Query(None)) -> dict[str, Any]:
     """List all tracked assumptions, optionally filtered by status.
 
     Every decision is based on assumptions. This is the 'what are we
     assuming?' view — evidence-backed, tracked over time.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     graph = _get_assumption_graph()
     return {"assumptions": graph.list_assumptions(status), "total": len(graph.list_assumptions())}
 
 
 @router.post("/assumptions")
-def create_assumption(payload: dict[str, Any]) -> dict[str, Any]:
+def create_assumption(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Create an explicit assumption linked to an intent.
 
     Payload: {
@@ -3333,6 +3385,8 @@ def create_assumption(payload: dict[str, Any]) -> dict[str, Any]:
         intent_id: str (links assumption to its intent),
     }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     graph = _get_assumption_graph()
     statement = payload.get("statement", "")
     if not statement:
@@ -3380,8 +3434,10 @@ def get_assumption_accuracy(request: Request) -> dict[str, Any]:
 
 
 @router.get("/assumptions/{assumption_id}")
-def get_assumption(assumption_id: str) -> dict[str, Any]:
+def get_assumption(request: Request, assumption_id: str) -> dict[str, Any]:
     """Get a single assumption with full evidence chain."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     graph = _get_assumption_graph()
     a = graph.get_assumption(assumption_id)
     if not a:
@@ -3390,12 +3446,14 @@ def get_assumption(assumption_id: str) -> dict[str, Any]:
 
 
 @router.post("/assumptions/{assumption_id}/{status}")
-def resolve_assumption(assumption_id: str, status: str) -> dict[str, Any]:
+def resolve_assumption(request: Request, assumption_id: str, status: str) -> dict[str, Any]:
     """Resolve an assumption by setting its status (validated/invalidated).
 
     Round 78: the frontend's resolveAssumption() calls this endpoint.
     Prior versions had optimistic UI only — the status was lost on refresh.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     if status not in ("validated", "invalidated"):
         raise HTTPException(400, f"Invalid status: {status}. Must be 'validated' or 'invalidated'.")
     graph = _get_assumption_graph()
@@ -3447,18 +3505,22 @@ def _get_hypothesis_store():
 
 
 @router.get("/intents")
-def list_intents(status: str | None = Query(None)) -> dict[str, Any]:
+def list_intents(request: Request, status: str | None = Query(None)) -> dict[str, Any]:
     """List all intents (the root entities of the cognitive model)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_intent_store()
     return {"intents": store.list_intents(status), "total": len(store.list_intents())}
 
 
 @router.post("/intents")
-def create_intent(payload: dict[str, Any]) -> dict[str, Any]:
+def create_intent(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Create an explicit intent.
 
     Payload: {goal, owner, success_criteria, deadline, stakeholders, intent_type}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_intent_store()
     goal = payload.get("goal", "")
     if not goal:
@@ -3475,11 +3537,13 @@ def create_intent(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/intents/{intent_id}")
-def get_intent_cascade(intent_id: str) -> dict[str, Any]:
+def get_intent_cascade(request: Request, intent_id: str) -> dict[str, Any]:
     """Get the full cascade: intent → assumptions → hypotheses → predictions → preparations → evidence.
 
     This is the OEM's root query: 'tell me about this intent.'
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_intent_store()
     assumption_graph = _get_assumption_graph()
     hypothesis_store = _get_hypothesis_store()
@@ -3495,8 +3559,10 @@ def get_intent_cascade(intent_id: str) -> dict[str, Any]:
 
 
 @router.patch("/intents/{intent_id}/status")
-def update_intent_status(intent_id: str, status: str = Query(...)) -> dict[str, Any]:
+def update_intent_status(request: Request, intent_id: str, status: str = Query(...)) -> dict[str, Any]:
     """Update an intent's status (active | achieved | abandoned | superseded)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_intent_store()
     ok = store.update_status(intent_id, status)
     if not ok:
@@ -3523,11 +3589,13 @@ def list_hypotheses(
 
 
 @router.post("/hypotheses")
-def create_hypothesis(payload: dict[str, Any]) -> dict[str, Any]:
+def create_hypothesis(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Create a testable hypothesis linked to an intent.
 
     Payload: {statement, intent_id, assumption_ids, prediction, predicted_value, confidence}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_hypothesis_store()
     statement = payload.get("statement", "")
     intent_id = payload.get("intent_id", "")
@@ -3566,8 +3634,10 @@ def get_hypothesis_calibration(request: Request) -> dict[str, Any]:
 
 
 @router.get("/hypotheses/{hypothesis_id}")
-def get_hypothesis(hypothesis_id: str) -> dict[str, Any]:
+def get_hypothesis(request: Request, hypothesis_id: str) -> dict[str, Any]:
     """Get a single hypothesis with full evidence."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_hypothesis_store()
     h = store.get(hypothesis_id)
     if not h:
@@ -3605,7 +3675,7 @@ def resolve_hypothesis(
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.get("/contradictions")
-def get_contradictions(status: str | None = Query(None)) -> dict[str, Any]:
+def get_contradictions(request: Request, status: str | None = Query(None)) -> dict[str, Any]:
     """Detect and list contradictions between stated beliefs and observed behavior.
 
     Types:
@@ -3613,6 +3683,8 @@ def get_contradictions(status: str | None = Query(None)) -> dict[str, Any]:
       - stated_vs_observed: Assumption invalidated by signals
       - intent_vs_outcome: More commitments broken than kept
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.contradictions import ContradictionDetector
     assumption_graph = _get_assumption_graph()
     detector = ContradictionDetector(oem_state.model, oem_state.signals, assumption_graph)
@@ -3623,8 +3695,10 @@ def get_contradictions(status: str | None = Query(None)) -> dict[str, Any]:
 
 
 @router.post("/contradictions/{contradiction_id}/acknowledge")
-def acknowledge_contradiction(contradiction_id: str) -> dict[str, Any]:
+def acknowledge_contradiction(request: Request, contradiction_id: str) -> dict[str, Any]:
     """Acknowledge a contradiction (mark as known, not yet resolved)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.contradictions import ContradictionDetector
     assumption_graph = _get_assumption_graph()
     detector = ContradictionDetector(oem_state.model, oem_state.signals, assumption_graph)
@@ -3719,11 +3793,13 @@ def list_market_predictions(
 
 
 @router.post("/predictions/market")
-def submit_market_prediction(payload: dict[str, Any]) -> dict[str, Any]:
+def submit_market_prediction(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Submit a personal prediction.
 
     Payload: {predictor, event, probability, resolution_window, hypothesis_id, intent_id, notes}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     market = _get_prediction_market()
     predictor = payload.get("predictor", "")
     event = payload.get("event", "")
@@ -3794,8 +3870,10 @@ def get_calibration_ranking(request: Request) -> dict[str, Any]:
 
 
 @router.get("/predictions/market/profile/{email}")
-def get_predictor_profile(email: str) -> dict[str, Any]:
+def get_predictor_profile(request: Request, email: str) -> dict[str, Any]:
     """Get a single predictor's calibration profile."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     market = _get_prediction_market()
     profile = market.get_profile(email)
     if not profile:
@@ -3804,7 +3882,7 @@ def get_predictor_profile(email: str) -> dict[str, Any]:
 
 
 @router.get("/predictions/market/{prediction_id}")
-def get_market_prediction(prediction_id: str) -> dict[str, Any]:
+def get_market_prediction(request: Request, prediction_id: str) -> dict[str, Any]:
     """Fetch a single personal prediction by ID.
 
     Returns the full prediction object including hypothesis_id and intent_id
@@ -3814,6 +3892,8 @@ def get_market_prediction(prediction_id: str) -> dict[str, Any]:
     this ordering, GET /predictions/market/calibration would be captured as
     prediction_id="calibration" and 404.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     market = _get_prediction_market()
     pred = market.get(prediction_id)
     if not pred:
@@ -3826,7 +3906,7 @@ def get_market_prediction(prediction_id: str) -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.post("/coordinate")
-def initiate_coordination(payload: dict[str, Any]) -> dict[str, Any]:
+def initiate_coordination(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Initiate a coordination request for a decision.
 
     Maestro identifies affected teams, finds the right contacts, and
@@ -3834,6 +3914,8 @@ def initiate_coordination(payload: dict[str, Any]) -> dict[str, Any]:
 
     Payload: {decision, initiated_by, intent_id}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.coordination import CoordinationEngine
     global _coordination_engine
     if _coordination_engine is None:
@@ -3851,8 +3933,10 @@ def initiate_coordination(payload: dict[str, Any]) -> dict[str, Any]:
 _coordination_engine = None
 
 @router.get("/coordinate")
-def list_coordination_requests(status: str | None = Query(None)) -> dict[str, Any]:
+def list_coordination_requests(request: Request, status: str | None = Query(None)) -> dict[str, Any]:
     """List coordination requests."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     global _coordination_engine
     if _coordination_engine is None:
         from maestro_oem.coordination import CoordinationEngine
@@ -3860,8 +3944,10 @@ def list_coordination_requests(status: str | None = Query(None)) -> dict[str, An
     return {"requests": _coordination_engine.list_requests(status=status)}
 
 @router.get("/coordinate/{request_id}")
-def get_coordination_request(request_id: str) -> dict[str, Any]:
+def get_coordination_request(request: Request, request_id: str) -> dict[str, Any]:
     """Get a coordination request with responses and synthesis."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     global _coordination_engine
     if _coordination_engine is None:
         from maestro_oem.coordination import CoordinationEngine
@@ -3899,11 +3985,13 @@ def add_coordination_response(
     return {"ok": True, "request_id": request_id}
 
 @router.post("/coordinate/{request_id}/synthesize")
-def synthesize_coordination(request_id: str) -> dict[str, Any]:
+def synthesize_coordination(request: Request, request_id: str) -> dict[str, Any]:
     """Synthesize a multi-perspective answer from all responses.
 
     The CEO gets one answer with each team's position. No meeting needed.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     global _coordination_engine
     if _coordination_engine is None:
         from maestro_oem.coordination import CoordinationEngine
@@ -3941,7 +4029,7 @@ def _get_decision_log():
 
 
 @router.get("/snapshots")
-def list_snapshots(limit: int = Query(52, ge=1, le=520)) -> dict[str, Any]:
+def list_snapshots(request: Request, limit: int = Query(52, ge=1, le=520)) -> dict[str, Any]:
     """Weekly snapshot history — the 'does it get smarter every week?' chart.
 
     Each row is a point-in-time capture of: prediction count, resolution
@@ -3949,6 +4037,8 @@ def list_snapshots(limit: int = Query(52, ge=1, le=520)) -> dict[str, Any]:
     validation rate. The pilot's success metric is whether Brier converges
     over time.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_snapshot_store()
     snapshots = store.list_snapshots(limit=limit)
     return {"snapshots": snapshots, "total": len(snapshots)}
@@ -4393,7 +4483,7 @@ def get_tasks(
 
 
 @router.post("/tasks/complete")
-def complete_task(payload: dict[str, Any]) -> dict[str, Any]:
+def complete_task(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Manually mark an auto-extracted task as done.
 
     Round 45 — Work surface Bumble redesign. The Tasks sub-tab has a
@@ -4409,6 +4499,8 @@ def complete_task(payload: dict[str, Any]) -> dict[str, Any]:
 
     If the task_id is not found, returns 404.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     task_id = payload.get("task_id", "")
     if not task_id:
         raise HTTPException(400, "task_id is required")
@@ -4439,7 +4531,7 @@ def complete_task(payload: dict[str, Any]) -> dict[str, Any]:
 # comments. All gated by approval — no autonomous execution.
 
 @router.post("/writeback")
-def create_writeback(payload: dict[str, Any]) -> dict[str, Any]:
+def create_writeback(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Preview a write-back action (NOT executed).
 
     V8 Daily Work #4 — Write-Back to Tools. Accepts a provider + action_type
@@ -4468,6 +4560,8 @@ def create_writeback(payload: dict[str, Any]) -> dict[str, Any]:
     The action is NOT executed. Call POST /api/oem/writeback/{action_id}/approve
     to execute it.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.writeback import WriteBackService
     provider = payload.get("provider", "")
     action_type = payload.get("action_type", "")
@@ -4486,7 +4580,7 @@ def create_writeback(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/writeback/{action_id}/approve")
-def approve_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+def approve_writeback(request: Request, action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Execute a previously-previewed write-back action.
 
     V8 Daily Work #4 — Write-Back to Tools. Executes the action with the
@@ -4507,6 +4601,8 @@ def approve_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]
     Governance: this endpoint requires explicit approval. No autonomous
     execution. Gmail ONLY creates drafts — never sends.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.writeback import WriteBackService
     approved_by = payload.get("approved_by", "user")
 
@@ -4520,12 +4616,14 @@ def approve_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]
 
 
 @router.post("/writeback/{action_id}/reject")
-def reject_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+def reject_writeback(request: Request, action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Reject a pending write-back action (no execution).
 
     Payload:
         rejected_by: str (who rejected, defaults to "user")
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.writeback import WriteBackService
     rejected_by = payload.get("rejected_by", "user")
 
@@ -4612,7 +4710,7 @@ def get_push_settings(request: Request) -> dict[str, Any]:
 
 
 @router.post("/push/settings")
-def set_push_settings(payload: dict[str, Any]) -> dict[str, Any]:
+def set_push_settings(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Set push delivery settings. Opt-in only — never pushes without consent.
 
     V8 P0-5 — Push Delivery. The Bond lesson: the briefing finds the CEO.
@@ -4630,6 +4728,8 @@ def set_push_settings(payload: dict[str, Any]) -> dict[str, Any]:
     Never pushes to a channel the customer has not explicitly authorized.
     Never pushes at a time the customer has not chosen.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.push_delivery import PushDeliveryService
     svc = PushDeliveryService()
     try:
@@ -4735,7 +4835,7 @@ def get_trust_score(
 # ─── V8 P1-2 — Progressive Trust (Auto-Execute) ────────────────────────────
 
 @router.post("/writeback/auto-execute")
-def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
+def auto_execute_writeback(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Auto-execute a write-back if the user has earned trust AND opted in.
 
     V8 P1-2 — Progressive Trust. Auto-execute requires BOTH:
@@ -4760,6 +4860,8 @@ def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
         If not eligible: {status: "requires_manual_approval", auto: false}
         If eligible but not opted-in: {status: "requires_opt_in", auto: false}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.trust_ledger import TrustLedger
     from maestro_oem.user_settings import UserSettings
     from maestro_oem.writeback import WriteBackService
@@ -4811,12 +4913,14 @@ def auto_execute_writeback(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/writeback/{action_id}/undo")
-def undo_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+def undo_writeback(request: Request, action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Undo an auto-executed write-back (within the 60-second window).
 
     Records the undo in the trust ledger as outcome="rolled_back".
     This decrements the trust score for the (user, provider, action_type) pair.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.trust_ledger import TrustLedger
     from maestro_oem.writeback import WriteBackStore
 
@@ -4844,7 +4948,7 @@ def undo_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 # ─── V8 P1-2 Fix — Auto-Execute Opt-In Settings ────────────────────────────
 
 @router.post("/settings/auto-execute")
-def set_auto_execute_settings(payload: dict[str, Any]) -> dict[str, Any]:
+def set_auto_execute_settings(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Enable or disable auto-execute per action type.
 
     V8 P1-2 Fix (Round-35 audit) — the customer must explicitly enable
@@ -4858,6 +4962,8 @@ def set_auto_execute_settings(payload: dict[str, Any]) -> dict[str, Any]:
 
     Returns the updated settings with eligibility info.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.user_settings import UserSettings
     provider = payload.get("provider", "")
     action_type = payload.get("action_type", "")
@@ -4894,7 +5000,7 @@ def get_auto_execute_settings(
 # ─── V8 P2-3 — Customer-Initiated Teaching ─────────────────────────────────
 
 @router.post("/teach")
-def teach_maestro(payload: dict[str, Any]) -> dict[str, Any]:
+def teach_maestro(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Let the customer teach Maestro something in free text.
 
     V8 P2-3 — Customer-Initiated Teaching. The customer types free text
@@ -4917,6 +5023,8 @@ def teach_maestro(payload: dict[str, Any]) -> dict[str, Any]:
             editable: bool,  # True — the customer can edit
         }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     text = payload.get("text", "")
     actor = payload.get("actor", "user")
 
@@ -5155,7 +5263,7 @@ def get_auto_completed_tasks(request: Request) -> dict[str, Any]:
 # ─── V8 P1-5 — The Briefing Learns (Attention Signals) ─────────────────────
 
 @router.post("/attention/record")
-def record_attention(payload: dict[str, Any]) -> dict[str, Any]:
+def record_attention(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Record an attention signal — which briefing item the CEO clicked.
 
     V8 P1-5 — The Briefing Learns. Every click on a briefing item is
@@ -5170,6 +5278,8 @@ def record_attention(payload: dict[str, Any]) -> dict[str, Any]:
 
     Attention signals never hide information; they only reorder it.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.attention_signals import AttentionSignalStore
     item_type = payload.get("item_type", "")
     item_id = payload.get("item_id", "")
@@ -5225,7 +5335,7 @@ def get_commitments(
 # ─── V8 Competitor Analysis Feature D — Governed Auto-Action ───────────────
 
 @router.post("/auto-action/contradictions")
-def auto_action_contradictions(payload: dict[str, Any]) -> dict[str, Any]:
+def auto_action_contradictions(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Auto-DRAFT Jira/Slack for open contradictions (never auto-SEND).
 
     V8 Competitor Analysis Feature D — Governed Auto-Action. The Nerve
@@ -5247,6 +5357,8 @@ def auto_action_contradictions(payload: dict[str, Any]) -> dict[str, Any]:
     Each preview is a pending writeback action that must be approved via
     POST /api/oem/writeback/{action_id}/approve before execution.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.writeback import WriteBackService
     from maestro_api.routes.oem import _get_assumption_graph
     from maestro_oem.contradictions import ContradictionDetector
@@ -5294,7 +5406,7 @@ def auto_action_contradictions(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/curiosity/follow-up")
-def curiosity_follow_up(payload: dict[str, Any]) -> dict[str, Any]:
+def curiosity_follow_up(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Process a user's answer in a curiosity conversation.
 
     V8 Upgrade #3 — Conversational Curiosity. Maestro asks a question,
@@ -5337,6 +5449,8 @@ def curiosity_follow_up(payload: dict[str, Any]) -> dict[str, Any]:
     live_ingest. The signal captures the full conversation so the model
     can learn from human knowledge that wasn't in the signal stream.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.curiosity import CuriosityEngine
     question_id = payload.get("question_id", "")
     answer = payload.get("answer", "")
@@ -5670,7 +5784,7 @@ def get_background_loop(
 # can recall old whispers by vague description.
 
 @router.post("/ask/recall")
-def ask_recall(payload: dict[str, Any]) -> dict[str, Any]:
+def ask_recall(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Recall old whispers + signals + decisions by vague description.
 
     CEO: "What was that thing Maestro warned me about Legal a few weeks ago?"
@@ -5690,6 +5804,8 @@ def ask_recall(payload: dict[str, Any]) -> dict[str, Any]:
     (maestro_oem/whisper_recall.py) and its test file were DELETED as
     dead code. The hybrid RecallEngine is the sole recall path.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     query = payload.get("query", "")
     if not query:
         raise HTTPException(400, "Query is required")
@@ -6005,7 +6121,7 @@ def explain(
 # ─── Round 47 — Block 1.1: Canvas — Visual Decision Mapping ────────────────
 
 @router.get("/canvas/{decision_id}")
-def get_canvas(decision_id: str) -> dict[str, Any]:
+def get_canvas(request: Request, decision_id: str) -> dict[str, Any]:
     """Visual decision mapping — a graph of the decision and its dependencies.
 
     Round 47 Block 1.1. The canvas is a thinking aid: the decision node,
@@ -6014,6 +6130,8 @@ def get_canvas(decision_id: str) -> dict[str, Any]:
 
     WITHDRAWAL PATH: The user can map decisions on a whiteboard.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.canvas import build_decision_canvas
     return build_decision_canvas(oem_state.model, decision_id)
 
@@ -6021,7 +6139,7 @@ def get_canvas(decision_id: str) -> dict[str, Any]:
 # ─── Round 47 — Block 1.2: Per-Teammate View ───────────────────────────────
 
 @router.get("/teammate/{email}")
-def get_teammate(email: str) -> dict[str, Any]:
+def get_teammate(request: Request, email: str) -> dict[str, Any]:
     """Per-person view: tasks, commitments, attention, trust, influence.
 
     Round 47 Block 1.2. This is the USER'S view OF a teammate — it uses
@@ -6030,6 +6148,8 @@ def get_teammate(email: str) -> dict[str, Any]:
 
     WITHDRAWAL PATH: The user can track teammates in a spreadsheet.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.teammate import build_teammate_view
     return build_teammate_view(oem_state.model, oem_state.signals, email)
 
@@ -6045,13 +6165,15 @@ def list_mcp_tools(request: Request) -> dict[str, Any]:
     return list_tools()
 
 @router.post("/mcp/tool/{tool_name}")
-def execute_mcp_tool(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+def execute_mcp_tool(request: Request, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Execute an MCP tool by name. All tools are read-only.
 
     Round 47 Block 1.3. External AI agents (Claude, Cursor, IDE agents)
     can query the organizational model via MCP. Verified laws are returned
     as facts; unverified laws are labeled as candidates (Rule D2).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.mcp_server import execute_tool
     args = payload.get("args", payload)
     return execute_tool(tool_name, args, oem_state.model, oem_state.decisions)
@@ -6078,29 +6200,37 @@ def get_pilot_metrics(request: Request) -> dict[str, Any]:
     return PilotMetrics.get_metrics()
 
 @router.post("/pilot/metrics/card-swipe")
-def record_card_swipe(payload: dict[str, Any]) -> dict[str, Any]:
+def record_card_swipe(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Record a card swipe (count only, never the card content)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.pilot_metrics import PilotMetrics
     PilotMetrics.record_card_swipe(payload.get("direction", "right"))
     return {"recorded": True}
 
 @router.post("/pilot/metrics/action")
-def record_pilot_action(payload: dict[str, Any]) -> dict[str, Any]:
+def record_pilot_action(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Record an action taken (count only, never the action content)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.pilot_metrics import PilotMetrics
     PilotMetrics.record_action()
     return {"recorded": True}
 
 @router.post("/pilot/metrics/filter")
-def record_filter_usage(payload: dict[str, Any]) -> dict[str, Any]:
+def record_filter_usage(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Record filter usage (which filter, never the cards shown)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.pilot_metrics import PilotMetrics
     PilotMetrics.record_filter_usage(payload.get("filter", "all"))
     return {"recorded": True}
 
 @router.post("/pilot/metrics/surface-open")
-def record_surface_open(payload: dict[str, Any]) -> dict[str, Any]:
+def record_surface_open(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
     """Record which surface was opened (surface name only, never content)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.pilot_metrics import PilotMetrics
     PilotMetrics.record_surface_open(payload.get("surface", ""))
     return {"recorded": True}
@@ -6118,7 +6248,7 @@ def record_surface_open(payload: dict[str, Any]) -> dict[str, Any]:
 #   GET  /loop1/whispers             — returns all Whispers with DI fields
 
 @router.post("/loop1/evening-preparation")
-def loop1_evening_preparation(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+def loop1_evening_preparation(request: Request, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
     """Run the evening preparation phase — fires Whispers for consequential
     meetings on tomorrow's calendar.
 
@@ -6142,6 +6272,8 @@ def loop1_evening_preparation(payload: dict[str, Any] = Body(default={})) -> dic
         "generated_at": iso8601
       }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.loop1_commitment_intelligence import CommitmentIntelligenceLoop
     from maestro_oem.learning_ledger import LearningLedger
     from maestro_oem.calendar_source import DemoCalendarSource, StaticCalendarSource
@@ -6193,7 +6325,7 @@ def loop1_evening_preparation(payload: dict[str, Any] = Body(default={})) -> dic
 
 
 @router.post("/loop1/action")
-def loop1_record_action(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop1_record_action(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record the executive's action on a Whisper.
 
     Body:
@@ -6207,6 +6339,8 @@ def loop1_record_action(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     Returns:
       { "status": "recorded", "whisper_id": ..., "action_taken": ... }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     whisper_id = payload.get("whisper_id")
     action = payload.get("action")
     if not whisper_id:
@@ -6246,7 +6380,7 @@ def loop1_record_action(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 
 @router.post("/loop1/outcome")
-def loop1_record_outcome(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop1_record_outcome(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record the outcome signal observed after the meeting.
 
     Body:
@@ -6258,6 +6392,8 @@ def loop1_record_outcome(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     Returns:
       { "status": "recorded", "whisper_id": ..., "outcome": ... }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     whisper_id = payload.get("whisper_id")
     outcome = payload.get("outcome")
     if not whisper_id:
@@ -6320,7 +6456,7 @@ def loop1_record_outcome(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 
 @router.get("/loop1/learning/{whisper_id}")
-def loop1_get_learning(whisper_id: str) -> dict[str, Any]:
+def loop1_get_learning(request: Request, whisper_id: str) -> dict[str, Any]:
     """Get the Learning Ledger entry for a Whisper.
 
     If not yet written, generates it from the stored action + outcome +
@@ -6337,6 +6473,8 @@ def loop1_get_learning(whisper_id: str) -> dict[str, Any]:
         "decision_influenced": ...
       }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_whisper_history_store()
     history = store.get_history(whisper_id, org_id="default")
     if not history or not history.get("insight") and not history.get("entity"):
@@ -6450,7 +6588,7 @@ def _get_mutation_tracker():
 
 
 @router.post("/loop1.5/mutation/record")
-def loop1_5_record_mutation(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop1_5_record_mutation(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record a commitment, detecting mutations.
 
     Body:
@@ -6469,6 +6607,8 @@ def loop1_5_record_mutation(payload: dict[str, Any] = Body(...)) -> dict[str, An
         "entity": ...
       }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from datetime import datetime as _dt, timezone as _tz
 
     entity = payload.get("entity")
@@ -6513,7 +6653,7 @@ def loop1_5_record_mutation(payload: dict[str, Any] = Body(...)) -> dict[str, An
 
 
 @router.get("/loop1.5/mutation/{entity}")
-def loop1_5_get_mutation_history(entity: str) -> dict[str, Any]:
+def loop1_5_get_mutation_history(request: Request, entity: str) -> dict[str, Any]:
     """Get the mutation history for an entity.
 
     Returns:
@@ -6523,6 +6663,8 @@ def loop1_5_get_mutation_history(entity: str) -> dict[str, Any]:
         "mutations": [{old_text, new_text, old_timestamp, new_timestamp, actor}, ...]
       }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     tracker = _get_mutation_tracker()
     history = tracker.get_mutation_history(entity)
     mutations = tracker.get_mutations(entity)
@@ -6596,7 +6738,7 @@ def loop1_5_get_timeline_projection(
 
 
 @router.post("/loop1.5/disagreements/detect")
-def loop1_5_detect_disagreements(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop1_5_detect_disagreements(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Detect disagreements in a list of Evidence objects.
 
     Body:
@@ -6612,6 +6754,8 @@ def loop1_5_detect_disagreements(payload: dict[str, Any] = Body(...)) -> dict[st
     Returns:
       { "disagreements": [...] }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.disagreement_detector import DisagreementDetector
     from maestro_oem.evidence import Evidence
 
@@ -6640,7 +6784,7 @@ def loop1_5_detect_disagreements(payload: dict[str, Any] = Body(...)) -> dict[st
 
 
 @router.post("/loop1.5/delivery-decision")
-def loop1_5_delivery_decision(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop1_5_delivery_decision(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Compute the delivery_decision for a Whisper.
 
     Body:
@@ -6656,6 +6800,8 @@ def loop1_5_delivery_decision(payload: dict[str, Any] = Body(...)) -> dict[str, 
     Returns:
       { "decision": "DELIVER_NOW" | "DELIVER_AT_MEETING_TIME" | ... | "DEFER_UNTIL_EVIDENCE" }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.delivery_decision import decide_delivery
 
     decision = decide_delivery(
@@ -6670,7 +6816,7 @@ def loop1_5_delivery_decision(payload: dict[str, Any] = Body(...)) -> dict[str, 
 
 
 @router.get("/loop1.5/situation/{entity}")
-def loop1_5_get_situation(entity: str) -> dict[str, Any]:
+def loop1_5_get_situation(request: Request, entity: str) -> dict[str, Any]:
     """Get the Situation for an entity.
 
     Constructs a Situation from the current signals + calendar + whisper
@@ -6679,6 +6825,8 @@ def loop1_5_get_situation(entity: str) -> dict[str, Any]:
 
     Returns 404 if the entity has no signals.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.situation import SituationBuilder
     from maestro_oem.calendar_source import DemoCalendarSource
 
@@ -6792,7 +6940,7 @@ def _get_meeting_store():
 
 
 @router.post("/loop2/meeting")
-def loop2_create_meeting(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop2_create_meeting(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Create/schedule a meeting.
 
     Body:
@@ -6806,6 +6954,8 @@ def loop2_create_meeting(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     Returns the created meeting (with meeting_id).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from datetime import datetime as _dt, timezone as _tz
     from maestro_oem.meeting import Meeting
 
@@ -6837,8 +6987,10 @@ def loop2_create_meeting(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 
 @router.get("/loop2/meeting/{meeting_id}")
-def loop2_get_meeting(meeting_id: str) -> dict[str, Any]:
+def loop2_get_meeting(request: Request, meeting_id: str) -> dict[str, Any]:
     """Get a meeting by ID."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     meeting = _get_meeting_store().get(meeting_id)
     if meeting is None:
         raise HTTPException(404, f"Meeting {meeting_id} not found")
@@ -6846,8 +6998,10 @@ def loop2_get_meeting(meeting_id: str) -> dict[str, Any]:
 
 
 @router.post("/loop2/meeting/{meeting_id}/prepare")
-def loop2_prepare_meeting(meeting_id: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+def loop2_prepare_meeting(request: Request, meeting_id: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
     """Prepare a meeting — assemble a Situation (SCHEDULED → PREPARED)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
 
     meeting = _get_meeting_store().get(meeting_id)
@@ -6865,8 +7019,10 @@ def loop2_prepare_meeting(meeting_id: str, payload: dict[str, Any] = Body(defaul
 
 
 @router.post("/loop2/meeting/{meeting_id}/occur")
-def loop2_meeting_occurred(meeting_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop2_meeting_occurred(request: Request, meeting_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record that a meeting occurred — topics + commitments (PREPARED → OCCURRED)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
 
     meeting = _get_meeting_store().get(meeting_id)
@@ -6887,8 +7043,10 @@ def loop2_meeting_occurred(meeting_id: str, payload: dict[str, Any] = Body(...))
 
 
 @router.post("/loop2/meeting/{meeting_id}/outcome")
-def loop2_meeting_outcome(meeting_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop2_meeting_outcome(request: Request, meeting_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Observe a meeting's outcome (OCCURRED → OUTCOME_OBSERVED)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
 
     meeting = _get_meeting_store().get(meeting_id)
@@ -6909,13 +7067,15 @@ def loop2_meeting_outcome(meeting_id: str, payload: dict[str, Any] = Body(...)) 
 
 
 @router.get("/loop2/meeting/{meeting_id}/learning")
-def loop2_meeting_learning(meeting_id: str) -> dict[str, Any]:
+def loop2_meeting_learning(request: Request, meeting_id: str) -> dict[str, Any]:
     """Get (or write) the Meeting Learning Ledger entry.
 
     If the meeting is in OUTCOME_OBSERVED state, this writes the learning
     entry (transitioning to LEARNING_RECORDED). If already LEARNING_RECORDED,
     returns the existing entry.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.meeting_intelligence_loop import MeetingIntelligenceLoop
     from maestro_oem.meeting import MeetingStatus
 
@@ -6964,12 +7124,14 @@ def loop2_meeting_learning(meeting_id: str) -> dict[str, Any]:
 
 
 @router.get("/loop2/patterns")
-def loop2_detect_patterns(min_meetings: int = Query(2, description="Minimum meetings for a pattern")) -> dict[str, Any]:
+def loop2_detect_patterns(request: Request, min_meetings: int = Query(2, description="Minimum meetings for a pattern")) -> dict[str, Any]:
     """Detect cross-meeting patterns.
 
     Returns patterns where a topic has come up in >= min_meetings meetings
     for the same entity.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.cross_meeting_patterns import CrossMeetingPatternDetector
 
     meetings = _get_meeting_store().get_all()
@@ -7010,12 +7172,14 @@ def _get_decision_store():
 
 
 @router.post("/loop3/decision")
-def loop3_create_decision(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop3_create_decision(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Create/propose a decision.
 
     Body: {"intent": "...", "entity": "..."}
     Returns the created decision (with decision_id, status=PROPOSED).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.decision_v2 import Decision
 
     intent = payload.get("intent")
@@ -7029,8 +7193,10 @@ def loop3_create_decision(payload: dict[str, Any] = Body(...)) -> dict[str, Any]
 
 
 @router.get("/loop3/decision/{decision_id}")
-def loop3_get_decision(decision_id: str) -> dict[str, Any]:
+def loop3_get_decision(request: Request, decision_id: str) -> dict[str, Any]:
     """Get a decision by ID."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     decision = _get_decision_store().get(decision_id)
     if decision is None:
         raise HTTPException(404, f"Decision {decision_id} not found")
@@ -7039,8 +7205,10 @@ def loop3_get_decision(decision_id: str) -> dict[str, Any]:
 
 
 @router.post("/loop3/decision/{decision_id}/assumptions")
-def loop3_record_assumptions(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop3_record_assumptions(request: Request, decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record assumptions for a decision (PROPOSED → ASSUMPTIONS_RECORDED)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
 
     decision = _get_decision_store().get(decision_id)
@@ -7054,8 +7222,10 @@ def loop3_record_assumptions(decision_id: str, payload: dict[str, Any] = Body(..
 
 
 @router.post("/loop3/decision/{decision_id}/hypothesis")
-def loop3_state_hypothesis(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop3_state_hypothesis(request: Request, decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """State a hypothesis for a decision (ASSUMPTIONS_RECORDED → HYPOTHESIS_STATED)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
 
     decision = _get_decision_store().get(decision_id)
@@ -7073,8 +7243,10 @@ def loop3_state_hypothesis(decision_id: str, payload: dict[str, Any] = Body(...)
 
 
 @router.post("/loop3/decision/{decision_id}/decide")
-def loop3_decide(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop3_decide(request: Request, decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Make the decision (HYPOTHESIS_STATED → DECIDED)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
 
     decision = _get_decision_store().get(decision_id)
@@ -7092,8 +7264,10 @@ def loop3_decide(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[
 
 
 @router.post("/loop3/decision/{decision_id}/outcome")
-def loop3_observe_outcome(decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop3_observe_outcome(request: Request, decision_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Observe the outcome (DECIDED → OUTCOME_OBSERVED)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
 
     decision = _get_decision_store().get(decision_id)
@@ -7111,8 +7285,10 @@ def loop3_observe_outcome(decision_id: str, payload: dict[str, Any] = Body(...))
 
 
 @router.get("/loop3/decision/{decision_id}/learning")
-def loop3_get_learning(decision_id: str) -> dict[str, Any]:
+def loop3_get_learning(request: Request, decision_id: str) -> dict[str, Any]:
     """Get (or write) the Decision Learning Ledger entry."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.decision_intelligence_loop import DecisionIntelligenceLoop
     from maestro_oem.decision_v2 import DecisionStatus
 
@@ -7134,8 +7310,10 @@ def loop3_get_learning(decision_id: str) -> dict[str, Any]:
 
 
 @router.get("/loop3/patterns")
-def loop3_detect_patterns(min_decisions: int = Query(2, description="Minimum decisions for a pattern")) -> dict[str, Any]:
+def loop3_detect_patterns(request: Request, min_decisions: int = Query(2, description="Minimum decisions for a pattern")) -> dict[str, Any]:
     """Detect cross-decision patterns."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.cross_decision_patterns import CrossDecisionPatternDetector
 
     decisions = _get_decision_store().get_all()
@@ -7176,8 +7354,10 @@ def _get_org_learning_ledger():
 
 
 @router.post("/loop4/commitment-learning")
-def loop4_record_commitment_learning(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop4_record_commitment_learning(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record a commitment learning entry (from Loop 1)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     ledger = _get_org_learning_ledger()
     ledger.record_commitment_learning(
         entity=payload.get("entity", ""),
@@ -7191,8 +7371,10 @@ def loop4_record_commitment_learning(payload: dict[str, Any] = Body(...)) -> dic
 
 
 @router.post("/loop4/meeting-learning")
-def loop4_record_meeting_learning(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop4_record_meeting_learning(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record a meeting learning entry (from Loop 2)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     ledger = _get_org_learning_ledger()
     ledger.record_meeting_learning(
         entity=payload.get("entity", ""),
@@ -7204,8 +7386,10 @@ def loop4_record_meeting_learning(payload: dict[str, Any] = Body(...)) -> dict[s
 
 
 @router.post("/loop4/decision-learning")
-def loop4_record_decision_learning(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def loop4_record_decision_learning(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Record a decision learning entry (from Loop 3)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     ledger = _get_org_learning_ledger()
     ledger.record_decision_learning(
         entity=payload.get("entity", ""),
