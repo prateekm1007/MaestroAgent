@@ -27,8 +27,10 @@ Usage in model.py:
     from maestro_oem.semantic_dedup import SemanticDeduplicator
     dedup = SemanticDeduplicator()
     if dedup.is_semantic_duplicate(signal, existing_lo):
-        # Add evidence to existing LO instead of creating a new one
-        existing_lo.add_evidence(...)
+        # Add evidence to existing LO instead of creating a new one.
+        # P20: every add_evidence caller MUST pass content_hash (enforced by
+        # audit_scripts/verify_c002_dedup.sh).
+        existing_lo.add_evidence(signal.signal_id, source, content_hash=_compute_content_hash(signal))
     else:
         # Create new LO
         self.learning_objects[lo.lo_id] = lo
