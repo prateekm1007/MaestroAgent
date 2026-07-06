@@ -26,7 +26,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, Body
 
-from maestro_api.oem_state import oem_state
+from maestro_api.oem_state import oem_state, get_oem_for_request
 from maestro_api.security.policy import set_router_policy, AuthPolicy
 from maestro_db.db_helper import get_db_url_for_learning
 from maestro_oem.confidence import format_confidence_for_display  # ISSUE-07: display gate
@@ -61,6 +61,8 @@ def _require_oem_permission(request: Request):
     disabling RBAC on all 158 endpoints. Now fixed: correct import path +
     fail-closed when auth is enabled but the store is unavailable.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     try:
         from maestro_auth.permissions import is_auth_enabled, require_user, get_auth_store, bearer_user
         from maestro_auth.models import Permissions
@@ -262,7 +264,7 @@ def _rec_to_dict(rec: Any) -> dict[str, Any]:
 # ─── 1. GET /api/oem/state ──────────────────────────────────────────────────
 
 @router.get("/state")
-def get_oem_state() -> dict[str, Any]:
+def get_oem_state(request: Request) -> dict[str, Any]:
     """Top-level OEM state — signal counts, law counts, health metrics.
 
     The 'connected' field on each provider reflects REAL OAuth state
@@ -270,6 +272,8 @@ def get_oem_state() -> dict[str, Any]:
     This fixes the contradiction where the Signals page said 'connected'
     but the Settings page said 'not configured'.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     summary = model.get_summary()
     # Phase 4.2: include shadow_mode status in state response
@@ -323,8 +327,10 @@ def get_oem_state() -> dict[str, Any]:
 # ─── 2. GET /api/oem/dashboard ──────────────────────────────────────────────
 
 @router.get("/dashboard")
-def get_dashboard() -> dict[str, Any]:
+def get_dashboard(request: Request) -> dict[str, Any]:
     """Home dashboard — overnight changes, today's decisions, key metrics."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     recs = oem_state.decisions.get_recommendations()
     experts = model.knowledge.get_hidden_experts()
@@ -400,12 +406,14 @@ def get_dashboard() -> dict[str, Any]:
 # ─── 3. GET /api/oem/recommendations ───────────────────────────────────────
 
 @router.get("/recommendations")
-def get_recommendations(urgency: str | None = Query(None)) -> dict[str, Any]:
+def get_recommendations(request: Request, urgency: str | None = Query(None)) -> dict[str, Any]:
     """All active recommendations with full evidence chains.
 
     Each recommendation automatically creates a prediction for tracking.
     Every recommendation includes explainable confidence.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     recs = oem_state.decisions.get_recommendations()
     if urgency:
         recs = [r for r in recs if r.urgency == urgency]
@@ -446,7 +454,7 @@ def get_recommendations(urgency: str | None = Query(None)) -> dict[str, Any]:
 # ─── 4. GET /api/oem/inbox ─────────────────────────────────────────────────
 
 @router.get("/inbox")
-def get_inbox(
+def get_inbox(request: Request,
     limit: int = Query(50, ge=1, le=200, description="Max items per category"),
 ) -> dict[str, Any]:
     """Executive inbox — decisions owed, drift, dissent.
@@ -454,6 +462,8 @@ def get_inbox(
     Paginated: each category is capped at `limit` items (default 50).
     At 100k employees, the inbox could have hundreds of items per category.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     recs = oem_state.decisions.get_recommendations()
 
@@ -487,7 +497,7 @@ def get_inbox(
 # ─── 5. GET /api/oem/laws ──────────────────────────────────────────────────
 
 @router.get("/laws")
-def get_laws(
+def get_laws(request: Request,
     status: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200, description="Max laws to return"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
@@ -498,6 +508,8 @@ def get_laws(
     At 10M signals, thousands of laws may exist — unbounded queries would
     produce multi-MB responses and multi-second frontend renders.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     laws = list(model.laws.values())
     if status:
@@ -597,6 +609,8 @@ async def ask(
     listed viewers. If user_email is empty, private signals are hidden
     (fail-closed).
     """
+    # Phase 2: resolve per-request OEM state (multi-tenant routing).
+    oem_state = get_oem_for_request(request)
     synthesis_provider = getattr(request.app.state, "synthesis_provider", None) if request else None
     candidate_pattern_store = getattr(request.app.state, "candidate_pattern_store", None) if request else None
     try:
@@ -4047,6 +4061,7 @@ def get_unknowns(
 
 @router.get("/timeline")
 def get_timeline(
+    request: Request,
     limit: int = Query(50, ge=1, le=500, description="Number of signals to return (1-500, default 50)."),
     offset: int = Query(0, ge=0, description="Pagination offset (default 0)."),
     provider: str = Query("", description="Filter by provider: github, jira, slack, confluence, gmail, calendar, customer, unknown. Comma-separated for multiple."),
@@ -4079,6 +4094,8 @@ def get_timeline(
 
     Signals are sorted by timestamp DESCENDING (most recent first).
     """
+    # Phase 2: resolve per-request OEM state (multi-tenant routing).
+    oem_state = get_oem_for_request(request)
     from datetime import datetime, timezone
 
     # Parse filters into sets
@@ -5513,7 +5530,7 @@ async def ask_conversation(payload: dict[str, Any], request: Request) -> dict[st
 
 
 @router.get("/preparation/tomorrow")
-def get_tomorrow_preparation(user: str = Query("")) -> dict[str, Any]:
+def get_tomorrow_preparation(request: Request, user: str = Query("")) -> dict[str, Any]:
     """Get tomorrow's preparation brief.
 
     CEO's vision: Maestro prepares for tomorrow's meetings, decisions,
@@ -5524,6 +5541,10 @@ def get_tomorrow_preparation(user: str = Query("")) -> dict[str, Any]:
     - suggested_talking_points, internal_expert
     - draft_email, competitive_comparison
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
+    # Phase 2: resolve per-request OEM state (multi-tenant routing).
+    oem_state = get_oem_for_request(request)
     from maestro_oem.preparation_engine import PreparationEngine
     from maestro_oem.calendar_source import MeetingStoreCalendarSource, DemoCalendarSource
 
@@ -5623,6 +5644,7 @@ def _get_conversation_store():
 
 @router.get("/whisper")
 def organizational_whisper(
+    request: Request,
     context: str = Query("", description="meeting|proposal|decision|email|review"),
     entity: str = Query("", description="Entity being discussed"),
     topic: str = Query("", description="Topic (pricing, security, timeline, etc.)"),
@@ -5640,6 +5662,8 @@ def organizational_whisper(
     History is loaded from WhisperHistoryStore before generating whispers,
     and shown_count is incremented after generation.
     """
+    # Phase 2: resolve per-request OEM state (multi-tenant routing).
+    oem_state = get_oem_for_request(request)
     cache_key = (context, entity, topic)
     cache_max_age = 60  # seconds
 
