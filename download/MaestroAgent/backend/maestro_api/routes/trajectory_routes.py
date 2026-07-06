@@ -21,11 +21,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from maestro_api.oem_state import oem_state
+from maestro_api.security.policy import auth_policy, AuthPolicy
 
-router = APIRouter()
+# Phase 1 fix: add auth dependency to trajectory_routes sub-router.
+# CRITICAL-1 extraction created this router without auth — the auth
+# coverage matrix test catches it. The main oem.py router has auth
+# via set_router_policy, but sub-routers need their own dependency.
+router = APIRouter(dependencies=[
+    Depends(auth_policy(AuthPolicy.USER)),
+])
 
 
 @router.get("/trajectory-intervention")

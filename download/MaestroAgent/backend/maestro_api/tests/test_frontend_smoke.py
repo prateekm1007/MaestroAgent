@@ -9,6 +9,9 @@ Uses Playwright (sync API) to:
 5. Verify no undefined function calls
 6. Test the Ask flow end-to-end
 7. Test navigation between surfaces
+
+Phase 1: marked as browser tests — skipped by default.
+Run with: python -m pytest -m browser
 """
 
 from __future__ import annotations
@@ -17,6 +20,8 @@ import time
 import threading
 import pytest
 from playwright.sync_api import sync_playwright
+
+pytestmark = pytest.mark.browser
 
 
 def _start_server():

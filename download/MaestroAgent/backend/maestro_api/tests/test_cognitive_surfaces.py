@@ -6,6 +6,9 @@ are reachable from the sidebar, render without JS console errors, and call
 their real API endpoints.
 
 These tests guard against regressions in the cognitive-model UI wiring.
+
+Phase 1: marked as browser tests — skipped by default.
+Run with: python -m pytest -m browser
 """
 
 from __future__ import annotations
@@ -14,6 +17,8 @@ import time
 import threading
 import pytest
 from playwright.sync_api import sync_playwright
+
+pytestmark = pytest.mark.browser
 
 
 def _start_server():
