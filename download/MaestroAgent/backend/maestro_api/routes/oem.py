@@ -571,12 +571,14 @@ def verify_law(code: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/laws/verified/list")
-def list_verified_laws() -> dict[str, Any]:
+def list_verified_laws(request: Request) -> dict[str, Any]:
     """List all human-verified laws.
 
     V8 Competitor Analysis Feature C — Verified Knowledge Layer.
     Returns only laws that have been verified by a human (verified_by is set).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     verified = [
         _law_to_dict(law)
@@ -609,6 +611,8 @@ async def ask(
     listed viewers. If user_email is empty, private signals are hidden
     (fail-closed).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     # Phase 2: resolve per-request OEM state (multi-tenant routing).
     oem_state = get_oem_for_request(request)
     synthesis_provider = getattr(request.app.state, "synthesis_provider", None) if request else None
@@ -723,8 +727,10 @@ async def ask(
 # ─── 7. GET /api/oem/simulator ─────────────────────────────────────────────
 
 @router.get("/simulator")
-def get_simulator() -> dict[str, Any]:
+def get_simulator(request: Request) -> dict[str, Any]:
     """Decision simulator state — current recommendations + what-if inputs."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     recs = oem_state.decisions.get_recommendations()
     # The simulator shows the top recommendation and lets the user adjust inputs
@@ -791,12 +797,15 @@ def get_provenance(entity_id: str) -> dict[str, Any]:
 
 @router.get("/knowledge")
 def get_knowledge(
+    request: Request,
     limit: int = Query(50, ge=1, le=200, description="Max items per category"),
 ) -> dict[str, Any]:
     """Knowledge flow — hidden experts, concentration risk, knowledge death.
 
     Paginated: each category is capped at `limit` items (default 50).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     experts = model.knowledge.get_hidden_experts()[:limit]
     risks = dict(list(model.knowledge.get_concentration_risk().items())[:limit])
@@ -848,6 +857,7 @@ def get_knowledge(
 
 @router.get("/autocomplete")
 def autocomplete(
+    request: Request,
     q: str = Query("", description="Partial query for autocomplete"),
     limit: int = Query(10, ge=1, le=50, description="Max suggestions"),
     surface: str = Query("", description="Current surface for context-aware ranking"),
@@ -888,6 +898,8 @@ def autocomplete(
     company because the underlying data is derived from that company's
     actual signal history.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.autocomplete import SemanticAutocompleteEngine
 
     context = {
@@ -912,6 +924,7 @@ def autocomplete(
 
 @router.get("/receipts")
 def get_receipts(
+    request: Request,
     limit: int = Query(100, ge=1, le=500),
     law_code: str | None = Query(None, description="Filter by law code"),
     provider: str | None = Query(None, description="Filter by provider"),
@@ -925,6 +938,8 @@ def get_receipts(
       - receipt_id, timestamp, law_code, provider, signal_type, actor,
         artifact, action
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
 
     # Build a map: signal_id → law_codes that consumed it
@@ -987,6 +1002,7 @@ def _extract_action(signal) -> str:
 
 @router.get("/shadow-signals")
 def get_shadow_signals(
+    request: Request,
     limit: int = Query(100, ge=1, le=500),
 ) -> dict[str, Any]:
     """Phase 4.2: inspect shadow signals (real signals ingested but NOT surfaced).
@@ -1004,6 +1020,8 @@ def get_shadow_signals(
         "signals": [{signal_id, type, actor, artifact, timestamp, provider, metadata}, ...]
       }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     shadow_sigs = oem_state.get_shadow_signals(limit=limit) if oem_state else []
     return {
         "shadow_mode": oem_state.shadow_mode if oem_state else False,
@@ -1014,6 +1032,7 @@ def get_shadow_signals(
 
 @router.get("/signals")
 def get_signals(
+    request: Request,
     limit: int = Query(100, ge=1, le=500),
     law_code: str | None = Query(None, description="Filter by law code"),
     provider: str | None = Query(None, description="Filter by provider"),
@@ -1030,6 +1049,8 @@ def get_signals(
                  actor, artifact, law_code, action, domain}
       - total: total count of signals matching the filter
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     # Delegate to /receipts and reshape
     result = get_receipts(limit=limit, law_code=law_code, provider=provider)
     return {
@@ -1287,6 +1308,7 @@ def contradict_law(payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.get("/entity/{entity_type}/{entity_id}")
 def get_entity_drilldown(
+    request: Request,
     entity_type: str,
     entity_id: str,
 ) -> dict[str, Any]:
@@ -1298,6 +1320,8 @@ def get_entity_drilldown(
 
     Returns a unified drill-down view with 8 tabs of information.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     result: dict[str, Any] = {
         "entity_type": entity_type,
@@ -1605,7 +1629,7 @@ def simulate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
 # ─── 16. CEO Briefing — answers the 5 questions a CEO needs ─────────────────
 
 @router.get("/ceo-briefing")
-def get_ceo_briefing() -> dict[str, Any]:
+def get_ceo_briefing(request: Request) -> dict[str, Any]:
     """The CEO's morning briefing. Answers 5 questions:
 
     1. What changed overnight?
@@ -1617,6 +1641,8 @@ def get_ceo_briefing() -> dict[str, Any]:
     Every answer is specific, actionable, and derived from the live OEM.
     No generic metrics — every number has a "so what" attached.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     recs = oem_state.decisions.get_recommendations()
     experts = model.knowledge.get_hidden_experts()
@@ -2136,7 +2162,7 @@ def _learning_db_path() -> str:
     return db_path
 
 @router.get("/learning")
-def get_learning_report() -> dict[str, Any]:
+def get_learning_report(request: Request) -> dict[str, Any]:
     """The OEM's continuous learning report.
 
     Shows evidence that every recommendation becomes better over time:
@@ -2149,6 +2175,8 @@ def get_learning_report() -> dict[str, Any]:
       - Concept drift + organization drift detection
       - Brier score (prediction quality metric)
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     import os as _os
     db_path = _os.environ.get("MAESTRO_LEARNING_DB",
                                get_db_url_for_learning())
@@ -2161,12 +2189,14 @@ def get_learning_report() -> dict[str, Any]:
 
 
 @router.get("/learning/calibration")
-def get_calibration_report() -> dict[str, Any]:
+def get_calibration_report(request: Request) -> dict[str, Any]:
     """Prediction calibration report — 10-bucket reliability diagram.
 
     Shows whether the OEM's confidence scores match its actual accuracy.
     A well-calibrated system predicting 80% confidence is right 80% of the time.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import CalibrationEngine
@@ -2219,8 +2249,10 @@ def get_drift_events(drift_type: str | None = Query(None), limit: int = Query(50
 
 
 @router.get("/learning/freshness")
-def get_freshness_report() -> dict[str, Any]:
+def get_freshness_report(request: Request) -> dict[str, Any]:
     """Knowledge freshness report — which domains have stale knowledge."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import KnowledgeFreshnessTracker, CalibrationEngine
@@ -2231,8 +2263,10 @@ def get_freshness_report() -> dict[str, Any]:
 
 
 @router.get("/learning/decay")
-def get_pattern_decay() -> dict[str, Any]:
+def get_pattern_decay(request: Request) -> dict[str, Any]:
     """Pattern decay report — which patterns are losing weight without reinforcement."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import LawEvolutionEngine, CalibrationEngine
@@ -2254,8 +2288,10 @@ def get_feedback_summary(entity_id: str | None = Query(None)) -> dict[str, Any]:
 
 
 @router.post("/learning/run-drift-detection")
-def run_drift_detection() -> dict[str, Any]:
+def run_drift_detection(request: Request) -> dict[str, Any]:
     """Manually trigger drift detection. Returns detected drifts."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     db_path = _learning_db_path()
 
     from maestro_oem.learning import ContinuousLearningEngine
@@ -2266,12 +2302,14 @@ def run_drift_detection() -> dict[str, Any]:
 # ─── 18. Organizational Digital Twin — "What happens if...?" ───────────────
 
 @router.get("/twin/state")
-def get_twin_state() -> dict[str, Any]:
+def get_twin_state(request: Request) -> dict[str, Any]:
     """Get the current organizational digital twin state.
 
     Returns the org's people, domains, workload distribution, and health —
     the baseline for running what-if scenarios.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.digital_twin import DigitalTwin
     twin = DigitalTwin(oem_state.model, oem_state.signals, oem_state.decisions)
     summary = twin.get_org_summary()
@@ -2340,8 +2378,10 @@ def simulate_twin_scenario(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/twin/scenarios")
-def get_available_scenarios() -> dict[str, Any]:
+def get_available_scenarios(request: Request) -> dict[str, Any]:
     """List all available scenario types with descriptions and required params."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return {
         "scenarios": [
             {
@@ -2403,6 +2443,7 @@ def get_available_scenarios() -> dict[str, Any]:
 
 @router.get("/predictions")
 def get_predictions(
+    request: Request,
     status: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ) -> dict[str, Any]:
@@ -2411,6 +2452,8 @@ def get_predictions(
     Predictions are automatically created when recommendations are surfaced
     and automatically resolved when future signals arrive.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.prediction_lifecycle import PredictionRecorder
     recorder = PredictionRecorder(_learning_db_path())
     preds = recorder.list_predictions(status=status, limit=limit)
@@ -2429,13 +2472,15 @@ def get_prediction(prediction_id: str) -> dict[str, Any]:
 
 
 @router.post("/predictions/resolve")
-def resolve_predictions() -> dict[str, Any]:
+def resolve_predictions(request: Request) -> dict[str, Any]:
     """Manually trigger prediction resolution.
 
     Checks all pending predictions against current model state and
     resolves those that can be determined. Expired predictions are
     marked as expired.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
     from maestro_oem.learning import CalibrationEngine
     cal = CalibrationEngine(_learning_db_path())
@@ -2448,7 +2493,7 @@ def resolve_predictions() -> dict[str, Any]:
 
 
 @router.get("/improvement")
-def get_improvement_report() -> dict[str, Any]:
+def get_improvement_report(request: Request) -> dict[str, Any]:
     """The Organization Improvement Dashboard.
 
     Proves that Maestro's recommendations get better over time by showing:
@@ -2460,6 +2505,8 @@ def get_improvement_report() -> dict[str, Any]:
       - Confidence trend over time
       - Recent predictions with outcomes
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
     from maestro_oem.learning import CalibrationEngine
     cal = CalibrationEngine(_learning_db_path())
@@ -2472,6 +2519,7 @@ def get_improvement_report() -> dict[str, Any]:
 
 @router.get("/confidence/explain")
 def explain_confidence(
+    request: Request,
     entity_id: str = Query(...),
     confidence: float = Query(0.5),
     entity_type: str = Query("law"),
@@ -2486,6 +2534,8 @@ def explain_confidence(
       Prediction calibration error 0.08
       Last validated 3 days ago.'
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.prediction_lifecycle import ClosedLoopLearningManager
     from maestro_oem.learning import CalibrationEngine
     cal = CalibrationEngine(_learning_db_path())
@@ -2515,13 +2565,15 @@ def _customer_engine():
 
 
 @router.get("/customer/morning")
-def customer_morning_brief() -> dict[str, Any]:
+def customer_morning_brief(request: Request) -> dict[str, Any]:
     """The Customer Morning Brief — 3 relationships needing attention today.
 
     Surfaces the customer relationships with the highest escalation_risk * ARR.
     For each: why, risk, opportunity, recommended decision, business impact,
     confidence, expected value.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().morning_brief()
 
 
@@ -2538,6 +2590,7 @@ def customer_executive_brief(customer: str) -> dict[str, Any]:
 
 @router.get("/customer/memory/{customer}")
 def customer_relationship_memory(
+    request: Request,
     customer: str,
     q: str = Query("", description="Search query for the timeline"),
 ) -> dict[str, Any]:
@@ -2545,6 +2598,8 @@ def customer_relationship_memory(
 
     Every meeting, email, commitment, decision, objection — with receipts.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return _customer_engine().relationship_memory(customer, query=q)
 
 
@@ -2605,8 +2660,10 @@ def customer_physics(customer: str) -> dict[str, Any]:
 
 
 @router.get("/customer/list")
-def customer_list() -> dict[str, Any]:
+def customer_list(request: Request) -> dict[str, Any]:
     """List all customer accounts known to the OEM."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     engine = _customer_engine()
     customers = []
     for name in engine._all_customers():
@@ -2645,8 +2702,10 @@ def customer_twin_simulate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/customer/twin/scenarios")
-def customer_twin_scenarios() -> dict[str, Any]:
+def customer_twin_scenarios(request: Request) -> dict[str, Any]:
     """List available customer what-if scenario types."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     return {
         "scenarios": [
             {
@@ -2704,7 +2763,7 @@ def customer_twin_scenarios() -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.get("/pulse")
-def get_organizational_pulse() -> dict[str, Any]:
+def get_organizational_pulse(request: Request) -> dict[str, Any]:
     """Organizational Pulse — living metrics that make the org feel alive.
 
     Returns: temperature, momentum, alignment, trust, knowledge_mobility,
@@ -2712,6 +2771,8 @@ def get_organizational_pulse() -> dict[str, Any]:
 
     Like an Apple Watch for companies.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.pulse import OrganizationalPulse
     pulse = OrganizationalPulse(oem_state.model, oem_state.signals)
     return pulse.compute()
@@ -2736,6 +2797,7 @@ def get_executive_feed(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
 
 @router.get("/time-machine")
 def time_machine_search(
+    request: Request,
     entity_id: str = Query("", description="Entity to find history for"),
     entity_type: str = Query("", description="Type of entity"),
     q: str = Query("", description="Natural-language query"),
@@ -2747,6 +2809,8 @@ def time_machine_search(
     what happened, what was recommended, what actually happened, what was
     learned.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.time_machine import TimeMachine
     tm = TimeMachine(oem_state.model, oem_state.signals)
     return tm.search(entity_id=entity_id, entity_type=entity_type, query=q, limit=limit)
@@ -2754,12 +2818,15 @@ def time_machine_search(
 
 @router.get("/gps")
 def organizational_gps(
+    request: Request,
     user: str = Query("", description="User email to locate"),
 ) -> dict[str, Any]:
     """Organizational GPS — where am I, what's blocking, who knows, what's next.
 
     Like Google Maps for organizational execution. Personalized per user.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.gps import OrganizationalGPS
     if not user:
         # Default to the first actor in the signals
@@ -2769,7 +2836,7 @@ def organizational_gps(
 
 
 @router.get("/cognitive-load")
-def get_cognitive_load() -> dict[str, Any]:
+def get_cognitive_load(request: Request) -> dict[str, Any]:
     """Cognitive Load Engine — measure organizational cognitive load (OCL).
 
     Measures: decision fatigue, context switching, meeting overhead,
@@ -2778,18 +2845,22 @@ def get_cognitive_load() -> dict[str, Any]:
 
     OCL is a board-level metric. Every release should lower it.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.cognitive_load import CognitiveLoadEngine
     engine = CognitiveLoadEngine(oem_state.model, oem_state.signals)
     return engine.compute()
 
 
 @router.get("/narrative")
-def get_daily_narrative() -> dict[str, Any]:
+def get_daily_narrative(request: Request) -> dict[str, Any]:
     """Organizational Narrative — the daily company story.
 
     NOT a dashboard. A narrative: what changed, why it matters, what to
     watch for. Executives think in stories, not metrics.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.narrative import NarrativeEngine
     engine = NarrativeEngine(oem_state.model, oem_state.signals)
     return engine.daily()
@@ -2865,6 +2936,7 @@ def get_whisper_outcomes(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]
 
 @router.get("/intent")
 def infer_intent(
+    request: Request,
     active_app: str = Query("", description="email|calendar|github|jira|slack|browser|zoom|docs|crm"),
     user: str = Query("", description="User email"),
     calendar_title: str = Query("", description="Calendar event title (if opted in)"),
@@ -2881,6 +2953,8 @@ def infer_intent(
     titles, and URL domains — never email bodies, document content, or
     keystrokes.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.intent import IntentEngine
     engine = IntentEngine(oem_state.model, oem_state.signals)
     calendar_context = {}
@@ -2898,6 +2972,7 @@ def infer_intent(
 
 @router.get("/interrupt")
 def get_interrupt_decisions(
+    request: Request,
     user: str = Query("", description="User email"),
     active_app: str = Query("", description="Current active app"),
 ) -> dict[str, Any]:
@@ -2908,6 +2983,8 @@ def get_interrupt_decisions(
     a priority (ignore/notify/recommend/escalate/interrupt) and delivery
     method (silent/badge/toast/banner/modal).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.feed import ExecutiveFeed
     from maestro_oem.interrupt import InterruptEngine
     from maestro_oem.cognitive_load import CognitiveLoadEngine
@@ -2949,6 +3026,7 @@ def get_interrupt_decisions(
 
 @router.get("/ambient")
 def get_ambient_state(
+    request: Request,
     user: str = Query("", description="User email"),
     active_app: str = Query("", description="Current active app"),
     calendar_title: str = Query("", description="Calendar event title"),
@@ -2966,6 +3044,8 @@ def get_ambient_state(
     This is the endpoint a browser extension, IDE plugin, or overlay would
     call to decide what (if anything) to show the user.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.intent import IntentEngine
     from maestro_oem.pulse import OrganizationalPulse
     from maestro_oem.gps import OrganizationalGPS
@@ -3094,6 +3174,7 @@ def get_preparation(preparation_id: str) -> dict[str, Any]:
 
 @router.post("/preparations/{preparation_id}/approve")
 def approve_preparation(
+    request: Request,
     preparation_id: str,
     approved_by: str = Query("ceo", description="Who approved"),
 ) -> dict[str, Any]:
@@ -3105,6 +3186,8 @@ def approve_preparation(
     The decision is also appended to the decision_log table — the raw
     material for the Principle extraction engine after the 90-day pilot.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     global _cached_preparations
     preps = _get_preparations()
     for p in preps:
@@ -3135,6 +3218,7 @@ def approve_preparation(
 
 @router.post("/preparations/{preparation_id}/reject")
 def reject_preparation(
+    request: Request,
     preparation_id: str,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -3145,6 +3229,8 @@ def reject_preparation(
     Now there is a real reject endpoint that sets status='rejected' and
     records the rejector + reason in the decision log.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     payload = payload or {}
     rejected_by = payload.get("rejected_by", "ceo")
     reason = payload.get("reason", "user_rejected")
@@ -3179,6 +3265,7 @@ def reject_preparation(
 
 @router.post("/recommendations/{rec_id}/reject")
 def reject_recommendation(
+    request: Request,
     rec_id: str,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -3187,6 +3274,8 @@ def reject_recommendation(
     Round 51 H18 fix: real reject endpoint for recommendations. Records
     the rejection in the trust ledger as a negative signal.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     payload = payload or {}
     rejected_by = payload.get("rejected_by", "ceo")
     reason = payload.get("reason", "user_rejected")
@@ -3264,24 +3353,28 @@ def create_assumption(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/assumptions/dangerous")
-def get_dangerous_assumptions() -> dict[str, Any]:
+def get_dangerous_assumptions(request: Request) -> dict[str, Any]:
     """The killer view: assumptions that are open, high-stakes, and unvalidated.
 
     These are the assumptions that could bankrupt a project if wrong.
     No enterprise product has this.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     graph = _get_assumption_graph()
     dangerous = graph.get_dangerous_assumptions()
     return {"dangerous_assumptions": dangerous, "total": len(dangerous)}
 
 
 @router.get("/assumptions/accuracy")
-def get_assumption_accuracy() -> dict[str, Any]:
+def get_assumption_accuracy(request: Request) -> dict[str, Any]:
     """Accuracy report: which assumptions came true?
 
     After 90 days: '47% of our assumptions were correct. These 3 cost
     us the most when they turned out wrong.'
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     graph = _get_assumption_graph()
     return graph.get_accuracy_report()
 
@@ -3417,10 +3510,13 @@ def update_intent_status(intent_id: str, status: str = Query(...)) -> dict[str, 
 
 @router.get("/hypotheses")
 def list_hypotheses(
+    request: Request,
     status: str | None = Query(None),
     intent_id: str | None = Query(None),
 ) -> dict[str, Any]:
     """List hypotheses, optionally filtered by status or intent."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_hypothesis_store()
     return {"hypotheses": store.list_hypotheses(status=status, intent_id=intent_id),
             "total": len(store.list_hypotheses())}
@@ -3457,12 +3553,14 @@ def create_hypothesis(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/hypotheses/calibration")
-def get_hypothesis_calibration() -> dict[str, Any]:
+def get_hypothesis_calibration(request: Request) -> dict[str, Any]:
     """Calibration report for all hypotheses.
 
     'Our hypotheses were 60% accurate. The ones based on assumptions
     about Legal were systematically overconfident.'
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_hypothesis_store()
     return store.calibration_report()
 
@@ -3479,6 +3577,7 @@ def get_hypothesis(hypothesis_id: str) -> dict[str, Any]:
 
 @router.post("/hypotheses/{hypothesis_id}/resolve")
 def resolve_hypothesis(
+    request: Request,
     hypothesis_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -3486,6 +3585,8 @@ def resolve_hypothesis(
 
     Payload: {actual_value?, outcome?, evidence?, notes?}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_hypothesis_store()
     ok = store.resolve(
         hypothesis_id,
@@ -3545,6 +3646,7 @@ def acknowledge_contradiction(contradiction_id: str) -> dict[str, Any]:
 
 @router.get("/perspectives")
 def get_perspectives(
+    request: Request,
     event_type: str = Query(..., description="Event type to translate (e.g. customer.commitment_broken)"),
     customer: str = Query("", description="Customer name"),
     arr: float = Query(0, description="ARR at stake"),
@@ -3557,6 +3659,8 @@ def get_perspectives(
     returns the engineering, legal, finance, sales, support, and leadership
     perspectives for any given event.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.perspective import PerspectiveEngine
     engine = PerspectiveEngine()
     context = {
@@ -3570,8 +3674,10 @@ def get_perspectives(
 
 
 @router.get("/perspectives/types")
-def get_perspective_types() -> dict[str, Any]:
+def get_perspective_types(request: Request) -> dict[str, Any]:
     """List all available perspectives and supported event types."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.perspective import PerspectiveEngine
     engine = PerspectiveEngine()
     return {
@@ -3596,10 +3702,13 @@ def _get_prediction_market():
 
 @router.get("/predictions/market")
 def list_market_predictions(
+    request: Request,
     status: str | None = Query(None),
     predictor: str | None = Query(None),
 ) -> dict[str, Any]:
     """List personal predictions from the prediction market."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     market = _get_prediction_market()
     return {"predictions": market.list_predictions(status=status, predictor=predictor),
             "total": len(market.list_predictions())}
@@ -3647,6 +3756,7 @@ def submit_market_prediction(payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.post("/predictions/market/{prediction_id}/resolve")
 def resolve_market_prediction(
+    request: Request,
     prediction_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -3654,6 +3764,8 @@ def resolve_market_prediction(
 
     Payload: {actual_outcome: bool}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     market = _get_prediction_market()
     actual = payload.get("actual_outcome")
     if actual is None:
@@ -3669,11 +3781,13 @@ def resolve_market_prediction(
 
 
 @router.get("/predictions/market/calibration")
-def get_calibration_ranking() -> dict[str, Any]:
+def get_calibration_ranking(request: Request) -> dict[str, Any]:
     """Ranked list of predictors by calibration accuracy.
 
     Not hierarchy. Accuracy. This is the internal trust network.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     market = _get_prediction_market()
     ranking = market.calibration_ranking()
     return {"predictors": ranking, "total": len(ranking)}
@@ -3759,6 +3873,7 @@ def get_coordination_request(request_id: str) -> dict[str, Any]:
 
 @router.post("/coordinate/{request_id}/respond")
 def add_coordination_response(
+    request: Request,
     request_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -3766,6 +3881,8 @@ def add_coordination_response(
 
     Payload: {responder, team, response, stance}
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     global _coordination_engine
     if _coordination_engine is None:
         from maestro_oem.coordination import CoordinationEngine
@@ -3838,13 +3955,15 @@ def list_snapshots(limit: int = Query(52, ge=1, le=520)) -> dict[str, Any]:
 
 
 @router.post("/snapshots/collect")
-def collect_snapshot_now() -> dict[str, Any]:
+def collect_snapshot_now(request: Request) -> dict[str, Any]:
     """Manually trigger a snapshot collection (for testing + immediate data).
 
     The weekly scheduler calls this automatically. Exposed as a POST so
     the pilot can capture a snapshot on-demand (e.g., after a major
     ingestion milestone).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.instrumentation import collect_snapshot_metrics, SnapshotStore
     metrics = collect_snapshot_metrics(oem_state, _learning_db_path())
     store = _get_snapshot_store()
@@ -3854,6 +3973,7 @@ def collect_snapshot_now() -> dict[str, Any]:
 
 @router.get("/decision-log")
 def list_decision_log(
+    request: Request,
     limit: int = Query(100, ge=1, le=1000),
     decision: str | None = Query(None),
     intent_id: str | None = Query(None),
@@ -3863,6 +3983,8 @@ def list_decision_log(
     After 90 days, this log is the raw material for the Principle extraction
     engine: 'we decided X based on assumptions A,B,C and the outcome was Y.'
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     log = _get_decision_log()
     decisions = log.list_decisions(limit=limit, decision_filter=decision, intent_id=intent_id)
     summary = log.get_decision_summary()
@@ -3871,6 +3993,7 @@ def list_decision_log(
 
 @router.post("/decision-log/{preparation_id}/resolve")
 def resolve_decision_log_entry(
+    request: Request,
     preparation_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -3880,6 +4003,8 @@ def resolve_decision_log_entry(
     This is what feeds Principle extraction — the actual outcome vs the
     predicted outcome, with the assumptions that were held at decision time.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     log = _get_decision_log()
     outcome = payload.get("outcome", "")
     notes = payload.get("notes", "")
@@ -3893,6 +4018,7 @@ def resolve_decision_log_entry(
 
 @router.get("/capabilities/impact")
 def get_capability_impact(
+    request: Request,
     person: str | None = Query(None, description="Person email to analyze. If omitted, returns high-impact people list."),
     limit: int = Query(10, ge=1, le=50),
 ) -> dict[str, Any]:
@@ -3906,6 +4032,8 @@ def get_capability_impact(
     person (domains orphaned, laws losing evidence, recommendations weakened).
     If person is omitted: returns the top N high-impact people by blast radius.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.instrumentation import CapabilityImpactQuery
     query = CapabilityImpactQuery(oem_state.model, oem_state.signals, oem_state.decisions)
 
@@ -3928,6 +4056,7 @@ def get_capability_impact(
 
 @router.get("/sowhat")
 def get_sowhat(
+    request: Request,
     entity_type: str = Query(..., description="recommendation | law | contradiction | risk | prediction"),
     entity_id: str = Query(..., description="The entity's identifier"),
 ) -> dict[str, Any]:
@@ -3936,6 +4065,8 @@ def get_sowhat(
     V3 Law 8: Everything must answer 'so what?'
     Every insight gets a synthesized consequence.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.sowhat import SoWhatEngine
     engine = SoWhatEngine(oem_state.model, oem_state.signals, oem_state.decisions)
     result = engine.synthesize(entity_type, entity_id)
@@ -3943,12 +4074,14 @@ def get_sowhat(
 
 
 @router.get("/personality")
-def get_personality() -> dict[str, Any]:
+def get_personality(request: Request) -> dict[str, Any]:
     """Infer organizational personality from behavioral signals.
 
     V3 Law 6: Organizations evolve. Never survey — infer.
     6 dimensions, each 0.0-1.0 with human label + evidence + basis.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.personality import PersonalityEngine
     engine = PersonalityEngine(oem_state.model, oem_state.signals)
     return engine.infer()
@@ -3956,6 +4089,7 @@ def get_personality() -> dict[str, Any]:
 
 @router.get("/time-axis")
 def get_time_axis(
+    request: Request,
     domain: str = Query(..., description="Knowledge domain to analyze (e.g., payments, auth)"),
 ) -> dict[str, Any]:
     """Show a domain across past, present, and future.
@@ -3963,6 +4097,8 @@ def get_time_axis(
     V3: Make time visible. Every insight exists across time.
     Returns 404 if <5 signals for the domain (honest, not fabricated).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.time_axis import TimeAxisEngine
     engine = TimeAxisEngine(oem_state.model, oem_state.signals)
     result = engine.analyze(domain)
@@ -3973,6 +4109,7 @@ def get_time_axis(
 
 @router.get("/evolution")
 def get_evolution_report(
+    request: Request,
     window: str = Query("90d", description="Time window: 30d, 90d, 180d"),
 ) -> dict[str, Any]:
     """How has the organization changed?
@@ -3980,6 +4117,8 @@ def get_evolution_report(
     V3 Law 10: The organization should become progressively smarter.
     5 dimensions with delta + direction + narrative + evidence_count.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.evolution_report import EvolutionReportEngine
     engine = EvolutionReportEngine(oem_state.model, oem_state.signals, _learning_db_path())
     return engine.generate(window=window)
@@ -3993,26 +4132,30 @@ def get_evolution_report(
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.get("/identity")
-def get_identity() -> dict[str, Any]:
+def get_identity(request: Request) -> dict[str, Any]:
     """Does the organization match what it believes about itself?
 
     V4 Organ #1 — Identity. Compares stated beliefs against observed
     behavior. Computes Identity Drift score (0.0 = knows itself, 1.0 =
     completely deluded about its own nature).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.identity import IdentityEngine
     engine = IdentityEngine(oem_state.model, oem_state.signals)
     return engine.compute()
 
 
 @router.get("/curiosity")
-def get_curiosity() -> dict[str, Any]:
+def get_curiosity(request: Request) -> dict[str, Any]:
     """What questions has the organization never asked?
 
     V4 Organ #2 — Curiosity. Finds untested assumptions, unmeasured
     domains, unexplained patterns, repeated bottlenecks. Maestro asks
     the questions the org doesn't know it should ask.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.curiosity import CuriosityEngine
     engine = CuriosityEngine(oem_state.model, oem_state.signals)
     return engine.generate()
@@ -4020,6 +4163,7 @@ def get_curiosity() -> dict[str, Any]:
 
 @router.get("/unknowns")
 def get_unknowns(
+    request: Request,
     levels: str = Query("all", description="Which levels to return: 'all' (default) or a comma-separated subset like 'known,unknown_unknowns'."),
 ) -> dict[str, Any]:
     """The 4-level epistemic map of the organization.
@@ -4038,6 +4182,8 @@ def get_unknowns(
     subset (e.g. ?levels=unknown_unknowns,emerging_unknowns) to filter.
     The response always includes summary + level_counts regardless of filter.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.curiosity import CuriosityEngine
     engine = CuriosityEngine(oem_state.model, oem_state.signals)
     full = engine.classify_unknowns()
@@ -4094,6 +4240,8 @@ def get_timeline(
 
     Signals are sorted by timestamp DESCENDING (most recent first).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     # Phase 2: resolve per-request OEM state (multi-tenant routing).
     oem_state = get_oem_for_request(request)
     from datetime import datetime, timezone
@@ -4201,6 +4349,7 @@ def get_timeline(
 
 @router.get("/tasks")
 def get_tasks(
+    request: Request,
     assignee: str = Query("", description="Filter by assignee (case-insensitive substring match)."),
     domain: str = Query("", description="Filter by domain (exact match)."),
     priority: str = Query("", description="Filter by priority: high, medium, low."),
@@ -4217,6 +4366,8 @@ def get_tasks(
     Each task has: description, assignee, due_date, priority, status,
     source_signal_id, domain, confidence.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.task_extraction import get_tasks as _get_tasks
     model = oem_state.model
     tasks = _get_tasks(
@@ -4386,8 +4537,10 @@ def reject_writeback(action_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/writeback/pending")
-def list_pending_writebacks() -> dict[str, Any]:
+def list_pending_writebacks(request: Request) -> dict[str, Any]:
     """List all pending write-back actions awaiting approval."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.writeback import WriteBackService
     svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
     pending = svc.list_pending()
@@ -4398,8 +4551,10 @@ def list_pending_writebacks() -> dict[str, Any]:
 
 
 @router.get("/writeback/all")
-def list_all_writebacks() -> dict[str, Any]:
+def list_all_writebacks(request: Request) -> dict[str, Any]:
     """List all write-back actions (all statuses)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.writeback import WriteBackService
     svc = WriteBackService(oauth_manager=__import__("maestro_api.oem_state", fromlist=["import_state"]).import_state.oauth)
     all_actions = svc.list_all()
@@ -4413,6 +4568,7 @@ def list_all_writebacks() -> dict[str, Any]:
 
 @router.get("/playbook/{role}")
 def get_playbook(
+    request: Request,
     role: str,
     context: str = Query("", description="Optional context: customer name (sales), campaign name (marketing), or feature name (product)."),
 ) -> dict[str, Any]:
@@ -4432,6 +4588,8 @@ def get_playbook(
     customer_judgment.py); the playbook just asks "what does THIS role
     need to see?"
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.playbooks import PlaybookEngine
     engine = PlaybookEngine(oem_state.model, oem_state.signals, oem_state.decisions)
     return engine.playbook(role, context)
@@ -4440,11 +4598,13 @@ def get_playbook(
 # ─── V8 P0-5 — Push Delivery (Opt-In) ─────────────────────────────────────
 
 @router.get("/push/settings")
-def get_push_settings() -> dict[str, Any]:
+def get_push_settings(request: Request) -> dict[str, Any]:
     """Get the current push delivery settings.
 
     Default: disabled (channel="none", enabled=False).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.push_delivery import PushDeliveryService
     svc = PushDeliveryService()
     settings = svc.get_settings()
@@ -4487,18 +4647,20 @@ def set_push_settings(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/push/test")
-def test_push() -> dict[str, Any]:
+def test_push(request: Request) -> dict[str, Any]:
     """Send a test push to verify the channel works.
 
     Sends a minimal test message (not the full briefing).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.push_delivery import PushDeliveryService
     svc = PushDeliveryService()
     return svc.send_test_push()
 
 
 @router.post("/push/deliver")
-def deliver_push() -> dict[str, Any]:
+def deliver_push(request: Request) -> dict[str, Any]:
     """Deliver the morning briefing via push (if enabled).
 
     This endpoint is called by the scheduler (cron/APScheduler) at the
@@ -4506,10 +4668,12 @@ def deliver_push() -> dict[str, Any]:
 
     Governance: if push is not enabled, returns delivered=False.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.push_delivery import PushDeliveryService
     svc = PushDeliveryService()
     # Get the briefing data
-    briefing = get_ceo_briefing()
+    briefing = get_ceo_briefing(request)
     return svc.deliver_briefing(briefing_data=briefing)
 
 
@@ -4517,6 +4681,7 @@ def deliver_push() -> dict[str, Any]:
 
 @router.get("/trust/ledger")
 def get_trust_ledger(
+    request: Request,
     user: str = Query("", description="Filter by approver email."),
     provider: str = Query("", description="Filter by provider."),
     action_type: str = Query("", description="Filter by action type."),
@@ -4528,6 +4693,8 @@ def get_trust_ledger(
     provider, action_type, approver, trust_score_at_execution, outcome
     (success/failure/rolled_back), auto (True if auto-executed), timestamp.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.trust_ledger import TrustLedger
     entries = TrustLedger.get_entries(user_id=user, provider=provider, action_type=action_type)
     summary = TrustLedger.get_summary(user_id=user)
@@ -4540,6 +4707,7 @@ def get_trust_ledger(
 
 @router.get("/trust/score")
 def get_trust_score(
+    request: Request,
     user: str = Query(..., description="User email."),
     provider: str = Query(..., description="Provider name."),
     action_type: str = Query(..., description="Action type."),
@@ -4549,6 +4717,8 @@ def get_trust_score(
     Returns the trust score and whether auto-execute is eligible.
     Auto-execute eligibility: trust_score >= 10 AND rolled_back == 0.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.trust_ledger import TrustLedger
     score = TrustLedger.compute_trust_score(user, provider, action_type)
     eligible = TrustLedger.is_auto_execute_eligible(user, provider, action_type)
@@ -4702,6 +4872,7 @@ def set_auto_execute_settings(payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.get("/settings/auto-execute")
 def get_auto_execute_settings(
+    request: Request,
     user: str = Query("default", description="User email."),
 ) -> dict[str, Any]:
     """Get auto-execute settings with eligibility info per action type.
@@ -4712,6 +4883,8 @@ def get_auto_execute_settings(
       - eligible: whether trust_score >= 10 and 0 rollbacks
       - active: enabled AND eligible (auto-execute will fire)
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.user_settings import UserSettings
     settings = UserSettings.get_auto_execute_settings(user)
     settings["action_types"] = UserSettings.get_auto_execute_with_eligibility(user)
@@ -4869,7 +5042,7 @@ def _extract_knowledge_from_text(text: str) -> dict[str, Any]:
 # ─── V8 P1-3 — Unknown-to-Action Pipeline ──────────────────────────────────
 
 @router.get("/unknowns/actions")
-def get_unknown_actions() -> dict[str, Any]:
+def get_unknown_actions(request: Request) -> dict[str, Any]:
     """Get suggested actions for each unknown.
 
     V8 P1-3 — Unknown-to-Action Pipeline. Each unknown level has a
@@ -4878,6 +5051,8 @@ def get_unknown_actions() -> dict[str, Any]:
       - Known Unknown: "Instrument" (suggest a metric to track)
       - Emerging Unknown: "Investigate" (create a task for the team lead)
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.curiosity import CuriosityEngine
     engine = CuriosityEngine(oem_state.model, oem_state.signals)
     unknowns = engine.classify_unknowns()
@@ -4942,7 +5117,7 @@ def get_unknown_actions() -> dict[str, Any]:
 # the task is marked as "kept". See oem_state.py live_ingest() for the call.
 
 @router.get("/tasks/auto-completed")
-def get_auto_completed_tasks() -> dict[str, Any]:
+def get_auto_completed_tasks(request: Request) -> dict[str, Any]:
     """Get tasks that were auto-completed by matching completion signals.
 
     V8 P1-4 — Auto-Completion Detection. During live_ingest, when a new
@@ -4950,6 +5125,8 @@ def get_auto_completed_tasks() -> dict[str, Any]:
     completion-type signal like pr.merged or issue.transitioned to 'done'),
     the task is marked as 'kept'. This endpoint returns those tasks.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     model = oem_state.model
     auto_completed: list[dict[str, Any]] = []
     for lo in model.learning_objects.values():
@@ -5003,8 +5180,10 @@ def record_attention(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/attention/summary")
-def get_attention_summary() -> dict[str, Any]:
+def get_attention_summary(request: Request) -> dict[str, Any]:
     """Get the attention signal summary — which briefing item types get clicked most."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.attention_signals import AttentionSignalStore
     return AttentionSignalStore.get_summary()
 
@@ -5013,6 +5192,7 @@ def get_attention_summary() -> dict[str, Any]:
 
 @router.get("/commitments")
 def get_commitments(
+    request: Request,
     status: str = Query("", description="Filter by status: open, kept, broken."),
 ) -> dict[str, Any]:
     """Track commitments made in signal text. Flag broken commitments.
@@ -5029,6 +5209,8 @@ def get_commitments(
     Each commitment has: description, who_committed, to_whom, due_date,
     source_signal_id, status.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.commitment_tracker import CommitmentTracker
     tracker = CommitmentTracker(oem_state.model, oem_state.signals)
     result = tracker.track()
@@ -5199,12 +5381,14 @@ def curiosity_follow_up(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/skepticism")
-def get_skepticism() -> dict[str, Any]:
+def get_skepticism(request: Request) -> dict[str, Any]:
     """Challenge fossilized beliefs.
 
     V4 Organ #3 — Skepticism. Finds beliefs the organization holds without
     recent validation and challenges them with evidence.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.skepticism import SkepticismEngine
     engine = SkepticismEngine(oem_state.model, oem_state.signals)
     return engine.challenge()
@@ -5212,6 +5396,7 @@ def get_skepticism() -> dict[str, Any]:
 
 @router.get("/wisdom")
 def get_wisdom(
+    request: Request,
     context: str = Query("", description="Decision context: launch, hiring, architecture, etc."),
 ) -> dict[str, Any]:
     """Synthesize competing values into balanced judgment.
@@ -5220,56 +5405,66 @@ def get_wisdom(
     synthesizes competing organizational values into a recommendation
     based on what has worked before.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.wisdom import WisdomEngine
     engine = WisdomEngine(oem_state.model, oem_state.signals)
     return engine.synthesize(context=context)
 
 
 @router.get("/metacognition")
-def get_metacognition() -> dict[str, Any]:
+def get_metacognition(request: Request) -> dict[str, Any]:
     """The organization thinking about its own thinking.
 
     V4 Organ #5 — Metacognition. Computes the meta-gap between team-level
     quality and org-level quality. When teams are smart but the org isn't,
     the problem is in coordination.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.metacognition import MetacognitionEngine
     engine = MetacognitionEngine(oem_state.model, oem_state.signals)
     return engine.analyze()
 
 
 @router.get("/principles")
-def get_principles() -> dict[str, Any]:
+def get_principles(request: Request) -> dict[str, Any]:
     """Laws that have graduated to organizational wisdom.
 
     V4 Organ #6 — Principles. Patterns validated so consistently, for so
     long, that they have graduated from 'pattern' to 'organizational wisdom.'
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.principles import PrinciplesEngine
     engine = PrinciplesEngine(oem_state.model, oem_state.signals)
     return engine.discover()
 
 
 @router.get("/compression")
-def get_compression() -> dict[str, Any]:
+def get_compression(request: Request) -> dict[str, Any]:
     """Compress organizational memory into a few truths.
 
     V4 Organ #7 — Memory Compression. Millions of signals → a few truths,
     habits, mistakes, interventions. Memory becomes understanding.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.memory_compression import MemoryCompressionEngine
     engine = MemoryCompressionEngine(oem_state.model, oem_state.signals)
     return engine.compress()
 
 
 @router.get("/consciousness")
-def get_consciousness() -> dict[str, Any]:
+def get_consciousness(request: Request) -> dict[str, Any]:
     """Real-time organizational state vector.
 
     V4 Organ #8 — Consciousness. Always knows where attention, knowledge,
     trust, conflict, energy, uncertainty, and learning are. The
     Organizational Dot draws from this state vector.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.consciousness import ConsciousnessEngine
     engine = ConsciousnessEngine(oem_state.model, oem_state.signals)
     return engine.state_vector()
@@ -5284,6 +5479,7 @@ def get_consciousness() -> dict[str, Any]:
 
 @router.get("/execute")
 def get_execution_plan(
+    request: Request,
     recommendation_id: str = Query("", description="Recommendation title to plan execution for"),
     context: str = Query("", description="Decision context"),
 ) -> dict[str, Any]:
@@ -5293,19 +5489,23 @@ def get_execution_plan(
     plans, sequences, and drafts actions. Returns steps, drafted briefing,
     and follow-through plan.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.executive_function import ExecutiveFunctionEngine
     engine = ExecutiveFunctionEngine(oem_state.model, oem_state.signals, oem_state.decisions)
     return engine.plan(recommendation_title=recommendation_id, context=context)
 
 
 @router.get("/attention")
-def get_attention() -> dict[str, Any]:
+def get_attention(request: Request) -> dict[str, Any]:
     """Where should the organization's attention be?
 
     V5 Spec #3 — Attention Allocation. Consciousness knows where attention
     IS. This engine decides where it SHOULD BE — including what's stealing
     focus and what to deprioritize.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.attention import AttentionEngine
     engine = AttentionEngine(oem_state.model, oem_state.signals)
     return engine.allocate()
@@ -5316,36 +5516,42 @@ def get_attention() -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.get("/trajectories")
-def get_trajectories() -> dict[str, Any]:
+def get_trajectories(request: Request) -> dict[str, Any]:
     """Temporal trajectories for all organizational dimensions.
 
     V5 Spec #7 — org-wide trend memory. All 7 consciousness dimensions
     get trend + slope + duration + narrative. "Trust has fallen for 8 weeks."
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.trajectories import TrajectoryEngine
     engine = TrajectoryEngine(oem_state.model, oem_state.signals)
     return engine.compute()
 
 
 @router.get("/causal")
-def get_causal() -> dict[str, Any]:
+def get_causal(request: Request) -> dict[str, Any]:
     """Discover causal chains from organizational history.
 
     V5 Spec #6 — move from correlation to causation. A caused B because
     N interventions produced the same sequence.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.causal import CausalEngine
     engine = CausalEngine(oem_state.model, oem_state.signals)
     return engine.discover()
 
 
 @router.get("/forgetting")
-def get_forgetting() -> dict[str, Any]:
+def get_forgetting(request: Request) -> dict[str, Any]:
     """Identify events the organization should forget.
 
     V5 Spec #4 — archive zero-predictive-value events. Not deletion —
     deprioritization. Events with low predictive value are noise.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.forgetting import ForgettingEngine
     engine = ForgettingEngine(oem_state.model, oem_state.signals)
     return engine.assess()
@@ -5353,6 +5559,7 @@ def get_forgetting() -> dict[str, Any]:
 
 @router.get("/imagine")
 def get_imagination(
+    request: Request,
     scenario: str = Query("", description="Counterfactual scenario: 'legal', 'platform', 'engineering', or a person's email"),
 ) -> dict[str, Any]:
     """Generate counterfactual consequences.
@@ -5360,6 +5567,8 @@ def get_imagination(
     V5 Spec #5 — imagination. "What would happen if Legal disappeared?"
     Uses causal chains + historical analogues.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.imagination import ImaginationEngine
     engine = ImaginationEngine(oem_state.model, oem_state.signals)
     return engine.imagine(scenario=scenario)
@@ -5367,6 +5576,7 @@ def get_imagination(
 
 @router.get("/recall")
 def get_recall(
+    request: Request,
     situation: str = Query("", description="Current situation to find analogues for"),
     user_email: str = Query("", description="C2 fix: filter results by source_acl"),
 ) -> dict[str, Any]:
@@ -5379,6 +5589,8 @@ def get_recall(
     signals are only visible to the actor or listed viewers. If user_email
     is empty, private signals are hidden (fail-closed).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.recall import RecallEngine
     engine = RecallEngine(oem_state.model, oem_state.signals)
     return engine.recall(situation=situation, user_email=user_email)
@@ -5391,26 +5603,30 @@ def get_recall(
 # ═══════════════════════════════════════════════════════════════════════════
 
 @router.get("/nudges")
-def get_nudges() -> dict[str, Any]:
+def get_nudges(request: Request) -> dict[str, Any]:
     """Adaptive restructuring suggestions based on causal evidence.
 
     V6 Spec #1 — Maestro quietly suggests work restructuring based on
     what has worked before. Each nudge is actionable and backed by causal
     evidence (not just correlation).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.adaptive_nudge import AdaptiveNudgeEngine
     engine = AdaptiveNudgeEngine(oem_state.model, oem_state.signals)
     return engine.generate()
 
 
 @router.get("/evolution-tracker")
-def get_evolution_tracker() -> dict[str, Any]:
+def get_evolution_tracker(request: Request) -> dict[str, Any]:
     """Track failure modes from active → resolving → eliminated.
 
     V6 Spec #2 — "We no longer make this mistake." Tracks specific failure
     modes and whether the organization has stopped making them. A failure
     mode is "eliminated" when it hasn't recurred for 90+ days.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.evolution_tracker import EvolutionTracker
     engine = EvolutionTracker(oem_state.model, oem_state.signals)
     return engine.track()
@@ -5418,6 +5634,7 @@ def get_evolution_tracker() -> dict[str, Any]:
 
 @router.get("/background-loop")
 def get_background_loop(
+    request: Request,
     fresh: bool = Query(False, description="Force a fresh run instead of returning the cached result from the last ingest."),
 ) -> dict[str, Any]:
     """What Maestro noticed while you were away.
@@ -5427,6 +5644,8 @@ def get_background_loop(
     endpoint returns the cached result from the last ingest; pass ?fresh=1
     to force a fresh run.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     if not fresh and oem_state._last_background_loop_result is not None:
         return oem_state._last_background_loop_result
     from maestro_oem.background_loop import BackgroundAdaptationLoop
@@ -5576,7 +5795,7 @@ def get_tomorrow_preparation(request: Request, user: str = Query("")) -> dict[st
 # "Every night Maestro simulates tomorrow."
 
 @router.get("/anticipation/tomorrow")
-def get_tomorrow_anticipation() -> dict[str, Any]:
+def get_tomorrow_anticipation(request: Request) -> dict[str, Any]:
     """Get tomorrow's anticipation — what will matter.
 
     CEO's vision: Maestro simulates tomorrow's meetings, risks, deadlines,
@@ -5590,6 +5809,8 @@ def get_tomorrow_anticipation() -> dict[str, Any]:
     - customers: who needs attention
     - commitments: what's at risk
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.anticipation import AnticipationEngine
     engine = AnticipationEngine(oem_state.model, oem_state.signals)
     return engine.anticipate_tomorrow(org_id="default")
@@ -5662,6 +5883,8 @@ def organizational_whisper(
     History is loaded from WhisperHistoryStore before generating whispers,
     and shown_count is incremented after generation.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     # Phase 2: resolve per-request OEM state (multi-tenant routing).
     oem_state = get_oem_for_request(request)
     cache_key = (context, entity, topic)
@@ -5725,24 +5948,28 @@ def organizational_whisper(
 
 
 @router.get("/dna")
-def get_dna() -> dict[str, Any]:
+def get_dna(request: Request) -> dict[str, Any]:
     """Your organization's DNA — 7 chromosomes.
 
     V6 Spec #5 — Organizational DNA. Infers 7 behavioral chromosomes
     from signals (never surveyed). Filters recommendations via wisdom.py.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.organizational_dna import OrganizationalDNA
     engine = OrganizationalDNA(oem_state.model, oem_state.signals)
     return engine.sequence()
 
 
 @router.get("/autobiography")
-def get_autobiography() -> dict[str, Any]:
+def get_autobiography(request: Request) -> dict[str, Any]:
     """Your organization's autobiography.
 
     V6 Spec #6 — Evolution Narrative. Composes DNA + Evolution Tracker +
     Identity + Principles into chapters. The organization's story.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.evolution_narrative import EvolutionNarrative
     engine = EvolutionNarrative(oem_state.model, oem_state.signals)
     return engine.write()
@@ -5750,6 +5977,7 @@ def get_autobiography() -> dict[str, Any]:
 
 @router.get("/explain")
 def explain(
+    request: Request,
     q: str = Query(..., description="A 'why' question, e.g. 'Why are engineering estimates always wrong?'"),
 ) -> dict[str, Any]:
     """Explain why — a multi-step causal chain.
@@ -5767,6 +5995,8 @@ def explain(
     as a visual sequence. Every confidence display in the UI also gets a
     'Why?' link that opens this endpoint with a context-derived question.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.explanations import ExplanationEngine
     engine = ExplanationEngine(oem_state.model, oem_state.signals, oem_state.decisions)
     return engine.explain(q)
@@ -5807,8 +6037,10 @@ def get_teammate(email: str) -> dict[str, Any]:
 # ─── Round 47 — Block 1.3: MCP (Model Context Protocol) ────────────────────
 
 @router.get("/mcp/tools")
-def list_mcp_tools() -> dict[str, Any]:
+def list_mcp_tools(request: Request) -> dict[str, Any]:
     """List all available MCP tools (read-only)."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.mcp_server import list_tools
     return list_tools()
 
@@ -5828,7 +6060,7 @@ def execute_mcp_tool(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
 # ─── Round 47 — Block 5: Pilot Metrics (privacy-preserving) ────────────────
 
 @router.get("/pilot/metrics")
-def get_pilot_metrics() -> dict[str, Any]:
+def get_pilot_metrics(request: Request) -> dict[str, Any]:
     """Privacy-preserving pilot metrics. Usage counts only, never content.
 
     Round 47 Block 5. The metrics measure engagement-shaped signals
@@ -5840,6 +6072,8 @@ def get_pilot_metrics() -> dict[str, Any]:
     Forbidden: message text, decision content, personal data, dwell time,
     return frequency, session length, scroll depth.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.pilot_metrics import PilotMetrics
     return PilotMetrics.get_metrics()
 
@@ -6153,11 +6387,13 @@ def DemoCalendarSource_placeholder():
 
 
 @router.get("/loop1/whispers")
-def loop1_list_whispers() -> dict[str, Any]:
+def loop1_list_whispers(request: Request) -> dict[str, Any]:
     """Return all Whispers with Delivery Intelligence fields + learning entries.
 
     For the auditor's inspection — shows the full Loop 1 state per Whisper.
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     store = _get_whisper_history_store()
     all_history = store.get_all_history(org_id="default")
     whispers = []
@@ -6299,6 +6535,7 @@ def loop1_5_get_mutation_history(entity: str) -> dict[str, Any]:
 
 @router.get("/loop1.5/timeline/{entity}")
 def loop1_5_get_timeline_projection(
+    request: Request,
     entity: str,
     horizon_days: int = Query(60, description="Projection horizon in days (default 60)."),
 ) -> dict[str, Any]:
@@ -6325,6 +6562,8 @@ def loop1_5_get_timeline_projection(
     Returns 200 with the projection. Always succeeds (returns 'stable' for
     entities with no history — P6 fail-closed-honest, not 500).
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.commitment_timeline_simulator import CommitmentTimelineSimulator
 
     # P14 fix: the module-level mutation tracker (SQLite-backed) is only
@@ -6474,6 +6713,7 @@ def loop1_5_get_situation(entity: str) -> dict[str, Any]:
 
 @router.get("/loop1.5/cold-start")
 def loop1_5_cold_start(
+    request: Request,
     signal_count: int | None = Query(None, description="Override signal count for testing"),
     has_high_stakes_signal: bool | None = Query(None, description="Override high-stakes flag for testing"),
 ) -> dict[str, Any]:
@@ -6493,6 +6733,8 @@ def loop1_5_cold_start(
         "thresholds": {...}
       }
     """
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.cold_start_mode import ColdStartMode
     from maestro_oem.signal import SignalType
 
@@ -6976,8 +7218,10 @@ def loop4_record_decision_learning(payload: dict[str, Any] = Body(...)) -> dict[
 
 
 @router.get("/loop4/entries")
-def loop4_get_entries() -> dict[str, Any]:
+def loop4_get_entries(request: Request) -> dict[str, Any]:
     """Get all learning entries from all 3 loops."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     ledger = _get_org_learning_ledger()
     entries = ledger.get_all_entries()
     return {
@@ -6987,8 +7231,10 @@ def loop4_get_entries() -> dict[str, Any]:
 
 
 @router.get("/loop4/patterns")
-def loop4_detect_patterns() -> dict[str, Any]:
+def loop4_detect_patterns(request: Request) -> dict[str, Any]:
     """Detect cross-loop patterns."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.cross_loop_patterns import CrossLoopPatternDetector
 
     ledger = _get_org_learning_ledger()
@@ -7001,8 +7247,10 @@ def loop4_detect_patterns() -> dict[str, Any]:
 
 
 @router.get("/loop4/policies")
-def loop4_learn_policies() -> dict[str, Any]:
+def loop4_learn_policies(request: Request) -> dict[str, Any]:
     """Learn delivery policies."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.delivery_policy_learner import DeliveryPolicyLearner
 
     ledger = _get_org_learning_ledger()
@@ -7015,8 +7263,10 @@ def loop4_learn_policies() -> dict[str, Any]:
 
 
 @router.get("/loop4/compose")
-def loop4_compose_entry() -> dict[str, Any]:
+def loop4_compose_entry(request: Request) -> dict[str, Any]:
     """Compose the Organizational Learning Ledger entry."""
+    # Phase 2: resolve per-request OEM state.
+    oem_state = get_oem_for_request(request)
     from maestro_oem.cross_loop_patterns import CrossLoopPatternDetector
     from maestro_oem.delivery_policy_learner import DeliveryPolicyLearner
     from maestro_oem.organizational_learning_composer import OrganizationalLearningComposer

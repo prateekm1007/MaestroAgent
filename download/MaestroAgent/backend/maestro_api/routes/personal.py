@@ -613,7 +613,7 @@ def _compute_org_state_for_today() -> dict[str, Any]:
         # Route-layer to route-layer call — no maestro_oem import here.
         from maestro_api.routes.oem import get_consciousness
         # get_consciousness() returns engine.state_vector() directly
-        return get_consciousness()
+        return get_consciousness(request=None)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
@@ -631,7 +631,7 @@ def _compute_meta_gap_for_today() -> dict[str, Any]:
     """
     try:
         from maestro_api.routes.oem import get_metacognition
-        return get_metacognition()
+        return get_metacognition(request=None)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
@@ -647,7 +647,7 @@ def _compute_org_pulse_for_today() -> dict[str, Any]:
     """
     try:
         from maestro_api.routes.oem import get_organizational_pulse
-        return get_organizational_pulse()
+        return get_organizational_pulse(request=None)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
@@ -663,7 +663,7 @@ def _compute_curiosity_for_today() -> dict[str, Any]:
     """
     try:
         from maestro_api.routes.oem import get_curiosity
-        return get_curiosity()
+        return get_curiosity(request=None)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
@@ -679,7 +679,7 @@ def _compute_trajectories_for_today() -> dict[str, Any]:
     """
     try:
         from maestro_api.routes.oem import get_trajectories
-        return get_trajectories()
+        return get_trajectories(request=None)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
@@ -695,7 +695,7 @@ def _compute_identity_for_today() -> dict[str, Any]:
     """
     try:
         from maestro_api.routes.oem import get_identity
-        return get_identity()
+        return get_identity(request=None)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
@@ -711,7 +711,7 @@ def _compute_attention_for_today() -> dict[str, Any]:
     """
     try:
         from maestro_api.routes.oem import get_attention
-        return get_attention()
+        return get_attention(request=None)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
