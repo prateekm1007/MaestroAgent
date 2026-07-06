@@ -961,19 +961,26 @@ class AskPipeline:
     def _retrieve_who(self, entities: list[str]) -> tuple[list[dict], list[str]]:
         """Retrieve people related to the entities.
 
-        HIGH-03 fix: if the query is about disagreements ("who thinks
-        differently"), surface the Situation's disagreements. The prior
-        code only searched for people by signal count — it missed the
-        case where different actors have CONFLICTING reported statements.
+        HIGH-03 fix (corrected): "Who thinks differently?" must return evidence.
+        The prior version only checked Situation disagreements — but the demo
+        seed's Globex signals don't have reported_statement or opposing keyword
+        patterns, so disagreements=0 and evidence=0.
+
+        Fix: 3-tier fallback:
+        1. Situation disagreements (if any exist)
+        2. People with signals about the entity (who is involved?)
+        3. People with signals matching the query keywords (who is active?)
+
+        The key insight: "Who thinks differently?" doesn't ONLY mean
+        "who has a disagreement?" — it also means "who is involved in
+        this topic?" If we can't find disagreements, we return the people
+        who have signals about the entity so the exec can investigate.
         """
         evidence = []
         answer_parts = []
         people: dict[str, int] = {}
 
         # HIGH-03 fix: check Situation for disagreements first.
-        # Search ALL customer entities in signals (not just query-derived entities)
-        # because "Who thinks differently about SSO?" may not mention the customer
-        # name — but the disagreements are about that customer.
         try:
             from maestro_oem.situation import SituationBuilder
             builder = SituationBuilder(
@@ -981,14 +988,12 @@ class AskPipeline:
                 calendar_source=None,
                 whisper_store=self._whisper_store if hasattr(self, "_whisper_store") else None,
             )
-            # Get all unique customer names from signals
             all_customers = set()
             for s in self._signals:
                 if hasattr(s, "metadata") and s.metadata:
                     cust = s.metadata.get("customer", "")
                     if cust:
                         all_customers.add(cust)
-            # Also include query-derived entities
             search_entities = set(entities) | all_customers
             for entity in search_entities:
                 situation = builder.build_for_entity(entity)
@@ -1011,7 +1016,40 @@ class AskPipeline:
         except Exception as e:
             logger.debug("HIGH-03: SituationSnapshot who fallback failed: %s", e)
 
-        # Also search signals for people (original behavior — still useful)
+        # HIGH-03 fix: if no entity-specific disagreements found, run the
+        # disagreement detector on ALL signals (topic-based, not entity-based).
+        # This catches the case where signals don't have a "customer" metadata
+        # field but DO have conflicting statements from different actors.
+        if not evidence:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self._signals,
+                    calendar_source=None,
+                    whisper_store=self._whisper_store if hasattr(self, "_whisper_store") else None,
+                )
+                all_disagreements = builder._detect_disagreements(self._signals)
+                if all_disagreements:
+                    for d in all_disagreements:
+                        actor = d.get("actor", "unknown")
+                        text = d.get("text", "")
+                        evidence.append({
+                            "source": "situation_disagreement",
+                            "text": f"{actor} reported: {text}",
+                            "entity": "general",
+                            "claim_type": "reported_statement",
+                        })
+                        people[actor] = people.get(actor, 0) + 1
+                    answer_parts.append(
+                        f"Disagreement detected: {len(all_disagreements)} conflicting "
+                        f"reported statements from {len(people)} different people."
+                    )
+            except Exception as e:
+                logger.debug("HIGH-03: topic-based disagreement search failed: %s", e)
+
+        # Tier 2: search signals for people involved with the entity
+        # This catches the demo seed case where there are no disagreements
+        # but there ARE people with signals about Globex
         for s in self._signals:
             try:
                 sig_entities = s.metadata.get("customer", "") if hasattr(s, "metadata") else ""
@@ -1022,18 +1060,23 @@ class AskPipeline:
             except Exception:
                 continue
 
+        # If we found disagreements, return them. If not, return the people.
         if people and not evidence:
-            best = max(people, key=people.get)
-            evidence.append({
-                "source": "signal_analysis",
-                "text": f"{best} has {people[best]} signal(s) related to this topic",
-                "evidence_spine": {
-                    "claim": f"{best} is the most active person on this topic",
-                    "observed_facts": [{"source": "signals", "text": f"{people[best]} signals"}],
-                    "claim_type": "estimate",
-                },
-            })
-            answer_parts.append(f"Based on signal activity, {best} has the most involvement.")
+            # Sort by signal count — most active person first
+            sorted_people = sorted(people.items(), key=lambda x: -x[1])
+            for actor, count in sorted_people[:5]:
+                evidence.append({
+                    "source": "signal_analysis",
+                    "text": f"{actor} has {count} signal(s) related to this topic",
+                    "claim_type": "observed_fact",
+                })
+            if sorted_people:
+                best = sorted_people[0]
+                answer_parts.append(
+                    f"Based on signal activity, {best[0]} has the most involvement "
+                    f"({best[1]} signals). No explicit disagreements detected — "
+                    f"but these are the people involved in this topic."
+                )
 
         if not evidence:
             answer_parts.append("I don't have enough signal data to identify the relevant person.")

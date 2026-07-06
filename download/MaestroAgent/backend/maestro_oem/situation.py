@@ -314,7 +314,10 @@ class SituationBuilder:
         actor_signals: dict[str, list[dict]] = {}  # {actor: [{text, epistemic, signal}]}
         for s in entity_signals:
             try:
-                text = s.metadata.get("text", "") or s.metadata.get("body", "")
+                # Check multiple metadata keys — demo seed uses "title", real signals use "text"/"body"
+                text = (s.metadata.get("text", "") or s.metadata.get("body", "")
+                        or s.metadata.get("title", "") or s.metadata.get("subject", "")
+                        or s.metadata.get("commitment", "") or s.metadata.get("note", ""))
                 if not text:
                     continue
                 result = classifier.classify(text)
