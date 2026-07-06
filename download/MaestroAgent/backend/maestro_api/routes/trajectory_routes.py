@@ -24,15 +24,14 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from maestro_api.oem_state import oem_state
-from maestro_api.security.policy import auth_policy, AuthPolicy
+from maestro_auth.permissions import require_user
+from maestro_api.security.policy import set_router_policy, AuthPolicy
 
-# Phase 1 fix: add auth dependency to trajectory_routes sub-router.
-# CRITICAL-1 extraction created this router without auth — the auth
-# coverage matrix test catches it. The main oem.py router has auth
-# via set_router_policy, but sub-routers need their own dependency.
-router = APIRouter(dependencies=[
-    Depends(auth_policy(AuthPolicy.USER)),
-])
+# Phase 1 fix: add router-level auth dependency using require_user
+# (which returns a dict, not a Callable — avoids the Pydantic JSON
+# schema error that auth_policy causes). Also call set_router_policy
+# for metadata consistency with oem.py.
+router = APIRouter(dependencies=[Depends(require_user)])
 
 
 @router.get("/trajectory-intervention")
@@ -66,3 +65,7 @@ def get_organizational_pattern() -> dict[str, Any]:
     if pattern:
         return {"pattern": pattern, "suggestion": "Review as Law?"}
     return {"pattern": None}
+
+
+# Phase 1 fix: stamp auth policy on all routes (same pattern as oem.py:6976)
+set_router_policy(router, AuthPolicy.USER)

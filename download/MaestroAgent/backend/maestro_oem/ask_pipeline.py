@@ -371,7 +371,12 @@ class AskPipeline:
         )
 
         t0 = _time.time()
-        trace = SynthesisTrace(query=query, policy_version="v1")
+        # Phase 1 fix: sanitize query to prevent XSS in synthesis_trace.
+        # The query is user input and may contain HTML/JS. The trace is
+        # returned in the API response — escape it.
+        import html as _html
+        sanitized_query = _html.escape(query)
+        trace = SynthesisTrace(query=sanitized_query, policy_version="v1")
 
         self._user_email = user_email
 

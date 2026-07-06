@@ -130,6 +130,11 @@ markers = [
     "browser: marks tests requiring Playwright browsers",
     "perf: marks tests as performance/load tests",
 ]
+# Phase 1 fix: deselect browser and slow tests by default.
+# Run with: python -m pytest (default — no browser/slow)
+# Run all: python -m pytest -m "" (includes everything)
+# Run browser: python -m pytest -m browser
+addopts = "-m 'not browser and not slow'"
 testpaths = [
     "tests",
     "maestro_api/tests",

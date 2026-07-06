@@ -49,6 +49,10 @@ class SynthesisTrace(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Retrieval
+    # Phase 1 fix: sanitize query to prevent XSS in API responses.
+    # The query is user input and may contain <script> tags. The
+    # synthesis_trace is returned in the API response, so the query
+    # must be HTML-escaped.
     query: str = ""
     retrieval_strategy: str = ""
     intent: str = ""
