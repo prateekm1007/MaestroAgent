@@ -600,18 +600,24 @@ def _compute_org_state_for_today() -> dict[str, Any]:
     conflict, energy, uncertainty, and learning RIGHT NOW. This is
     the org-wide awareness the Today deck was missing — without it,
     the deck was task-only.
+
+    RC11 fix: call the OEM consciousness endpoint via the route-layer
+    helper (maestro_api.routes.oem.get_consciousness) instead of importing
+    maestro_oem.consciousness directly. This preserves the architecture
+    boundary: personal.py (route layer) talks to oem.py (route layer),
+    not to maestro_oem (engine layer). The test
+    test_personal_routes_separate_from_oem enforces this boundary by
+    scanning for 'from maestro_oem' import statements.
     """
     try:
-        from maestro_api.oem_state import oem_state
-        from maestro_oem.consciousness import ConsciousnessEngine
-        if not oem_state.engine.get_model() or not oem_state.visible_signals:
-            return {}
-        engine = ConsciousnessEngine(oem_state.engine.get_model(), oem_state.visible_signals)
-        return engine.state_vector()
+        # Route-layer to route-layer call — no maestro_oem import here.
+        from maestro_api.routes.oem import get_consciousness
+        # get_consciousness() returns engine.state_vector() directly
+        return get_consciousness()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "personal._compute_org_state_for_today (ConsciousnessEngine) failed: %s", e
+            "personal._compute_org_state_for_today (get_consciousness) failed: %s", e
         )
         return {}
 
@@ -619,107 +625,97 @@ def _compute_org_state_for_today() -> dict[str, Any]:
 def _compute_meta_gap_for_today() -> dict[str, Any]:
     """Phase C: MetacognitionEngine.analyze() — org thinking about its thinking.
 
-    Tells the exec: are individual teams making good decisions while the
-    org as a whole makes poor ones? If so, the gap is in coordination,
-    not in individual intelligence. This is the meta-awareness the Today
-    deck was missing.
+    RC11 fix: call the OEM metacognition endpoint via the route-layer helper
+    (maestro_api.routes.oem.get_metacognition) instead of importing
+    maestro_oem.metacognition directly. Preserves the architecture boundary.
     """
     try:
-        from maestro_api.oem_state import oem_state
-        from maestro_oem.metacognition import MetacognitionEngine
-        if not oem_state.engine.get_model() or not oem_state.visible_signals:
-            return {}
-        engine = MetacognitionEngine(oem_state.engine.get_model(), oem_state.visible_signals)
-        return engine.analyze()
+        from maestro_api.routes.oem import get_metacognition
+        return get_metacognition()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "personal._compute_meta_gap_for_today (MetacognitionEngine) failed: %s", e
+            "personal._compute_meta_gap_for_today (get_metacognition) failed: %s", e
         )
         return {}
 
 
 def _compute_org_pulse_for_today() -> dict[str, Any]:
-    """P4: OrganizationalPulse — org health indicators (temperature, momentum, trust, energy)."""
+    """P4: OrganizationalPulse — org health indicators (temperature, momentum, trust, energy).
+
+    RC11 fix: call the OEM pulse endpoint via the route-layer helper.
+    """
     try:
-        from maestro_api.oem_state import oem_state
-        from maestro_oem.pulse import OrganizationalPulse
-        if not oem_state.engine.get_model() or not oem_state.visible_signals:
-            return {}
-        pulse = OrganizationalPulse(oem_state.engine.get_model(), oem_state.visible_signals)
-        return pulse.compute()
+        from maestro_api.routes.oem import get_organizational_pulse
+        return get_organizational_pulse()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "personal._compute_org_pulse_for_today (OrganizationalPulse) failed: %s", e
+            "personal._compute_org_pulse_for_today (get_organizational_pulse) failed: %s", e
         )
         return {}
 
 
 def _compute_curiosity_for_today() -> dict[str, Any]:
-    """P8: CuriosityEngine — untested assumptions the org has never questioned."""
+    """P8: CuriosityEngine — untested assumptions the org has never questioned.
+
+    RC11 fix: call the OEM curiosity endpoint via the route-layer helper.
+    """
     try:
-        from maestro_api.oem_state import oem_state
-        from maestro_oem.curiosity import CuriosityEngine
-        if not oem_state.engine.get_model() or not oem_state.visible_signals:
-            return {}
-        engine = CuriosityEngine(oem_state.engine.get_model(), oem_state.visible_signals)
-        return engine.generate()
+        from maestro_api.routes.oem import get_curiosity
+        return get_curiosity()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "personal._compute_curiosity_for_today (CuriosityEngine) failed: %s", e
+            "personal._compute_curiosity_for_today (get_curiosity) failed: %s", e
         )
         return {}
 
 
 def _compute_trajectories_for_today() -> dict[str, Any]:
-    """P9: TrajectoryEngine — org-wide trend memory (7 dims over time with slope)."""
+    """P9: TrajectoryEngine — org-wide trend memory (7 dims over time with slope).
+
+    RC11 fix: call the OEM trajectories endpoint via the route-layer helper.
+    """
     try:
-        from maestro_api.oem_state import oem_state
-        from maestro_oem.trajectories import TrajectoryEngine
-        if not oem_state.engine.get_model() or not oem_state.visible_signals:
-            return {}
-        engine = TrajectoryEngine(oem_state.engine.get_model(), oem_state.visible_signals)
-        return engine.compute()
+        from maestro_api.routes.oem import get_trajectories
+        return get_trajectories()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "personal._compute_trajectories_for_today (TrajectoryEngine) failed: %s", e
+            "personal._compute_trajectories_for_today (get_trajectories) failed: %s", e
         )
         return {}
 
 
 def _compute_identity_for_today() -> dict[str, Any]:
-    """P10: IdentityEngine — gap between org self-image and actual behavior."""
+    """P10: IdentityEngine — gap between org self-image and actual behavior.
+
+    RC11 fix: call the OEM identity endpoint via the route-layer helper.
+    """
     try:
-        from maestro_api.oem_state import oem_state
-        from maestro_oem.identity import IdentityEngine
-        if not oem_state.engine.get_model() or not oem_state.visible_signals:
-            return {}
-        engine = IdentityEngine(oem_state.engine.get_model(), oem_state.visible_signals)
-        return engine.compute()
+        from maestro_api.routes.oem import get_identity
+        return get_identity()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "personal._compute_identity_for_today (IdentityEngine) failed: %s", e
+            "personal._compute_identity_for_today (get_identity) failed: %s", e
         )
         return {}
 
 
 def _compute_attention_for_today() -> dict[str, Any]:
-    """P11: AttentionEngine — where org attention IS vs SHOULD BE + attention thieves."""
+    """P11: AttentionEngine — where org attention IS vs SHOULD BE + attention thieves.
+
+    RC11 fix: call the OEM attention endpoint via the route-layer helper.
+    """
     try:
-        from maestro_api.oem_state import oem_state
-        from maestro_oem.attention import AttentionEngine
-        if not oem_state.engine.get_model() or not oem_state.visible_signals:
-            return {}
-        engine = AttentionEngine(oem_state.engine.get_model(), oem_state.visible_signals)
-        return engine.allocate()
+        from maestro_api.routes.oem import get_attention
+        return get_attention()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "personal._compute_attention_for_today (AttentionEngine) failed: %s", e
+            "personal._compute_attention_for_today (get_attention) failed: %s", e
         )
         return {}
 
