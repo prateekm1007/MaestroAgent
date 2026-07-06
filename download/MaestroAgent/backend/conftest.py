@@ -105,22 +105,25 @@ def _reset_oem_state():
     except Exception:
         pass
 
+    # Phase 1 fix: reset governed adaptation policy store AFTER test.
+    # The M1 background loop test creates policies with dedup_threshold=5
+    # that persist in the PolicyVersionStore singleton and contaminate
+    # subsequent tests (e.g., SUPPRESS_REDUNDANT doesn't fire because
+    # shown_count=1 < dedup_threshold=5).
+    try:
+        import maestro_oem.governed_adaptation as ga
+        if ga._default_store is not None:
+            ga._default_store.deactivate_all()
+        ga._default_store = None  # Force re-creation on next access
+    except Exception:
+        pass
+
     # Phase 1 fix: reset auth state AFTER test — but only if the test
     # is NOT using a module-scoped client fixture (which would break on
-    # the next test in the module). We check by seeing if the auth store
-    # is still initialized; if it is, the test probably uses a module-
-    # scoped client and we leave it alone.
+    # the next test in the module).
     try:
         import maestro_auth.permissions as auth_mod
         if auth_mod._auth_store is not None:
-            # Check if this looks like a module-scoped fixture by seeing
-            # if the auth DB path is a temp path (module-scoped fixtures
-            # use tmp_path_factory, function-scoped use tmp_path).
-            # For safety, only reset if the store was created in this
-            # test's thread (function-scoped) vs a prior test (module-scoped).
-            # Simplest approach: don't reset auth at all in the autouse
-            # fixture. Auth tests that need isolation should use their
-            # own fixtures.
             pass
     except Exception:
         pass

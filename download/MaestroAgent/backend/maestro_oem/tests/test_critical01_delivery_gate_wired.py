@@ -111,7 +111,14 @@ def test_whisper_generation_suppresses_redundant_on_second_call(signals):
     # Build whisper_store history from the first call's whispers
     # (simulating that they were shown to the user)
     whisper_store_after_first = {}
-    now = datetime.now(timezone.utc).isoformat()
+    # Phase 1 fix: set last_shown to 1 second IN THE FUTURE from now so that
+    # no signal timestamp is newer than last_shown. This ensures
+    # materially_changed = False on the second call, which triggers
+    # SUPPRESS_REDUNDANT. Without this, microsecond timing differences
+    # between signal creation and last_shown can cause materially_changed
+    # to be True, preventing suppression.
+    from datetime import timedelta
+    now = (datetime.now(timezone.utc) + timedelta(seconds=1)).isoformat()
     for w in result_1["whispers"]:
         wid = w.get("whisper_id", "")
         if wid:
