@@ -268,7 +268,9 @@ def test_status(oauth, store):
     store.set_connection("github", connected=True)
 
     status = oauth.status()
-    assert len(status) == 5
+    # RC16 fix: SUPPORTED_IMPORT_PROVIDERS now has 6 entries (github, jira,
+    # slack, confluence, gmail, customer). Was 5 before 'customer' was added.
+    assert len(status) == 6
     github_status = next(s for s in status if s["provider"] == "github")
     assert github_status["connected"] is True
     assert github_status["has_credentials"] is True

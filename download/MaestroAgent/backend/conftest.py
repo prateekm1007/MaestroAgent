@@ -119,6 +119,24 @@ def _reset_oem_state():
     _app_dir = str(_p.Path(__file__).resolve().parent.parent)
     os.environ.setdefault("MAESTRO_APP_DIR", _app_dir)
 
+    # RC13 fix: clear OAuth provider configs from the DB between tests.
+    # test_oauth_self_service.py saves configs (client_id="db-github-id", etc.)
+    # to import_state.db via OAuthConfigStore.save_provider(). These persist
+    # across tests because the DB is a real file. test_oauth_manager.py then
+    # fails because oauth._configs.clear() only clears the in-memory cache;
+    # the next get_config() re-reads from DB and gets the stale config.
+    # The fix: soft-delete all providers (set enabled=0) before each test.
+    try:
+        from maestro_oem.oauth_config_store import get_oauth_config_store
+        store = get_oauth_config_store()
+        for provider in ("github", "jira", "slack", "gmail", "confluence", "calendar"):
+            try:
+                store.delete_provider(provider)
+            except Exception:
+                pass
+    except Exception:
+        pass  # Store not available yet (early collection)
+
     yield  # Test runs here
 
     # Clean up AFTER the test (in case the test left state behind)
