@@ -326,6 +326,18 @@ def test_recall_finds_cross_entity(
 
 # ─── Adversarial Test 3: Temporal filter excludes older items ──────────────
 
+# RC14 fix: this test requires dateparser (in the 'semantic' extras) to
+# parse 'last week' into a date range. Without dateparser, RecallEngine
+# logs a warning and skips temporal filtering — the test would fail
+# because the 30-day-old whisper is NOT excluded. Skip the test when
+# dateparser is unavailable rather than failing.
+try:
+    import dateparser  # noqa: F401
+    HAS_DATEPARSER = True
+except ImportError:
+    HAS_DATEPARSER = False
+
+@pytest.mark.skipif(not HAS_DATEPARSER, reason="dateparser not installed (optional dep, in 'semantic' extras)")
 def test_recall_temporal_filter(temporal_filter_history, now):
     """'last week' must filter to the last 7 days, excluding the 30-day-old
     whisper.
