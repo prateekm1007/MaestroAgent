@@ -98,6 +98,8 @@ class DBCursor:
 
 def _get_engine(db_path_or_url: str) -> Engine:
     """Get or create a SQLAlchemy engine."""
+    if not _HAS_SQLALCHEMY:
+        raise RuntimeError("SQLAlchemy is not installed. Install with: pip install sqlalchemy")
     if db_path_or_url in _engines:
         return _engines[db_path_or_url]
 

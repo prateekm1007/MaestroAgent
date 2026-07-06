@@ -816,20 +816,24 @@ class TamperEvidentAuditLog:
         """Append an event to the tamper-evident log. Returns the event's chain hash."""
         detail = detail or {}
         prev_hash = self._get_last_hash()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
-        # Build canonical representation
+        # Build canonical representation — MUST match verify_chain exactly.
+        # Phase 1 fix: include user_agent (was missing) and don't concatenate
+        # prev_hash outside the JSON (verify_chain hashes canonical only).
         canonical = json.dumps({
             "event_type": event_type,
             "user_id": user_id,
             "email": email,
             "ip_address": ip_address,
+            "user_agent": user_agent,
             "resource": resource,
             "success": success,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": timestamp,
             "prev_hash": prev_hash,
         }, sort_keys=True)
 
-        chain_hash = hashlib.sha256((canonical + prev_hash).encode()).hexdigest()
+        chain_hash = hashlib.sha256(canonical.encode()).hexdigest()
         detail["_chain_hash"] = chain_hash
         detail["_prev_hash"] = prev_hash
 
@@ -842,6 +846,7 @@ class TamperEvidentAuditLog:
             resource=resource,
             detail=detail,
             success=success,
+            timestamp=timestamp,  # Phase 1 fix: pass timestamp for chain verification
         )
         return chain_hash
 
@@ -951,6 +956,11 @@ class SessionExpiryManager:
         conn = sqlite3.connect(self.store.db_path)
         count = 0
         try:
+            # Phase 1 fix: explicitly begin a transaction before writes.
+            # sqlite_compat uses isolation_level=None (autocommit), so
+            # UPDATEs auto-commit and the later COMMIT fails with
+            # "no transaction is active". BEGIN forces an explicit txn.
+            conn.execute("BEGIN")
             # Revoke sessions past their expires_at
             cur = conn.execute(
                 "UPDATE sessions SET revoked_at = ? WHERE revoked_at IS NULL AND expires_at < ?",

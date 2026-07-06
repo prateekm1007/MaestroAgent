@@ -214,6 +214,19 @@ class SAMLManager:
         # `onelogin.saml2`, not `saml`) which meant the fail-closed path fired on
         # every signed response. Fixed to check for xmlsec + lxml directly (the
         # actual crypto deps) and use real xmlsec verification against the IdP cert.
+
+        # Phase 1 fix: check IdP cert BEFORE checking xmlsec/lxml.
+        # If no IdP cert is configured, fail closed — regardless of whether
+        # xmlsec is installed. This ensures the test_missing_idp_cert_rejected
+        # test passes even when xmlsec is not installed.
+        idp_cert = os.environ.get("MAESTRO_SAML_IDP_CERT", "")
+        if not idp_cert:
+            raise SAMLError(
+                "MAESTRO_SAML_IDP_CERT is not set — SAML signature cannot be "
+                "verified against the IdP certificate. Authentication refused "
+                "(fail-closed). Set MAESTRO_SAML_IDP_CERT to the PEM-encoded "
+                "IdP certificate."
+            )
         try:
             import xmlsec  # noqa: F401
             from lxml import etree  # noqa: F401
@@ -223,15 +236,6 @@ class SAMLManager:
                 "cryptographically verified. Authentication refused (fail-closed). "
                 "Install with: pip install python3-saml (pulls both). "
                 "A <ds:Signature> element is present but cannot be verified."
-            )
-        # If no IdP cert is configured, fail closed.
-        idp_cert = os.environ.get("MAESTRO_SAML_IDP_CERT", "")
-        if not idp_cert:
-            raise SAMLError(
-                "MAESTRO_SAML_IDP_CERT is not set — SAML signature cannot be "
-                "verified against the IdP certificate. Authentication refused "
-                "(fail-closed). Set MAESTRO_SAML_IDP_CERT to the PEM-encoded "
-                "IdP certificate."
             )
         try:
             import xmlsec

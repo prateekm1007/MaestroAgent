@@ -15,6 +15,7 @@ import pytest
 
 from maestro_db.db_helper import DBCursor, DBRow, _get_engine, db_execute, db_execute_write
 from maestro_db import sqlite_compat as sqlite3
+from maestro_db.sqlite_compat import _HAS_SQLALCHEMY
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +113,7 @@ def test_sqlite_compat_parameterized_query(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(not _HAS_SQLALCHEMY, reason="SQLAlchemy not installed (optional dep)")
 def test_get_engine_caches_engines(tmp_path: Path) -> None:
     """_get_engine() must cache by URL — repeated calls return the same engine."""
     db_path = str(tmp_path / "test.db")
@@ -121,6 +123,7 @@ def test_get_engine_caches_engines(tmp_path: Path) -> None:
     assert engine1 is engine2, "_get_engine must cache — repeated calls return the same object"
 
 
+@pytest.mark.skipif(not _HAS_SQLALCHEMY, reason="SQLAlchemy not installed (optional dep)")
 def test_get_engine_different_urls_return_different_engines(tmp_path: Path) -> None:
     db_path1 = str(tmp_path / "a.db")
     db_path2 = str(tmp_path / "b.db")

@@ -365,20 +365,37 @@ class AuthStore:
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
+        # Phase 1 fix: guard PRAGMA with safe_pragma for Postgres compatibility
+        from maestro_db.sqlite_compat import safe_pragma
+        safe_pragma(self._conn, self.db_path, "PRAGMA journal_mode=WAL")
+        safe_pragma(self._conn, self.db_path, "PRAGMA foreign_keys=ON")
 
     @contextmanager
     def _cursor(self) -> Iterator[sqlite3.Cursor]:
         assert self._conn is not None
         with self._lock:
-            cur = self._conn.cursor()
+            # Phase 1 fix: re-connect if the connection was created in a different thread.
+            # sqlite_compat wraps SQLAlchemy connections which are thread-bound.
+            # When TestClient runs requests in a thread pool, the AuthStore's
+            # connection (created in the test fixture thread) fails.
+            # Fix: try to use the existing connection; if it fails (thread mismatch),
+            # reconnect and retry.
+            try:
+                cur = self._conn.cursor()
+                cur.execute("SELECT 1")
+            except Exception:
+                # Connection is stale (wrong thread or closed) — reconnect
+                self._connect()
+                cur = self._conn.cursor()
             try:
                 cur.execute("BEGIN")
                 yield cur
                 cur.execute("COMMIT")
             except Exception:
-                cur.execute("ROLLBACK")
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
                 raise
 
     def close(self) -> None:
@@ -737,13 +754,17 @@ class AuthStore:
         resource: str | None = None,
         detail: dict[str, Any] | None = None,
         success: bool = True,
+        timestamp: str | None = None,
     ) -> None:
+        # Phase 1 fix: allow caller to pass a specific timestamp for
+        # tamper-evident chain verification. If not provided, use utcnow().
+        ts = timestamp or utcnow()
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO audit_events
                    (id, timestamp, user_id, email, event_type, ip_address, user_agent, resource, detail, success)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (str(uuid4()), utcnow(), user_id, email, event_type,
+                (str(uuid4()), ts, user_id, email, event_type,
                  ip_address, user_agent, resource, json.dumps(detail or {}), 1 if success else 0),
             )
 
