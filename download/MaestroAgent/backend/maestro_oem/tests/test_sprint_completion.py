@@ -21,9 +21,16 @@ import pytest
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
-os.environ["MAESTRO_LOCAL_DEV"] = "true"
-os.environ["MAESTRO_DEMO_SEED"] = "false"
-os.environ["MAESTRO_PURGE_ON_INIT"] = "true"
+
+# RC3 fix: moved env var setup into a fixture so it doesn't leak to other tests.
+
+
+@pytest.fixture(autouse=True)
+def _sprint_env(monkeypatch):
+    """Set env vars for sprint completion tests, auto-restored after each test."""
+    monkeypatch.setenv("MAESTRO_LOCAL_DEV", "true")
+    monkeypatch.setenv("MAESTRO_DEMO_SEED", "false")
+    monkeypatch.setenv("MAESTRO_PURGE_ON_INIT", "true")
 
 
 def _make_signal(text, customer="Globex", signal_type="customer_commitment_made",

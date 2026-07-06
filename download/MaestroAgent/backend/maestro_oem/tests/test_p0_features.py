@@ -17,6 +17,23 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+# RC3 fix: tests that require LLM synthesis should skip when no provider available.
+def _llm_provider_available() -> bool:
+    if os.environ.get("MAESTRO_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"):
+        return True
+    if os.environ.get("MAESTRO_ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"):
+        return True
+    try:
+        import httpx
+        r = httpx.get("http://localhost:11434/api/version", timeout=1)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+HAS_LLM = _llm_provider_available()
+
+
 @pytest.fixture(scope="module")
 def client():
     app_dir = str(pathlib.Path(__file__).resolve().parents[3])
@@ -145,6 +162,7 @@ class TestSynthesizedAnswers:
         # D2 fix: AskPipeline returns 'evidence' (list), not 'evidence_detail' (string)
         assert "evidence" in data or "evidence_path" in data, "Ask response missing evidence"
 
+    @pytest.mark.skipif(not HAS_LLM, reason="RC3: requires LLM provider for synthesis (ollama not running, no OpenAI/Anthropic key)")
     def test_synthesized_answer_cites_evidence(self, client) -> None:
         """The answer must reference evidence content."""
         r = client.get("/api/oem/ask", params={"q": "who is the bottleneck?"})

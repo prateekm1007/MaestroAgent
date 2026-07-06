@@ -18,9 +18,19 @@ import pytest
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
-os.environ["MAESTRO_LOCAL_DEV"] = "true"
-os.environ["MAESTRO_DEMO_SEED"] = "false"
-os.environ["MAESTRO_PURGE_ON_INIT"] = "true"
+
+# RC3 fix: moved env var setup into a fixture (below) so it doesn't leak
+# to subsequent test modules. Previously these were set at module load time,
+# which meant MAESTRO_DEMO_SEED=false persisted and broke other tests that
+# rely on demo seed data.
+
+
+@pytest.fixture(autouse=True)
+def _self_audit_env(monkeypatch):
+    """Set env vars for self-audit tests, auto-restored after each test."""
+    monkeypatch.setenv("MAESTRO_LOCAL_DEV", "true")
+    monkeypatch.setenv("MAESTRO_DEMO_SEED", "false")
+    monkeypatch.setenv("MAESTRO_PURGE_ON_INIT", "true")
 
 
 def _make_signal(text, actor, customer="Globex", signal_type="message_sent"):

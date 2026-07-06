@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sys
 import json
+import os
 import pytest
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -19,6 +20,23 @@ from datetime import datetime, timezone, timedelta
 _BACKEND = Path(__file__).resolve().parents[2]
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
+
+
+# RC3 fix: tests that require LLM synthesis should skip when no provider available.
+def _llm_provider_available() -> bool:
+    if os.environ.get("MAESTRO_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"):
+        return True
+    if os.environ.get("MAESTRO_ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"):
+        return True
+    try:
+        import httpx
+        r = httpx.get("http://localhost:11434/api/version", timeout=1)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+HAS_LLM = _llm_provider_available()
 
 
 @pytest.fixture(scope="module")
@@ -128,6 +146,7 @@ def test_ask_why_surfaces_synthesis_not_just_evidence_list(client):
         f"Answer: {answer[:200]!r}"
 
 
+@pytest.mark.skipif(not HAS_LLM, reason="RC3: requires LLM provider for synthesis (ollama not running, no OpenAI/Anthropic key)")
 def test_ask_can_answer_meeting_questions(client):
     """P22 Test 3: Ask can reach Meeting data via meeting_store.
 

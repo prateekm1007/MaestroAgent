@@ -4763,6 +4763,11 @@ def teach_maestro(payload: dict[str, Any]) -> dict[str, Any]:
     # organizational knowledge, not a provider signal. Same pattern as
     # the Conversational Curiosity follow-up endpoint.)
     try:
+        # RC3 fix: ensure oem_state is initialized before ingesting.
+        # The autouse fixture in conftest clears oem_state.engine between
+        # tests. If engine is None, re-initialize before ingesting.
+        if not getattr(oem_state, "_initialized", False) or oem_state.engine is None:
+            oem_state.initialize()
         with oem_state._lock:
             assert oem_state.engine is not None
             oem_state.engine.ingest([signal])
