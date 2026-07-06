@@ -665,7 +665,7 @@ async def ask(
     result["personal_context_line"] = personal_context_line
     # CEO Directive: "Maestro never invents precision." Remove confidence from /ask response.
     result.pop("confidence", None)
-    return result
+    return translate_internal_terms(result)
 
 
 # ─── 7. GET /api/oem/simulator ─────────────────────────────────────────────
@@ -3026,7 +3026,7 @@ def get_preparations(status: str | None = Query(None)) -> dict[str, Any]:
     preps = _get_preparations()
     if status:
         preps = [p for p in preps if p["status"] == status]
-    return {"preparations": preps, "total": len(preps)}
+    return translate_internal_terms({"preparations": preps, "total": len(preps)})
 
 
 @router.get("/preparations/{preparation_id}")
@@ -3036,7 +3036,7 @@ def get_preparation(preparation_id: str) -> dict[str, Any]:
     prep = next((p for p in preps if p["preparation_id"] == preparation_id), None)
     if not prep:
         raise HTTPException(404, f"Preparation {preparation_id} not found")
-    return prep
+    return translate_internal_terms(prep)
 
 
 @router.post("/preparations/{preparation_id}/approve")
@@ -5653,7 +5653,7 @@ def organizational_whisper(
                     whisper_type=whisper_type,
                 )
 
-    return result
+    return translate_internal_terms(result)
 
 
 @router.get("/dna")

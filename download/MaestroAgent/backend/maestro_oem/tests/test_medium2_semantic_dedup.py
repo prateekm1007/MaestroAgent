@@ -67,10 +67,16 @@ def _make_lo(title: str, description: str = ""):
 
 
 def test_semantic_deduplicator_detects_paraphrased_duplicate():
-    """MEDIUM-2: semantically similar text is detected as a duplicate."""
+    """MEDIUM-2: semantically similar text is detected as a duplicate.
+
+    Auditor's regression finding: the prior version of this test asserted
+    `isinstance(is_dup, bool)` which passes even when is_dup is False.
+    The test was theater — it didn't verify the deduplicator actually
+    DETECTS duplicates. Fixed to assert `is_dup is True`.
+    """
     from maestro_oem.semantic_dedup import SemanticDeduplicator
 
-    dedup = SemanticDeduplicator(threshold=0.7)  # lower threshold for TF-IDF fallback
+    dedup = SemanticDeduplicator(threshold=0.85)
 
     # Signal from Slack: "Globex SSO commitment discussed"
     signal = _make_signal("Globex SSO commitment discussed before renewal")
@@ -79,10 +85,10 @@ def test_semantic_deduplicator_detects_paraphrased_duplicate():
     lo = _make_lo("SSO delivery promise to Globex", "Commitment about SSO for Globex")
 
     is_dup = dedup.is_semantic_duplicate(signal, lo)
-    # With sentence-transformers: should be True (high semantic similarity)
-    # With TF-IDF fallback: may be True or False depending on word overlap
-    # We test that the method RUNS without error and returns a bool
-    assert isinstance(is_dup, bool), "is_semantic_duplicate must return a bool"
+    assert is_dup is True, \
+        f"Paraphrased duplicate MUST be detected as True. Got: {is_dup}. " \
+        f"The deduplicator must catch cross-source signals about the same event " \
+        f"even when the wording differs (shared entities: Globex, SSO)."
 
 
 def test_semantic_deduplicator_does_not_flag_unrelated_text():
