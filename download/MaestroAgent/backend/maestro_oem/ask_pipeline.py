@@ -840,7 +840,53 @@ class AskPipeline:
             return [], ["I don't have enough whisper history to recall this."]
 
     def _retrieve_prepare(self, entities: list[str], org_id: str) -> tuple[list[dict], list[str]]:
-        """Retrieve from PreparationEngine."""
+        """Retrieve from PreparationEngine.
+
+        HIGH-03 fix: if no preparation engine is configured (no calendar),
+        fall back to SituationSnapshot for the entity. The situation provides
+        commitments, pending conditions, and disagreements — enough for a
+        preparation brief even without a calendar source.
+        """
+        # HIGH-03 fix: try SituationSnapshot first if we have entities
+        if entities:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self._signals,
+                    calendar_source=None,
+                    whisper_store=self._whisper_store if hasattr(self, "_whisper_store") else None,
+                )
+                evidence = []
+                answer_parts = []
+                for entity in entities:
+                    situation = builder.build_for_entity(entity)
+                    if situation and situation.commitments:
+                        for c in situation.commitments:
+                            text = c.get("text", "") or c.get("commitment", "")
+                            if text:
+                                evidence.append({
+                                    "source": "situation_prepare",
+                                    "text": f"Commitment to {entity}: {text}",
+                                    "entity": entity,
+                                    "claim_type": "commitment",
+                                })
+                        answer_parts.append(f"Commitments for {entity}: {len(situation.commitments)} active.")
+                    if situation and situation.pending_conditions:
+                        for pc in situation.pending_conditions:
+                            evidence.append({
+                                "source": "situation_prepare",
+                                "text": f"Pending condition for {entity}: {pc}",
+                                "entity": entity,
+                                "claim_type": "negation",
+                            })
+                        answer_parts.append(f"Pending conditions: {len(situation.pending_conditions)}.")
+                    if situation and situation.disagreements:
+                        answer_parts.append(f"Disagreements detected: {len(situation.disagreements)} conflicting reports.")
+                if evidence:
+                    return evidence, answer_parts
+            except Exception as e:
+                logger.debug("HIGH-03: SituationSnapshot prepare fallback failed: %s", e)
+
         if not self._preparation_engine:
             return [], ["I don't have enough context to prepare for a meeting."]
 
@@ -913,11 +959,59 @@ class AskPipeline:
         return evidence, answer_parts
 
     def _retrieve_who(self, entities: list[str]) -> tuple[list[dict], list[str]]:
-        """Retrieve people related to the entities."""
+        """Retrieve people related to the entities.
+
+        HIGH-03 fix: if the query is about disagreements ("who thinks
+        differently"), surface the Situation's disagreements. The prior
+        code only searched for people by signal count — it missed the
+        case where different actors have CONFLICTING reported statements.
+        """
         evidence = []
         answer_parts = []
         people: dict[str, int] = {}
 
+        # HIGH-03 fix: check Situation for disagreements first.
+        # Search ALL customer entities in signals (not just query-derived entities)
+        # because "Who thinks differently about SSO?" may not mention the customer
+        # name — but the disagreements are about that customer.
+        try:
+            from maestro_oem.situation import SituationBuilder
+            builder = SituationBuilder(
+                signals=self._signals,
+                calendar_source=None,
+                whisper_store=self._whisper_store if hasattr(self, "_whisper_store") else None,
+            )
+            # Get all unique customer names from signals
+            all_customers = set()
+            for s in self._signals:
+                if hasattr(s, "metadata") and s.metadata:
+                    cust = s.metadata.get("customer", "")
+                    if cust:
+                        all_customers.add(cust)
+            # Also include query-derived entities
+            search_entities = set(entities) | all_customers
+            for entity in search_entities:
+                situation = builder.build_for_entity(entity)
+                if situation and situation.disagreements:
+                    for d in situation.disagreements:
+                        actor = d.get("actor", "unknown")
+                        text = d.get("text", "")
+                        evidence.append({
+                            "source": "situation_disagreement",
+                            "text": f"{actor} reported: {text}",
+                            "entity": entity,
+                            "claim_type": "reported_statement",
+                        })
+                        people[actor] = people.get(actor, 0) + 1
+                    answer_parts.append(
+                        f"Disagreement detected for {entity}: "
+                        f"{len(situation.disagreements)} conflicting reported statements "
+                        f"from {len(people)} different people."
+                    )
+        except Exception as e:
+            logger.debug("HIGH-03: SituationSnapshot who fallback failed: %s", e)
+
+        # Also search signals for people (original behavior — still useful)
         for s in self._signals:
             try:
                 sig_entities = s.metadata.get("customer", "") if hasattr(s, "metadata") else ""
@@ -928,7 +1022,7 @@ class AskPipeline:
             except Exception:
                 continue
 
-        if people:
+        if people and not evidence:
             best = max(people, key=people.get)
             evidence.append({
                 "source": "signal_analysis",
@@ -940,7 +1034,8 @@ class AskPipeline:
                 },
             })
             answer_parts.append(f"Based on signal activity, {best} has the most involvement.")
-        else:
+
+        if not evidence:
             answer_parts.append("I don't have enough signal data to identify the relevant person.")
 
         return evidence, answer_parts
