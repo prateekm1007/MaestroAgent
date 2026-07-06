@@ -619,6 +619,7 @@ async def ask(
         pipeline_result = await pipeline.execute_async(q, org_id="default", user_email=user_email)
         result = {
             "answer": pipeline_result.get("answer", ""),
+            "synthesized_answer": pipeline_result.get("answer", ""),
             "evidence": pipeline_result.get("evidence", []),
             "citations": pipeline_result.get("citations", []),
             "follow_ups": pipeline_result.get("follow_ups", []),
@@ -635,6 +636,10 @@ async def ask(
     except Exception as e:
         logger.warning("AskPipeline in /ask failed, falling back to DecisionEngine: %s", e)
         result = oem_state.decisions.answer_question(q)
+        # RC4 fix: ensure synthesized_answer is always present (P0-4 feature).
+        # In the fallback path, the answer IS the synthesized answer.
+        if "synthesized_answer" not in result:
+            result["synthesized_answer"] = result.get("answer", "")
         result["synthesis_trace"] = {
             "reasoning_mode": "deterministic_fallback",
             "fallback_triggered": True,
