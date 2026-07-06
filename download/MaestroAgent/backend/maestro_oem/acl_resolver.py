@@ -31,17 +31,23 @@ class ACLResolver:
     Deny-by-default: any ACL that is not exactly "public" requires
     explicit permission verification. If verification fails or is
     unavailable, the signal is hidden (P6: fail-closed).
+
+    Phase 2-3: now uses ChannelMembershipStore (SQLite cache) for
+    membership lookups, with ProviderClient fallback for live API calls.
     """
 
     def __init__(
         self,
         membership_cache: dict[str, bool] | None = None,
         provider_clients: dict[str, Any] | None = None,
+        membership_store: Any = None,
     ) -> None:
-        # membership_cache: {"slack:C123456:alice@acme.com": True, ...}
+        # membership_cache: in-memory dict (legacy, for quick tests)
         self._membership_cache = membership_cache or {}
-        # provider_clients: {"slack": SlackClient, "github": GitHubClient, ...}
+        # provider_clients: {"slack": SlackClient, ...} implementing ProviderClient
         self._provider_clients = provider_clients or {}
+        # membership_store: ChannelMembershipStore (SQLite-backed cache)
+        self._membership_store = membership_store
 
     def can_access(self, signal: Any, user_email: str) -> bool:
         """Check if user_email can access the given signal.
@@ -95,9 +101,10 @@ class ACLResolver:
           space:confluence:ENG
 
         Resolution priority:
-        1. Pre-synced membership cache (fast)
-        2. Live provider API call (slow, if client available)
-        3. If neither available — DENY (fail-closed)
+        1. In-memory cache (fastest, for quick tests)
+        2. ChannelMembershipStore (SQLite, for production cache)
+        3. Live provider API call (slowest, if client available)
+        4. If none available — DENY (fail-closed)
         """
         parts = acl.split(":", 2)
         if len(parts) < 3:
@@ -108,18 +115,26 @@ class ACLResolver:
         provider = parts[1]     # "slack", "github", "jira", "confluence"
         scope_id = parts[2]     # "C123456", "engineering", "PROJ", "ENG"
 
-        # Option 1: check pre-synced membership cache
+        # Option 1: in-memory cache
         cache_key = f"{provider}:{scope_id}:{user_email}"
         if cache_key in self._membership_cache:
             return self._membership_cache[cache_key]
 
-        # Option 2: live API call (if provider client available)
+        # Option 2: ChannelMembershipStore (SQLite)
+        if self._membership_store:
+            cached = self._membership_store.get_membership(provider, scope_id, user_email)
+            if cached is not None:
+                return cached
+
+        # Option 3: live API call (if provider client available)
         if provider in self._provider_clients:
             try:
                 client = self._provider_clients[provider]
                 is_member = client.check_membership(scope_id, user_email)
-                # Cache the result
+                # Cache the result in both stores
                 self._membership_cache[cache_key] = is_member
+                if self._membership_store:
+                    self._membership_store.set_membership(provider, scope_id, user_email, is_member)
                 return is_member
             except Exception as e:
                 logger.warning(
@@ -128,10 +143,10 @@ class ACLResolver:
                 )
                 return False  # fail-closed
 
-        # Option 3: cannot verify — DENY (fail-closed)
+        # Option 4: cannot verify — DENY (fail-closed)
         logger.info(
             "Cannot verify membership for ACL %s, user %s — denying (fail-closed). "
-            "No membership cache entry and no %s provider client available.",
+            "No cache, no store, no %s provider client available.",
             acl, user_email, provider,
         )
         return False

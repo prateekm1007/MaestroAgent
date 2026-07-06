@@ -63,6 +63,10 @@ class Situation:
     current_state: str = "unknown"  # "at_risk" | "on_track" | "unknown"
     prior_whispers: list[str] = field(default_factory=list)
     timeline: list[dict] = field(default_factory=list)
+    # CRITICAL-03 Phase 2: enriched fields for cross-surface coherence
+    disagreements: list[dict] = field(default_factory=list)
+    pending_conditions: list[str] = field(default_factory=list)
+    unknowns: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -73,6 +77,9 @@ class Situation:
             "current_state": self.current_state,
             "prior_whispers": self.prior_whispers,
             "timeline": self.timeline,
+            "disagreements": self.disagreements,
+            "pending_conditions": self.pending_conditions,
+            "unknowns": self.unknowns,
         }
 
     def is_derived(self) -> bool:
@@ -155,6 +162,14 @@ class SituationBuilder:
         # 7. timeline — chronologically ordered events
         timeline = self._build_timeline(entity_signals)
 
+        # CRITICAL-03 Phase 2: enriched fields
+        # 8. disagreements — detect conflicting reported statements
+        disagreements = self._detect_disagreements(entity_signals)
+        # 9. pending_conditions — from negation-classified signals
+        pending_conditions = self._extract_pending_conditions(entity_signals)
+        # 10. unknowns — gaps in evidence
+        unknowns = self._derive_unknowns(commitments, evidence, entity_signals)
+
         return Situation(
             what_is_happening=what_is_happening,
             entities=entities,
@@ -163,6 +178,9 @@ class SituationBuilder:
             current_state=current_state,
             prior_whispers=prior_whispers,
             timeline=timeline,
+            disagreements=disagreements,
+            pending_conditions=pending_conditions,
+            unknowns=unknowns,
         )
 
     def _compute_what_is_happening(self, entity: str) -> str:
@@ -264,3 +282,93 @@ class SituationBuilder:
         # Sort by date
         timeline.sort(key=lambda x: x.get("date", ""))
         return timeline
+
+    # ─── CRITICAL-03 Phase 2: Enriched field extraction ─────────────────
+
+    def _detect_disagreements(self, entity_signals: list) -> list[dict]:
+        """Detect conflicting reported statements about the entity.
+
+        A disagreement exists when different actors report different
+        interpretations of the same commitment. For example:
+          - Sales says "we promised production availability"
+          - Product says "we only promised technical completion"
+
+        This uses the ContentEpistemicClassifier to find reported_statement
+        signals from different actors that reference the same topic.
+        """
+        try:
+            from maestro_oem.content_epistemic_classifier import ContentEpistemicClassifier
+            classifier = ContentEpistemicClassifier()
+        except Exception:
+            return []
+
+        reported = []
+        for s in entity_signals:
+            try:
+                text = s.metadata.get("text", "") or s.metadata.get("body", "")
+                if not text:
+                    continue
+                result = classifier.classify(text)
+                epistemic = result if isinstance(result, str) else getattr(result, "epistemic_type", str(result))
+                if epistemic == "reported_statement":
+                    reported.append({"actor": s.actor or "", "text": text[:200]})
+            except Exception:
+                continue
+
+        # Group by actor — if 2+ different actors have reported statements,
+        # that's a disagreement
+        actors = set(r["actor"] for r in reported if r["actor"])
+        if len(actors) >= 2:
+            return reported[:5]  # Return up to 5 conflicting statements
+        return []
+
+    def _extract_pending_conditions(self, entity_signals: list) -> list[str]:
+        """Extract pending conditions from negation-classified signals.
+
+        A pending condition is a negation signal like "security approval
+        is still conditional" — it indicates something that must be
+        resolved before a commitment can be fulfilled.
+        """
+        try:
+            from maestro_oem.content_epistemic_classifier import ContentEpistemicClassifier
+            classifier = ContentEpistemicClassifier()
+        except Exception:
+            return []
+
+        conditions = []
+        for s in entity_signals:
+            try:
+                text = s.metadata.get("text", "") or s.metadata.get("body", "")
+                if not text:
+                    continue
+                result = classifier.classify(text)
+                epistemic = result if isinstance(result, str) else getattr(result, "epistemic_type", str(result))
+                if epistemic == "negation":
+                    conditions.append(text[:200])
+            except Exception:
+                continue
+        return conditions[:5]
+
+    def _derive_unknowns(self, commitments: list[dict], evidence: list, entity_signals: list) -> list[str]:
+        """Derive what we DON'T know from the gaps in evidence.
+
+        If there's a commitment but no outcome, that's an unknown:
+        "Will this commitment be met?"
+
+        If there's a commitment but no timeline events after it,
+        that's an unknown: "What progress has been made?"
+
+        If there are disagreements, that's an unknown:
+        "Which interpretation is correct?"
+        """
+        unknowns = []
+        if commitments and not any(
+            "outcome" in str(s.type).lower() or "kept" in str(s.type).lower()
+            for s in entity_signals
+        ):
+            unknowns.append("Whether the commitment will be met")
+        if len(commitments) > 0:
+            has_disagreement = len(self._detect_disagreements(entity_signals)) > 0
+            if has_disagreement:
+                unknowns.append("Which interpretation of the commitment is correct")
+        return unknowns[:5]
