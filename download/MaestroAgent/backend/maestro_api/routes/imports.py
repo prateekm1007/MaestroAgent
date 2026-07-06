@@ -178,10 +178,25 @@ async def oauth_callback(
 
 @router.post("/api/oauth/{provider}/disconnect")
 async def oauth_disconnect(provider: str) -> dict[str, Any]:
-    """Revoke tokens for a provider and mark as disconnected."""
+    """Revoke tokens for a provider and mark as disconnected.
+
+    Phase 2: also calls oem_state.disconnect_provider(provider) to remove
+    all signals + derived data (laws, learning_objects) from the disconnected
+    provider. This prevents stale data from persisting after disconnection.
+    """
     _ensure_initialized()
     assert import_state.connections is not None
     import_state.connections.disconnect(provider)
+    # Phase 2: propagate deletion to derived data
+    try:
+        from maestro_api.oem_state import oem_state
+        oem_state.disconnect_provider(provider)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "disconnect_provider failed for %s: %s — tokens revoked but "
+            "derived data may persist", provider, e,
+        )
     return {"ok": True, "provider": provider, "connected": False}
 
 

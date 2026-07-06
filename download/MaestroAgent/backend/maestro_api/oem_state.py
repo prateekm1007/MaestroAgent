@@ -679,6 +679,91 @@ class OEMState:
         self.evidence_graph.build_from_model(model)
         self.decision_engine = DecisionEngine(model, self.evidence_graph)
 
+    def disconnect_provider(self, provider: str) -> None:
+        """Phase 2: Remove all signals + derived data from a disconnected provider.
+
+        When a user disconnects a provider (e.g., Slack), the signals imported
+        from that provider must be removed from oem_state.signals. Additionally,
+        derived laws and learning_objects that depended ONLY on that provider
+        must be removed (they have no supporting evidence anymore).
+
+        Laws/LOs with evidence from MULTIPLE providers are retained, but the
+        signal_ids from the disconnected provider are removed from their
+        evidence lists.
+
+        P21 (all-paths trigger): this method handles all derived data —
+        signals, laws, learning_objects — in one call. The caller (typically
+        the /api/oauth/{provider}/disconnect endpoint) does NOT need to
+        separately clean up each data type.
+
+        Args:
+            provider: The provider name to disconnect (e.g., "slack", "github")
+        """
+        if not self.engine:
+            # If engine isn't initialized, just clear signals
+            self.signals = [s for s in self.signals if s.provider.value != provider]
+            return
+
+        with self._lock:
+            # 1. Remove signals from the disconnected provider
+            removed_signal_ids = {s.signal_id for s in self.signals if s.provider.value == provider}
+            self.signals = [s for s in self.signals if s.provider.value != provider]
+
+            if removed_signal_ids:
+                logger.info(
+                    "disconnect_provider: removing %d signals from %s",
+                    len(removed_signal_ids), provider,
+                )
+            # Don't return early even if no signals — laws/LOs may still
+            # reference the disconnected provider and need cleanup.
+
+            # 2. Clean up derived laws
+            model = self.engine.get_model()
+            laws_to_remove = []
+            for code, law in list(model.laws.items()):
+                if provider in law.providers:
+                    # Remove the provider from the law's providers set
+                    law.providers.discard(provider)
+                    # Remove signal_ids from the disconnected provider
+                    law.signal_ids = [
+                        sid for sid in law.signal_ids
+                        if sid not in removed_signal_ids
+                    ]
+                    # If the law has no more providers, mark for removal
+                    if not law.providers:
+                        laws_to_remove.append(code)
+
+            for code in laws_to_remove:
+                del model.laws[code]
+                logger.info("disconnect_provider: removed law %s (no remaining providers)", code)
+
+            # 3. Clean up derived learning objects
+            los_to_remove = []
+            for lo_id, lo in list(model.learning_objects.items()):
+                if provider in lo.providers:
+                    lo.providers.discard(provider)
+                    lo.signal_ids = [
+                        sid for sid in lo.signal_ids
+                        if sid not in removed_signal_ids
+                    ]
+                    if not lo.providers:
+                        los_to_remove.append(lo_id)
+
+            for lo_id in los_to_remove:
+                del model.learning_objects[lo_id]
+                logger.info("disconnect_provider: removed LO %s (no remaining providers)", lo_id)
+
+            # 4. Refresh downstream (decision engine + evidence graph)
+            self._refresh_downstream_locked()
+
+            # 5. Persist the updated state
+            self._save_model_state()
+
+            logger.info(
+                "disconnect_provider: complete — %d signals removed, %d laws removed, %d LOs removed",
+                len(removed_signal_ids), len(laws_to_remove), len(los_to_remove),
+            )
+
     def _trigger_learning_resolution_locked(self) -> None:
         """Fire the closed learning loop (caller holds the lock).
 
