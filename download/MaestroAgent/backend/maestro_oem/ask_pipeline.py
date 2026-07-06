@@ -710,6 +710,44 @@ class AskPipeline:
         evidence: list[dict] = []
         answer_parts: list[str] = []
 
+        # HIGH-03 fix: build SituationSnapshot for each entity BEFORE retrieval.
+        # The situation provides a shared view of commitments, disagreements,
+        # and pending conditions that ALL intent handlers can use. This
+        # replaces the prior approach where each intent had its own retrieval
+        # path that missed cross-category reasoning (e.g., "who thinks
+        # differently?" failed because it didn't see Sales vs Product
+        # disagreements that were in the situation but not in the keyword
+        # search results).
+        situations = {}
+        for entity in entities:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self._signals,
+                    calendar_source=None,
+                    whisper_store=self._whisper_store if hasattr(self, "_whisper_store") else None,
+                )
+                situations[entity.lower()] = builder.build_for_entity(entity)
+            except Exception:
+                pass  # Non-fatal — keyword search still runs
+
+        # If we have situations, augment evidence with situation-derived facts.
+        # This ensures "who thinks differently?" and "prepare me for X" can
+        # surface disagreements + pending conditions that keyword search misses.
+        for entity_lower, situation in situations.items():
+            if situation and hasattr(situation, "evidence") and situation.evidence:
+                for ev in situation.evidence:
+                    # Add situation-derived evidence that keyword search would miss
+                    ev_text = str(ev.get("claim", "") or ev.get("text", ""))
+                    if ev_text and not any(ev_text[:30] in str(e.get("text", "")) for e in evidence):
+                        evidence.append({
+                            "source": "situation_snapshot",
+                            "text": ev_text,
+                            "claim_type": ev.get("claim_type", "observed_fact"),
+                            "entity": entity_lower,
+                            "situation_derived": True,
+                        })
+
         if intent == AskIntent.RECALL:
             evidence, answer_parts = self._retrieve_recall(query, org_id, user_email=user_email)
 
@@ -1093,14 +1131,14 @@ class AskPipeline:
             if hasattr(s, "prompt_injection_risk") and getattr(s, "prompt_injection_risk"):
                 continue  # Skip — quarantined (attribute form)
             # C-003: Permission-aware filtering
-            acl = getattr(s, "source_acl", "public")
-            if acl == "private":
-                # Only the actor or explicitly listed viewers can see private signals
-                viewers = s.metadata.get("viewers", [])
-                if user_email and s.actor != user_email and user_email not in viewers:
-                    continue  # Skip — user doesn't have permission
-                if not user_email:
-                    continue  # No user context — can't verify permission, skip (fail-closed)
+            # CRITICAL-01 fix: replaced simple acl == "private" check with
+            # full ACLResolver. Now handles: public, private, channel-scoped,
+            # team-scoped, project-scoped, and unknown ACLs (deny-by-default).
+            if not hasattr(self, "_acl_resolver"):
+                from maestro_oem.acl_resolver import ACLResolver
+                self._acl_resolver = ACLResolver()
+            if not self._acl_resolver.can_access(s, user_email):
+                continue  # Skip — user doesn't have permission (deny-by-default)
             try:
                 sig_text = " ".join(filter(None, [
                     s.artifact or "",

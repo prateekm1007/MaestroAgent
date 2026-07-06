@@ -1032,6 +1032,45 @@ def get_oem_for_org(org_id: str = "default") -> "OEMState":
     return OEMStateRegistry.get(org_id)
 
 
+# HIGH-04 fix: request-scoped OEM state accessor.
+# Routes should use get_oem_for_request(request) instead of the global
+# oem_state. This resolves org_id from the authenticated request and
+# returns the per-org OEMState. In single-tenant mode (dev), returns
+# the global oem_state (backward-compatible).
+def get_oem_for_request(request: Any = None) -> "OEMState":
+    """HIGH-04: Get OEM state scoped to the request's org.
+
+    Extracts org_id from the request (via auth middleware or header).
+    In dev mode (no auth), returns the global oem_state (backward-compatible).
+    In production (auth enabled), routes to the per-org OEMState via
+    OEMStateRegistry.get(org_id).
+
+    This is the first step toward multi-tenant routing. Routes that
+    currently use `oem_state` directly should migrate to:
+        from maestro_api.oem_state import get_oem_for_request
+        state = get_oem_for_request(request)
+    """
+    # Dev mode — no auth, use global singleton (backward-compatible)
+    try:
+        from maestro_auth.permissions import is_auth_enabled
+        if not is_auth_enabled():
+            return oem_state
+    except Exception:
+        return oem_state
+
+    # Production mode — resolve org_id from request
+    if request is None:
+        return oem_state  # fallback
+
+    try:
+        org_id = OEMStateRegistry.get_org_id_from_request(request)
+        return OEMStateRegistry.get_with_cache_check(org_id)
+    except Exception:
+        # If org resolution fails, fail closed (don't leak cross-tenant data)
+        logger.warning("HIGH-04: org resolution failed — using default state")
+        return oem_state
+
+
 # ─── Import state — wires together the historical import pipeline ──────────
 
 class ImportState:

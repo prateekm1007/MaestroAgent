@@ -432,36 +432,24 @@ class RecallEngine:
         self.oem_state = oem_state
         self._now = now or datetime.now(timezone.utc)
 
-    # ─── Permission-aware signal filtering (C2 fix) ─────────────────────
+    # ─── Permission-aware signal filtering (CRITICAL-01 fix) ────────────
 
     @staticmethod
     def _user_can_see_signal(sig: Any, user_email: str) -> bool:
-        """C2 fix: permission-aware signal filtering.
+        """CRITICAL-01 fix: deny-by-default ACL resolution via ACLResolver.
 
-        Mirrors the C-003 ACL filter in AskPipeline._search_signals.
-        A signal is visible to a user if:
-          - source_acl == "public" (default, backward-compatible), OR
-          - source_acl == "private" AND the user is the actor or in viewers
+        Uses ACLResolver for full ACL support:
+          - public → allow
+          - private → actor or viewers only
+          - channel:slack:C123 → membership verification (deny if unverifiable)
+          - Unknown ACL → deny (fail-closed)
 
-        If user_email is empty (no user context), private signals are
-        hidden (fail-closed) — matches AskPipeline behavior at line 1087.
-
-        This closes the C2 gap: previously, RecallEngine iterated
-        self.signals without any ACL check, so a user could recall
-        evidence from a private Slack channel they don't have access to.
+        This replaces the C2 fix which only handled "private" vs "public".
+        Channel-scoped and other non-public ACLs now deny by default
+        instead of being treated as public.
         """
-        acl = getattr(sig, "source_acl", "public")
-        if acl == "public":
-            return True
-        if acl == "private":
-            if not user_email:
-                return False  # fail-closed — no user context
-            viewers = sig.metadata.get("viewers", []) if hasattr(sig, "metadata") and sig.metadata else []
-            if sig.actor == user_email or user_email in viewers:
-                return True
-            return False
-        # Unknown ACL value — fail-closed
-        return False
+        from maestro_oem.acl_resolver import ACLResolver
+        return ACLResolver().can_access(sig, user_email)
 
     def _visible_signals(self, user_email: str = "") -> list:
         """Return only signals the user can see (C2 fix)."""

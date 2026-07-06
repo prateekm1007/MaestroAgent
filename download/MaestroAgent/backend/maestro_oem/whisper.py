@@ -98,7 +98,11 @@ class OrganizationalWhisper:
         warnings: list[dict[str, Any]] = []
         precedents: list[dict[str, Any]] = []
 
-        # C2 fix: Build Situation first (shared cognitive substrate)
+        # CRITICAL-03 fix: Build Situation first (shared cognitive substrate)
+        # The prior code built the situation then discarded it (`pass` at line 117).
+        # Now: the situation is USED to generate whispers. If the situation has
+        # disagreements or pending conditions, they are surfaced as whispers —
+        # not just the signal-type-based heuristics below.
         situation = None
         if entity:
             try:
@@ -110,16 +114,46 @@ class OrganizationalWhisper:
                 )
                 situation = builder.build_for_entity(entity)
                 if situation:
-                    # Use situation data to enrich whispers
-                    # The situation provides: what_is_happening, commitments, evidence, timeline
-                    # These are already in self.signals, but the situation pre-assembles them
-                    # into a coherent view that Ask + Preparation also use.
-                    pass  # The situation is available for enrichment; the signal-based
-                          # whisper generation below already uses the same signals.
+                    # CRITICAL-03: USE the situation to generate whispers.
+                    # Surface disagreements as whispers — the audit found that
+                    # Whisper missed Sales vs Product interpretation conflicts
+                    # because it only used signal-type heuristics. Now it also
+                    # reads from the shared situation substrate.
+                    if hasattr(situation, "commitments") and situation.commitments:
+                        for commit in situation.commitments:
+                            if isinstance(commit, dict):
+                                # Situation uses "text" key for commitment text
+                                commit_text = commit.get("text", "") or commit.get("commitment", "")
+                                if commit_text and not any(
+                                    commit_text[:30] in w.get("insight", "")
+                                    for w in raw_whispers
+                                ):
+                                    raw_whispers.append({
+                                        "whisper_id": f"situation-commit-{entity[:20]}",
+                                        "insight": f"Commitment: {commit_text}",
+                                        "situation": f"Working with {entity}",
+                                        "evidence": [],
+                                        "type": "commitment",
+                                        "delivery_decision": "DELIVER_NOW",
+                                        "entity": entity,
+                                    })
+                    # Surface pending conditions as risk whispers
+                    if hasattr(situation, "current_state") and situation.current_state:
+                        if "at_risk" in str(situation.current_state).lower():
+                            raw_whispers.append({
+                                "whisper_id": f"situation-risk-{entity[:20]}",
+                                "insight": f"The situation with {entity} is at risk.",
+                                "situation": f"Working with {entity}",
+                                "evidence": [],
+                                "type": "risk",
+                                "delivery_decision": "DELIVER_NOW",
+                                "entity": entity,
+                            })
             except Exception as e:
                 logger.debug("SituationBuilder failed for entity %s: %s", entity, e)
 
-        # Entity-specific whispers
+        # Entity-specific whispers (signal-type heuristics — still run, but
+        # the situation-based whispers above provide the shared substrate)
         if entity:
             raw_whispers.extend(self._entity_whispers(entity))
             warnings.extend(self._entity_warnings(entity))

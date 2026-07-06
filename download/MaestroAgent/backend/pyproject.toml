@@ -108,6 +108,15 @@ target-version = ["py311"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# CRITICAL-02 fix: test suite categorization markers.
+# Default: run unit + integration only (hermetic, no external deps).
+# Use -m slow / -m live / -m browser / -m perf to run those categories.
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "live: marks tests requiring live provider APIs (Slack, GitHub, etc.)",
+    "browser: marks tests requiring Playwright browsers",
+    "perf: marks tests as performance/load tests",
+]
 testpaths = [
     "tests",
     "maestro_api/tests",
