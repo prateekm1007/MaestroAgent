@@ -202,7 +202,7 @@ class OrganizationalWhisper:
         # Whisper pipeline — every Whisper was returned without ever asking
         # "should I stay quiet?" Now the gate runs on every Whisper, deriving
         # its inputs from the whisper_store history (not caller-supplied booleans).
-        delivered_whispers, suppressed_whispers = self._apply_delivery_gate(unique_whispers, entity)
+        delivered_whispers, suppressed_whispers = self._apply_delivery_gate(unique_whispers, entity, context=context)
 
         # Round 3 Fix 2: Cross-whisper prioritization + recipient routing.
         # The delivery gate decides which whispers are ELIGIBLE. The prioritizer
@@ -246,7 +246,7 @@ class OrganizationalWhisper:
         }
 
     def _apply_delivery_gate(
-        self, whispers: list[dict[str, Any]], entity: str = ""
+        self, whispers: list[dict[str, Any]], entity: str = "", context: str = ""
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Apply the delivery decision gate to each whisper.
 
@@ -347,6 +347,22 @@ class OrganizationalWhisper:
 
             exec_already_acted = action_taken == "acted"
 
+            # HIGH-01 fix: derive has_upcoming_meeting from context + signals.
+            # The delivery gate supports meeting-timed delivery (DELIVER_AT_MEETING_TIME)
+            # but the production Whisper path was not passing this parameter.
+            # Now: if context is "meeting" OR there's a MEETING_SCHEDULED signal
+            # for this entity, set has_upcoming_meeting=True.
+            has_upcoming_meeting = False
+            if context == "meeting":
+                has_upcoming_meeting = True
+            elif entity:
+                for s in self.signals:
+                    if (hasattr(s, "type") and s.type == SignalType.MEETING_SCHEDULED
+                        and hasattr(s, "metadata") and s.metadata
+                        and s.metadata.get("customer", "").lower() == entity.lower()):
+                        has_upcoming_meeting = True
+                        break
+
             # Run the gate
             decision = decide_delivery(
                 exec_already_acted=exec_already_acted,
@@ -354,6 +370,7 @@ class OrganizationalWhisper:
                 has_high_stakes_signal=has_high_stakes,
                 is_cold_start=is_cold_start,
                 shown_count=shown_count,
+                has_upcoming_meeting=has_upcoming_meeting,  # HIGH-01 fix
                 policy=active_policy,  # P0: governed adaptation loop wired
             )
 

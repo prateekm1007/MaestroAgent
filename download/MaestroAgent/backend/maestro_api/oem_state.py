@@ -179,21 +179,30 @@ class OEMState:
             # state from a different signal set, causing the model to
             # initialize from wrong data. In production (MAESTRO_DEMO_SEED=false),
             # the stale DB IS the real state and should persist.
+            #
+            # CRITICAL-04 fix: when MAESTRO_PURGE_ON_INIT=true, purge the
+            # OEMStore DB regardless of demo seed mode. This gives the user
+            # explicit control over fresh starts — useful for testing,
+            # cold-start verification, and clearing stale demo data that
+            # persists after MAESTRO_DEMO_SEED is turned off.
             try:
                 self._init_oem_store()
-                if _demo_seed_enabled():
-                    # Purge stale DB when demo seed is enabled — the demo
-                    # seed should always start from a clean slate.
+                should_purge = _demo_seed_enabled() or os.environ.get("MAESTRO_PURGE_ON_INIT", "").lower() in ("true", "1", "yes")
+                if should_purge:
+                    # Purge stale DB when demo seed is enabled OR purge is
+                    # explicitly requested — both should start from a clean slate.
                     try:
                         store_db = os.environ.get("MAESTRO_OEM_STORE_DB", "oem_store.db")
                         if os.path.exists(store_db) and store_db != ":memory:":
                             os.remove(store_db)
-                            logger.info("Demo seed: purged stale OEM store DB (%s) for clean demo load", store_db)
+                            logger.info("Purged stale OEM store DB (%s) for clean start (demo_seed=%s, purge_on_init=%s)",
+                                        store_db, _demo_seed_enabled(),
+                                        os.environ.get("MAESTRO_PURGE_ON_INIT", ""))
                             # Re-init the store (the old connection is now invalid)
                             self._oem_store = None
                             self._init_oem_store()
                     except Exception as purge_e:
-                        logger.warning("Demo seed: failed to purge stale OEM store DB: %s", purge_e)
+                        logger.warning("Failed to purge stale OEM store DB: %s", purge_e)
 
                 restored = self._load_model_state()
                 if restored:
