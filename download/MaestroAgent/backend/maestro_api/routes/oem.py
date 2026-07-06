@@ -198,6 +198,9 @@ def _law_to_dict(law: Any) -> dict[str, Any]:
     # < 10 total runtimes (validated + failed), display "insufficient
     # calibration history" instead of bare 4-decimal precision. The raw
     # confidence is still in the "confidence_raw" field for programmatic use.
+    # RC1 fix: 'confidence' is the raw float (0.0-1.0) for programmatic use.
+    # 'confidence_display' is the P25-gated string. 'confidence_raw' kept for
+    # backwards compat (alias of confidence_display).
     from maestro_oem.confidence import format_confidence_for_display
     sample_size = law.validated_runtimes + law.failed_runtimes
     return {
@@ -206,7 +209,8 @@ def _law_to_dict(law: Any) -> dict[str, Any]:
         "condition": law.condition,
         "outcome": law.outcome,
         "status": law.status.value,
-        "confidence": format_confidence_for_display(law.confidence, sample_size),
+        "confidence": float(law.confidence),
+        "confidence_display": format_confidence_for_display(law.confidence, sample_size),
         "confidence_raw": format_confidence_for_display(law.confidence, law.validated_runtimes + law.failed_runtimes),  # programmatic, not for display
         "calibration_sample_size": sample_size,
         "evidence_count": law.evidence_count,
@@ -228,13 +232,21 @@ def _law_to_dict(law: Any) -> dict[str, Any]:
 # ─── Helper: serialize a recommendation ─────────────────────────────────────
 
 def _rec_to_dict(rec: Any) -> dict[str, Any]:
-    """Serialize a Recommendation to a dict with all fields the UI needs."""
+    """Serialize a Recommendation to a dict with all fields the UI needs.
+
+    RC1 fix: 'confidence' is the raw float (0.0-1.0) for programmatic use
+    (tests, API consumers that do math on it). 'confidence_display' is the
+    P25-gated display string ("insufficient calibration history" when
+    sample_size < threshold, else "0.85"). This unbreaks tests that assert
+    0.0 <= confidence <= 1.0 while preserving the C4 display gate.
+    """
     return {
         "rec_id": rec.rec_id,
         "title": rec.title,
         "description": rec.description,
         "recommendation": rec.recommendation,
-        "confidence": format_confidence_for_display(rec.confidence, getattr(rec, "evidence_count", 0)),
+        "confidence": float(rec.confidence),
+        "confidence_display": format_confidence_for_display(rec.confidence, getattr(rec, "evidence_count", 0)),
         "decision_question": rec.decision_question,
         "provenance": rec.provenance,
         "linked_laws": rec.linked_laws,
@@ -1594,7 +1606,8 @@ def get_ceo_briefing() -> dict[str, Any]:
             "recommendation": top.recommendation,
             "why": top.description,
             "impact": top.impact or "Impact not yet assessed.",
-            "confidence": format_confidence_for_display(top.confidence, getattr(top, "evidence_count", 0)),
+            "confidence": float(top.confidence),
+            "confidence_display": format_confidence_for_display(top.confidence, getattr(top, "evidence_count", 0)),
             "urgency": top.urgency,
             "linked_laws": top.linked_laws or [],
             "rec_id": top.rec_id,

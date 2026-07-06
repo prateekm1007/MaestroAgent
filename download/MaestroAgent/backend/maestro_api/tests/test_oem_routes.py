@@ -199,8 +199,16 @@ class TestOemLaws:
                 assert isinstance(conf_raw, str), \
                     f"confidence_raw must be float or str, got {type(conf_raw)}"
             assert "calibration_sample_size" in law, "Law has no calibration_sample_size (C4 fix)"
-            assert isinstance(law["confidence"], str), \
-                f"confidence must be a display string (C4 fix). Got: {type(law['confidence'])}"
+            # RC1 fix: 'confidence' is now a raw float (0.0-1.0) for programmatic
+            # use; 'confidence_display' is the P25-gated string. Both must be present.
+            assert isinstance(law["confidence"], (int, float)), \
+                f"confidence must be a float (RC1 fix). Got: {type(law['confidence'])}"
+            assert 0.0 <= law["confidence"] <= 1.0, \
+                f"confidence out of range: {law['confidence']}"
+            assert "confidence_display" in law, \
+                "Law has no confidence_display field (RC1 fix)"
+            assert isinstance(law["confidence_display"], str), \
+                f"confidence_display must be a string (C4 fix). Got: {type(law['confidence_display'])}"
             assert "evidence_count" in law
             assert "validated_runtimes" in law
             assert "failed_runtimes" in law
