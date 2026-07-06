@@ -37,6 +37,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,84 @@ class RedisCache:
         except Exception as e:
             logger.debug("RedisCache.flush_pattern(%s) failed: %s", pattern, e)
             return False
+
+
+# ─── Model serialization helpers (Phase 2) ──────────────────────────────
+
+# Fields that are NOT serializable (contain complex objects like PatternDetector)
+# or that shouldn't be cached (too large, or process-specific).
+_NON_SERIALIZABLE_FIELDS = frozenset({
+    "pattern_detector",  # PatternDetector object — not a Pydantic model
+    "receipt_chains",    # Contains UUID objects — skip for now
+    "processed_signals", # Contains raw signal objects — too large, will be queried from DB
+})
+
+# Fields that ARE serializable and represent the core model state.
+_SERIALIZABLE_FIELDS = frozenset({
+    "health", "knowledge", "approvals", "risks",
+    "learning_objects", "laws", "next_law_number",
+    "created_at", "last_updated",
+})
+
+
+def serialize_model_snapshot(model: Any, org_id: str = "default") -> dict[str, Any]:
+    """Serialize an ExecutionModel into a JSON-safe snapshot for Redis caching.
+
+    Phase 2: full model serialization. Excludes non-serializable fields
+    (PatternDetector, receipt_chains with UUIDs, processed_signals with
+    raw signal objects). The snapshot contains enough state for another
+    replica to know what laws/LOs/risks exist without re-reading the DB.
+
+    Returns a dict that is JSON-serializable (safe for Redis set()).
+    """
+    try:
+        # Use Pydantic's JSON mode, EXCLUDING non-serializable fields.
+        # model_dump(exclude=...) prevents Pydantic from trying to serialize
+        # PatternDetector (which is not a Pydantic model and has no serializer).
+        full_dump = model.model_dump(mode="json", exclude=set(_NON_SERIALIZABLE_FIELDS))
+        # Filter to serializable fields only (defense-in-depth)
+        snapshot = {k: v for k, v in full_dump.items() if k in _SERIALIZABLE_FIELDS}
+        snapshot["_org_id"] = org_id
+        snapshot["_snapshot_version"] = 2  # Phase 2 marker
+        snapshot["_serialized_at"] = datetime.now(timezone.utc).isoformat()
+        # Add summary counts for quick change detection
+        snapshot["law_count"] = len(snapshot.get("laws", {}))
+        snapshot["lo_count"] = len(snapshot.get("learning_objects", {}))
+        return snapshot
+    except Exception as e:
+        logger.debug("serialize_model_snapshot failed: %s", e)
+        # Fall back to Phase 1 lightweight snapshot
+        return {
+            "_org_id": org_id,
+            "_snapshot_version": 1,
+            "law_count": len(getattr(model, "laws", {})),
+            "lo_count": len(getattr(model, "learning_objects", {})),
+            "error": str(e)[:100],
+        }
+
+
+def deserialize_model_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Deserialize a model snapshot from Redis.
+
+    Phase 2: returns the raw snapshot dict. The caller (OEMState) uses
+    this to detect changes (compare law_count, lo_count, last_updated)
+    and decide whether to reload from DB.
+
+    A future Phase 3 could reconstruct a full ExecutionModel from the
+    snapshot, but that requires handling Pydantic model construction
+    from nested dicts — risky without full field coverage.
+    """
+    return snapshot if isinstance(snapshot, dict) else {}
+
+
+def get_model_snapshot_key(org_id: str = "default") -> str:
+    """Redis key for the model snapshot."""
+    return f"org:{org_id}:model_snapshot"
+
+
+def get_signals_cache_key(org_id: str = "default") -> str:
+    """Redis key for the signals count cache."""
+    return f"org:{org_id}:signals_count"
 
 
 # ─── Module-level singleton ──────────────────────────────────────────────

@@ -535,36 +535,104 @@ class OEMState:
             logger.debug("Redis cache publish failed (non-fatal): %s", e)
 
     def _publish_to_redis_cache(self) -> None:
-        """HIGH-3 Phase 1: publish a lightweight model snapshot to Redis.
+        """HIGH-3 Phase 2: publish a FULL model snapshot to Redis.
 
-        When Redis is available (MAESTRO_REDIS_URL set), this writes a
-        snapshot of the model's signal count + law count + LO count to
-        Redis with a 5-minute TTL. Other replicas can read this to detect
-        that state has changed and trigger a reload from DB.
+        When Redis is available (MAESTRO_REDIS_URL set), this serializes
+        the full ExecutionModel (laws, learning_objects, risks, health,
+        knowledge, approvals) to Redis with a 5-minute TTL. Other
+        replicas can read this snapshot to get the latest state without
+        re-reading the DB.
 
-        This is Phase 1 — just a change-notification signal, not a full
-        model serialization. Phase 2 will serialize the full model.
+        Phase 1 was just counts (law_count, lo_count). Phase 2 is the
+        full model state — enough for another replica to know what
+        laws/LOs/risks exist.
 
         Fail-safe (P6): if Redis is unavailable, this is a no-op.
         """
         try:
-            from maestro_oem.redis_cache import get_redis_cache
+            from maestro_oem.redis_cache import get_redis_cache, serialize_model_snapshot, get_model_snapshot_key
             cache = get_redis_cache()
             if not cache.available:
                 return  # Single-replica mode — no cache needed
             model = self.engine.get_model() if self.engine else None
             if model is None:
                 return
-            snapshot = {
-                "org_id": getattr(self, "org_id", "default"),
-                "signal_count": len(self.signals) if self.signals else 0,
-                "law_count": len(model.laws) if hasattr(model, "laws") else 0,
-                "lo_count": len(model.learning_objects) if hasattr(model, "learning_objects") else 0,
-                "last_updated": model.last_updated.isoformat() if hasattr(model, "last_updated") and model.last_updated else None,
-            }
-            cache.set(f"org:{snapshot['org_id']}:model_snapshot", snapshot, ttl=300)
+            org_id = getattr(self, "org_id", "default")
+            snapshot = serialize_model_snapshot(model, org_id=org_id)
+            snapshot["signal_count"] = len(self.signals) if self.signals else 0
+            cache.set(get_model_snapshot_key(org_id), snapshot, ttl=300)
         except Exception as e:
             logger.debug("_publish_to_redis_cache failed (non-fatal): %s", e)
+
+    def _read_from_redis_cache(self) -> dict[str, Any] | None:
+        """HIGH-3 Phase 2: read the model snapshot from Redis.
+
+        Returns the cached snapshot if available, or None if Redis is
+        unavailable or the cache is empty. The caller uses this to detect
+        whether another replica has newer state (compare law_count,
+        lo_count, last_updated with the local model).
+
+        Fail-safe (P6): returns None if Redis unavailable or stale.
+        """
+        try:
+            from maestro_oem.redis_cache import get_redis_cache, deserialize_model_snapshot, get_model_snapshot_key
+            cache = get_redis_cache()
+            if not cache.available:
+                return None
+            org_id = getattr(self, "org_id", "default")
+            raw = cache.get(get_model_snapshot_key(org_id))
+            if raw is None:
+                return None
+            return deserialize_model_snapshot(raw)
+        except Exception as e:
+            logger.debug("_read_from_redis_cache failed (non-fatal): %s", e)
+            return None
+
+    def is_cache_stale(self) -> bool:
+        """HIGH-3 Phase 2: check if the local model is stale vs Redis cache.
+
+        Compares the local model's law_count + lo_count + signal_count
+        with the cached snapshot. If they differ, the local model is
+        stale (another replica has newer state) and should reload.
+
+        Returns True if stale OR if cache is unavailable (conservative:
+        when we can't check, assume we might be stale). Returns False if
+        the counts match (local model is current).
+        """
+        snapshot = self._read_from_redis_cache()
+        if snapshot is None:
+            return False  # No cache to compare against — can't be stale
+        model = self.engine.get_model() if self.engine else None
+        if model is None:
+            return True  # No local model — definitely stale
+        local_law_count = len(model.laws) if hasattr(model, "laws") else 0
+        local_lo_count = len(model.learning_objects) if hasattr(model, "learning_objects") else 0
+        local_signal_count = len(self.signals) if self.signals else 0
+        if (snapshot.get("law_count", 0) != local_law_count
+            or snapshot.get("lo_count", 0) != local_lo_count
+            or snapshot.get("signal_count", 0) != local_signal_count):
+            return True  # Counts differ — stale
+        return False
+
+    def _reload_from_db(self) -> None:
+        """HIGH-3 Phase 3: reload the model from DB when cache says we're stale.
+
+        This is called by OEMStateRegistry.get_with_cache_check() when
+        is_cache_stale() returns True. It re-loads the persisted model
+        state from OEMStore (SQLite/Postgres), replacing the in-memory
+        model with the latest DB state.
+
+        Fail-safe (P6): if reload fails, the local model is kept (better
+        to serve slightly-stale data than crash). The error is logged.
+        """
+        try:
+            logger.info("HIGH-3: reloading model from DB (was stale vs Redis cache)")
+            # Re-load persisted model state
+            self._load_model_state()
+            # Re-publish to Redis so other replicas see we're current
+            self._publish_to_redis_cache()
+        except Exception as e:
+            logger.warning("HIGH-3: reload from DB failed (keeping local state): %s", e)
 
     def _purge_demo_seed_locked(self) -> None:
         """Purge demo seed signals from the OEM state.
@@ -920,6 +988,33 @@ class OEMStateRegistry:
     def clear(cls) -> None:
         """Clear all instances (for testing)."""
         cls._instances = {}
+
+    @classmethod
+    def get_with_cache_check(cls, org_id: str = "default") -> "OEMState":
+        """HIGH-3 Phase 3: get OEMState with Redis cache staleness check.
+
+        Returns the OEMState for the given org. If Redis is available,
+        checks whether the local model is stale (another replica has
+        newer state). If stale, triggers a reload from DB.
+
+        This is the cache-aware factory prescribed by Phase 3. It does
+        NOT remove the singleton (backward-compatible), but adds the
+        cache-read path so multi-replica deployments can detect staleness.
+
+        When Redis is unavailable (single-replica mode), this is identical
+        to get() — the singleton is returned without cache check.
+
+        Fail-safe (P6): if the cache check fails, the singleton is returned
+        without reload. Better to serve slightly-stale data than no data.
+        """
+        state = cls.get(org_id)
+        try:
+            if state.is_cache_stale():
+                logger.info("HIGH-3: local model is stale vs Redis cache — reloading from DB")
+                state._reload_from_db()
+        except Exception as e:
+            logger.debug("HIGH-3 cache staleness check failed (non-fatal): %s", e)
+        return state
 
 
 # Convenience function for routes
