@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports, personal, copilot
+from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports, personal, copilot, copilot_pre_call
 from maestro_auth.routes import router as enterprise_auth_router, scim_router as scim_router_v2
 from maestro_api.websocket import register_ws_routes
 from maestro_api.state import AppState
@@ -361,6 +361,7 @@ def create_app(
     # Status dashboard (HTML at /status — NOT part of /api).
     app.include_router(status.router, tags=["status"])
     app.include_router(copilot.router, tags=["copilot"])  # Live Copilot WebSocket
+    app.include_router(copilot_pre_call.router)  # Live Copilot pre-call briefing
 
     # WebSocket for live event streaming.
     register_ws_routes(app)

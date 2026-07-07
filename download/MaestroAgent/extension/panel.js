@@ -92,12 +92,105 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// ─── Meeting context display (Phase 3 will fully populate) ──────────────────
-function showMeetingContext(message) {
+// ─── Meeting context display (Phase 3: pre-call briefing) ──────────────────
+async function showMeetingContext(message) {
   defaultState.classList.add('hidden');
   meetingContext.classList.remove('hidden');
   document.getElementById('meetingTitle').textContent = message.title || 'Meeting detected';
   startBtn.disabled = false;
+
+  // Phase 3: fetch pre-call briefing from the backend
+  await fetchPreCallBriefing(message);
+}
+
+// ─── Fetch pre-call briefing (Phase 3) ──────────────────────────────────────
+async function fetchPreCallBriefing(meetingInfo) {
+  try {
+    const response = await fetch('http://localhost:8000/api/copilot/pre-call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        meeting_title: meetingInfo.title || '',
+        meeting_url: meetingInfo.url || '',
+        platform: meetingInfo.platform || '',
+        attendees: meetingInfo.attendees || [],
+        user_email: '',  // Phase 3.5: get from auth context
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Maestro: pre-call briefing failed:', response.status);
+      return;
+    }
+
+    const briefing = await response.json();
+    renderPreCallBriefing(briefing);
+  } catch (err) {
+    console.warn('Maestro: pre-call briefing error:', err);
+  }
+}
+
+// ─── Render pre-call briefing (Phase 3) ─────────────────────────────────────
+function renderPreCallBriefing(briefing) {
+  const attendeeList = document.getElementById('attendeeList');
+  attendeeList.innerHTML = '';
+
+  // Meeting context card
+  const ctx = briefing.meeting_context || {};
+  const ctxCard = document.createElement('div');
+  ctxCard.className = 'suggestion-card tracked';
+  ctxCard.innerHTML = `
+    <div class="card-title">Meeting Context</div>
+    <div class="card-body">
+      ${ctx.entity ? `<div>Entity: <strong>${ctx.entity}</strong></div>` : ''}
+      ${ctx.relationship_health ? `<div>Health: <strong>${ctx.relationship_health}</strong></div>` : ''}
+      ${ctx.open_commitments !== undefined ? `<div>Open commitments: <strong>${ctx.open_commitments}</strong></div>` : ''}
+    </div>
+  `;
+  attendeeList.appendChild(ctxCard);
+
+  // Attendee intelligence
+  for (const attendee of (briefing.attendee_intelligence || [])) {
+    const card = document.createElement('div');
+    card.className = 'suggestion-card whisper';
+    const name = attendee.email.split('@')[0];
+    card.innerHTML = `
+      <div class="card-title">${name}</div>
+      <div class="card-body">
+        <div>${attendee.interaction_count} interactions in organizational memory</div>
+        ${attendee.last_interaction_days_ago !== null
+          ? `<div>Last interaction: ${attendee.last_interaction_days_ago} days ago</div>`
+          : ''}
+        ${attendee.commitment_count > 0
+          ? `<div>${attendee.commitment_count} commitments tracked</div>`
+          : ''}
+      </div>
+    `;
+    attendeeList.appendChild(card);
+  }
+
+  // Suggested talking points
+  for (const point of (briefing.suggested_talking_points || [])) {
+    const card = document.createElement('div');
+    card.className = 'suggestion-card pattern';
+    card.innerHTML = `
+      <div class="card-title">Talking Point (${point.priority})</div>
+      <div class="card-body">${point.text}</div>
+      <div class="card-evidence">Evidence: ${point.evidence.source}</div>
+    `;
+    attendeeList.appendChild(card);
+  }
+
+  // Risks
+  for (const risk of (briefing.risks_to_address || [])) {
+    const card = document.createElement('div');
+    card.className = 'suggestion-card objection';
+    card.innerHTML = `
+      <div class="card-title">Risk: ${risk.type} (${risk.severity})</div>
+      <div class="card-body">${risk.text}</div>
+    `;
+    attendeeList.appendChild(card);
+  }
 }
 
 // ─── Backend message handler (Phases 4-5 will fully implement) ─────────────
