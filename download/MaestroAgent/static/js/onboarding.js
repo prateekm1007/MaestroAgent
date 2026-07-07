@@ -151,7 +151,7 @@ function renderOnboardingName() {
       <div class="text-title b-mbvar-space-4">What's your name?</div>
       <div class="b-w-full-5">
         <input type="text" class="maestro-input" id="onboard-name" placeholder="First name"
-               oninput="document.getElementById('onboard-name-btn').disabled = !this.value.trim"
+               oninput="document.getElementById('onboard-name-btn').disabled = !this.value.trim()"
                class="b-mbvar-space-3" autofocus />
         <div class="text-caption b-text-muted-4">
           This is how I'll greet you.

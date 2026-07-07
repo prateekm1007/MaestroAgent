@@ -539,3 +539,14 @@ async def _init_auth(app: FastAPI) -> None:
     else:
         state.api_key_store = None
         state.oauth_provider = None
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "maestro_api.main:create_app",
+        factory=True,
+        host="0.0.0.0",
+        port=8765,
+        reload=True,
+    )
