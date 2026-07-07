@@ -36,7 +36,12 @@ from .situation_engine import (
 )
 from .perspective import Perspective
 from .judgment_synthesizer import JudgmentSynthesizer
-from .delivery_governor import DeliveryGovernor, UserContext
+from .delivery_governor import (
+    DeliveryGovernor,
+    UserContext,
+    OpportunityCostModel,
+    OpportunityCostAssessment,
+)
 from .consequence_path_router import ConsequencePathRouter, ConsequencePath, RoutingResult
 
 __all__ = [
@@ -65,6 +70,8 @@ __all__ = [
     # Phase 4: Delivery Governor
     "DeliveryGovernor",
     "UserContext",
+    "OpportunityCostModel",
+    "OpportunityCostAssessment",
     # Gate 2: Consequence-Path Router
     "ConsequencePathRouter",
     "ConsequencePath",
