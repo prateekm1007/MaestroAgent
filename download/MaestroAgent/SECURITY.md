@@ -16,7 +16,7 @@ Maestro implements defense-in-depth across 12 layers:
 | Trusted Proxy | X-Forwarded-For validation against trusted CIDRs | `maestro_auth/security.py::TrustedProxyConfig` |
 | Rate Limiting | Per-IP + per-user + per-endpoint, exponential backoff | `maestro_auth/security.py::EnhancedRateLimitMiddleware` |
 | Tenant Isolation | Thread-local org_id context on every request | `maestro_auth/security.py::TenantIsolationMiddleware` |
-| Encryption | AES-256-GCM at rest for secrets (OAuth tokens, MFA secrets) | `maestro_auth/security.py::EncryptionManager` |
+| Encryption | Fernet (AES-128-CBC + HMAC-SHA256) at rest for secrets (OAuth tokens, MFA secrets) | `maestro_auth/security.py::EncryptionManager` |
 | Secrets | Pluggable: HashiCorp Vault → file → env | `maestro_auth/security.py::SecretsManager` |
 | Key Rotation | Signing keys with rotation + retention window | `maestro_auth/security.py::KeyRotationManager` |
 | Audit Trails | Hash-chained, tamper-evident, append-only | `maestro_auth/security.py::TamperEvidentAuditLog` |
@@ -101,7 +101,7 @@ POST /api/auth/soc2/cleanup-sessions — trigger expired session cleanup
 | OWASP Risk | Mitigation |
 |-----------|------------|
 | A01 Broken Access Control | RBAC dependencies on every route; tenant isolation |
-| A02 Cryptographic Failures | Argon2 passwords; AES-256-GCM at rest; TLS in transit |
+| A02 Cryptographic Failures | Argon2 passwords; Fernet (AES-128-CBC + HMAC-SHA256) at rest; TLS in transit |
 | A03 Injection | Parameterized queries (SQLite); no string interpolation in SQL |
 | A04 Insecure Design | Threat model (see THREAT_MODEL.md); defense-in-depth |
 | A05 Security Misconfiguration | CSP, HSTS, X-Frame-Options, nosniff; no default creds |

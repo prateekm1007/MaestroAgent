@@ -105,7 +105,7 @@ class DealHealthEngine:
 
     Usage:
         engine = DealHealthEngine(oem_state)
-        score = engine.compute_score(entity="Globex")
+        score = engine.compute_score(entity="")
         print(f"Deal health: {score.score}% ({score.status.value})")
         print(f"Risk factors: {[rf.description for rf in score.risk_factors]}")
     """

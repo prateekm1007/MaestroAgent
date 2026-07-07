@@ -416,7 +416,7 @@ class CommitmentEscalationEngine:
     def get_commitment_clusters(self) -> list[dict]:
         """Surface commitment clusters (multiple commitments to same entity/owner).
 
-        AMBIENT: "You have 3 overdue commitments to Globex — trust erosion risk."
+        AMBIENT: "You have 3 overdue commitments to entity — trust erosion risk."
         """
         clusters = defaultdict(list)
         for esc in self._escalations.values():

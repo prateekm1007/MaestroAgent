@@ -5,7 +5,7 @@ Phase 9 of the Ambient Intelligence roadmap (Days 34-43, 40 hours).
 
 This engine runs 24/7, analyzing the user's calendar to:
 1. Predict upcoming meetings and pre-fetch relevant intelligence
-2. Detect meeting clusters (e.g., "3 Globex meetings this week = deal acceleration")
+2. Detect meeting clusters (e.g., "3 entity meetings this week = deal acceleration")
 3. Identify preparation gaps (e.g., "Meeting in 2 hours, no prep done")
 4. Surface time-based patterns (e.g., "Pricing always comes up in Q4 renewal calls")
 
@@ -118,7 +118,7 @@ class CalendarAwarenessEngine:
         urgent = await engine.get_urgent_meeting()
     """
 
-    KNOWN_ENTITIES = ["Globex", "Initech", "TestCorp", "Acme", "Atlas"]
+    KNOWN_ENTITIES: list[str] = []  # Configured per-deployment; no hardcoded demo entities
 
     def __init__(
         self,
@@ -241,7 +241,7 @@ class CalendarAwarenessEngine:
             attendee_profiles=attendee_profiles,
         )
 
-        # Detect meeting clusters (AMBIENT dimension: "3 Globex meetings this week")
+        # Detect meeting clusters (AMBIENT dimension: "3 entity meetings this week")
         cluster_info = self._detect_meeting_clusters(entity, event)
 
         context = MeetingContext(
@@ -510,7 +510,7 @@ class CalendarAwarenessEngine:
             return "strong"
 
     def _detect_meeting_clusters(self, entity: Optional[str], event: dict) -> dict:
-        """Detect meeting clusters (AMBIENT: '3 Globex meetings this week')."""
+        """Detect meeting clusters (AMBIENT: '3 entity meetings this week')."""
         if not entity:
             return {}
 

@@ -37,6 +37,7 @@ class TestCalendarAwarenessEngine:
     def test_entity_extraction_from_title(self):
         """Entity is extracted from meeting title."""
         engine = self._make_engine()
+        engine.KNOWN_ENTITIES = ["Globex"]  # configured per-deployment
         event = {"title": "Q3 Renewal — Globex Corp", "attendees": []}
         assert engine._extract_entity(event) == "Globex"
 

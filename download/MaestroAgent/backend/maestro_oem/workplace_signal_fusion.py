@@ -236,11 +236,11 @@ class WorkplaceSignalFusion:
     channels. Only operates in ENTERPRISE deployment mode.
 
     Usage:
-        governance = DataGovernanceLayer(company_domain="acme.com")
+        governance = DataGovernanceLayer(company_domain="")
         fusion = WorkplaceSignalFusion(governance)
         signals = fusion.process_email(
-            sender="raj@acme.com",
-            recipients=["sam@acme.com"],
+            sender="",
+            recipients=[],
             subject="SSO deployment",
             body="We will deploy SSO by Friday.",
         )

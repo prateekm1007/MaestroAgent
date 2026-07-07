@@ -18,7 +18,7 @@ Usage:
     await connector.sync_commitment({
         "text": "Deploy SSO by Friday",
         "actor": "raj@globex.com",
-        "entity": "Globex",
+        "entity": "",
         "due_date": "2024-12-15",
         "meeting_id": "m-123",
     })

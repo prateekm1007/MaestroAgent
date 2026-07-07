@@ -11,7 +11,7 @@ class AuthConfig:
     """Auth configuration loaded from environment variables."""
 
     # Master toggle. When false (default for local dev), no auth is required.
-    enabled: bool = False
+    enabled: bool = True  # Auth ON by default (safe); OFF only when MAESTRO_LOCAL_DEV=true
     # Local API key. If set, all /api/* requests must include it as
     # `Authorization: Bearer <key>`. Auto-generated on first run if
     # MAESTRO_AUTH_ENABLED=true and no key is set.
