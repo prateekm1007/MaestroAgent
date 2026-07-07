@@ -96,6 +96,7 @@ class SignalType(str, Enum):
     CUSTOMER_OBJECTION = "customer.objection"        # the customer raised a concern
     CUSTOMER_CHAMPION_ACTIVE = "customer.champion_active"   # champion is engaged
     CUSTOMER_CHAMPION_QUIET = "customer.champion_quiet"     # champion has gone silent (drift signal)
+    SENTIMENT_PATTERN = "sentiment.pattern"                  # Phase 10: emotional pattern detected
 
 
 class ExecutionSignal(BaseModel):
