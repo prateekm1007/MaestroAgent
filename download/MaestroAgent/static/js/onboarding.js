@@ -317,6 +317,53 @@ function _toolIdToOAuthProvider(toolId) {
 
 function _startOAuthFlow(provider, toolId) {
   // Round 51 H15: start the real OAuth flow.
+  // H-1 fix (Fortune 100 audit): before opening the OAuth popup, check
+  // whether the provider is actually configured (has_credentials). If not,
+  // show a clear "Configure API keys first" message instead of failing
+  // silently with a 400 error. The prior code opened a popup that either
+  // failed silently or showed an opaque 400 — a Fortune 100 procurement
+  // team flagged this as "theatrical toggles."
+  fetch('/api/oauth/status')
+    .then(r => r.json())
+    .then(data => {
+      const providers = data.providers || [];
+      const provInfo = providers.find(p => p.provider === provider);
+      if (provInfo && !provInfo.configured) {
+        // OAuth is not configured for this provider — show a clear message
+        _showOAuthNotConfiguredMessage(provider, toolId);
+        // Turn the toggle back off since we can't connect
+        _workToolToggles[toolId] = false;
+        _personalToolToggles[toolId] = false;
+        const toggle = document.getElementById(`work-toggle-${toolId}`) || document.getElementById(`personal-toggle-${toolId}`);
+        if (toggle) toggle.classList.remove('on');
+        return;
+      }
+      // OAuth IS configured — proceed with the real flow
+      _proceedWithOAuthFlow(provider, toolId);
+    })
+    .catch(() => {
+      // Can't reach the status endpoint — fall back to attempting the flow
+      _proceedWithOAuthFlow(provider, toolId);
+    });
+}
+
+function _showOAuthNotConfiguredMessage(provider, toolId) {
+  // Show a clear inline message explaining the toggle requires backend config
+  const tool = document.getElementById(`work-tool-${toolId}`) || document.getElementById(`personal-tool-${toolId}`);
+  if (!tool) return;
+  let msg = tool.querySelector('.oauth-config-msg');
+  if (!msg) {
+    msg = document.createElement('div');
+    msg.className = 'oauth-config-msg';
+    msg.style.cssText = 'font-size:12px;color:var(--maestro-warning,#FF9800);margin-top:6px;padding:6px 8px;background:rgba(255,152,0,0.1);border-radius:4px;';
+    tool.appendChild(msg);
+  }
+  msg.textContent = `⚠ ${provider} requires API credentials. Ask your admin to configure the ${provider.toUpperCase()}_CLIENT_ID and ${provider.toUpperCase()}_CLIENT_SECRET environment variables, then try again.`;
+  // Auto-remove after 8 seconds
+  setTimeout(() => { if (msg && msg.parentNode) msg.parentNode.removeChild(msg); }, 8000);
+}
+
+function _proceedWithOAuthFlow(provider, toolId) {
   // Fetch the authorization URL from /api/oauth/{provider}/start,
   // then open it in a popup. The popup redirects to the provider,
   // the user authorizes, and the callback redirects back.

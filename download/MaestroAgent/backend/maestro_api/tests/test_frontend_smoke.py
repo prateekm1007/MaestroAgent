@@ -19,6 +19,12 @@ from __future__ import annotations
 import time
 import threading
 import pytest
+# H-2 fix: gate the playwright import behind importorskip so this file
+# doesn't error on a fresh clone where playwright isn't installed.
+# Playwright is an optional browser-test dependency (see pyproject.toml
+# `browser` extra). Without this guard, `python -m pytest` collection
+# fails with ModuleNotFoundError on environments without playwright.
+pytest.importorskip("playwright")
 from playwright.sync_api import sync_playwright
 
 pytestmark = pytest.mark.browser

@@ -58,40 +58,53 @@ _IMPORT_DB_PATH = os.environ.get(
 def _demo_seed_enabled() -> bool:
     """Whether the acme-corp demo seed should be loaded at startup.
 
-    Round 60/65 fix: defaults to False (demo OFF) in non-local environments.
-    Defaults to True only when MAESTRO_LOCAL_DEV=true.
-    In production (MAESTRO_ENV=production), always False unless explicitly set.
+    H-5 fix (Fortune 100 audit): simplified to a clear 2-tier model with
+    explicit startup logging so operators always know which data mode
+    they're in. The prior 3-tier logic (local_dev=ON, production=OFF,
+    staging=OFF) was correct but fragile and confusing.
+
+    Tier 1 — Production (MAESTRO_ENV=production):
+      Demo seed is BLOCKED. If MAESTRO_DEMO_SEED=true is explicitly set,
+      raises RuntimeError. Default: OFF.
+
+    Tier 2 — Development (everything else):
+      Demo seed defaults to ON only when MAESTRO_LOCAL_DEV=true.
+      Otherwise OFF. Explicitly setting MAESTRO_DEMO_SEED=true|false
+      always overrides the default.
+
+    The startup log clearly states which tier is active and whether demo
+    data will be loaded, so operators never have to guess.
     """
     val = os.environ.get("MAESTRO_DEMO_SEED", "").strip().lower()
     is_production = os.environ.get("MAESTRO_ENV", "development") == "production"
-
-    if val:
-        # Explicitly set — honor it
-        enabled = val not in ("false", "0", "no", "off")
-        if enabled and is_production:
-            # Round 69 P0 RESIDUAL-5: BLOCK synthetic data in production.
-            # The old code only logged a warning and loaded synthetic data anyway.
-            # Now it raises RuntimeError — production must never load demo seed.
-            raise RuntimeError(
-                "MAESTRO_DEMO_SEED=true in production (MAESTRO_ENV=production). "
-                "Synthetic demo data is BLOCKED in production. "
-                "Set MAESTRO_DEMO_SEED=false or use MAESTRO_LOCAL_DEV=true for dev mode."
-            )
-        return enabled
-
-    # Not explicitly set — use environment-aware default
-    # Round 60 Fix 2: demo seed defaults OFF in non-local environments.
-    # The old default was True for ALL non-production environments —
-    # staging, pilot, etc. all got synthetic data. Now only local dev
-    # (MAESTRO_LOCAL_DEV=true) gets the demo seed by default.
-    if is_production:
-        logger.info("MAESTRO_DEMO_SEED not set in production — defaulting to false (no demo data)")
-        return False
     is_local_dev = os.environ.get("MAESTRO_LOCAL_DEV", "false").lower() in ("1", "true", "yes")
-    if is_local_dev:
-        return True  # Local dev: demo on for evaluation
-    logger.info("MAESTRO_DEMO_SEED not set in non-local env — defaulting to false (no demo data)")
-    return False  # Non-local, non-production: demo OFF
+
+    # Determine the effective value
+    if val:
+        enabled = val not in ("false", "0", "no", "off")
+    elif is_production:
+        enabled = False
+    else:
+        enabled = is_local_dev  # dev default: ON only if MAESTRO_LOCAL_DEV=true
+
+    # Production safety: BLOCK synthetic data in production
+    if enabled and is_production:
+        raise RuntimeError(
+            "MAESTRO_DEMO_SEED=true in production (MAESTRO_ENV=production). "
+            "Synthetic demo data is BLOCKED in production. "
+            "Set MAESTRO_DEMO_SEED=false or use MAESTRO_LOCAL_DEV=true for dev mode."
+        )
+
+    # H-5 fix: explicit startup logging so operators know the data mode
+    tier = "PRODUCTION" if is_production else ("LOCAL_DEV" if is_local_dev else "STAGING/OTHER")
+    mode = "DEMO DATA (synthetic acme-corp)" if enabled else "EMPTY (no demo data — connect real providers)"
+    logger.info("=== DATA MODE [tier=%s] → %s ===", tier, mode)
+    if val:
+        logger.info("  MAESTRO_DEMO_SEED explicitly set to '%s' (override applied)", val)
+    else:
+        logger.info("  MAESTRO_DEMO_SEED not set — using %s default", tier)
+
+    return enabled
 
 
 class OEMState:

@@ -16,6 +16,9 @@ from __future__ import annotations
 import time
 import threading
 import pytest
+# H-2 fix: gate the playwright import behind importorskip so this file
+# doesn't error on a fresh clone where playwright isn't installed.
+pytest.importorskip("playwright")
 from playwright.sync_api import sync_playwright
 
 pytestmark = pytest.mark.browser
