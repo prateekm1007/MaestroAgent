@@ -657,7 +657,194 @@ def get_active_policy_for_delivery() -> AdaptationPolicy | None:
 #   - Background loop (future: automatic outcome detection)
 
 # In-memory evidence accumulation (per-org in production; per-process here)
+#
+# L0 fix (HIGH-06): the process-local `_pending_evidence` list is retained
+# ONLY as a backward-compatibility shim for existing tests that import it
+# directly (test_m1_background_loop_wiring.py, test_phase4_delivery_matrix.py,
+# test_c3_learning_loop.py). Production code now routes through the durable
+# OutcomeLedger below, which persists to SQLite and is tenant-scoped.
 _pending_evidence: list[dict[str, Any]] = []
+
+
+# ─── L0 fix (HIGH-06): Durable, tenant-scoped OutcomeLedger ────────────────
+#
+# Replaces the process-local `_pending_evidence` global. Each OutcomeRecorder
+# instance binds to a ledger (created lazily on first use). The ledger
+# persists to SQLite so evidence survives process restarts and is visible
+# across replicas. Rows are scoped by `org_id` so multi-tenant deployments
+# don't leak evidence between tenants.
+#
+# Schema (auto-created on first use):
+#   outcome_ledger(
+#     id INTEGER PRIMARY KEY,
+#     org_id TEXT NOT NULL,
+#     whisper_id TEXT,
+#     exec_action TEXT,
+#     outcome TEXT,
+#     entity TEXT,
+#     hypothesis TEXT,
+#     confounders TEXT,           -- JSON
+#     context_signals TEXT,       -- JSON
+#     recorded_at TEXT NOT NULL   -- ISO timestamp
+#   )
+
+_OUTCOME_LEDGER_SCHEMA = """
+CREATE TABLE IF NOT EXISTS outcome_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id TEXT NOT NULL,
+    whisper_id TEXT,
+    exec_action TEXT,
+    outcome TEXT,
+    entity TEXT,
+    hypothesis TEXT,
+    confounders TEXT,
+    context_signals TEXT,
+    recorded_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outcome_org ON outcome_ledger(org_id);
+CREATE INDEX IF NOT EXISTS idx_outcome_entity ON outcome_ledger(entity);
+"""
+
+
+class OutcomeLedger:
+    """Durable, tenant-scoped ledger of pending outcome evidence.
+
+    This replaces the process-local `_pending_evidence` global for production
+    use. Evidence persists across process restarts and is visible to all
+    replicas in a multi-instance deployment. Each row is scoped by `org_id`
+    so tenants cannot read each other's evidence.
+
+    Usage:
+        ledger = OutcomeLedger(db_path="/var/lib/maestro/outcomes.db")
+        ledger.append({"whisper_id": "wspr-1", ...}, org_id="acme")
+        if ledger.count(org_id="acme") >= 5:
+            evidence = ledger.get_all(org_id="acme")
+            ledger.clear(org_id="acme")
+    """
+
+    _default: "OutcomeLedger | None" = None
+
+    def __init__(self, db_path: str = "") -> None:
+        self._db_path = db_path or os.environ.get("MAESTRO_OUTCOME_DB", "") or ":memory:"
+        self._lock = threading.RLock()
+        self._conn: sqlite3.Connection | None = None
+        self._connect()
+
+    def _connect(self) -> None:
+        try:
+            from maestro_db import sqlite_compat as sqlite3_compat
+            self._conn = sqlite3_compat.connect(self._db_path, isolation_level=None)
+            self._conn.row_factory = sqlite3_compat.Row
+        except Exception:
+            self._conn = sqlite3.connect(self._db_path, isolation_level=None)
+            self._conn.row_factory = sqlite3.Row
+        try:
+            cursor = self._conn.cursor()
+            for stmt in _OUTCOME_LEDGER_SCHEMA.strip().split(';'):
+                stmt = stmt.strip()
+                if stmt:
+                    cursor.execute(stmt)
+        except Exception as e:
+            logger.warning("OutcomeLedger schema init: %s", e)
+
+    def append(self, outcome_dict: dict[str, Any], org_id: str = "default") -> None:
+        """Append an outcome to the durable ledger."""
+        from datetime import datetime, timezone
+        with self._lock:
+            assert self._conn is not None
+            self._conn.execute(
+                """INSERT INTO outcome_ledger
+                   (org_id, whisper_id, exec_action, outcome, entity,
+                    hypothesis, confounders, context_signals, recorded_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    org_id,
+                    outcome_dict.get("whisper_id", ""),
+                    outcome_dict.get("exec_action", ""),
+                    outcome_dict.get("outcome", ""),
+                    outcome_dict.get("entity", ""),
+                    outcome_dict.get("hypothesis", ""),
+                    json.dumps(outcome_dict.get("confounders", [])),
+                    json.dumps(outcome_dict.get("context_signals", [])),
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    def count(self, org_id: str = "default") -> int:
+        """Count pending evidence rows for this org."""
+        with self._lock:
+            assert self._conn is not None
+            cur = self._conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM outcome_ledger WHERE org_id = ?",
+                (org_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return 0
+            # Support both sqlite3.Row (key access) and plain tuple (index access)
+            try:
+                return int(row["n"])
+            except (KeyError, TypeError, IndexError):
+                try:
+                    return int(row[0])
+                except (KeyError, IndexError, TypeError):
+                    return 0
+
+    def get_all(self, org_id: str = "default") -> list[dict[str, Any]]:
+        """Return all pending evidence for this org (oldest first)."""
+        with self._lock:
+            assert self._conn is not None
+            cur = self._conn.cursor()
+            cur.execute(
+                """SELECT whisper_id, exec_action, outcome, entity, hypothesis,
+                          confounders, context_signals, recorded_at
+                   FROM outcome_ledger WHERE org_id = ?
+                   ORDER BY id ASC""",
+                (org_id,),
+            )
+            rows = cur.fetchall()
+            result = []
+            for row in rows:
+                d = dict(row) if hasattr(row, "keys") else {}
+                # Reconstitute the original outcome_dict shape so PolicyProposer
+                # sees the same structure it got from the old global list.
+                d["confounders"] = json.loads(d.get("confounders", "[]") or "[]")
+                d["context_signals"] = json.loads(d.get("context_signals", "[]") or "[]")
+                result.append(d)
+            return result
+
+    def clear(self, org_id: str = "default") -> None:
+        """Clear pending evidence for this org (after a policy is proposed)."""
+        with self._lock:
+            assert self._conn is not None
+            self._conn.execute(
+                "DELETE FROM outcome_ledger WHERE org_id = ?",
+                (org_id,),
+            )
+
+    def close(self) -> None:
+        if self._conn:
+            self._conn.close()
+            self._conn = None
+
+
+def get_default_outcome_ledger() -> OutcomeLedger:
+    """Return the process-wide default OutcomeLedger.
+
+    Lazily initialized. Tests can replace it via set_default_outcome_ledger().
+    """
+    if OutcomeLedger._default is None:
+        OutcomeLedger._default = OutcomeLedger()
+    return OutcomeLedger._default
+
+
+def set_default_outcome_ledger(ledger: OutcomeLedger) -> None:
+    """Replace the default OutcomeLedger (for tests)."""
+    OutcomeLedger._default = ledger
+    # Also clear the legacy global so tests that assert both are in sync
+    # see consistent state.
+    _pending_evidence.clear()
 
 
 class OutcomeRecorder:
@@ -726,6 +913,7 @@ class OutcomeRecorder:
         outcome: str,
         entity: str = "",
         context_signals: list[dict[str, Any]] | None = None,
+        org_id: str = "default",
     ) -> dict[str, Any]:
         """Record an outcome and feed it into the governed adaptation loop.
 
@@ -735,6 +923,7 @@ class OutcomeRecorder:
             outcome: "commitment_broken" | "commitment_kept" | "objection_raised" | ...
             entity: The customer/entity
             context_signals: Confounders (staffing changes, market shifts, etc.)
+            org_id: Tenant scope (L0/HIGH-06 — durable, tenant-scoped ledger)
 
         Returns:
             The hypothesis dict from AttributionAnalyzer.analyze()
@@ -742,16 +931,18 @@ class OutcomeRecorder:
         context_signals = context_signals or []
 
         # 1. Record the interaction in InteractionMemory
-        self.record_action(whisper_id, exec_action)
+        self.record_action(whisper_id, exec_action, org_id=org_id)
 
         # 2. Feed into AttributionAnalyzer
         analyzer = AttributionAnalyzer()
         outcome_dict = {
+            "whisper_id": whisper_id,
             "whisper_shown": True,
             "exec_action": exec_action,
             "outcome": outcome,
             "entity": entity,
             "context_signals": context_signals,
+            "org_id": org_id,
         }
         hypothesis = analyzer.analyze(outcome_dict)
         logger.info(
@@ -760,17 +951,35 @@ class OutcomeRecorder:
         )
 
         # 3. Accumulate evidence
+        # L0 fix (HIGH-06): write to the durable, tenant-scoped OutcomeLedger
+        # instead of the process-local `_pending_evidence` global. Also keep
+        # the legacy global in sync so existing tests that import it directly
+        # continue to see the same evidence.
         outcome_dict["hypothesis"] = hypothesis["hypothesis"]
         outcome_dict["confounders"] = hypothesis["confounders"]
+        try:
+            ledger = get_default_outcome_ledger()
+            ledger.append(outcome_dict, org_id=org_id)
+        except Exception as e:
+            logger.warning("OutcomeRecorder: durable ledger append failed: %s", e)
+        # Backward-compat shim: keep the legacy global in sync for tests
         _pending_evidence.append(outcome_dict)
 
         # 4. If enough evidence, propose a policy
-        if len(_pending_evidence) >= self._min_evidence:
-            self._try_propose_policy(hypothesis["hypothesis"])
+        pending_count = self._pending_count(org_id=org_id)
+        if pending_count >= self._min_evidence:
+            self._try_propose_policy(hypothesis["hypothesis"], org_id=org_id)
 
         return hypothesis
 
-    def _try_propose_policy(self, hypothesis: str) -> None:
+    def _pending_count(self, org_id: str = "default") -> int:
+        """Count pending evidence (durable ledger preferred, legacy global fallback)."""
+        try:
+            return get_default_outcome_ledger().count(org_id=org_id)
+        except Exception:
+            return len(_pending_evidence)
+
+    def _try_propose_policy(self, hypothesis: str, org_id: str = "default") -> None:
         """Try to propose a policy from accumulated evidence.
 
         LOW-risk policies auto-activate. HIGH-risk require human approval.
@@ -798,19 +1007,33 @@ class OutcomeRecorder:
             is_high_risk = "escalation_recipient" in params or "recipient" in params
             risk_level = RISK_HIGH if is_high_risk else RISK_LOW
 
+            # L0 fix (HIGH-06): pull evidence from the durable ledger so
+            # policy proposals survive process restarts and are visible
+            # across replicas. Fall back to the legacy global if the ledger
+            # is unavailable (e.g., during unit tests that only mock the store).
+            try:
+                evidence = get_default_outcome_ledger().get_all(org_id=org_id)
+            except Exception:
+                evidence = list(_pending_evidence)
+
             policy = proposer.propose(
                 hypothesis=hypothesis,
-                evidence=list(_pending_evidence),
+                evidence=evidence,
                 risk_level=risk_level,
                 parameter_changes=params,
             )
 
             logger.info(
-                "OutcomeRecorder: proposed policy %s (status=%s, risk=%s, version=%d)",
+                "OutcomeRecorder: proposed policy %s (status=%s, risk=%s, version=%d, org=%s, evidence_n=%d)",
                 policy.policy_id, policy.status, policy.risk_level, policy.version,
+                org_id, len(evidence),
             )
 
             # Clear pending evidence after proposing (don't re-propose on same data)
+            try:
+                get_default_outcome_ledger().clear(org_id=org_id)
+            except Exception:
+                pass
             _pending_evidence.clear()
 
         except Exception as e:

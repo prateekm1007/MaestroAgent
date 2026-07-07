@@ -841,6 +841,51 @@ class PersistentOEM:
         self._save()
         return delta
 
+    def ingest_batch(self, signals: list[ExecutionSignal]) -> list:
+        """L0 fix (HIGH-05): Process a batch of signals with ONE model save at the end.
+
+        This is the batch-persistence equivalent of calling `ingest_one` per
+        signal. The per-signal `ingest_one` calls `self._save()` after every
+        signal, which writes the entire model state (laws, receipt chains,
+        patterns, learning objects) on every signal — O(N × model_size) DB
+        writes. For 5000 signals that's 5000 full model saves, which exceeds
+        the 120s slow-test timeout.
+
+        `ingest_batch` instead:
+          1. Saves each signal row (cheap, single INSERT)
+          2. Processes each signal through the engine (in-memory)
+          3. Marks each signal processed (cheap, single UPDATE)
+          4. Saves the model state ONCE at the end (expensive, deferred)
+
+        This reduces DB writes from O(N × model_size) to O(N + model_size),
+        making 5000-signal ingestion complete in seconds rather than minutes.
+
+        Args:
+            signals: List of ExecutionSignal objects to ingest.
+
+        Returns:
+            List of ModelDelta objects, one per signal (same as `ingest`).
+        """
+        from maestro_oem.model import ModelDelta
+
+        deltas: list[ModelDelta] = []
+        for signal in signals:
+            try:
+                # 1. Save signal row (cheap)
+                self.store.save_signal(signal)
+                # 2. Process through engine (in-memory, no DB)
+                delta = self.engine.ingest_one(signal)
+                deltas.append(delta)
+                # 3. Mark processed (cheap)
+                self.store.mark_signal_processed(signal.signal_id)
+            except Exception:
+                # Partial sync: a single bad signal doesn't stop the batch
+                continue
+        # 4. Save model state ONCE (expensive, deferred to end)
+        if signals:
+            self._save()
+        return deltas
+
     def get_model(self) -> ExecutionModel:
         return self.engine.get_model()
 

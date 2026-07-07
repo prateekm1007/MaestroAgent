@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 class Situation:
     """Maestro's working memory for a specific organizational moment.
 
-    7 fields — populated from real signals + calendar + whisper history.
+    27 fields — populated from real signals + calendar + whisper history +
+    epistemic classification + learning store.
 
     Phase 2 (auditor Option A): Situation is intentionally DERIVED, not stored.
     It is rebuilt on every surface request from persisted signals + commitments
@@ -51,11 +52,18 @@ class Situation:
     not the source of truth. Do not rely on persisted Situation objects —
     always rebuild from signals for canonical state.
 
+    L0 fix (HIGH-04): the 17 auditor-required fields have been added so that
+    every surface (Ask, Whisper, dashboard) renders from a single canonical
+    snapshot. The first 10 fields are the original Loop 1.5 + CRITICAL-03
+    fields; the remaining 17 are the durable spine required for cross-surface
+    coherence.
+
     The builder NEVER returns None — it always returns a valid Situation with
     clear provenance. If no signals exist for an entity, the Situation has
     what_is_happening="No data available for this entity" and current_state="unknown".
     """
 
+    # ─── Original 10 fields (Loop 1.5 + CRITICAL-03 Phase 2) ──────────────
     what_is_happening: str = ""
     entities: list[str] = field(default_factory=list)
     commitments: list[dict] = field(default_factory=list)
@@ -63,13 +71,40 @@ class Situation:
     current_state: str = "unknown"  # "at_risk" | "on_track" | "unknown"
     prior_whispers: list[str] = field(default_factory=list)
     timeline: list[dict] = field(default_factory=list)
-    # CRITICAL-03 Phase 2: enriched fields for cross-surface coherence
     disagreements: list[dict] = field(default_factory=list)
     pending_conditions: list[str] = field(default_factory=list)
     unknowns: list[str] = field(default_factory=list)
 
+    # ─── L0 fix (HIGH-04): 17 auditor-required fields ─────────────────────
+    # Identity & provenance
+    situation_id: str = ""                 # deterministic hash of (org_id, entity, snapshot_ts)
+    org_id: str = "default"                # tenant scope
+    snapshot_version: int = 1              # bumped when rebuilt with new signals
+    permission_scope: dict = field(default_factory=dict)
+    # ^ {"user_email": str, "acl_applied": bool, "channels_visible": list[str]}
+
+    # Claim & evidence spine
+    claim_ids: list[str] = field(default_factory=list)      # IDs of claims derived from signals
+    evidence_ids: list[str] = field(default_factory=list)  # IDs of evidence objects in `evidence`
+    invalidated_by: list[str] = field(default_factory=list)  # claim_ids invalidated by outcomes
+
+    # Epistemic-layer breakdown (populated from ContentEpistemicClassifier)
+    facts: list[dict] = field(default_factory=list)               # observed_fact signals
+    reported_statements: list[dict] = field(default_factory=list) # reported_statement signals
+    assumptions: list[dict] = field(default_factory=list)         # assumption signals
+    inferences: list[dict] = field(default_factory=list)          # inference signals
+    hypotheses: list[dict] = field(default_factory=list)          # hypothesis signals
+    predictions: list[dict] = field(default_factory=list)         # prediction signals
+    outcomes: list[dict] = field(default_factory=list)            # outcome signals (kept/broken)
+
+    # Cross-surface links
+    related_meetings: list[dict] = field(default_factory=list)    # meetings referencing this entity
+    related_decisions: list[dict] = field(default_factory=list)   # decisions referencing this entity
+    related_learning: list[dict] = field(default_factory=list)    # learning policies referencing this entity
+
     def to_dict(self) -> dict:
         return {
+            # Original 10
             "what_is_happening": self.what_is_happening,
             "entities": self.entities,
             "commitments": self.commitments,
@@ -80,6 +115,24 @@ class Situation:
             "disagreements": self.disagreements,
             "pending_conditions": self.pending_conditions,
             "unknowns": self.unknowns,
+            # L0 (HIGH-04) 17 fields
+            "situation_id": self.situation_id,
+            "org_id": self.org_id,
+            "snapshot_version": self.snapshot_version,
+            "permission_scope": self.permission_scope,
+            "claim_ids": self.claim_ids,
+            "evidence_ids": self.evidence_ids,
+            "invalidated_by": self.invalidated_by,
+            "facts": self.facts,
+            "reported_statements": self.reported_statements,
+            "assumptions": self.assumptions,
+            "inferences": self.inferences,
+            "hypotheses": self.hypotheses,
+            "predictions": self.predictions,
+            "outcomes": self.outcomes,
+            "related_meetings": self.related_meetings,
+            "related_decisions": self.related_decisions,
+            "related_learning": self.related_learning,
         }
 
     def is_derived(self) -> bool:
@@ -111,22 +164,39 @@ class SituationBuilder:
         whisper_store: Any = None,
         now: datetime | None = None,
         user_email: str = "",
+        meeting_store: Any = None,
+        decision_store: Any = None,
+        learning_store: Any = None,
     ) -> None:
         # CRITICAL-01 fix: ACL-filter signals for this user before building
         # the situation. Deny-by-default for non-public ACLs.
+        self._acl_applied = False
+        self._channels_visible: list[str] = []
         if signals and user_email:
             try:
                 from maestro_oem.acl_resolver import ACLResolver
                 acl_resolver = ACLResolver()
                 self._signals = [s for s in signals if acl_resolver.can_access(s, user_email)]
+                self._acl_applied = True
+                # Best-effort: collect visible channel ACLs for the permission_scope
+                for s in self._signals:
+                    acl = getattr(s, "source_acl", "") or ""
+                    if acl.startswith("channel:") and acl not in self._channels_visible:
+                        self._channels_visible.append(acl)
             except Exception:
                 # If ACL resolution fails, fail-closed: empty signals
                 self._signals = []
+                self._acl_applied = True
         else:
             self._signals = list(signals) if signals else []
         self._calendar = calendar_source
         self._store = whisper_store
         self._now = now or datetime.now(timezone.utc)
+        self._user_email = user_email
+        # L0 (HIGH-04): cross-surface link stores
+        self._meeting_store = meeting_store
+        self._decision_store = decision_store
+        self._learning_store = learning_store
 
     def build_for_entity(self, entity: str, org_id: str = "default") -> Situation:
         """Build a Situation for a specific entity.
@@ -135,12 +205,20 @@ class SituationBuilder:
         signals, returns a valid Situation with what_is_happening="No data
         available for this entity" and current_state="unknown". This prevents
         surfaces from silently degrading when an entity is new or has minimal data.
+
+        L0 fix (HIGH-04): all 27 fields are populated, including the 17
+        auditor-required spine fields. The situation_id is a deterministic
+        hash of (org_id, entity, snapshot_ts) so the same logical moment
+        yields the same ID across surfaces.
         """
         if not entity:
             return Situation(
                 what_is_happening="No entity specified",
                 entities=[],
                 current_state="unknown",
+                org_id=org_id,
+                situation_id=self._compute_situation_id(org_id, "", entity),
+                permission_scope=self._build_permission_scope(),
             )
 
         # Filter signals for this entity
@@ -154,6 +232,9 @@ class SituationBuilder:
                 what_is_happening=f"No data available for {entity}",
                 entities=[entity],
                 current_state="unknown",
+                org_id=org_id,
+                situation_id=self._compute_situation_id(org_id, "", entity),
+                permission_scope=self._build_permission_scope(),
             )
 
         # 1. what_is_happening — from the next consequential meeting
@@ -187,7 +268,33 @@ class SituationBuilder:
         # 10. unknowns — gaps in evidence
         unknowns = self._derive_unknowns(commitments, evidence, entity_signals)
 
+        # L0 (HIGH-04): the 17 auditor-required fields
+        # Identity & provenance
+        situation_id = self._compute_situation_id(org_id, what_is_happening, entity)
+        permission_scope = self._build_permission_scope()
+
+        # Claim & evidence spine
+        claim_ids = self._extract_claim_ids(entity_signals, commitments)
+        evidence_ids = [e.get("id", "") for e in evidence if isinstance(e, dict) and e.get("id")]
+        invalidated_by = self._derive_invalidated_by(entity_signals, claim_ids)
+
+        # Epistemic-layer breakdown
+        epistemic_buckets = self._bucket_by_epistemic(entity_signals)
+        facts = epistemic_buckets.get("observed_fact", [])
+        reported_statements = epistemic_buckets.get("reported_statement", [])
+        assumptions = epistemic_buckets.get("assumption", [])
+        inferences = epistemic_buckets.get("inference", [])
+        hypotheses = epistemic_buckets.get("hypothesis", [])
+        predictions = epistemic_buckets.get("prediction", [])
+        outcomes = self._extract_outcomes(entity_signals)
+
+        # Cross-surface links
+        related_meetings = self._lookup_related_meetings(entity, org_id)
+        related_decisions = self._lookup_related_decisions(entity, org_id)
+        related_learning = self._lookup_related_learning(entity, org_id)
+
         return Situation(
+            # Original 10
             what_is_happening=what_is_happening,
             entities=entities,
             commitments=commitments,
@@ -198,7 +305,200 @@ class SituationBuilder:
             disagreements=disagreements,
             pending_conditions=pending_conditions,
             unknowns=unknowns,
+            # L0 (HIGH-04) 17 fields
+            situation_id=situation_id,
+            org_id=org_id,
+            snapshot_version=1,
+            permission_scope=permission_scope,
+            claim_ids=claim_ids,
+            evidence_ids=evidence_ids,
+            invalidated_by=invalidated_by,
+            facts=facts,
+            reported_statements=reported_statements,
+            assumptions=assumptions,
+            inferences=inferences,
+            hypotheses=hypotheses,
+            predictions=predictions,
+            outcomes=outcomes,
+            related_meetings=related_meetings,
+            related_decisions=related_decisions,
+            related_learning=related_learning,
         )
+
+    # ─── L0 (HIGH-04): helpers for the 17 auditor-required fields ────────
+
+    def _compute_situation_id(self, org_id: str, what_is_happening: str, entity: str) -> str:
+        """Deterministic situation_id: hash of (org_id, entity, snapshot_date).
+
+        Same logical moment across surfaces → same ID. Changes day-to-day so
+        stale snapshots don't collide with current ones.
+        """
+        import hashlib
+        snapshot_date = self._now.strftime("%Y-%m-%d")
+        key = f"{org_id}|{entity}|{snapshot_date}|{what_is_happening[:80]}"
+        return "sit-" + hashlib.sha256(key.encode()).hexdigest()[:16]
+
+    def _build_permission_scope(self) -> dict:
+        """Render the ACL context that produced this situation.
+
+        Surfaces (Ask, Whisper, dashboard) use this to disclose to the user
+        which channels they are seeing and whether ACL filtering was applied.
+        """
+        return {
+            "user_email": self._user_email or "",
+            "acl_applied": self._acl_applied,
+            "channels_visible": list(self._channels_visible),
+        }
+
+    def _extract_claim_ids(self, entity_signals: list, commitments: list[dict]) -> list[str]:
+        """Derive claim_ids from signal artifacts + commitment texts.
+
+        A claim_id is a stable string that uniquely identifies a claim within
+        this situation. We use the signal's artifact when present, falling
+        back to a hash of (actor, text).
+        """
+        import hashlib
+        claim_ids: list[str] = []
+        seen: set[str] = set()
+        for s in entity_signals:
+            artifact = getattr(s, "artifact", "") or ""
+            text = ""
+            if hasattr(s, "metadata"):
+                text = (s.metadata.get("text", "") or s.metadata.get("body", "")
+                        or s.metadata.get("commitment", "") or s.metadata.get("title", ""))
+            key = artifact or f"{getattr(s, 'actor', '')}|{text[:80]}"
+            if not key:
+                continue
+            cid = "claim-" + hashlib.sha256(key.encode()).hexdigest()[:12]
+            if cid not in seen:
+                seen.add(cid)
+                claim_ids.append(cid)
+        return claim_ids[:50]
+
+    def _derive_invalidated_by(self, entity_signals: list, claim_ids: list[str]) -> list[str]:
+        """A claim is invalidated when an outcome signal contradicts it.
+
+        Conservative: only flag claims as invalidated when we have explicit
+        CUSTOMER_COMMITMENT_BROKEN signals. We don't infer invalidation from
+        disagreement alone (that's `disagreements`, not invalidation).
+        """
+        from maestro_oem.signal import SignalType
+        has_broken = any(s.type == SignalType.CUSTOMER_COMMITMENT_BROKEN for s in entity_signals)
+        if not has_broken or not claim_ids:
+            return []
+        # Invalidate the first claim (the primary commitment) when broken.
+        # A more sophisticated matcher would pair outcomes to specific claims
+        # by topic; this conservative version is a starting point.
+        return [claim_ids[0]]
+
+    def _bucket_by_epistemic(self, entity_signals: list) -> dict[str, list[dict]]:
+        """Classify each signal's text and bucket into epistemic layers.
+
+        Returns a dict like {"observed_fact": [...], "assumption": [...], ...}.
+        Each entry is {"actor": str, "text": str, "artifact": str, "date": str}.
+        """
+        try:
+            from maestro_oem.content_epistemic_classifier import ContentEpistemicClassifier
+            classifier = ContentEpistemicClassifier()
+        except Exception:
+            return {}
+
+        buckets: dict[str, list[dict]] = {}
+        for s in entity_signals:
+            try:
+                text = ""
+                if hasattr(s, "metadata"):
+                    text = (s.metadata.get("text", "") or s.metadata.get("body", "")
+                            or s.metadata.get("commitment", "") or s.metadata.get("title", "")
+                            or s.metadata.get("subject", "") or s.metadata.get("note", ""))
+                if not text:
+                    continue
+                result = classifier.classify(text)
+                epistemic = result if isinstance(result, str) else getattr(result, "epistemic_type", str(result))
+                entry = {
+                    "actor": getattr(s, "actor", "") or "",
+                    "text": text[:200],
+                    "artifact": getattr(s, "artifact", "") or "",
+                    "date": s.timestamp.isoformat()[:10] if hasattr(s, "timestamp") and hasattr(s.timestamp, "isoformat") else "",
+                }
+                buckets.setdefault(epistemic, []).append(entry)
+            except Exception:
+                continue
+        return buckets
+
+    def _extract_outcomes(self, entity_signals: list) -> list[dict]:
+        """Outcomes are signals that report what actually happened.
+
+        Includes both epistemic-classified 'outcome' signals and signal-type
+        outcomes (CUSTOMER_COMMITMENT_KEPT, CUSTOMER_COMMITMENT_BROKEN).
+        """
+        from maestro_oem.signal import SignalType
+        outcomes: list[dict] = []
+        # Signal-type outcomes (canonical)
+        for s in entity_signals:
+            try:
+                if s.type in (SignalType.CUSTOMER_COMMITMENT_KEPT, SignalType.CUSTOMER_COMMITMENT_BROKEN):
+                    outcomes.append({
+                        "actor": getattr(s, "actor", "") or "",
+                        "type": "kept" if s.type == SignalType.CUSTOMER_COMMITMENT_KEPT else "broken",
+                        "artifact": getattr(s, "artifact", "") or "",
+                        "date": s.timestamp.isoformat()[:10] if hasattr(s, "timestamp") and hasattr(s.timestamp, "isoformat") else "",
+                    })
+            except Exception:
+                continue
+        # Epistemic 'outcome' signals (text-classified)
+        buckets = self._bucket_by_epistemic(entity_signals)
+        for entry in buckets.get("outcome", []):
+            outcomes.append({**entry, "type": "outcome"})
+        return outcomes[:20]
+
+    def _lookup_related_meetings(self, entity: str, org_id: str) -> list[dict]:
+        """Look up meetings referencing this entity, if a meeting store is wired."""
+        if self._meeting_store is None:
+            return []
+        try:
+            # Try common store interfaces; fall back silently if absent.
+            for method in ("get_meetings_for_entity", "get_for_entity", "find_by_entity"):
+                fn = getattr(self._meeting_store, method, None)
+                if callable(fn):
+                    meetings = fn(entity, org_id=org_id) if "org_id" in fn.__code__.co_varnames else fn(entity)
+                    return [{"id": getattr(m, "id", ""), "title": getattr(m, "title", str(m))[:120],
+                             "date": str(getattr(m, "start", getattr(m, "date", "")))[:10]}
+                            for m in (meetings or [])][:10]
+        except Exception as e:
+            logger.debug("SituationBuilder: meeting lookup failed: %s", e)
+        return []
+
+    def _lookup_related_decisions(self, entity: str, org_id: str) -> list[dict]:
+        """Look up decisions referencing this entity, if a decision store is wired."""
+        if self._decision_store is None:
+            return []
+        try:
+            for method in ("get_decisions_for_entity", "get_for_entity", "find_by_entity"):
+                fn = getattr(self._decision_store, method, None)
+                if callable(fn):
+                    decisions = fn(entity, org_id=org_id) if "org_id" in fn.__code__.co_varnames else fn(entity)
+                    return [{"id": getattr(d, "id", ""), "text": getattr(d, "text", str(d))[:120],
+                             "date": str(getattr(d, "date", getattr(d, "timestamp", "")))[:10]}
+                            for d in (decisions or [])][:10]
+        except Exception as e:
+            logger.debug("SituationBuilder: decision lookup failed: %s", e)
+        return []
+
+    def _lookup_related_learning(self, entity: str, org_id: str) -> list[dict]:
+        """Look up learning policies referencing this entity, if a learning store is wired."""
+        if self._learning_store is None:
+            return []
+        try:
+            for method in ("get_policies_for_entity", "get_for_entity", "find_by_entity"):
+                fn = getattr(self._learning_store, method, None)
+                if callable(fn):
+                    policies = fn(entity, org_id=org_id) if "org_id" in fn.__code__.co_varnames else fn(entity)
+                    return [{"id": getattr(p, "id", ""), "text": getattr(p, "text", str(p))[:120]}
+                            for p in (policies or [])][:10]
+        except Exception as e:
+            logger.debug("SituationBuilder: learning lookup failed: %s", e)
+        return []
 
     def _compute_what_is_happening(self, entity: str) -> str:
         """One sentence describing what's happening with this entity."""

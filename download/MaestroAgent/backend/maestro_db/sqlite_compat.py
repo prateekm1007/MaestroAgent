@@ -66,12 +66,42 @@ def _get_engine(db_path: str) -> Engine:
     """Get or create a SQLAlchemy engine for the given path/URL.
 
     Falls back to standard sqlite3 when SQLAlchemy is not available.
+
+    L0 fix (HIGH-05 — isolate test state): `:memory:` engines are NOT cached.
+    Each call to `_get_engine(":memory:")` returns a FRESH engine with its
+    own private in-memory database. This fixes the cross-test contamination
+    where multiple `OEMStore(":memory:")` instances shared the same
+    StaticPool connection and saw each other's signals.
+
+    File-based and Postgres engines ARE cached (keyed by path/URL) so that
+    connection pooling works correctly in production. Only `:memory:` is
+    treated as ephemeral and per-instance.
     """
     if not _HAS_SQLALCHEMY:
         raise RuntimeError("SQLAlchemy not available — use standard sqlite3 fallback")
 
     normalized = _normalize_path(db_path)
 
+    # L0 fix (HIGH-05): :memory: is NEVER cached — each call gets a fresh
+    # engine with a private in-memory DB. This is the only way to guarantee
+    # test isolation when multiple tests create `PersistentOEM(":memory:")`.
+    if normalized == ":memory:":
+        try:
+            from sqlalchemy.pool import StaticPool
+            return create_engine(
+                "sqlite://",
+                pool_pre_ping=True,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,  # StaticPool per-engine (not shared across engines)
+            )
+        except (ImportError, TypeError):
+            return create_engine(
+                "sqlite://",
+                pool_pre_ping=True,
+                connect_args={"check_same_thread": False},
+            )
+
+    # File-based and Postgres engines ARE cached for connection pooling.
     with _engines_lock:
         if normalized in _engines:
             return _engines[normalized]
@@ -100,21 +130,6 @@ def _get_engine(db_path: str) -> Engine:
             except (ImportError, TypeError):
                 engine = create_engine(
                     normalized,
-                    pool_pre_ping=True,
-                    connect_args={"check_same_thread": False},
-                )
-        elif normalized == ":memory:":
-            try:
-                from sqlalchemy.pool import StaticPool
-                engine = create_engine(
-                    "sqlite://",
-                    pool_pre_ping=True,
-                    connect_args={"check_same_thread": False},
-                    poolclass=StaticPool,  # StaticPool for :memory: (shared across threads)
-                )
-            except (ImportError, TypeError):
-                engine = create_engine(
-                    "sqlite://",
                     pool_pre_ping=True,
                     connect_args={"check_same_thread": False},
                 )

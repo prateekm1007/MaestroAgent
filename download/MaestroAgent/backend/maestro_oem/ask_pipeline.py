@@ -201,11 +201,388 @@ class AskPipeline:
 
     # ─── Step 3-5: Execute the full pipeline ─────────────────────────
 
+    # ─── L0 (HIGH-02): Multi-turn investigation follow-up handlers ──────
+    #
+    # The auditor's canonical Globex replay showed that "Why?", "Show me
+    # the original evidence.", and "What don't we know?" all returned the
+    # generic cold-start fallback. The infrastructure (InvestigationSession
+    # via ConversationStore, SituationBuilder) existed but nothing routed
+    # these specific probes to it. These handlers close that gap.
+
+    # Probe patterns — match the auditor's exact phrasings plus common
+    # variants. Match on lowercase prefix for robustness.
+    _INVESTIGATION_PROBES = {
+        "why": (
+            ("why?", "why is that", "why did", "why does", "why do",
+             "why was", "why were", "why hasn't", "why hasn", "why not",
+             "why are", "why is", "why should", "why would", "how come"),
+        ),
+        "show_evidence": (
+            ("show me the original evidence", "show the original evidence",
+             "show me the evidence", "show the evidence",
+             "show me the original", "show original evidence",
+             "what's the evidence", "what is the evidence",
+             "where's the evidence", "where is the evidence",
+             "show me the source", "show the source",
+             "show me the claims", "show the claims"),
+        ),
+        "what_unknown": (
+            ("what don't we know", "what dont we know",
+             "what do we not know", "what is unknown",
+             "what's unknown", "what are the unknowns",
+             "what are our unknowns", "what is uncertain",
+             "what's uncertain", "what are we missing",
+             "what are the gaps", "what's missing"),
+        ),
+        "what_ask": (
+            ("what should i ask", "what should we ask",
+             "what to ask", "what questions should",
+             "what should i bring up", "what should we bring up",
+             "what should i say", "what should we say",
+             "prepare me for the meeting", "what should i prepare",
+             "what should we prepare"),
+        ),
+    }
+
+    def _match_probe(self, query: str) -> str | None:
+        """Return the probe kind ('why'/'show_evidence'/'what_unknown'/'what_ask')
+        or None if the query doesn't match an investigation follow-up."""
+        q = (query or "").lower().strip()
+        if not q:
+            return None
+        for kind, (patterns,) in self._INVESTIGATION_PROBES.items():
+            for p in patterns:
+                if q == p or q.startswith(p):
+                    return kind
+        return None
+
+    def _try_investigation_followup(
+        self,
+        query: str,
+        session_id: str,
+        org_id: str,
+        user_email: str,
+        entities: list[str],
+    ) -> dict[str, Any] | None:
+        """If the query is a recognized investigation follow-up AND there is
+        prior conversation context, produce a structured answer using the
+        SituationSnapshot. Returns None if the query isn't a follow-up or
+        there's no prior context — letting the generic pipeline run.
+        """
+        kind = self._match_probe(query)
+        if kind is None:
+            return None
+
+        # Require a prior turn — otherwise this is the first turn and
+        # should go through the normal pipeline.
+        try:
+            history = self._conversation_store.get_history(session_id, last_n=10)
+        except Exception:
+            return None
+        if not history:
+            return None
+
+        # Resolve the scoped entity from prior turns (or current query).
+        prior_entities: list[str] = []
+        for turn in reversed(history):
+            for e in turn.get("entities", []) or []:
+                if e not in prior_entities:
+                    prior_entities.append(e)
+        scoped_entity = None
+        for e in (entities + prior_entities):
+            if e not in self._ENTITY_SYNONYMS and len(e) > 2:
+                scoped_entity = e
+                break
+
+        # Build the SituationSnapshot for the scoped entity.
+        situation = None
+        if scoped_entity:
+            try:
+                from maestro_oem.situation import SituationBuilder
+                builder = SituationBuilder(
+                    signals=self._signals,
+                    calendar_source=None,
+                    whisper_store=self._whisper_store,
+                    user_email=user_email,
+                )
+                situation = builder.build_for_entity(scoped_entity, org_id=org_id)
+            except Exception as e:
+                logger.debug("AskPipeline: investigation SituationBuilder failed: %s", e)
+
+        # Get the last Maestro answer (for "Why?" explanation).
+        last_answer = ""
+        for turn in reversed(history):
+            if turn.get("role") == "maestro":
+                last_answer = turn.get("content", "")
+                break
+
+        # Route to the specialized handler.
+        if kind == "why":
+            answer, evidence, follow_ups = self._explain_previous_answer(
+                last_answer, situation, scoped_entity,
+            )
+        elif kind == "show_evidence":
+            answer, evidence, follow_ups = self._show_original_evidence(
+                situation, scoped_entity,
+            )
+        elif kind == "what_unknown":
+            answer, evidence, follow_ups = self._render_unknowns(
+                situation, scoped_entity,
+            )
+        elif kind == "what_ask":
+            answer, evidence, follow_ups = self._suggest_meeting_questions(
+                situation, scoped_entity,
+            )
+        else:
+            return None
+
+        # Persist this turn in the conversation.
+        try:
+            turn_num = len(history) + 1
+            self._conversation_store.add_turn(
+                session_id=session_id, turn=turn_num, role="user",
+                content=query, intent="investigation_" + kind,
+                entities=entities or prior_entities,
+            )
+            self._conversation_store.add_turn(
+                session_id=session_id, turn=turn_num + 1, role="maestro",
+                content=answer, intent="investigation_" + kind,
+                entities=entities or prior_entities,
+            )
+        except Exception as e:
+            logger.debug("AskPipeline: investigation turn save failed: %s", e)
+
+        return {
+            "answer": answer,
+            "evidence": evidence,
+            "citations": [],
+            "follow_ups": follow_ups,
+            "actions": [],
+            "intent": "investigation_" + kind,
+            "entities": entities or prior_entities,
+        }
+
+    def _explain_previous_answer(
+        self, last_answer: str, situation: Any, entity: str | None,
+    ) -> tuple[str, list[dict], list[str]]:
+        """L0 (HIGH-02): 'Why?' must explain the previous answer's claims.
+
+        Renders the prior turn's answer plus the situation's disagreements
+        and pending_conditions so the executive sees WHY the answer is what
+        it is — not just a restatement.
+        """
+        evidence: list[dict] = []
+        parts: list[str] = []
+
+        if last_answer:
+            parts.append(f"Previous answer:\n{last_answer[:500]}")
+        else:
+            parts.append("I don't have a previous answer in this session to explain.")
+
+        if situation is not None:
+            if situation.disagreements:
+                parts.append("\nDisagreements that shape this:")
+                for d in situation.disagreements[:3]:
+                    actor = d.get("actor", "someone")
+                    text = d.get("text", "")[:120]
+                    parts.append(f"  • {actor}: {text}")
+                evidence.extend(situation.disagreements[:3])
+            if situation.pending_conditions:
+                parts.append("\nPending conditions:")
+                for pc in situation.pending_conditions[:3]:
+                    parts.append(f"  • {pc[:120]}")
+                evidence.extend([{"source": "pending_condition", "text": pc[:120]} for pc in situation.pending_conditions[:3]])
+            if situation.assumptions:
+                parts.append("\nAssumptions the previous answer relied on:")
+                for a in situation.assumptions[:3]:
+                    actor = a.get("actor", "someone")
+                    text = a.get("text", "")[:120]
+                    parts.append(f"  • {actor} assumed: {text}")
+
+        answer = "\n".join(parts)
+        follow_ups = [
+            "Show me the original evidence.",
+            "What don't we know?",
+            "What should I ask in the meeting?",
+        ]
+        return answer, evidence, follow_ups
+
+    def _show_original_evidence(
+        self, situation: Any, entity: str | None,
+    ) -> tuple[str, list[dict], list[str]]:
+        """L0 (HIGH-02): 'Show me the original evidence.' must return the
+        original claim/evidence IDs from the SituationSnapshot spine."""
+        if situation is None:
+            return (
+                f"I don't have a situation snapshot for {entity or 'this entity'}, so I can't show original evidence.",
+                [], ["What don't we know?"],
+            )
+
+        parts: list[str] = []
+        evidence: list[dict] = []
+
+        # Claim spine
+        if situation.claim_ids:
+            parts.append(f"Claims ({len(situation.claim_ids)}):")
+            for cid in situation.claim_ids[:10]:
+                parts.append(f"  • {cid}")
+        else:
+            parts.append("No claims recorded for this entity yet.")
+
+        # Evidence IDs
+        if situation.evidence_ids:
+            parts.append(f"\nEvidence IDs ({len(situation.evidence_ids)}):")
+            for eid in situation.evidence_ids[:10]:
+                parts.append(f"  • {eid}")
+
+        # Original evidence objects (from situation.evidence)
+        if situation.evidence:
+            parts.append("\nOriginal evidence:")
+            for ev in situation.evidence[:5]:
+                if isinstance(ev, dict):
+                    claim = (ev.get("claim") or ev.get("text") or "")[:120]
+                    parts.append(f"  • claim: {claim}")
+                    obs = ev.get("evidence_spine", {}).get("observed_facts", []) if isinstance(ev.get("evidence_spine"), dict) else []
+                    for of in obs[:2]:
+                        of_text = of.get("text", "")[:100] if isinstance(of, dict) else str(of)[:100]
+                        parts.append(f"    - observed: {of_text}")
+                    evidence.append(ev)
+
+        # Reported statements (the actual sentences spoken by actors)
+        if situation.reported_statements:
+            parts.append("\nReported statements:")
+            for rs in situation.reported_statements[:5]:
+                actor = rs.get("actor", "someone")
+                text = rs.get("text", "")[:120]
+                parts.append(f"  • {actor}: {text}")
+                evidence.append({"source": "reported_statement", "actor": actor, "text": text})
+
+        # Invalidated claims
+        if situation.invalidated_by:
+            parts.append(f"\nInvalidated claims: {', '.join(situation.invalidated_by)}")
+
+        answer = "\n".join(parts)
+        follow_ups = [
+            "Why?",
+            "What don't we know?",
+            "What should I ask in the meeting?",
+        ]
+        return answer, evidence, follow_ups
+
+    def _render_unknowns(
+        self, situation: Any, entity: str | None,
+    ) -> tuple[str, list[dict], list[str]]:
+        """L0 (HIGH-02): 'What don't we know?' must render situation.unknowns."""
+        if situation is None:
+            return (
+                f"I don't have a situation snapshot for {entity or 'this entity'}, so I can't enumerate unknowns.",
+                [], ["What should I ask in the meeting?"],
+            )
+
+        parts: list[str] = []
+        evidence: list[dict] = []
+
+        if situation.unknowns:
+            parts.append("What we don't know:")
+            for u in situation.unknowns:
+                parts.append(f"  • {u}")
+                evidence.append({"source": "unknown", "text": u})
+        else:
+            parts.append("No specific unknowns recorded for this entity.")
+
+        # Surface disagreements as additional unknowns
+        if situation.disagreements:
+            parts.append("\nUnresolved disagreements (each is an unknown):")
+            for d in situation.disagreements[:3]:
+                actor = d.get("actor", "someone")
+                text = d.get("text", "")[:120]
+                parts.append(f"  • {actor}: {text}")
+                evidence.append({"source": "disagreement", "text": text, "actor": actor})
+
+        # Surface missing outcomes as unknowns
+        if situation.commitments and not situation.outcomes:
+            parts.append("\nWe have a commitment but no recorded outcome — whether it will be met is unknown.")
+
+        answer = "\n".join(parts)
+        follow_ups = [
+            "Show me the original evidence.",
+            "What should I ask in the meeting?",
+            "Why?",
+        ]
+        return answer, evidence, follow_ups
+
+    def _suggest_meeting_questions(
+        self, situation: Any, entity: str | None,
+    ) -> tuple[str, list[dict], list[str]]:
+        """L0 (HIGH-02): 'What should I ask?' must generate evidence-backed
+        meeting questions from the situation's disagreements, pending
+        conditions, and unknowns."""
+        if situation is None:
+            return (
+                f"I don't have a situation snapshot for {entity or 'this entity'}, so I can't suggest meeting questions.",
+                [], ["Why?"],
+            )
+
+        parts: list[str] = ["Evidence-backed questions to ask:"]
+        evidence: list[dict] = []
+        questions: list[str] = []
+
+        # From disagreements
+        for d in situation.disagreements[:3]:
+            actor = d.get("actor", "someone")
+            text = d.get("text", "")[:100]
+            q = f"Ask {actor} to clarify: \"{text}\"?"
+            questions.append(q)
+            evidence.append({"source": "disagreement", "text": text, "actor": actor})
+
+        # From pending conditions
+        for pc in situation.pending_conditions[:3]:
+            q = f"What is the status of: \"{pc[:100]}\"?"
+            questions.append(q)
+            evidence.append({"source": "pending_condition", "text": pc})
+
+        # From unknowns
+        for u in situation.unknowns[:3]:
+            q = f"How will we resolve: {u}?"
+            questions.append(q)
+            evidence.append({"source": "unknown", "text": u})
+
+        # From missing outcomes
+        if situation.commitments and not situation.outcomes:
+            for c in situation.commitments[:2]:
+                commit_text = c.get("text", "")[:100] if isinstance(c, dict) else str(c)[:100]
+                q = f"Has this commitment been met: \"{commit_text}\"?"
+                questions.append(q)
+                evidence.append({"source": "commitment", "text": commit_text})
+
+        if not questions:
+            parts.append("  • No specific questions surfaced — the situation is coherent.")
+        else:
+            for q in questions[:8]:
+                parts.append(f"  • {q}")
+
+        answer = "\n".join(parts)
+        follow_ups = [
+            "Show me the original evidence.",
+            "What don't we know?",
+            "Why?",
+        ]
+        return answer, evidence, follow_ups
+
+    # ─── End L0 (HIGH-02) investigation handlers ──────────────────────
+
     def execute(self, query: str, org_id: str = "default", session_id: str = "", user_email: str = "") -> dict[str, Any]:
         """Execute the full pipeline: classify → resolve → retrieve → assemble → narrate.
 
         Step 3 (conversation state): if session_id provided, load prior turns
         and resolve pronouns/entities from conversation history.
+
+        L0 fix (HIGH-02): if the query is a recognized multi-turn investigation
+        follow-up ("Why?", "Show me the original evidence.", "What don't we
+        know?", "What should I ask?"), route to a specialized handler that
+        uses the prior turn's answer + the canonical SituationSnapshot —
+        bypassing generic retrieval. This is the difference between an
+        investigation system and a search box.
 
         Returns:
             {
@@ -226,6 +603,18 @@ class AskPipeline:
 
         # Step 2: Resolve entities (with conversation state for pronoun resolution)
         entities = self.resolve_entities(query)
+
+        # L0 fix (HIGH-02): intercept multi-turn investigation follow-ups.
+        # These must be answered from the prior turn's context + the
+        # SituationSnapshot, NOT from generic retrieval. Generic retrieval
+        # produces "STATUS / NOTES" noise instead of an explanation.
+        if session_id and self._conversation_store:
+            followup = self._try_investigation_followup(
+                query=query, session_id=session_id, org_id=org_id,
+                user_email=user_email, entities=entities,
+            )
+            if followup is not None:
+                return followup
 
         # Step 3: Conversation state — resolve pronouns from prior turns
         # Phase 2.4: Entity-scoped retrieval. Once a conversation has resolved
@@ -387,6 +776,17 @@ class AskPipeline:
         # Step 2: Resolve entities
         entities = self.resolve_entities(query)
         trace.entities_resolved = list(entities)
+
+        # L0 fix (HIGH-02): intercept multi-turn investigation follow-ups.
+        # Same handler as execute() — the /ask/conversation route uses
+        # execute_async, so this interception must be present here too.
+        if session_id and self._conversation_store:
+            followup = self._try_investigation_followup(
+                query=query, session_id=session_id, org_id=org_id,
+                user_email=user_email, entities=entities,
+            )
+            if followup is not None:
+                return followup
 
         # Step 3: Conversation state (pronoun resolution, entity scoping)
         scoped_entity = None

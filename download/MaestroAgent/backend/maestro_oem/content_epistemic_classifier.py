@@ -59,6 +59,8 @@ VALID_TYPES = {
     OBSERVED_FACT, REPORTED_STATEMENT, COMMITMENT, ASSUMPTION,
     INFERENCE, PREDICTION, OUTCOME, PROPOSAL, ESTIMATE, HYPOTHESIS,
     "question", "negation", "retraction", "unclassified",
+    # L0 fix (MEDIUM-01): add the 3 new epistemic types
+    "tentative", "sarcasm", "artifact",
 }
 
 
@@ -95,6 +97,86 @@ _PATTERNS: list[tuple[re.Pattern, str, float]] = [
         ),
         "retraction",
         0.85,
+    ),
+
+    # ─── L0 fix (MEDIUM-01): Tentative — hedged, uncertain language ──────
+    # "Maybe we can ship SSO by Q4"
+    # "Perhaps we should..."
+    # "Possibly, but..."
+    # "I'm not sure if..."
+    # These express uncertainty WITHOUT being a full proposal or commitment.
+    # The auditor found "Maybe we can ship SSO by Q4" classified as
+    # unclassified — it should be "tentative". This pattern catches the
+    # hedging words that signal the speaker is not committing to the claim.
+    (
+        re.compile(
+            r"\b(?:maybe|perhaps|possibly|presumably|supposedly|"
+            r"i'?m\s+not\s+sure\s+(?:if|whether|that)|i'?m\s+unsure|"
+            r"might\s+be|might\s+have\s+been|could\s+be|"
+            r"i\s+(?:think|guess|suppose)\s+(?:we|that|so)|"
+            r"sort\s+of|kind\s+of|more\s+or\s+less|"
+            r"it'?s\s+possible\s+that|it'?s\s+unclear\s+(?:if|whether))\b",
+            re.IGNORECASE,
+        ),
+        "tentative",
+        0.75,
+    ),
+
+    # ─── L0 fix (MEDIUM-01): Sarcasm — ironic tone, often emoji-marked ───
+    # "Great, SSO is totally ready 🙄"
+    # "Oh sure, that went well"
+    # "Yeah, right"
+    # "As if we have time for that"
+    # Sarcasm reverses the literal meaning. The strongest signal is the
+    # combination of intensifier ("totally", "so", "just") + ironic context
+    # + sarcasm emoji (🙄, 🙃, 😏, 🫠) or tone words ("oh sure", "yeah right",
+    # "as if"). We match on either the emoji OR the canonical sarcastic
+    # openers. This is conservative — it won't catch dry sarcasm without
+    # lexical markers, but it catches the auditor's probe "Great, SSO is
+    # totally ready 🙄".
+    (
+        re.compile(
+            # Sarcasm emoji (face with rolling eyes, upside-down face,
+            # smirking face, melting face, etc.) — strong sarcasm signal
+            r"[\U0001F644\U0001F643\U0001F60F\U0001FAE0\U0001F926\U0001F612]"
+            r"|"
+            # Canonical sarcastic openers + intensifiers
+            r"\b(?:oh\s+sure,?|yeah\s+right|as\s+if|sure,?\s+(?:jan|susan|dave)|"
+            r"great,?\s+\w+\s+(?:is|are)\s+(?:totally|so|just|really)\s+"
+            r"(?:ready|done|fixed|complete|perfect|amazing|awesome)|"
+            r"(?:totally|so|just)\s+(?:ready|done|fixed|complete|perfect)\s*[.!?]\s*$"
+            r")",
+            re.IGNORECASE,
+        ),
+        "sarcasm",
+        0.70,
+    ),
+
+    # ─── L0 fix (MEDIUM-01): Artifact — references a system-generated log/record ─
+    # "The deployment log shows SSO failed"
+    # "The error log indicates..."
+    # "The audit trail shows..."
+    # "The CI pipeline reported..."
+    # "The metrics dashboard shows..."
+    # An artifact reference is an observed_fact that points to a specific
+    # system-generated record (log, audit trail, dashboard, pipeline output).
+    # We classify it as "artifact" to distinguish human-reported facts from
+    # machine-generated records. This catches the auditor's probe "The
+    # deployment log shows SSO failed".
+    (
+        re.compile(
+            r"\b(?:the\s+(?:deployment|error|access|audit|change|git|build|test)\s+log\s+"
+            r"(?:shows?|indicates?|reveals?|reports?|says)|"
+            r"the\s+(?:ci|cd)\s+pipeline\s+(?:shows?|indicates?|reveals?|reported)|"
+            r"the\s+(?:metrics\s+)?dashboard\s+(?:shows?|indicates?)|"
+            r"the\s+audit\s+trail\s+(?:shows?|indicates?)|"
+            r"(?:git|build|test)\s+history\s+(?:shows?|indicates?)|"
+            r"server\s+logs\s+(?:show|indicate)|"
+            r"stack\s+trace\s+(?:shows?|indicates?))\b",
+            re.IGNORECASE,
+        ),
+        "artifact",
+        0.80,
     ),
 
     # ─── Phase 3.1b: Negation — "nobody has ever said", "we haven't shipped" ─

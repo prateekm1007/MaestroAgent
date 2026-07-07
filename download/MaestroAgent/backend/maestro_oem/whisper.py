@@ -1014,12 +1014,36 @@ class OrganizationalWhisper:
             commitments = [s for s in customer_signals
                           if s.type == SignalType.CUSTOMER_COMMITMENT_MADE]
             for c in commitments:
+                # L0 fix (HIGH-03): use the real actor from the commitment
+                # signal, not a hardcoded "Engineering" template. The actor
+                # is sourced from (in priority order): the signal's `actor`
+                # field, the commitment metadata's `actor`/`team`/`owner`
+                # keys, or a fallback to "Someone" — never a fabricated team
+                # name. This keeps Whisper coherent with SituationSnapshot,
+                # which now exposes the same actor in `commitments[*].actor`.
+                commitment_text = c.metadata.get('commitment', '')[:80]
+                actor = (
+                    getattr(c, 'actor', None)
+                    or c.metadata.get('actor')
+                    or c.metadata.get('team')
+                    or c.metadata.get('owner')
+                    or c.metadata.get('promisor')
+                    or ""
+                )
+                if isinstance(actor, str):
+                    actor = actor.strip()
+                # If actor is an email, render the local part for readability
+                if actor and '@' in actor:
+                    actor_display = actor.split('@')[0]
+                else:
+                    actor_display = actor or "Someone"
                 whispers.append({
                     "type": "commitment_exists",
-                    "text": f"Engineering already promised: {c.metadata.get('commitment', '')[:80]}",
+                    "text": f"{actor_display} already promised: {commitment_text}",
                     "source": "customer signals",
                     "confidence": 1.0,
-                    "evidence": {"artifact": c.artifact, "timestamp": c.timestamp.isoformat()},
+                    "evidence": {"artifact": c.artifact, "timestamp": c.timestamp.isoformat(),
+                                 "actor": actor},
                 })
 
             objections = [s for s in customer_signals
