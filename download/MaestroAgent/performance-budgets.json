@@ -1,0 +1,10 @@
+{
+  "initial-js": { "max-kb": 350, "description": "JS loaded on first paint (bundle + utils + state + card)" },
+  "total-js": { "max-kb": 400, "description": "Total JS for all surfaces" },
+  "total-css": { "max-kb": 200, "description": "Total CSS (design-system + invisible-maestro + maestro-bumble + app)" },
+  "lcp": { "max-ms": 2500, "description": "Largest Contentful Paint" },
+  "fid": { "max-ms": 100, "description": "First Input Delay" },
+  "cls": { "max": 0.1, "description": "Cumulative Layout Shift" },
+  "dom-nodes": { "max": 1500, "description": "Max DOM nodes at any point" },
+  "time-to-interactive": { "max-ms": 3500 }
+}
