@@ -855,3 +855,304 @@
 /* ─── Additional spacing utilities ─────────────────────────────────────── */
 .b-mb12 { margin-bottom: 12px; }
 .b-mb16 { margin-bottom: 16px; }
+
+/* === MERGED FROM invisible-maestro.css === */
+/* ════════════════════════════════════════════════════════════════════════════
+   THE INVISIBLE MAESTRO — Constitution v2 design language
+   ════════════════════════════════════════════════════════════════════════════
+   "Every increase in Maestro's internal intelligence must reduce the amount
+    of interface exposed to the customer."
+
+   This file defines the visual language for the 4 meta-surfaces (TODAY,
+   WORK, ASK, LEARN) + the Organizational Dot. The existing 22 surfaces
+   remain in the DOM (for backward compat) but are de-emphasized.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Meta-surface page layout — calm, spacious, like Apple Weather ──────── */
+
+.meta-surface {
+  padding: 48px 56px;
+  max-width: 720px;
+  margin: 0 auto;
+  position: relative;  /* Round 46 — for the filter pill absolute positioning */
+}
+
+.meta-surface.greeting {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.meta-surface.sub-greeting {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-bottom: 48px;
+  line-height: 1.5;
+}
+
+/* ─── Brief items — one per row, calm spacing ─────────────────────────────── */
+
+.brief-item {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--divider);
+  cursor: pointer;
+  transition: all var(--ease);
+}
+.brief-item:last-child { border-bottom: none; }
+.brief-item:hover { padding-left: 8px; }
+
+.brief-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.brief-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.45;
+  margin-bottom: 6px;
+}
+
+.brief-context {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.brief-provenance {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-family: var(--font-mono);
+}
+
+/* ─── Organizational Dot — universal presence indicator ──────────────────── */
+
+.org-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+  transition: background-color 400ms ease, box-shadow 400ms ease;
+}
+.org-dot-green { background: var(--positive); box-shadow: 0 0 6px rgba(34, 197, 94, 0.3); }
+.org-dot-yellow { background: var(--warning); box-shadow: 0 0 6px rgba(245, 158, 11, 0.3); }
+.org-dot-orange { background: #f97316; box-shadow: 0 0 6px rgba(249, 115, 22, 0.3); }
+.org-dot-red { background: var(--risk); box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); animation: org-dot-pulse 2s ease-in-out infinite; }
+
+@keyframes org-dot-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.7); }
+}
+
+/* ─── Organizational Heartbeat — subtle, alive, never distracting ────────── */
+
+.org-heartbeat {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--secondary);
+  margin-right: 6px;
+  animation: heartbeat 3s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+
+/* ─── Organizational Weather — metaphor-based forecast ───────────────────── */
+
+.weather-card {
+  padding: 20px 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  margin-bottom: 16px;
+}
+
+.weather-forecast {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.weather-detail {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* ─── Contextual Whispers — max 2 sentences, disappear after ack ─────────── */
+
+.whisper {
+  padding: 14px 18px;
+  border-radius: var(--radius-tight);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.55;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all var(--ease);
+  max-width: 480px;
+}
+.whisper:hover { background: rgba(124, 92, 255, 0.12); }
+.whisper.dismissed { opacity: 0; transform: translateX(20px); pointer-events: none; }
+
+.whisper-source {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  font-family: var(--font-mono);
+}
+
+/* ─── Intention prompts (ASK surface) ─────────────────────────────────────── */
+
+.intention-prompt {
+  display: block;
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: var(--radius-tight);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  font-size: 15px;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--ease);
+  margin-bottom: 8px;
+}
+.intention-prompt:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  transform: translateX(4px);
+}
+
+.intention-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* ─── Story cards (LEARN surface) ─────────────────────────────────────────── */
+
+.story-card {
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  margin-bottom: 16px;
+}
+
+.story-narrative {
+  font-size: 16px;
+  color: var(--text-primary);
+  line-height: 1.65;
+  margin-bottom: 12px;
+}
+
+.story-evidence {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ─── Sidebar v2 — 4 items, minimal ───────────────────────────────────────── */
+
+.sidebar-v2-primary {
+  padding: 8px;
+}
+
+.sidebar-v2-primary .sidebar-link {
+  font-size: 15px;
+  font-weight: 500;
+  padding: 12px 16px;
+}
+
+.sidebar-v2-divider {
+  padding: 16px 16px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  border-top: 1px solid var(--divider);
+  margin-top: 8px;
+}
+
+/* ─── Tension display (replaces KPIs) ─────────────────────────────────────── */
+
+.tension-line {
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.55;
+  padding: 12px 0;
+}
+
+.tension-line::before {
+  content: '· ';
+  color: var(--text-muted);
+}
+
+/* ─── Ambient integration cards (WORK surface) ────────────────────────────── */
+
+.ambient-card {
+  padding: 20px 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all var(--ease);
+}
+.ambient-card:hover { border-color: var(--accent-border); }
+
+.ambient-tool {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.ambient-message {
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.55;
+}
+
+/* ─── Calm empty state ────────────────────────────────────────────────────── */
+
+.calm-empty {
+  padding: 80px 40px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ─── WCAG: respect reduced motion ────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .org-dot-red, .org-heartbeat { animation: none !important; }
+  .brief-item, .whisper, .intention-prompt, .ambient-card { transition: none !important; }
+}
