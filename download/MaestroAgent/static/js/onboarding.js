@@ -135,7 +135,7 @@ function renderOnboardingWelcome() {
       <div class="text-body b-text-center-10">
         I'm Maestro — your organizational intelligence layer.
       </div>
-      <button class="maestro-btn maestro-btn-full" onclick="showOnboardingScreen(2)">Get Started</button>
+      <button class="maestro-btn maestro-btn-full" data-action="showOnboardingScreen" data-args='[2]'>Get Started</button>
       <div class="progress-dots">
         ${[1,2,3,4,5,6].map(i => `<div class="progress-dot ${i === 1 ? 'active' : ''}"></div>`).join('')}
       </div>
@@ -156,9 +156,9 @@ function renderOnboardingName() {
         <div class="text-caption b-text-muted-4">
           This is how I'll greet you.
         </div>
-        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(1)" style="margin-bottom:8px;">← Back</button>
+        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" data-action="showOnboardingScreen" data-args='[1]' style="margin-bottom:8px;">← Back</button>
         <button class="maestro-btn maestro-btn-full" id="onboard-name-btn" disabled
-                onclick="saveOnboardingName()">Continue</button>
+                data-action="saveOnboardingName">Continue</button>
       </div>
       <div class="progress-dots">
         ${[1,2,3,4,5,6].map(i => `<div class="progress-dot ${i === 2 ? 'active' : ''}"></div>`).join('')}
@@ -201,7 +201,7 @@ function renderOnboardingAbout() {
         <div class="text-caption b-text-muted-3">
           This is stored in your Maestro account. You can delete it anytime in Settings.
         </div>
-        <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingAbout()">Continue</button>
+        <button class="maestro-btn maestro-btn-full" data-action="saveOnboardingAbout">Continue</button>
       </div>
       <div class="progress-dots">
         ${[1,2,3,4,5,6].map(i => `<div class="progress-dot ${i === 3 ? 'active' : ''}"></div>`).join('')}
@@ -256,13 +256,13 @@ function renderOnboardingWorkTools() {
                   <div class="text-caption text-muted">${escapeHtml(s.desc)}</div>
                 </div>
               </div>
-              <div class="maestro-toggle" id="work-toggle-${s.id}" onclick="toggleWorkTool('${s.id}')"></div>
+              <div class="maestro-toggle" id="work-toggle-${s.id}" data-action="toggleWorkTool" data-tool-id="${s.id}"></div>
             </div>
           `).join('')}
         </div>
         <div class="b-flex-gapvar">
-          <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(5)">Skip for now</button>
-          <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingWorkTools()">Continue</button>
+          <button class="maestro-btn maestro-btn-ghost maestro-btn-full" data-action="showOnboardingScreen" data-args='[5]'>Skip for now</button>
+          <button class="maestro-btn maestro-btn-full" data-action="saveOnboardingWorkTools">Continue</button>
         </div>
       </div>
       <div class="progress-dots">
@@ -403,13 +403,13 @@ function renderOnboardingPersonalTools() {
                   <div class="text-caption text-muted">${escapeHtml(s.desc)}</div>
                 </div>
               </div>
-              <div class="maestro-toggle" id="personal-toggle-${s.id}" onclick="togglePersonalTool('${s.id}')"></div>
+              <div class="maestro-toggle" id="personal-toggle-${s.id}" data-action="togglePersonalTool" data-tool-id="${s.id}"></div>
             </div>
           `).join('')}
         </div>
         <div class="b-flex-gapvar">
-          <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(6)">Skip for now</button>
-          <button class="maestro-btn maestro-btn-full" onclick="saveOnboardingPersonalTools()">Connect</button>
+          <button class="maestro-btn maestro-btn-ghost maestro-btn-full" data-action="showOnboardingScreen" data-args='[6]'>Skip for now</button>
+          <button class="maestro-btn maestro-btn-full" data-action="saveOnboardingPersonalTools">Connect</button>
         </div>
       </div>
       <div class="progress-dots">
@@ -456,7 +456,7 @@ function renderOnboardingDone() {
       <div class="text-label b-text-center-7">
         I'll learn what matters as you use me. You'll get a briefing tomorrow morning.
       </div>
-      <button class="maestro-btn maestro-btn-inverted maestro-btn-full" onclick="finishOnboarding()">
+      <button class="maestro-btn maestro-btn-inverted maestro-btn-full" data-action="finishOnboarding">
         Open Maestro
       </button>
     </div>
@@ -467,3 +467,24 @@ function finishOnboarding() {
   _clearOnboardingState(); // Round 65 H1: clear saved state on completion
   window.location.href = '/app.html';
 }
+
+// Phase 4: Event delegation for toggle handlers (replaces inline onclick)
+// The CSP shim handles data-action + data-args, but toggleTool needs data-tool-id
+document.addEventListener('click', function(e) {
+    var target = e.target.closest('[data-action="toggleWorkTool"]');
+    if (target) {
+        e.preventDefault();
+        e.stopPropagation();
+        var toolId = target.getAttribute('data-tool-id');
+        if (toolId) toggleWorkTool(toolId);
+        return;
+    }
+    target = e.target.closest('[data-action="togglePersonalTool"]');
+    if (target) {
+        e.preventDefault();
+        e.stopPropagation();
+        var toolId = target.getAttribute('data-tool-id');
+        if (toolId) togglePersonalTool(toolId);
+        return;
+    }
+});
