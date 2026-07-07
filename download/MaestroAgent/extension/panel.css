@@ -161,6 +161,29 @@ html, body {
 .suggestion-card.pattern { border-left-color: var(--c-cyan); }
 .suggestion-card.tracked { border-left-color: var(--c-green); }
 
+/* ─── Card internals (Phase 4) ────────────────────────────────────────────── */
+.card-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.card-body { font-size: 12px; color: var(--c-text-muted); margin-bottom: 8px; }
+.card-confidence { margin-bottom: 6px; }
+.confidence-label { font-size: 10px; color: var(--c-text-muted); font-family: var(--font-mono); margin-bottom: 2px; }
+.confidence-bar { height: 3px; background: var(--c-surface-2); border-radius: 2px; overflow: hidden; }
+.confidence-fill { height: 100%; border-radius: 2px; transition: width 400ms ease-out; }
+.card-evidence { font-size: 11px; margin-bottom: 6px; }
+.evidence-link { color: var(--c-cyan); text-decoration: none; cursor: pointer; }
+.evidence-link:hover { text-decoration: underline; }
+.card-actions { display: flex; gap: 6px; }
+.btn-small {
+  padding: 4px 10px;
+  font-size: 11px;
+  background: var(--c-surface-2);
+  color: var(--c-text);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.btn-small:hover { background: var(--c-border); }
+.btn-small:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 1px; }
+
 .transcript {
   font-family: var(--font-mono);
   font-size: 11px;

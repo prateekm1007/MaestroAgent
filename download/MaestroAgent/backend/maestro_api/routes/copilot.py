@@ -90,13 +90,10 @@ class CopilotSession:
     async def _process_audio(self, audio_data: bytes, timestamp: int) -> None:
         """Transcribe audio chunk and send transcript back to extension.
 
-        Phase 2: uses a stub transcription (returns a placeholder).
-        Phase 2.5 (when Whisper is available): uses whisper.cpp for real STT.
+        Phase 2: stub transcription.
+        Phase 4: live intelligence engine processes transcript chunks.
         """
         # Phase 2 stub: acknowledge receipt
-        # In production, this calls the transcription service:
-        #   transcript = await transcribe_audio(audio_data)
-        # For now, send a heartbeat so the extension knows the backend is alive
         await self.send_json({
             "type": "AUDIO_RECEIVED",
             "timestamp": timestamp,
@@ -104,14 +101,53 @@ class CopilotSession:
             "session_id": self.session_id,
         })
 
-        # When transcription is available, send transcript chunks:
-        # await self.send_json({
-        #     "type": "TRANSCRIPT_CHUNK",
-        #     "speaker": speaker,
-        #     "text": transcript_text,
-        #     "trigger_words": detected_triggers,
-        #     "timestamp": timestamp,
-        # })
+        # Phase 4: when transcription is available, process transcript chunks
+        # through the LiveIntelligenceEngine and send suggestion cards.
+        # For now, the engine is wired but waiting for real transcription.
+        # When transcript_text is available:
+        #   cards = self.live_engine.process_transcript(transcript_text, speaker, entity)
+        #   for card in cards:
+        #       await self.send_json({"type": "SUGGESTION", "card": card.to_dict()})
+
+    async def process_transcript_chunk(self, text: str, speaker: str = "", entity: str | None = None):
+        """Phase 4: process a transcript chunk through the live intelligence engine.
+
+        Called when the transcription service produces a transcript chunk.
+        Generates suggestion cards and sends them to the extension.
+        """
+        if not hasattr(self, "live_engine"):
+            try:
+                from maestro_oem.live_intelligence import LiveIntelligenceEngine
+                from maestro_api.oem_state import oem_state
+                self.live_engine = LiveIntelligenceEngine(oem_state)
+            except Exception as e:
+                logger.warning(f"Copilot: could not init live engine: {e}")
+                return
+
+        cards = self.live_engine.process_transcript(text, speaker, entity)
+        for card in cards:
+            await self.send_json({
+                "type": "SUGGESTION",
+                "card": card.to_dict(),
+            })
+
+        # Also send the transcript chunk for display
+        await self.send_json({
+            "type": "TRANSCRIPT_CHUNK",
+            "speaker": speaker,
+            "text": text,
+            "trigger_words": self._extract_trigger_words(text),
+            "timestamp": int(time.time() * 1000),
+        })
+
+    def _extract_trigger_words(self, text: str) -> list[str]:
+        """Extract words that triggered detection (for highlighting)."""
+        triggers = []
+        text_lower = text.lower()
+        for word in ["budget", "pricing", "expensive", "commit", "promise", "deliver", "by friday", "by next"]:
+            if word in text_lower:
+                triggers.append(word)
+        return triggers
 
     async def _on_disconnect(self) -> None:
         """Clean up when the WebSocket disconnects (call ended)."""
