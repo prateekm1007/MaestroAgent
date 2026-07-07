@@ -104,6 +104,23 @@ class LearningState(str, Enum):
     FALSIFIED = "falsified"             # enough contradictions to falsify
 
 
+class EvidenceState(str, Enum):
+    """Evidence states replacing confidence adjectives (CEO directive).
+
+    "Moderate confidence" tells the executive almost nothing.
+    "Supported by the commitment record and customer statement, but the
+    security approval status is missing" is useful.
+
+    Externally: explain WHY certainty is limited.
+    Internally: retain calibrated values where legitimate.
+    """
+    DIRECTLY_SUPPORTED = "directly_supported"        # evidence directly backs the claim
+    SUPPORTED_WITH_GAPS = "supported_with_gaps"      # evidence backs it but key facts missing
+    CONTESTED = "contested"                          # credible evidence conflicts
+    PRELIMINARY = "preliminary"                      # early-stage, could change
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"  # not enough evidence to say
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # State Transition — every transition is justified + logged
 # ════════════════════════════════════════════════════════════════════════════
@@ -266,6 +283,35 @@ class Disagreement:
 
 
 @dataclass
+class DecisionBoundary:
+    """What can reasonably be decided now, and what cannot?
+
+    This is genuine executive intelligence. Most systems produce "here are
+    the facts." Some produce "here is my recommendation." Better: "Here is
+    what reality currently permits you to decide."
+
+    Example:
+      Can decide now: Adopt OAuth standardization as architectural direction.
+      Cannot decide yet: Migration sequence for enterprise-facing services.
+      Why: Legacy compatibility obligations are unresolved.
+      Smallest useful next step: Review contractual SSO obligations for
+        three affected accounts.
+    """
+    can_decide_now: list[str] = field(default_factory=list)
+    cannot_decide_yet: list[str] = field(default_factory=list)
+    why: str = ""
+    smallest_useful_next_step: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "can_decide_now": self.can_decide_now,
+            "cannot_decide_yet": self.cannot_decide_yet,
+            "why": self.why,
+            "smallest_useful_next_step": self.smallest_useful_next_step,
+        }
+
+
+@dataclass
 class Judgment:
     """The synthesized of all perspectives on a situation."""
     central_claim: str = ""
@@ -275,6 +321,9 @@ class Judgment:
     recommended_next_step: str = ""
     confidence: float = 0.0
     evidence_refs: list[str] = field(default_factory=list)
+    # Gate 2 additions:
+    evidence_state: EvidenceState = EvidenceState.INSUFFICIENT_EVIDENCE
+    decision_boundary: Optional[DecisionBoundary] = None
 
     def to_dict(self) -> dict:
         return {
@@ -285,6 +334,8 @@ class Judgment:
             "recommended_next_step": self.recommended_next_step,
             "confidence": round(self.confidence, 3),
             "evidence_refs": self.evidence_refs,
+            "evidence_state": self.evidence_state.value,
+            "decision_boundary": self.decision_boundary.to_dict() if self.decision_boundary else None,
         }
 
 

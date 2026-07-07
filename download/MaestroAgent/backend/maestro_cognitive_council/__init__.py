@@ -23,11 +23,13 @@ from .situation_engine import (
     EpistemicState,
     DeliveryRoute,
     LearningState,
+    EvidenceState,
     TimelineEvent,
     KnownFact,
     Unknown,
     Disagreement,
     Judgment,
+    DecisionBoundary,
     StateTransition,
     SituationDelta,
     SPECIALIST_DOMAIN_MAP,
@@ -35,6 +37,7 @@ from .situation_engine import (
 from .perspective import Perspective
 from .judgment_synthesizer import JudgmentSynthesizer
 from .delivery_governor import DeliveryGovernor, UserContext
+from .consequence_path_router import ConsequencePathRouter, ConsequencePath, RoutingResult
 
 __all__ = [
     # Phase 1: Situation Engine
@@ -45,11 +48,13 @@ __all__ = [
     "EpistemicState",
     "DeliveryRoute",
     "LearningState",
+    "EvidenceState",
     "TimelineEvent",
     "KnownFact",
     "Unknown",
     "Disagreement",
     "Judgment",
+    "DecisionBoundary",
     "StateTransition",
     "SituationDelta",
     "SPECIALIST_DOMAIN_MAP",
@@ -60,4 +65,8 @@ __all__ = [
     # Phase 4: Delivery Governor
     "DeliveryGovernor",
     "UserContext",
+    # Gate 2: Consequence-Path Router
+    "ConsequencePathRouter",
+    "ConsequencePath",
+    "RoutingResult",
 ]
