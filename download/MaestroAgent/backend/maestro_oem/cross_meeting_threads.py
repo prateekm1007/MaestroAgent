@@ -54,6 +54,10 @@ class MeetingSummary:
     decisions: list[str]
     commitments: list[str]
     transcript_text: str = ""
+    # Link 2 compounding: optional per-meeting sentiment score (0.0-1.0).
+    # When provided, CrossMeetingThreadBuilder enriches each thread with a
+    # sentiment trend via CrossFeatureCompounding.compute_sentiment_trend_across_meetings().
+    sentiment: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -65,6 +69,7 @@ class MeetingSummary:
             "topics": self.topics,
             "decisions": self.decisions,
             "commitments": self.commitments,
+            "sentiment": self.sentiment,
         }
 
 
@@ -80,6 +85,10 @@ class MeetingThread:
     requires_confirmation: bool = False
     topic_evolution: list[str] = field(default_factory=list)
     decision_chain: list[dict] = field(default_factory=list)
+    # Link 2 compounding: sentiment trend across the thread's meetings.
+    # Populated by CrossFeatureCompounding.compute_sentiment_trend_across_meetings()
+    # when meetings have sentiment data. None when insufficient data.
+    sentiment_trend: Optional[dict] = None
 
     def to_dict(self) -> dict:
         return {
@@ -93,6 +102,7 @@ class MeetingThread:
             "requires_confirmation": self.requires_confirmation,
             "topic_evolution": self.topic_evolution,
             "decision_chain": self.decision_chain,
+            "sentiment_trend": self.sentiment_trend,
         }
 
 
@@ -211,6 +221,29 @@ class CrossMeetingThreadBuilder:
 
         # Filter out rejected threads
         threads = [t for t in threads if t.thread_id not in self._rejected_threads]
+
+        # ── Cross-feature compounding (Link 2): Sentiment + Threads ──────
+        # Wire CrossFeatureCompounding.compute_sentiment_trend_across_meetings()
+        # into the production call path. Each thread's meetings are enriched
+        # with a sentiment trend so the user sees "sentiment is declining
+        # across this conversation thread" — not just isolated per-meeting
+        # sentiment. This makes Sentiment and Cross-Meeting Threads compound.
+        from maestro_oem.cross_feature_compounding import CrossFeatureCompounding
+        compounding = CrossFeatureCompounding()
+        for thread in threads:
+            # Sort meetings chronologically for trend computation
+            sorted_meetings = sorted(
+                thread.meetings,
+                key=lambda m: m.start_time if isinstance(m.start_time, datetime) else datetime.min,
+            )
+            sentiments = [
+                m.sentiment for m in sorted_meetings
+                if m.sentiment is not None
+            ]
+            if len(sentiments) >= 2:
+                thread.sentiment_trend = compounding.compute_sentiment_trend_across_meetings(
+                    meeting_sentiments=sentiments
+                )
 
         # Sort by confidence (highest first)
         threads.sort(key=lambda t: t.confidence, reverse=True)

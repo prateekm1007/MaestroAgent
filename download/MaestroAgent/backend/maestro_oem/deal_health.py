@@ -76,6 +76,10 @@ class DealHealthScore:
     # P25: denominator = number of historical deals calibrating the model
     calibration_denominator: int = 0
     score_history: list[float] = field(default_factory=list)
+    # Cross-feature compounding (Link 1): adjustments applied by
+    # CrossFeatureCompounding.adjust_deal_health_for_commitments().
+    # Empty list = no compounding applied (e.g. no overdue commitments).
+    compounding_adjustments: list[dict] = field(default_factory=list)
 
     @property
     def confidence_label(self) -> str:
@@ -96,6 +100,7 @@ class DealHealthScore:
             "positive_indicators": self.positive_indicators,
             "timestamp": self.timestamp.isoformat(),
             "score_history": self.score_history[-5:],  # last 5 scores
+            "compounding_adjustments": self.compounding_adjustments,
         }
 
 
@@ -149,6 +154,30 @@ class DealHealthEngine:
         # Convert to 0-100 scale
         score = raw_score * 100
 
+        # ── Cross-feature compounding (Link 1): Deal Health + Commitment ──
+        # Wire CrossFeatureCompounding.adjust_deal_health_for_commitments()
+        # into the production call path. Overdue/broken commitments dock the
+        # deal health score by 5 points each (capped at 25). This makes Deal
+        # Health and Commitment Escalation compound — overdue commitments
+        # drag down the deal, not just sit in a separate tracker.
+        compounding_adjustments: list[dict] = []
+        overdue_count = self._count_overdue_commitments(entity)
+        if overdue_count > 0:
+            from maestro_oem.cross_feature_compounding import CrossFeatureCompounding
+            compounding = CrossFeatureCompounding()
+            pre_compound_score = score
+            score = compounding.adjust_deal_health_for_commitments(
+                base_score=score, overdue_count=overdue_count
+            )
+            compounding_adjustments.append({
+                "link": "deal_health_plus_commitment",
+                "overdue_count": overdue_count,
+                "pre_compound_score": round(pre_compound_score, 1),
+                "post_compound_score": round(score, 1),
+                "penalty_applied": round(pre_compound_score - score, 1),
+                "evidence": {"source": "commitment_escalation_engine"},
+            })
+
         # Determine status
         if score >= 75:
             status = DealHealthStatus.STRONG
@@ -189,6 +218,7 @@ class DealHealthEngine:
             positive_indicators=positive_indicators,
             calibration_denominator=calibration,
             score_history=self._score_history[entity],
+            compounding_adjustments=compounding_adjustments,
         )
 
     def record_deal_outcome(self, entity: str, outcome: str) -> None:
@@ -236,6 +266,43 @@ class DealHealthEngine:
         # Score: kept commitments boost, broken commitments penalize
         score = 0.5 + (kept * 0.15) - (broken * 0.25)
         return max(0.0, min(1.0, score))
+
+    def _count_overdue_commitments(self, entity: str) -> int:
+        """Count overdue/broken commitments for an entity (for Link 1 compounding).
+
+        Used by CrossFeatureCompounding.adjust_deal_health_for_commitments()
+        to dock the deal health score when commitments are overdue. This is
+        the production wiring of the Deal Health + Commitment compounding link.
+        """
+        if not self.oem or not hasattr(self.oem, "signals"):
+            return 0
+
+        from maestro_oem.signal import SignalType
+        entity_lower = entity.lower()
+        overdue = 0
+
+        for sig in self.oem.signals:
+            if not hasattr(sig, "metadata"):
+                continue
+            if sig.metadata.get("customer", "").lower() != entity_lower:
+                continue
+            # Broken commitments are always overdue
+            if sig.type == SignalType.CUSTOMER_COMMITMENT_BROKEN:
+                overdue += 1
+            # Open commitments with a past due date are overdue
+            elif sig.type == SignalType.CUSTOMER_COMMITMENT_MADE:
+                due_date_str = sig.metadata.get("due_date") or sig.metadata.get("deadline")
+                if due_date_str:
+                    try:
+                        due_date = datetime.fromisoformat(
+                            due_date_str.replace("Z", "+00:00")
+                        ) if isinstance(due_date_str, str) else due_date_str
+                        if due_date < datetime.now(timezone.utc):
+                            overdue += 1
+                    except (ValueError, TypeError):
+                        pass  # unparseable date — don't count as overdue
+
+        return overdue
 
     def _compute_sentiment_score(self, entity: str) -> float:
         """Score based on recent sentiment patterns (0.0-1.0).

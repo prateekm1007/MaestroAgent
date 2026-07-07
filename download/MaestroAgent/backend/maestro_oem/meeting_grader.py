@@ -132,6 +132,10 @@ class MeetingGrader:
     WEIGHT_PARTICIPATION = 0.20
     WEIGHT_DURATION = 0.20
 
+    # Link 3 compounding: boost applied when follow-up sent within 24h.
+    # Must match CrossFeatureCompounding.FOLLOW_UP_BOOST.
+    FOLLOW_UP_BOOST = 5.0
+
     # Action item patterns
     ACTION_ITEM_PATTERNS = [
         re.compile(r"\b(?:I\s+will|I'?ll|we\s+will|we'?ll|Sam\s+will|he\s+will|she\s+will|they\s+will|\w+\s+will)\s+(?:send|deliver|ship|prepare|share|follow\s+up|schedule|review|check|confirm)\b", re.IGNORECASE),
@@ -153,6 +157,10 @@ class MeetingGrader:
         self._follow_ups: dict[str, list[ActionItem]] = {}  # meeting_id -> action items
         self._calibration_meetings: int = 0
         self._user_override: Optional[MeetingGrade] = None
+        # Link 3 compounding: workplace signals (email/Slack) used to detect
+        # follow-up within 24h. Set via set_workplace_signals() before grading.
+        self._workplace_signals: list[dict] = []
+        self._meeting_end_time: Optional[datetime] = None
 
     def set_meeting_data(
         self,
@@ -168,6 +176,24 @@ class MeetingGrader:
         self._talk_ratio_balance = talk_ratio_balance
         self._sentiment_score = sentiment_score
         self._participants = participants
+
+    def set_workplace_signals(
+        self,
+        signals: list[dict],
+        meeting_end_time: datetime,
+    ) -> None:
+        """Set workplace signals for Link 3 compounding (Meeting Grade + Email).
+
+        Args:
+            signals: list of workplace signal dicts (from WorkplaceSignalFusion),
+                     each with a "timestamp" key (ISO string or datetime).
+            meeting_end_time: when the meeting ended (for the 24h follow-up window).
+
+        This wires Meeting Grade to the Workplace Signal Fusion engine — a
+        meeting where action items are followed up within 24h gets a +5 boost.
+        """
+        self._workplace_signals = signals or []
+        self._meeting_end_time = meeting_end_time
 
     def set_user_override(self, grade: MeetingGrade) -> None:
         """Allow user to override the computed grade (transparent, auditable)."""
@@ -196,6 +222,29 @@ class MeetingGrader:
             + participation_score * self.WEIGHT_PARTICIPATION
             + duration_score * self.WEIGHT_DURATION
         )
+
+        # ── Cross-feature compounding (Link 3): Meeting Grade + Email ────
+        # Wire CrossFeatureCompounding.adjust_meeting_grade_for_followup()
+        # into the production call path. If a follow-up email/Slack was sent
+        # within 24h of the meeting (detected via WorkplaceSignalFusion), the
+        # grade gets a +5 boost. This makes Meeting Grade and Email/Slack
+        # compound — promptly-followed-up meetings are graded higher.
+        compounding_boost_applied = False
+        follow_up_sent_within_24h = False
+        if self._workplace_signals and self._meeting_end_time:
+            from maestro_oem.cross_feature_compounding import CrossFeatureCompounding
+            compounding = CrossFeatureCompounding()
+            follow_up_sent_within_24h = compounding.check_follow_up_sent(
+                meeting_end_time=self._meeting_end_time,
+                signals=self._workplace_signals,
+            )
+            if follow_up_sent_within_24h:
+                pre_boost_score = score
+                score = compounding.adjust_meeting_grade_for_followup(
+                    base_grade_score=score,
+                    follow_up_sent_within_24h=True,
+                )
+                compounding_boost_applied = True
 
         # 4. Determine grade
         grade = self._score_to_grade(score)
@@ -238,6 +287,16 @@ class MeetingGrader:
                 "note": "30-60 min = ideal; too long = fatigue",
             },
         }
+
+        # Add compounding factor (transparent — only shown when applied)
+        if self._workplace_signals and self._meeting_end_time:
+            factors["follow_up_compounding"] = {
+                "link": "meeting_grade_plus_email",
+                "follow_up_sent_within_24h": follow_up_sent_within_24h,
+                "boost_applied": compounding_boost_applied,
+                "boost_amount": self.FOLLOW_UP_BOOST if compounding_boost_applied else 0,
+                "note": "+5 if follow-up email/Slack sent within 24h (Link 3 compounding)",
+            }
 
         return MeetingGradeReport(
             grade=grade,
