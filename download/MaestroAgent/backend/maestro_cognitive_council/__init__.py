@@ -51,6 +51,7 @@ from .delivery_governor import (
 from .consequence_path_router import ConsequencePathRouter, ConsequencePath, RoutingResult
 from .benchmark_types import BenchmarkStory, BenchmarkSignal, CheckpointExpectation
 from .world_model_benchmark import ALL_STORIES, get_story, get_stories_by_failure_shape
+from .behavioral_learning_engine import BehavioralLearningEngine, LearningArcResult
 
 __all__ = [
     # Phase 1: Situation Engine
@@ -97,4 +98,7 @@ __all__ = [
     "ALL_STORIES",
     "get_story",
     "get_stories_by_failure_shape",
+    # Gate 4: Behavioral Learning
+    "BehavioralLearningEngine",
+    "LearningArcResult",
 ]
