@@ -170,14 +170,14 @@ One helps you cheat in the moment. The other helps your organization learn, pred
 | 14: Cross-meeting threads | 84-93 | 40 | Topic linking, decision tracking | ⚠️ CAVeats: 70-80% accuracy, manual correction | NOT STARTED |
 | 15: Talk ratio + comms coach | 94-103 | 40 | Speaking time, interruptions, clarity | ✅ REALISTIC | NOT STARTED |
 | 16: Meeting grade + analytics | 104-113 | 40 | Effectiveness score, action items | ✅ REALISTIC | NOT STARTED |
-| ~~17: Email/Slack ambient~~ | ~~114-123~~ | ~~40~~ | ~~Ambient monitoring of written comms~~ | ❌ **KILLED** — privacy nightmare | NOT BUILT |
+| ~~17: Email/Slack ambient~~ | ~~114-123~~ | ~~40~~ | ~~Ambient monitoring of written comms~~ | ✅ **REVIVED** — enterprise deployment model (see below) | NOT STARTED |
 | 18: Multi-language STT | 124-133 | 40 | Whisper multi-language (defer accent-aware) | ⚠️ CAVeats: multi-language yes, accent-aware no | NOT STARTED |
 | 19: Ambient notifications | 134-143 | 40 | Smart nudges, context timing, DND | ✅ REALISTIC | NOT STARTED |
 | 20: Advanced analytics | 144-153 | 40 | Trends, team performance, org learning | ✅ REALISTIC | NOT STARTED |
 
-**Killed features (3):**
+**Killed features (1 — down from 3):**
 - Phase 13 (Relationship Dynamics Mapper): invasive, inaccurate, potentially offensive. Replaced with "relationship CRM" (interaction history only — already partially delivered in Phase 9's attendee profiles).
-- Phase 17 (Email/Slack Ambient Monitoring): privacy nightmare, illegal without third-party consent. Replaced with "opt-in metadata only" (user explicitly shares specific threads; no ambient monitoring).
+- ~~Phase 17 (Email/Slack Ambient Monitoring):~~ **REVIVED** (2026-07-07, CEO directive). The reality check's "kill" was based on the individual-user deployment model (privacy nightmare). The enterprise deployment model (company IT admin deploys, company owns data, employees notified, opt-out available, sensitive categories excluded, 90-day retention) is how Glean, Microsoft Viva, Google Workspace Intelligence, and Slack AI work. It is legal under GDPR Article 6 (legitimate interest) + Article 21 (right to object). See `docs/MAESTRO_WORKPLACE_SIGNAL_INTEGRATION_ENTERPRISE.md` for the full spec.
 - Phase 12 counter-offer suggestions: relabeled as "historical reference" not "AI strategy." The engine code stays (BATNA + anchoring detection are factual observations), but the output is framed as data, not advice.
 
 **Total revised scope:** 17 phases (down from 20), ~133 days (down from 153), ~572 hours (down from 612).
