@@ -84,6 +84,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'BACKEND_MESSAGE':
       handleBackendMessage(message.data);
       break;
+
+    case 'TRANSCRIPT_UPDATE':
+      // Phase 2: display transcript chunks in the live feed
+      appendTranscriptChunk(message.data);
+      break;
   }
 });
 
@@ -100,6 +105,64 @@ function handleBackendMessage(data) {
   // Phase 4: live suggestions, transcript chunks
   // Phase 5: post-call summary
   console.log('Maestro: backend message:', data);
+}
+
+// ─── Transcript display (Phase 2) ───────────────────────────────────────────
+function appendTranscriptChunk(chunk) {
+  const transcriptEl = document.getElementById('transcript');
+  if (!chunk || !chunk.text) return;
+
+  const chunkEl = document.createElement('div');
+  chunkEl.className = 'transcript-chunk';
+
+  const speakerEl = document.createElement('span');
+  speakerEl.className = 'transcript-speaker';
+  speakerEl.textContent = (chunk.speaker || 'Unknown') + ': ';
+
+  const textEl = document.createElement('span');
+  // Highlight trigger words if present
+  if (chunk.trigger_words && chunk.trigger_words.length > 0) {
+    let text = chunk.text;
+    chunk.trigger_words.forEach((word) => {
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      text = text.replace(new RegExp(escaped, 'gi'), (match) =>
+        `<span class="transcript-trigger">${match}</span>`
+      );
+    });
+    textEl.innerHTML = text;
+  } else {
+    textEl.textContent = chunk.text;
+  }
+
+  chunkEl.appendChild(speakerEl);
+  chunkEl.appendChild(textEl);
+  transcriptEl.appendChild(chunkEl);
+
+  // Keep only last 3 chunks visible (per spec)
+  const chunks = transcriptEl.querySelectorAll('.transcript-chunk');
+  if (chunks.length > 3) {
+    chunks[0].remove();
+  }
+
+  // Auto-scroll
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+// ─── Sync consent state to background (so offscreen can check) ─────────────
+function syncConsentToBackground(mediaType, granted) {
+  chrome.runtime.sendMessage({
+    type: 'CONSENT_GRANTED',  // reuse existing handler
+    mediaType: mediaType,
+    granted: granted,
+  }).catch(() => {});
+  // Also update the background's cached state
+  if (chrome.runtime.sendMessage) {
+    chrome.runtime.sendMessage({
+      type: 'SYNC_CONSENT',
+      mediaType: mediaType,
+      granted: granted,
+    }).catch(() => {});
+  }
 }
 
 // ─── Button handlers ────────────────────────────────────────────────────────

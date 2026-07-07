@@ -77,6 +77,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true });
       break;
 
+    case 'CHECK_CONSENT':
+      // From offscreen.js — check if consent is currently granted
+      sendResponse({ granted: checkConsentSync(message.mediaType) });
+      break;
+
+    case 'AUDIO_CHUNK':
+      // From offscreen.js — stream audio chunk to backend
+      handleAudioChunk(message.data, message.timestamp);
+      sendResponse({ ok: true });
+      break;
+
+    case 'TRANSCRIPT_CHUNK':
+      // From backend — forward to side panel for display
+      chrome.runtime.sendMessage({ type: 'TRANSCRIPT_UPDATE', data: message.data })
+        .catch(() => {});
+      sendResponse({ ok: true });
+      break;
+
     default:
       console.warn('Maestro: unknown message type:', message.type);
   }
@@ -96,27 +114,77 @@ function handleConsentRevoked(mediaType) {
   handleStopCapture();
 }
 
-// ─── Capture handlers (Phase 2 will implement audio) ───────────────────────
+// ─── Capture handlers (Phase 2 implements audio) ───────────────────────────
 async function handleStartCapture(message) {
-  // Phase 1: scaffold only. Phase 2 fills in the offscreen audio capture.
-  // For now, verify consent exists and log the intent.
+  // Phase 2: create offscreen document and start audio capture
   const consentManager = await import(chrome.runtime.getURL('lib/consent-manager.js'));
   const CM = consentManager.default || consentManager;
 
+  // ETHICAL GATE: no capture without consent
   if (!CM.checkConsent('audio')) {
     return { error: 'Consent not granted. Cannot start capture.' };
   }
 
-  console.log('Maestro: start capture requested (Phase 2 will implement audio)');
-  // Phase 2: create offscreen document, call getUserMedia, stream to backend
-  return { ok: true, message: 'Capture scaffold ready — Phase 2 will implement audio' };
+  // Create the offscreen document if it doesn't exist
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+  });
+
+  if (existingContexts.length === 0) {
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['USER_MEDIA'],
+      justification: 'Meeting audio capture for real-time transcription (consent-gated)',
+    });
+  }
+
+  // Tell the offscreen document to start capturing
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'START_AUDIO_CAPTURE' }, (response) => {
+      if (response?.ok) {
+        resolve({ ok: true, message: 'Audio capture started (consent verified)' });
+      } else {
+        resolve({ error: response?.error || 'Capture failed' });
+      }
+    });
+  });
 }
 
 function handleStopCapture() {
   console.log('Maestro: stop capture');
-  // Phase 2: close offscreen document, stop all media tracks
+  // Tell offscreen document to stop
+  chrome.runtime.sendMessage({ type: 'STOP_AUDIO_CAPTURE' }).catch(() => {});
   if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
     wsConnection.send(JSON.stringify({ type: 'CAPTURE_STOPPED' }));
+  }
+}
+
+// ─── Sync consent check (for offscreen.js) ─────────────────────────────────
+function checkConsentSync(mediaType) {
+  // The ConsentManager is loaded in the side panel context.
+  // For offscreen to check, we use a cached state synced from the panel.
+  // In Phase 2, we cache consent state here in the service worker.
+  return _cachedConsent[mediaType] === true;
+}
+
+let _cachedConsent = { audio: false, screen: false };
+
+// Sync consent state from side panel
+function syncConsentState(mediaType, granted) {
+  _cachedConsent[mediaType] = granted;
+}
+
+// ─── Audio chunk handler (stream to backend via WebSocket) ──────────────────
+function handleAudioChunk(arrayBuffer, timestamp) {
+  if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+    // Send as binary frame: [4 bytes timestamp][audio data]
+    const header = new ArrayBuffer(8);
+    const view = new DataView(header);
+    view.setFloat64(0, timestamp);
+    const combined = new Uint8Array(header.byteLength + arrayBuffer.byteLength);
+    combined.set(new Uint8Array(header), 0);
+    combined.set(new Uint8Array(arrayBuffer), header.byteLength);
+    wsConnection.send(combined.buffer);
   }
 }
 
