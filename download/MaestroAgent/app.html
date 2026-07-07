@@ -1176,12 +1176,7 @@
 <script defer src="/static/js/bundle.min.js"></script>
 <!-- Round 47 — Block 3: PWA service worker registration (moved to app_init.js) -->
 <!-- The actual navigator.serviceWorker.register('/static/sw.js') call lives in app_init.js -->
-<script>
-  // PWA: serviceWorker registration is handled in app_init.js (bundled)
-  if ('serviceWorker' in navigator) {
-    // registration deferred to app_init.js (bundled)
-  }
-</script>
+<script defer src="/static/js/sw-register.js"></script>
 <!-- Lucide icons — consistent iconography system -->
 <script src="/static/js/vendor/lucide.min.js"></script>
 </body>

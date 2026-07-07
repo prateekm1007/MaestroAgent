@@ -1,5 +1,4 @@
 // Auto-generated bundle entry — do not edit
-// This file imports all JS modules in the correct load order.
 
 require('./core.js');
 require('./maestro.js');

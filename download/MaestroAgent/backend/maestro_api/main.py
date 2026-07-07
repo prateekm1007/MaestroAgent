@@ -504,6 +504,17 @@ def create_app(
     except ImportError:
         logger.warning("prometheus_client not installed — /metrics endpoint not available. Install with: pip install prometheus_client")
 
+
+    # Serve favicon.ico at root (browsers request /favicon.ico, not /static/favicon.ico)
+    @app.get("/favicon.ico")
+    async def favicon():
+        from fastapi.responses import FileResponse
+        import os
+        fav_path = os.path.join(os.environ.get("MAESTRO_APP_DIR", "."), "static", "favicon.ico")
+        if os.path.exists(fav_path):
+            return FileResponse(fav_path, media_type="image/x-icon")
+        return FileResponse(os.path.join(os.path.dirname(__file__), "static", "favicon.ico"), media_type="image/x-icon") if os.path.exists(os.path.join(os.path.dirname(__file__), "static", "favicon.ico")) else {"detail": "not found"}
+
     return app
 
 
