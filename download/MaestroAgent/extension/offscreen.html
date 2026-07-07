@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Maestro Offscreen</title>
+</head>
+<body>
+  <!--
+    Offscreen document for audio capture (Phase 2 fills this in).
+    Chrome MV3 requires offscreen documents for getUserMedia in extensions.
+    This scaffold exists so Phase 1 gate #2 (consent gates capture) can be
+    verified: there are NO getUserMedia calls in Phase 1. Phase 2 will add
+    them, all gated by ConsentManager.checkConsent().
+  -->
+  <script src="offscreen.js"></script>
+</body>
+</html>

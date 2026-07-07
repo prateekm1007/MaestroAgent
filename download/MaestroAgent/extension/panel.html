@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maestro Live Copilot</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="panel-header">
+      <div class="logo">
+        <span class="logo-mark">M</span>
+        <span class="logo-text">Maestro</span>
+      </div>
+      <div class="connection-status" id="connectionStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">Ready</span>
+      </div>
+    </header>
+
+    <!-- Consent dialog (shown when ConsentManager.requestConsent is called) -->
+    <div id="consentDialog" class="consent-dialog hidden" role="dialog" aria-labelledby="consentTitle" aria-live="assertive">
+      <h3 id="consentTitle">Consent Required</h3>
+      <p id="consentMessage" class="consent-message"></p>
+      <div class="consent-actions">
+        <button id="consentAllow" class="btn btn-primary" aria-label="Allow capture">Allow</button>
+        <button id="consentDeny" class="btn btn-secondary" aria-label="Deny capture">Deny</button>
+      </div>
+      <p class="consent-note">You can revoke consent at any time. Capture stops immediately.</p>
+    </div>
+
+    <!-- Main content area -->
+    <main id="mainContent" class="main-content">
+      <!-- Meeting context (Phase 3 will populate this) -->
+      <div id="meetingContext" class="meeting-context hidden">
+        <h3 id="meetingTitle"></h3>
+        <div id="attendeeList" class="attendee-list"></div>
+      </div>
+
+      <!-- Live tab (Phase 4 will populate this) -->
+      <div id="liveFeed" class="live-feed hidden">
+        <div class="live-indicator">
+          <span class="recording-dot"></span>
+          <span id="liveTimer">00:00</span>
+        </div>
+        <div id="suggestionCards" class="suggestion-cards"></div>
+        <div id="transcript" class="transcript"></div>
+      </div>
+
+      <!-- Default state (no meeting) -->
+      <div id="defaultState" class="default-state">
+        <p class="default-message">Open a meeting link (Google Meet, Zoom, or Teams) to begin.</p>
+        <p class="default-submessage">Maestro will surface pre-call intelligence when you arrive.</p>
+      </div>
+
+      <!-- Post-call summary (Phase 5 will populate this) -->
+      <div id="postCallSummary" class="post-call-summary hidden">
+        <div class="summary-checkmark">✓</div>
+        <h3>Meeting Summary Ready</h3>
+        <div id="summaryContent"></div>
+      </div>
+    </main>
+
+    <!-- Footer / actions -->
+    <footer class="panel-footer">
+      <button id="startBtn" class="btn btn-primary" disabled>Start Copilot</button>
+      <button id="stopBtn" class="btn btn-danger hidden">Stop</button>
+      <button id="revokeBtn" class="btn btn-text hidden">Revoke Consent</button>
+    </footer>
+  </div>
+
+  <script src="lib/consent-manager.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>

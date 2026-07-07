@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Maestro Live Copilot",
+  "version": "0.1.0",
+  "description": "Real-time meeting intelligence — side panel, consent-first, evidence-grounded. The anti-Cluely.",
+  "permissions": [
+    "sidePanel",
+    "tabs",
+    "activeTab",
+    "storage",
+    "offscreen",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "https://*.zoom.us/*",
+    "https://teams.microsoft.com/*",
+    "http://localhost:8000/*",
+    "https://maestro.local/*"
+  ],
+  "action": {
+    "default_title": "Maestro Live Copilot"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*",
+        "https://teams.microsoft.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
