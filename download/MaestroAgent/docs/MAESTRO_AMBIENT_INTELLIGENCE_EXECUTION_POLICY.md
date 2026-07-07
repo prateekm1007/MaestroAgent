@@ -129,22 +129,58 @@ One helps you cheat in the moment. The other helps your organization learn, pred
 
 ---
 
-## 3. The 20-Phase Unified Plan (phases map to the 3 dimensions in §2)
+## 3. The Revised Phase Plan (post reality-check, 2026-07-07)
 
-The Ambient Intelligence roadmap (12 phases) integrates with the Live Copilot roadmap (8 phases). The Live Copilot phases (1-8) deliver the meeting-time layer. The Ambient phases (9-20) deliver the always-on layer that works between calls. Together they form the unified 20-phase plan.
+**Reality check applied:** `docs/MAESTRO_FEATURES_REALITY_CHECK.md` (567 lines) reviewed the original 12 ambient phases and found:
+- **5 REALISTIC** (build now): calendar awareness, commitment escalation, talk ratio, meeting grade, ambient notifications
+- **4 PARTIALLY REALISTIC** (build with caveats): sentiment tracking (70-75% real-world), deal health (60-70%), cross-meeting threads (70-80%), multi-language (defer accent-aware)
+- **3 UNREALISTIC** (killed): negotiation strategy (vaporware — AI cannot understand intent), relationship dynamics (invasive, inaccurate), email/Slack ambient monitoring (privacy nightmare, illegal without third-party consent)
 
-### Live Copilot Phases (Days 1-33, ~132 hours) — from MAESTRO_LIVE_COPILOT_ROADMAP_GOVERNED.md
+**Impact on already-built phases:**
+- Phase 10 (Sentiment): BUILT — keep, but temper accuracy claims to 70-75% real-world (not 85% lab)
+- Phase 11 (Deal Health): BUILT — keep, but market as "deal momentum" not "deal health"; show confidence intervals
+- Phase 12 (Negotiation Strategy): BUILT — **DOWNGRADE to "negotiation checklist"** (historical data only, no AI-generated strategy). The engine code stays as a pattern-detection utility, but counter-offer suggestions are relabeled as "historical reference" not "strategy"
+- Phase 13 (Relationship Dynamics): **KILLED** — not started; will not build. Replace with "relationship CRM" (interaction history only, no power inference)
+- Phase 17 (Email/Slack Ambient): **KILLED** — not started; will not build. Replace with "opt-in metadata only" (user explicitly shares specific threads)
 
-| Phase | Days | Hours | Deliverable |
-|---|---|---|---|
-| 1: Extension scaffold | 1-3 | 12 | manifest.json, consent-manager, panel shell |
-| 2: Audio + transcription | 4-7 | 16 | offscreen audio capture, Whisper STT, live transcript |
-| 3: Scene 1 pre-call | 8-11 | 16 | lobby detection, attendee intelligence, talking points |
-| 4: Scene 2 live | 12-18 | 28 | 4 card types (objection/commitment/whisper/pattern) |
-| 5: Scene 3 post-call | 19-23 | 20 | summary, draft email, "What Maestro learned" |
-| 6: Evidence + confidence | 24-27 | 16 | evidence-chain links, P25 confidence gate |
-| 7: Accessibility + polish | 28-30 | 12 | keyboard nav, aria-live, contrast, reduced-motion |
-| 8: Integration + audit | 31-33 | 12 | E2E test, cross-surface coherence, auditor verdict |
+### Revised Phase Plan (17 phases, down from 20)
+
+#### Live Copilot (Phases 1-8, Days 1-33) — COMPLETE
+
+| Phase | Days | Hours | Deliverable | Status |
+|---|---|---|---|---|
+| 1: Extension scaffold | 1-3 | 12 | manifest.json, consent-manager, panel shell | ✅ DONE (5cbe922) |
+| 2: Audio + transcription | 4-7 | 16 | offscreen audio capture, Whisper STT, live transcript | ✅ DONE (00c50d2) |
+| 3: Scene 1 pre-call | 8-11 | 16 | lobby detection, attendee intelligence, talking points | ✅ DONE (3162e27) |
+| 4: Scene 2 live | 12-18 | 28 | 4 card types (objection/commitment/whisper/pattern) | ✅ DONE (128e80c) |
+| 5: Scene 3 post-call | 19-23 | 20 | summary, draft email, "What Maestro learned" | ✅ DONE (2f162f4) |
+| 6: Evidence + confidence | 24-27 | 16 | evidence-chain links, P25 confidence gate | ✅ DONE (Phase 4) |
+| 7: Accessibility + polish | 28-30 | 12 | keyboard nav, aria-live, contrast, reduced-motion | ✅ DONE (47e6836) |
+| 8: Integration + audit | 31-33 | 12 | E2E test, cross-surface coherence, auditor verdict | ✅ DONE (a29456b) |
+
+#### Ambient Intelligence (Phases 9-17, Days 34-133) — REVISED
+
+| Phase | Days | Hours | Deliverable | Verdict | Status |
+|---|---|---|---|---|---|
+| 9: Ambient signal fusion | 34-43 | 40 | Calendar awareness + commitment escalation | ✅ REALISTIC | ✅ DONE (565dca6) |
+| 10: Sentiment tracking | 44-53 | 40 | 5 emotional patterns, RAVDESS validation | ⚠️ CAVeats: 70-75% real-world, "emotional cues" not "emotion detection" | ✅ DONE (405545e) |
+| 11: Deal health score | 54-63 | 40 | 4-component weighted score, risk factors | ⚠️ CAVeats: "deal momentum" not "deal health"; confidence intervals | ✅ DONE (1e6009c) |
+| 12: Negotiation engine | 64-73 | 40 | BATNA, anchoring, concessions | ❌ DOWNGRADE: keep as "negotiation checklist" (historical data only, no AI strategy) | ✅ DONE (802a5e9) — relabel |
+| ~~13: Relationship dynamics~~ | ~~74-83~~ | ~~40~~ | ~~Power mapping, coalitions~~ | ❌ **KILLED** — invasive, inaccurate | NOT BUILT |
+| 14: Cross-meeting threads | 84-93 | 40 | Topic linking, decision tracking | ⚠️ CAVeats: 70-80% accuracy, manual correction | NOT STARTED |
+| 15: Talk ratio + comms coach | 94-103 | 40 | Speaking time, interruptions, clarity | ✅ REALISTIC | NOT STARTED |
+| 16: Meeting grade + analytics | 104-113 | 40 | Effectiveness score, action items | ✅ REALISTIC | NOT STARTED |
+| ~~17: Email/Slack ambient~~ | ~~114-123~~ | ~~40~~ | ~~Ambient monitoring of written comms~~ | ❌ **KILLED** — privacy nightmare | NOT BUILT |
+| 18: Multi-language STT | 124-133 | 40 | Whisper multi-language (defer accent-aware) | ⚠️ CAVeats: multi-language yes, accent-aware no | NOT STARTED |
+| 19: Ambient notifications | 134-143 | 40 | Smart nudges, context timing, DND | ✅ REALISTIC | NOT STARTED |
+| 20: Advanced analytics | 144-153 | 40 | Trends, team performance, org learning | ✅ REALISTIC | NOT STARTED |
+
+**Killed features (3):**
+- Phase 13 (Relationship Dynamics Mapper): invasive, inaccurate, potentially offensive. Replaced with "relationship CRM" (interaction history only — already partially delivered in Phase 9's attendee profiles).
+- Phase 17 (Email/Slack Ambient Monitoring): privacy nightmare, illegal without third-party consent. Replaced with "opt-in metadata only" (user explicitly shares specific threads; no ambient monitoring).
+- Phase 12 counter-offer suggestions: relabeled as "historical reference" not "AI strategy." The engine code stays (BATNA + anchoring detection are factual observations), but the output is framed as data, not advice.
+
+**Total revised scope:** 17 phases (down from 20), ~133 days (down from 153), ~572 hours (down from 612).
 
 ### Ambient Intelligence Phases (Days 34-153, ~480 hours) — from MAESTRO_AMBIENT_INTELLIGENCE_ROADMAP.md
 
