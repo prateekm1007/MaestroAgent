@@ -31,8 +31,8 @@ class DailyBriefingEngine:
 
     Usage:
         engine = DailyBriefingEngine()
-        morning = engine.generate_morning_briefing(user_email="jane@acme.com")
-        evening = engine.generate_evening_briefing(user_email="jane@acme.com")
+        morning = engine.generate_morning_briefing(user_email="user@example.com")
+        evening = engine.generate_evening_briefing(user_email="user@example.com")
     """
 
     def __init__(self, oem_state: Any = None):
