@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports, personal, copilot, copilot_pre_call, copilot_post_call
+from maestro_api.routes import runs, agents, loops, memory, templates, costs, health, live, auth, meta, projects, status, oem, imports, personal, copilot, copilot_pre_call, copilot_post_call, nerve
 from maestro_auth.routes import router as enterprise_auth_router, scim_router as scim_router_v2
 from maestro_api.websocket import register_ws_routes
 from maestro_api.state import AppState
@@ -363,6 +363,9 @@ def create_app(
     app.include_router(copilot.router, tags=["copilot"])  # Live Copilot WebSocket
     app.include_router(copilot_pre_call.router)  # Live Copilot pre-call briefing
     app.include_router(copilot_post_call.router)  # Live Copilot post-call summary
+    # Nerve integration: 17 agents + daily briefings + dashboard
+    from maestro_nerve import agents_revenue, agents_product, agents_internal, agents_strategy  # noqa: F401 — register all agents
+    app.include_router(nerve.router, tags=["nerve"])  # /api/nerve/* endpoints
 
     # WebSocket for live event streaming.
     register_ws_routes(app)
