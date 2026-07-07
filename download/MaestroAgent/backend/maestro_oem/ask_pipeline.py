@@ -367,9 +367,10 @@ class AskPipeline:
     ) -> tuple[str, list[dict], list[str]]:
         """L0 (HIGH-02): 'Why?' must explain the previous answer's claims.
 
-        Renders the prior turn's answer plus the situation's disagreements
-        and pending_conditions so the executive sees WHY the answer is what
-        it is — not just a restatement.
+        Renders the prior turn's answer PLUS the evidence that backs it
+        (commitments, outcomes, disagreements, pending_conditions, assumptions).
+        When the rich fields are thin, falls back to commitments + outcomes
+        so the answer is always substantive — never just an echo.
         """
         evidence: list[dict] = []
         parts: list[str] = []
@@ -380,6 +381,25 @@ class AskPipeline:
             parts.append("I don't have a previous answer in this session to explain.")
 
         if situation is not None:
+            # Commitments — the load-bearing claims (always present if entity exists)
+            if situation.commitments:
+                parts.append("\nThe previous answer is grounded in these commitments:")
+                for c in situation.commitments[:3]:
+                    actor = c.get("actor", "someone") if isinstance(c, dict) else "?"
+                    text = c.get("text", "")[:100] if isinstance(c, dict) else str(c)[:100]
+                    parts.append(f"  • {actor} committed: {text}")
+                    evidence.append({"source": "commitment", "actor": actor, "text": text})
+
+            # Outcomes — what actually happened
+            if situation.outcomes:
+                parts.append("\nRecorded outcomes:")
+                for o in situation.outcomes[:3]:
+                    otype = o.get("type", "?") if isinstance(o, dict) else "?"
+                    actor = o.get("actor", "?") if isinstance(o, dict) else "?"
+                    parts.append(f"  • {otype} (reported by {actor})")
+                    evidence.append({"source": "outcome", "type": otype, "actor": actor})
+
+            # Disagreements that shape the answer
             if situation.disagreements:
                 parts.append("\nDisagreements that shape this:")
                 for d in situation.disagreements[:3]:
@@ -387,17 +407,25 @@ class AskPipeline:
                     text = d.get("text", "")[:120]
                     parts.append(f"  • {actor}: {text}")
                 evidence.extend(situation.disagreements[:3])
+
+            # Pending conditions
             if situation.pending_conditions:
                 parts.append("\nPending conditions:")
                 for pc in situation.pending_conditions[:3]:
                     parts.append(f"  • {pc[:120]}")
                 evidence.extend([{"source": "pending_condition", "text": pc[:120]} for pc in situation.pending_conditions[:3]])
+
+            # Assumptions
             if situation.assumptions:
                 parts.append("\nAssumptions the previous answer relied on:")
                 for a in situation.assumptions[:3]:
                     actor = a.get("actor", "someone")
                     text = a.get("text", "")[:120]
                     parts.append(f"  • {actor} assumed: {text}")
+
+            # Current state
+            if situation.current_state and situation.current_state != "unknown":
+                parts.append(f"\nSituation state: {situation.current_state}")
 
         answer = "\n".join(parts)
         follow_ups = [
@@ -411,7 +439,12 @@ class AskPipeline:
         self, situation: Any, entity: str | None,
     ) -> tuple[str, list[dict], list[str]]:
         """L0 (HIGH-02): 'Show me the original evidence.' must return the
-        original claim/evidence IDs from the SituationSnapshot spine."""
+        original claims, evidence, and commitments — not just opaque IDs.
+
+        Surfaces the actual commitment text + actor + date (human-readable)
+        first, then the claim/evidence IDs for traceability. When reported
+        statements exist, shows them verbatim.
+        """
         if situation is None:
             return (
                 f"I don't have a situation snapshot for {entity or 'this entity'}, so I can't show original evidence.",
@@ -421,32 +454,27 @@ class AskPipeline:
         parts: list[str] = []
         evidence: list[dict] = []
 
-        # Claim spine
-        if situation.claim_ids:
-            parts.append(f"Claims ({len(situation.claim_ids)}):")
-            for cid in situation.claim_ids[:10]:
-                parts.append(f"  • {cid}")
-        else:
-            parts.append("No claims recorded for this entity yet.")
+        # Commitments — human-readable first (the actual promises made)
+        if situation.commitments:
+            parts.append(f"Commitments ({len(situation.commitments)}):")
+            for c in situation.commitments[:5]:
+                if isinstance(c, dict):
+                    actor = c.get("actor", "?")
+                    text = c.get("text", "")[:120]
+                    date = c.get("date", "")
+                    parts.append(f"  • [{date}] {actor}: {text}")
+                    evidence.append({"source": "commitment", "actor": actor, "text": text, "date": date})
 
-        # Evidence IDs
-        if situation.evidence_ids:
-            parts.append(f"\nEvidence IDs ({len(situation.evidence_ids)}):")
-            for eid in situation.evidence_ids[:10]:
-                parts.append(f"  • {eid}")
-
-        # Original evidence objects (from situation.evidence)
-        if situation.evidence:
-            parts.append("\nOriginal evidence:")
-            for ev in situation.evidence[:5]:
-                if isinstance(ev, dict):
-                    claim = (ev.get("claim") or ev.get("text") or "")[:120]
-                    parts.append(f"  • claim: {claim}")
-                    obs = ev.get("evidence_spine", {}).get("observed_facts", []) if isinstance(ev.get("evidence_spine"), dict) else []
-                    for of in obs[:2]:
-                        of_text = of.get("text", "")[:100] if isinstance(of, dict) else str(of)[:100]
-                        parts.append(f"    - observed: {of_text}")
-                    evidence.append(ev)
+        # Outcomes — what actually happened
+        if situation.outcomes:
+            parts.append(f"\nOutcomes ({len(situation.outcomes)}):")
+            for o in situation.outcomes[:5]:
+                if isinstance(o, dict):
+                    otype = o.get("type", "?")
+                    actor = o.get("actor", "?")
+                    date = o.get("date", "")
+                    parts.append(f"  • [{date}] {otype} (reported by {actor})")
+                    evidence.append({"source": "outcome", "type": otype, "actor": actor, "date": date})
 
         # Reported statements (the actual sentences spoken by actors)
         if situation.reported_statements:
@@ -457,9 +485,29 @@ class AskPipeline:
                 parts.append(f"  • {actor}: {text}")
                 evidence.append({"source": "reported_statement", "actor": actor, "text": text})
 
+        # Original evidence objects (from situation.evidence)
+        if situation.evidence:
+            parts.append("\nEvidence objects:")
+            for ev in situation.evidence[:3]:
+                if isinstance(ev, dict):
+                    claim = (ev.get("claim") or ev.get("text") or "")[:120]
+                    parts.append(f"  • claim: {claim}")
+                    obs = ev.get("evidence_spine", {}).get("observed_facts", []) if isinstance(ev.get("evidence_spine"), dict) else []
+                    for of in obs[:2]:
+                        of_text = of.get("text", "")[:100] if isinstance(of, dict) else str(of)[:100]
+                        parts.append(f"    - observed: {of_text}")
+                    evidence.append(ev)
+
+        # Claim IDs for traceability (opaque but useful for cross-referencing)
+        if situation.claim_ids:
+            parts.append(f"\nClaim IDs ({len(situation.claim_ids)}): {', '.join(situation.claim_ids[:5])}")
+
         # Invalidated claims
         if situation.invalidated_by:
             parts.append(f"\nInvalidated claims: {', '.join(situation.invalidated_by)}")
+
+        if not evidence:
+            parts.append("No evidence recorded for this entity yet.")
 
         answer = "\n".join(parts)
         follow_ups = [
@@ -472,25 +520,49 @@ class AskPipeline:
     def _render_unknowns(
         self, situation: Any, entity: str | None,
     ) -> tuple[str, list[dict], list[str]]:
-        """L0 (HIGH-02): 'What don't we know?' must render situation.unknowns."""
+        """L0 (HIGH-02): 'What don't we know?' must enumerate gaps in evidence.
+
+        Derives unknowns from the situation structure: commitments without
+        outcomes, disagreements without resolution, missing stakeholder
+        confirmation. Always produces substantive output when commitments
+        exist — never returns 'No specific unknowns' if there are open
+        commitments.
+        """
         if situation is None:
             return (
                 f"I don't have a situation snapshot for {entity or 'this entity'}, so I can't enumerate unknowns.",
                 [], ["What should I ask in the meeting?"],
             )
 
-        parts: list[str] = []
+        parts: list[str] = ["What we don't know:"]
         evidence: list[dict] = []
+        unknowns_found = False
 
+        # Pre-populated unknowns from the SituationBuilder
         if situation.unknowns:
-            parts.append("What we don't know:")
             for u in situation.unknowns:
                 parts.append(f"  • {u}")
                 evidence.append({"source": "unknown", "text": u})
-        else:
-            parts.append("No specific unknowns recorded for this entity.")
+                unknowns_found = True
 
-        # Surface disagreements as additional unknowns
+        # Derive: commitments without outcomes = unknown whether met
+        if situation.commitments and not situation.outcomes:
+            for c in situation.commitments[:3]:
+                commit_text = c.get("text", "")[:100] if isinstance(c, dict) else str(c)[:100]
+                u = f"Whether this commitment will be met: \"{commit_text}\""
+                parts.append(f"  • {u}")
+                evidence.append({"source": "derived_unknown", "text": u, "commitment": commit_text})
+                unknowns_found = True
+        elif situation.commitments and situation.outcomes:
+            # Have outcomes — but are they accurate/complete?
+            for c in situation.commitments[:2]:
+                commit_text = c.get("text", "")[:100] if isinstance(c, dict) else str(c)[:100]
+                u = f"Whether the recorded outcome for \"{commit_text}\" is complete and accurate"
+                parts.append(f"  • {u}")
+                evidence.append({"source": "derived_unknown", "text": u})
+                unknowns_found = True
+
+        # Derive: disagreements = unknown which interpretation is correct
         if situation.disagreements:
             parts.append("\nUnresolved disagreements (each is an unknown):")
             for d in situation.disagreements[:3]:
@@ -498,10 +570,22 @@ class AskPipeline:
                 text = d.get("text", "")[:120]
                 parts.append(f"  • {actor}: {text}")
                 evidence.append({"source": "disagreement", "text": text, "actor": actor})
+                unknowns_found = True
 
-        # Surface missing outcomes as unknowns
-        if situation.commitments and not situation.outcomes:
-            parts.append("\nWe have a commitment but no recorded outcome — whether it will be met is unknown.")
+        # Derive: no reported statements = unknown what stakeholders actually said
+        if situation.commitments and not situation.reported_statements:
+            parts.append("  • What stakeholders actually said about this commitment (no reported statements recorded)")
+            evidence.append({"source": "derived_unknown", "text": "No reported statements recorded"})
+            unknowns_found = True
+
+        # Derive: no pending conditions recorded = unknown if there are blockers
+        if situation.commitments and not situation.pending_conditions:
+            parts.append("  • Whether there are pending conditions or blockers (none explicitly recorded)")
+            evidence.append({"source": "derived_unknown", "text": "No pending conditions recorded"})
+            unknowns_found = True
+
+        if not unknowns_found and not situation.commitments:
+            parts.append("  • No commitments recorded for this entity — the situation is not yet structured enough to identify unknowns.")
 
         answer = "\n".join(parts)
         follow_ups = [
@@ -515,8 +599,10 @@ class AskPipeline:
         self, situation: Any, entity: str | None,
     ) -> tuple[str, list[dict], list[str]]:
         """L0 (HIGH-02): 'What should I ask?' must generate evidence-backed
-        meeting questions from the situation's disagreements, pending
-        conditions, and unknowns."""
+        meeting questions from commitments, outcomes, disagreements, and
+        pending conditions. Always produces substantive questions when
+        commitments exist — never returns 'No specific questions surfaced'.
+        """
         if situation is None:
             return (
                 f"I don't have a situation snapshot for {entity or 'this entity'}, so I can't suggest meeting questions.",
@@ -526,6 +612,22 @@ class AskPipeline:
         parts: list[str] = ["Evidence-backed questions to ask:"]
         evidence: list[dict] = []
         questions: list[str] = []
+
+        # From commitments (always present if entity has activity)
+        for c in situation.commitments[:3]:
+            commit_text = c.get("text", "")[:100] if isinstance(c, dict) else str(c)[:100]
+            actor = c.get("actor", "?") if isinstance(c, dict) else "?"
+            q = f"Has this commitment been met: \"{commit_text}\"? (asked of {actor})"
+            questions.append(q)
+            evidence.append({"source": "commitment", "text": commit_text, "actor": actor})
+
+        # From outcomes (if any — verify they're accurate)
+        for o in situation.outcomes[:2]:
+            if isinstance(o, dict):
+                otype = o.get("type", "?")
+                q = f"Can you confirm the {otype} outcome is accurate and complete?"
+                questions.append(q)
+                evidence.append({"source": "outcome", "type": otype})
 
         # From disagreements
         for d in situation.disagreements[:3]:
@@ -547,16 +649,20 @@ class AskPipeline:
             questions.append(q)
             evidence.append({"source": "unknown", "text": u})
 
-        # From missing outcomes
-        if situation.commitments and not situation.outcomes:
-            for c in situation.commitments[:2]:
-                commit_text = c.get("text", "")[:100] if isinstance(c, dict) else str(c)[:100]
-                q = f"Has this commitment been met: \"{commit_text}\"?"
-                questions.append(q)
-                evidence.append({"source": "commitment", "text": commit_text})
+        # If no disagreements recorded, ask about stakeholder alignment
+        if situation.commitments and not situation.disagreements:
+            q = "Do all stakeholders agree on the interpretation of this commitment?"
+            questions.append(q)
+            evidence.append({"source": "derived", "text": "Stakeholder alignment not verified"})
+
+        # If no pending conditions recorded, ask about blockers
+        if situation.commitments and not situation.pending_conditions:
+            q = "Are there any blockers or pending conditions preventing this commitment from being met?"
+            questions.append(q)
+            evidence.append({"source": "derived", "text": "Blockers not yet identified"})
 
         if not questions:
-            parts.append("  • No specific questions surfaced — the situation is coherent.")
+            parts.append("  • No commitments recorded — no specific questions to generate.")
         else:
             for q in questions[:8]:
                 parts.append(f"  • {q}")
