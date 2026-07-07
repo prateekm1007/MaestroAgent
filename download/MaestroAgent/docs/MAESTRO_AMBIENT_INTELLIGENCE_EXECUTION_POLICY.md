@@ -243,17 +243,46 @@ python -m pytest backend/maestro_oem/tests/test_commitment_escalation.py -q
 
 ### Phase 10: Real-Time Sentiment & Emotion Tracking (Days 44-53, 40 hours)
 
+**Scientific spec:** `docs/MAESTRO_SENTIMENT_TRACKING_TECHNICAL_SPEC.md` (1,105 lines — 5-tool stack, RAVDESS validation, privacy-first architecture, SentimentPatternEngine, OEM signal fusion)
+
 **Deliverables:**
-- `backend/maestro_oem/sentiment_engine.py` — voice tone analysis, sentiment graphs, emotion detection
-- **Ethical guard:** Emotion/sentiment analysis is for the USER's own awareness only. Never used to "win" against the other party. Never displayed to the other party. The bright line: "Maestro helps YOU think better. Maestro does NOT help you manipulate, surveil, or win against another person."
+- `extension/lib/sentiment-processor.js` — browser-side audio processing (OpenSMILE WASM + TensorFlow.js CNN). Audio NEVER leaves the device; only JSON labels are sent to the backend.
+- `backend/maestro_oem/sentiment_patterns.py` — SentimentPatternEngine detecting 5 patterns: escalating frustration, sudden positivity, sentiment divergence, emotional fatigue, stress spikes. Each pattern emitted as a `SignalType.SENTIMENT_PATTERN` signal to the OEM.
+- `scripts/validate_sentiment_accuracy.py` — RAVDESS benchmark validation script. Target: 75%+ accuracy on the peer-reviewed RAVDESS dataset (7,442 utterances, 24 actors, 8 emotions, 87% human agreement).
+
+**The 5-tool scientific stack (all open-source, peer-reviewed):**
+1. **OpenSMILE** (WASM) — 88 acoustic features (pitch, jitter, shimmer, energy, MFCCs). Used in 500+ academic papers.
+2. **Wav2Vec 2.0** — emotion classification (6 emotions). Pre-trained on 960 hours (Facebook AI). 85-92% lab accuracy. For real-time, use a lightweight CNN (5M params, ~5ms inference).
+3. **Librosa** — custom prosody features (pitch F0, RMS energy, zero-crossing rate for speaking rate). Used by Google, Spotify.
+4. **DistilBERT** (ONNX) — text sentiment from transcript (90-95% accuracy, 67M params).
+5. **InfluxDB** — time-series storage for sentiment measurements over time. Used by Tesla, Cisco, eBay.
+
+**Privacy-first architecture (the ethical line):**
+1. Browser captures audio (WebRTC getUserMedia — consent-gated per Phase 1)
+2. OpenSMILE extracts features (WASM, runs in browser)
+3. CNN classifies emotion (TensorFlow.js, runs in browser)
+4. Only JSON labels sent to backend: `{"emotion": "frustration", "confidence": 0.82, "arousal": 0.75, "valence": 0.25}`
+5. **NO audio data. NO raw features. Only labels.** Verifiable via browser DevTools → Network → WS filter.
+
+**Ethical guard:** Emotion/sentiment analysis is for the USER's own awareness only. Never used to "win" against the other party. Never displayed to the other party. The bright line: "Maestro helps YOU think better. Maestro does NOT help you manipulate, surveil, or win against another person."
 
 **Gate:**
 ```bash
-python -m pytest backend/maestro_oem/tests/test_sentiment_engine.py -q
-# Sentiment detected from voice tone within 5s
-# Emotion labels accurate >= 70% on test set
-# Sentiment graph updates in real time
-# Emotion data NEVER shown to the other party (consent gate test)
+# 1. RAVDESS validation (scientific accuracy)
+python scripts/validate_sentiment_accuracy.py --dataset RAVDESS
+# MUST show: Accuracy >= 75% (target: 78.3%)
+
+# 2. Privacy verification (no audio leaves the device)
+# Browser DevTools → Network → WS → inspect messages
+# MUST see only JSON labels, NO binary audio
+
+# 3. Pattern detection (5 patterns)
+python -m pytest backend/maestro_oem/tests/test_sentiment_patterns.py -q
+# escalating_frustration, sudden_positivity, sentiment_divergence,
+# emotional_fatigue, stress_spike — all detected + emitted as signals
+
+# 4. P25 confidence gate (carried from Phase 6)
+# Every emotion confidence has its denominator (sample count)
 ```
 
 ### Phase 11: Deal Health Score (Days 54-63, 40 hours)
