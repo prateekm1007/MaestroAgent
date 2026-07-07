@@ -29,9 +29,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from maestro_api.security.policy import auth_policy, AuthPolicy, set_router_policy
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot-pre-call"])
+# F4 fix: stamp USER auth policy
+set_router_policy(router, AuthPolicy.USER)
 
 # Module-level imports for helpers (not just the endpoint function)
 try:
@@ -60,6 +64,7 @@ class PreCallResponse(BaseModel):
 
 
 @router.post("/pre-call", response_model=PreCallResponse)
+@auth_policy(AuthPolicy.USER)
 async def get_pre_call_briefing(request: PreCallRequest) -> PreCallResponse:
     """Generate a pre-call briefing for an upcoming meeting.
 

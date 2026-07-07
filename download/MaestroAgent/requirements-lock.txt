@@ -1,0 +1,18 @@
+# MaestroAgent pinned dependencies for reproducible builds.
+#
+# This file pins the exact versions tested in CI. Without this, a fresh
+# `pip install` may pull incompatible pre-release versions (e.g., Starlette
+# 1.3.1 drops WebSocket routes from the route table).
+#
+# Install: pip install -r requirements-lock.txt
+#
+# P23: this file is the reproducible-build evidence. Update it only after
+# CI passes with the new versions.
+
+fastapi==0.128.0
+starlette==0.50.0
+pydantic==2.12.5
+uvicorn==0.44.0
+sqlalchemy>=2.0.0,<2.1.0
+httpx>=0.27.0
+aiohttp>=3.9.0

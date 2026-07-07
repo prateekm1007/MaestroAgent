@@ -24,9 +24,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from maestro_api.security.policy import auth_policy, AuthPolicy, set_router_policy
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot-post-call"])
+# F4 fix: stamp USER auth policy
+set_router_policy(router, AuthPolicy.USER)
 
 
 class PostCallRequest(BaseModel):
@@ -52,6 +56,7 @@ class PostCallResponse(BaseModel):
 
 
 @router.post("/post-call", response_model=PostCallResponse)
+@auth_policy(AuthPolicy.USER)
 async def get_post_call_summary(request: PostCallRequest) -> PostCallResponse:
     """Generate a post-call summary after the meeting ends."""
     try:

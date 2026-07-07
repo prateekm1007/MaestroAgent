@@ -24,9 +24,13 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from maestro_api.security.policy import auth_policy, AuthPolicy, set_router_policy
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+# F4 fix: stamp USER auth policy on all copilot routes
+set_router_policy(router, AuthPolicy.USER)
 
 
 class CopilotSession:
@@ -160,6 +164,7 @@ class CopilotSession:
 
 
 @router.websocket("/ws/copilot")
+@auth_policy(AuthPolicy.USER)
 async def copilot_websocket(websocket: WebSocket) -> None:
     """WebSocket endpoint for the Live Copilot extension.
 

@@ -20,6 +20,8 @@ services:
       MAESTRO_DEMO_SEED: "false"  # Never enable demo seed in production
       MAESTRO_AUTH_DB: /data/auth.db
       PYTHONPATH: /app/backend
+      # F4 fix: wire app to Postgres (was silently falling back to SQLite)
+      DATABASE_URL: postgresql://maestro:${POSTGRES_PASSWORD:-change-me-in-production}@db:5432/maestro
       # For production, set these:
       # MAESTRO_ENV: production
       # JWT_SECRET: ${JWT_SECRET}
