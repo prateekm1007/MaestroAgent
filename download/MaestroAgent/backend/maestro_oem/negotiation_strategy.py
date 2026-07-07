@@ -1,22 +1,35 @@
 """
-Negotiation Strategy Engine — BATNA, anchoring, concessions.
+Negotiation Pattern Detector — BATNA, anchoring, concessions.
 
 Phase 12 of the Ambient Intelligence roadmap (Days 64-73, 40 hours).
 
-Provides real-time negotiation intelligence during calls:
-  1. BATNA analysis — "Your best alternative is $65K. They anchored at $50K."
-  2. Anchoring detection — detects the first number mentioned (the anchor)
-  3. Concession tracking — tracks every price/terms concession across the call
-  4. Counter-offer suggestions — cites validated organizational runtimes
+REALITY CHECK APPLIED (2026-07-07): This module was originally called
+"Negotiation Strategy Engine" with AI-generated counter-offer suggestions.
+The reality check (docs/MAESTRO_FEATURES_REALITY_CHECK.md) found that
+AI-generated negotiation strategy is vaporware — current AI cannot
+understand intent, adversarial behavior, or long-term consequences.
 
-Ethical guard: strategy is for the user's PREPARATION, not for manipulation.
-The system surfaces patterns ("Your org has handled this 3 times before");
-it does not generate manipulative tactics. The bright line:
-"Maestro helps YOU think better. Maestro does NOT help you manipulate,
-surveil, or win against another person."
+RELABEL: This module is now a "Negotiation Pattern Detector" — it
+provides HISTORICAL REFERENCE data (BATNA comparison, anchor detection,
+concession tracking), NOT AI-generated strategy advice. The counter-offer
+suggestions are framed as "historical reference" not "strategy."
+
+What it does (factual observations):
+  1. BATNA comparison — "They anchored at $50K. Your BATNA is $65K." (factual)
+  2. Anchoring detection — detects the first number mentioned (factual)
+  3. Concession tracking — tracks every price/terms concession (factual)
+  4. Historical reference — "Last 5 similar deals closed at $X" (data, not advice)
+
+What it does NOT do (killed per reality check):
+  - Does NOT generate counter-offer recommendations (AI can't understand intent)
+  - Does NOT claim to predict negotiation outcomes (too contextual)
+  - Does NOT replace human negotiation judgment
+
+Ethical guard: provides data for the user's PREPARATION, not manipulation.
+Let the human negotiate — don't try to replace them.
 
 DEEPER dimension: multi-layer intelligence (BATNA + anchoring + concessions +
-historical patterns → negotiation strategy).
+historical data → negotiation context).
 """
 
 from __future__ import annotations
@@ -89,7 +102,7 @@ class NegotiationStrategy:
     their_anchor: Optional[float]  # their opening number
     your_anchor: Optional[float]  # your opening number
     concessions: list[Concession] = field(default_factory=list)
-    counter_offer_suggestion: Optional[str] = None
+    counter_offer_suggestion: Optional[str] = None  # RELABELED: "historical reference" not "strategy"
     confidence: float = 0.0
     confidence_denominator: int = 0  # P25
     evidence: dict = field(default_factory=dict)
@@ -120,17 +133,22 @@ class NegotiationStrategy:
 
 class NegotiationStrategyEngine:
     """
-    Real-time negotiation intelligence.
+    Negotiation Pattern Detector — factual observations, not AI strategy.
+
+    REALITY CHECK: This engine provides HISTORICAL REFERENCE data, not
+    AI-generated negotiation strategy. Current AI cannot understand intent,
+    adversarial behavior, or long-term consequences. The output is data
+    for the user's preparation — let the human negotiate.
 
     Usage:
         engine = NegotiationStrategyEngine(oem_state)
         engine.set_batna(65000)  # user's best alternative
 
         # Process transcript chunks during the call
-        strategy = engine.process_transcript("We can offer $50K for the annual contract.", "Sam Kumar")
-        print(f"Phase: {strategy.phase}")
-        print(f"Their anchor: ${strategy.their_anchor}")
-        print(f"Suggestion: {strategy.counter_offer_suggestion}")
+        context = engine.process_transcript("We can offer $50K for the annual contract.", "Sam Kumar")
+        print(f"Phase: {context.phase}")
+        print(f"Their anchor: ${context.their_anchor}")
+        print(f"Historical reference: {context.counter_offer_suggestion}")
     """
 
     # Pattern to detect dollar amounts / numbers in transcript
@@ -261,7 +279,13 @@ class NegotiationStrategyEngine:
                 self._phase = NegotiationPhase.CLOSING
 
     def _generate_strategy(self) -> NegotiationStrategy:
-        """Generate the current negotiation strategy with counter-offer suggestion."""
+        """Generate the current negotiation context with historical reference.
+
+        REALITY CHECK: This provides HISTORICAL REFERENCE data, not AI-generated
+        strategy. The output is factual observations (BATNA comparison, anchor
+        detection, concession tracking) for the user's preparation. Let the
+        human negotiate — don't try to replace them.
+        """
         confidence = 0.5
         denominator = len(self._historical_negotiations)
         suggestion = None
