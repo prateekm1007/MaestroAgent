@@ -28,6 +28,7 @@ from typing import Any, Optional
 from .situation_engine import (
     LivingSituation,
     SituationState,
+    SideState,
     EpistemicState,
     DeliveryRoute,
 )
@@ -114,14 +115,14 @@ class DeliveryGovernor:
                 return DeliveryRoute.WHISPER
 
         # 4. BRIEFING: situation is active or recently updated
-        if situation.state in (SituationState.ACTIVE, SituationState.WATCHING):
+        if situation.state in (SituationState.MATERIAL, SituationState.OBSERVING):
             if user_context.is_doing_morning_review or user_context.is_doing_evening_review:
                 return DeliveryRoute.BRIEFING
             # If not during a briefing context, downgrade to ASK
             return DeliveryRoute.ASK
 
         # 5. ASK: information available but no proactive push
-        if situation.known_facts and situation.state != SituationState.DORMANT:
+        if situation.known_facts and not situation.has_side_state(SideState.STALE):
             return DeliveryRoute.ASK
 
         # 6. SILENT: default
@@ -132,27 +133,16 @@ class DeliveryGovernor:
         situation: LivingSituation,
         perspectives: list[Perspective],
     ) -> bool:
-        """Urgent requires: critical urgency from a specialist + strong evidence.
-
-        URGENT is rare. It's reserved for situations where:
-          - At least one perspective has urgency="critical"
-          - That perspective has 2+ evidence items
-          - The situation has a blocking unknown OR is in ACTIVE state
-        """
+        """Urgent requires: critical urgency from a specialist + strong evidence."""
         for p in perspectives:
             if p.urgency == "critical" and len(p.evidence) >= 2:
-                if situation.has_blocking_unknown() or situation.state == SituationState.ACTIVE:
+                if situation.has_blocking_unknown() or situation.state == SituationState.MATERIAL:
                     return True
         return False
 
     def _is_relevant_to_active_context(self, situation: LivingSituation) -> bool:
-        """Is this situation relevant to the user's current active context?
-
-        In production, this would check whether the situation's entity
-        matches the meeting the user is currently in. For now, we check
-        whether the situation is ACTIVE (recent signals).
-        """
-        return situation.state in (SituationState.ACTIVE, SituationState.NEEDS_PREPARATION)
+        """Is this situation relevant to the user's current active context?"""
+        return situation.state in (SituationState.MATERIAL, SituationState.NEEDS_PREPARATION)
 
     # ── Batch routing ───────────────────────────────────────────────────────
 

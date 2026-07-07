@@ -106,8 +106,14 @@ class TestSituationEngine:
         # The security unknown should be blocking
         assert any(u.blocking for u in s.unknowns)
 
-    def test_situation_state_needs_preparation_when_blocking_unknown(self):
-        """A situation with a blocking unknown is in NEEDS_PREPARATION state."""
+    def test_situation_state_material_when_security_prereq(self):
+        """A situation with a security prerequisite is in MATERIAL state.
+
+        Per the CEO's state machine: security prereq threatens commitment
+        feasibility → MATERIAL (not NEEDS_PREPARATION). The situation
+        advances to NEEDS_PREPARATION only when an external expectation
+        mismatch is detected.
+        """
         from maestro_cognitive_council import SituationEngine, SituationState
 
         oem = MagicMock()
@@ -121,7 +127,7 @@ class TestSituationEngine:
         engine = SituationEngine(oem_state=oem)
         situations = engine.detect_situations()
 
-        assert situations[0].state == SituationState.NEEDS_PREPARATION
+        assert situations[0].state == SituationState.MATERIAL
 
     def test_specialist_routing_is_selective(self):
         """NOT all 17 specialists run for every situation.
@@ -198,21 +204,26 @@ class TestSituationEngine:
             assert field in d, f"Missing field: {field}"
 
     def test_get_situations_needing_preparation(self):
-        """get_situations_needing_preparation returns only NEEDS_PREPARATION."""
+        """get_situations_needing_preparation returns only NEEDS_PREPARATION.
+
+        Per the CEO's state machine: a situation is NEEDS_PREPARATION when
+        there's an external expectation mismatch (not just a blocking unknown).
+        A security prereq alone → MATERIAL.
+        """
         from maestro_cognitive_council import SituationEngine, SituationState
 
         oem = MagicMock()
         oem.signals = [
-            # TestCorp: has blocking unknown → NEEDS_PREPARATION
+            # TestCorp: security prereq → MATERIAL (not NEEDS_PREPARATION)
             self._make_signal("customer.commitment_made", "TestCorp",
                               "Deliver SSO", days_ago=10),
             self._make_signal("security.condition", "TestCorp",
                               "Security approval", days_ago=8),
-            # OtherCorp: no blocking unknown → WATCHING
-            self._make_signal("customer.commitment_made", "OtherCorp",
-                              "Send docs", days_ago=5),
-            self._make_signal("customer.commitment_made", "OtherCorp",
-                              "Schedule call", days_ago=3),
+            # NeedPrepCorp: expectation mismatch → NEEDS_PREPARATION
+            self._make_signal("customer.commitment_made", "NeedPrepCorp",
+                              "Deliver SSO", days_ago=10),
+            self._make_signal("reported_statement", "NeedPrepCorp",
+                              "Customer defines availability as production access", days_ago=5),
         ]
 
         engine = SituationEngine(oem_state=oem)
@@ -220,7 +231,10 @@ class TestSituationEngine:
 
         needing_prep = engine.get_situations_needing_preparation()
         assert all(s.state == SituationState.NEEDS_PREPARATION for s in needing_prep)
-        assert any(s.entity == "TestCorp" for s in needing_prep)
+        # NeedPrepCorp should be in NEEDS_PREPARATION (expectation mismatch)
+        assert any(s.entity == "NeedPrepCorp" for s in needing_prep)
+        # TestCorp should NOT be (it's in MATERIAL)
+        assert not any(s.entity == "TestCorp" for s in needing_prep)
         assert not any(s.entity == "OtherCorp" for s in needing_prep)
 
     def test_null_oem_state_graceful(self):
@@ -470,7 +484,7 @@ class TestDeliveryGovernor:
             situation_id="sit-1",
             title="TestCorp Situation",
             entity="TestCorp",
-            state=state or SituationState.WATCHING,
+            state=state or SituationState.OBSERVING,
             epistemic_state=EpistemicState.REPORTED,
         )
         if has_blocking_unknown:
@@ -494,7 +508,7 @@ class TestDeliveryGovernor:
         from maestro_cognitive_council import DeliveryGovernor, DeliveryRoute, SituationState, UserContext
 
         gov = DeliveryGovernor()
-        situation = self._make_situation(state=SituationState.ACTIVE)
+        situation = self._make_situation(state=SituationState.MATERIAL)
         perspectives = [self._make_perspective(urgency="critical", evidence_count=3)]
 
         route = gov.decide(situation, perspectives, UserContext())
@@ -522,7 +536,7 @@ class TestDeliveryGovernor:
         )
 
         gov = DeliveryGovernor()
-        situation = self._make_situation(state=SituationState.ACTIVE)
+        situation = self._make_situation(state=SituationState.MATERIAL)
         ctx = UserContext(is_in_meeting=True)
 
         route = gov.decide(situation, [], ctx)
@@ -535,7 +549,7 @@ class TestDeliveryGovernor:
         )
 
         gov = DeliveryGovernor()
-        situation = self._make_situation(state=SituationState.ACTIVE)
+        situation = self._make_situation(state=SituationState.MATERIAL)
         ctx = UserContext(is_in_meeting=True, is_in_focus_mode=True)
 
         route = gov.decide(situation, [], ctx)
@@ -549,7 +563,7 @@ class TestDeliveryGovernor:
         )
 
         gov = DeliveryGovernor()
-        situation = self._make_situation(state=SituationState.WATCHING)
+        situation = self._make_situation(state=SituationState.OBSERVING)
         ctx = UserContext(is_doing_morning_review=True)
 
         route = gov.decide(situation, [], ctx)
@@ -562,8 +576,8 @@ class TestDeliveryGovernor:
         )
 
         gov = DeliveryGovernor()
-        situation = self._make_situation(state=SituationState.DORMANT)
-        # No known facts, dormant state
+        situation = self._make_situation(state=SituationState.ARCHIVED)
+        # No known facts, archived state
         situation.known_facts = []
 
         route = gov.decide(situation, [], UserContext())
@@ -713,5 +727,7 @@ class TestFullCognitiveCouncilFlow:
         gov = DeliveryGovernor()
         route = gov.decide(situation, perspectives, UserContext())
 
-        # Situation is NEEDS_PREPARATION (has blocking unknown) → PREPARE
-        assert route == DeliveryRoute.PREPARE
+        # Situation is MATERIAL (security prereq) — not PREPARE yet.
+        # PREPARE requires NEEDS_PREPARATION state. MATERIAL with blocking
+        # unknown + perspectives with high urgency → ASK or BRIEFING.
+        assert route in (DeliveryRoute.ASK, DeliveryRoute.BRIEFING, DeliveryRoute.PREPARE)

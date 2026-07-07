@@ -114,7 +114,7 @@ class JudgmentSynthesizer:
             unknowns_blocking_decision=blocking_unknowns,
             recommended_next_step=recommended_step,
             confidence=confidence,
-            evidence_ids=all_evidence,
+            evidence_refs=all_evidence,
         )
 
     # ── Deduplication ───────────────────────────────────────────────────────

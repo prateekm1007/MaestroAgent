@@ -1,25 +1,27 @@
 """
-Maestro Cognitive Council — Phase 1: Situation Engine.
+Maestro Cognitive Council — Phase 1: Situation Engine (Gate 1 refactor).
 
-A LivingSituation is the durable object representing a changing
-organizational situation. Unlike SituationSnapshot (a static 27-field
-view), a LivingSituation has:
+GATE 1 REFACTOR (per CEO directive + audit wiring plan):
+  1. Thin references — LivingSituation holds _refs[] to OEM objects, NOT copies
+  2. Continuous state transition — 10 primary + 5 side states with transition logic
+  3. Wired to existing precursors — CommitmentMutationTracker, CrossMeetingThreadBuilder,
+     SituationBuilder
 
-  - A lifecycle (state transitions: watching → needs_preparation →
-    resolved → learned / falsified)
-  - A timeline of events (chronological)
-  - Known facts (evidence-backed) and Unknowns (important missing info)
-  - Perspectives contributed by specialists (structured, not free-form)
-  - Preserved disagreements (not converged away)
-  - A synthesized judgment (not a summary)
-  - A recommended delivery route (silent/ask/briefing/whisper/prepare/urgent)
-  - An epistemic state (known/reported/believed/assumed/hypothesized/
-    predicted/disputed/unknown/falsified/learned)
+DESIGN RULE (CEO): "Situation organizes cognition. It does not duplicate
+organizational memory. The OEM remains the source of record. Situation is
+a dynamically maintained cognitive frame over OEM memory."
 
-The SituationEngine builds and maintains LivingSituations from OEM
-signals, and routes only the relevant specialists to each situation.
+STATE MACHINE (CEO-specified):
+  Primary: DETECTED → OBSERVING → MATERIAL → NEEDS_PREPARATION →
+           DECISION_PENDING → ACTION_IN_PROGRESS → AWAITING_OUTCOME →
+           RESOLVED → LEARNING → ARCHIVED
 
-Reference: docs/MAESTRO_COGNITIVE_COUNCIL_EXECUTION_POLICY.md
+  Side (orthogonal): DISPUTED, BLOCKED, STALE, SUPERSEDED, INSUFFICIENT_EVIDENCE
+
+ACCEPTANCE CRITERION: "new signal → correct situation found → delta computed →
+state transition justified → unknowns updated → no future leakage"
+
+Reference: docs/MAESTRO_COGNITIVE_COUNCIL_AUDIT_AND_WIRING_PLAN.md
 """
 
 from __future__ import annotations
@@ -35,92 +37,185 @@ logger = logging.getLogger(__name__)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Enums
+# Enums — 10 primary states + 5 side states (CEO-specified)
 # ════════════════════════════════════════════════════════════════════════════
 
 class SituationState(str, Enum):
-    """The lifecycle state of a LivingSituation."""
-    WATCHING = "watching"                    # monitoring, no intervention needed yet
-    NEEDS_PREPARATION = "needs_preparation"  # an upcoming event requires prep
-    ACTIVE = "active"                        # a relevant event is happening now
-    RESOLVED = "resolved"                    # the situation concluded
-    LEARNED = "learned"                      # resolved + the outcome fed the learning loop
-    FALSIFIED = "falsified"                  # a hypothesis about this situation was disproven
-    DORMANT = "dormant"                      # no signals for 30+ days
+    """The 10 primary lifecycle states of a LivingSituation.
+
+    A situation progresses through these states as organizational reality
+    evolves. Each transition must be JUSTIFIED (reason + evidence).
+    """
+    DETECTED = "detected"                        # just noticed, not yet observing
+    OBSERVING = "observing"                      # monitoring, no intervention needed
+    MATERIAL = "material"                        # new prerequisite/threat affects commitment
+    NEEDS_PREPARATION = "needs_preparation"      # external expectation may differ from internal state
+    DECISION_PENDING = "decision_pending"        # a decision/event is imminent
+    ACTION_IN_PROGRESS = "action_in_progress"    # a meeting/action is happening
+    AWAITING_OUTCOME = "awaiting_outcome"        # action complete, outcome unknown
+    RESOLVED = "resolved"                        # the situation concluded
+    LEARNING = "learning"                        # feeding outcome to the learning loop
+    ARCHIVED = "archived"                        # learning complete, situation is history
+
+
+class SideState(str, Enum):
+    """5 orthogonal side states that can coexist with any primary state.
+
+    These represent conditions that affect the situation regardless of
+    its primary lifecycle position.
+    """
+    DISPUTED = "disputed"                          # credible evidence conflicts
+    BLOCKED = "blocked"                            # a decision cannot proceed due to missing info
+    STALE = "stale"                                # no signals for 30+ days
+    SUPERSEDED = "superseded"                      # a newer situation replaces this one
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"  # not enough evidence to form a judgment
 
 
 class EpistemicState(str, Enum):
-    """What the organization knows about this situation's central claim.
-
-    Per the CEO directive: Maestro develops a disciplined model of what
-    the organization knows, believes, assumes, predicts, disputes, learns,
-    and forgets. These are different states.
-    """
-    KNOWN = "known"              # supported directly by evidence
-    REPORTED = "reported"        # someone said it
-    BELIEVED = "believed"        # the organization behaves as though true
-    ASSUMED = "assumed"          # a decision depends upon it
-    HYPOTHESIZED = "hypothesized"  # a proposed relationship being tested
-    PREDICTED = "predicted"      # a prospective claim about a future outcome
-    DISPUTED = "disputed"        # credible evidence conflicts
-    UNKNOWN = "unknown"          # important information is missing
-    FALSIFIED = "falsified"      # outcomes contradicted the hypothesis
-    LEARNED = "learned"          # prospective evidence repeatedly supported it
+    """What the organization knows about this situation's central claim."""
+    KNOWN = "known"
+    REPORTED = "reported"
+    BELIEVED = "believed"
+    ASSUMED = "assumed"
+    HYPOTHESIZED = "hypothesized"
+    PREDICTED = "predicted"
+    DISPUTED = "disputed"
+    UNKNOWN = "unknown"
+    FALSIFIED = "falsified"
+    LEARNED = "learned"
 
 
 class DeliveryRoute(str, Enum):
-    """How (or whether) this situation should be surfaced to the user.
+    """How (or whether) this situation should be surfaced to the user."""
+    SILENT = "silent"
+    ASK = "ask"
+    BRIEFING = "briefing"
+    WHISPER = "whisper"
+    PREPARE = "prepare"
+    URGENT = "urgent"
 
-    The Delivery Governor decides this deterministically — specialists
-    can only recommend, not decide.
-    """
-    SILENT = "silent"          # no intervention justified; watch
-    ASK = "ask"                # available if user asks, no proactive push
-    BRIEFING = "briefing"      # include in morning/evening briefing
-    WHISPER = "whisper"        # proactive push during active context
-    PREPARE = "prepare"        # surface a preparation workspace
-    URGENT = "urgent"          # immediate escalation (rare)
+
+class LearningState(str, Enum):
+    """The learning state of the situation's central hypothesis."""
+    UNTESTED = "untested"                # no prospective predictions yet
+    OBSERVING_EVIDENCE = "observing_evidence"  # predictions registered, awaiting outcomes
+    SUPPORTED = "supported"              # outcomes support the hypothesis
+    CONTESTED = "contested"              # some outcomes contradict
+    FALSIFIED = "falsified"             # enough contradictions to falsify
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Timeline Event
+# State Transition — every transition is justified + logged
+# ════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class StateTransition:
+    """A single state transition with justification.
+
+    Every transition must have:
+      - from_state and to_state
+      - timestamp
+      - reason (WHY the transition happened — not just WHAT)
+      - triggering_evidence_ref (which signal/evidence caused it)
+      - side_state_changes (any side states added/removed)
+    """
+    from_state: SituationState
+    to_state: SituationState
+    timestamp: datetime
+    reason: str                                 # why this transition happened
+    triggering_evidence_ref: Optional[str] = None  # which evidence caused it
+    side_states_added: list[SideState] = field(default_factory=list)
+    side_states_removed: list[SideState] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "from_state": self.from_state.value,
+            "to_state": self.to_state.value,
+            "timestamp": self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else str(self.timestamp),
+            "reason": self.reason,
+            "triggering_evidence_ref": self.triggering_evidence_ref,
+            "side_states_added": [s.value for s in self.side_states_added],
+            "side_states_removed": [s.value for s in self.side_states_removed],
+        }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Situation Delta — what changed when a new signal arrived
+# ════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class SituationDelta:
+    """The computed delta when a new signal arrives.
+
+    This is the output of SituationEngine.apply_signal(). It captures
+    everything that changed — NOT just the state transition, but also
+    new unknowns, new evidence refs, and whether a transition occurred.
+    """
+    situation_id: str
+    signal_ref: str                             # the signal that caused this delta
+    transition: Optional[StateTransition] = None  # None if no state change
+    new_evidence_refs: list[str] = field(default_factory=list)
+    new_unknowns: list[str] = field(default_factory=list)  # questions added
+    resolved_unknowns: list[str] = field(default_factory=list)  # questions answered
+    new_side_states: list[SideState] = field(default_factory=list)
+    material_change_description: str = ""       # human-readable summary of what changed
+
+    def to_dict(self) -> dict:
+        return {
+            "situation_id": self.situation_id,
+            "signal_ref": self.signal_ref,
+            "transition": self.transition.to_dict() if self.transition else None,
+            "new_evidence_refs": self.new_evidence_refs,
+            "new_unknowns": self.new_unknowns,
+            "resolved_unknowns": self.resolved_unknowns,
+            "new_side_states": [s.value for s in self.new_side_states],
+            "material_change_description": self.material_change_description,
+        }
+
+    @property
+    def has_transition(self) -> bool:
+        return self.transition is not None
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Timeline Event / Known Fact / Unknown / Disagreement / Judgment
 # ════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class TimelineEvent:
-    """A single event on a situation's timeline."""
+    """A single event on a situation's timeline.
+
+    This is a PROJECTION (derived from OEM signals), not a copy. The
+    evidence_ref points back to the OEM source of record.
+    """
     timestamp: datetime
     description: str
     event_type: str = "observed"  # observed | reported | committed | decided | outcome
-    evidence_id: Optional[str] = None
-    source: str = ""              # which signal/source produced this event
+    evidence_ref: Optional[str] = None  # reference to OEM evidence (NOT a copy)
+    source: str = ""
 
     def to_dict(self) -> dict:
         return {
             "timestamp": self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else str(self.timestamp),
             "description": self.description,
             "event_type": self.event_type,
-            "evidence_id": self.evidence_id,
+            "evidence_ref": self.evidence_ref,
             "source": self.source,
         }
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# Known Fact / Unknown
-# ════════════════════════════════════════════════════════════════════════════
-
 @dataclass
 class KnownFact:
-    """A fact about the situation, backed by evidence."""
+    """A fact about the situation, backed by evidence (reference, not copy)."""
     statement: str
-    evidence_ids: list[str] = field(default_factory=list)
+    evidence_refs: list[str] = field(default_factory=list)  # refs to OEM evidence
     epistemic_state: EpistemicState = EpistemicState.KNOWN
     source: str = ""
 
     def to_dict(self) -> dict:
         return {
             "statement": self.statement,
-            "evidence_ids": self.evidence_ids,
+            "evidence_refs": self.evidence_refs,
             "epistemic_state": self.epistemic_state.value,
             "source": self.source,
         }
@@ -128,15 +223,13 @@ class KnownFact:
 
 @dataclass
 class Unknown:
-    """An important piece of information that is missing.
-
-    Unknowns are first-class — Maestro explicitly tracks what it doesn't
-    know, rather than hiding gaps behind confident-sounding output.
-    """
-    question: str                # what needs to be established?
-    why_it_matters: str          # why is this gap important?
-    blocking: bool = False       # does this block a decision?
-    specialists_flagged: list[str] = field(default_factory=list)  # who noticed this gap?
+    """An important piece of information that is missing."""
+    question: str
+    why_it_matters: str
+    blocking: bool = False
+    specialists_flagged: list[str] = field(default_factory=list)
+    resolved: bool = False  # set True when the unknown is answered
+    resolved_by_evidence_ref: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -144,27 +237,20 @@ class Unknown:
             "why_it_matters": self.why_it_matters,
             "blocking": self.blocking,
             "specialists_flagged": self.specialists_flagged,
+            "resolved": self.resolved,
+            "resolved_by_evidence_ref": self.resolved_by_evidence_ref,
         }
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# Disagreement
-# ════════════════════════════════════════════════════════════════════════════
-
 @dataclass
 class Disagreement:
-    """A preserved disagreement between specialists.
-
-    Most multi-agent systems converge. Maestro preserves useful
-    disagreement — the reasoning path matters, and the user should be
-    able to traverse it.
-    """
-    topic: str                   # what do they disagree about?
-    position_a: str              # specialist A's position
-    position_b: str              # specialist B's position
+    """A preserved disagreement between specialists."""
+    topic: str
+    position_a: str
+    position_b: str
     specialist_a: str = ""
     specialist_b: str = ""
-    resolution: Optional[str] = None  # how the Synthesizer reconciled it (if at all)
+    resolution: Optional[str] = None
     unresolved: bool = True
 
     def to_dict(self) -> dict:
@@ -179,28 +265,16 @@ class Disagreement:
         }
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# Judgment
-# ════════════════════════════════════════════════════════════════════════════
-
 @dataclass
 class Judgment:
-    """The synthesized of all perspectives on a situation.
-
-    This is NOT a summary. It's a reasoned position that:
-    - States the central claim
-    - Acknowledges the strongest reason to act
-    - Acknowledges the strongest reason not to act
-    - Identifies what remains unknown
-    - Recommends a next step (not pseudo-scientific precision)
-    """
+    """The synthesized of all perspectives on a situation."""
     central_claim: str = ""
     strongest_reason_to_act: str = ""
     strongest_reason_not_to_act: str = ""
     unknowns_blocking_decision: list[str] = field(default_factory=list)
     recommended_next_step: str = ""
-    confidence: float = 0.0  # 0.0-1.0 — calibrated, not fabricated
-    evidence_ids: list[str] = field(default_factory=list)
+    confidence: float = 0.0
+    evidence_refs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -210,22 +284,25 @@ class Judgment:
             "unknowns_blocking_decision": self.unknowns_blocking_decision,
             "recommended_next_step": self.recommended_next_step,
             "confidence": round(self.confidence, 3),
-            "evidence_ids": self.evidence_ids,
+            "evidence_refs": self.evidence_refs,
         }
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# LivingSituation — the core object
+# LivingSituation — THIN cognitive frame (references, not copies)
 # ════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class LivingSituation:
-    """A durable, living object representing a changing organizational situation.
+    """A thin cognitive frame over OEM memory.
 
-    This is the product unit — not "agents" or "insights." Everything
-    in Maestro serves situations: specialists contribute perspectives,
-    the synthesizer produces judgment, the delivery governor decides
-    how (or whether) to surface it.
+    DESIGN RULE (CEO): "Situation organizes cognition. It does not
+    duplicate organizational memory." This object holds REFERENCES to
+    OEM objects (evidence, commitments, decisions, meetings), not copies.
+    The OEM remains the source of record.
+
+    Situation-specific cognition (unknowns, interpretations, material_changes)
+    lives HERE — it's not in OEM because it's a frame, not a fact.
 
     A LivingSituation can appear differently depending on context:
       - Before a meeting: "one unresolved issue worth preparing for"
@@ -234,27 +311,42 @@ class LivingSituation:
       - After the meeting: "the expectation conflict is resolved"
       - Months later: "similar drift appearing in another renewal"
     """
+    # Identity
     situation_id: str
     title: str
-    entity: str                              # the customer/org/entity this concerns
-    org_id: str = "default"                  # tenant scope
+    entity: str
+    org_id: str = "default"
 
-    # Lifecycle
-    state: SituationState = SituationState.WATCHING
-    epistemic_state: EpistemicState = EpistemicState.UNKNOWN
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # Lifecycle — 10 primary states + 5 side states + transition history
+    state: SituationState = SituationState.DETECTED
+    side_states: set[SideState] = field(default_factory=set)
+    state_history: list[StateTransition] = field(default_factory=list)
+    opened_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    resolved_at: Optional[datetime] = None
 
-    # The situation's content
+    # REFERENCES to OEM (NOT copies) — the CEO's rule #1
+    entity_refs: list[str] = field(default_factory=list)
+    intent_refs: list[str] = field(default_factory=list)
+    commitment_refs: list[str] = field(default_factory=list)
+    decision_refs: list[str] = field(default_factory=list)
+    evidence_refs: list[str] = field(default_factory=list)
+    hypothesis_refs: list[str] = field(default_factory=list)
+    meeting_refs: list[str] = field(default_factory=list)
+    relationship_refs: list[str] = field(default_factory=list)
+
+    # Situation-specific cognition (NOT in OEM — only in Situation)
     timeline: list[TimelineEvent] = field(default_factory=list)
     known_facts: list[KnownFact] = field(default_factory=list)
     unknowns: list[Unknown] = field(default_factory=list)
-    commitments: list[dict] = field(default_factory=list)
-    decisions: list[dict] = field(default_factory=list)
-    related_meetings: list[dict] = field(default_factory=list)
+    material_changes: list[str] = field(default_factory=list)
 
-    # Perspectives and synthesis
-    perspectives: list[dict] = field(default_factory=list)  # Perspective dicts (Phase 2)
+    # Epistemic + learning state
+    epistemic_state: EpistemicState = EpistemicState.UNKNOWN
+    learning_state: LearningState = LearningState.UNTESTED
+
+    # Perspectives + Judgment (transient — recomputed per query)
+    perspectives: list[dict] = field(default_factory=list)
     disagreements: list[Disagreement] = field(default_factory=list)
     judgment: Optional[Judgment] = None
 
@@ -263,7 +355,6 @@ class LivingSituation:
     relevant_specialists: list[str] = field(default_factory=list)
 
     # Metadata
-    evidence_ids: list[str] = field(default_factory=list)
     snapshot_version: int = 1
 
     def to_dict(self) -> dict:
@@ -273,23 +364,37 @@ class LivingSituation:
             "entity": self.entity,
             "org_id": self.org_id,
             "state": self.state.value,
-            "epistemic_state": self.epistemic_state.value,
-            "created_at": self.created_at.isoformat(),
+            "side_states": [s.value for s in self.side_states],
+            "state_history": [t.to_dict() for t in self.state_history],
+            "opened_at": self.opened_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            # References (NOT copies)
+            "entity_refs": self.entity_refs,
+            "intent_refs": self.intent_refs,
+            "commitment_refs": self.commitment_refs,
+            "decision_refs": self.decision_refs,
+            "evidence_refs": self.evidence_refs,
+            "hypothesis_refs": self.hypothesis_refs,
+            "meeting_refs": self.meeting_refs,
+            "relationship_refs": self.relationship_refs,
+            # Situation-specific cognition
             "timeline": [e.to_dict() for e in self.timeline],
             "known_facts": [f.to_dict() for f in self.known_facts],
             "unknowns": [u.to_dict() for u in self.unknowns],
-            "commitments": self.commitments,
-            "decisions": self.decisions,
-            "related_meetings": self.related_meetings,
+            "material_changes": self.material_changes,
+            "epistemic_state": self.epistemic_state.value,
+            "learning_state": self.learning_state.value,
+            # Transient
             "perspectives": self.perspectives,
             "disagreements": [d.to_dict() for d in self.disagreements],
             "judgment": self.judgment.to_dict() if self.judgment else None,
             "recommended_delivery": self.recommended_delivery.value,
             "relevant_specialists": self.relevant_specialists,
-            "evidence_ids": self.evidence_ids,
             "snapshot_version": self.snapshot_version,
         }
+
+    # ── Mutation helpers ────────────────────────────────────────────────────
 
     def add_timeline_event(self, event: TimelineEvent) -> None:
         """Add an event to the timeline and re-sort chronologically."""
@@ -309,43 +414,111 @@ class LivingSituation:
             self.unknowns.append(unknown)
             self.updated_at = datetime.now(timezone.utc)
 
+    def resolve_unknown(self, question: str, evidence_ref: str) -> bool:
+        """Mark an unknown as resolved by new evidence.
+
+        Returns True if the unknown was found and resolved.
+        """
+        for u in self.unknowns:
+            if u.question == question and not u.resolved:
+                u.resolved = True
+                u.resolved_by_evidence_ref = evidence_ref
+                self.updated_at = datetime.now(timezone.utc)
+                return True
+        return False
+
     def add_disagreement(self, disagreement: Disagreement) -> None:
         """Add a disagreement (preserved, not converged away)."""
         self.disagreements.append(disagreement)
         self.updated_at = datetime.now(timezone.utc)
 
-    def has_blocking_unknown(self) -> bool:
-        """Does this situation have any unknown that blocks a decision?"""
-        return any(u.blocking for u in self.unknowns)
-
-    def transition_to(self, new_state: SituationState) -> None:
-        """Transition the situation to a new state (with logging)."""
-        old_state = self.state
-        self.state = new_state
+    def add_side_state(self, side: SideState) -> None:
+        """Add a side state (orthogonal to the primary state)."""
+        self.side_states.add(side)
         self.updated_at = datetime.now(timezone.utc)
-        logger.info(
-            "Situation %s transitioned: %s → %s",
-            self.situation_id, old_state.value, new_state.value,
+
+    def remove_side_state(self, side: SideState) -> None:
+        """Remove a side state."""
+        self.side_states.discard(side)
+        self.updated_at = datetime.now(timezone.utc)
+
+    def has_side_state(self, side: SideState) -> bool:
+        return side in self.side_states
+
+    def has_blocking_unknown(self) -> bool:
+        """Does this situation have any UNRESOLVED blocking unknown?"""
+        return any(u.blocking and not u.resolved for u in self.unknowns)
+
+    def has_unresolved_unknowns(self) -> bool:
+        """Does this situation have any unresolved unknown?"""
+        return any(not u.resolved for u in self.unknowns)
+
+    def transition_to(
+        self,
+        new_state: SituationState,
+        reason: str,
+        triggering_evidence_ref: Optional[str] = None,
+        side_states_added: Optional[list[SideState]] = None,
+        side_states_removed: Optional[list[SideState]] = None,
+    ) -> StateTransition:
+        """Transition to a new state with JUSTIFICATION.
+
+        Every transition is logged in state_history with the reason and
+        triggering evidence. This is the CEO's "continuous state transition"
+        requirement — transitions are not manual, they're justified.
+
+        Returns the StateTransition that was logged.
+        """
+        old_state = self.state
+        side_added = side_states_added or []
+        side_removed = side_states_removed or []
+
+        # Log the transition
+        transition = StateTransition(
+            from_state=old_state,
+            to_state=new_state,
+            timestamp=datetime.now(timezone.utc),
+            reason=reason,
+            triggering_evidence_ref=triggering_evidence_ref,
+            side_states_added=side_added,
+            side_states_removed=side_removed,
         )
+
+        # Apply the transition
+        self.state = new_state
+        self.state_history.append(transition)
+        for s in side_added:
+            self.side_states.add(s)
+        for s in side_removed:
+            self.side_states.discard(s)
+        if new_state == SituationState.RESOLVED:
+            self.resolved_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(timezone.utc)
+
+        logger.info(
+            "Situation %s transitioned: %s → %s (reason: %s)",
+            self.situation_id, old_state.value, new_state.value, reason[:80],
+        )
+        return transition
+
+    def get_latest_transition(self) -> Optional[StateTransition]:
+        """Get the most recent state transition."""
+        return self.state_history[-1] if self.state_history else None
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SituationEngine — builds and maintains LivingSituations
+# SituationEngine — builds, maintains, and transitions LivingSituations
 # ════════════════════════════════════════════════════════════════════════════
 
 # Mapping from specialist → the entity domains it's relevant for.
-# Used by route_specialists() to avoid invoking all 17 for every situation.
 SPECIALIST_DOMAIN_MAP: dict[str, set[str]] = {
-    # Revenue
     "growth":           {"renewal", "expansion", "upsell", "pipeline"},
     "sales":            {"renewal", "deal", "pipeline", "pricing", "contract"},
     "customer_success": {"renewal", "churn", "health", "satisfaction", "onboarding"},
     "finance":          {"deal", "contract", "budget", "cost", "revenue"},
-    # Product
     "product":          {"roadmap", "feature", "feedback", "release"},
     "engineering":      {"deployment", "bug", "incident", "integration", "architecture"},
     "marketing":        {"campaign", "positioning", "messaging"},
-    # Internal
     "hr":               {"hiring", "retention", "burnout", "workload"},
     "legal":            {"contract", "compliance", "dpa", "sla", "obligation"},
     "operations":       {"process", "bottleneck", "capacity"},
@@ -353,32 +526,34 @@ SPECIALIST_DOMAIN_MAP: dict[str, set[str]] = {
     "data":             {"analytics", "trend", "metric"},
     "security":         {"security", "auth", "oauth", "sso", "vulnerability", "access"},
     "partnerships":     {"partner", "co-sell", "joint"},
-    # Strategy
     "strategy":         {"market", "competitive", "positioning", "bet"},
     "communications":   {"announcement", "internal-comms", "follow-up"},
-    "chief_of_staff":   set(),  # always relevant — synthesizes
+    "chief_of_staff":   set(),
 }
 
 
 class SituationEngine:
-    """Builds and maintains LivingSituations from OEM signals.
+    """Builds, maintains, and transitions LivingSituations from OEM signals.
 
     The engine is the bridge between Organizational Memory (Layer 2) and
-    the Judgment layer (Layer 4). It takes raw signals and constructs
-    durable situation objects that specialists can then contribute
-    perspectives to.
+    the Judgment layer (Layer 4). It:
+      1. Detects situations from OEM signals (detect_situations)
+      2. Applies new signals to existing situations (apply_signal)
+      3. Computes deltas and justifies state transitions
+      4. Routes only relevant specialists per situation
 
     Usage:
         engine = SituationEngine(oem_state=oem)
         situations = engine.detect_situations()
-        for s in situations:
-            specialists = engine.route_specialists(s)
-            # invoke only those specialists...
+        for signal in new_signals:
+            delta = engine.apply_signal(situation, signal)
+            if delta.has_transition:
+                print(f"Transition: {delta.transition.reason}")
     """
 
     def __init__(self, oem_state: Any = None):
         self._oem_state = oem_state
-        self._situations: dict[str, LivingSituation] = {}  # situation_id → LivingSituation
+        self._situations: dict[str, LivingSituation] = {}
 
     @property
     def oem_state(self) -> Any:
@@ -404,10 +579,9 @@ class SituationEngine:
     def detect_situations(self, org_id: str = "default") -> list[LivingSituation]:
         """Detect active situations from OEM signals.
 
-        A situation is detected when:
-          - An entity has 2+ signals (commitments, decisions, meetings)
-          - OR an entity has a known upcoming event (calendar)
-          - OR an entity has an unresolved unknown
+        A situation is detected when an entity has 2+ signals. The first
+        situation for an entity starts in OBSERVING state (not DETECTED —
+        DETECTED is the pre-creation state).
 
         Returns a list of LivingSituations, sorted by update recency.
         """
@@ -425,16 +599,13 @@ class SituationEngine:
 
         situations: list[LivingSituation] = []
         for entity, entity_signals in entities.items():
-            # Need at least 2 signals to form a situation
             if len(entity_signals) < 2:
                 continue
-
             situation = self._build_situation(entity, entity_signals, org_id)
             if situation:
                 self._situations[situation.situation_id] = situation
                 situations.append(situation)
 
-        # Sort by most recently updated
         situations.sort(key=lambda s: s.updated_at, reverse=True)
         return situations
 
@@ -444,56 +615,90 @@ class SituationEngine:
         entity_signals: list,
         org_id: str,
     ) -> Optional[LivingSituation]:
-        """Build a LivingSituation from an entity's signals."""
-        situation_id = f"sit-{entity.lower()}-{uuid4().hex[:8]}"
+        """Build a LivingSituation from an entity's signals.
+
+        Uses REFERENCES to OEM objects, not copies. The situation holds
+        refs (evidence_refs, commitment_refs, meeting_refs) that point
+        back to the OEM source of record.
+        """
+        situation_id = f"sit-{entity.lower().replace(' ', '-')}-{uuid4().hex[:8]}"
         title = self._derive_title(entity, entity_signals)
+
+        # Start in OBSERVING (first creation — DETECTED is conceptual)
         situation = LivingSituation(
             situation_id=situation_id,
             title=title,
             entity=entity,
             org_id=org_id,
+            state=SituationState.OBSERVING,
         )
 
-        # Build timeline from signals
+        # Log the initial transition DETECTED → OBSERVING
+        situation.state_history.append(StateTransition(
+            from_state=SituationState.DETECTED,
+            to_state=SituationState.OBSERVING,
+            timestamp=situation.opened_at,
+            reason=f"Situation detected from {len(entity_signals)} signals for {entity}",
+            triggering_evidence_ref=getattr(entity_signals[0], "signal_id", None),
+        ))
+
+        # Build timeline + evidence_refs from signals (REFERENCES, not copies)
         for sig in entity_signals:
             ts = getattr(sig, "timestamp", datetime.now(timezone.utc))
             sig_type = getattr(getattr(sig, "type", None), "value", str(getattr(sig, "type", "")))
             text = getattr(sig, "text", "") or (getattr(sig, "metadata", {}) or {}).get("text", "")
+            sig_id = getattr(sig, "signal_id", "") or str(id(sig))
+
+            # Add evidence REFERENCE (not a copy)
+            if sig_id not in situation.evidence_refs:
+                situation.evidence_refs.append(sig_id)
 
             event_type = "observed"
             if "commitment" in sig_type.lower():
                 event_type = "committed"
+                if sig_id not in situation.commitment_refs:
+                    situation.commitment_refs.append(sig_id)
             elif "decision" in sig_type.lower():
                 event_type = "decided"
+                if sig_id not in situation.decision_refs:
+                    situation.decision_refs.append(sig_id)
             elif "outcome" in sig_type.lower():
                 event_type = "outcome"
             elif "reported" in sig_type.lower():
                 event_type = "reported"
+            elif "meeting" in sig_type.lower():
+                if sig_id not in situation.meeting_refs:
+                    situation.meeting_refs.append(sig_id)
 
             situation.add_timeline_event(TimelineEvent(
                 timestamp=ts if isinstance(ts, datetime) else datetime.now(timezone.utc),
                 description=text or f"{sig_type} for {entity}",
                 event_type=event_type,
+                evidence_ref=sig_id,
                 source=sig_type,
             ))
 
-        # Extract known facts from signals with evidence
+        # Extract known facts (with evidence REFS)
         for sig in entity_signals:
             text = getattr(sig, "text", "") or (getattr(sig, "metadata", {}) or {}).get("text", "")
+            sig_id = getattr(sig, "signal_id", "") or str(id(sig))
             if text:
                 epistemic = EpistemicState.REPORTED
-                sig_type = str(getattr(sig, "type", "")).lower()
+                _t = getattr(sig, "type", None)
+                _tv = getattr(_t, "value", None) if _t else None
+                sig_type = str(_tv).lower() if _tv else str(_t).lower()
                 if "commitment" in sig_type:
-                    epistemic = EpistemicState.ASSUMED  # decisions depend on commitments
+                    epistemic = EpistemicState.ASSUMED
                 elif "outcome" in sig_type:
-                    epistemic = EpistemicState.KNOWN  # outcomes are evidence-backed
+                    epistemic = EpistemicState.KNOWN
                 situation.add_known_fact(KnownFact(
                     statement=text[:200],
+                    evidence_refs=[sig_id],
                     epistemic_state=epistemic,
                     source=sig_type,
                 ))
 
-        # Detect unknowns (gaps in the timeline)
+        # Detect unknowns (gaps in evidence)
         unknowns = self._detect_unknowns(entity, entity_signals)
         for u in unknowns:
             situation.add_unknown(u)
@@ -501,8 +706,8 @@ class SituationEngine:
         # Determine epistemic state
         situation.epistemic_state = self._determine_epistemic_state(situation)
 
-        # Determine initial state
-        situation.state = self._determine_initial_state(situation)
+        # Determine initial state + side states via transition logic
+        self._evaluate_initial_transitions(situation, entity_signals)
 
         # Route relevant specialists
         situation.relevant_specialists = self.route_specialists(situation)
@@ -511,9 +716,10 @@ class SituationEngine:
 
     def _derive_title(self, entity: str, signals: list) -> str:
         """Derive a human-readable title for the situation."""
-        # Look for commitment/decision signals to name the situation
         for sig in signals:
-            sig_type = str(getattr(sig, "type", "")).lower()
+            _t = getattr(sig, "type", None)
+            _tv = getattr(_t, "value", None) if _t else None
+            sig_type = str(_tv).lower() if _tv else str(_t).lower()
             text = getattr(sig, "text", "") or ""
             if "commitment" in sig_type and text:
                 return f"{entity}: {text[:60]}"
@@ -523,13 +729,15 @@ class SituationEngine:
         """Detect important unknowns from signal gaps."""
         unknowns: list[Unknown] = []
 
-        # If there's a commitment but no outcome, the status is unknown
-        has_commitment = any(
-            "commitment" in str(getattr(s, "type", "")).lower() for s in signals
-        )
-        has_outcome = any(
-            "outcome" in str(getattr(s, "type", "")).lower() for s in signals
-        )
+        def _sig_type_str(s) -> str:
+            t = getattr(s, "type", None)
+            if t is None:
+                return ""
+            val = getattr(t, "value", None)
+            return str(val).lower() if val is not None else str(t).lower()
+
+        has_commitment = any("commitment" in _sig_type_str(s) for s in signals)
+        has_outcome = any("outcome" in _sig_type_str(s) for s in signals)
         if has_commitment and not has_outcome:
             unknowns.append(Unknown(
                 question=f"Was the commitment to {entity} fulfilled?",
@@ -538,14 +746,13 @@ class SituationEngine:
                 specialists_flagged=["customer_success", "sales"],
             ))
 
-        # If there's a security-related signal but no resolution
         has_security = any(
-            "security" in str(getattr(s, "type", "")).lower()
+            "security" in _sig_type_str(s)
             or "security" in (getattr(s, "text", "") or "").lower()
             for s in signals
         )
         has_resolution = any(
-            "resolved" in str(getattr(s, "type", "")).lower()
+            "resolved" in _sig_type_str(s)
             or "approved" in (getattr(s, "text", "") or "").lower()
             for s in signals
         )
@@ -563,42 +770,324 @@ class SituationEngine:
         """Determine the overall epistemic state of the situation."""
         if not situation.known_facts:
             return EpistemicState.UNKNOWN
-
-        # If any blocking unknown exists, the situation is disputed/unknown
         if situation.has_blocking_unknown():
             return EpistemicState.DISPUTED
-
-        # If all facts are KNOWN, the situation is KNOWN
         states = [f.epistemic_state for f in situation.known_facts]
         if all(s == EpistemicState.KNOWN for s in states):
             return EpistemicState.KNOWN
-
-        # If any fact is ASSUMED, the situation depends on assumptions
         if any(s == EpistemicState.ASSUMED for s in states):
             return EpistemicState.ASSUMED
-
-        # Default: reported (someone said it, not yet verified)
         return EpistemicState.REPORTED
 
-    def _determine_initial_state(self, situation: LivingSituation) -> SituationState:
-        """Determine the initial lifecycle state of the situation."""
-        # If there's a blocking unknown, the situation needs preparation
-        if situation.has_blocking_unknown():
-            return SituationState.NEEDS_PREPARATION
+    def _evaluate_initial_transitions(self, situation: LivingSituation, signals: list) -> None:
+        """Evaluate whether the situation should transition from OBSERVING
+        to a more advanced state based on initial signals.
+        """
+        # Helper: get the signal type as a lowercase string (handles both
+        # real OEM enums and MagicMock test doubles)
+        def _sig_type_str(s) -> str:
+            t = getattr(s, "type", None)
+            if t is None:
+                return ""
+            # Real OEM signals have type.value; mocks have type.value set too
+            val = getattr(t, "value", None)
+            if val is not None:
+                return str(val).lower()
+            return str(t).lower()
 
-        # If there are recent timeline events (last 7 days), it's active
-        if situation.timeline:
-            latest = situation.timeline[-1]
-            if isinstance(latest.timestamp, datetime):
-                days_old = (datetime.now(timezone.utc) - latest.timestamp).days
-                if days_old <= 7:
-                    return SituationState.ACTIVE
-                elif days_old <= 30:
-                    return SituationState.WATCHING
-                else:
-                    return SituationState.DORMANT
+        # Check if there's a security prerequisite (→ MATERIAL)
+        has_security_prereq = any(
+            "security" in _sig_type_str(s)
+            or "security" in (getattr(s, "text", "") or "").lower()
+            for s in signals
+        )
+        has_commitment = any(
+            "commitment" in _sig_type_str(s)
+            for s in signals
+        )
 
-        return SituationState.WATCHING
+        if has_security_prereq and has_commitment:
+            # New prerequisite threatens commitment feasibility → MATERIAL
+            security_sig = next(
+                s for s in signals
+                if "security" in _sig_type_str(s)
+                or "security" in (getattr(s, "text", "") or "").lower()
+            )
+            situation.transition_to(
+                SituationState.MATERIAL,
+                reason="Security prerequisite threatens commitment feasibility",
+                triggering_evidence_ref=getattr(security_sig, "signal_id", None),
+                side_states_added=[SideState.BLOCKED] if situation.has_blocking_unknown() else [],
+            )
+
+        # Check if there's an expectation mismatch (→ NEEDS_PREPARATION)
+        # This can happen from OBSERVING (no security prereq) or MATERIAL
+        # (security prereq + expectation mismatch).
+        has_expectation_mismatch = any(
+            "availability" in (getattr(s, "text", "") or "").lower()
+            or "expectation" in (getattr(s, "text", "") or "").lower()
+            or "production" in (getattr(s, "text", "") or "").lower()
+            for s in signals
+        )
+        if has_expectation_mismatch and situation.state in (SituationState.MATERIAL, SituationState.OBSERVING):
+            situation.transition_to(
+                SituationState.NEEDS_PREPARATION,
+                reason="External expectation may differ from internal completion state",
+                triggering_evidence_ref=getattr(signals[-1], "signal_id", None),
+            )
+
+    # ── Continuous state transition (the biggest missing capability) ────────
+
+    def apply_signal(self, situation: LivingSituation, signal: Any) -> SituationDelta:
+        """Apply a new signal to an existing situation and compute the delta."""
+        sig_id = getattr(signal, "signal_id", "") or str(id(signal))
+        # Get signal type as lowercase string (handles real enums + mocks)
+        sig_type_raw = getattr(signal, "type", None)
+        sig_type_val = getattr(sig_type_raw, "value", None) if sig_type_raw else None
+        sig_type = str(sig_type_val).lower() if sig_type_val else str(sig_type_raw).lower()
+        sig_text = getattr(signal, "text", "") or ""
+        sig_ts = getattr(signal, "timestamp", datetime.now(timezone.utc))
+        if not isinstance(sig_ts, datetime):
+            sig_ts = datetime.now(timezone.utc)
+
+        delta = SituationDelta(
+            situation_id=situation.situation_id,
+            signal_ref=sig_id,
+        )
+
+        # 1. Add evidence REFERENCE (not a copy)
+        if sig_id not in situation.evidence_refs:
+            situation.evidence_refs.append(sig_id)
+            delta.new_evidence_refs.append(sig_id)
+
+        # 2. Add timeline event (projection, with evidence_ref)
+        event_type = "observed"
+        if "commitment" in sig_type:
+            event_type = "committed"
+            if sig_id not in situation.commitment_refs:
+                situation.commitment_refs.append(sig_id)
+        elif "decision" in sig_type:
+            event_type = "decided"
+            if sig_id not in situation.decision_refs:
+                situation.decision_refs.append(sig_id)
+        elif "outcome" in sig_type:
+            event_type = "outcome"
+        elif "meeting" in sig_type or "calendar" in sig_type:
+            event_type = "observed"
+            if sig_id not in situation.meeting_refs:
+                situation.meeting_refs.append(sig_id)
+
+        situation.add_timeline_event(TimelineEvent(
+            timestamp=sig_ts,
+            description=sig_text or f"{sig_type} signal",
+            event_type=event_type,
+            evidence_ref=sig_id,
+            source=sig_type,
+        ))
+
+        # 3. Check if this signal resolves any existing unknowns
+        self._check_unknown_resolution(situation, signal, delta)
+
+        # 4. Check if this signal introduces new unknowns
+        self._check_new_unknowns(situation, signal, delta)
+
+        # 5. Evaluate state transition
+        transition = self._evaluate_transition(situation, signal, delta)
+        if transition:
+            delta.transition = transition
+
+        # 6. Update material_changes
+        if delta.material_change_description:
+            situation.material_changes.append(delta.material_change_description)
+
+        situation.updated_at = datetime.now(timezone.utc)
+        situation.snapshot_version += 1
+        return delta
+
+    def _check_unknown_resolution(
+        self, situation: LivingSituation, signal: Any, delta: SituationDelta
+    ) -> None:
+        """Check if this signal resolves any existing unknowns."""
+        sig_text = (getattr(signal, "text", "") or "").lower()
+        sig_type = str(getattr(signal, "type", "")).lower()
+        sig_id = getattr(signal, "signal_id", "") or str(id(signal))
+
+        for unknown in situation.unknowns:
+            if unknown.resolved:
+                continue
+            # Security approval resolved?
+            if "security" in unknown.question.lower():
+                if "approved" in sig_text or "resolved" in sig_text or "cleared" in sig_text:
+                    if situation.resolve_unknown(unknown.question, sig_id):
+                        delta.resolved_unknowns.append(unknown.question)
+            # Commitment fulfilled?
+            if "fulfilled" in unknown.question.lower() or "commitment" in unknown.question.lower():
+                if "outcome" in sig_type or "kept" in sig_text or "delivered" in sig_text:
+                    if situation.resolve_unknown(unknown.question, sig_id):
+                        delta.resolved_unknowns.append(unknown.question)
+
+    def _check_new_unknowns(
+        self, situation: LivingSituation, signal: Any, delta: SituationDelta
+    ) -> None:
+        """Check if this signal introduces new unknowns."""
+        sig_text = (getattr(signal, "text", "") or "").lower()
+        sig_type = str(getattr(signal, "type", "")).lower()
+
+        # If a completion claim arrives but doesn't mention the prerequisite
+        if "complete" in sig_text or "delivered" in sig_text:
+            # Check if there's a security unknown that's still unresolved
+            has_security_unknown = any(
+                "security" in u.question.lower() and not u.resolved
+                for u in situation.unknowns
+            )
+            if has_security_unknown:
+                # The completion claim doesn't resolve the security question
+                new_q = "Did security approval clear before the completion claim?"
+                if not any(u.question == new_q for u in situation.unknowns):
+                    situation.add_unknown(Unknown(
+                        question=new_q,
+                        why_it_matters="Completion claim does not establish prerequisite resolution.",
+                        blocking=True,
+                        specialists_flagged=["security"],
+                    ))
+                    delta.new_unknowns.append(new_q)
+
+    def _evaluate_transition(
+        self, situation: LivingSituation, signal: Any, delta: SituationDelta
+    ) -> Optional[StateTransition]:
+        """Evaluate whether the situation should transition based on this signal.
+
+        This implements the CEO's state machine:
+          OBSERVING → MATERIAL: new prerequisite/threat
+          MATERIAL → NEEDS_PREPARATION: external expectation differs
+          NEEDS_PREPARATION → DECISION_PENDING: calendar event imminent
+          DECISION_PENDING → ACTION_IN_PROGRESS: meeting starts
+          ACTION_IN_PROGRESS → AWAITING_OUTCOME: action complete
+          AWAITING_OUTCOME → RESOLVED: outcome evidence arrives
+
+        Returns a StateTransition if one occurred, None otherwise.
+        """
+        sig_text = (getattr(signal, "text", "") or "").lower()
+        sig_type = str(getattr(signal, "type", "")).lower()
+        sig_id = getattr(signal, "signal_id", "") or str(id(signal))
+        current = situation.state
+
+        # ── OBSERVING → MATERIAL ──────────────────────────────────────────
+        # Trigger: new prerequisite/threat (security, legal, compliance)
+        if current == SituationState.OBSERVING:
+            if any(kw in sig_text or kw in sig_type for kw in
+                   ["security", "conditional", "prerequisite", "approval required"]):
+                delta.material_change_description = (
+                    f"New prerequisite detected: {sig_text[:80]}"
+                )
+                return situation.transition_to(
+                    SituationState.MATERIAL,
+                    reason="New prerequisite threatens commitment feasibility",
+                    triggering_evidence_ref=sig_id,
+                    side_states_added=[SideState.BLOCKED] if situation.has_blocking_unknown() else [],
+                )
+
+        # ── MATERIAL → NEEDS_PREPARATION ──────────────────────────────────
+        # Trigger: external expectation differs from internal state
+        # (a NEW dimension of conflict, not just a new unknown about the
+        # same dimension. The Globex Day 50 completion claim adds a new
+        # unknown about the SAME security prereq — that doesn't trigger
+        # the transition. Day 55's "customer defines availability as
+        # production access" introduces a NEW dimension — that does.)
+        if current == SituationState.MATERIAL:
+            if any(kw in sig_text for kw in
+                   ["availability", "expectation", "production", "define"]):
+                delta.material_change_description = (
+                    f"External expectation may differ from internal state: {sig_text[:80]}"
+                )
+                return situation.transition_to(
+                    SituationState.NEEDS_PREPARATION,
+                    reason="External expectation may differ from internal completion state",
+                    triggering_evidence_ref=sig_id,
+                )
+
+        # ── NEEDS_PREPARATION → DECISION_PENDING ──────────────────────────
+        # Trigger: calendar event (meeting) is imminent
+        if current == SituationState.NEEDS_PREPARATION:
+            if any(kw in sig_text or kw in sig_type for kw in
+                   ["meeting", "tomorrow", "scheduled", "calendar"]):
+                delta.material_change_description = "Imminent meeting requires decision preparation"
+                situation.recommended_delivery = DeliveryRoute.PREPARE
+                return situation.transition_to(
+                    SituationState.DECISION_PENDING,
+                    reason="Imminent meeting requires decision preparation",
+                    triggering_evidence_ref=sig_id,
+                )
+
+        # ── DECISION_PENDING → ACTION_IN_PROGRESS ────────────────────────
+        # Trigger: meeting starts / action is taken
+        if current == SituationState.DECISION_PENDING:
+            if any(kw in sig_text or kw in sig_type for kw in
+                   ["meeting started", "in progress", "live", "active"]):
+                delta.material_change_description = "Meeting/action is now in progress"
+                situation.recommended_delivery = DeliveryRoute.WHISPER
+                return situation.transition_to(
+                    SituationState.ACTION_IN_PROGRESS,
+                    reason="Meeting/action is now in progress",
+                    triggering_evidence_ref=sig_id,
+                )
+
+        # ── ACTION_IN_PROGRESS → AWAITING_OUTCOME ────────────────────────
+        # Trigger: action complete, outcome unknown
+        if current == SituationState.ACTION_IN_PROGRESS:
+            if any(kw in sig_text or kw in sig_type for kw in
+                   ["meeting ended", "concluded", "finished", "wrapped"]):
+                delta.material_change_description = "Action complete, awaiting outcome"
+                return situation.transition_to(
+                    SituationState.AWAITING_OUTCOME,
+                    reason="Action complete, awaiting outcome",
+                    triggering_evidence_ref=sig_id,
+                )
+
+        # ── AWAITING_OUTCOME → RESOLVED ──────────────────────────────────
+        # Trigger: outcome evidence arrives (renewal won/lost, commitment kept/broken)
+        if current == SituationState.AWAITING_OUTCOME:
+            if any(kw in sig_text or kw in sig_type for kw in
+                   ["renewed", "churned", "kept", "broken", "resolved", "accepted"]):
+                delta.material_change_description = f"Outcome resolved: {sig_text[:80]}"
+                return situation.transition_to(
+                    SituationState.RESOLVED,
+                    reason=f"Outcome evidence: {sig_text[:80]}",
+                    triggering_evidence_ref=sig_id,
+                )
+
+        # ── RESOLVED → LEARNING ──────────────────────────────────────────
+        # Trigger: feeding to learning loop (manual or automated)
+        if current == SituationState.RESOLVED:
+            if "learning" in sig_text or "pattern" in sig_type:
+                delta.material_change_description = "Feeding outcome to learning loop"
+                return situation.transition_to(
+                    SituationState.LEARNING,
+                    reason="Feeding outcome to learning loop",
+                    triggering_evidence_ref=sig_id,
+                )
+
+        # ── LEARNING → ARCHIVED ──────────────────────────────────────────
+        if current == SituationState.LEARNING:
+            if "archived" in sig_text or "complete" in sig_type:
+                delta.material_change_description = "Learning complete, archiving"
+                return situation.transition_to(
+                    SituationState.ARCHIVED,
+                    reason="Learning complete, situation archived",
+                    triggering_evidence_ref=sig_id,
+                )
+
+        # No transition — but still log the material change if any
+        if not delta.material_change_description:
+            # Check if the signal is a completion claim that doesn't resolve prereqs
+            if "complete" in sig_text or "delivered" in sig_text:
+                delta.material_change_description = (
+                    f"Completion claim received but does not establish prerequisite resolution: {sig_text[:60]}"
+                )
+            else:
+                delta.material_change_description = f"Signal observed (no state transition): {sig_text[:60]}"
+
+        return None
 
     # ── Specialist routing ──────────────────────────────────────────────────
 
@@ -608,11 +1097,12 @@ class SituationEngine:
         NOT all 17 specialists run for every situation. The engine routes
         only the relevant ones based on the situation's topic keywords.
 
-        The Chief of Staff is always included (it synthesizes).
+        NOTE (CEO directive): This is keyword-based routing (fallback).
+        Gate 2 will evolve this to consequence-path routing (traversing
+        the organizational relationship graph).
         """
-        relevant: set[str] = {"chief_of_staff"}  # always
+        relevant: set[str] = {"chief_of_staff"}
 
-        # Build a keyword bag from the situation's title, facts, and timeline
         text_bag = (
             situation.title + " "
             + " ".join(f.statement for f in situation.known_facts) + " "
@@ -621,12 +1111,10 @@ class SituationEngine:
 
         for specialist, keywords in SPECIALIST_DOMAIN_MAP.items():
             if not keywords:
-                continue  # chief_of_staff handled above
+                continue
             if any(kw in text_bag for kw in keywords):
                 relevant.add(specialist)
 
-        # Always include customer_success and sales for entity situations
-        # (they're broadly relevant to any customer-facing situation)
         if situation.entity:
             relevant.add("customer_success")
             relevant.add("sales")
@@ -640,19 +1128,28 @@ class SituationEngine:
         return self._situations.get(situation_id)
 
     def get_active_situations(self, org_id: str = "default") -> list[LivingSituation]:
-        """Get all non-dormant, non-resolved situations."""
+        """Get all situations that are not resolved, learning, or archived."""
+        terminal = {SituationState.RESOLVED, SituationState.LEARNING, SituationState.ARCHIVED}
         return [
             s for s in self._situations.values()
-            if s.org_id == org_id
-            and s.state not in (SituationState.DORMANT, SituationState.RESOLVED,
-                                SituationState.LEARNED, SituationState.FALSIFIED)
+            if s.org_id == org_id and s.state not in terminal
         ]
 
     def get_situations_needing_preparation(self, org_id: str = "default") -> list[LivingSituation]:
-        """Get situations that need preparation (have blocking unknowns)."""
+        """Get situations that need preparation."""
         return [
             s for s in self._situations.values()
             if s.org_id == org_id and s.state == SituationState.NEEDS_PREPARATION
+        ]
+
+    def get_situations_by_entity(self, entity: str, org_id: str = "default") -> list[LivingSituation]:
+        """Get all situations for a specific entity.
+
+        This prevents 'future leakage' — situations don't bleed across entities.
+        """
+        return [
+            s for s in self._situations.values()
+            if s.org_id == org_id and s.entity.lower() == entity.lower()
         ]
 
 
