@@ -5,8 +5,9 @@
 > AUDITOR_GOVERNANCE.md Gates 15-20, and audit_scripts/audit_gates.sh from
 > disk at the start of every session. Both sides paste a read receipt.
 
-**Date:** 2026-07-07
+**Date:** 2026-07-07 (updated)
 **Source spec:** `MAESTRO_AMBIENT_INTELLIGENCE_ROADMAP.md` (1,111 lines, 12 phases)
+**CEO framing:** "Deeper, Richer, Ambient — 12 Phases, 120 Days" (the 3 dimensions + 5 differences + moat)
 **Companion spec:** `MAESTRO_LIVE_COPILOT_ROADMAP_GOVERNED.md` (8 phases, the meeting-time layer)
 **Current HEAD:** `d9026e2` (origin/main)
 **Total scope:** 20 phases, 153 days, ~612 hours, $480K-720K investment
@@ -63,7 +64,72 @@
 
 ---
 
-## 2. The 20-Phase Unified Plan
+## 2. The CEO's Framing: Deeper, Richer, Ambient
+
+The CEO's promise to investors is not "Cluely with better evidence." It is a **fundamentally different category**. Every phase in this plan must be evaluable against the 3 dimensions and the 5 differences. If a phase does not advance at least one dimension, it is theater and the auditor rejects it.
+
+### 2.1 DEEPER — Multi-Layer Intelligence
+
+| Layer | What it does | Example | Phase |
+|---|---|---|---|
+| Sentiment Tracking | Real-time emotion detection from voice tone | "Sam's voice stress increased 40% when discussing pricing — he's uncomfortable" | 10 |
+| Negotiation Strategy | BATNA analysis, anchoring detection | "They anchored at $50K. Your BATNA is $65K. Counter at $58K with volume discount" | 12 |
+| Relationship Dynamics | Power mapping, influence networks | "Raj defers to Sam on pricing. Address Sam directly, not Raj" | 13 |
+| Deal Health Scoring | Live probability during the call | "Deal health dropped from 78% to 62% after the pricing objection" | 11 |
+| Cross-Meeting Threads | Conversation continuity tracking | "This is the 4th time pricing came up. Last 3 times: 2 closed with discount, 1 lost" | 14 |
+
+### 2.2 RICHER — Full Context, Not Just Audio
+
+| Source | What it adds | Phase |
+|---|---|---|
+| Calendar | "You have 3 Globex meetings this week — deal acceleration pattern" | 9 |
+| Email | "Sam's last email was 5 days ago, no response — risk signal" | 17 |
+| Slack | "Raj asked about circuit breaker in #engineering yesterday — mention it" | 17 |
+| CRM | "Deal stage: Negotiation. ARR at risk: $3.2M. Renewal in 47 days" | 9, 11 |
+| Commitments | "You promised pricing by Thursday. It's Friday. Overdue." | 9 |
+
+### 2.3 AMBIENT — Always Working, Not Just During Calls
+
+| When | What Maestro does | Phase |
+|---|---|---|
+| Between meetings | "You have a Globex call in 2 hours. Here's the pre-call brief with 3 talking points" | 9 |
+| After work hours | "3 commitments are overdue. Here's the priority list with follow-up drafts" | 9, 19 |
+| Weekend | "Relationship with Initech is critical. Last interaction: 22 days ago. Here's a re-engagement draft" | 13, 19 |
+| Monday morning | "This week: 8 meetings, 3 with at-risk accounts, 5 overdue commitments. Here's your priority matrix" | 9, 20 |
+
+### 2.4 The 5 Differences From Cluely (the moat)
+
+1. **It works between calls.** Cluely only works during calls. Maestro works 24/7 — Sunday night prep, Tuesday draft follow-ups, Friday 5pm re-engagement. (Phases 9, 19)
+2. **It learns from every interaction.** Cluely has no memory. Maestro compounds: Call 1 pricing objection = 40% confidence; Call 10 = 89% confidence (9 similar cases, 6 closed with phased rollout). (Phases 5, 16, 20)
+3. **It predicts failures before they happen.** Cluely reacts. Maestro predicts: "Commitment to deploy SSO by Friday has a 73% failure probability" (similar commitments from Priya failed 3 of 4 times). (Phase 9)
+4. **It connects everything.** Cluely only listens to audio. Maestro fuses calendar + email + Slack + CRM + commitments into the full picture. (Phases 9, 17)
+5. **It builds institutional memory.** Cluely helps one person cheat. Maestro helps the organization learn: calls → signals → LOs → patterns → laws. After 50 pricing objections, the organization *knows* how to handle them. (All phases feed the OEM; Phase 20 surfaces the learning velocity.)
+
+### 2.5 The Moat (Why This Cannot Be Cloned)
+
+**Cluely's moat:** GPT-4 API + audio capture. Anyone can clone this in a weekend.
+
+**Maestro's moat:** Your organization's entire execution history, learning from every interaction, building institutional memory that compounds over time.
+
+- Cluely cannot say "You promised SSO by Day 60 — today is Day 45" because it does not track commitments.
+- Cluely cannot say "The last 3 times we faced this pricing objection with a healthcare buyer, the deal closed when we offered a pilot" because it has no historical data.
+- Cluely cannot say "Priya is on PTO starting Wednesday — delegate approvals today" because it does not know your team's calendar.
+- Cluely cannot say "Relationship with Initech is critical — last interaction 22 days ago" because it does not monitor email/Slack.
+
+**Maestro can. Because Maestro has the data. Cluely just has GPT.**
+
+### 2.6 The Bottom Line (the CEO's category claim)
+
+This roadmap does not add "Cluely-like features" to Maestro. It creates a **new category**: ambient organizational intelligence.
+
+- **Cluely** = teleprompter for individuals
+- **Maestro Ambient** = institutional memory for organizations
+
+One helps you cheat in the moment. The other helps your organization learn, predict, and compound intelligence over time. Every phase in this plan must advance this category claim. If a phase is "Cluely-like" (single-user, in-the-moment, no learning), the auditor rejects it.
+
+---
+
+## 3. The 20-Phase Unified Plan (phases map to the 3 dimensions in §2)
 
 The Ambient Intelligence roadmap (12 phases) integrates with the Live Copilot roadmap (8 phases). The Live Copilot phases (1-8) deliver the meeting-time layer. The Ambient phases (9-20) deliver the always-on layer that works between calls. Together they form the unified 20-phase plan.
 
@@ -101,7 +167,7 @@ The Ambient Intelligence roadmap (12 phases) integrates with the Live Copilot ro
 
 ---
 
-## 3. Detailed Execution Policy (the coding rules)
+## 4. Detailed Execution Policy (the coding rules)
 
 This is the governed coding policy. Every phase MUST follow it. The auditor verifies compliance by execution (P31).
 
@@ -140,7 +206,7 @@ This is the governed coding policy. Every phase MUST follow it. The auditor veri
 
 ---
 
-## 4. Phase Details — Ambient Intelligence (Phases 9-20)
+## 5. Phase Details — Ambient Intelligence (Phases 9-20)
 
 ### Phase 9: Ambient Signal Fusion (Days 34-43, 40 hours)
 
@@ -352,7 +418,7 @@ python -m pytest backend/maestro_oem/tests/test_advanced_analytics.py -q
 
 ---
 
-## 5. The Coding Execution Policy — Summary Checklist
+## 6. The Coding Execution Policy — Summary Checklist
 
 For every phase, the coder MUST:
 
@@ -371,7 +437,7 @@ For every phase, the coder MUST:
 
 ---
 
-## 6. The Loop
+## 7. The Loop
 
 1. **Before each phase:** read governance modules from disk; paste 8-field receipt.
 2. **During each phase:** cite P-numbers (P20 callers, P22 production path, P23 commit output, P24 cross-surface, P25 confidence).
@@ -383,7 +449,7 @@ For every phase, the coder MUST:
 
 ---
 
-## 7. Honest Disclosure
+## 8. Honest Disclosure
 
 This is a 153-day, 612-hour, $480K-720K build. The coder can execute every CODE phase (1-20). The CEO must resource the GTM milestones (design partners, ARR, SOC2/HIPAA/GDPR) in parallel. The 20 phases deliver the product the CEO promised investors: an ambient organizational intelligence layer that works 24/7, learns from every interaction, and compounds institutional memory over time. This is not a feature. This is a category.
 

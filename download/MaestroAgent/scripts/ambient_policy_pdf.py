@@ -87,7 +87,7 @@ def build_ch_ethics(story):
     story.append(PageBreak())
 
 def build_ch_arch(story):
-    story.append(heading('Chapter 2 — Architecture Overview', STYLES['h1'], level=0))
+    story.append(heading('Chapter 1 — Architecture Overview', STYLES['h1'], level=0))
     story.append(p(
         'The Ambient Intelligence Layer sits above the Organizational Memory (SituationSnapshot 27 '
         'fields + OutcomeLedger + OEM signals) and below the user-facing surfaces (Today panel + '
@@ -107,8 +107,94 @@ def build_ch_arch(story):
         'gets deeper. The UI stays at 4 sidebar items; the engines multiply invisibly behind them.'))
     story.append(PageBreak())
 
+def build_ch_ceo_framing(story):
+    story.append(heading('Chapter 2 — The CEO\'s Framing: Deeper, Richer, Ambient', STYLES['h1'], level=0))
+    story.append(p(
+        'The CEO\'s promise to investors is not "Cluely with better evidence." It is a fundamentally '
+        'different category. Every phase in this plan must be evaluable against the 3 dimensions and '
+        'the 5 differences. If a phase does not advance at least one dimension, it is theater and the '
+        'auditor rejects it.'))
+
+    story.append(heading('2.1 DEEPER — Multi-Layer Intelligence', STYLES['h2'], level=1))
+    deeper = [
+        ['Layer', 'What it does', 'Example', 'Phase'],
+        ['Sentiment Tracking', 'Real-time emotion from voice tone',
+         'Sam\'s voice stress +40% on pricing', '10'],
+        ['Negotiation Strategy', 'BATNA, anchoring detection',
+         'Anchored $50K. BATNA $65K. Counter $58K.', '12'],
+        ['Relationship Dynamics', 'Power mapping, influence networks',
+         'Raj defers to Sam on pricing. Address Sam.', '13'],
+        ['Deal Health Scoring', 'Live probability during call',
+         'Deal health 78% to 62% after objection', '11'],
+        ['Cross-Meeting Threads', 'Conversation continuity',
+         '4th time pricing came up. 2 closed, 1 lost.', '14'],
+    ]
+    story.append(make_table(deeper, col_widths=[3*cm, 3.5*cm, 6.5*cm, 1.5*cm], font_size=8))
+    story.append(spacer(8))
+
+    story.append(heading('2.2 RICHER — Full Context, Not Just Audio', STYLES['h2'], level=1))
+    richer = [
+        ['Source', 'What it adds', 'Phase'],
+        ['Calendar', '3 Globex meetings this week — deal acceleration', '9'],
+        ['Email', 'Sam\'s last email 5 days ago, no response — risk', '17'],
+        ['Slack', 'Raj asked about circuit breaker — mention it', '17'],
+        ['CRM', 'Deal stage: Negotiation. $3.2M at risk. Renewal 47 days', '9, 11'],
+        ['Commitments', 'Promised pricing by Thursday. It\'s Friday. Overdue.', '9'],
+    ]
+    story.append(make_table(richer, col_widths=[2.5*cm, 10.5*cm, 1.5*cm], font_size=8.5))
+    story.append(spacer(8))
+
+    story.append(heading('2.3 AMBIENT — Always Working, Not Just During Calls', STYLES['h2'], level=1))
+    ambient = [
+        ['When', 'What Maestro does', 'Phase'],
+        ['Between meetings', 'Globex call in 2 hours. Pre-call brief, 3 talking points.', '9'],
+        ['After work hours', '3 commitments overdue. Priority list with drafts.', '9, 19'],
+        ['Weekend', 'Initech critical. Last interaction 22 days. Re-engage draft.', '13, 19'],
+        ['Monday morning', '8 meetings, 3 at-risk, 5 overdue. Priority matrix.', '9, 20'],
+    ]
+    story.append(make_table(ambient, col_widths=[2.5*cm, 10.5*cm, 1.5*cm], font_size=8.5))
+    story.append(spacer(10))
+
+    story.append(heading('2.4 The 5 Differences From Cluely (the moat)', STYLES['h2'], level=1))
+    diffs = [
+        ['#', 'Difference', 'Phases'],
+        ['1', 'Works between calls (24/7, not just during)', '9, 19'],
+        ['2', 'Learns from every interaction (Call 1 = 40%, Call 10 = 89%)', '5, 16, 20'],
+        ['3', 'Predicts failures before they happen (73% failure probability)', '9'],
+        ['4', 'Connects everything (calendar + email + Slack + CRM + commitments)', '9, 17'],
+        ['5', 'Builds institutional memory (calls → signals → LOs → patterns → laws)', 'All'],
+    ]
+    story.append(make_table(diffs, col_widths=[0.8*cm, 11.5*cm, 2.2*cm], font_size=8.5))
+    story.append(spacer(10))
+
+    story.append(heading('2.5 The Moat (Why This Cannot Be Cloned)', STYLES['h2'], level=1))
+    story.append(p(
+        '<b>Cluely\'s moat:</b> GPT-4 API + audio capture. Anyone can clone this in a weekend.'))
+    story.append(p(
+        '<b>Maestro\'s moat:</b> Your organization\'s entire execution history, learning from every '
+        'interaction, building institutional memory that compounds over time.'))
+    story.append(callout(
+        'Cluely cannot say "You promised SSO by Day 60 — today is Day 45" (no commitment tracking). '
+        'Cluely cannot say "The last 3 times we faced this pricing objection with a healthcare buyer, '
+        'the deal closed when we offered a pilot" (no historical data). Cluely cannot say "Priya is '
+        'on PTO starting Wednesday — delegate approvals today" (no team calendar). Cluely cannot say '
+        '"Relationship with Initech is critical — last interaction 22 days ago" (no email/Slack '
+        'monitoring). <b>Maestro can. Because Maestro has the data. Cluely just has GPT.</b>'))
+
+    story.append(heading('2.6 The Bottom Line (the category claim)', STYLES['h2'], level=1))
+    story.append(p(
+        'This roadmap does not add "Cluely-like features" to Maestro. It creates a new category: '
+        'ambient organizational intelligence.'))
+    story.append(callout(
+        '<b>Cluely</b> = teleprompter for individuals.<br/>'
+        '<b>Maestro Ambient</b> = institutional memory for organizations.<br/><br/>'
+        'One helps you cheat in the moment. The other helps your organization learn, predict, and '
+        'compound intelligence over time. Every phase must advance this category claim. If a phase '
+        'is "Cluely-like" (single-user, in-the-moment, no learning), the auditor rejects it.'))
+    story.append(PageBreak())
+
 def build_ch_phases(story):
-    story.append(heading('Chapter 3 — The 20-Phase Unified Plan', STYLES['h1'], level=0))
+    story.append(heading('Chapter 3 — The 20-Phase Unified Plan (phases map to the 3 dimensions)', STYLES['h1'], level=0))
     story.append(p(
         'The Ambient Intelligence roadmap (12 phases) integrates with the Live Copilot roadmap '
         '(8 phases). The Live Copilot phases (1-8) deliver the meeting-time layer. The Ambient '
@@ -328,6 +414,7 @@ def main():
     story.append(PageBreak())
     build_ch_ethics(story)
     build_ch_arch(story)
+    build_ch_ceo_framing(story)
     build_ch_phases(story)
     build_ch_policy(story)
     build_ch_phase_details(story)
