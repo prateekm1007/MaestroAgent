@@ -7,16 +7,21 @@ Endpoints:
   - GET  /api/nerve/dashboard          — unified agent dashboard
   - GET  /api/nerve/agents             — list all 17 agents
   - POST /api/nerve/agent/{name}/insights — get insights from a specific agent
+  - GET  /nerve-dashboard              — HTML frontend dashboard (Phase 2, Feature 4)
 
-All routes require USER auth (Depends(require_user)) and stamp @auth_policy.
+All /api/ routes require USER auth (Depends(require_user)) and stamp @auth_policy.
+The /nerve-dashboard HTML page is PUBLIC (it's a static page; auth happens
+client-side via the API key input field).
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from maestro_api.security.policy import auth_policy, AuthPolicy, set_router_policy
@@ -27,6 +32,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/nerve", tags=["nerve"])
 # F4 lesson: stamp USER auth policy on the router
 set_router_policy(router, AuthPolicy.USER)
+
+# Separate router for the HTML dashboard page (PUBLIC — no auth, it's a
+# static page; the API key is entered client-side and sent as a Bearer
+# token to the /api/nerve/* endpoints which DO require auth).
+dashboard_router = APIRouter(tags=["nerve-dashboard"])
 
 
 class BriefingRequest(BaseModel):
@@ -174,3 +184,26 @@ async def get_agent_insights(
     except Exception as e:
         logger.error(f"Agent insights failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent insights failed: {e}")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# HTML Dashboard (Phase 2, Feature 4) — PUBLIC route
+# ════════════════════════════════════════════════════════════════════════════
+
+@dashboard_router.get("/nerve-dashboard", response_class=HTMLResponse)
+async def nerve_dashboard_page() -> HTMLResponse:
+    """Serve the Nerve frontend dashboard (HTML + inline CSS/JS).
+
+    This is a PUBLIC route (no auth) — it serves a static HTML page. The
+    actual data endpoints (/api/nerve/*) require auth. The user enters
+    their API key in the dashboard's input field, and all fetch requests
+    include it as a Bearer token.
+
+    The HTML file is at static/nerve-dashboard.html.
+    """
+    # Resolve the HTML file path relative to the repo root
+    html_path = Path(__file__).resolve().parents[3] / "static" / "nerve-dashboard.html"
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="nerve-dashboard.html not found")
+    html = html_path.read_text(encoding="utf-8")
+    return HTMLResponse(content=html)

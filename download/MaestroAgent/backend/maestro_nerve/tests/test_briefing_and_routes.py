@@ -221,3 +221,69 @@ class TestNerveRoutes:
                     if policy is None:
                         failures.append(f"{r.path} missing @auth_policy")
         assert not failures, f"Auth inventory failures:\n{chr(10).join(failures)}"
+
+    def test_dashboard_html_route_exists(self):
+        """GET /nerve-dashboard serves the HTML frontend dashboard."""
+        import os
+        os.environ.setdefault(
+            "MAESTRO_APP_DIR",
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+        )
+        from maestro_api.main import create_app
+        from fastapi.routing import APIRoute
+
+        app = create_app()
+        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        assert "/nerve-dashboard" in paths, (
+            "/nerve-dashboard route not registered — dashboard_router not included"
+        )
+
+    def test_dashboard_html_route_is_public(self):
+        """The /nerve-dashboard route is intentionally public (no @auth_policy).
+
+        It serves a static HTML page. Auth happens client-side via the
+        API key input field, which is sent as a Bearer token to the
+        /api/nerve/* endpoints (which DO require auth).
+        """
+        import os
+        os.environ.setdefault(
+            "MAESTRO_APP_DIR",
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+        )
+        from maestro_api.security.policy import get_route_policy
+        from maestro_api.main import create_app
+        from fastapi.routing import APIRoute
+
+        app = create_app()
+        for r in app.routes:
+            if hasattr(r, "path") and r.path == "/nerve-dashboard":
+                # The dashboard route should NOT have a USER policy (it's public).
+                # It may have PUBLIC policy or None — both are acceptable.
+                policy = get_route_policy(r)
+                assert policy is None or policy.value == "public", (
+                    f"/nerve-dashboard should be public, got policy={policy}"
+                )
+                return
+        pytest.fail("/nerve-dashboard route not found")
+
+    def test_dashboard_html_serves_actual_html(self):
+        """The /nerve-dashboard route returns HTML content (not JSON error)."""
+        import os
+        os.environ.setdefault(
+            "MAESTRO_APP_DIR",
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+        )
+        from maestro_api.main import create_app
+        from fastapi.testclient import TestClient
+
+        app = create_app()
+        client = TestClient(app)
+        response = client.get("/nerve-dashboard")
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        # The HTML should contain key dashboard elements
+        html = response.text
+        assert "Maestro Nerve" in html or "nerve" in html.lower()
+        assert "morning" in html.lower()
+        assert "evening" in html.lower()
+        assert "dashboard" in html.lower()

@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maestro Nerve Dashboard — AI Chief of Staff</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-2: #232734;
+    --border: #2e3344;
+    --text: #e4e6ed;
+    --text-dim: #9398a8;
+    --accent: #6c8cff;
+    --accent-dim: #4a6a8a;
+    --high: #ff6b6b;
+    --medium: #ffa94d;
+    --low: #69db7c;
+    --confidence-high: #69db7c;
+    --confidence-moderate: #ffa94d;
+    --confidence-low: #9398a8;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 { font-size: 1.4rem; font-weight: 600; }
+  .header h1 .sub { color: var(--text-dim); font-weight: 400; font-size: 0.9rem; margin-left: 8px; }
+  .auth-bar { display: flex; gap: 8px; align-items: center; }
+  .auth-bar input {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    width: 240px;
+  }
+  .auth-bar button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .auth-bar button:hover { background: var(--accent-dim); }
+
+  .tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+  }
+  .tab {
+    padding: 12px 20px;
+    cursor: pointer;
+    color: var(--text-dim);
+    border-bottom: 2px solid transparent;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .greeting {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .date { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 24px; }
+
+  .section-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin: 24px 0 12px 0;
+    font-weight: 600;
+  }
+
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+  .insight-card:hover { border-color: var(--accent-dim); }
+  .insight-card.high { border-left: 3px solid var(--high); }
+  .insight-card.medium { border-left: 3px solid var(--medium); }
+  .insight-card.low { border-left: 3px solid var(--low); }
+
+  .insight-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .insight-title { font-size: 1.05rem; font-weight: 600; flex: 1; }
+  .insight-agent {
+    background: var(--surface-2);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-left: 12px;
+    white-space: nowrap;
+  }
+  .insight-body { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 10px; }
+  .insight-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .badge.priority-high { background: rgba(255,107,107,0.15); color: var(--high); }
+  .badge.priority-medium { background: rgba(255,169,77,0.15); color: var(--medium); }
+  .badge.priority-low { background: rgba(105,219,124,0.15); color: var(--low); }
+  .badge.confidence-high { background: rgba(105,219,124,0.15); color: var(--confidence-high); }
+  .badge.confidence-moderate { background: rgba(255,169,77,0.15); color: var(--confidence-moderate); }
+  .badge.confidence-low { background: rgba(147,152,168,0.15); color: var(--confidence-low); }
+
+  .insight-action {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+  .insight-action::before { content: "→ "; }
+
+  .insight-evidence {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .insight-evidence summary { cursor: pointer; color: var(--accent); }
+  .insight-evidence ul { margin: 6px 0 0 16px; }
+  .insight-evidence li { margin: 2px 0; }
+
+  .actions-list {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+  }
+  .action-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  .action-item:last-child { border-bottom: none; }
+  .action-item::before { content: "☐ "; color: var(--accent); }
+
+  .calendar-item {
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .calendar-item .urgency-high { color: var(--high); font-weight: 500; }
+
+  .filter-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .filter-bar select, .filter-bar input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+  .filter-bar label { font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .agent-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .agent-chip:hover { border-color: var(--accent); }
+  .agent-chip.selected { border-color: var(--accent); background: var(--surface-2); }
+  .agent-chip .name { font-weight: 600; font-size: 0.9rem; }
+  .agent-chip .desc { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+
+  .stats-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    min-width: 140px;
+  }
+  .stat-box .num { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .stat-box .label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .loading { text-align: center; padding: 40px; color: var(--text-dim); }
+  .error { color: var(--high); padding: 16px; background: rgba(255,107,107,0.1); border-radius: 6px; margin: 16px 0; }
+  .empty { color: var(--text-dim); padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Maestro Nerve <span class="sub">AI Chief of Staff — 17 Agents</span></h1>
+  <div class="auth-bar">
+    <input type="password" id="apiKey" placeholder="API key (Bearer token)" />
+    <button onclick="loadAll()">Connect</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showView('morning', this)">☀️ Morning Briefing</div>
+  <div class="tab" onclick="showView('evening', this)">🌙 Evening Briefing</div>
+  <div class="tab" onclick="showView('dashboard', this)">📊 Agent Dashboard</div>
+  <div class="tab" onclick="showView('agents', this)">🤖 All Agents</div>
+</div>
+
+<div class="container">
+
+  <!-- Morning Briefing -->
+  <div id="view-morning" class="view active">
+    <div id="morning-content"><div class="loading">Enter your API key and click Connect to load your morning briefing.</div></div>
+  </div>
+
+  <!-- Evening Briefing -->
+  <div id="view-evening" class="view">
+    <div id="evening-content"><div class="loading">Enter your API key and click Connect to load your evening briefing.</div></div>
+  </div>
+
+  <!-- Agent Dashboard -->
+  <div id="view-dashboard" class="view">
+    <div class="filter-bar">
+      <label>Agent:
+        <select id="filter-agent" onchange="loadDashboard()">
+          <option value="">All agents</option>
+        </select>
+      </label>
+      <label>Priority:
+        <select id="filter-priority" onchange="loadDashboard()">
+          <option value="">All</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </label>
+      <label>Min confidence:
+        <input type="range" id="filter-confidence" min="0" max="1" step="0.1" value="0" onchange="loadDashboard()" />
+        <span id="confidence-val">0.0</span>
+      </label>
+    </div>
+    <div id="dashboard-content"><div class="loading">Enter your API key and click Connect.</div></div>
+  </div>
+
+  <!-- All Agents -->
+  <div id="view-agents" class="view">
+    <div id="agents-content"><div class="loading">Enter your API key and click Connect to list all agents.</div></div>
+  </div>
+
+</div>
+
+<script>
+const BASE = window.location.origin;
+let agentsCache = [];
+
+function showView(viewId, tabEl) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + viewId).classList.add('active');
+  tabEl.classList.add('active');
+}
+
+function authHeaders() {
+  const key = document.getElementById('apiKey').value.trim();
+  const h = { 'Content-Type': 'application/json' };
+  if (key) h['Authorization'] = 'Bearer ' + key;
+  return h;
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: authHeaders() };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(BASE + path, opts);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+  }
+  return res.json();
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function priorityBadge(p) {
+  return `<span class="badge priority-${esc(p)}">${esc(p)}</span>`;
+}
+
+function confidenceBadge(c) {
+  const label = c >= 0.8 ? 'high' : c >= 0.6 ? 'moderate' : 'low';
+  return `<span class="badge confidence-${label}">${Math.round(c*100)}% ${label}</span>`;
+}
+
+function insightCard(ins) {
+  const evidence = (ins.evidence_chain || []).map(e =>
+    `<li><strong>${esc(e.source || '?')}</strong>: ${esc(JSON.stringify({...e, source: undefined}))}</li>`
+  ).join('');
+  return `
+    <div class="insight-card ${esc(ins.priority || 'medium')}">
+      <div class="insight-header">
+        <div class="insight-title">${esc(ins.title)}</div>
+        <div class="insight-agent">${esc(ins.agent)}</div>
+      </div>
+      <div class="insight-body">${esc(ins.body)}</div>
+      <div class="insight-meta">
+        ${priorityBadge(ins.priority)}
+        ${confidenceBadge(ins.confidence || 0)}
+        ${ins.organizational_law ? `<span class="badge confidence-high">${esc(ins.organizational_law)}</span>` : ''}
+      </div>
+      ${ins.recommended_action ? `<div class="insight-action">${esc(ins.recommended_action)}</div>` : ''}
+      ${evidence ? `<details class="insight-evidence"><summary>Evidence chain (${(ins.evidence_chain||[]).length} source${(ins.evidence_chain||[]).length !== 1 ? 's' : ''})</summary><ul>${evidence}</ul></details>` : ''}
+    </div>
+  `;
+}
+
+async function loadMorning() {
+  const el = document.getElementById('morning-content');
+  el.innerHTML = '<div class="loading">Generating morning briefing…</div>';
+  try {
+    const b = await api('POST', '/api/nerve/briefing/morning', { user_email: '', org_id: 'default' });
+    let html = `
+      <div class="greeting">${esc(b.greeting)}</div>
+      <div class="date">${new Date(b.generated_at || b.date).toLocaleString()}</div>
+      <div class="stats-row">
+        <div class="stat-box"><div class="num">${b.total_insights_generated}</div><div class="label">Insights</div></div>
+        <div class="stat-box"><div class="num">${b.agents_consulted}</div><div class="label">Agents consulted</div></div>
+        <div class="stat-box"><div class="num">${(b.top_actions || []).length}</div><div class="label">Top actions</div></div>
+      </div>
+      <div class="section-title">Top Insights</div>
+      ${(b.top_insights || []).map(insightCard).join('') || '<div class="empty">No insights yet — hold a customer meeting with the Copilot extension to populate organizational memory.</div>'}
+    `;
+    if (b.top_actions && b.top_actions.length) {
+      html += `<div class="section-title">Top Actions</div><div class="actions-list">${b.top_actions.map(a => `<div class="action-item">${esc(a)}</div>`).join('')}</div>`;
+    }
+    if (b.calendar_preview && b.calendar_preview.length) {
+      html += `<div class="section-title">Calendar Preview</div>${b.calendar_preview.map(c => `<div class="calendar-item"><span>${esc(c.title)}</span><span class="urgency-${esc(c.urgency)}">${esc(c.urgency)}</span></div>`).join('')}`;
+    }
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<div class="error">Failed to load morning briefing: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadEvening() {
+  const el = document.getElementById('evening-content');
+  el.innerHTML = '<div class="loading">Generating evening briefing…</div>';
+  try {
+    const b = await api('POST', '/api/nerve/briefing/evening', { user_email: '', org_id: 'default' });
+    let html = `
+      <div class="greeting">${esc(b.greeting)}</div>
+      <div class="date">${new Date(b.generated_at || b.date).toLocaleString()}</div>
+      <div class="stats-row">
+        <div class="stat-box"><div class="num">${b.total_insights_generated}</div><div class="label">Insights</div></div>
+        <div class="stat-box"><div class="num">${(b.todays_wins || []).length}</div><div class="label">Wins</div></div>
+        <div class="stat-box"><div class="num">${(b.todays_risks || []).length}</div><div class="label">Risks</div></div>
+        <div class="stat-box"><div class="num">${(b.pending_actions || []).length}</div><div class="label">Pending</div></div>
+      </div>
+      <div class="section-title">Today's Wins</div>
+      ${(b.todays_wins || []).map(insightCard).join('') || '<div class="empty">No wins detected today.</div>'}
+      <div class="section-title">Today's Risks</div>
+      ${(b.todays_risks || []).map(insightCard).join('') || '<div class="empty">No risks detected today.</div>'}
+    `;
+    if (b.pending_actions && b.pending_actions.length) {
+      html += `<div class="section-title">Pending Actions</div><div class="actions-list">${b.pending_actions.map(a => `<div class="action-item">${esc(a)}</div>`).join('')}</div>`;
+    }
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<div class="error">Failed to load evening briefing: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadAgentsList() {
+  const el = document.getElementById('agents-content');
+  el.innerHTML = '<div class="loading">Loading agents…</div>';
+  try {
+    const agents = await api('GET', '/api/nerve/agents');
+    agentsCache = agents;
+    el.innerHTML = `
+      <div class="stats-row"><div class="stat-box"><div class="num">${agents.length}</div><div class="label">Registered agents</div></div></div>
+      <div class="agent-grid">
+        ${agents.map(a => `<div class="agent-chip" onclick="runAgent('${esc(a.name)}')"><div class="name">${esc(a.name)}</div><div class="desc">${esc(a.description)}</div></div>`).join('')}
+      </div>
+    `;
+    // Also populate the dashboard filter dropdown
+    const sel = document.getElementById('filter-agent');
+    sel.innerHTML = '<option value="">All agents</option>' + agents.map(a => `<option value="${esc(a.name)}">${esc(a.name)}</option>`).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="error">Failed to load agents: ${esc(e.message)}</div>`;
+  }
+}
+
+async function runAgent(name) {
+  const el = document.getElementById('agents-content');
+  el.innerHTML = `<div class="loading">Running agent "${esc(name)}"…</div>`;
+  try {
+    const result = await api('POST', `/api/nerve/agent/${name}/insights`, { user_email: '', org_id: 'default' });
+    el.innerHTML = `
+      <div style="margin-bottom:16px"><button onclick="loadAgentsList()" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);padding:6px 14px;border-radius:6px;cursor:pointer">← Back to all agents</button></div>
+      <div class="greeting">Agent: ${esc(result.agent)}</div>
+      <div class="date">${result.insight_count} insight${result.insight_count !== 1 ? 's' : ''} generated</div>
+      <div class="section-title">Insights</div>
+      ${(result.insights || []).map(insightCard).join('') || '<div class="empty">No insights from this agent.</div>'}
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="error">Agent failed: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadDashboard() {
+  const el = document.getElementById('dashboard-content');
+  const agent = document.getElementById('filter-agent').value;
+  const priority = document.getElementById('filter-priority').value;
+  const conf = document.getElementById('filter-confidence').value;
+  document.getElementById('confidence-val').textContent = parseFloat(conf).toFixed(1);
+
+  el.innerHTML = '<div class="loading">Loading dashboard…</div>';
+  try {
+    let path = `/api/nerve/dashboard?min_confidence=${conf}`;
+    if (agent) path += `&agent_filter=${encodeURIComponent(agent)}`;
+    if (priority) path += `&priority_filter=${encodeURIComponent(priority)}`;
+    const d = await api('GET', path);
+    el.innerHTML = `
+      <div class="stats-row">
+        <div class="stat-box"><div class="num">${d.total_insights}</div><div class="label">Insights</div></div>
+        <div class="stat-box"><div class="num">${d.agents_represented.length}</div><div class="label">Agents</div></div>
+      </div>
+      <div class="section-title">All Insights (sorted by priority + confidence)</div>
+      ${(d.all_insights_sorted || []).map(insightCard).join('') || '<div class="empty">No insights match the current filters.</div>'}
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="error">Failed to load dashboard: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadAll() {
+  await loadAgentsList();
+  await loadMorning();
+  await loadEvening();
+  await loadDashboard();
+}
+</script>
+</body>
+</html>

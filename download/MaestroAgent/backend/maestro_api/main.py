@@ -366,6 +366,7 @@ def create_app(
     # Nerve integration: 17 agents + daily briefings + dashboard
     from maestro_nerve import agents_revenue, agents_product, agents_internal, agents_strategy  # noqa: F401 — register all agents
     app.include_router(nerve.router, tags=["nerve"])  # /api/nerve/* endpoints
+    app.include_router(nerve.dashboard_router, tags=["nerve-dashboard"])  # /nerve-dashboard HTML page
 
     # WebSocket for live event streaming.
     register_ws_routes(app)

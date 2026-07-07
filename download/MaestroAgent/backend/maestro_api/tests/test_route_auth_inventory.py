@@ -37,6 +37,7 @@ PUBLIC_EXACT = {
     "/api/auth/saml/{provider}/acs",  # SAML assertion consumer
     "/api/auth/saml/metadata",  # SP metadata must be publicly retrievable
     "/status",  # HTML status page for health checks
+    "/nerve-dashboard",  # HTML dashboard page — auth happens client-side via API key
     "/docs",
     "/openapi.json",
     "/redoc",
