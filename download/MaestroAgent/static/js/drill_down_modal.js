@@ -400,3 +400,53 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Phase 7: Focus trap for modal accessibility
+var _drilldownFocusTrap = null;
+
+function _activateModalFocusTrap() {
+    var modal = document.getElementById('drilldown-modal') || document.getElementById('drill-down-modal');
+    if (modal && typeof createFocusTrap === 'function') {
+        _drilldownFocusTrap = createFocusTrap(modal);
+        _drilldownFocusTrap.activate();
+    }
+}
+
+function _deactivateModalFocusTrap() {
+    if (_drilldownFocusTrap) {
+        _drilldownFocusTrap.deactivate();
+        _drilldownFocusTrap = null;
+    }
+}
+
+// Patch openDrilldown to activate focus trap
+var _originalOpenDrilldown = window.openDrilldown;
+if (_originalOpenDrilldown) {
+    window.openDrilldown = function() {
+        var result = _originalOpenDrilldown.apply(this, arguments);
+        setTimeout(_activateModalFocusTrap, 100);
+        return result;
+    };
+}
+
+// Patch closeDrilldown to deactivate focus trap
+var _originalCloseDrilldown = window.closeDrilldown || window.closeDrillDown;
+if (_originalCloseDrilldown) {
+    var closeName = window.closeDrilldown ? 'closeDrilldown' : 'closeDrillDown';
+    window[closeName] = function() {
+        _deactivateModalFocusTrap();
+        return _originalCloseDrilldown.apply(this, arguments);
+    };
+}
+
+// ESC to close modal (keyboard accessibility)
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var modal = document.getElementById('drilldown-modal') || document.getElementById('drill-down-modal');
+        if (modal && modal.style.display !== 'none' && !modal.classList.contains('hidden')) {
+            _deactivateModalFocusTrap();
+            if (typeof closeDrilldown === 'function') closeDrilldown();
+            else if (typeof closeDrillDown === 'function') closeDrillDown();
+        }
+    }
+});

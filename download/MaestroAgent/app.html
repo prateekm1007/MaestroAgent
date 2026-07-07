@@ -126,6 +126,7 @@
   border-color: var(--accent-border);
   transform: translateY(-1px);
 }
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 </style>
 
 
@@ -147,6 +148,7 @@
   --glass-border-hover: rgba(124, 92, 255, 0.3);
   --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 </style>
 <link rel="preload" as="fetch" href="/api/oem/ceo-briefing" crossorigin>
 <link rel="preload" as="fetch" href="/api/oem/dashboard" crossorigin>
@@ -157,6 +159,10 @@
 <meta name="apple-mobile-web-app-title" content="Maestro">
 </head>
 <body>
+<!-- Screen reader announcements for dynamic content -->
+<div id="sr-announcer" aria-live="polite" aria-atomic="true"
+     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
+</div>
 <!-- WCAG 2.1: Skip-to-content link for keyboard users -->
 <a href="#main-content" class="skip-link">Skip to content</a>
 <!-- Demo-mode banner — unmistakable visual indicator when demo seed is active -->
@@ -1176,5 +1182,6 @@
 <script defer src="/static/js/components/card.js"></script>
 <script defer src="/static/js/bundle.min.js"></script>
 <script defer src="/static/js/perf-monitor.js"></script>
+<script defer src="/static/js/components/focus-trap.js"></script>
 </body>
 </html>
