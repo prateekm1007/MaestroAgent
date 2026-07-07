@@ -156,6 +156,7 @@ function renderOnboardingName() {
         <div class="text-caption b-text-muted-4">
           This is how I'll greet you.
         </div>
+        <button class="maestro-btn maestro-btn-ghost maestro-btn-full" onclick="showOnboardingScreen(1)" style="margin-bottom:8px;">← Back</button>
         <button class="maestro-btn maestro-btn-full" id="onboard-name-btn" disabled
                 onclick="saveOnboardingName()">Continue</button>
       </div>

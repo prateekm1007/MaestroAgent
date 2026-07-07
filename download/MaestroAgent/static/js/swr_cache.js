@@ -243,10 +243,6 @@ function hideOfflineBanner() {
 // RENDER HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 
 // escapeJs — escape a string for safe interpolation into a JS string literal
 // inside an inline onclick="..." handler.
@@ -261,14 +257,5 @@ function escapeHtml(s) {
 // escapeJs() escapes for JS string context: replaces ' with \\', " with \\",
 // \ with \\\\, and strips newlines. Used in onclick="fn('${escapeJs(x)}')"
 // patterns. For HTML content (not inside JS strings), escapeHtml() is correct.
-function escapeJs(s) {
-  if (s == null) return '';
-  return String(s)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r');
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
