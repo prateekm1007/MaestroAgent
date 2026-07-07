@@ -3,8 +3,17 @@
   "short_name": "Maestro",
   "description": "Organizational intelligence that finds you.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
-  "icons": []
+  "categories": ["business", "productivity", "enterprise"],
+  "icons": [
+    {
+      "src": "/static/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    }
+  ]
 }
