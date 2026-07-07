@@ -122,6 +122,65 @@ class EvidenceState(str, Enum):
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# Gate 0: 4-Dimensional State Model (per CEO audit directive)
+# ════════════════════════════════════════════════════════════════════════════
+# The single SituationState enum mixes epistemic maturity, operational
+# lifecycle, delivery eligibility, and learning status. This creates
+# impossible state combinations when learning closes (can a situation be
+# RESOLVED and LEARNING simultaneously? The single enum says no, but
+# conceptually yes).
+#
+# The 4 orthogonal dimensions:
+#   epistemic_state:   what do we know? (evidence-backed)
+#   operational_state: what's happening operationally? (lifecycle)
+#   delivery_state:    how should we surface this? (delivery eligibility)
+#   learning_state:    what's the learning status? (hypothesis testing)
+#
+# Globex can simultaneously be:
+#   epistemic_state = contested
+#   operational_state = decision_pending
+#   delivery_state = prepare_eligible
+#   learning_state = hypothesis_created
+
+
+class EpistemicDimensionState(str, Enum):
+    """Dimension 1: What do we know? (evidence-backed)"""
+    PRELIMINARY = "preliminary"          # early-stage, could change
+    SUPPORTED = "supported"              # evidence backs the claim
+    CONTESTED = "contested"              # credible evidence conflicts
+    INSUFFICIENT = "insufficient"        # not enough evidence to say
+    RESOLVED = "resolved"                # epistemically settled (outcome observed)
+
+
+class OperationalDimensionState(str, Enum):
+    """Dimension 2: What's happening operationally? (lifecycle)"""
+    OBSERVING = "observing"                    # monitoring, no action yet
+    DECISION_PENDING = "decision_pending"      # a decision is imminent
+    ACTION_IN_PROGRESS = "action_in_progress"  # a meeting/action is happening
+    AWAITING_OUTCOME = "awaiting_outcome"      # action complete, outcome unknown
+    CLOSED = "closed"                          # situation is operationally closed
+
+
+class DeliveryDimensionState(str, Enum):
+    """Dimension 3: How should we surface this? (delivery eligibility)"""
+    SILENT = "silent"                      # no intervention justified
+    BRIEFING_ELIGIBLE = "briefing_eligible"  # include in briefing
+    WHISPER_ELIGIBLE = "whisper_eligible"    # proactive push during active context
+    PREPARE_ELIGIBLE = "prepare_eligible"    # surface preparation workspace
+    URGENT = "urgent"                      # immediate escalation
+
+
+class LearningDimensionState(str, Enum):
+    """Dimension 4: What's the learning status? (hypothesis testing)"""
+    NONE = "none"                              # no hypothesis yet
+    HYPOTHESIS_CREATED = "hypothesis_created"  # a hypothesis has been proposed
+    PROSPECTIVELY_TESTING = "prospectively_testing"  # predictions registered
+    OUTCOME_PENDING = "outcome_pending"        # awaiting outcome evidence
+    LEARNING_UPDATED = "learning_updated"      # outcome fed the learning loop
+    FALSIFIED = "falsified"                    # enough contradictions to falsify
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # State Transition — every transition is justified + logged
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -340,6 +399,56 @@ class Judgment:
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# Dimension Transition — enriched transition receipt (per CEO audit directive)
+# ════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class DimensionTransition:
+    """A transition receipt for a single state dimension.
+
+    Per the CEO audit directive: "Every transition should produce a
+    first-class transition receipt" with:
+      - dimension (which of the 4 dimensions changed)
+      - previous_state + new_state
+      - triggering_event_refs
+      - rule_id (which transition rule fired)
+      - reason
+      - unknowns_added + unknowns_resolved
+      - decision_boundary_changed
+      - delivery_effect
+
+    This lets the user ask "Why did Maestro prepare me today but not
+    three days ago?" and get a mechanical answer.
+    """
+    dimension: str                    # "epistemic" | "operational" | "delivery" | "learning"
+    previous_state: str
+    new_state: str
+    timestamp: datetime
+    reason: str
+    triggering_event_refs: list[str] = field(default_factory=list)
+    rule_id: str = ""                 # which transition rule fired
+    unknowns_added: list[str] = field(default_factory=list)
+    unknowns_resolved: list[str] = field(default_factory=list)
+    decision_boundary_changed: bool = False
+    delivery_effect: str = ""         # what changed in delivery eligibility
+
+    def to_dict(self) -> dict:
+        return {
+            "dimension": self.dimension,
+            "previous_state": self.previous_state,
+            "new_state": self.new_state,
+            "timestamp": self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else str(self.timestamp),
+            "reason": self.reason,
+            "triggering_event_refs": self.triggering_event_refs,
+            "rule_id": self.rule_id,
+            "unknowns_added": self.unknowns_added,
+            "unknowns_resolved": self.unknowns_resolved,
+            "decision_boundary_changed": self.decision_boundary_changed,
+            "delivery_effect": self.delivery_effect,
+        }
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # LivingSituation — THIN cognitive frame (references, not copies)
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -369,12 +478,25 @@ class LivingSituation:
     org_id: str = "default"
 
     # Lifecycle — 10 primary states + 5 side states + transition history
+    # (Legacy single-dimension state — retained for backward compatibility.
+    # The 4-dimensional fields below are the new primary state representation.)
     state: SituationState = SituationState.DETECTED
     side_states: set[SideState] = field(default_factory=set)
     state_history: list[StateTransition] = field(default_factory=list)
     opened_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     resolved_at: Optional[datetime] = None
+
+    # GATE 0: 4-Dimensional State Model (per CEO audit directive)
+    # These 4 orthogonal dimensions replace the single `state` enum as the
+    # primary state representation. The legacy `state` field is retained
+    # for backward compatibility and is derived from these dimensions.
+    epistemic_dimension: EpistemicDimensionState = EpistemicDimensionState.INSUFFICIENT
+    operational_dimension: OperationalDimensionState = OperationalDimensionState.OBSERVING
+    delivery_dimension: DeliveryDimensionState = DeliveryDimensionState.SILENT
+    learning_dimension: LearningDimensionState = LearningDimensionState.NONE
+    # Transition receipts for each dimension (enriched per audit directive)
+    dimension_transitions: list["DimensionTransition"] = field(default_factory=list)
 
     # REFERENCES to OEM (NOT copies) — the CEO's rule #1
     entity_refs: list[str] = field(default_factory=list)
@@ -420,6 +542,12 @@ class LivingSituation:
             "opened_at": self.opened_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            # GATE 0: 4-Dimensional State Model
+            "epistemic_dimension": self.epistemic_dimension.value,
+            "operational_dimension": self.operational_dimension.value,
+            "delivery_dimension": self.delivery_dimension.value,
+            "learning_dimension": self.learning_dimension.value,
+            "dimension_transitions": [t.to_dict() for t in self.dimension_transitions],
             # References (NOT copies)
             "entity_refs": self.entity_refs,
             "intent_refs": self.intent_refs,
@@ -555,6 +683,104 @@ class LivingSituation:
     def get_latest_transition(self) -> Optional[StateTransition]:
         """Get the most recent state transition."""
         return self.state_history[-1] if self.state_history else None
+
+    # ── Gate 0: 4-Dimensional transitions ──────────────────────────────────
+
+    def transition_dimension(
+        self,
+        dimension: str,
+        new_state: str,
+        reason: str,
+        triggering_event_refs: Optional[list[str]] = None,
+        rule_id: str = "",
+        unknowns_added: Optional[list[str]] = None,
+        unknowns_resolved: Optional[list[str]] = None,
+        decision_boundary_changed: bool = False,
+        delivery_effect: str = "",
+    ) -> DimensionTransition:
+        """Transition a single dimension with an enriched receipt.
+
+        Per the CEO audit directive: "Every transition should produce a
+        first-class transition receipt" with dimension, rule_id, unknowns,
+        and delivery_effect. This lets the user ask "Why did Maestro
+        prepare me today but not three days ago?" and get a mechanical answer.
+
+        Args:
+            dimension: "epistemic" | "operational" | "delivery" | "learning"
+            new_state: the new state value (string)
+            reason: WHY the transition happened
+            triggering_event_refs: which event(s) caused it
+            rule_id: which transition rule fired
+            unknowns_added: new unknowns introduced by this transition
+            unknowns_resolved: unknowns resolved by this transition
+            decision_boundary_changed: did the decision boundary change?
+            delivery_effect: what changed in delivery eligibility
+        """
+        # Determine previous state based on dimension
+        dim_map = {
+            "epistemic": self.epistemic_dimension,
+            "operational": self.operational_dimension,
+            "delivery": self.delivery_dimension,
+            "learning": self.learning_dimension,
+        }
+        prev_state_obj = dim_map.get(dimension)
+        previous_state = prev_state_obj.value if prev_state_obj else ""
+
+        # Skip if no actual change
+        if previous_state == new_state:
+            return DimensionTransition(
+                dimension=dimension,
+                previous_state=previous_state,
+                new_state=new_state,
+                timestamp=datetime.now(timezone.utc),
+                reason="No change — same state",
+                triggering_event_refs=triggering_event_refs or [],
+                rule_id=rule_id,
+            )
+
+        # Create the transition receipt
+        transition = DimensionTransition(
+            dimension=dimension,
+            previous_state=previous_state,
+            new_state=new_state,
+            timestamp=datetime.now(timezone.utc),
+            reason=reason,
+            triggering_event_refs=triggering_event_refs or [],
+            rule_id=rule_id,
+            unknowns_added=unknowns_added or [],
+            unknowns_resolved=unknowns_resolved or [],
+            decision_boundary_changed=decision_boundary_changed,
+            delivery_effect=delivery_effect,
+        )
+
+        # Apply the new state
+        if dimension == "epistemic":
+            self.epistemic_dimension = EpistemicDimensionState(new_state)
+        elif dimension == "operational":
+            self.operational_dimension = OperationalDimensionState(new_state)
+        elif dimension == "delivery":
+            self.delivery_dimension = DeliveryDimensionState(new_state)
+        elif dimension == "learning":
+            self.learning_dimension = LearningDimensionState(new_state)
+
+        self.dimension_transitions.append(transition)
+        self.updated_at = datetime.now(timezone.utc)
+
+        logger.info(
+            "Situation %s %s dimension: %s → %s (rule: %s, reason: %s)",
+            self.situation_id, dimension, previous_state, new_state,
+            rule_id, reason[:80],
+        )
+        return transition
+
+    def get_dimension_transitions(self, dimension: str) -> list[DimensionTransition]:
+        """Get all transitions for a specific dimension."""
+        return [t for t in self.dimension_transitions if t.dimension == dimension]
+
+    def get_latest_dimension_transition(self, dimension: str) -> Optional[DimensionTransition]:
+        """Get the most recent transition for a specific dimension."""
+        transitions = self.get_dimension_transitions(dimension)
+        return transitions[-1] if transitions else None
 
 
 # ════════════════════════════════════════════════════════════════════════════

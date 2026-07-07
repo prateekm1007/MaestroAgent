@@ -24,6 +24,12 @@ from .situation_engine import (
     DeliveryRoute,
     LearningState,
     EvidenceState,
+    # Gate 0: 4-Dimensional State Model
+    EpistemicDimensionState,
+    OperationalDimensionState,
+    DeliveryDimensionState,
+    LearningDimensionState,
+    DimensionTransition,
     TimelineEvent,
     KnownFact,
     Unknown,
@@ -43,6 +49,8 @@ from .delivery_governor import (
     OpportunityCostAssessment,
 )
 from .consequence_path_router import ConsequencePathRouter, ConsequencePath, RoutingResult
+from .benchmark_types import BenchmarkStory, BenchmarkSignal, CheckpointExpectation
+from .world_model_benchmark import ALL_STORIES, get_story, get_stories_by_failure_shape
 
 __all__ = [
     # Phase 1: Situation Engine
@@ -63,6 +71,12 @@ __all__ = [
     "StateTransition",
     "SituationDelta",
     "SPECIALIST_DOMAIN_MAP",
+    # Gate 0: 4-Dimensional State Model
+    "EpistemicDimensionState",
+    "OperationalDimensionState",
+    "DeliveryDimensionState",
+    "LearningDimensionState",
+    "DimensionTransition",
     # Phase 2: Perspective Contract
     "Perspective",
     # Phase 3: Judgment Synthesizer
@@ -76,4 +90,11 @@ __all__ = [
     "ConsequencePathRouter",
     "ConsequencePath",
     "RoutingResult",
+    # Gate 0: World Model Benchmark
+    "BenchmarkStory",
+    "BenchmarkSignal",
+    "CheckpointExpectation",
+    "ALL_STORIES",
+    "get_story",
+    "get_stories_by_failure_shape",
 ]
