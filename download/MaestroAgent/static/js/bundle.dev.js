@@ -1,5 +1,4 @@
-// MaestroAgent frontend bundle — concatenated + minified
-// All functions remain in global scope (window) for backward compatibility
+// MaestroAgent frontend bundle
 
 // === utils.js ===
 // utils.js — shared utilities. Loaded FIRST, before all other scripts.

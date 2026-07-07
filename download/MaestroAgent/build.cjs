@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const esbuild = require('esbuild');
 
-// The 40 JS files in load order (from app.html)
 const jsFiles = [
     'static/js/utils.js',
     'static/js/csp-shim.js',
@@ -50,42 +49,29 @@ const jsFiles = [
 
 console.log(`Building ${jsFiles.length} JS files...`);
 
-// Step 1: Concatenate all files in order (preserving global scope)
-let combined = '// MaestroAgent frontend bundle — concatenated + minified\n';
-combined += '// All functions remain in global scope (window) for backward compatibility\n\n';
+let combined = '// MaestroAgent frontend bundle\n\n';
 jsFiles.forEach(f => {
     if (fs.existsSync(f)) {
         combined += `// === ${path.basename(f)} ===\n`;
         combined += fs.readFileSync(f, 'utf8');
         combined += '\n\n';
-    } else {
-        console.warn(`  WARNING: ${f} not found, skipping`);
     }
 });
 
-// Write unminified combined file
 fs.writeFileSync('static/js/bundle.dev.js', combined);
-console.log(`Combined (dev): ${(combined.length / 1024).toFixed(1)}KB`);
 
-// Step 2: Minify with esbuild (WITHOUT wrapping in IIFE — keep globals)
+const originalSize = jsFiles.reduce((t, f) => t + (fs.existsSync(f) ? fs.statSync(f).size : 0), 0);
+
 esbuild.transform(combined, {
     minify: true,
     target: ['es2020'],
-    // NO format option — keeps all functions in global scope
 }).then(result => {
     fs.writeFileSync('static/js/bundle.min.js', result.code);
-    
-    const originalSize = jsFiles.reduce((total, f) => {
-        return total + (fs.existsSync(f) ? fs.statSync(f).size : 0);
-    }, 0);
-    const bundledSize = minified.length;
-    
-    console.log(`Original:   ${(originalSize / 1024).toFixed(1)}KB across ${jsFiles.length} files`);
-    console.log(`Minified:   ${(bundledSize / 1024).toFixed(1)}KB in 1 file`);
-    console.log(`Reduction:  ${((1 - bundledSize / originalSize) * 100).toFixed(1)}% smaller`);
+    console.log(`Original:  ${(originalSize / 1024).toFixed(1)}KB across ${jsFiles.length} files`);
+    console.log(`Minified:  ${(result.code.length / 1024).toFixed(1)}KB in 1 file`);
+    console.log(`Reduction: ${((1 - result.code.length / originalSize) * 100).toFixed(1)}% smaller`);
 }).catch(err => {
-    console.error('Minify failed:', err);
-    // Fallback: use the unminified combined file
+    console.error('Minify failed:', err.message);
     fs.copyFileSync('static/js/bundle.dev.js', 'static/js/bundle.min.js');
     console.log('Fallback: using unminified bundle');
 });
