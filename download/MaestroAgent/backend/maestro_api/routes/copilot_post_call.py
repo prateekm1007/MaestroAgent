@@ -21,10 +21,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from maestro_api.security.policy import auth_policy, AuthPolicy, set_router_policy
+from maestro_auth.permissions import require_user
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +58,21 @@ class PostCallResponse(BaseModel):
 
 @router.post("/post-call", response_model=PostCallResponse)
 @auth_policy(AuthPolicy.USER)
-async def get_post_call_summary(request: PostCallRequest) -> PostCallResponse:
-    """Generate a post-call summary after the meeting ends."""
+async def get_post_call_summary(
+    request: PostCallRequest,
+    user: dict = Depends(require_user),
+) -> PostCallResponse:
+    """Generate a post-call summary after the meeting ends.
+
+    Auth: requires an authenticated user (USER policy). The `user` dict
+    provides tenant context for OutcomeLedger ingestion (organizational
+    memory is tenant-scoped per L0.2).
+    """
     try:
+        # Tenant-scoped: use authenticated user's email if request omits it
+        user_email = request.user_email or user.get("email", "")
+        tenant_org_id = user.get("org_id", "default")
+
         # Separate suggestion cards by type
         commitments = [c for c in request.suggestion_cards if c.get("card_type") == "commitment"]
         objections = [c for c in request.suggestion_cards if c.get("card_type") == "objection"]
@@ -123,7 +136,7 @@ async def get_post_call_summary(request: PostCallRequest) -> PostCallResponse:
         )
 
         # Ingest new commitments into OutcomeLedger (L0.2 — durable, tenant-scoped)
-        await _ingest_commitments_to_ledger(commitments, request.entity, request.user_email)
+        await _ingest_commitments_to_ledger(commitments, request.entity, user_email, tenant_org_id)
 
         return PostCallResponse(
             hero_summary=hero,
@@ -216,6 +229,7 @@ async def _ingest_commitments_to_ledger(
     commitments: list[dict],
     entity: str | None,
     user_email: str,
+    org_id: str = "default",
 ) -> None:
     """Ingest new commitments into the OutcomeLedger (L0.2 — durable, tenant-scoped)."""
     if not commitments:
@@ -224,7 +238,6 @@ async def _ingest_commitments_to_ledger(
     try:
         from maestro_oem.governed_adaptation import get_default_outcome_ledger
         ledger = get_default_outcome_ledger()
-        org_id = "default"  # Phase 5.5: derive from user_email tenant
 
         for c in commitments:
             evidence = c.get("evidence", {})
@@ -237,9 +250,10 @@ async def _ingest_commitments_to_ledger(
                 "confounders": [],
                 "context_signals": [],
                 "org_id": org_id,
+                "user_email": user_email,
             }
             ledger.append(outcome_dict, org_id=org_id)
 
-        logger.info(f"Copilot: ingested {len(commitments)} commitments into OutcomeLedger")
+        logger.info(f"Copilot: ingested {len(commitments)} commitments into OutcomeLedger (org={org_id})")
     except Exception as e:
         logger.warning(f"Copilot: could not ingest to OutcomeLedger: {e}")

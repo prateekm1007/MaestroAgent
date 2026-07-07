@@ -26,10 +26,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from maestro_api.security.policy import auth_policy, AuthPolicy, set_router_policy
+from maestro_auth.permissions import require_user
 
 logger = logging.getLogger(__name__)
 
@@ -65,17 +66,25 @@ class PreCallResponse(BaseModel):
 
 @router.post("/pre-call", response_model=PreCallResponse)
 @auth_policy(AuthPolicy.USER)
-async def get_pre_call_briefing(request: PreCallRequest) -> PreCallResponse:
+async def get_pre_call_briefing(
+    request: PreCallRequest,
+    user: dict = Depends(require_user),
+) -> PreCallResponse:
     """Generate a pre-call briefing for an upcoming meeting.
 
     Queries the OEM for attendee intelligence, open commitments, and
     historical patterns. Every suggestion cites its evidence.
+
+    Auth: requires an authenticated user (USER policy). The `user` dict
+    provides tenant context for organizational memory isolation.
     """
     try:
         from maestro_api.oem_state import oem_state
         from maestro_oem.situation import SituationBuilder
         from maestro_oem.signal import SignalType
 
+        # Tenant-scoped access: use authenticated user's email if request omits it
+        user_email = request.user_email or user.get("email", "")
         signals = oem_state.signals or []
 
         # Build attendee intelligence for each email
@@ -94,7 +103,7 @@ async def get_pre_call_briefing(request: PreCallRequest) -> PreCallResponse:
                 signals=signals,
                 calendar_source=None,
                 whisper_store=None,
-                user_email=request.user_email,
+                user_email=user_email,
             )
             situation = builder.build_for_entity(entity)
 

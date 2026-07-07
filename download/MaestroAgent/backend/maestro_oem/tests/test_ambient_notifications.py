@@ -67,6 +67,9 @@ class TestAmbientNotificationEngine:
         engine = self._make_engine()
         engine.add_notification(self._make_notification(priority="high"))
         context = self._make_context(is_focus_mode=True)
+        # Force a non-quiet-hours time (2pm UTC) so the quiet-hours filter
+        # doesn't interfere with the focus-mode assertion
+        context.current_time = datetime.now(timezone.utc).replace(hour=14)
         visible = engine.get_visible_notifications(context)
         assert len(visible) >= 1
 
@@ -75,6 +78,8 @@ class TestAmbientNotificationEngine:
         engine = self._make_engine()
         engine.add_notification(self._make_notification(priority="medium"))
         context = self._make_context(is_focus_mode=True)
+        # Force a non-quiet-hours time (2pm UTC) for test isolation
+        context.current_time = datetime.now(timezone.utc).replace(hour=14)
         visible = engine.get_visible_notifications(context)
         assert len(visible) == 0
 
