@@ -1,12 +1,17 @@
 {
-  "name": "maestroagent-frontend",
-  "version": "1.0.0",
-  "description": "MaestroAgent frontend bundler",
+  "name": "maestro-frontend",
+  "private": true,
   "scripts": {
-    "build": "node build.js",
-    "dev": "node build.js --watch"
+    "dev": "vite",
+    "build": "node build.cjs",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
+    "vite": "^6.0.0"
+  },
+  "dependencies": {
     "esbuild": "^0.28.1"
   }
 }
