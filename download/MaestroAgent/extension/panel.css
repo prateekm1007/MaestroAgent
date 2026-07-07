@@ -239,3 +239,22 @@ html, body {
 
 /* ─── Utilities ───────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ─── Skip link (accessibility) ───────────────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--c-primary);
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 0 0 var(--radius-sm) 0;
+  z-index: 1000;
+  transition: top 150ms;
+}
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
