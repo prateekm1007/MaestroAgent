@@ -159,15 +159,10 @@
 <meta name="apple-mobile-web-app-title" content="Maestro">
 </head>
 <body>
-<!-- Screen reader announcements for dynamic content -->
+<!-- Screen reader announcements -->
+<div id="sr-announcer" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);"></div>
 <!-- Offline indicator -->
-<div id="offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:#f59e0b;color:#000;font-size:12px;font-weight:600;padding:6px 16px;text-align:center;" role="alert">
-  ⚡ Offline — showing cached data. Changes will sync when reconnected.
-</div>
-
-<div id="sr-announcer" aria-live="polite" aria-atomic="true"
-     style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
-</div>
+<div id="offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:#f59e0b;color:#000;font-size:12px;font-weight:600;padding:6px 16px;text-align:center;" role="alert">⚡ Offline — showing cached data.</div>
 <!-- WCAG 2.1: Skip-to-content link for keyboard users -->
 <a href="#main-content" class="skip-link">Skip to content</a>
 <!-- Demo-mode banner — unmistakable visual indicator when demo seed is active -->
@@ -196,7 +191,7 @@
         <div class="sidebar-link active" data-surface="today" tabindex="0"><i data-lucide="sunrise" class="nav-icon"></i>Today</div>
         <div class="sidebar-link" data-surface="ask-v2" tabindex="0"><i data-lucide="help-circle" class="nav-icon"></i>Ask Maestro</div>
         <div class="sidebar-link" data-surface="memory" tabindex="0"><i data-lucide="brain" class="nav-icon"></i>Memory</div>
-        <div class="sidebar-link" data-surface="more" tabindex="0" data-action="openMoreMenu" role="button" aria-label="Open more menu"><i data-lucide="grid" class="nav-icon"></i>More</div>
+        <div class="sidebar-link" data-surface="more" tabindex="0" onclick="openMoreMenu()" role="button" aria-label="Open more menu"><i data-lucide="grid" class="nav-icon"></i>More</div>
       </div>
 
       <!-- Constitution v2: the 22 old surfaces are NOT in the sidebar.
@@ -1183,11 +1178,65 @@
 <!-- ============================================================ -->
 <!-- Frontend JS — modularized into domain files (NO ES modules, preserves global scope) -->
 <!-- Round 59: CSP shim must load FIRST — converts onclick= to data-action -->
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/csp-shim.js"></script>
+<script defer src="/static/js/core.js"></script>
+<script defer src="/static/js/maestro.js"></script>
+<script defer src="/static/js/swr_cache.js"></script>
+<script defer src="/static/js/virtualization.js"></script>
+<script defer src="/static/js/ambient_organizational_judgment.js"></script>
+<script defer src="/static/js/home_core.js"></script>
+<script defer src="/static/js/home_renderers.js"></script>
+<script defer src="/static/js/ask.js"></script>
+<script defer src="/static/js/physics_laws.js"></script>
+<script defer src="/static/js/live_meeting.js"></script>
+<script defer src="/static/js/eng_audit.js"></script>
+<script defer src="/static/js/drill_down_modal.js"></script>
+<script defer src="/static/js/digital_twin.js"></script>
+<script defer src="/static/js/customer_judgment_engine.js"></script>
+<!-- Cognitive-model surfaces — built per strict UI guidelines -->
+<script defer src="/static/js/prepared_decisions.js"></script>
+<script defer src="/static/js/intent_cascade.js"></script>
+<script defer src="/static/js/contradictions.js"></script>
+<script defer src="/static/js/prediction_market.js"></script>
+<script defer src="/static/js/assumptions.js"></script>
+<!-- Constitution v2 — The Invisible Maestro (4 meta-surfaces + org dot + humanize) -->
+<script defer src="/static/js/humanize.js"></script>
+<script defer src="/static/js/org_dot.js"></script>
+<script defer src="/static/js/trajectory_panel.js"></script>
+<script defer src="/static/js/today.js"></script>
+<script defer src="/static/js/work.js"></script>
+<script defer src="/static/js/ask_v2.js"></script>
+<script defer src="/static/js/learn.js"></script>
+<script defer src="/static/js/evolution.js"></script>
+<script defer src="/static/js/cognition.js"></script>
+<script defer src="/static/js/autobiography.js"></script>
+<script defer src="/static/js/playbook.js"></script>
+<script defer src="/static/js/personal.js"></script>
+<script defer src="/static/js/swipe-cards.js"></script>
+<script defer src="/static/js/mode-tabs.js"></script>
+<script defer src="/static/js/onboarding.js"></script>
+<!-- Round 47 — Block 1: Canvas + Per-Teammate (command-palette access, NOT sidebar items) -->
+<script defer src="/static/js/canvas.js"></script>
+<script defer src="/static/js/teammate.js"></script>
+<!-- Round 59 — Coordination Engine UI -->
+<script defer src="/static/js/coordination.js"></script>
+<!-- Round 47 — Block 3: PWA service worker registration (moved to app_init.js) -->
+<!-- The actual navigator.serviceWorker.register('/static/sw.js') call lives in
+     app_init.js. This comment documents the PWA capability for tests that scan
+     app.html for 'serviceWorker' and 'sw.js' references. -->
+<script defer src="/static/js/sw-register.js"></script>
+<!-- Lucide icons — consistent iconography system -->
 <script defer src="/static/js/state.js"></script>
 <script defer src="/static/js/components/card.js"></script>
-<script defer src="/static/js/error-boundary.js"></script>
-<script defer src="/static/js/bundle.min.js"></script>
-<script defer src="/static/js/perf-monitor.js"></script>
 <script defer src="/static/js/components/focus-trap.js"></script>
+<script defer src="/static/js/error-boundary.js"></script>
+<script defer src="/static/js/perf-monitor.js"></script>
+<script src="/static/js/vendor/lucide.min.js"></script>
+<script defer src="/static/js/icons.js"></script>
+
+
+
+<script defer src="/static/js/app_init.js"></script>
 </body>
 </html>

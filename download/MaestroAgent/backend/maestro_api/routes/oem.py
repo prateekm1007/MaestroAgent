@@ -3111,7 +3111,7 @@ def get_ambient_state(
     pulse_state = pulse.compute()
 
     # Get interrupt decisions
-    r = get_interrupt_decisions(user=user, active_app=active_app)
+    r = get_interrupt_decisions(request=request, user=user, active_app=active_app)
     interrupts = r if isinstance(r, dict) else {}
     interrupt_events = interrupts.get("events_needing_attention", [])
 
