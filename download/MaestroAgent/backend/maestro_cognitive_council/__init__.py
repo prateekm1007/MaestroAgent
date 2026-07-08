@@ -56,6 +56,7 @@ from .ask_bridge import SituationAwareAskBridge, AskResult
 from .briefing_bridge import SituationBriefingEngine, SituationCentricBriefing
 from .preparation_bridge import SituationPreparationBridge, SituationPreparation
 from .whisper_bridge import WhisperSituationBridge, WhisperResult, SituationWhisper
+from .copilot_bridge import CopilotSituationBridge, CopilotPreCallBriefing, CopilotPostCallSummary
 
 __all__ = [
     # Phase 1: Situation Engine
@@ -118,4 +119,8 @@ __all__ = [
     "WhisperSituationBridge",
     "WhisperResult",
     "SituationWhisper",
+    # Surface Wiring: Copilot → Situation Engine
+    "CopilotSituationBridge",
+    "CopilotPreCallBriefing",
+    "CopilotPostCallSummary",
 ]
