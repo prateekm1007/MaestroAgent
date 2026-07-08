@@ -108,9 +108,15 @@ class TestGlobexTimeline:
         oem.signals = [day12_signal]
         engine = SituationEngine(oem_state=oem)
 
-        # With only 1 signal, no situation is detected yet (need 2+)
+        # Engine Fix 7 (H5): With 1 high-salience signal (commitment_made),
+        # a situation IS now detected (was previously 0 — needed 2+ signals).
+        # Per external reviewer: early-checkpoint detection must surface
+        # material changes at Day 12, not wait until Day 30.
         situations = engine.detect_situations()
-        assert len(situations) == 0, "Need 2+ signals to detect a situation"
+        assert len(situations) == 1, (
+            "High-salience signal (commitment_made) should create a situation "
+            "immediately (Engine Fix 7 — early-checkpoint detection)"
+        )
 
         # ── DAY 40: Security approval conditional ────────────────────────
         day40_signal = _make_signal(

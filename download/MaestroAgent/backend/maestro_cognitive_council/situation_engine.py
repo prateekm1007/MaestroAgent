@@ -877,8 +877,21 @@ class SituationEngine:
 
         situations: list[LivingSituation] = []
         for entity, entity_signals in entities.items():
+            # Engine Fix 7 (H5): Early-checkpoint detection.
+            # Per external reviewer: 'A subtle but material change at Day 12
+            # of a 60-day situation is not surfaced until Day 30 when a major
+            # signal arrives.' The prior 2-signal threshold meant first
+            # checkpoints (Day 1-15) with only 1 signal never created a situation.
+            # Now: create a situation from 1 signal IF it's a high-salience type
+            # (commitment, decision, pricing exception, security condition).
+            # These signal types are significant enough to warrant situation
+            # creation even without a second signal.
             if len(entity_signals) < 2:
-                continue
+                # Check if the single signal is high-salience
+                if len(entity_signals) == 1 and self._is_high_salience_signal(entity_signals[0]):
+                    pass  # Allow situation creation with 1 high-salience signal
+                else:
+                    continue
             # PERSISTENCE: check if a situation already exists for this entity
             existing = None
             if self._situation_store:
@@ -917,6 +930,31 @@ class SituationEngine:
 
         situations.sort(key=lambda s: s.updated_at, reverse=True)
         return situations
+
+    def _is_high_salience_signal(self, signal: Any) -> bool:
+        """Engine Fix 7 (H5): Check if a signal is high-salience enough to
+        warrant situation creation with only 1 signal.
+
+        Per external reviewer: 'A subtle but material change at Day 12 of a
+        60-day situation is not surfaced until Day 30.' These signal types
+        are significant enough to create a situation immediately:
+          - customer.commitment_made (a commitment is a situation by itself)
+          - decision.proposed (a decision question is a situation by itself)
+          - org.reorganization (an org change is a situation by itself)
+
+        NOTE: pricing.exception and security.condition are NOT in this list
+        because they need a second signal (precedent reference, commitment)
+        to be meaningful as situations.
+        """
+        sig_type_raw = getattr(signal, "type", None)
+        sig_type_val = getattr(sig_type_raw, "value", str(sig_type_raw)) if sig_type_raw else ""
+        sig_type = str(sig_type_val).lower()
+        high_salience_types = {
+            "commitment_made", "customer.commitment_made",
+            "decision.proposed", "decision_made",
+            "org.reorganization", "reorganization",
+        }
+        return sig_type in high_salience_types
 
     def _detect_cross_entity_pattern_situations(
         self,
