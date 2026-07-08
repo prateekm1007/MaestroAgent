@@ -128,20 +128,18 @@ class TestPilotSmokeFreshApp:
     def test_xss_regression(self, fresh_app):
         """XSS payload in query must never appear unescaped in API response.
 
-        The query field is HTML-escaped (html.escape) so <script> becomes
-        &lt;script&gt; in the JSON response. We check the query field only —
-        the rest of the JSON body contains situation data that doesn't include
-        the XSS payload.
+        P27 fix: check ALL fields where user input is reflected — not just
+        the query field. The answer field is where users actually see the
+        reflected content.
         """
         resp = fresh_app.get("/api/oem/ask?q=<script>alert('xss')</script>")
         assert resp.status_code == 200
         body = resp.json()
-        query_field = body.get("query", "")
-        # The query field should be HTML-escaped
-        assert "<script>" not in query_field, \
-            f"Raw <script> in query field: {query_field[:100]}"
-        assert "&lt;script&gt;" in query_field or "&lt;" in query_field, \
-            f"Query should be HTML-escaped, got: {query_field[:100]}"
+        # Check ALL fields where user input may be reflected
+        for field_name in ("query", "answer", "synthesized_answer"):
+            field_val = body.get(field_name, "")
+            assert "<script>" not in field_val, \
+                f"Raw <script> in {field_name} field: {field_val[:100]}"
 
     def test_council_default_mode(self, fresh_app):
         """Council is the default product path (MAESTRO_USE_COUNCIL defaults to true)."""

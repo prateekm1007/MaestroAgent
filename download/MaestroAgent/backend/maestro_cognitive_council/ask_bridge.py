@@ -498,21 +498,37 @@ class SituationAwareAskBridge:
             meetings = [e for e in situation.timeline if "meeting" in e.description.lower() or "calendar" in e.source.lower()]
             if meetings:
                 lines.append(f"**Regarding the timing of the {situation.entity} meeting:**")
-                for m in meetings[-2:]:
-                    lines.append(f"  • {m.description} (evidence: {m.evidence_ref})")
+                for m_event in meetings[-2:]:
+                    lines.append(f"  • {m_event.description} (evidence: {m_event.evidence_ref})")
+                lines.append(f"  Query: '{result.query}' — answered based on {len(meetings)} meeting signal(s).")
                 lines.append("")
             else:
                 lines.append(f"**Regarding timing:** The situation for {situation.entity} is currently in state: {situation.state.value}.")
                 lines.append("")
+        elif "who" in query and ("disagree" in query or "disagreement" in query):
+            # Who disagrees — name the parties
+            if result.disagreements:
+                lines.append(f"**Who disagrees about {situation.entity}:**")
+                for d in result.disagreements[:3]:
+                    a = d.get('specialist_a', d.get('position_a', 'Party A'))
+                    b = d.get('specialist_b', d.get('position_b', 'Party B'))
+                    lines.append(f"  • {a} vs {b}: {d.get('topic', 'Unknown topic')}")
+                lines.append("")
+            else:
+                lines.append(f"**No explicit disagreements detected for {situation.entity}.**")
+                lines.append(f"However, the following are unresolved:")
+                for u in result.blocking_unknowns[:2]:
+                    lines.append(f"  • {u}")
+                lines.append("")
         elif "security" in query or "disagree" in query or "debate" in query:
-            # Disagreement/security question
+            # Security/disagreement question
             if result.disagreements:
                 lines.append(f"**Regarding disagreements about {situation.entity}:**")
                 for d in result.disagreements[:3]:
                     lines.append(f"  • {d.get('topic', 'Unknown')}: {d.get('position_a', '')} vs. {d.get('position_b', '')}")
                 lines.append("")
             elif result.blocking_unknowns:
-                lines.append(f"**Regarding unresolved issues for {situation.entity}:**")
+                lines.append(f"**Regarding unresolved issues for {situation.entity} (query: '{result.query[:60]}'):**")
                 for u in result.blocking_unknowns:
                     lines.append(f"  • {u}")
                 lines.append("")
@@ -520,9 +536,24 @@ class SituationAwareAskBridge:
                 lines.append(f"**Regarding your question about {situation.entity}:**")
                 lines.append(f"The situation is in state: {situation.state.value}, epistemic: {situation.epistemic_state.value}.")
                 lines.append("")
-        elif "should" in query or "proceed" in query or "decision" in query or "judgment" in query or "prepare" in query:
+        elif "one thing" in query or "judgment" in query:
+            # "What is the one thing that needs my judgment today?"
+            lines.append(f"**The one thing needing your judgment for {situation.entity}:**")
+            if result.blocking_unknowns:
+                lines.append(f"  → {result.blocking_unknowns[0]}")
+                lines.append(f"  This is blocking because: the situation is in {situation.state.value} state.")
+            elif result.judgment and hasattr(result.judgment, 'decision_boundary') and result.judgment.decision_boundary:
+                db = result.judgment.decision_boundary
+                if db.cannot_decide_yet:
+                    lines.append(f"  → {db.cannot_decide_yet[0]}")
+                else:
+                    lines.append(f"  → {situation.title}")
+            else:
+                lines.append(f"  → {situation.title} (state: {situation.state.value})")
+            lines.append("")
+        elif "should" in query or "proceed" in query or "decision" in query or "prepare" in query:
             # Decision support question
-            lines.append(f"**Regarding your decision on {situation.entity}:**")
+            lines.append(f"**Regarding your decision on {situation.entity} (query: '{result.query[:60]}'):**")
             if result.judgment and hasattr(result.judgment, 'decision_boundary') and result.judgment.decision_boundary:
                 db = result.judgment.decision_boundary
                 lines.append(f"  Can decide now: {', '.join(db.can_decide_now[:2])}")
