@@ -979,6 +979,13 @@ class SituationEngine:
         new_signals = []
         for sig in entity_signals:
             sig_id = getattr(sig, "signal_id", "") or str(id(sig))
+            # Audit C-A fix: real OEM signals use UUID-typed signal_ids (maestro_oem/model.py:268).
+            # Without stringification, UUIDs leak into evidence_refs / timeline evidence_ref /
+            # triggering_evidence_ref fields and crash JSON serialization at the API layer
+            # ("Object of type UUID is not JSON serializable"). Stringify defensively here
+            # so every downstream consumer (to_dict, JSON response, situation_store) sees a str.
+            if sig_id is not None and not isinstance(sig_id, str):
+                sig_id = str(sig_id)
             if sig_id not in existing_refs:
                 new_signals.append(sig)
 
@@ -1034,6 +1041,13 @@ class SituationEngine:
             sig_type = getattr(getattr(sig, "type", None), "value", str(getattr(sig, "type", "")))
             text = getattr(sig, "text", "") or (getattr(sig, "metadata", {}) or {}).get("text", "")
             sig_id = getattr(sig, "signal_id", "") or str(id(sig))
+            # Audit C-A fix: real OEM signals use UUID-typed signal_ids (maestro_oem/model.py:268).
+            # Without stringification, UUIDs leak into evidence_refs / timeline evidence_ref /
+            # triggering_evidence_ref fields and crash JSON serialization at the API layer
+            # ("Object of type UUID is not JSON serializable"). Stringify defensively here
+            # so every downstream consumer (to_dict, JSON response, situation_store) sees a str.
+            if sig_id is not None and not isinstance(sig_id, str):
+                sig_id = str(sig_id)
 
             # Add evidence REFERENCE (not a copy)
             if sig_id not in situation.evidence_refs:
@@ -1068,6 +1082,13 @@ class SituationEngine:
         for sig in entity_signals:
             text = getattr(sig, "text", "") or (getattr(sig, "metadata", {}) or {}).get("text", "")
             sig_id = getattr(sig, "signal_id", "") or str(id(sig))
+            # Audit C-A fix: real OEM signals use UUID-typed signal_ids (maestro_oem/model.py:268).
+            # Without stringification, UUIDs leak into evidence_refs / timeline evidence_ref /
+            # triggering_evidence_ref fields and crash JSON serialization at the API layer
+            # ("Object of type UUID is not JSON serializable"). Stringify defensively here
+            # so every downstream consumer (to_dict, JSON response, situation_store) sees a str.
+            if sig_id is not None and not isinstance(sig_id, str):
+                sig_id = str(sig_id)
             if text:
                 epistemic = EpistemicState.REPORTED
                 _t = getattr(sig, "type", None)
@@ -1227,6 +1248,9 @@ class SituationEngine:
     def apply_signal(self, situation: LivingSituation, signal: Any) -> SituationDelta:
         """Apply a new signal to an existing situation and compute the delta."""
         sig_id = getattr(signal, "signal_id", "") or str(id(signal))
+        # Audit C-A fix: see note above — real OEM signal_ids are UUID-typed, must stringify.
+        if sig_id is not None and not isinstance(sig_id, str):
+            sig_id = str(sig_id)
         # Get signal type as lowercase string (handles real enums + mocks)
         sig_type_raw = getattr(signal, "type", None)
         sig_type_val = getattr(sig_type_raw, "value", None) if sig_type_raw else None
@@ -1297,6 +1321,9 @@ class SituationEngine:
         sig_text = (getattr(signal, "text", "") or "").lower()
         sig_type = str(getattr(signal, "type", "")).lower()
         sig_id = getattr(signal, "signal_id", "") or str(id(signal))
+        # Audit C-A fix: see note above — real OEM signal_ids are UUID-typed, must stringify.
+        if sig_id is not None and not isinstance(sig_id, str):
+            sig_id = str(sig_id)
 
         for unknown in situation.unknowns:
             if unknown.resolved:
@@ -1356,6 +1383,9 @@ class SituationEngine:
         sig_text = (getattr(signal, "text", "") or "").lower()
         sig_type = str(getattr(signal, "type", "")).lower()
         sig_id = getattr(signal, "signal_id", "") or str(id(signal))
+        # Audit C-A fix: see note above — real OEM signal_ids are UUID-typed, must stringify.
+        if sig_id is not None and not isinstance(sig_id, str):
+            sig_id = str(sig_id)
         current = situation.state
 
         # ── OBSERVING → MATERIAL ──────────────────────────────────────────

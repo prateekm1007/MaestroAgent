@@ -27,9 +27,32 @@ import sqlite3
 import threading
 from datetime import datetime, timezone
 from typing import Any, Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 logger = logging.getLogger(__name__)
+
+
+def _stringify_uuids(obj: Any) -> Any:
+    """Recursively convert UUID instances to strings in a nested structure.
+
+    Defense-in-depth: even if a UUID slips past the engine's per-signal
+    stringification (e.g., from a nested OEM object, a perspective, or a
+    judgment field), this guarantees json.dumps will never crash with
+    "Object of type UUID is not JSON serializable".
+
+    Audit C-A fix: the third-party audit found that /api/council/ask returned
+    500 with this exact error. The primary fix is in situation_engine.py
+    (stringify sig_id at every read site). This is the backstop.
+    """
+    if isinstance(obj, UUID):
+        return str(obj)
+    if isinstance(obj, dict):
+        return {k: _stringify_uuids(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_stringify_uuids(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_stringify_uuids(v) for v in obj)
+    return obj
 
 
 class SituationStore:
@@ -113,7 +136,7 @@ class SituationStore:
                 situation.org_id,
                 situation.state.value if hasattr(situation.state, 'value') else str(situation.state),
                 situation.epistemic_state.value if hasattr(situation.epistemic_state, 'value') else str(situation.epistemic_state),
-                json.dumps(data),
+                json.dumps(_stringify_uuids(data)),
                 situation.opened_at.isoformat() if hasattr(situation, 'opened_at') else now,
                 now,
             ))
@@ -167,7 +190,7 @@ class SituationStore:
                 transition_data.get("to_state", transition_data.get("new_state", "")),
                 transition_data.get("reason", ""),
                 transition_data.get("timestamp", now),
-                json.dumps(transition_data),
+                json.dumps(_stringify_uuids(transition_data)),
             ))
             conn.commit()
             conn.close()

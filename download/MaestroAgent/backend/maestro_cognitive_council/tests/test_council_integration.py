@@ -16,6 +16,18 @@ the production app, verifying:
   4. The /api/council/whisper route returns Delivery Governor decisions
   5. The /api/council/copilot/pre-call route returns Situation-aware briefings
   6. The /api/council/situations route lists active situations
+
+AUDIT C-A FOLLOW-UP (2026-07-08):
+The third-party audit found that these tests verified route EXISTENCE
+but not route BEHAVIOR — they never made a real HTTP call with realistic
+data, so they missed the UUID serialization crash that returned 500 on
+every real /api/council/ask request. The behavior-level regression test
+now lives in:
+    backend/maestro_api/tests/test_council_uuid_integration.py
+That file loads UUID-typed signals (mirroring production maestro_oem.Signal)
+and asserts on the response body — not just status code, but that
+evidence_refs are strings, not UUIDs. If you add a new council route,
+add a behavior test there too, not just a registration test here.
 """
 
 from __future__ import annotations

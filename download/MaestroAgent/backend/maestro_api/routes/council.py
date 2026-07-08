@@ -61,6 +61,26 @@ def _require_user_if_auth_enabled(request: Request) -> dict[str, Any]:
     return result
 
 
+def _safe_json(obj: Any) -> Any:
+    """Recursively stringify UUIDs in a response payload.
+
+    Audit C-A fix: real OEM signal_ids are UUID-typed, and even though
+    situation_engine.py now stringifies them at the source, defense-in-depth
+    at the API boundary guarantees no UUID ever reaches FastAPI's JSON
+    encoder. This is the third line of defense (after engine source fix
+    and SituationStore._stringify_uuids).
+
+    Calling this on every to_dict() return value is cheap (it's a no-op
+    for already-string data) and prevents the entire class of "Object of
+    type UUID is not JSON serializable" 500 errors.
+    """
+    try:
+        from maestro_cognitive_council.situation_store import _stringify_uuids
+        return _stringify_uuids(obj)
+    except ImportError:
+        return obj
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # Ask → Situation Engine
 # ════════════════════════════════════════════════════════════════════════════
@@ -100,7 +120,7 @@ async def council_ask(
         engine.detect_situations(org_id)
         bridge = SituationAwareAskBridge(oem_state=oem_state)
         result = bridge.ask(req.query, org_id=org_id)
-        return result.to_dict()
+        return _safe_json(result.to_dict())
     except Exception as e:
         logger.error(f"Council ask failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council ask failed: {e}")
@@ -145,7 +165,7 @@ async def council_briefing(
         else:
             briefing = engine.generate_morning_briefing(user_email=user_email, org_id=org_id)
 
-        return briefing.to_dict()
+        return _safe_json(briefing.to_dict())
     except Exception as e:
         logger.error(f"Council briefing failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council briefing failed: {e}")
@@ -190,11 +210,11 @@ async def council_prepare(
             # Prepare for all upcoming situations
             preps = bridge.prepare_for_upcoming_meetings(org_id=org_id)
             return {
-                "preparations": [p.to_dict() for p in preps],
+                "preparations": [_safe_json(p.to_dict()) for p in preps],
                 "count": len(preps),
             }
 
-        return prep.to_dict()
+        return _safe_json(prep.to_dict())
     except Exception as e:
         logger.error(f"Council prepare failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council prepare failed: {e}")
@@ -263,7 +283,7 @@ async def council_whisper(
         )
 
         result = bridge.from_situation(situation, context=req.context, user_context=user_context)
-        return result.to_dict()
+        return _safe_json(result.to_dict())
     except Exception as e:
         logger.error(f"Council whisper failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council whisper failed: {e}")
@@ -304,7 +324,7 @@ async def council_copilot_pre_call(
             user_email=user_email,
             org_id=org_id,
         )
-        return briefing.to_dict()
+        return _safe_json(briefing.to_dict())
     except Exception as e:
         logger.error(f"Council copilot pre-call failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council copilot pre-call failed: {e}")
@@ -345,7 +365,7 @@ async def council_copilot_post_call(
             commitments=req.commitments,
             entity=req.entity,
         )
-        return summary.to_dict()
+        return _safe_json(summary.to_dict())
     except Exception as e:
         logger.error(f"Council copilot post-call failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council copilot post-call failed: {e}")
@@ -370,7 +390,7 @@ async def council_situations(
         engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
         situations = engine.detect_situations(org)
         return {
-            "situations": [s.to_dict() for s in situations],
+            "situations": [_safe_json(s.to_dict()) for s in situations],
             "count": len(situations),
         }
     except Exception as e:
@@ -396,7 +416,7 @@ async def council_get_situation(
         situation = engine.get_situation(situation_id)
         if not situation:
             raise HTTPException(status_code=404, detail=f"Situation {situation_id} not found")
-        return situation.to_dict()
+        return _safe_json(situation.to_dict())
     except HTTPException:
         raise
     except Exception as e:
@@ -472,7 +492,7 @@ async def council_governance_action(
         else:
             raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
 
-        return action.to_dict()
+        return _safe_json(action.to_dict())
     except HTTPException:
         raise
     except Exception as e:
