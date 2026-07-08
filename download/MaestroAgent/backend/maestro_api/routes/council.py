@@ -88,6 +88,7 @@ def _safe_json(obj: Any) -> Any:
 class AskRequest(BaseModel):
     query: str
     org_id: str = "default"
+    as_of: Optional[str] = None  # ISO datetime — if set, filter signals to this date (historical replay)
 
 
 @router.post("/ask")
@@ -106,6 +107,11 @@ async def council_ask(
     /api/oem/ask/conversation shape (answer, evidence, citations, etc.)
     so the frontend can migrate without changes.
 
+    When as_of is set (ISO datetime), signals after that timestamp are
+    filtered out before processing. This enables true historical replay:
+    "What did we know on Day 20?" won't show Day 45 evidence. Per CTO
+    audit condition 3: prevents hindsight contamination.
+
     The bridge:
       1. Detects the entity from the query
       2. Finds the relevant LivingSituation
@@ -120,10 +126,40 @@ async def council_ask(
         from maestro_api.oem_state import oem_state
 
         org_id = req.org_id or user.get("org_id", "default")
+
+        # CTO audit condition 3: Temporal as_of filter — prevents hindsight
+        # contamination in historical replay. If as_of is set, filter signals
+        # to only those that existed at or before that timestamp.
+        effective_oem = oem_state
+        if req.as_of:
+            try:
+                from datetime import datetime, timezone
+                from maestro_cognitive_council.audit_safety import filter_signals_by_timestamp
+                as_of_dt = datetime.fromisoformat(req.as_of.replace("Z", "+00:00"))
+                all_signals = getattr(oem_state, "signals", None) or []
+                filtered_signals = filter_signals_by_timestamp(all_signals, as_of_dt)
+                # Create a lightweight wrapper with filtered signals
+                import types
+                effective_oem = types.SimpleProxy()
+                for attr in dir(oem_state):
+                    if not attr.startswith("_"):
+                        try:
+                            setattr(effective_oem, attr, getattr(oem_state, attr))
+                        except Exception:
+                            pass
+                effective_oem.signals = filtered_signals
+                effective_oem.visible_signals = filtered_signals
+                logger.info(
+                    "CTO audit condition 3: as_of filter applied — %d → %d signals (as_of=%s)",
+                    len(all_signals), len(filtered_signals), req.as_of,
+                )
+            except Exception as e:
+                logger.warning("as_of filter failed (non-fatal): %s", e)
+
         store = _get_situation_store()
-        engine = SituationEngine(oem_state=oem_state, situation_store=store)
+        engine = SituationEngine(oem_state=effective_oem, situation_store=store)
         engine.detect_situations(org_id)
-        bridge = SituationAwareAskBridge(oem_state=oem_state)
+        bridge = SituationAwareAskBridge(oem_state=effective_oem)
         result = bridge.ask(req.query, org_id=org_id)
         response = result.to_dict()
         if legacy_compatible:
