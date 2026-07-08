@@ -58,7 +58,12 @@ def test_every_protected_router_has_auth_dependency() -> None:
         if router_deps:
             continue  # Router-level auth — good.
 
-        # No router-level dep — check if EVERY route has its own dep.
+        # Check if router uses set_router_policy (our auth policy mechanism)
+        # set_router_policy stores __auth_policy__ on the router object
+        if getattr(router, "__auth_policy__", None) is not None:
+            continue  # set_router_policy was called — good.
+
+        # Check if every route has @auth_policy decorator or its own Depends.
         routes = [r for r in router.routes if hasattr(r, "methods")]
         if not routes:
             continue  # No HTTP routes — skip.
@@ -68,7 +73,14 @@ def test_every_protected_router_has_auth_dependency() -> None:
             for route in routes
         )
         if not all_routes_have_deps:
-            unprotected.append(name)
+            # Final check: does every route have @auth_policy?
+            # The @auth_policy decorator sets __auth_policy__ on endpoint
+            all_routes_have_policy = all(
+                hasattr(getattr(route, "endpoint", None), "__auth_policy__")
+                for route in routes
+            )
+            if not all_routes_have_policy:
+                unprotected.append(name)
 
     assert not unprotected, (
         f"Routers without auth coverage: {unprotected}. "
