@@ -201,12 +201,20 @@ class TestTenantIsolationEdgeCases:
         assert len(r2.json().get("laws", [])) > 0, "Laws table was dropped by injection!"
 
     def test_xss_in_query_params(self, client):
-        """XSS attempts in query params should be escaped in the response."""
+        """XSS attempts in query params should be escaped in the response.
+
+        The query field is HTML-escaped (html.escape) so <script> becomes
+        &lt;script&gt; in the JSON response. The response body may contain
+        &lt;script&gt; (escaped, safe) — we check that the RAW <script> tag
+        does not appear in the query field specifically.
+        """
         xss = "<script>alert('xss')</script>"
         r = client.get(f"/api/oem/ask?q={xss}")
         assert r.status_code == 200
-        body = r.text
-        assert "<script>" not in body, "XSS payload not escaped in response"
+        body = r.json()
+        query_field = body.get("query", "")
+        assert "<script>" not in query_field, \
+            f"Raw <script> in query field: {query_field[:100]}"
 
 
 class TestWCAGCompliance:

@@ -1,16 +1,18 @@
 # Naked-LLM Comparison Summary
 
-**Executed:** 2026-07-08T21:14:55.551213+00:00
+**Executed:** 2026-07-08T21:50:24.621029+00:00
 **Provider:** z-ai
 **Model:** glm-4-plus
-**Command:** `z-ai chat --prompt <prompt> -o /tmp/llm_resp.json`
+**Command:** `z-ai chat --prompt <prompt> -o /tmp/llm_resp.json (per query, 20 calls)`
+**Maestro unique responses:** 11/20
+**LLM unique responses:** 20/20
 
 ## Results
 
 | System | Score | Percentage |
 |--------|-------|------------|
 | Maestro | 200/240 | 83.3% |
-| LLM (glm-4-plus) | 98/240 | 40.8% |
+| LLM (glm-4-plus) | 97/240 | 40.4% |
 
 ## Win/Loss
 
@@ -22,14 +24,56 @@
 
 | Dimension | Maestro Avg | LLM Avg | Advantage |
 |-----------|------------|---------|-----------|
-| factual_accuracy | 3.0 | 1.75 | maestro |
-| evidence_traceability | 3.0 | 1.15 | maestro |
+| factual_accuracy | 3.0 | 1.7 | maestro |
+| evidence_traceability | 3.0 | 1.2 | maestro |
 | uncertainty_honesty | 2.0 | 0.0 | maestro |
-| intervention_restraint | 2.0 | 2.0 | tie |
+| intervention_restraint | 2.0 | 1.95 | maestro |
 
-## Conclusion
+## Per-Query Maestro Responses (first 5)
 
-Maestro demonstrates structural advantage over a frontier LLM (glm-4-plus) on
-3 of 4 dimensions.
-The LLM produces fluent prose but does not cite evidence by signal ID, does not
-acknowledge unknowns, and makes recommendations without intervention restraint.
+### Q01 (factual_recall)
+**Query:** What did we promise CustomerA?
+**Response:** **Regarding your question about promises to CustomerA:**
+  • Deliver SSO by Friday
+
+**CustomerA: Deliver SSO by Friday**
+State: material | Epistemic: ...
+**Score:** 10/12 (evidence=4, unknowns=1)
+
+### Q02 (factual_recall)
+**Query:** When is the CustomerA renewal meeting?
+**Response:** **Regarding the timing of the CustomerA meeting:**
+  • Renewal meeting tomorrow (evidence: a942825c-0f05-42a0-afdc-2fe03da4d05d)
+
+**CustomerA: Deliver...
+**Score:** 10/12 (evidence=4, unknowns=1)
+
+### Q03 (factual_recall)
+**Query:** What did Security say about the SSO?
+**Response:** **Regarding unresolved issues for CustomerA:**
+  • Was the security condition for CustomerA cleared?
+
+**CustomerA: Deliver SSO by Friday**
+State: mate...
+**Score:** 10/12 (evidence=4, unknowns=1)
+
+### Q04 (factual_recall)
+**Query:** What is the status of the SSO integration?
+**Response:** **Regarding: What is the status of the SSO integration?**
+
+**CustomerA: Deliver SSO by Friday**
+State: material | Epistemic: disputed
+
+**What's been r...
+**Score:** 10/12 (evidence=4, unknowns=1)
+
+### Q05 (factual_recall)
+**Query:** What is happening with CustomerA?
+**Response:** **Regarding: What is happening with CustomerA?**
+
+**CustomerA: Deliver SSO by Friday**
+State: material | Epistemic: disputed
+
+**What's been reported (...
+**Score:** 10/12 (evidence=4, unknowns=1)
+
