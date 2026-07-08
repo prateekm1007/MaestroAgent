@@ -1180,6 +1180,9 @@
 <!-- Round 59: CSP shim must load FIRST — converts onclick= to data-action -->
 <script src="/static/js/utils.js"></script>
 <script src="/static/js/csp-shim.js"></script>
+<!-- Cognitive Council API router — loads before other scripts so MAESTRO_API_BASE is available -->
+<!-- Per audit fix: enables /api/council/* when ?use_council=true or localStorage flag -->
+<script src="/static/js/council-router.js"></script>
 <script defer src="/static/js/core.js"></script>
 <script defer src="/static/js/maestro.js"></script>
 <script defer src="/static/js/swr_cache.js"></script>
