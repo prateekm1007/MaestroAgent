@@ -130,13 +130,13 @@ pip install -e .
 
 # Run the server (demo mode)
 MAESTRO_LOCAL_DEV=true MAESTRO_DEMO_SEED=true \
-  uvicorn maestro_api.main:create_app --factory --port 1420 --app-dir .
+  uvicorn maestro_api.main:create_app --factory --port 8765 --app-dir .
 
 # Open the app
-# Visit http://localhost:1420/app.html
+# Visit http://localhost:8765/app.html
 
 # Open the Nerve Dashboard (17 agents + daily briefings)
-# Visit http://localhost:1420/nerve-dashboard
+# Visit http://localhost:8765/nerve-dashboard
 ```
 
 ## Architecture

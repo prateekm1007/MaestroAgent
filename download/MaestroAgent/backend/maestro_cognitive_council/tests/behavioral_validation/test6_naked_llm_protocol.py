@@ -41,7 +41,7 @@ sys.path.insert(0, str(REPO))
 QUERIES = [
     # ── Factual recall (5 queries) — tests evidence traceability ────────
     {"id": "Q01", "category": "factual_recall", "query": "What did we promise CustomerA?"},
-    {"id": "Q02", "category": "factual_recall", "query": "When is the Globex renewal meeting?"},
+    {"id": "Q02", "category": "factual_recall", "query": "When is the CustomerA renewal meeting?"},
     {"id": "Q03", "category": "factual_recall", "query": "What did Security say about the OAuth migration?"},
     {"id": "Q04", "category": "factual_recall", "query": "What's the status of the Friday deployment pattern?"},
     {"id": "Q05", "category": "factual_recall", "query": "Who is the expert on the SSO integration?"},
