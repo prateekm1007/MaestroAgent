@@ -602,8 +602,14 @@ async def ask(
     q: str = Query(..., description="Natural-language question"),
     request: Request = None,
     user_email: str = Query("", description="C2 fix: filter evidence by source_acl"),
+    council: bool = Query(True, description="C1 fix: use Cognitive Council Situation Engine (default true)"),
 ) -> dict[str, Any]:
     """Ask the organization — NL question answered from OEM evidence.
+
+    C1 FIX: When council=true (default), delegates to SituationAwareAskBridge
+    which uses the Cognitive Council's SituationEngine — a single shared
+    Situation state machine across all surfaces. When council=false, falls
+    back to the legacy AskPipeline (rebuids Situation from full corpus).
 
     AUDITOR-REASONING-PLANE: calls execute_async() and injects the
     SynthesisProvider from app.state. Response includes synthesis_trace.
@@ -615,6 +621,19 @@ async def ask(
     listed viewers. If user_email is empty, private signals are hidden
     (fail-closed).
     """
+    # C1 FIX: Delegate to Cognitive Council Situation Engine by default
+    if council:
+        try:
+            from maestro_cognitive_council import SituationAwareAskBridge
+            oem_state_council = get_oem_for_request(request)
+            bridge = SituationAwareAskBridge(oem_state=oem_state_council)
+            result = bridge.ask(q, org_id="default")
+            d = result.to_dict()
+            d["cognitive_council"] = True
+            return d
+        except Exception as e:
+            logger.warning("Cognitive Council ask failed, falling back to legacy: %s", e)
+
     # Phase 2: resolve per-request OEM state.
     oem_state = get_oem_for_request(request)
     # Phase 2: resolve per-request OEM state (multi-tenant routing).
@@ -5986,8 +6005,13 @@ def organizational_whisper(
     entity: str = Query("", description="Entity being discussed"),
     topic: str = Query("", description="Topic (pricing, security, timeline, etc.)"),
     user: str = Query("", description="Current user email"),
+    council: bool = Query(True, description="C1 fix: use Cognitive Council Delivery Governor (default true)"),
 ) -> dict[str, Any]:
     """Organizational Whisper — what the org knows but hasn't said.
+
+    C1 FIX: When council=true (default), delegates to WhisperSituationBridge
+    which uses the Delivery Governor with opportunity cost model. When
+    council=false, falls back to the legacy OrganizationalWhisper.
 
     CEO's 4-part format: Situation → Insight → Evidence → Action.
     Now with memory, urgency decay, collaboration, and counterfactuals.
@@ -6010,6 +6034,33 @@ def organizational_whisper(
     # We skip the cache for now to ensure memory is always fresh.
     # In production, the cache would be invalidated on outcome recording.
     # For now, serve fresh to ensure accurate memory state.
+
+    # C1 FIX: Delegate to Cognitive Council Delivery Governor by default
+    if council:
+        try:
+            from maestro_cognitive_council import (
+                WhisperSituationBridge, SituationEngine, UserContext,
+            )
+            oem_state_council = get_oem_for_request(request)
+            engine = SituationEngine(oem_state=oem_state_council)
+            situations = engine.detect_situations("default")
+            situation = None
+            if entity:
+                for s in situations:
+                    if s.entity.lower() == entity.lower():
+                        situation = s
+                        break
+            if not situation and situations:
+                situation = situations[0]
+            if situation:
+                bridge = WhisperSituationBridge()
+                uc = UserContext(is_in_meeting=(context == "meeting"))
+                result = bridge.from_situation(situation, context=context, user_context=uc)
+                d = result.to_dict()
+                d["cognitive_council"] = True
+                return d
+        except Exception as e:
+            logger.warning("Cognitive Council whisper failed, falling back to legacy: %s", e)
 
     # H1 FIX: Load durable history from the store
     store = _get_whisper_history_store()
