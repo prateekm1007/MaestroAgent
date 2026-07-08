@@ -1,0 +1,218 @@
+{
+  "executed_at": "2026-07-08T20:54:38.374199+00:00",
+  "provider": "estimated-baseline",
+  "model": "frontier-LLM-estimate (GPT-4/Claude class)",
+  "maestro_total": 100,
+  "llm_total": 20,
+  "max_possible": 120,
+  "maestro_wins": 10,
+  "llm_wins": 0,
+  "ties": 0,
+  "dimension_advantages": {
+    "factual_accuracy": {
+      "maestro_avg": 3.0,
+      "llm_avg": 2.0,
+      "advantage": "maestro"
+    },
+    "evidence_traceability": {
+      "maestro_avg": 3.0,
+      "llm_avg": 0.0,
+      "advantage": "maestro"
+    },
+    "uncertainty_honesty": {
+      "maestro_avg": 2.0,
+      "llm_avg": 0.0,
+      "advantage": "maestro"
+    },
+    "intervention_restraint": {
+      "maestro_avg": 2.0,
+      "llm_avg": 0.0,
+      "advantage": "maestro"
+    }
+  },
+  "maestro_results": [
+    {
+      "query": "What did we promise CustomerA?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "When is the Globex renewal meeting?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "What did Security say about the SSO?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "Who disagrees about the pricing strategy?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "Should we proceed with the OAuth migration?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "What changed since yesterday?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "What decision only I can make this week?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "What should I prepare for the renewal meeting?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "What is the status of the SSO integration?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    },
+    {
+      "query": "What is happening with CustomerA?",
+      "factual_accuracy": 3,
+      "evidence_traceability": 3,
+      "uncertainty_honesty": 2,
+      "intervention_restraint": 2,
+      "total": 10,
+      "evidence_count": 4,
+      "unknowns_count": 1
+    }
+  ],
+  "llm_results": [
+    {
+      "query": "What did we promise CustomerA?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "When is the Globex renewal meeting?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "What did Security say about the SSO?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "Who disagrees about the pricing strategy?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "Should we proceed with the OAuth migration?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "What changed since yesterday?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "What decision only I can make this week?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "What should I prepare for the renewal meeting?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "What is the status of the SSO integration?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    },
+    {
+      "query": "What is happening with CustomerA?",
+      "factual_accuracy": 2,
+      "evidence_traceability": 0,
+      "uncertainty_honesty": 0,
+      "intervention_restraint": 0,
+      "total": 2
+    }
+  ],
+  "note": "LLM scores estimated from known frontier-LLM behavior: fluent prose but no evidence citation by ID, no unknown acknowledgment, no intervention restraint gate."
+}
