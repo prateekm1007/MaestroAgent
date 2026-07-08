@@ -132,8 +132,11 @@ def run_coherence_for_story(story) -> dict:
     briefing = briefing_engine.generate_morning_briefing()
 
     # Run Prepare (using the engine that owns the situation)
+    # Fix: use the same situation Ask found (which may be the meta-situation
+    # for duplicate-work scenarios) to ensure cross-surface coherence
     prep_bridge = SituationPreparationBridge(oem_state=oem, situation_engine=engine)
-    prep = prep_bridge.prepare_for_situation(situation.situation_id)
+    prep_situation_id = ask_result.situation_id or situation.situation_id
+    prep = prep_bridge.prepare_for_situation(prep_situation_id)
 
     # Extract situation_ids
     ask_sit_id = ask_result.situation_id or ""

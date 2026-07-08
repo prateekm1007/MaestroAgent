@@ -936,9 +936,109 @@ class SituationEngine:
                 situations.append(situation)
 
         situations.sort(key=lambda s: s.updated_at, reverse=True)
+
+        # Fix: Duplicate-work meta-situation (Story 6 design question resolved).
+        # When 2+ entities have signals with >60% text overlap on the same
+        # artifact type (e.g., both building "authentication API"), create a
+        # meta-situation that links them. This ensures Ask/Briefing/Prepare
+        # all find the SAME situation when duplicate work exists.
+        meta_situations = self._detect_duplicate_work_meta_situations(signals, org_id, situations)
+        for ms in meta_situations:
+            if ms.situation_id not in self._situations:
+                self._situations[ms.situation_id] = ms
+                situations.append(ms)
+        # Re-sort with meta-situations included (meta-situations are most
+        # recently updated because they're created last)
+        situations.sort(key=lambda s: s.updated_at, reverse=True)
         return situations
 
-    def _is_situation_worthy_signal(self, signal: Any) -> bool:
+    def _detect_duplicate_work_meta_situations(
+        self,
+        signals: list,
+        org_id: str,
+        existing_situations: list,
+    ) -> list[LivingSituation]:
+        """Detect duplicate work across entities and create meta-situations.
+
+        Per CEO design decision: when 2+ entities are working on the same
+        artifact (detected via text overlap on work_started/commitment signals),
+        create a meta-situation that links both teams. This ensures all surfaces
+        (Ask, Briefing, Prepare) find the same situation.
+
+        Detection: extract work descriptions from engineering.work_started and
+        engineering.commitment signals. If 2+ entities have >60% word overlap,
+        create a meta-situation with entity="Internal" and title mentioning
+        both teams.
+        """
+        from difflib import SequenceMatcher
+
+        # Collect work descriptions per entity
+        entity_works: dict[str, list[str]] = {}
+        for sig in signals:
+            sig_type_raw = getattr(sig, "type", None)
+            sig_type_val = getattr(sig_type_raw, "value", str(sig_type_raw)) if sig_type_raw else ""
+            sig_type = str(sig_type_val).lower()
+            if "work_started" in sig_type or "engineering.commitment" in sig_type:
+                entity = getattr(sig, "entity", "")
+                text = (getattr(sig, "text", "") or "").lower()
+                if entity and text:
+                    entity_works.setdefault(entity, []).append(text)
+
+        if len(entity_works) < 2:
+            return []
+
+        # Check for text overlap between entities
+        entities = list(entity_works.keys())
+        meta_situations = []
+        for i in range(len(entities)):
+            for j in range(i + 1, len(entities)):
+                ent_a = entities[i]
+                ent_b = entities[j]
+                works_a = entity_works[ent_a]
+                works_b = entity_works[ent_b]
+                # Check if any work description pair has >60% similarity
+                best_ratio = 0.0
+                for wa in works_a:
+                    for wb in works_b:
+                        ratio = SequenceMatcher(None, wa, wb).ratio()
+                        best_ratio = max(best_ratio, ratio)
+                if best_ratio > 0.6:
+                    # Duplicate work detected — create meta-situation
+                    # Collect all signals from both entities
+                    dup_signals = [
+                        s for s in signals
+                        if getattr(s, "entity", "") in (ent_a, ent_b)
+                    ]
+                    # Also check for explicit duplicate.detected signal
+                    has_explicit_duplicate = any(
+                        "duplicate" in str(getattr(
+                            getattr(s, "type", None), "value", ""
+                        )).lower()
+                        for s in signals
+                    )
+                    meta_entity = "Internal"
+                    meta_situation = self._build_situation(meta_entity, dup_signals, org_id)
+                    if meta_situation:
+                        meta_situation.title = (
+                            f"Duplicate work: {ent_a} and {ent_b} building "
+                            f"the same artifact"
+                        )
+                        # Mark as duplicate work
+                        meta_situation.add_side_state(SideState.DISPUTED)
+                        meta_situation.add_unknown(Unknown(
+                            question=f"Are {ent_a} and {ent_b} actually doing duplicate work?",
+                            why_it_matters="If confirmed, consolidate to avoid wasted effort. "
+                                          "If not, they may be building complementary components.",
+                            blocking=True,
+                            specialists_flagged=["engineering", "chief_of_staff"],
+                        ))
+                        meta_situations.append(meta_situation)
+                        logger.info(
+                            "Duplicate work meta-situation created: %s and %s "
+                            "(text overlap: %.0f%%, explicit: %s)",
+                            ent_a, ent_b, best_ratio * 100, has_explicit_duplicate,
+                        )
+        return meta_situations
         """Fix 2 (salience model): Check if a signal is situation-worthy.
 
         Per CEO directive: the first signal for an entity should create a

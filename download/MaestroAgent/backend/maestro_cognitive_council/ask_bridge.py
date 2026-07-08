@@ -206,6 +206,24 @@ class SituationAwareAskBridge:
 
         # 3. Find the relevant Situation for this entity
         situation = self._find_situation_for_entity(situations, entity)
+
+        # Fix: Duplicate-work meta-situation preference. If a meta-situation
+        # (entity="Internal") exists that references this entity's work (title
+        # mentions the entity or "Duplicate work"), prefer it over the
+        # entity-specific situation. This ensures Ask returns the same
+        # situation Briefing surfaces when duplicate work exists.
+        if situation and entity != "Internal":
+            for s in situations:
+                if (s.entity == "Internal" and
+                    s.title and
+                    ("Duplicate work" in s.title or entity in s.title)):
+                    situation = s
+                    logger.info(
+                        "Ask: preferring duplicate-work meta-situation '%s' over entity-specific '%s'",
+                        s.situation_id, entity,
+                    )
+                    break
+
         if not situation:
             # Condition 2 fix (corrected audit): when no situation exists for
             # the detected entity, fall back to the most relevant situation
