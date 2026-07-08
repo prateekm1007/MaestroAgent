@@ -209,6 +209,14 @@ class SituationBriefingEngine:
                 "state": top.state.value,
                 "delivery_route": top_route.value,
                 "unknowns": [u.to_dict() for u in top.unknowns if not u.resolved],
+                # Engine Fix 2 (C10): Briefing must carry evidence_refs.
+                # Per external reviewer: 'Briefing items carry zero evidence
+                # references on production path. A briefing without evidence
+                # refs is a digest, not an editorial product.' Without this,
+                # Briefing cannot be trusted to surface material changes
+                # backed by evidence — it may rank by recency or ingestion
+                # order instead.
+                "evidence_refs": list(top.evidence_refs),
             }
 
             # What changed
