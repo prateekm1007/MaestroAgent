@@ -1684,27 +1684,42 @@ class SituationEngine:
     def route_specialists(self, situation: LivingSituation) -> list[str]:
         """Determine which specialists are relevant for this situation.
 
-        NOT all 17 specialists run for every situation. The engine routes
-        only the relevant ones based on the situation's topic keywords.
+        Per Arena.ai audit condition 1 (2026-07-08): promote ConsequencePathRouter
+        from fallback to PRIMARY routing mechanism. The prior keyword-based
+        routing missed consequence specialists (e.g., Legal on an Auth change)
+        when keywords weren't present in the situation text.
 
-        NOTE (CEO directive): This is keyword-based routing (fallback).
-        Gate 2 will evolve this to consequence-path routing (traversing
-        the organizational relationship graph).
+        Now: ConsequencePathRouter is the primary path. Keyword routing is
+        retained as a fallback for cases where the router returns no specialists
+        (e.g., if the organizational relationship graph doesn't cover the entity).
         """
         relevant: set[str] = {"chief_of_staff"}
 
-        text_bag = (
-            situation.title + " "
-            + " ".join(f.statement for f in situation.known_facts) + " "
-            + " ".join(e.description for e in situation.timeline)
-        ).lower()
-
-        for specialist, keywords in SPECIALIST_DOMAIN_MAP.items():
-            if not keywords:
-                continue
-            if any(kw in text_bag for kw in keywords):
+        # PRIMARY: ConsequencePathRouter — traverses the organizational
+        # relationship graph to find specialists affected by the situation.
+        try:
+            from .consequence_path_router import ConsequencePathRouter
+            router = ConsequencePathRouter()
+            routing_result = router.route(situation)
+            for specialist in routing_result.specialists:
                 relevant.add(specialist)
+        except Exception as e:
+            logger.debug("ConsequencePathRouter failed, falling back to keywords: %s", e)
+            # FALLBACK: keyword-based routing (the prior primary path)
+            text_bag = (
+                situation.title + " "
+                + " ".join(f.statement for f in situation.known_facts) + " "
+                + " ".join(e.description for e in situation.timeline)
+            ).lower()
 
+            for specialist, keywords in SPECIALIST_DOMAIN_MAP.items():
+                if not keywords:
+                    continue
+                if any(kw in text_bag for kw in keywords):
+                    relevant.add(specialist)
+
+        # Always include customer_success and sales for entity-backed situations
+        # (these are relevant for any customer-facing situation)
         if situation.entity:
             relevant.add("customer_success")
             relevant.add("sales")
