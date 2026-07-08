@@ -171,11 +171,7 @@ async function submitAsk(query) {
       try { window._askSessionId = crypto.randomUUID(); }
       catch(e) { window._askSessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2,11); }
     }
-    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, history: [], session_id: window._askSessionId }),
-    });
+    const resp = await MaestroAPI.post('/ask/conversation', { query: q, history: [], session_id: window._askSessionId });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     document.getElementById('ask-answer-text').innerHTML = escapeHtml(humanize(data.answer || '')).replace(/\n/g, '<br>');

@@ -52,8 +52,8 @@ async function loadAskContext(el) {
   let whispers = null;
   try {
     const [prepResp, whisperResp] = await Promise.all([
-      fetch((MAESTRO_API || '') + '/api/oem/preparation/tomorrow').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch((MAESTRO_API || '') + '/api/oem/whisper?context=meeting').then(r => r.ok ? r.json() : null).catch(() => null),
+      MaestroAPI.get('/preparation/tomorrow').then(r => r.ok ? r.json() : null).catch(() => null),
+      MaestroAPI.get('/whisper').then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
     prep = prepResp;
     whispers = whisperResp;
@@ -237,14 +237,10 @@ async function submitAskV2(question) {
     //   - Evidence-grounded narration with inline citations [1][2]
     // P11: the AskPipeline was built (commit 78aa7d7) but the UI never called
     // it. Same disease as CRITICAL-01, one layer up.
-    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: question,
-        history: [],
-        session_id: getAskSessionId(),  // enables pronoun resolution
-      }),
+    const resp = await MaestroAPI.post('/ask/conversation', {
+      query: question,
+      history: [],
+      session_id: getAskSessionId(),  // enables pronoun resolution
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();

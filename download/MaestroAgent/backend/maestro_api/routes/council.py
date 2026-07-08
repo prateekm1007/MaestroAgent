@@ -95,11 +95,16 @@ class AskRequest(BaseModel):
 async def council_ask(
     req: AskRequest,
     user: dict = Depends(_require_user_if_auth_enabled),
+    legacy_compatible: bool = Query(False, description="Return legacy-compatible response shape"),
 ) -> dict[str, Any]:
     """Situation-aware Ask — retrieves the correct Situation, not just OEM signals.
 
     This route IMPORTS and CALLS SituationAwareAskBridge from the Cognitive
     Council. The old /api/oem/ask route remains for backward compatibility.
+
+    When legacy_compatible=true, the response is adapted to the legacy
+    /api/oem/ask/conversation shape (answer, evidence, citations, etc.)
+    so the frontend can migrate without changes.
 
     The bridge:
       1. Detects the entity from the query
@@ -120,7 +125,19 @@ async def council_ask(
         engine.detect_situations(org_id)
         bridge = SituationAwareAskBridge(oem_state=oem_state)
         result = bridge.ask(req.query, org_id=org_id)
-        return _safe_json(result.to_dict())
+        response = result.to_dict()
+        if legacy_compatible:
+            from maestro_api.council_adapters import adapt_council_ask_to_legacy
+            response = adapt_council_ask_to_legacy(response)
+        # Apply legacy C3/C7 guards so Council responses also get acl_* fields
+        from maestro_api.legacy_guards import apply_legacy_guards
+        response = apply_legacy_guards(
+            response,
+            source_signals=oem_state.visible_signals if oem_state else [],
+            user_email="",
+            candidate_store=getattr(req, "_candidate_store", None),
+        )
+        return _safe_json(response)
     except Exception as e:
         logger.error(f"Council ask failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council ask failed: {e}")
@@ -141,6 +158,7 @@ class BriefingRequest(BaseModel):
 async def council_briefing(
     req: BriefingRequest,
     user: dict = Depends(_require_user_if_auth_enabled),
+    legacy_compatible: bool = Query(False, description="Return legacy-compatible CEO briefing shape"),
 ) -> dict[str, Any]:
     """Situation-centric briefing — "What materially changed?"
 
@@ -151,6 +169,10 @@ async def council_briefing(
       3. Produces the decision boundary
       4. States what Maestro believes + why + what would change that
       5. Lists situations being watched quietly
+
+    When legacy_compatible=true, the response is adapted to the legacy
+    /api/oem/ceo-briefing shape (overnight, one_thing, money, knowledge,
+    decisions, commitments) so the frontend can migrate without changes.
     """
     try:
         from maestro_cognitive_council import SituationBriefingEngine
@@ -165,7 +187,18 @@ async def council_briefing(
         else:
             briefing = engine.generate_morning_briefing(user_email=user_email, org_id=org_id)
 
-        return _safe_json(briefing.to_dict())
+        response = briefing.to_dict()
+        if legacy_compatible:
+            from maestro_api.council_adapters import adapt_council_briefing_to_legacy
+            response = adapt_council_briefing_to_legacy(response)
+        # Apply legacy C3/C7 guards
+        from maestro_api.legacy_guards import apply_legacy_guards
+        response = apply_legacy_guards(
+            response,
+            source_signals=oem_state.visible_signals if oem_state else [],
+            user_email=user_email,
+        )
+        return _safe_json(response)
     except Exception as e:
         logger.error(f"Council briefing failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council briefing failed: {e}")
@@ -185,6 +218,7 @@ class PrepareRequest(BaseModel):
 async def council_prepare(
     req: PrepareRequest,
     user: dict = Depends(_require_user_if_auth_enabled),
+    legacy_compatible: bool = Query(False, description="Return legacy-compatible preparation shape"),
 ) -> dict[str, Any]:
     """Situation-aware preparation — prepare FOR a specific Situation.
 
@@ -194,6 +228,11 @@ async def council_prepare(
       - Learned insights from the Behavioral Learning Engine
       - Stale detection (has reality changed since preparation?)
       - Questions to ask in the meeting
+
+    When legacy_compatible=true, the response is adapted to the legacy
+    /api/oem/preparation/tomorrow shape (meetings, decisions_likely,
+    commitments_at_risk, perspectives) so the frontend can migrate
+    without changes.
     """
     try:
         from maestro_cognitive_council import SituationPreparationBridge, SituationEngine
@@ -206,15 +245,23 @@ async def council_prepare(
 
         if req.situation_id:
             prep = bridge.prepare_for_situation(req.situation_id, org_id=org_id)
+            response = prep.to_dict()
+            if legacy_compatible:
+                from maestro_api.council_adapters import adapt_council_prepare_to_legacy
+                # Wrap in the preparations list shape the adapter expects
+                response = adapt_council_prepare_to_legacy({"preparations": [response]})
+            return _safe_json(response)
         else:
             # Prepare for all upcoming situations
             preps = bridge.prepare_for_upcoming_meetings(org_id=org_id)
+            prep_dicts = [_safe_json(p.to_dict()) for p in preps]
+            if legacy_compatible:
+                from maestro_api.council_adapters import adapt_council_prepare_to_legacy
+                return _safe_json(adapt_council_prepare_to_legacy({"preparations": prep_dicts}))
             return {
-                "preparations": [_safe_json(p.to_dict()) for p in preps],
+                "preparations": prep_dicts,
                 "count": len(preps),
             }
-
-        return _safe_json(prep.to_dict())
     except Exception as e:
         logger.error(f"Council prepare failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council prepare failed: {e}")

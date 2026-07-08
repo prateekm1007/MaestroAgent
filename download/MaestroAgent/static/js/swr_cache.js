@@ -174,10 +174,32 @@ SWR.init();
 // ═══════════════════════════════════════════════════════════════════════════
 
 const api = {
-  getOEM: (path) => SWR.fetch('oem:' + path, '/api/oem' + path),
+  getOEM: (path) => {
+    // Surface migration: if this path is in the Council migration map AND
+    // Council mode is enabled, route through MaestroAPI (which handles
+    // fallback to legacy automatically). Otherwise, use the legacy SWR cache.
+    if (window.MaestroAPI && window.MaestroAPI.isCouncilMode && window.MaestroAPI.isCouncilMode()) {
+      // Check if this path is mapped to Council
+      const councilPaths = ['/ceo-briefing', '/preparation/tomorrow', '/whisper'];
+      if (councilPaths.some(p => path.startsWith(p))) {
+        // Use MaestroAPI.get which handles Council routing + fallback
+        return window.MaestroAPI.get(path).then(r => r.ok ? r.json() : null);
+      }
+    }
+    return SWR.fetch('oem:' + path, '/api/oem' + path);
+  },
   postOEM: async (path, body) => {
     // Round 67 Phase 3.3: POST must NOT use SWR cache.
     // Mutations served as stale GET data is a real hazard.
+    // Surface migration: route through MaestroAPI if Council mode is on
+    if (window.MaestroAPI && window.MaestroAPI.isCouncilMode && window.MaestroAPI.isCouncilMode()) {
+      const councilPostPaths = ['/ask/conversation', '/ask'];
+      if (councilPostPaths.some(p => path.startsWith(p))) {
+        const resp = await window.MaestroAPI.post(path, body);
+        const data = await resp.json();
+        return data;
+      }
+    }
     const resp = await fetch('/api/oem' + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

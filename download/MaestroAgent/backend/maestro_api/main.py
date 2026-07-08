@@ -38,6 +38,38 @@ _REQUEST_LATENCY = None
 _OEM_SIGNAL_COUNT = None
 
 
+def _serve_app_html_with_flags(app_html_path) -> "HTMLResponse":
+    """Serve app.html with server-injected feature flags.
+
+    Per the surface migration roadmap (Step 3): the MAESTRO_USE_COUNCIL feature
+    flag existed in council-router.js but was never set server-side — dead code.
+    This function reads the flag from the environment and injects it into the
+    HTML <head> so the frontend's council-router.js can read it.
+
+    Flag values:
+      - MAESTRO_USE_COUNCIL=true  → Council routes (with adapters + guards)
+      - MAESTRO_USE_COUNCIL=false (default) → Legacy /api/oem/* routes
+    """
+    from fastapi.responses import HTMLResponse
+    use_council = os.environ.get("MAESTRO_USE_COUNCIL", "false").lower() == "true"
+    try:
+        html = app_html_path.read_text()
+    except Exception:
+        html = "<html><body>app.html not found</body></html>"
+    # Inject the flag as a global before council-router.js loads
+    injection = (
+        f'<script>window.MAESTRO_USE_COUNCIL = {"true" if use_council else "false"};'
+        f'window.MAESTRO_API = "";'
+        f'</script>'
+    )
+    # Inject right before </head>
+    if "</head>" in html:
+        html = html.replace("</head>", injection + "\n</head>", 1)
+    else:
+        html = injection + html
+    return HTMLResponse(content=html)
+
+
 # Round 49 C7: dangerous default secrets that must never be used in production.
 _DANGEROUS_DEFAULTS = {
     "JWT_SECRET": {"change-me", "dev-secret-change-in-production", "changeme-now", ""},
@@ -444,11 +476,11 @@ def create_app(
 
         @app.get("/")
         async def serve_root():
-            return FileResponse(app_html, media_type="text/html")
+            return _serve_app_html_with_flags(app_html)
 
         @app.get("/app.html")
         async def serve_app_html():
-            return FileResponse(app_html, media_type="text/html")
+            return _serve_app_html_with_flags(app_html)
 
         logger.info("Serving executive app from %s (MAESTRO_FRONTEND_MODE=app)", app_html)
 

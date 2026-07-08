@@ -1346,7 +1346,7 @@ async function loadPreparationBrief() {
   if (!prepContainer) return;
 
   try {
-    const resp = await fetch((MAESTRO_API || '') + '/api/oem/preparation/tomorrow');
+    const resp = await MaestroAPI.get('/preparation/tomorrow');
     if (!resp.ok) return;
     const prep = await resp.json();
 
@@ -1418,14 +1418,10 @@ async function todayAskSubmit(query) {
         window._todayAskSessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
       }
     }
-    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: query,
-        history: [],
-        session_id: window._todayAskSessionId,  // enables pronoun resolution
-      }),
+    const resp = await MaestroAPI.post('/ask/conversation', {
+      query: query,
+      history: [],
+      session_id: window._todayAskSessionId,  // enables pronoun resolution
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();

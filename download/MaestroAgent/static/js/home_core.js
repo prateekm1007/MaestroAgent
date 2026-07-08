@@ -399,11 +399,7 @@ async function submitECCAsk(query) {
       try { window._homeAskSessionId = crypto.randomUUID(); }
       catch(e) { window._homeAskSessionId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2,11); }
     }
-    const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, history: [], session_id: window._homeAskSessionId }),
-    });
+    const resp = await MaestroAPI.post('/ask/conversation', { query: q, history: [], session_id: window._homeAskSessionId });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     document.getElementById('ecc-ask-answer-text').innerHTML = escapeHtml(data.answer || '').replace(/\n/g, '<br>');
