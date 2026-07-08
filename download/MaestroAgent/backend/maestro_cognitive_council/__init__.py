@@ -55,6 +55,7 @@ from .behavioral_learning_engine import BehavioralLearningEngine, LearningArcRes
 from .ask_bridge import SituationAwareAskBridge, AskResult
 from .briefing_bridge import SituationBriefingEngine, SituationCentricBriefing
 from .preparation_bridge import SituationPreparationBridge, SituationPreparation
+from .whisper_bridge import WhisperSituationBridge, WhisperResult, SituationWhisper
 
 __all__ = [
     # Phase 1: Situation Engine
@@ -113,4 +114,8 @@ __all__ = [
     # Surface Wiring: Prepare → LivingSituation
     "SituationPreparationBridge",
     "SituationPreparation",
+    # Surface Wiring: Whisper → Delivery Governor
+    "WhisperSituationBridge",
+    "WhisperResult",
+    "SituationWhisper",
 ]
