@@ -197,7 +197,22 @@ class SituationBriefingEngine:
 
         sorted_situations = sorted(situations, key=situation_priority, reverse=True)
 
-        # Top situation = the one with the highest delivery priority
+        # Top situation = the one with the highest delivery priority.
+        # Fix: when multiple situations have the same priority, prefer the one
+        # with the MOST evidence refs (richest situation). This ensures Briefing
+        # selects the same situation Ask would find — the one with the most
+        # organizational context — rather than an arbitrary one.
+        if len(sorted_situations) > 1:
+            top_priority = situation_priority(sorted_situations[0])
+            same_priority = [
+                s for s in sorted_situations
+                if situation_priority(s) == top_priority
+            ]
+            if len(same_priority) > 1:
+                # Among same-priority situations, pick the one with most evidence
+                same_priority.sort(key=lambda s: len(s.evidence_refs), reverse=True)
+                sorted_situations[0] = same_priority[0]
+
         top = sorted_situations[0] if sorted_situations else None
         top_route = routes.get(top.situation_id, DeliveryRoute.SILENT) if top else DeliveryRoute.SILENT
 

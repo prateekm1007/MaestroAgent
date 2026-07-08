@@ -897,6 +897,13 @@ class SituationEngine:
                 # Check if the single signal is high-salience
                 if len(entity_signals) == 1 and self._is_high_salience_signal(entity_signals[0]):
                     pass  # Allow situation creation with 1 high-salience signal
+                elif len(entity_signals) == 1 and len(entities) <= 2:
+                    # Fix: single-entity stories (or 2-entity stories with
+                    # shared signals) — allow 1 signal to create a situation.
+                    # This catches early checkpoints in stories where the entity
+                    # is the sole focus. Multi-entity stories (>2 entities) keep
+                    # the 2-signal threshold to prevent fragmentation.
+                    pass
                 else:
                     continue
             # PERSISTENCE: check if a situation already exists for this entity
