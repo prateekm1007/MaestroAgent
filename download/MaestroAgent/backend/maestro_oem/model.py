@@ -1012,16 +1012,69 @@ class ExecutionModel(BaseModel):
         return description.strip().lower()
 
     def _update_laws_from_signal(self, signal: ExecutionSignal, delta: ModelDelta) -> None:
-        """Update existing laws with new evidence from a signal."""
+        """Update existing laws with new evidence from a signal.
+
+        H-05/C-02 FIX: Event-identity deduplication.
+        Previously: every signal relevant to a law called add_validation,
+        inflating validated_runtimes. A single PR (opened, reviewed, merged)
+        generated 3 LearningObjects, each calling add_validation separately.
+        Fix: compute an event_identity hash and skip if already validated.
+        """
+        # H-05 FIX: compute event identity to prevent LO-level inflation
+        event_identity = self._compute_event_identity(signal)
+
         for law in self.laws.values():
             # If the signal type is relevant to the law's condition
             if self._signal_relevant_to_law(signal, law):
                 if signal.metadata.get("contradicts", False):
                     law.add_counter_example(signal.signal_id)
                 else:
+                    # H-05 FIX: check if this event identity was already counted
+                    # for this law. If so, skip — it's the same underlying event
+                    # seen through a different derived LearningObject.
+                    if not hasattr(law, '_event_identities'):
+                        law._event_identities = set()
+                    if event_identity in law._event_identities:
+                        # Same event already counted — skip to prevent inflation
+                        continue
+                    law._event_identities.add(event_identity)
                     law.add_validation(signal.signal_id, content_hash=_compute_content_hash(signal))
                 delta.law_updates.append(law.code)
                 self._add_receipt(signal, law.law_id, "law.evidence_added", law.code, delta)
+
+    def _compute_event_identity(self, signal: ExecutionSignal) -> str:
+        """Compute a stable event identity for deduplication.
+
+        H-05/C-02 FIX: Multiple LearningObjects derived from the same
+        underlying event (e.g., PR opened, PR reviewed, PR merged) should
+        count as 1 evidence, not 3.
+
+        The identity is derived from:
+          - entity (customer/person being discussed)
+          - artifact (the PR/issue/ticket ID)
+          - date (truncated to day — same-day events about the same artifact = 1 event)
+
+        This is the event-identity layer the audit recommends.
+        """
+        entity = (signal.metadata.get("customer", "") or
+                  signal.metadata.get("entity", "") or
+                  getattr(signal, "actor", "") or "")
+        artifact = getattr(signal, "artifact", "") or signal.metadata.get("artifact", "")
+        # Truncate timestamp to day
+        ts = getattr(signal, "timestamp", None)
+        if ts:
+            date_str = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)[:10]
+        else:
+            date_str = "unknown"
+
+        # Build identity: entity + artifact + date
+        # If artifact is present, use it (most specific)
+        # If not, use signal_id (unique per signal — no dedup, but no inflation either)
+        if artifact:
+            return f"{entity.lower()}|{artifact.lower()}|{date_str}"
+        else:
+            # No artifact → use content hash as identity (existing content_hash dedup)
+            return _compute_content_hash(signal)
 
     def _signal_relevant_to_law(self, signal: ExecutionSignal, law: OrganizationalLaw) -> bool:
         """Check if a signal is relevant to a law."""

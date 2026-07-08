@@ -1047,6 +1047,22 @@ class AskPipeline:
 
         trace.latency_ms = int((_time.time() - t0) * 1000)
 
+        # H-02 FIX: Mark degraded capability when fallback is used.
+        # Per audit: "When LLM synthesis fails, Ask degrades to NOTES dumps
+        # with no 'degraded capability' marker — an executive reads this as
+        # Maestro's answer, not as a fallback."
+        capability = "full"
+        capability_note = ""
+        if trace.fallback_triggered:
+            capability = "degraded"
+            capability_note = (
+                "I can show you the raw signals, but I cannot synthesize a "
+                "judgment right now because the reasoning provider is unavailable. "
+                "The notes below are unfiltered signal excerpts, not a synthesized answer."
+            )
+            # Prepend the degraded marker to the answer so the executive sees it
+            answer = f"[DEGRADED MODE] {capability_note}\n\n{answer}"
+
         return {
             "answer": answer,
             "evidence": evidence,
@@ -1056,6 +1072,8 @@ class AskPipeline:
             "intent": intent.value,
             "entities": entities,
             "synthesis_trace": trace.to_audit_dict(),
+            "capability": capability,
+            "capability_note": capability_note,
         }
 
     async def _synthesize_async(

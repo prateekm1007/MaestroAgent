@@ -160,7 +160,11 @@ class TestSynthesizedAnswers:
         r = client.get("/api/oem/ask", params={"q": "bottleneck"})
         data = r.json()
         # D2 fix: AskPipeline returns 'evidence' (list), not 'evidence_detail' (string)
-        assert "evidence" in data or "evidence_path" in data, "Ask response missing evidence"
+        # C1 fix: when council=true (default), response may have 'evidence_refs'
+        # or 'chronology' instead of 'evidence' (Situation-aware shape)
+        assert "evidence" in data or "evidence_path" in data or \
+               "evidence_refs" in data or "chronology" in data, \
+               "Ask response missing evidence"
 
     @pytest.mark.skipif(not HAS_LLM, reason="RC3: requires LLM provider for synthesis (ollama not running, no OpenAI/Anthropic key)")
     def test_synthesized_answer_cites_evidence(self, client) -> None:

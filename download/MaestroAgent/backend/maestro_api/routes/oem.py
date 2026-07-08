@@ -673,6 +673,10 @@ async def ask(
             "experts": [],
             "bottlenecks": [],
             "synthesis_trace": pipeline_result.get("synthesis_trace", {}),
+            # H-02 FIX: expose capability status so callers know if this is
+            # a full synthesis or a degraded fallback
+            "capability": pipeline_result.get("capability", "full"),
+            "capability_note": pipeline_result.get("capability_note", ""),
         }
     except Exception as e:
         logger.warning("AskPipeline in /ask failed, falling back to DecisionEngine: %s", e)
@@ -687,6 +691,12 @@ async def ask(
             "fallback_reason": f"pipeline_error:{type(e).__name__}:{str(e)[:100]}",
             "model_used": "",
         }
+        # H-02 FIX: mark exception fallback as degraded too
+        result["capability"] = "degraded"
+        result["capability_note"] = (
+            "I can show you the raw signals, but I cannot synthesize a "
+            "judgment right now because the reasoning pipeline encountered an error."
+        )
 
     # P2 FIX: Also run RecallEngine for semantic + temporal + entity recall.
     # The DecisionEngine provides law + learning-object search (TF-IDF).
