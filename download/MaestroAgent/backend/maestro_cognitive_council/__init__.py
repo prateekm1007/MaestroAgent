@@ -52,6 +52,9 @@ from .consequence_path_router import ConsequencePathRouter, ConsequencePath, Rou
 from .benchmark_types import BenchmarkStory, BenchmarkSignal, CheckpointExpectation
 from .world_model_benchmark import ALL_STORIES, get_story, get_stories_by_failure_shape
 from .behavioral_learning_engine import BehavioralLearningEngine, LearningArcResult
+from .ask_bridge import SituationAwareAskBridge, AskResult
+from .briefing_bridge import SituationBriefingEngine, SituationCentricBriefing
+from .preparation_bridge import SituationPreparationBridge, SituationPreparation
 
 __all__ = [
     # Phase 1: Situation Engine
@@ -101,4 +104,13 @@ __all__ = [
     # Gate 4: Behavioral Learning
     "BehavioralLearningEngine",
     "LearningArcResult",
+    # Surface Wiring: Ask → Situation Engine
+    "SituationAwareAskBridge",
+    "AskResult",
+    # Surface Wiring: Briefing → Situation Judgment
+    "SituationBriefingEngine",
+    "SituationCentricBriefing",
+    # Surface Wiring: Prepare → LivingSituation
+    "SituationPreparationBridge",
+    "SituationPreparation",
 ]
