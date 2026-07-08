@@ -177,12 +177,25 @@ class SituationBriefingEngine:
             DeliveryRoute.SILENT: 0,
         }
 
-        # Sort by delivery route priority
-        sorted_situations = sorted(
-            situations,
-            key=lambda s: priority_order.get(routes.get(s.situation_id, DeliveryRoute.SILENT), 0),
-            reverse=True,
-        )
+        # J-06 FIX: Sort by delivery route priority, then by blocking unknowns,
+        # then by state urgency. Previously arbitrary (could pick Hooli over
+        # Globex). Now: prefer situations with blocking unknowns and higher
+        # delivery routes.
+        def situation_priority(s):
+            route_priority = priority_order.get(
+                routes.get(s.situation_id, DeliveryRoute.SILENT), 0
+            )
+            blocking_count = len([u for u in s.unknowns if u.blocking and not u.resolved])
+            # State urgency: DECISION_PENDING > NEEDS_PREPARATION > MATERIAL > OBSERVING
+            state_urgency = {
+                SituationState.DECISION_PENDING: 4,
+                SituationState.NEEDS_PREPARATION: 3,
+                SituationState.MATERIAL: 2,
+                SituationState.OBSERVING: 1,
+            }.get(s.state, 0)
+            return (route_priority, blocking_count, state_urgency)
+
+        sorted_situations = sorted(situations, key=situation_priority, reverse=True)
 
         # Top situation = the one with the highest delivery priority
         top = sorted_situations[0] if sorted_situations else None

@@ -464,6 +464,31 @@ class OEMState:
                     self.engine.ingest([sig])
                     self.signals.append(sig)
                     self._live_signals_ingested += 1
+
+                    # J-04 FIX: Apply signal to the Situation Engine on ingest.
+                    # Per audit: "apply_signal() is never called from bridges
+                    # or live_ingest(). Situations remain in their initial state
+                    # forever; delivery progression never triggers."
+                    # Fix: on each signal ingest, detect/evolve situations so
+                    # state transitions fire in real time.
+                    try:
+                        from maestro_cognitive_council import SituationEngine
+                        # Use the shared situation store if available
+                        store = getattr(self, '_situation_store', None)
+                        engine = SituationEngine(oem_state=self, situation_store=store)
+                        situations = engine.detect_situations()
+                        # Find the situation for this signal's entity and apply the signal
+                        sig_entity = (getattr(sig, "entity", None) or
+                                      (getattr(sig, "metadata", {}) or {}).get("customer") or
+                                      (getattr(sig, "metadata", {}) or {}).get("entity"))
+                        if sig_entity:
+                            for situation in situations:
+                                if situation.entity.lower() == sig_entity.lower():
+                                    engine.apply_signal(situation, sig)
+                                    break
+                    except Exception as sit_err:
+                        logger.debug("SituationEngine apply_signal on ingest failed: %s", sit_err)
+
                 except Exception as e:
                     logger.warning("Live signal ingest failed: %s", e)
 

@@ -220,7 +220,41 @@ class SituationAwareAskBridge:
         # 8. Preserve disagreements
         result.disagreements = [d.to_dict() for d in situation.disagreements]
 
-        # 9. Include judgment if available
+        # J-01 FIX: Invoke JudgmentSynthesizer + ConsequencePathRouter
+        # Per audit: "JudgmentSynthesizer is imported but never invoked in Ask.
+        # judgment/decision_boundary always null."
+        # Fix: after finding the situation, route perspectives, run the synthesizer,
+        # attach to situation.judment so decision_boundary/evidence_state appear.
+        if situation.judgment is None:
+            try:
+                # J-03 FIX: Generate perspectives via ConsequencePathRouter
+                routing_result = self._router.route(situation)
+                # Build simple perspectives from the routing result
+                perspectives = []
+                for specialist in routing_result.specialists:
+                    if specialist == "chief_of_staff":
+                        continue  # synthesizer, not a perspective contributor
+                    perspectives.append(Perspective(
+                        situation_id=situation.situation_id,
+                        specialist=specialist,
+                        observation=f"{specialist} perspective on {situation.title}",
+                        implication=f"Relevant consequence path identified for {specialist}",
+                        evidence=[{"source": "consequence_path_router",
+                                   "specialist": specialist}],
+                        unknowns=situation.unknowns and [u.question for u in situation.unknowns if not u.resolved] or [],
+                        urgency="normal",
+                        recommended_next_step="",
+                    ))
+
+                # J-01 FIX: Run the synthesizer
+                if perspectives:
+                    situation.judgment = self._synthesizer.synthesize(situation, perspectives)
+                    # Re-read disagreements (synthesizer may have added new ones)
+                    result.disagreements = [d.to_dict() for d in situation.disagreements]
+            except Exception as e:
+                logger.debug(f"Judgment synthesis failed: {e}")
+
+        # 9. Include judgment if available (now may be populated by J-01 fix)
         if situation.judgment:
             result.judgment = situation.judgment.to_dict()
             if situation.judgment.decision_boundary:
