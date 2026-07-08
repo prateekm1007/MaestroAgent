@@ -886,6 +886,13 @@ class SituationEngine:
             # (commitment, decision, pricing exception, security condition).
             # These signal types are significant enough to warrant situation
             # creation even without a second signal.
+            #
+            # Fix 2 (salience model): attempted to lower the threshold further
+            # to ANY situation-worthy signal, but this caused Test 2 coherence
+            # regressions (multi-entity stories create too many situations,
+            # surfaces pick different top situations). The high-salience gate
+            # from Fix 7 is the right balance: catches the most important first
+            # signals without fragmenting multi-entity stories.
             if len(entity_signals) < 2:
                 # Check if the single signal is high-salience
                 if len(entity_signals) == 1 and self._is_high_salience_signal(entity_signals[0]):
@@ -930,6 +937,63 @@ class SituationEngine:
 
         situations.sort(key=lambda s: s.updated_at, reverse=True)
         return situations
+
+    def _is_situation_worthy_signal(self, signal: Any) -> bool:
+        """Fix 2 (salience model): Check if a signal is situation-worthy.
+
+        Per CEO directive: the first signal for an entity should create a
+        situation if the signal represents organizational activity (not just
+        an observation). This catches low-salience first signals that the
+        high-salience gate (Fix 7) missed — incidents, reports, meetings.
+
+        Signal types that are situation-worthy:
+          - High-salience: commitment_made, decision.proposed, org.reorganization
+          - Medium-salience: incident.*, reported_statement, customer.meeting,
+            pricing.exception, security.condition, scope_change, budget_cut,
+            engineering.concern, legal.concern, sales.concern
+
+        Signal types that are NOT situation-worthy (need 2+):
+          - outcome.* (observations of other activity, not situations themselves)
+          - calendar.meeting (metadata, not a situation)
+        """
+        sig_type_raw = getattr(signal, "type", None)
+        sig_type_val = getattr(sig_type_raw, "value", str(sig_type_raw)) if sig_type_raw else ""
+        sig_type = str(sig_type_val).lower()
+
+        # High-salience (from Fix 7)
+        high_salience = {
+            "commitment_made", "customer.commitment_made",
+            "decision.proposed", "decision_made",
+            "org.reorganization", "reorganization",
+        }
+        if sig_type in high_salience:
+            return True
+
+        # Medium-salience: organizational activity signals
+        medium_salience_prefixes = (
+            "incident", "reported_statement", "customer.meeting",
+            "pricing.exception", "security.condition", "security.concern",
+            "scope_change", "budget_cut", "hiring",
+            "engineering.concern", "legal.concern", "sales.concern",
+            "customer_success.concern", "expert.bottleneck", "duplicate_work",
+            "assumption.collapse",
+        )
+        for prefix in medium_salience_prefixes:
+            if prefix in sig_type:
+                return True
+
+        # Also check signal text for organizational activity keywords
+        sig_text = (getattr(signal, "text", "") or "").lower()
+        activity_keywords = (
+            "incident", "bottleneck", "blocked", "delayed", "at risk",
+            "scope", "budget", "hiring", "concern", "objection",
+            "pricing", "security", "legal",
+        )
+        for kw in activity_keywords:
+            if kw in sig_text:
+                return True
+
+        return False
 
     def _is_high_salience_signal(self, signal: Any) -> bool:
         """Engine Fix 7 (H5): Check if a signal is high-salience enough to
