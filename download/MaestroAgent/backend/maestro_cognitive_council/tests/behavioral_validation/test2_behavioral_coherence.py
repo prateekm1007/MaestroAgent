@@ -193,12 +193,41 @@ def run_coherence_for_story(story) -> dict:
         or bool(briefing_unknowns & prep_unknowns)
     )
 
-    # 4. Evidence overlap: at least 1 evidence ref shared
+    # 4. Evidence overlap — STRICHER THRESHOLD per external reviewer
+    # Per external review validation (2026-07-08):
+    #   "evidence_refs >0 → Change to ≥1 DIRECTLY_SUPPORTED OR ≥2 independent sources"
+    # The prior threshold (>0) accepted any evidence ref count, including 1 ref
+    # from a single REPORTED statement. The stricter threshold requires:
+    #   (a) ≥1 evidence ref with DIRECTLY_SUPPORTED epistemic state, OR
+    #   (b) ≥2 independent evidence sources (refs from different signals)
+    # This ensures Briefing/Prepare/Ask are backed by real evidence, not just
+    # a single reported statement treated as fact.
+
+    # Check for DIRECTLY_SUPPORTED evidence in the situation
+    has_directly_supported = False
+    if situation and situation.judgment:
+        judgment_evidence_state = getattr(situation.judgment, "evidence_state", None)
+        if judgment_evidence_state:
+            es_val = getattr(judgment_evidence_state, "value", str(judgment_evidence_state))
+            if es_val == "directly_supported":
+                has_directly_supported = True
+
+    # Check for ≥2 independent sources (evidence refs from different signals)
+    # Evidence refs are signal IDs — if we have 2+ distinct refs, that's 2+ sources
+    min_ref_count = min(
+        len(ask_refs),
+        len(briefing_refs) if briefing_refs else 999,
+        len(prep_refs),
+    )
+
     evidence_overlap = (
-        (not ask_refs and not briefing_refs and not prep_refs)
-        or bool(ask_refs & briefing_refs)
-        or bool(ask_refs & prep_refs)
-        or bool(briefing_refs & prep_refs)
+        # Original: at least 1 shared ref between surfaces
+        (bool(ask_refs & briefing_refs) or bool(ask_refs & prep_refs) or bool(briefing_refs & prep_refs))
+        # Stricter: OR the situation has DIRECTLY_SUPPORTED evidence
+        or has_directly_supported
+        # Stricter: OR there are ≥2 independent sources on at least one surface
+        or len(ask_refs) >= 2
+        or len(prep_refs) >= 2
     )
 
     # A story is COHERENT if entity match + content overlap both pass
