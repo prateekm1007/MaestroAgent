@@ -60,6 +60,10 @@ from .copilot_bridge import CopilotSituationBridge, CopilotPreCallBriefing, Copi
 from .epistemic_barrier import mark_model_output_as_shadow, is_model_output, can_be_used_as_evidence, filter_evidence_signals
 from .acl_barrier import propagate_acl_restrictions, redact_restricted_content
 from .situation_store import SituationStore
+from .governance_surface import (
+    GovernanceOperatorSurface, GovernanceAction, ScopeExpansionRequest,
+    can_expand_scope,
+)
 from .audit_safety import (
     is_falsified, filter_falsified_situations,
     check_prompt_injection, sanitize_signal_for_council,

@@ -454,9 +454,24 @@ class OEMState:
             assert self.engine is not None
             for sig in new_signals:
                 try:
+                    # C2 FIX (audit): Hard boundary at ingestion — model output
+                    # cannot re-enter the evidence stream.
+                    # Per audit: "A model-generated summary re-ingested as evidence
+                    # can seed a new pattern. Learning loop has a gate at pattern
+                    # promotion but not at evidence ingestion."
+                    # Fix: check if this signal is model-generated. If so, tag it
+                    # as shadow so it's ingested (for context) but CANNOT be used
+                    # as evidence for learning/calibration.
+                    try:
+                        from maestro_cognitive_council import is_model_output, mark_model_output_as_shadow
+                        sig_metadata = getattr(sig, "metadata", None) or {}
+                        if sig_metadata.get("model_generated") or sig_metadata.get("source") == "llm_synthesis":
+                            sig = mark_model_output_as_shadow(sig)
+                            logger.info("C2 BARRIER: model-generated signal tagged as shadow at ingestion")
+                    except ImportError:
+                        pass
+
                     # Phase 4.2: mark signals as shadow if shadow_mode is active.
-                    # Shadow signals are ingested (the pipeline runs) but NOT
-                    # surfaced to users (filtered out of whispers/briefings/Ask).
                     if self._shadow_mode:
                         if not hasattr(sig, "metadata") or sig.metadata is None:
                             sig.metadata = {}

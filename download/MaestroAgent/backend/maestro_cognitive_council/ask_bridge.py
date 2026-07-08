@@ -187,6 +187,18 @@ class SituationAwareAskBridge:
 
         # 2. Detect situations (if not already detected)
         situations = self._situation_engine.detect_situations(org_id)
+
+        # C7 FIX: Filter out falsified situations (tombstone enforcement).
+        # Per audit: "Falsified pattern still influences advice. Tombstone
+        # mechanism exists; however, Ask's precedent retrieval does not yet
+        # honor the tombstone in all code paths."
+        # Fix: filter falsified situations before surfacing in Ask.
+        try:
+            from .audit_safety import filter_falsified_situations
+            situations = filter_falsified_situations(situations)
+        except ImportError:
+            pass
+
         if not situations:
             result.answer = f"No active situations detected for {entity}."
             return result
@@ -266,6 +278,25 @@ class SituationAwareAskBridge:
         # 11. Generate the answer narrative
         result.answer = self._generate_answer(situation, result)
 
+        # C3 FIX: ACL on derived intelligence — propagate restrictions.
+        # Per audit: "Summary-level leakage still possible; a user without
+        # access to a restricted thread can receive a Prepare that includes
+        # its substance."
+        # Fix: check source evidence ACL and redact if restricted.
+        try:
+            from .acl_barrier import propagate_acl_restrictions, redact_restricted_content
+            source_signals = self._get_signals_for_entity(entity, org_id)
+            result_dict = result.to_dict()
+            result_dict = propagate_acl_restrictions(result_dict, source_signals, user_email="")
+            if result_dict.get("acl_restricted", False):
+                result_dict = redact_restricted_content(result_dict)
+                # Update the result object from the redacted dict
+                result.answer = result_dict.get("answer", result.answer)
+                if result_dict.get("acl_redacted"):
+                    result.answer = "[RESTRICTED] This content derives from evidence you don't have access to."
+        except Exception as e:
+            logger.debug(f"ACL barrier check failed: {e}")
+
         return result
 
     def _detect_entity(self, query: str) -> Optional[str]:
@@ -310,6 +341,24 @@ class SituationAwareAskBridge:
                         return entity
 
         return None
+
+    def _get_signals_for_entity(self, entity: str, org_id: str = "default") -> list:
+        """Get signals for an entity (for ACL check on derived intelligence)."""
+        if not self.oem_state:
+            return []
+        signals = getattr(self.oem_state, "signals", None) or []
+        result = []
+        entity_lower = entity.lower() if entity else ""
+        for s in signals:
+            s_org = getattr(s, "org_id", None) or getattr(s, "tenant_id", None)
+            if s_org is not None and s_org != org_id:
+                continue
+            s_entity = (getattr(s, "entity", None) or
+                        (getattr(s, "metadata", {}) or {}).get("customer") or
+                        (getattr(s, "metadata", {}) or {}).get("entity"))
+            if s_entity and s_entity.lower() == entity_lower:
+                result.append(s)
+        return result
 
     def _detect_entity_from_signals(self, org_id: str) -> Optional[str]:
         """If no entity in the query, use the most active entity."""

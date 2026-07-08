@@ -402,3 +402,116 @@ async def council_get_situation(
     except Exception as e:
         logger.error(f"Council get situation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Council get situation failed: {e}")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# N2: Governance operator surface
+# ════════════════════════════════════════════════════════════════════════════
+
+_governance_surface = None
+
+def _get_governance_surface():
+    global _governance_surface
+    if _governance_surface is None:
+        from maestro_cognitive_council import GovernanceOperatorSurface
+        _governance_surface = GovernanceOperatorSurface()
+    return _governance_surface
+
+
+class GovernanceActionRequest(BaseModel):
+    pattern_id: str
+    action: str  # promote | suspend | falsify | narrow_scope | expand_scope | override
+    reason: str = ""
+    operator: str = ""
+    scope: dict = {}
+    current_scope: str = ""
+    requested_scope: str = ""
+    evidence_in_new_scope: list[dict] = []
+    decision: str = ""
+
+
+@router.post("/governance/action")
+@auth_policy(AuthPolicy.USER)
+async def council_governance_action(
+    req: GovernanceActionRequest,
+    user: dict = Depends(_require_user_if_auth_enabled),
+) -> dict[str, Any]:
+    """N2: Take a governance action on a pattern.
+
+    Operators can review, override, suspend, or falsify any pattern.
+    Every action is auditable.
+    """
+    try:
+        from maestro_cognitive_council import (
+            GovernanceOperatorSurface, ScopeExpansionRequest, can_expand_scope,
+        )
+        surface = _get_governance_surface()
+        operator = req.operator or user.get("email", "unknown")
+
+        if req.action == "suspend":
+            action = surface.suspend_pattern(req.pattern_id, operator, req.reason)
+        elif req.action == "falsify":
+            action = surface.falsify_pattern(req.pattern_id, operator, req.reason)
+        elif req.action == "promote":
+            action = surface.promote_pattern(req.pattern_id, operator, req.reason)
+        elif req.action == "narrow_scope":
+            action = surface.narrow_scope(req.pattern_id, req.scope, operator, req.reason)
+        elif req.action == "expand_scope":
+            scope_req = ScopeExpansionRequest(
+                pattern_id=req.pattern_id,
+                current_scope=req.current_scope,
+                requested_scope=req.requested_scope,
+                evidence_in_new_scope=req.evidence_in_new_scope,
+            )
+            action = surface.expand_scope(scope_req, operator)
+        elif req.action == "override":
+            action = surface.override(req.pattern_id, req.decision, operator, req.reason)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
+
+        return action.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Governance action failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Governance action failed: {e}")
+
+
+@router.get("/governance/audit-log")
+@auth_policy(AuthPolicy.USER)
+async def council_governance_audit_log(
+    user: dict = Depends(_require_user_if_auth_enabled),
+) -> dict[str, Any]:
+    """N2: Get the full audit log of all governance actions."""
+    try:
+        surface = _get_governance_surface()
+        return {
+            "actions": surface.get_audit_log(),
+            "count": len(surface.get_audit_log()),
+        }
+    except Exception as e:
+        logger.error(f"Governance audit log failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Governance audit log failed: {e}")
+
+
+@router.get("/governance/patterns")
+@auth_policy(AuthPolicy.USER)
+async def council_governance_patterns(
+    user: dict = Depends(_require_user_if_auth_enabled),
+) -> dict[str, Any]:
+    """N2: List all patterns for operator review."""
+    try:
+        from maestro_cognitive_council import GovernanceOperatorSurface
+        surface = _get_governance_surface()
+        # Get candidate store from app state
+        try:
+            from maestro_api.oem_state import oem_state
+            candidate_store = getattr(oem_state, "_candidate_pattern_store", None)
+        except ImportError:
+            candidate_store = None
+
+        patterns = surface.review_patterns(candidate_store) if candidate_store else []
+        return {"patterns": patterns, "count": len(patterns)}
+    except Exception as e:
+        logger.error(f"Governance patterns failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Governance patterns failed: {e}")
