@@ -622,6 +622,9 @@ async def ask(
     (fail-closed).
     """
     # C1 FIX: Delegate to Cognitive Council Situation Engine by default
+    # Blocker 4 fix: sanitize query to prevent reflected XSS
+    import html as _html
+    q_sanitized = _html.escape(q)
     if council:
         try:
             from maestro_cognitive_council import SituationAwareAskBridge
@@ -629,6 +632,8 @@ async def ask(
             bridge = SituationAwareAskBridge(oem_state=oem_state_council)
             result = bridge.ask(q, org_id="default")
             d = result.to_dict()
+            # Blocker 4: sanitize the query field in the response to prevent XSS
+            d["query"] = q_sanitized
             d["cognitive_council"] = True
             return d
         except Exception as e:
