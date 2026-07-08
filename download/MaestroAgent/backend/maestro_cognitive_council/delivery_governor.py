@@ -130,10 +130,15 @@ class OpportunityCostModel:
         value_reasons: list[str] = []
 
         # 1. Delay materially reduces options?
+        # NEEDS_PREPARATION + blocking unknown = HIGH value (2 reasons)
         if situation.has_blocking_unknown():
             value_reasons.append("Blocking unknown — delay reduces decision options")
+        if situation.state == SituationState.NEEDS_PREPARATION:
+            value_reasons.append("Situation needs preparation — delay reduces preparation window")
         if situation.state == SituationState.DECISION_PENDING:
             value_reasons.append("Decision is imminent — delay reduces preparation window")
+        if situation.state == SituationState.MATERIAL:
+            value_reasons.append("Situation is material — new prerequisite/threat affects commitments")
 
         # 2. New evidence invalidates preparation?
         if situation.material_changes:
@@ -142,7 +147,7 @@ class OpportunityCostModel:
                 value_reasons.append("New evidence invalidates prior preparation")
 
         # 3. User is about to act on stale assumptions?
-        if user_context.is_in_meeting and situation.state == SituationState.MATERIAL:
+        if user_context.is_in_meeting and situation.state in (SituationState.MATERIAL, SituationState.NEEDS_PREPARATION, SituationState.DECISION_PENDING):
             value_reasons.append("User is in a meeting — may be acting on stale assumptions")
 
         # 4. Situation has crossed a previously stated boundary?
@@ -191,7 +196,8 @@ class OpportunityCostModel:
             user_context.is_in_meeting
             or user_context.is_doing_morning_review
             or user_context.is_doing_evening_review
-            or situation.state == SituationState.DECISION_PENDING
+            or situation.state in (SituationState.DECISION_PENDING, SituationState.NEEDS_PREPARATION,
+                                   SituationState.MATERIAL, SituationState.ACTION_IN_PROGRESS)
         )
         if not can_act and assessment.intervention_value != "high":
             cost_reasons.append("User cannot act on this yet")
@@ -283,26 +289,43 @@ class DeliveryGovernor:
             return DeliveryRoute.URGENT
 
         # 2. GATE 3: Opportunity cost model
-        # Only apply the opportunity cost gate when the situation is in a
-        # low-urgency state AND the user is not actively doing a review.
-        # During morning/evening review, briefings are always appropriate —
-        # the opportunity cost model should not suppress them.
-        if self._use_opportunity_cost and situation.state in (
-            SituationState.OBSERVING,
-            SituationState.AWAITING_OUTCOME,
-        ) and not (
+        # TWO-LEVEL GATE:
+        # (a) HARD SUPPRESSION: recently surfaced → SILENT for ALL states
+        #     (prevents duplicate delivery regardless of urgency)
+        # (b) SOFT SUPPRESSION: should_surface check → SILENT for low-urgency
+        #     states only (OBSERVING, AWAITING_OUTCOME). High-urgency states
+        #     (MATERIAL, NEEDS_PREPARATION, DECISION_PENDING) bypass this
+        #     because the state machine already determined urgency.
+        if self._use_opportunity_cost and not (
             user_context.is_doing_morning_review
             or user_context.is_doing_evening_review
         ):
-            assessment = self._opportunity_model.assess(situation, perspectives, user_context)
-            # If the model says "don't surface" and value isn't high, suppress
-            if not assessment.should_surface and assessment.intervention_value != "high":
+            # (a) HARD SUPPRESSION: recently surfaced → always SILENT
+            if situation.situation_id in user_context.recently_surfaced_situation_ids:
                 return DeliveryRoute.SILENT
 
+            # (b) SOFT SUPPRESSION: only for low-urgency states
+            if situation.state in (SituationState.OBSERVING, SituationState.AWAITING_OUTCOME):
+                assessment = self._opportunity_model.assess(situation, perspectives, user_context)
+                if not assessment.should_surface and assessment.intervention_value != "high":
+                    return DeliveryRoute.SILENT
+
         # 3. PREPARE: needs preparation OR decision is imminent
+        # Context differentiation: during a meeting, route to WHISPER (not PREPARE)
+        # because the user is actively in the conversation. During morning review,
+        # route to BRIEFING (not PREPARE) because they're reviewing, not preparing.
+        # Only route to PREPARE when the user is in a neutral context.
         if situation.state in (SituationState.NEEDS_PREPARATION, SituationState.DECISION_PENDING):
-            if user_context.fatigue_level < 0.8:
-                return DeliveryRoute.PREPARE
+            if user_context.fatigue_level >= 0.8:
+                pass  # Too fatigued — fall through to other checks
+            elif user_context.is_in_meeting:
+                return DeliveryRoute.WHISPER  # In meeting → whisper, not prepare
+            elif user_context.is_doing_morning_review or user_context.is_doing_evening_review:
+                return DeliveryRoute.BRIEFING  # Review → briefing, not prepare
+            elif user_context.is_in_focus_mode:
+                pass  # Focus mode — fall through (opportunity cost already handled)
+            else:
+                return DeliveryRoute.PREPARE  # Neutral context → prepare
 
         # 4. WHISPER: user is in a meeting + situation is relevant
         if user_context.is_in_meeting and self._is_relevant_to_active_context(situation):

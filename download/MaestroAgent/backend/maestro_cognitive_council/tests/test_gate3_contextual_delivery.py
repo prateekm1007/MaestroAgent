@@ -195,11 +195,11 @@ class TestContextualDelivery:
         }
 
         # NEEDS_PREPARATION should produce PREPARE in most contexts
-        # (the opportunity cost gate doesn't apply to NEEDS_PREPARATION)
+        # Context differentiation (audit fix): different contexts produce different routes
         assert routes["normal"] == DeliveryRoute.PREPARE
-        assert routes["focus_mode"] == DeliveryRoute.PREPARE  # focus mode doesn't block PREPARE
-        assert routes["in_meeting"] == DeliveryRoute.PREPARE  # in-meeting doesn't override PREPARE
-        assert routes["morning_review"] == DeliveryRoute.PREPARE
+        assert routes["focus_mode"] != DeliveryRoute.PREPARE  # focus mode suppresses (opportunity cost)
+        assert routes["in_meeting"] == DeliveryRoute.WHISPER  # in meeting → whisper, not prepare
+        assert routes["morning_review"] == DeliveryRoute.BRIEFING  # review → briefing, not prepare
         # High fatigue (>0.8) suppresses PREPARE → falls through to other checks
         assert routes["high_fatigue"] != DeliveryRoute.PREPARE  # fatigue blocks PREPARE
 
