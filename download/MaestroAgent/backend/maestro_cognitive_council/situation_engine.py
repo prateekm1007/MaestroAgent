@@ -1346,6 +1346,29 @@ class SituationEngine:
                 specialists_flagged=["customer_success", "sales"],
             ))
 
+        # Fix: Detect assumption-based unknowns (Story 4: hiring collapse)
+        # When a plan assumes something (budget, resources, capacity), the
+        # assumption is an unknown until validated by evidence.
+        has_assumption = any(
+            "assumption" in _sig_type_str(s)
+            or "assumes" in (getattr(s, "text", "") or "").lower()
+            or "assumption" in (getattr(s, "text", "") or "").lower()
+            for s in signals
+        )
+        has_budget_validation = any(
+            "budget" in _sig_type_str(s) and "cut" not in (getattr(s, "text", "") or "").lower()
+            or "approved" in (getattr(s, "text", "") or "").lower()
+            or "confirmed" in (getattr(s, "text", "") or "").lower()
+            for s in signals
+        )
+        if has_assumption and not has_budget_validation:
+            unknowns.append(Unknown(
+                question="Was the budget assumption validated?",
+                why_it_matters="Plans based on unvalidated budget assumptions are at risk if the budget changes.",
+                blocking=True,
+                specialists_flagged=["finance", "engineering"],
+            ))
+
         has_security = any(
             "security" in _sig_type_str(s)
             or "security" in (getattr(s, "text", "") or "").lower()

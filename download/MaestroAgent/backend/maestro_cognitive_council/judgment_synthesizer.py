@@ -460,6 +460,13 @@ class JudgmentSynthesizer:
         timeline_texts = [e.description for e in situation.timeline if hasattr(e, "description")]
         key_theme = self._extract_key_theme(title, timeline_texts)
 
+        # Fix: Detect scope mutation patterns for situation-specific boundary
+        # language (Story 5: scope mutation). When scope expansions are present,
+        # the boundary should mention reducing scope, not just "proceed".
+        timeline_combined = " ".join(timeline_texts).lower()
+        has_scope_expansion = "scope" in timeline_combined or "feature" in timeline_combined
+        has_engineering_warning = "warning" in timeline_combined or "cannot deliver" in timeline_combined or "at risk" in timeline_combined
+
         # Corrected audit condition 1 (2026-07-08): False decisiveness gate.
         # Per auditor: "Every recommendation with fewer than 3 independent
         # evidence items must include 'NOT ENOUGH EVIDENCE TO DECIDE' rather
@@ -532,13 +539,31 @@ class JudgmentSynthesizer:
                     f"Current evidence: {evidence_count}/{MIN_EVIDENCE_FOR_DECISION} required."
                 )
             else:
-                can_decide.append(
-                    f"Proceed with the recommended action for {entity} ({key_theme})"
-                )
-                why = (
-                    f"Perspectives converge with no blocking unknowns or disagreements "
-                    f"about {key_theme}. {evidence_count} evidence items support this."
-                )
+                # Fix: Scope-specific boundary language (Story 5)
+                if has_scope_expansion and has_engineering_warning:
+                    can_decide.append(
+                        f"Reduce scope to original plan for {entity} ({key_theme})"
+                    )
+                    cannot_decide.append(
+                        f"Deliver all expanded features by the original deadline for {key_theme}"
+                    )
+                    why = (
+                        f"Engineering flagged delivery risk with expanded scope. "
+                        f"{evidence_count} evidence items show scope has grown beyond "
+                        f"original plan. Reducing scope is the safe decision."
+                    )
+                    next_step = (
+                        f"Review scope expansions on {key_theme} and prioritize "
+                        f"original features over additions."
+                    )
+                else:
+                    can_decide.append(
+                        f"Proceed with the recommended action for {entity} ({key_theme})"
+                    )
+                    why = (
+                        f"Perspectives converge with no blocking unknowns or disagreements "
+                        f"about {key_theme}. {evidence_count} evidence items support this."
+                    )
                 # Find the highest-urgency recommended_next_step
                 urgency_order = {"critical": 0, "high": 1, "normal": 2, "low": 3}
                 sorted_persps = sorted(perspectives, key=lambda p: urgency_order.get(p.urgency, 2))

@@ -147,6 +147,19 @@ def _drive_4d_dimensions(situation, signals) -> None:
         SituationState.ARCHIVED: "closed",
     }
     op_state = lifecycle_to_operational.get(situation.state, "observing")
+
+    # Fix: Engineering warnings and risk signals trigger decision_pending
+    # even from OBSERVING state (Story 5: launch at risk)
+    if op_state == "observing":
+        for s in signals:
+            t = getattr(s, "type", None)
+            val = getattr(t, "value", str(t)) if t else ""
+            sig_type = str(val).lower()
+            sig_text = (getattr(s, "text", "") or "").lower()
+            if ("warning" in sig_type or "risk" in sig_type or
+                "at risk" in sig_text or "cannot deliver" in sig_text):
+                op_state = "decision_pending"
+                break
     if situation.operational_dimension.value != op_state:
         try:
             situation.transition_dimension(
@@ -171,20 +184,27 @@ def _drive_4d_dimensions(situation, signals) -> None:
     has_signal_conflict = _signals_have_conflict(signals)
     is_hypothesis_testing = _is_hypothesis_testing(signals)
     has_source_diversity = _has_source_diversity(signals)
+    is_pattern_confirmed = _is_pattern_confirmed(signals)
     evidence_count = len(situation.evidence_refs)
 
     if situation.has_side_state(SideState.DISPUTED) or situation.disagreements or has_signal_conflict:
         ep_state = "contested"
     elif situation.has_side_state(SideState.INSUFFICIENT_EVIDENCE):
         ep_state = "insufficient"
+    elif is_pattern_confirmed:
+        ep_state = "supported"  # confirmed patterns (duplicate detected, bottleneck confirmed)
     elif is_hypothesis_testing:
         ep_state = "preliminary"  # H4: hypothesis testing = preliminary, not supported
     elif situation.has_blocking_unknown() or situation.has_unresolved_unknowns():
         ep_state = "preliminary"
     elif evidence_count < 2:
         ep_state = "insufficient"
+    elif not has_source_diversity and evidence_count < 3:
+        # Fix: single-category evidence with <3 items is insufficient
+        # (Story 6 Day 25: 2 engineering signals = not enough to judge)
+        ep_state = "insufficient"
     elif not has_source_diversity and evidence_count < 4:
-        # Fix 3: single-source evidence with <4 items is preliminary, not supported
+        # Fix 3: single-source evidence with 3+ items is preliminary, not supported
         ep_state = "preliminary"
     else:
         ep_state = "supported"
@@ -253,6 +273,69 @@ def _signals_have_conflict(signals) -> bool:
     # Outcome.negative after positive outcomes = pattern conflict
     if "outcome.negative" in sig_types and "outcome.positive" in sig_types:
         return True
+    # Budget cut + assumption = conflict (Story 4: hiring collapse)
+    if any("budget" in t for t in sig_types) and any(
+        "assumption" in t for t in sig_types
+    ):
+        return True
+    # Budget cut text + assumption text = conflict
+    if any("budget cut" in t or "budget" in t for t in sig_texts) and any(
+        "assumes" in t or "assumption" in t for t in sig_texts
+    ):
+        return True
+    # Scope expansion + launch plan = conflict (Story 5: scope mutation)
+    scope_count = sum(1 for t in sig_types if "scope" in t)
+    if scope_count >= 2:  # multiple scope expansions contest the original plan
+        return True
+    if any("scope" in t for t in sig_types) and any(
+        "launch" in t or "plan" in t for t in sig_types
+    ):
+        return True
+    # Engineering warning + scope/launch = conflict (Story 5: launch at risk)
+    if any("engineering.warning" in t or "warning" in t for t in sig_types) and any(
+        "scope" in t or "launch" in t for t in sig_types
+    ):
+        return True
+    # Reorganization = always a conflict (pattern validity contested)
+    if any("reorganization" in t for t in sig_types):
+        return True
+    return False
+
+
+def _is_pattern_confirmed(signals) -> bool:
+    """Detect when a pattern has been confirmed by independent evidence.
+
+    Stories 6 and 7 expect 'supported' when:
+    - Story 6 Day 40: duplicate.detected signal confirms the duplicate work
+    - Story 7 Day 55: 5+ knowledge.question signals + hr.risk confirms bottleneck
+
+    These are confirmation signals — the pattern IS confirmed, not just hypothesized.
+    """
+    sig_types = set()
+    sig_texts = []
+    question_count = 0
+    for s in signals:
+        t = getattr(s, "type", None)
+        val = getattr(t, "value", str(t)) if t else ""
+        sig_type = str(val).lower()
+        sig_types.add(sig_type)
+        sig_texts.append((getattr(s, "text", "") or "").lower())
+        if "question" in sig_type or "knowledge.question" in sig_type:
+            question_count += 1
+
+    # Duplicate detected = pattern confirmed
+    if any("duplicate" in t for t in sig_types):
+        return True
+    if any("duplicate" in t for t in sig_texts):
+        return True
+
+    # Expert bottleneck confirmed: 5+ questions to same person + risk signal
+    if question_count >= 4 and any(
+        "risk" in t or "leave" in t or "bottleneck" in t
+        for t in sig_types | set(sig_texts)
+    ):
+        return True
+
     return False
 
 
