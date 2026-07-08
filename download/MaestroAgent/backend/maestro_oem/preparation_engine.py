@@ -707,7 +707,7 @@ class PreparationEngine:
         """P12: PerspectiveEngine — per-team perspective on upcoming meetings."""
         try:
             from maestro_oem.perspective import PerspectiveEngine
-            engine = PerspectiveEngine(self.model, self.signals)
+            engine = PerspectiveEngine()  # H-01 FIX: takes no args (was PerspectiveEngine(self.model, self.signals))
             result = {}
             for event in events[:3]:
                 entity = getattr(event, "entity", "") or ""

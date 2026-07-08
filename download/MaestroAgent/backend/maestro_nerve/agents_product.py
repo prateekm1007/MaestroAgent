@@ -98,7 +98,7 @@ class ProductAgent(BaseAgent):
                         f"Pull the {count} conversations mentioning '{topic}' "
                         f"and synthesize a single product requirement document."
                     ),
-                    metadata={"topic": topic, "mention_count": count},
+                    metadata={"confidence_source": "heuristic, not calibrated", "topic": topic, "mention_count": count},
                 ))
 
         # Customer-promised deliverables (roadmap pressure)
@@ -128,7 +128,7 @@ class ProductAgent(BaseAgent):
                     "Convert each commitment into a Jira ticket with a customer "
                     "deadline."
                 ),
-                metadata={"commitment_count": len(commitment_signals)},
+                metadata={"confidence_source": "heuristic, not calibrated", "commitment_count": len(commitment_signals)},
             ))
 
         return self.sort_by_priority(
@@ -196,7 +196,7 @@ class EngineeringAgent(BaseAgent):
                         f"Pull the {count} conversations and classify by "
                         f"severity (P0/P1/P2)."
                     ),
-                    metadata={"keyword": kw, "mention_count": count},
+                    metadata={"confidence_source": "heuristic, not calibrated", "keyword": kw, "mention_count": count},
                 ))
 
         # Engineering commitments that are overdue
@@ -237,7 +237,7 @@ class EngineeringAgent(BaseAgent):
                         "For each, either ship it this sprint or renegotiate "
                         "the deadline with the customer."
                     ),
-                    metadata={"overdue_count": len(overdue_eng_commitments)},
+                    metadata={"confidence_source": "heuristic, not calibrated", "overdue_count": len(overdue_eng_commitments)},
                 ))
         except Exception as e:
             logger.debug(f"EngineeringAgent: escalation engine failed: {e}")
@@ -311,7 +311,7 @@ class MarketingAgent(BaseAgent):
                             f"with a case study proposal. Reference the specific "
                             f"positive outcome in the email."
                         ),
-                        metadata={"entity": entity},
+                        metadata={"confidence_source": "heuristic, not calibrated", "entity": entity},
                     ))
         except Exception as e:
             logger.debug(f"MarketingAgent: sentiment engine failed: {e}")
@@ -349,7 +349,7 @@ class MarketingAgent(BaseAgent):
                         f"Create a one-pager that pre-empts the '{kw}' objection. "
                         f"Distribute to sales and add to the discovery deck."
                     ),
-                    metadata={"objection_keyword": kw, "mention_count": count},
+                    metadata={"confidence_source": "heuristic, not calibrated", "objection_keyword": kw, "mention_count": count},
                 ))
 
         return self.sort_by_priority(

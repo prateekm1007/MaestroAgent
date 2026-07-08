@@ -93,6 +93,9 @@ class AgentInsight:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        # H-04 FIX: expose confidence_source so callers know if confidence
+        # is calibrated or heuristic
+        confidence_source = self.metadata.get("confidence_source", "heuristic, not calibrated")
         return {
             "id": self.id,
             "agent": self.agent,
@@ -100,6 +103,7 @@ class AgentInsight:
             "body": self.body,
             "confidence": round(self.confidence, 3),
             "confidence_label": confidence_label(self.confidence),
+            "confidence_source": confidence_source,
             "evidence_chain": self.evidence_chain,
             "recommended_action": self.recommended_action,
             "priority": self.priority,

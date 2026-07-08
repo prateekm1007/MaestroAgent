@@ -1079,7 +1079,8 @@ def get_signals(
     # Phase 2: resolve per-request OEM state.
     oem_state = get_oem_for_request(request)
     # Delegate to /receipts and reshape
-    result = get_receipts(limit=limit, law_code=law_code, provider=provider)
+    # H-07 FIX: pass `request` to get_receipts (was missing, causing 500)
+    result = get_receipts(request=request, limit=limit, law_code=law_code, provider=provider)
     return {
         "signals": result["receipts"],
         "total": result["total"],

@@ -82,7 +82,7 @@ class StrategyAgent(BaseAgent):
                         "Ensure next-quarter strategic bets align with "
                         "the decision style — bet WITH the grain."
                     ),
-                    metadata={"decision_style": style_name},
+                    metadata={"confidence_source": "heuristic, not calibrated", "decision_style": style_name},
                 ))
         except Exception as e:
             logger.debug(f"StrategyAgent: organizational DNA failed: {e}")
@@ -130,7 +130,7 @@ class StrategyAgent(BaseAgent):
                         f"Add '{topic}' to the next strategy review. "
                         f"Decide: build, partner, or defer."
                     ),
-                    metadata={"topic": topic, "entity_count": len(entities)},
+                    metadata={"confidence_source": "heuristic, not calibrated", "topic": topic, "entity_count": len(entities)},
                 ))
 
         return self.sort_by_priority(
@@ -205,7 +205,7 @@ class CommunicationsAgent(BaseAgent):
                         f"Use the draft email feature, then customize the "
                         f"opening line."
                     ),
-                    metadata={"entity": entity, "commitment_count": len(commits)},
+                    metadata={"confidence_source": "heuristic, not calibrated", "entity": entity, "commitment_count": len(commits)},
                 ))
 
         return self.sort_by_priority(

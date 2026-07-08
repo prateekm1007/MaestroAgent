@@ -805,23 +805,18 @@ class ClosedLoopLearningManager:
             source="feedback",
         )
 
-        status = (
-            "correct" if feedback == "agree"
-            else "incorrect" if feedback == "reject"
-            else "partially_correct"
+        # H-03 FIX: CEO feedback is NOT an independent outcome.
+        # Per the constitution: "only independent reality may teach Maestro
+        # what to believe." Human agree/reject is judgment metadata, not
+        # ground truth. We log it as metadata but do NOT resolve predictions.
+        # Previously this code resolved pending predictions with CEO feedback
+        # as the outcome, contaminating the Brier score and pattern strength.
+        # Now: log as metadata only. Predictions wait for independent outcomes.
+        logger.info(
+            "H-03 FIX: CEO feedback '%s' logged as metadata for %s — "
+            "NOT resolving predictions (constitution: independent reality only)",
+            feedback, entity_id,
         )
-
-        # Resolve any pending predictions for this entity OR predictions
-        # linked to this entity via linked_laws.
-        pending = self.recorder.get_pending_predictions()
-        for pred in pending:
-            pred_entity = pred.get("entity_id", "")
-            pred_linked_laws = pred.get("linked_laws") or []
-            matches = (pred_entity == entity_id) or (entity_id in pred_linked_laws)
-            if matches:
-                self.resolver._resolve(
-                    pred, status, f"CEO feedback: {feedback} — {reasoning}"
-                )
 
     def get_improvement_report(self) -> dict[str, Any]:
         """Dashboard proving Maestro gets smarter over time."""

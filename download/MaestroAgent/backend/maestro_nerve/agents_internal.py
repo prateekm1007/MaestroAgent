@@ -87,7 +87,7 @@ class HRAgent(BaseAgent):
                         f"Review {actor}'s calendar for the next 2 weeks. "
                         f"Identify 3 meetings that can be delegated or declined."
                     ),
-                    metadata={"actor": actor, "meeting_count": count},
+                    metadata={"confidence_source": "heuristic, not calibrated", "actor": actor, "meeting_count": count},
                 ))
 
         # Talk-ratio imbalance (coaching opportunity)
@@ -127,7 +127,7 @@ class HRAgent(BaseAgent):
                             f"with {actor}. Suggest a 50/50 target. Offer to "
                             f"review their next call together."
                         ),
-                        metadata={"actor": actor, "talk_heavy_meetings": count},
+                        metadata={"confidence_source": "heuristic, not calibrated", "actor": actor, "talk_heavy_meetings": count},
                     ))
         except Exception as e:
             logger.debug(f"HRAgent: talk ratio coach failed: {e}")
@@ -194,7 +194,7 @@ class LegalAgent(BaseAgent):
                     "For each, verify the commitment text matches the "
                     "applicable contract section."
                 ),
-                metadata={"legal_commitment_count": len(legal_commitments)},
+                metadata={"confidence_source": "heuristic, not calibrated", "legal_commitment_count": len(legal_commitments)},
             ))
 
         return self.sort_by_priority(
@@ -262,7 +262,7 @@ class OperationsAgent(BaseAgent):
                         f"Identify whether the gap is capacity, capability, "
                         f"or process. Assign an owner to close the gap."
                     ),
-                    metadata={"theme": theme, "recurrence_count": count},
+                    metadata={"confidence_source": "heuristic, not calibrated", "theme": theme, "recurrence_count": count},
                 ))
 
         return self.sort_by_priority(
@@ -335,7 +335,7 @@ class SupportAgent(BaseAgent):
                             f"{entity} within 24 hours. Acknowledge the "
                             f"frustration and provide a direct line."
                         ),
-                        metadata={"entity": entity, "pattern": ptype},
+                        metadata={"confidence_source": "heuristic, not calibrated", "entity": entity, "pattern": ptype},
                     ))
         except Exception as e:
             logger.debug(f"SupportAgent: sentiment engine failed: {e}")
@@ -372,7 +372,7 @@ class SupportAgent(BaseAgent):
                         f"Write a KB article for '{kw}'. Add it to the "
                         f"in-app help center and the customer onboarding flow."
                     ),
-                    metadata={"kb_gap_keyword": kw, "mention_count": count},
+                    metadata={"confidence_source": "heuristic, not calibrated", "kb_gap_keyword": kw, "mention_count": count},
                 ))
 
         return self.sort_by_priority(
@@ -428,7 +428,7 @@ class DataAgent(BaseAgent):
                             f"Drill into the {metric} trend. Compare against "
                             f"the prior period to isolate the cause."
                         ),
-                        metadata={"metric": metric},
+                        metadata={"confidence_source": "heuristic, not calibrated", "metric": metric},
                     ))
         except Exception as e:
             logger.debug(f"DataAgent: analytics engine failed: {e}")
@@ -520,7 +520,7 @@ class SecurityAgent(BaseAgent):
                     "actual security control inventory. Flag any gaps "
                     "to the security team."
                 ),
-                metadata={"security_commitment_count": len(security_commitments)},
+                metadata={"confidence_source": "heuristic, not calibrated", "security_commitment_count": len(security_commitments)},
             ))
 
         return self.sort_by_priority(
@@ -581,7 +581,7 @@ class PartnershipsAgent(BaseAgent):
                     "partner-joint account, confirm the partner owner and "
                     "the next co-sell action."
                 ),
-                metadata={"partner_signal_count": len(partner_signals)},
+                metadata={"confidence_source": "heuristic, not calibrated", "partner_signal_count": len(partner_signals)},
             ))
 
         return self.sort_by_priority(

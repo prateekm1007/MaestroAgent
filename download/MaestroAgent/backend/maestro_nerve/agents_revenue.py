@@ -129,7 +129,7 @@ class GrowthAgent(BaseAgent):
                         f"{len(situation.commitments)} commitment(s) in progress."
                     ),
                     organizational_law="L-2024-087" if conf >= 0.80 else None,
-                    metadata={"entity": entity},
+                    metadata={"confidence_source": "heuristic, not calibrated", "entity": entity},
                 ))
 
         return self.sort_by_priority(
@@ -235,7 +235,7 @@ class SalesAgent(BaseAgent):
                         f"Address the top risk factor for {entity} before the "
                         f"next meeting. Schedule a recovery call within 7 days."
                     ),
-                    metadata={"entity": entity, "health_score": score.score},
+                    metadata={"confidence_source": "heuristic, not calibrated", "entity": entity, "health_score": score.score},
                 ))
 
             # Momentum check (declining momentum is a leading indicator)
@@ -263,7 +263,7 @@ class SalesAgent(BaseAgent):
                         f"Re-engage {entity} with a value-driven touchpoint "
                         f"(case study, ROI calculator, or executive briefing)."
                     ),
-                    metadata={"entity": entity},
+                    metadata={"confidence_source": "heuristic, not calibrated", "entity": entity},
                 ))
 
         return self.sort_by_priority(
@@ -357,7 +357,7 @@ class CustomerSuccessAgent(BaseAgent):
                         f"Acknowledge the missed commitment, provide a new date, "
                         f"and add a value-add concession."
                     ),
-                    metadata={"entity": entity, "escalation_level": esc.level.value},
+                    metadata={"confidence_source": "heuristic, not calibrated", "entity": entity, "escalation_level": esc.level.value},
                 ))
         except Exception as e:
             logger.debug(f"CSAgent: escalation engine failed: {e}")
@@ -401,7 +401,7 @@ class CustomerSuccessAgent(BaseAgent):
                         f"Send a personal check-in to {entity} within 48 hours. "
                         f"Reference a specific past conversation topic."
                     ),
-                    metadata={"entity": entity, "days_stale": days_stale},
+                    metadata={"confidence_source": "heuristic, not calibrated", "entity": entity, "days_stale": days_stale},
                 ))
 
         return self.sort_by_priority(
@@ -477,7 +477,7 @@ class FinanceAgent(BaseAgent):
                     "For each at-risk account, assign a recovery owner and a "
                     "7-day action deadline."
                 ),
-                metadata={"at_risk_count": at_risk_count},
+                metadata={"confidence_source": "heuristic, not calibrated", "at_risk_count": at_risk_count},
             ))
 
         # Commitment velocity insight
@@ -507,7 +507,7 @@ class FinanceAgent(BaseAgent):
                     "Review the commitment ledger in the dashboard. Flag any "
                     "commitments due within 7 days that lack an owner."
                 ),
-                metadata={"commitment_count": len(commitment_signals)},
+                metadata={"confidence_source": "heuristic, not calibrated", "commitment_count": len(commitment_signals)},
             ))
 
         return self.sort_by_priority(
