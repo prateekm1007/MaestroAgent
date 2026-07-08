@@ -438,34 +438,74 @@ class JudgmentSynthesizer:
           Most systems produce: "Here are the facts."
           Some produce: "Here is my recommendation."
           Better: "Here is what reality currently permits you to decide."
+
+        Engine Fix 5 (C13): Situation-specific boundary language.
+        Per external reviewer: 'The engine produces confident recommendations
+        when the evidence supports only direction decidable, sequence not.'
+        The prior generic language ('proceed with the general direction') was
+        false-decisive. Now the boundary language is derived from the
+        situation's entity, timeline, and key themes — so the executive
+        sees 'reduce scope to original 3 features' instead of 'proceed with
+        the general direction.'
         """
         can_decide: list[str] = []
         cannot_decide: list[str] = []
         why = ""
         next_step = ""
 
+        # Extract situation-specific context for boundary language
+        entity = situation.entity or "the situation"
+        title = situation.title or ""
+        # Extract key themes from timeline
+        timeline_texts = [e.description for e in situation.timeline if hasattr(e, "description")]
+        key_theme = self._extract_key_theme(title, timeline_texts)
+
         if disagreements:
             # When specialists disagree, you can decide the direction but not the sequence
-            can_decide.append("Adopt the general direction (specialists agree on what, not how)")
-            cannot_decide.append("Determine the specific sequence or timing")
+            # Situation-specific: use the entity and theme
+            can_decide.append(
+                f"Adopt the general direction for {entity} ({key_theme}) — "
+                f"specialists agree on what, not how"
+            )
+            # Extract the specific disagreement topic for cannot_decide
+            dis_topic = disagreements[0].topic if disagreements else "sequencing"
+            cannot_decide.append(
+                f"Determine the specific sequence or timing for {key_theme} "
+                f"(disagreement: {dis_topic[:80]})"
+            )
             why = (
-                f"Specialists disagree on {len(disagreements)} point(s). "
+                f"Specialists disagree on {len(disagreements)} point(s) about {entity}. "
                 f"The disagreement is about sequencing, not direction."
             )
-            next_step = "Review the disagreements and determine whether a phased approach resolves the conflict."
+            next_step = (
+                f"Review the disagreements on {key_theme} and determine whether "
+                f"a phased approach resolves the conflict."
+            )
         elif blocking_unknowns:
             # When blocking unknowns exist, you can decide the direction but not the specifics
-            can_decide.append("Proceed with the general direction")
-            cannot_decide.append("Commit to specific commitments or deadlines")
+            can_decide.append(
+                f"Proceed with the general direction for {entity} ({key_theme})"
+            )
+            cannot_decide.append(
+                f"Commit to specific commitments or deadlines for {key_theme}"
+            )
             why = (
-                f"{len(blocking_unknowns)} blocking unknown(s) remain unresolved. "
+                f"{len(blocking_unknowns)} blocking unknown(s) remain unresolved for {entity}. "
                 f"Decisions that depend on these unknowns cannot be finalized."
             )
-            next_step = f"Resolve the blocking unknown(s) before deciding: {'; '.join(blocking_unknowns[:2])}"
+            next_step = (
+                f"Resolve the blocking unknown(s) before deciding on {key_theme}: "
+                f"{'; '.join(blocking_unknowns[:2])}"
+            )
         else:
             # Convergent case — can decide fully
-            can_decide.append("Proceed with the recommended action")
-            why = "Perspectives converge with no blocking unknowns or disagreements."
+            can_decide.append(
+                f"Proceed with the recommended action for {entity} ({key_theme})"
+            )
+            why = (
+                f"Perspectives converge with no blocking unknowns or disagreements "
+                f"about {key_theme}."
+            )
             # Find the highest-urgency recommended_next_step
             urgency_order = {"critical": 0, "high": 1, "normal": 2, "low": 3}
             sorted_persps = sorted(perspectives, key=lambda p: urgency_order.get(p.urgency, 2))
@@ -474,7 +514,7 @@ class JudgmentSynthesizer:
                     next_step = p.recommended_next_step
                     break
             if not next_step:
-                next_step = "Monitor the situation."
+                next_step = f"Monitor {key_theme}."
 
         return DecisionBoundary(
             can_decide_now=can_decide,
@@ -482,6 +522,43 @@ class JudgmentSynthesizer:
             why=why,
             smallest_useful_next_step=next_step,
         )
+
+    def _extract_key_theme(self, title: str, timeline_texts: list[str]) -> str:
+        """Extract the key theme from the situation title and timeline.
+
+        Per Engine Fix 5 (C13): the boundary language must be situation-
+        specific, not generic. This helper extracts a 2-4 word theme from
+        the situation's title and timeline that captures what the situation
+        is about (e.g., 'SSO delivery', 'OAuth migration', 'pricing exception',
+        'scope mutation').
+        """
+        # Try to extract from title first
+        if title:
+            # Remove common prefixes like "Customer commitment drift —"
+            if "—" in title:
+                title = title.split("—")[-1].strip()
+            elif "-" in title and len(title.split("-")[-1]) > 5:
+                title = title.split("-")[-1].strip()
+            # Take first 4 words
+            words = title.split()[:4]
+            if words:
+                return " ".join(words)
+
+        # Fall back to timeline texts
+        if timeline_texts:
+            # Find the most common meaningful word across timeline events
+            from collections import Counter
+            words = []
+            for text in timeline_texts:
+                # Extract entity-like words (capitalized, 3+ chars)
+                for w in text.split():
+                    if len(w) > 3 and w[0].isupper():
+                        words.append(w)
+            if words:
+                common = Counter(words).most_common(3)
+                return " ".join(w for w, _ in common)
+
+        return "this situation"
 
     # ── Next step recommendation (fallback if decision boundary is empty) ──
 
