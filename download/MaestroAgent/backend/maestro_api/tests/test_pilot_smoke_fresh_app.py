@@ -136,3 +136,11 @@ class TestPilotSmokeFreshApp:
         resp = fresh_app.get("/")
         assert "MAESTRO_USE_COUNCIL = true" in resp.text, \
             "Council should be default (true), not legacy (false)"
+
+    def test_situation_id_stable_across_repeated_calls(self, fresh_app):
+        """C2: Repeating the same council requests returns the same situation_id."""
+        r1 = fresh_app.get("/api/council/situations").json()
+        r2 = fresh_app.get("/api/council/situations").json()
+        ids1 = {s["situation_id"] for s in r1.get("situations", [])}
+        ids2 = {s["situation_id"] for s in r2.get("situations", [])}
+        assert ids1 == ids2, f"Situation IDs not stable: {ids1} vs {ids2}"

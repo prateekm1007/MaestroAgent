@@ -20,7 +20,7 @@ help: ## Show this help
 	@echo "  make docker-logs  Follow Docker logs"
 	@echo "  make clean        Clean build artifacts"
 	@echo ""
-	@echo "For browser review: make dev → open http://localhost:1420"
+	@echo "For browser review: make dev → open http://localhost:8765"
 
 dev: ## Start backend + frontend in dev mode
 	./dev.sh both

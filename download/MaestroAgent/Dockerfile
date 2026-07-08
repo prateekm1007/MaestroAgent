@@ -7,10 +7,10 @@
 #   docker build -t maestroagent/app:latest .
 #
 # Run (dev):
-#   docker run -p 1420:1420 -e MAESTRO_DEMO_SEED=true maestroagent/app:latest
+#   docker run -p 8765:8765 -e MAESTRO_DEMO_SEED=true maestroagent/app:latest
 #
 # Run (production):
-#   docker run -p 1420:1420 \
+#   docker run -p 8765:8765 \
 #     -e MAESTRO_ENV=production \
 #     -e MAESTRO_DEMO_SEED=false \
 #     -e JWT_SECRET=$JWT_SECRET \
@@ -58,10 +58,10 @@ ENV MAESTRO_DEMO_SEED=true
 ENV PYTHONPATH=/app/backend
 ENV MAESTRO_AUTH_DB=/data/auth.db
 
-EXPOSE 1420
+EXPOSE 8765
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:1420/api/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8765/api/health')" || exit 1
 
-CMD ["uvicorn", "maestro_api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "1420"]
+CMD ["uvicorn", "maestro_api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8765"]

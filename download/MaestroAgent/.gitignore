@@ -63,3 +63,5 @@ workspace/
 *.db-wal
 *.db-shm
 *.db
+:memory:?cache=shared
+**/:memory:*
