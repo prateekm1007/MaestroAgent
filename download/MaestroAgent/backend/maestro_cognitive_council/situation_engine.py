@@ -1417,6 +1417,41 @@ class SituationEngine:
                 concern_map[func_a], concern_map[func_b], situation.situation_id,
             )
 
+        # Condition 5 fix (corrected audit): Reorg falsification — when an
+        # organizational reorganization signal is present, mark the pattern
+        # as contested and add the "does the pattern still hold?" unknown.
+        # Per auditor: "When organizational reorganization is detected, the
+        # engine must link post-reorg situations to pre-reorg patterns."
+        has_reorg = any(
+            "reorganization" in _sig_type_str(s)
+            or "reorganization" in (getattr(s, "text", "") or "").lower()
+            for s in signals
+        )
+        if has_reorg:
+            # The reorg contests any previously learned pattern
+            if not situation.has_side_state(SideState.DISPUTED):
+                situation.add_side_state(SideState.DISPUTED)
+            # Add the critical unknown: does the pattern survive the reorg?
+            has_reorg_unknown = any(
+                "reorg" in (getattr(u, "question", "").lower() or "")
+                for u in situation.unknowns
+            )
+            if not has_reorg_unknown:
+                situation.add_unknown(Unknown(
+                    question="Does the learned pattern still hold after the reorg?",
+                    why_it_matters=(
+                        "Organizational restructuring can invalidate patterns "
+                        "learned under the prior structure. The pattern must be "
+                        "re-validated against post-reorg outcomes."
+                    ),
+                    blocking=True,
+                    specialists_flagged=["chief_of_staff", "organizational_design"],
+                ))
+            logger.info(
+                "C5 FIX: Reorg detected — pattern contested, unknown added for situation %s",
+                situation.situation_id,
+            )
+
     # ── Continuous state transition (the biggest missing capability) ────────
 
     def apply_signal(self, situation: LivingSituation, signal: Any) -> SituationDelta:
