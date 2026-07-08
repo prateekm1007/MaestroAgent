@@ -898,7 +898,87 @@ class SituationEngine:
                     self._situation_store.save_situation(situation)
                 situations.append(situation)
 
+        # Engine Fix 3 (C11): Outcome-only detection — cross-entity pattern situations.
+        # Per external reviewer: 'The engine detects outcomes but not early-checkpoint
+        # changes, hypothesis-testing state, or decision-boundary language.' Story 10
+        # (reorg falsification) has 7 outcome signals across 7 entities — each entity
+        # has only 1 signal, below the 2-signal threshold. The engine should detect a
+        # CROSS-ENTITY pattern situation when there are 3+ outcome signals with a
+        # common theme (e.g., "Early Security involvement correlates with renewal
+        # success"). This is how organizational learning works: patterns emerge across
+        # entities, not just within one entity's timeline.
+        cross_entity_situations = self._detect_cross_entity_pattern_situations(signals, org_id)
+        for situation in cross_entity_situations:
+            if situation.situation_id not in self._situations:
+                self._situations[situation.situation_id] = situation
+                if self._situation_store:
+                    self._situation_store.save_situation(situation)
+                situations.append(situation)
+
         situations.sort(key=lambda s: s.updated_at, reverse=True)
+        return situations
+
+    def _detect_cross_entity_pattern_situations(
+        self,
+        signals: list,
+        org_id: str,
+    ) -> list[LivingSituation]:
+        """Detect cross-entity pattern situations from outcome signals.
+
+        Per Engine Fix 3 (C11): when 3+ outcome signals share a common theme
+        (e.g., all mention "Security involved early"), the engine should
+        create a pattern situation that spans entities. This is how
+        organizational learning works — patterns emerge across customers,
+        not just within one customer's timeline.
+
+        This detects:
+          - 3+ outcome.positive signals with shared keywords → pattern situation
+          - 3+ outcome.negative signals with shared keywords → pattern situation
+          - org.reorganization signals → creates an "org change" situation
+        """
+        # Group outcome signals by shared theme (keyword overlap)
+        outcome_signals = []
+        reorg_signals = []
+        for sig in signals:
+            sig_type_raw = getattr(sig, "type", None)
+            sig_type_val = getattr(sig_type_raw, "value", str(sig_type_raw)) if sig_type_raw else ""
+            sig_type = str(sig_type_val).lower()
+            if "outcome" in sig_type:
+                outcome_signals.append(sig)
+            elif "reorganization" in sig_type or "org.reorganization" in sig_type:
+                reorg_signals.append(sig)
+
+        situations: list[LivingSituation] = []
+
+        # Detect outcome patterns (3+ outcomes with shared keywords)
+        if len(outcome_signals) >= 3:
+            # Extract common theme from outcome text
+            texts = [(getattr(s, "text", "") or "").lower() for s in outcome_signals]
+            # Find shared keywords (3+ word phrases that appear in 3+ signals)
+            from collections import Counter
+            word_counts = Counter()
+            for text in texts:
+                words = set(text.split())
+                word_counts.update(words)
+            shared_keywords = [w for w, c in word_counts.items() if c >= 3 and len(w) > 3]
+
+            if shared_keywords:
+                # Create a pattern situation
+                top_keyword = shared_keywords[0]
+                pattern_entity = "Internal"  # cross-entity patterns are internal
+                pattern_text = f"Pattern: {top_keyword} correlates with outcomes"
+                situation = self._build_situation(pattern_entity, outcome_signals, org_id)
+                if situation:
+                    situation.title = f"Cross-entity outcome pattern: {top_keyword}"
+                    situations.append(situation)
+
+        # Detect reorganization situations
+        if reorg_signals:
+            situation = self._build_situation("Internal", reorg_signals, org_id)
+            if situation:
+                situation.title = "Organizational reorganization"
+                situations.append(situation)
+
         return situations
 
     def _evolve_situation(
