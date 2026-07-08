@@ -754,7 +754,18 @@ async def ask(
     result["personal_context_line"] = personal_context_line
     # CEO Directive: "Maestro never invents precision." Remove confidence from /ask response.
     result.pop("confidence", None)
-    return translate_internal_terms(result)
+    result = translate_internal_terms(result)
+
+    # C3/C7 LEGACY GUARDS: Apply ACL redaction + falsified-pattern tombstone.
+    from maestro_api.legacy_guards import apply_legacy_guards
+    result = apply_legacy_guards(
+        result,
+        source_signals=oem_state.visible_signals if oem_state else [],
+        user_email=user,
+        candidate_store=getattr(request.app.state, "candidate_pattern_store", None),
+    )
+
+    return result
 
 
 # ─── 7. GET /api/oem/simulator ─────────────────────────────────────────────
@@ -1939,7 +1950,7 @@ def get_ceo_briefing(request: Request) -> dict[str, Any]:
     except Exception as e:
         logger.debug("Personal context card build failed: %s", e)
 
-    return translate_internal_terms({
+    return translate_internal_terms(_apply_legacy_guards_to_briefing({
         "generated_at": model.last_updated.isoformat() if hasattr(model.last_updated, "isoformat") else str(model.last_updated),
         "overnight": overnight_answer,
         "one_thing": one_thing,
@@ -1950,7 +1961,7 @@ def get_ceo_briefing(request: Request) -> dict[str, Any]:
         "drafted_artifacts": _generate_drafted_artifacts(one_thing, money_losses, knowledge_traps, ceo_decisions, model),
         # Round 44 — last card in the briefing. {} when toggle is OFF.
         "personal_context": personal_context_card,
-    })
+    }, request, oem_state))
 
 
 def _generate_drafted_artifacts(
@@ -5891,6 +5902,20 @@ async def ask_conversation(payload: dict[str, Any], request: Request) -> dict[st
     )
     answer = await pipeline.execute_async(query, org_id="default", session_id=session_id)
 
+    # C3/C7 LEGACY GUARDS: Apply ACL redaction + falsified-pattern tombstone
+    # to the legacy /ask/conversation path. Per the independent audit
+    # (2026-07-08): the C3/C7 fixes at commit 5b38d48 were only in the Council
+    # bridge, but the frontend calls THIS route 12 times and /api/council/ask
+    # zero times. Without these guards, restricted evidence leaks and
+    # falsified patterns reappear on the dominant user surface.
+    from maestro_api.legacy_guards import apply_legacy_guards
+    answer = apply_legacy_guards(
+        answer,
+        source_signals=oem_state.visible_signals if oem_state else [],
+        user_email="",
+        candidate_store=candidate_pattern_store,
+    )
+
     return answer
 
 
@@ -5934,7 +5959,18 @@ def get_tomorrow_preparation(request: Request, user: str = Query("")) -> dict[st
         oem_state.visible_signals if oem_state else [],
         calendar_source=calendar_source,
     )
-    return translate_internal_terms(engine.prepare_for_tomorrow(org_id="default", user_email=user))
+    result = translate_internal_terms(engine.prepare_for_tomorrow(org_id="default", user_email=user))
+
+    # C3/C7 LEGACY GUARDS
+    from maestro_api.legacy_guards import apply_legacy_guards
+    result = apply_legacy_guards(
+        result,
+        source_signals=oem_state.visible_signals if oem_state else [],
+        user_email=user,
+        candidate_store=getattr(request.app.state, "candidate_pattern_store", None),
+    )
+
+    return result
 
 
 # ─── CEO Feature 6: Anticipation Engine ────────────────────────────────────
@@ -5974,6 +6010,30 @@ import time as _time
 # External reviewer found that whisper memory was in-process only.
 # Now persisted to SQLite via WhisperHistoryStore.
 _whisper_history_store = None
+
+
+def _apply_legacy_guards_to_briefing(
+    briefing: dict[str, Any],
+    request: Request,
+    oem_state: Any,
+) -> dict[str, Any]:
+    """Apply C3/C7 legacy guards to the CEO briefing response.
+
+    Wrapper around apply_legacy_guards that extracts the request context
+    (user email, candidate pattern store) so the briefing route stays clean.
+    """
+    try:
+        from maestro_api.legacy_guards import apply_legacy_guards
+        return apply_legacy_guards(
+            briefing,
+            source_signals=oem_state.visible_signals if oem_state else [],
+            user_email="",
+            candidate_store=getattr(request.app.state, "candidate_pattern_store", None),
+        )
+    except Exception as e:
+        logger.debug("Legacy guards on briefing failed (non-fatal): %s", e)
+        return briefing
+
 
 def _get_whisper_history_store():
     """Get or create the singleton WhisperHistoryStore."""
