@@ -362,6 +362,9 @@ class TestDecisionBoundary:
             state=SituationState.OBSERVING,
             epistemic_state=EpistemicState.KNOWN,
         )
+        # Corrected audit condition 1: provide 3+ evidence refs so the
+        # false-decisiveness gate allows a confident recommendation
+        situation.evidence_refs = ["ref-1", "ref-2", "ref-3"]
         perspectives = [
             _make_perspective(specialist="sales", urgency="normal",
                               next_step="Send the proposal"),
@@ -373,7 +376,9 @@ class TestDecisionBoundary:
 
         assert judgment.decision_boundary is not None
         db = judgment.decision_boundary
-        assert any("proceed" in c.lower() for c in db.can_decide_now)
+        assert any("proceed" in c.lower() for c in db.can_decide_now), (
+            f"Convergent case with 3+ evidence should allow proceeding, got: {db.can_decide_now}"
+        )
         # No blocking unknowns → cannot_decide_yet may be empty
         assert db.smallest_useful_next_step
 

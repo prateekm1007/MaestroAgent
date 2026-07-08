@@ -460,6 +460,18 @@ class JudgmentSynthesizer:
         timeline_texts = [e.description for e in situation.timeline if hasattr(e, "description")]
         key_theme = self._extract_key_theme(title, timeline_texts)
 
+        # Corrected audit condition 1 (2026-07-08): False decisiveness gate.
+        # Per auditor: "Every recommendation with fewer than 3 independent
+        # evidence items must include 'NOT ENOUGH EVIDENCE TO DECIDE' rather
+        # than a confident action." This prevents the 33% false-decisiveness
+        # rate where the system recommends action when evidence is insufficient.
+        #
+        # The gate applies ONLY to the convergent path (no disagreements, no
+        # blocking unknowns). The disagreement and blocking-unknowns paths
+        # already acknowledge uncertainty — they are not false-decisive.
+        evidence_count = len(situation.evidence_refs)
+        MIN_EVIDENCE_FOR_DECISION = 3
+
         if disagreements:
             # When specialists disagree, you can decide the direction but not the sequence
             # Situation-specific: use the entity and theme
@@ -499,22 +511,43 @@ class JudgmentSynthesizer:
             )
         else:
             # Convergent case — can decide fully
-            can_decide.append(
-                f"Proceed with the recommended action for {entity} ({key_theme})"
-            )
-            why = (
-                f"Perspectives converge with no blocking unknowns or disagreements "
-                f"about {key_theme}."
-            )
-            # Find the highest-urgency recommended_next_step
-            urgency_order = {"critical": 0, "high": 1, "normal": 2, "low": 3}
-            sorted_persps = sorted(perspectives, key=lambda p: urgency_order.get(p.urgency, 2))
-            for p in sorted_persps:
-                if p.recommended_next_step:
-                    next_step = p.recommended_next_step
-                    break
-            if not next_step:
-                next_step = f"Monitor {key_theme}."
+            # BUT: false decisiveness gate — if <3 evidence items, don't
+            # produce a confident recommendation. This is the specific path
+            # the corrected audit identified as the 33% false-decisiveness risk.
+            if evidence_count < MIN_EVIDENCE_FOR_DECISION:
+                can_decide.append(
+                    f"NOT ENOUGH EVIDENCE TO DECIDE on {key_theme} "
+                    f"({evidence_count} evidence item(s), need {MIN_EVIDENCE_FOR_DECISION}+)"
+                )
+                cannot_decide.append(
+                    f"Make any commitment on {key_theme} until more evidence arrives"
+                )
+                why = (
+                    f"Only {evidence_count} independent evidence item(s) available for {entity}. "
+                    f"Perspectives converge but decisions require at least "
+                    f"{MIN_EVIDENCE_FOR_DECISION} independent sources to avoid false decisiveness."
+                )
+                next_step = (
+                    f"Gather more evidence on {key_theme} before deciding. "
+                    f"Current evidence: {evidence_count}/{MIN_EVIDENCE_FOR_DECISION} required."
+                )
+            else:
+                can_decide.append(
+                    f"Proceed with the recommended action for {entity} ({key_theme})"
+                )
+                why = (
+                    f"Perspectives converge with no blocking unknowns or disagreements "
+                    f"about {key_theme}. {evidence_count} evidence items support this."
+                )
+                # Find the highest-urgency recommended_next_step
+                urgency_order = {"critical": 0, "high": 1, "normal": 2, "low": 3}
+                sorted_persps = sorted(perspectives, key=lambda p: urgency_order.get(p.urgency, 2))
+                for p in sorted_persps:
+                    if p.recommended_next_step:
+                        next_step = p.recommended_next_step
+                        break
+                if not next_step:
+                    next_step = f"Monitor {key_theme}."
 
         return DecisionBoundary(
             can_decide_now=can_decide,
