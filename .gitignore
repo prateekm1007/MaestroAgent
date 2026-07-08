@@ -22,7 +22,8 @@ __pycache__/
 # P-0 fix: these directories contain audit scripts + tool output from the
 # engagement. They're useful locally but should not appear in a fresh clone
 # or a Fortune 100 procurement review.
-scripts/
+# NOTE: scripts/ is NOT ignored — download/MaestroAgent/scripts/pilot_smoke.sh
+# must be tracked as a pilot deliverable.
 tool-results/
 upload/
 maestro-audit/

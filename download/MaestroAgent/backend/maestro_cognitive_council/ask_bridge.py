@@ -469,6 +469,7 @@ class SituationAwareAskBridge:
         """Generate a Situation-centric answer narrative.
 
         The answer:
+          0. Addresses the specific question asked
           1. States the situation and its current state
           2. Summarizes what's known vs. what's reported
           3. Acknowledges unknowns
@@ -476,6 +477,71 @@ class SituationAwareAskBridge:
           5. Includes the decision boundary if available
         """
         lines: list[str] = []
+
+        # Query-specific response: address what was actually asked
+        query = result.query.lower()
+        if "promise" in query or "commit" in query:
+            # Factual recall about commitments
+            commitments = [f for f in result.reported_statements + result.assumptions
+                          if "deliver" in f.get("statement", "").lower() or "commit" in f.get("statement", "").lower()]
+            if commitments:
+                lines.append(f"**Regarding your question about promises to {situation.entity}:**")
+                for c in commitments[:3]:
+                    lines.append(f"  • {c['statement']}")
+                lines.append("")
+            else:
+                lines.append(f"**Regarding your question about promises:**")
+                lines.append(f"Based on the situation for {situation.entity}, the key commitment is: {situation.title}")
+                lines.append("")
+        elif "when" in query and ("meeting" in query or "renewal" in query):
+            # Chronology question about timing
+            meetings = [e for e in situation.timeline if "meeting" in e.description.lower() or "calendar" in e.source.lower()]
+            if meetings:
+                lines.append(f"**Regarding the timing of the {situation.entity} meeting:**")
+                for m in meetings[-2:]:
+                    lines.append(f"  • {m.description} (evidence: {m.evidence_ref})")
+                lines.append("")
+            else:
+                lines.append(f"**Regarding timing:** The situation for {situation.entity} is currently in state: {situation.state.value}.")
+                lines.append("")
+        elif "security" in query or "disagree" in query or "debate" in query:
+            # Disagreement/security question
+            if result.disagreements:
+                lines.append(f"**Regarding disagreements about {situation.entity}:**")
+                for d in result.disagreements[:3]:
+                    lines.append(f"  • {d.get('topic', 'Unknown')}: {d.get('position_a', '')} vs. {d.get('position_b', '')}")
+                lines.append("")
+            elif result.blocking_unknowns:
+                lines.append(f"**Regarding unresolved issues for {situation.entity}:**")
+                for u in result.blocking_unknowns:
+                    lines.append(f"  • {u}")
+                lines.append("")
+            else:
+                lines.append(f"**Regarding your question about {situation.entity}:**")
+                lines.append(f"The situation is in state: {situation.state.value}, epistemic: {situation.epistemic_state.value}.")
+                lines.append("")
+        elif "should" in query or "proceed" in query or "decision" in query or "judgment" in query or "prepare" in query:
+            # Decision support question
+            lines.append(f"**Regarding your decision on {situation.entity}:**")
+            if result.judgment and hasattr(result.judgment, 'decision_boundary') and result.judgment.decision_boundary:
+                db = result.judgment.decision_boundary
+                lines.append(f"  Can decide now: {', '.join(db.can_decide_now[:2])}")
+                lines.append(f"  Cannot decide yet: {', '.join(db.cannot_decide_yet[:2])}")
+            elif result.blocking_unknowns:
+                lines.append(f"  Blocking unknowns must be resolved first: {'; '.join(result.blocking_unknowns[:2])}")
+            else:
+                lines.append(f"  The situation is in state: {situation.state.value}.")
+            lines.append("")
+        elif "changed" in query or "new" in query or "since" in query:
+            # Chronology/what changed question
+            lines.append(f"**Recent changes for {situation.entity}:**")
+            for e in situation.timeline[-3:]:
+                lines.append(f"  • {e.description} ({e.timestamp.isoformat() if hasattr(e.timestamp, 'isoformat') else e.timestamp})")
+            lines.append("")
+        else:
+            # Generic: full situation summary
+            lines.append(f"**Regarding: {result.query}**")
+            lines.append("")
 
         # Situation summary
         lines.append(f"**{situation.title}**")

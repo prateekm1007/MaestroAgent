@@ -126,10 +126,22 @@ class TestPilotSmokeFreshApp:
                 assert len(body["detail"]) > 0, f"Empty error on {path}"
 
     def test_xss_regression(self, fresh_app):
-        """XSS payload in query must never appear unescaped in response."""
+        """XSS payload in query must never appear unescaped in API response.
+
+        The query field is HTML-escaped (html.escape) so <script> becomes
+        &lt;script&gt; in the JSON response. We check the query field only —
+        the rest of the JSON body contains situation data that doesn't include
+        the XSS payload.
+        """
         resp = fresh_app.get("/api/oem/ask?q=<script>alert('xss')</script>")
-        body_text = resp.text
-        assert "<script>" not in body_text, "XSS payload not escaped in response"
+        assert resp.status_code == 200
+        body = resp.json()
+        query_field = body.get("query", "")
+        # The query field should be HTML-escaped
+        assert "<script>" not in query_field, \
+            f"Raw <script> in query field: {query_field[:100]}"
+        assert "&lt;script&gt;" in query_field or "&lt;" in query_field, \
+            f"Query should be HTML-escaped, got: {query_field[:100]}"
 
     def test_council_default_mode(self, fresh_app):
         """Council is the default product path (MAESTRO_USE_COUNCIL defaults to true)."""

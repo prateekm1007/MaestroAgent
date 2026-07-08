@@ -1,0 +1,164 @@
+{
+  "total_call_sites": 17,
+  "by_surface": {
+    "ask": 4,
+    "preparation": 7,
+    "whisper": 1,
+    "briefing": 5
+  },
+  "call_sites": [
+    {
+      "id": "cs-000",
+      "file": "static/js/ask.js",
+      "line": 174,
+      "call_type": "direct_fetch",
+      "path": "/ask/conversation",
+      "surface": "ask",
+      "full_line": "const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {"
+    },
+    {
+      "id": "cs-001",
+      "file": "static/js/ask_v2.js",
+      "line": 55,
+      "call_type": "direct_fetch",
+      "path": "/preparation/tomorrow",
+      "surface": "preparation",
+      "full_line": "fetch((MAESTRO_API || '') + '/api/oem/preparation/tomorrow').then(r => r.ok ? r.json() : null).catch(() => null),"
+    },
+    {
+      "id": "cs-002",
+      "file": "static/js/ask_v2.js",
+      "line": 56,
+      "call_type": "direct_fetch",
+      "path": "/whisper",
+      "surface": "whisper",
+      "full_line": "fetch((MAESTRO_API || '') + '/api/oem/whisper?context=meeting').then(r => r.ok ? r.json() : null).catch(() => null),"
+    },
+    {
+      "id": "cs-003",
+      "file": "static/js/ask_v2.js",
+      "line": 240,
+      "call_type": "direct_fetch",
+      "path": "/ask/conversation",
+      "surface": "ask",
+      "full_line": "const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {"
+    },
+    {
+      "id": "cs-004",
+      "file": "static/js/canvas.js",
+      "line": 14,
+      "call_type": "api_getOEM",
+      "path": "/ceo-briefing",
+      "surface": "briefing",
+      "full_line": "const briefing = await api.getOEM('/ceo-briefing');"
+    },
+    {
+      "id": "cs-005",
+      "file": "static/js/home_core.js",
+      "line": 47,
+      "call_type": "api_getOEM",
+      "path": "/ceo-briefing",
+      "surface": "briefing",
+      "full_line": "const briefing = await api.getOEM('/ceo-briefing');"
+    },
+    {
+      "id": "cs-006",
+      "file": "static/js/home_core.js",
+      "line": 402,
+      "call_type": "direct_fetch",
+      "path": "/ask/conversation",
+      "surface": "ask",
+      "full_line": "const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {"
+    },
+    {
+      "id": "cs-007",
+      "file": "static/js/intent_cascade.js",
+      "line": 283,
+      "call_type": "api_postOEM",
+      "path": "/preparations/${prepId}/approve?approved_by=ceo",
+      "surface": "preparation",
+      "full_line": "await api.postOEM(`/preparations/${prepId}/approve?approved_by=ceo`);"
+    },
+    {
+      "id": "cs-008",
+      "file": "static/js/intent_cascade.js",
+      "line": 298,
+      "call_type": "api_postOEM",
+      "path": "/preparations/${prepId}/approve?approved_by=ceo-rejected",
+      "surface": "preparation",
+      "full_line": "await api.postOEM(`/preparations/${prepId}/approve?approved_by=ceo-rejected`);"
+    },
+    {
+      "id": "cs-009",
+      "file": "static/js/org_dot.js",
+      "line": 59,
+      "call_type": "api_getOEM",
+      "path": "/ceo-briefing",
+      "surface": "briefing",
+      "full_line": "api.getOEM('/ceo-briefing'),"
+    },
+    {
+      "id": "cs-010",
+      "file": "static/js/prepared_decisions.js",
+      "line": 25,
+      "call_type": "api_getOEM",
+      "path": "/preparations",
+      "surface": "preparation",
+      "full_line": "const data = await api.getOEM('/preparations');"
+    },
+    {
+      "id": "cs-011",
+      "file": "static/js/prepared_decisions.js",
+      "line": 94,
+      "call_type": "api_postOEM",
+      "path": "/preparations/${prepId}/approve?approved_by=ceo",
+      "surface": "preparation",
+      "full_line": "await api.postOEM(`/preparations/${prepId}/approve?approved_by=ceo`);"
+    },
+    {
+      "id": "cs-012",
+      "file": "static/js/prepared_decisions.js",
+      "line": 105,
+      "call_type": "api_postOEM",
+      "path": "/preparations/${prepId}/reject",
+      "surface": "preparation",
+      "full_line": "await api.postOEM(`/preparations/${prepId}/reject`);"
+    },
+    {
+      "id": "cs-013",
+      "file": "static/js/today.js",
+      "line": 33,
+      "call_type": "api_getOEM",
+      "path": "/ceo-briefing",
+      "surface": "briefing",
+      "full_line": "api.getOEM('/ceo-briefing'),"
+    },
+    {
+      "id": "cs-014",
+      "file": "static/js/today.js",
+      "line": 1349,
+      "call_type": "direct_fetch",
+      "path": "/preparation/tomorrow",
+      "surface": "preparation",
+      "full_line": "const resp = await fetch((MAESTRO_API || '') + '/api/oem/preparation/tomorrow');"
+    },
+    {
+      "id": "cs-015",
+      "file": "static/js/today.js",
+      "line": 1421,
+      "call_type": "direct_fetch",
+      "path": "/ask/conversation",
+      "surface": "ask",
+      "full_line": "const resp = await fetch((MAESTRO_API || '') + '/api/oem/ask/conversation', {"
+    },
+    {
+      "id": "cs-016",
+      "file": "static/js/work.js",
+      "line": 37,
+      "call_type": "api_getOEM",
+      "path": "/ceo-briefing",
+      "surface": "briefing",
+      "full_line": "api.getOEM('/ceo-briefing'),"
+    }
+  ]
+}
