@@ -1334,6 +1334,51 @@ class SituationEngine:
                 triggering_evidence_ref=getattr(signals[-1], "signal_id", None),
             )
 
+        # Engine Fix 4 (C12): Auto-disagreement detection from conflicting concerns.
+        # Per external reviewer: 'The engine collapses disagreement into false
+        # consensus when no explicit disagreement token is present.' When 2+
+        # different function concerns are present (engineering.concern +
+        # security.concern + legal.concern + sales.concern), the engine must
+        # auto-create a Disagreement and set the DISPUTED side state. This
+        # preserves cross-functional nuance instead of collapsing it.
+        concern_map = {
+            "engineering": "Engineering",
+            "security": "Security",
+            "legal": "Legal",
+            "sales": "Sales",
+            "customer_success": "Customer Success",
+        }
+        detected_concerns: dict[str, str] = {}  # function → signal text
+        for sig in signals:
+            sig_type = _sig_type_str(sig)
+            sig_text = (getattr(sig, "text", "") or "").lower()
+            for func_key, func_name in concern_map.items():
+                if f"{func_key}.concern" in sig_type or f"{func_key}." in sig_type:
+                    if func_key not in detected_concerns:
+                        detected_concerns[func_key] = sig_text[:100]
+                    break
+
+        if len(detected_concerns) >= 2:
+            # Auto-create a disagreement preserving the cross-functional positions
+            concern_items = list(detected_concerns.items())
+            func_a, text_a = concern_items[0]
+            func_b, text_b = concern_items[1]
+            disagreement = Disagreement(
+                topic=f"Cross-functional disagreement: {concern_map[func_a]} vs {concern_map[func_b]}",
+                position_a=text_a or f"{concern_map[func_a]} concern",
+                position_b=text_b or f"{concern_map[func_b]} concern",
+                specialist_a=func_a,
+                specialist_b=func_b,
+                unresolved=True,
+            )
+            situation.add_disagreement(disagreement)
+            if not situation.has_side_state(SideState.DISPUTED):
+                situation.add_side_state(SideState.DISPUTED)
+            logger.info(
+                "C12 FIX: Auto-detected disagreement between %s and %s for situation %s",
+                concern_map[func_a], concern_map[func_b], situation.situation_id,
+            )
+
     # ── Continuous state transition (the biggest missing capability) ────────
 
     def apply_signal(self, situation: LivingSituation, signal: Any) -> SituationDelta:
