@@ -431,14 +431,17 @@ class GovernanceActionRequest(BaseModel):
 
 
 @router.post("/governance/action")
-@auth_policy(AuthPolicy.USER)
+@auth_policy(AuthPolicy.ADMIN)
 async def council_governance_action(
     req: GovernanceActionRequest,
     user: dict = Depends(_require_user_if_auth_enabled),
 ) -> dict[str, Any]:
     """N2: Take a governance action on a pattern.
 
-    Operators can review, override, suspend, or falsify any pattern.
+    N1 FIX (delta audit): Changed from AuthPolicy.USER to AuthPolicy.ADMIN.
+    Per audit: "Any authenticated user can falsify/suspend/promote patterns.
+    Change to AuthPolicy.ADMIN before pilot."
+    Only admins can take governance actions (promote/suspend/falsify/etc).
     Every action is auditable.
     """
     try:

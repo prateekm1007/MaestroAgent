@@ -286,7 +286,7 @@ class TestCouncilRouteAuth:
     """All council routes have auth (F4 lesson applied)."""
 
     def test_council_routes_have_auth_policy(self):
-        """Every /api/council/ route has @auth_policy(USER)."""
+        """Every /api/council/ route has @auth_policy (USER or ADMIN)."""
         from maestro_api.security.policy import get_route_policy, AuthPolicy
         from maestro_api.routes.council import router
 
@@ -295,8 +295,9 @@ class TestCouncilRouteAuth:
             assert policy is not None, (
                 f"Route {route.path} missing @auth_policy"
             )
-            assert policy == AuthPolicy.USER, (
-                f"Route {route.path} has policy {policy}, expected USER"
+            # N1 fix: governance/action is ADMIN, all others are USER
+            assert policy in (AuthPolicy.USER, AuthPolicy.ADMIN), (
+                f"Route {route.path} has policy {policy}, expected USER or ADMIN"
             )
 
     def test_council_routes_have_auth_dependency(self):
