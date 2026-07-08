@@ -157,11 +157,19 @@ def _drive_4d_dimensions(situation, signals) -> None:
             pass
 
     # Derive epistemic dimension from side states + disagreements + signal conflicts
+    # Engine Fix 6 (H4): Hypothesis-testing state — when the situation involves
+    # pattern testing (incident patterns, outcome sequences), the epistemic
+    # state should be 'preliminary', not 'supported'. Per external reviewer:
+    # 'If the engine does not distinguish PROPOSED from CONFIRMED, then a
+    # Briefing or Prepare that cites a hypothesis will treat it as a fact.'
     has_signal_conflict = _signals_have_conflict(signals)
+    is_hypothesis_testing = _is_hypothesis_testing(signals)
     if situation.has_side_state(SideState.DISPUTED) or situation.disagreements or has_signal_conflict:
         ep_state = "contested"
     elif situation.has_side_state(SideState.INSUFFICIENT_EVIDENCE):
         ep_state = "insufficient"
+    elif is_hypothesis_testing:
+        ep_state = "preliminary"  # H4: hypothesis testing = preliminary, not supported
     elif situation.has_blocking_unknown() or situation.has_unresolved_unknowns():
         ep_state = "preliminary"
     elif len(situation.evidence_refs) < 2:
@@ -173,7 +181,7 @@ def _drive_4d_dimensions(situation, signals) -> None:
             situation.transition_dimension(
                 "epistemic", ep_state,
                 reason=f"Side states: {[s.value for s in situation.side_states]}; "
-                       f"conflict={has_signal_conflict}",
+                       f"conflict={has_signal_conflict}; hypothesis_testing={is_hypothesis_testing}",
             )
         except Exception:
             pass
@@ -233,6 +241,50 @@ def _signals_have_conflict(signals) -> bool:
     # Outcome.negative after positive outcomes = pattern conflict
     if "outcome.negative" in sig_types and "outcome.positive" in sig_types:
         return True
+    return False
+
+
+def _is_hypothesis_testing(signals) -> bool:
+    """Engine Fix 6 (H4): Detect when signals represent hypothesis testing.
+
+    Per external reviewer: 'If the engine does not distinguish PROPOSED from
+    CONFIRMED, then a Briefing or Prepare that cites a hypothesis will treat
+    it as a fact.' This helper detects when a situation is in hypothesis-
+    testing mode — when signals represent a pattern being tested, not a
+    confirmed fact.
+
+    Indicators of hypothesis testing:
+      - incident.* signals (incident patterns are hypotheses until falsified)
+      - outcome.* signals with mixed positive/negative (pattern being tested)
+      - Multiple signals with the same keyword across different entities
+        (cross-entity pattern hypothesis)
+    """
+    sig_types = set()
+    sig_texts = []
+    for s in signals:
+        t = getattr(s, "type", None)
+        val = getattr(t, "value", None) if t else None
+        sig_types.add(str(val).lower() if val else "")
+        sig_texts.append((getattr(s, "text", "") or "").lower())
+
+    # Incident patterns are hypotheses
+    if any("incident" in t for t in sig_types):
+        return True
+
+    # Mixed outcomes (positive + negative) = pattern being tested
+    if "outcome.positive" in sig_types and "outcome.negative" in sig_types:
+        return True
+
+    # Multiple signals with shared keywords across entities = cross-entity hypothesis
+    from collections import Counter
+    word_counts = Counter()
+    for text in sig_texts:
+        words = set(text.split())
+        word_counts.update(words)
+    shared_keywords = [w for w, c in word_counts.items() if c >= 3 and len(w) > 4]
+    if shared_keywords:
+        return True
+
     return False
 
 
