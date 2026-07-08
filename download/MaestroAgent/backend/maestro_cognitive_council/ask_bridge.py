@@ -65,6 +65,7 @@ class AskResult:
     situation_title: str = ""
     situation_state: str = ""
     epistemic_state: str = ""
+    entity: str = ""
 
     # Chronology (from Situation timeline)
     chronology: list[dict] = field(default_factory=list)
@@ -102,6 +103,7 @@ class AskResult:
             "situation_title": self.situation_title,
             "situation_state": self.situation_state,
             "epistemic_state": self.epistemic_state,
+            "entity": self.entity,
             "chronology": self.chronology,
             "known_facts": self.known_facts,
             "reported_statements": self.reported_statements,
@@ -201,6 +203,7 @@ class SituationAwareAskBridge:
         result.situation_title = situation.title
         result.situation_state = situation.state.value
         result.epistemic_state = situation.epistemic_state.value
+        result.entity = situation.entity
 
         # 5. Reconstruct chronology
         result.chronology = self._reconstruct_chronology(situation)
