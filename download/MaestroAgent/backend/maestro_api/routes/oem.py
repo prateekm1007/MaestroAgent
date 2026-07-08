@@ -630,7 +630,7 @@ async def ask(
             from maestro_cognitive_council import SituationAwareAskBridge
             oem_state_council = get_oem_for_request(request)
             bridge = SituationAwareAskBridge(oem_state=oem_state_council)
-            result = bridge.ask(q, org_id="default")
+            result = bridge.ask(q_sanitized, org_id="default")
             d = result.to_dict()
             # Blocker 4: sanitize the query field in the response to prevent XSS
             d["query"] = q_sanitized
