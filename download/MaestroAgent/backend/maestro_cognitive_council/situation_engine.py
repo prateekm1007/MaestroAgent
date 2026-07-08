@@ -1014,7 +1014,18 @@ class SituationEngine:
         refs (evidence_refs, commitment_refs, meeting_refs) that point
         back to the OEM source of record.
         """
-        situation_id = f"sit-{entity.lower().replace(' ', '-')}-{uuid4().hex[:8]}"
+        # Engine Fix 1 (C9): Stable situation_id via deterministic hash.
+        # Per external reviewer: 'situation_id is not stable across duplicate
+        # reports of one event, renames, or corrections.' The prior uuid4()
+        # approach meant each engine instance generated a new ID for the same
+        # logical situation. Now we derive the ID from a hash of (entity, org_id)
+        # so two engines processing the same entity produce the same ID.
+        # This enables cross-surface coherence (Ask/Briefing/Prepare agree),
+        # duplicate-lineage suppression, and tombstone enforcement at the row level.
+        import hashlib
+        id_source = f"{entity.lower()}:{org_id.lower()}"
+        id_hash = hashlib.sha256(id_source.encode()).hexdigest()[:12]
+        situation_id = f"sit-{entity.lower().replace(' ', '-')}-{id_hash}"
         title = self._derive_title(entity, entity_signals)
 
         # Start in OBSERVING (first creation — DETECTED is conceptual)
