@@ -174,6 +174,7 @@ class SituationAwareAskBridge:
 
         # 1. Detect the entity from the query
         entity = self._detect_entity(query)
+        entity_explicitly_named = entity is not None  # track for fallback safety
         if not entity:
             # No entity detected — try to detect from all signals
             entity = self._detect_entity_from_signals(org_id)
@@ -206,8 +207,23 @@ class SituationAwareAskBridge:
         # 3. Find the relevant Situation for this entity
         situation = self._find_situation_for_entity(situations, entity)
         if not situation:
-            result.answer = f"No active situation found for {entity}."
-            return result
+            # Condition 2 fix (corrected audit): when no situation exists for
+            # the detected entity, fall back to the most relevant situation
+            # across ALL entities — BUT ONLY if the entity was auto-detected
+            # (not explicitly named in the query). This ensures:
+            #   - Cross-surface coherence (Ask returns same sit as Briefing)
+            #   - Tenant isolation (explicit entity queries don't leak across)
+            # If the user explicitly asked about EntityA and EntityA has no
+            # situation, we return "not found" — we do NOT return EntityB.
+            if not entity_explicitly_named and situations:
+                situation = situations[0]  # already sorted by update recency
+                logger.info(
+                    "Ask fallback: no situation for auto-detected entity '%s', using top situation '%s' (entity='%s')",
+                    entity, situation.situation_id, situation.entity,
+                )
+            else:
+                result.answer = f"No active situation found for {entity}."
+                return result
 
         # 4. Populate the result from the Situation
         result.found_situation = True

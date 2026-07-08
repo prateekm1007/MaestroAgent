@@ -111,16 +111,21 @@ def run_coherence_for_story(story) -> dict:
             "details": {},
         }
 
-    # Pick the primary-entity situation
+    # Pick the primary-entity situation — prefer the entity that actually
+    # has a situation (may differ from story.signals[0].entity when the
+    # first signal's entity has too few signals to create a situation)
     primary_entity = story.signals[0].entity if story.signals else ""
     situation = next(
         (s for s in situations if s.entity == primary_entity),
         situations[0],
     )
+    # Use the situation's entity for the Ask query (not the first signal's
+    # entity) so Ask finds the same situation Briefing/Prepare found.
+    query_entity = situation.entity if situation else primary_entity
 
     # Run Ask
     ask_bridge = SituationAwareAskBridge(oem_state=oem)
-    ask_result = ask_bridge.ask(f"What's happening with {primary_entity}?")
+    ask_result = ask_bridge.ask(f"What's happening with {query_entity}?")
 
     # Run Briefing
     briefing_engine = SituationBriefingEngine(oem_state=oem)
