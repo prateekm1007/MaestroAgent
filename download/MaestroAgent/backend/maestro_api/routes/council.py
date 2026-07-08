@@ -46,6 +46,21 @@ def _get_situation_store():
     return _situation_store
 
 
+def _ensure_oem_initialized():
+    """Blocker 2 fix: Ensure OEM state is initialized before council routes use it.
+
+    Per CEO directive: council routes must self-initialize without requiring
+    a prior OEM route call. The OEM state lazy-initializes on first access
+    to .signals or .model — but council routes access these directly without
+    triggering initialization. This function forces initialization.
+    """
+    from maestro_api.oem_state import oem_state
+    if not oem_state._initialized:
+        logger.info("Council cold-start: initializing OEM state (no warmup required)")
+        oem_state.initialize()
+    return oem_state
+
+
 def _require_user_if_auth_enabled(request: Request) -> dict[str, Any]:
     """Auth dependency that's bypassed in local dev mode."""
     from maestro_auth.permissions import is_auth_enabled, current_user
@@ -123,7 +138,7 @@ async def council_ask(
     """
     try:
         from maestro_cognitive_council import SituationAwareAskBridge, SituationEngine
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org_id = req.org_id or user.get("org_id", "default")
 
@@ -212,7 +227,7 @@ async def council_briefing(
     """
     try:
         from maestro_cognitive_council import SituationBriefingEngine
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org_id = req.org_id or user.get("org_id", "default")
         user_email = req.user_email or user.get("email", "")
@@ -272,7 +287,7 @@ async def council_prepare(
     """
     try:
         from maestro_cognitive_council import SituationPreparationBridge, SituationEngine
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org_id = req.org_id or user.get("org_id", "default")
         engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
@@ -333,7 +348,7 @@ async def council_whisper(
         from maestro_cognitive_council import (
             WhisperSituationBridge, SituationEngine, UserContext,
         )
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org_id = req.org_id or user.get("org_id", "default")
         engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
@@ -396,7 +411,7 @@ async def council_copilot_pre_call(
     """
     try:
         from maestro_cognitive_council import CopilotSituationBridge
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org_id = req.org_id or user.get("org_id", "default")
         user_email = req.user_email or user.get("email", "")
@@ -435,7 +450,7 @@ async def council_copilot_post_call(
     """
     try:
         from maestro_cognitive_council import CopilotSituationBridge, SituationEngine
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org_id = req.org_id or user.get("org_id", "default")
         engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
@@ -467,7 +482,7 @@ async def council_situations(
     """List all active situations for the org."""
     try:
         from maestro_cognitive_council import SituationEngine
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org = org_id or user.get("org_id", "default")
         engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
@@ -491,7 +506,7 @@ async def council_get_situation(
     """Get a specific situation by ID."""
     try:
         from maestro_cognitive_council import SituationEngine
-        from maestro_api.oem_state import oem_state
+        oem_state = _ensure_oem_initialized()
 
         org = org_id or user.get("org_id", "default")
         engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
@@ -611,7 +626,7 @@ async def council_governance_patterns(
         surface = _get_governance_surface()
         # Get candidate store from app state
         try:
-            from maestro_api.oem_state import oem_state
+            oem_state = _ensure_oem_initialized()
             candidate_store = getattr(oem_state, "_candidate_pattern_store", None)
         except ImportError:
             candidate_store = None

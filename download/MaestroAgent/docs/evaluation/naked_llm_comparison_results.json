@@ -1,0 +1,356 @@
+{
+  "executed_at": "2026-07-08T16:59:26.064679+00:00",
+  "llm_provider": "none",
+  "llm_model": "none",
+  "maestro_total": 200,
+  "llm_total": 0,
+  "maestro_wins": 0,
+  "llm_wins": 0,
+  "ties": 0,
+  "dimension_advantages": {
+    "factual_accuracy": {
+      "maestro_avg": 3.0,
+      "llm_avg": 0.0,
+      "advantage": "maestro"
+    },
+    "evidence_traceability": {
+      "maestro_avg": 3.0,
+      "llm_avg": 0.0,
+      "advantage": "maestro"
+    },
+    "uncertainty_honesty": {
+      "maestro_avg": 2.0,
+      "llm_avg": 0.0,
+      "advantage": "maestro"
+    },
+    "intervention_restraint": {
+      "maestro_avg": 2.0,
+      "llm_avg": 0.0,
+      "advantage": "maestro"
+    }
+  },
+  "protocol_total_possible": 240,
+  "maestro_results": [
+    {
+      "query_id": "Q01",
+      "query": "What did we promise CustomerA?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q02",
+      "query": "When is the Globex renewal meeting?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q03",
+      "query": "What did Security say about the OAuth migration?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q04",
+      "query": "What's the status of the Friday deployment pattern?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q05",
+      "query": "Who is the expert on the SSO integration?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q06",
+      "query": "What changed since yesterday?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q07",
+      "query": "What's new with the CustomerA renewal since last week?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q08",
+      "query": "How did the security approval situation evolve?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q09",
+      "query": "What was the sequence of events leading to the pricing exception?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q10",
+      "query": "When did we first learn about the customer's production access requirement?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q11",
+      "query": "Who disagrees about the pricing strategy?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q12",
+      "query": "What's the debate around the OAuth migration timing?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q13",
+      "query": "Where do Engineering and Security disagree on the SSO approach?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q14",
+      "query": "What are the different positions on the Friday deployment pattern?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q15",
+      "query": "What does Legal think about the contract ambiguity that Sales doesn't?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q16",
+      "query": "Should we proceed with the phased OAuth migration?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q17",
+      "query": "What decision only I can make this week?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q18",
+      "query": "What should I prepare for the CustomerA renewal meeting?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q19",
+      "query": "Is now the right time to expand the pricing exception to BetaCo?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    },
+    {
+      "query_id": "Q20",
+      "query": "What's the one thing that needs my judgment today?",
+      "system": "maestro",
+      "response": "**CustomerA: Deliver SSO by Friday**\nState: material | Epistemic: disputed\n\n**What's been reported (not yet verified):**\n  \u2022 Security approval required\n  \u2022 SSO implementation complete\n  \u2022 Renewal meeting tomorrow\n\n**Assumptions (decisions depend on these):**\n  \u2022 Deliver SSO by Friday\n\n**What we don't know yet (blocking):**\n  \u2022 Was the security condition for CustomerA cleared?\n\n**What you can decide now:**\n  \u2022 Proceed with the general direction for CustomerA (CustomerA: Deliver SSO by)\n\n**What cannot yet be decided:**\n  \u2022 Commit to specific commitments or deadlines for CustomerA: Deliver SSO by\n  Why: 2 blocking unknown(s) remain unresolved for CustomerA. Decisions that depend on these unknowns cannot be finalized.\n  Smallest useful next step: Resolve the blocking unknown(s) before deciding on CustomerA: Deliver SSO by: Was the security condition for CustomerA cleared?; Was the commitment to CustomerA fulfilled?\n\n**Evidence:** 4 source(s) referenced",
+      "evidence_cited": 4,
+      "unknowns_acknowledged": 1,
+      "recommendations_made": 0,
+      "scores": {
+        "factual_accuracy": 3,
+        "evidence_traceability": 3,
+        "uncertainty_honesty": 2,
+        "intervention_restraint": 2
+      },
+      "score_total": 10
+    }
+  ],
+  "llm_results": []
+}

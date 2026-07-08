@@ -47,11 +47,14 @@ def _serve_app_html_with_flags(app_html_path) -> "HTMLResponse":
     HTML <head> so the frontend's council-router.js can read it.
 
     Flag values:
-      - MAESTRO_USE_COUNCIL=true  → Council routes (with adapters + guards)
-      - MAESTRO_USE_COUNCIL=false (default) → Legacy /api/oem/* routes
+      - MAESTRO_USE_COUNCIL=true (default) → Council routes (with adapters + guards)
+      - MAESTRO_USE_COUNCIL=false → Legacy /api/oem/* routes (opt-out)
+
+    Per CEO directive: council is the DEFAULT product path. Legacy routes
+    remain for backward compatibility but the frontend defaults to council.
     """
     from fastapi.responses import HTMLResponse
-    use_council = os.environ.get("MAESTRO_USE_COUNCIL", "false").lower() == "true"
+    use_council = os.environ.get("MAESTRO_USE_COUNCIL", "true").lower() == "true"
     try:
         html = app_html_path.read_text()
     except Exception:
