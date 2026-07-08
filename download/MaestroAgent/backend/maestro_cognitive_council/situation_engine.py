@@ -828,9 +828,10 @@ class SituationEngine:
                 print(f"Transition: {delta.transition.reason}")
     """
 
-    def __init__(self, oem_state: Any = None):
+    def __init__(self, oem_state: Any = None, situation_store: Any = None):
         self._oem_state = oem_state
         self._situations: dict[str, LivingSituation] = {}
+        self._situation_store = situation_store  # Persistent store (SQLite)
 
     @property
     def oem_state(self) -> Any:
@@ -878,13 +879,121 @@ class SituationEngine:
         for entity, entity_signals in entities.items():
             if len(entity_signals) < 2:
                 continue
-            situation = self._build_situation(entity, entity_signals, org_id)
+            # PERSISTENCE: check if a situation already exists for this entity
+            existing = None
+            if self._situation_store:
+                existing = self._situation_store.load_situation(entity, org_id)
+
+            if existing:
+                # EVOLVE: update the existing situation with new signals (delta-driven)
+                situation = self._evolve_situation(existing, entity, entity_signals, org_id)
+            else:
+                # CREATE: build a new situation from scratch
+                situation = self._build_situation(entity, entity_signals, org_id)
+
             if situation:
                 self._situations[situation.situation_id] = situation
+                # PERSIST: save the situation to the store
+                if self._situation_store:
+                    self._situation_store.save_situation(situation)
                 situations.append(situation)
 
         situations.sort(key=lambda s: s.updated_at, reverse=True)
         return situations
+
+    def _evolve_situation(
+        self,
+        existing_data: dict,
+        entity: str,
+        entity_signals: list,
+        org_id: str,
+    ) -> Optional[LivingSituation]:
+        """Evolve an existing situation with new signals (delta-driven).
+
+        Instead of rebuilding from the full corpus, this:
+          1. Reconstructs the LivingSituation from the stored data
+          2. Checks for new signals not already in evidence_refs
+          3. Applies only the new signals via apply_signal() (delta-driven)
+          4. Returns the evolved situation
+
+        This is the "over time" coherence the audit demands.
+        """
+        # Reconstruct the LivingSituation from stored data
+        situation = LivingSituation(
+            situation_id=existing_data.get("situation_id", ""),
+            title=existing_data.get("title", f"{entity} situation"),
+            entity=entity,
+            org_id=org_id,
+            state=SituationState(existing_data.get("state", "observing")),
+            epistemic_state=EpistemicState(existing_data.get("epistemic_state", "unknown")),
+        )
+
+        # Restore evidence_refs
+        existing_refs = set(existing_data.get("evidence_refs", []))
+        situation.evidence_refs = list(existing_refs)
+
+        # Restore commitment_refs
+        situation.commitment_refs = existing_data.get("commitment_refs", [])
+        situation.decision_refs = existing_data.get("decision_refs", [])
+        situation.meeting_refs = existing_data.get("meeting_refs", [])
+
+        # Restore timeline
+        for tl in existing_data.get("timeline", []):
+            ts_str = tl.get("timestamp", "")
+            try:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                ts = datetime.now(timezone.utc)
+            situation.timeline.append(TimelineEvent(
+                timestamp=ts,
+                description=tl.get("description", ""),
+                event_type=tl.get("event_type", "observed"),
+                evidence_ref=tl.get("evidence_ref"),
+                source=tl.get("source", ""),
+            ))
+
+        # Restore known_facts
+        for kf in existing_data.get("known_facts", []):
+            situation.known_facts.append(KnownFact(
+                statement=kf.get("statement", ""),
+                evidence_refs=kf.get("evidence_refs", []),
+                epistemic_state=EpistemicState(kf.get("epistemic_state", "reported")),
+                source=kf.get("source", ""),
+            ))
+
+        # Restore unknowns
+        for u in existing_data.get("unknowns", []):
+            situation.unknowns.append(Unknown(
+                question=u.get("question", ""),
+                why_it_matters=u.get("why_it_matters", ""),
+                blocking=u.get("blocking", False),
+                specialists_flagged=u.get("specialists_flagged", []),
+                resolved=u.get("resolved", False),
+                resolved_by_evidence_ref=u.get("resolved_by_evidence_ref"),
+            ))
+
+        # Restore material_changes
+        situation.material_changes = existing_data.get("material_changes", [])
+
+        # Find NEW signals not already in evidence_refs
+        new_signals = []
+        for sig in entity_signals:
+            sig_id = getattr(sig, "signal_id", "") or str(id(sig))
+            if sig_id not in existing_refs:
+                new_signals.append(sig)
+
+        # Apply only new signals (delta-driven evolution)
+        for sig in new_signals:
+            self.apply_signal(situation, sig)
+
+        # Re-evaluate state transitions based on new signals
+        if new_signals:
+            self._evaluate_initial_transitions(situation, entity_signals)
+
+        # Update relevant_specialists
+        situation.relevant_specialists = self.route_specialists(situation)
+
+        return situation
 
     def _build_situation(
         self,

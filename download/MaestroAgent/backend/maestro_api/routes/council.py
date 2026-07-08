@@ -19,6 +19,7 @@ All routes require USER auth (Depends(require_user)) + @auth_policy.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -30,6 +31,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/council", tags=["cognitive-council"])
 set_router_policy(router, AuthPolicy.USER)
+
+# Persistent Situation Store — survives across requests (fixes audit finding:
+# "No persistent Situation store — rebuilds per request")
+_situation_store = None
+
+def _get_situation_store():
+    global _situation_store
+    if _situation_store is None:
+        from maestro_cognitive_council import SituationStore
+        db_path = os.environ.get("MAESTRO_SITUATION_DB", "situations.db")
+        _situation_store = SituationStore(db_path=db_path)
+        logger.info("SituationStore initialized (db=%s)", db_path)
+    return _situation_store
 
 
 def _require_user_if_auth_enabled(request: Request) -> dict[str, Any]:
@@ -77,10 +91,13 @@ async def council_ask(
       7. Cites evidence by reference
     """
     try:
-        from maestro_cognitive_council import SituationAwareAskBridge
+        from maestro_cognitive_council import SituationAwareAskBridge, SituationEngine
         from maestro_api.oem_state import oem_state
 
         org_id = req.org_id or user.get("org_id", "default")
+        store = _get_situation_store()
+        engine = SituationEngine(oem_state=oem_state, situation_store=store)
+        engine.detect_situations(org_id)
         bridge = SituationAwareAskBridge(oem_state=oem_state)
         result = bridge.ask(req.query, org_id=org_id)
         return result.to_dict()
@@ -163,7 +180,7 @@ async def council_prepare(
         from maestro_api.oem_state import oem_state
 
         org_id = req.org_id or user.get("org_id", "default")
-        engine = SituationEngine(oem_state=oem_state)
+        engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
         engine.detect_situations(org_id)
         bridge = SituationPreparationBridge(oem_state=oem_state, situation_engine=engine)
 
@@ -216,7 +233,7 @@ async def council_whisper(
         from maestro_api.oem_state import oem_state
 
         org_id = req.org_id or user.get("org_id", "default")
-        engine = SituationEngine(oem_state=oem_state)
+        engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
         situations = engine.detect_situations(org_id)
 
         # Find situation for the requested entity
@@ -318,7 +335,7 @@ async def council_copilot_post_call(
         from maestro_api.oem_state import oem_state
 
         org_id = req.org_id or user.get("org_id", "default")
-        engine = SituationEngine(oem_state=oem_state)
+        engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
         engine.detect_situations(org_id)
         bridge = CopilotSituationBridge(oem_state=oem_state, situation_engine=engine)
 
@@ -350,7 +367,7 @@ async def council_situations(
         from maestro_api.oem_state import oem_state
 
         org = org_id or user.get("org_id", "default")
-        engine = SituationEngine(oem_state=oem_state)
+        engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
         situations = engine.detect_situations(org)
         return {
             "situations": [s.to_dict() for s in situations],
@@ -374,7 +391,7 @@ async def council_get_situation(
         from maestro_api.oem_state import oem_state
 
         org = org_id or user.get("org_id", "default")
-        engine = SituationEngine(oem_state=oem_state)
+        engine = SituationEngine(oem_state=oem_state, situation_store=_get_situation_store())
         engine.detect_situations(org)
         situation = engine.get_situation(situation_id)
         if not situation:

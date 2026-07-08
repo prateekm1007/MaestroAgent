@@ -59,6 +59,7 @@ from .whisper_bridge import WhisperSituationBridge, WhisperResult, SituationWhis
 from .copilot_bridge import CopilotSituationBridge, CopilotPreCallBriefing, CopilotPostCallSummary
 from .epistemic_barrier import mark_model_output_as_shadow, is_model_output, can_be_used_as_evidence, filter_evidence_signals
 from .acl_barrier import propagate_acl_restrictions, redact_restricted_content
+from .situation_store import SituationStore
 
 __all__ = [
     # Phase 1: Situation Engine
