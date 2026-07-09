@@ -54,34 +54,25 @@ class PersonalSignal:
             self.actor = self.entity
 
     @property
-    def type(self) -> Any:
-        """Core reads signal.type — return a string-like with .value.
+    def type(self) -> str:
+        """Return the signal type as a plain string.
 
-        Core does: sig_type_raw = getattr(sig, "type", None);
-                   sig_type_val = getattr(sig_type_raw, "value", str(sig_type_raw)).
-        So we return an object with a .value attribute. A simple namespace
-        works, but returning the string directly also works because
-        getattr(string, "value", str(string)) returns the string itself.
+        Core reads signal.type via:
+            sig_type_raw = getattr(sig, "type", None)
+            sig_type_val = getattr(sig_type_raw, "value", str(sig_type_raw))
+        A plain string works: getattr("commitment_made", "value", "commitment_made")
+        returns "commitment_made".
+
+        Nerve agents read signal.type via:
+            (getattr(s, "type", "") or "").lower()
+        A plain string works: "commitment_made".lower() returns "commitment_made".
+
+        The prior _TypeWrapper was overengineered — it had .value but not
+        .lower(), causing 7 Nerve agents to crash with
+        '_TypeWrapper' object has no attribute 'lower'.
+        A plain string satisfies ALL callers (Core + Nerve).
         """
-        # Return a simple object with .value to match Enum-like access
-        class _TypeWrapper:
-            def __init__(self, val: str) -> None:
-                self.value = val
-
-            def __str__(self) -> str:
-                return self.value
-
-            def __eq__(self, other: object) -> bool:
-                if isinstance(other, str):
-                    return self.value == other
-                if isinstance(other, _TypeWrapper):
-                    return self.value == other.value
-                return False
-
-            def __hash__(self) -> int:
-                return hash(self.value)
-
-        return _TypeWrapper(self.signal_type)
+        return self.signal_type
 
 
 @dataclass
