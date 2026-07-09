@@ -104,17 +104,22 @@ class CoreWiring:
 
     @property
     def calibration_primitives(self) -> Any:
-        """CalibrationPrimitives — Brier score + 10-bucket calibration.
+        """calibration_primitives module — Brier score + 10-bucket calibration.
+
+        This module is FUNCTION-BASED (not a class). The key functions:
+          - brier_score(resolved_predictions) → float
+          - build_calibration_report(predictions, outcomes) → CalibrationReport
+          - is_well_calibrated(report) → bool
 
         Commitments uses this to show: "You've kept 7/10 like this"
         and the calibration behind that number.
         """
         if "calibration_primitives" not in self._cache:
             try:
-                from maestro_cognitive_council.calibration_primitives import CalibrationPrimitives
-                self._cache["calibration_primitives"] = CalibrationPrimitives()
+                import maestro_cognitive_council.calibration_primitives as cal_mod
+                self._cache["calibration_primitives"] = cal_mod
             except Exception as e:
-                logger.debug("CalibrationPrimitives init failed: %s", e)
+                logger.debug("calibration_primitives import failed: %s", e)
                 self._cache["calibration_primitives"] = None
         return self._cache["calibration_primitives"]
 
@@ -140,17 +145,20 @@ class CoreWiring:
 
     @property
     def reasoning_trace(self) -> Any:
-        """ReasoningTrace — the provenance chain for any inference.
+        """reasoning_trace module — the provenance chain for any inference.
+
+        This module is FUNCTION-BASED (not a class). The key function:
+          - capture_reasoning_trace(situation, engine, ...) → dict
 
         Ask uses this to show: "Here's how Maestro arrived at this answer"
         — the full chain from evidence to conclusion.
         """
         if "reasoning_trace" not in self._cache:
             try:
-                from maestro_cognitive_council.reasoning_trace import ReasoningTrace
-                self._cache["reasoning_trace"] = ReasoningTrace()
+                import maestro_cognitive_council.reasoning_trace as rt_mod
+                self._cache["reasoning_trace"] = rt_mod
             except Exception as e:
-                logger.debug("ReasoningTrace init failed: %s", e)
+                logger.debug("reasoning_trace import failed: %s", e)
                 self._cache["reasoning_trace"] = None
         return self._cache["reasoning_trace"]
 
@@ -158,20 +166,19 @@ class CoreWiring:
 
     @property
     def briefing_bridge(self) -> Any:
-        """SituationBriefingBridge — the morning briefing engine.
+        """SituationBriefingEngine — the morning briefing engine.
 
         Home uses this to show an orchestrated morning briefing with
         overnight changes, the one thing to focus on, and knowledge gaps.
         """
         if "briefing_bridge" not in self._cache:
             try:
-                from maestro_cognitive_council.briefing_bridge import SituationBriefingBridge
-                self._cache["briefing_bridge"] = SituationBriefingBridge(
+                from maestro_cognitive_council.briefing_bridge import SituationBriefingEngine
+                self._cache["briefing_bridge"] = SituationBriefingEngine(
                     oem_state=self.oem_state,
-                    situation_engine=self.situation_engine,
                 )
             except Exception as e:
-                logger.debug("BriefingBridge init failed: %s", e)
+                logger.debug("BriefingEngine init failed: %s", e)
                 self._cache["briefing_bridge"] = None
         return self._cache["briefing_bridge"]
 
@@ -179,17 +186,21 @@ class CoreWiring:
 
     @property
     def epistemic_barrier(self) -> Any:
-        """EpistemicBarrier — honest refusal when evidence is insufficient.
+        """epistemic_barrier module — honest refusal when evidence is insufficient.
+
+        This module is FUNCTION-BASED (not a class). Key functions:
+          - can_be_used_as_evidence(signal) → bool
+          - filter_evidence_signals(signals) → list
 
         Whisper + Ask use this to say "insufficient calibration history"
         instead of a confident wrong answer. The intellectual honesty gate.
         """
         if "epistemic_barrier" not in self._cache:
             try:
-                from maestro_cognitive_council.epistemic_barrier import EpistemicBarrier
-                self._cache["epistemic_barrier"] = EpistemicBarrier()
+                import maestro_cognitive_council.epistemic_barrier as eb_mod
+                self._cache["epistemic_barrier"] = eb_mod
             except Exception as e:
-                logger.debug("EpistemicBarrier init failed: %s", e)
+                logger.debug("epistemic_barrier import failed: %s", e)
                 self._cache["epistemic_barrier"] = None
         return self._cache["epistemic_barrier"]
 
@@ -197,17 +208,21 @@ class CoreWiring:
 
     @property
     def acl_barrier(self) -> Any:
-        """ACLBarrier — access control for signals.
+        """acl_barrier module — access control for signals.
+
+        This module is FUNCTION-BASED (not a class). Key functions:
+          - propagate_acl_restrictions(signals, user_email) → list
+          - redact_restricted_content(text, acl) → str
 
         Ensures private signals stay private. Whisper + Ask check this
         before surfacing content.
         """
         if "acl_barrier" not in self._cache:
             try:
-                from maestro_cognitive_council.acl_barrier import ACLBarrier
-                self._cache["acl_barrier"] = ACLBarrier()
+                import maestro_cognitive_council.acl_barrier as acl_mod
+                self._cache["acl_barrier"] = acl_mod
             except Exception as e:
-                logger.debug("ACLBarrier init failed: %s", e)
+                logger.debug("acl_barrier import failed: %s", e)
                 self._cache["acl_barrier"] = None
         return self._cache["acl_barrier"]
 
@@ -224,10 +239,7 @@ class CoreWiring:
         if "whisper_bridge" not in self._cache:
             try:
                 from maestro_cognitive_council.whisper_bridge import WhisperSituationBridge
-                self._cache["whisper_bridge"] = WhisperSituationBridge(
-                    oem_state=self.oem_state,
-                    situation_engine=self.situation_engine,
-                )
+                self._cache["whisper_bridge"] = WhisperSituationBridge()
             except Exception as e:
                 logger.debug("WhisperBridge init failed: %s", e)
                 self._cache["whisper_bridge"] = None
@@ -259,15 +271,15 @@ class CoreWiring:
 
     @property
     def governance_surface(self) -> Any:
-        """GovernanceSurface — governance handoff for operator actions.
+        """GovernanceOperatorSurface — governance handoff for operator actions.
 
         Used when a situation needs human governance (e.g., falsifying
         a pattern, overriding a decision boundary).
         """
         if "governance_surface" not in self._cache:
             try:
-                from maestro_cognitive_council.governance_surface import GovernanceSurface
-                self._cache["governance_surface"] = GovernanceSurface()
+                from maestro_cognitive_council.governance_surface import GovernanceOperatorSurface
+                self._cache["governance_surface"] = GovernanceOperatorSurface()
             except Exception as e:
                 logger.debug("GovernanceSurface init failed: %s", e)
                 self._cache["governance_surface"] = None
@@ -283,8 +295,13 @@ class CoreWiring:
         if "institutional_autobiography" not in self._cache:
             try:
                 from maestro_cognitive_council.institutional_autobiography import InstitutionalAutobiography
+                import tempfile, os
+                db_path = os.environ.get(
+                    "MAESTRO_PERSONAL_DB",
+                    str(tempfile.gettempdir() + "/maestro_personal_autobiography.db"),
+                )
                 self._cache["institutional_autobiography"] = InstitutionalAutobiography(
-                    oem_state=self.oem_state,
+                    db_path=db_path,
                 )
             except Exception as e:
                 logger.debug("InstitutionalAutobiography init failed: %s", e)
