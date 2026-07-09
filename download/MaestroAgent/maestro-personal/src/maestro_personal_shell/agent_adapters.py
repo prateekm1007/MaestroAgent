@@ -194,15 +194,21 @@ class PersonalDealHealthAdapter:
     In personal mode, "deal health" maps to "relationship health" — how
     healthy is the user's relationship with this entity based on signal
     patterns (commitments kept, follow-ups answered, meeting regularity).
+
+    Produces DealHealthScore-compatible objects so SalesAgent works.
     """
 
     def __init__(self, oem_state: Any = None):
         self.oem = oem_state
 
-    def assess_entity(self, entity: str) -> dict:
-        """Assess the health of a relationship with an entity."""
+    def compute_score(self, entity: str) -> Any:
+        """Compute a deal health score for an entity.
+
+        Returns a PersonalDealHealthScore that matches the shape SalesAgent
+        expects: .score, .confidence_label(), .risk_factors, .momentum.
+        """
         if not self.oem or not hasattr(self.oem, "signals"):
-            return {"status": "unknown", "score": 0.5, "risks": []}
+            return PersonalDealHealthScore(entity=entity, score=50.0)
 
         entity_signals = [
             s for s in self.oem.signals
@@ -210,33 +216,118 @@ class PersonalDealHealthAdapter:
         ]
 
         if not entity_signals:
-            return {"status": "unknown", "score": 0.5, "risks": []}
+            return PersonalDealHealthScore(entity=entity, score=50.0)
 
         commitments = [s for s in entity_signals if "commitment" in str(getattr(s, "signal_type", "")).lower()]
         followups = [s for s in entity_signals if "follow_up" in str(getattr(s, "signal_type", "")).lower()]
         meetings = [s for s in entity_signals if "meeting" in str(getattr(s, "signal_type", "")).lower()]
 
-        risks = []
-        score = 0.7  # default healthy
+        score = 70.0  # default healthy
+        risk_factors = []
 
-        # Risk: commitments without follow-ups
-        if commitments and not followups:
-            risks.append(f"{len(commitments)} commitment(s) with no follow-up")
-            score -= 0.2
+        # Risk: commitments without follow-ups (stale)
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        for c in commitments:
+            c_ts = getattr(c, "timestamp", now)
+            if hasattr(c_ts, "tzinfo") and c_ts.tzinfo is None:
+                c_ts = c_ts.replace(tzinfo=timezone.utc)
+            days_old = (now - c_ts).days if hasattr(c_ts, "year") else 0
+            if days_old >= 7:
+                score -= 15
+                risk_factors.append(PersonalRiskFactor(
+                    factor_type="overdue_commitment",
+                    severity="high" if days_old >= 14 else "medium",
+                    description=f"Commitment '{getattr(c, 'text', '')[:50]}' is {days_old} days old with no follow-up",
+                ))
 
-        # Risk: follow-ups without new commitments (unanswered questions)
-        if followups and len(followups) > len(commitments):
-            risks.append(f"{len(followups)} unanswered follow-up(s)")
-            score -= 0.15
+        # Risk: unanswered follow-ups
+        if followups and len(followups) > 0:
+            unanswered = len(followups)
+            score -= min(unanswered * 5, 20)
+            risk_factors.append(PersonalRiskFactor(
+                factor_type="stale_relationship",
+                severity="medium",
+                description=f"{unanswered} unanswered follow-up(s) from {entity}",
+            ))
 
         # Positive: regular meetings
         if meetings:
-            score += 0.1
+            score += 5
 
-        score = max(0.0, min(1.0, score))
-        status = "healthy" if score >= 0.6 else "at_risk" if score >= 0.3 else "critical"
+        score = max(0.0, min(100.0, score))
+        return PersonalDealHealthScore(
+            entity=entity,
+            score=score,
+            risk_factors=risk_factors,
+        )
 
-        return {"status": status, "score": score, "risks": risks}
+    def assess_entity(self, entity: str) -> dict:
+        """Legacy method for backward compat."""
+        score = self.compute_score(entity)
+        return {
+            "status": score.status,
+            "score": score.score / 100.0,
+            "risks": [rf.description for rf in score.risk_factors],
+        }
+
+
+class PersonalRiskFactor:
+    """Matches the shape of enterprise RiskFactor.
+
+    SalesAgent accesses: r.factor (which should be r.factor_type in enterprise).
+    The enterprise code does: f"{r.factor.value if hasattr(r.factor, 'value') else r.factor}"
+    We provide a .factor property that returns factor_type as a string.
+    """
+    def __init__(self, factor_type: str = "", severity: str = "medium", description: str = "", evidence: dict | None = None):
+        self.factor_type = factor_type
+        self.severity = severity
+        self.description = description
+        self.evidence = evidence or {}
+        self.weight = 0.5  # for display
+
+    @property
+    def factor(self) -> str:
+        """SalesAgent accesses r.factor — return factor_type as a string."""
+        return self.factor_type
+
+    def to_dict(self) -> dict:
+        return {"factor_type": self.factor_type, "severity": self.severity, "description": self.description}
+
+
+class PersonalDealHealthScore:
+    """Matches the shape of enterprise DealHealthScore.
+
+    SalesAgent accesses: score.score, score.confidence_label(), score.risk_factors,
+    score.momentum.
+    """
+    def __init__(self, entity: str = "", score: float = 50.0, risk_factors: list | None = None):
+        self.entity = entity
+        self.score = score
+        self.risk_factors = risk_factors or []
+        self.positive_indicators = []
+        from datetime import datetime, timezone
+        self.timestamp = datetime.now(timezone.utc)
+        self.calibration_denominator = 0
+
+        # Status + momentum (simplified)
+        if score >= 65:
+            self.status = "healthy"
+            self.momentum = "improving"
+        elif score >= 40:
+            self.status = "at_risk"
+            self.momentum = "declining"
+        else:
+            self.status = "critical"
+            self.momentum = "declining"
+
+    def confidence_label(self) -> str:
+        if self.score >= 70:
+            return "high"
+        elif self.score >= 50:
+            return "medium"
+        else:
+            return "low"
 
 
 # ---------------------------------------------------------------------------
