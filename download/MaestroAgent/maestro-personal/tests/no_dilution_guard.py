@@ -65,6 +65,44 @@ DILUTION_RULES: list[DilutionRule] = [
         required_imports=["judgment_synthesizer", "JudgmentSynthesizer"],
         capability_name="Judgment synthesis",
     ),
+    # v2 dilution rule: commitment classification
+    # If a module detects commitments (should_treat_as_commitment pattern)
+    # it must import from audit_safety, not reimplement with regex.
+    DilutionRule(
+        forbidden_patterns=[
+            "should_treat_as_commitment",
+            "classify_transcript_chunk",
+            "commitment_patterns",  # regex-based commitment detection
+        ],
+        required_imports=["audit_safety"],
+        capability_name="Commitment classification",
+    ),
+    # v2 dilution rule: delivery restraint / whisper gating
+    # If a module implements delivery gating (should_whisper, decide_delivery)
+    # it must import from delivery_governor, not reimplement with priority.
+    DilutionRule(
+        forbidden_patterns=[
+            "def should_whisper",
+            "def decide_delivery",
+            "def _decide_whisper",
+        ],
+        required_imports=["delivery_governor", "DeliveryGovernor"],
+        capability_name="Delivery restraint / Whisper gating",
+    ),
+    # v4 dilution rule: behavioral learning
+    # If a module implements learning loops (record_outcome, resolve_prediction,
+    # recompute_model with learning semantics) it must import from
+    # behavioral_learning_engine, not reimplement.
+    DilutionRule(
+        forbidden_patterns=[
+            "def record_outcome",
+            "def resolve_prediction",
+            "def _learning_loop",
+            "def _recompute_learning_model",
+        ],
+        required_imports=["behavioral_learning_engine", "BehavioralLearningEngine"],
+        capability_name="Behavioral learning",
+    ),
 ]
 
 

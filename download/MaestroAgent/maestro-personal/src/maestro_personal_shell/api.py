@@ -406,7 +406,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
 
 @app.get("/api/commitments", response_model=list[CommitmentResponse])
 async def get_commitments(token: str = Depends(verify_token)):
-    """Get active commitments — calls classify_transcript_chunk via the shell."""
+    """Get active commitments — calls Core's commitment classifier via the shell."""
     shell = build_shell()
 
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface

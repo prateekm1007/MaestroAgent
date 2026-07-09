@@ -113,39 +113,61 @@ def _extract_entity_from_headers(headers: dict[str, str], user_email: str = "me"
 
 
 def detect_commitments_in_text(text: str) -> list[dict[str, str]]:
-    """Detect commitment patterns in text.
+    """Detect commitment patterns in text using CORE's classifier.
+
+    Per auditor finding (caabb7f dilution): this function MUST call Core's
+    should_treat_as_commitment + classify_transcript_chunk, NOT reimplement
+    commitment detection with regex. The regex patterns are now used ONLY
+    for sentence splitting (to extract the commitment text after Core
+    confirms it IS a commitment), not for commitment detection itself.
 
     Returns a list of dicts with:
       - text: the commitment text
-      - pattern: which pattern matched
+      - claim_type: Core's classification (commitment, proposal, etc.)
       - deadline: extracted deadline (if any)
     """
+    # Call CORE's classifier — do NOT reimplement
+    from maestro_cognitive_council.audit_safety import (
+        classify_transcript_chunk,
+        should_treat_as_commitment,
+    )
+
     commitments = []
-    text_lower = text.lower()
 
-    for pattern in COMMITMENT_PATTERNS:
-        for match in re.finditer(pattern, text_lower, re.IGNORECASE):
-            commitment_text = match.group(1).strip().rstrip(".")
-            # Truncate at sentence boundary or 200 chars
-            commitment_text = re.split(r'[.!?\n]', commitment_text)[0].strip()
-            if len(commitment_text) < 3:
-                continue
+    # Split text into sentences for per-sentence classification
+    sentences = re.split(r'[.!?]\s+', text)
 
-            # Check for deadline in the surrounding context
-            deadline = None
-            for dp in DEADLINE_PATTERNS:
-                dmatch = re.search(dp, text_lower, re.IGNORECASE)
-                if dmatch:
-                    deadline = dmatch.group(0)
-                    break
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) < 5:
+            continue
 
-            commitments.append({
-                "text": commitment_text,
-                "pattern": pattern,
-                "deadline": deadline,
-            })
+        # CORE decides if this is a commitment — not regex
+        if not should_treat_as_commitment(sentence):
+            continue
+
+        # CORE classifies the claim type (commitment, proposal, etc.)
+        claim_type = classify_transcript_chunk(sentence)
+
+        # Extract deadline from the sentence (deadline extraction is NOT
+        # a Core capability — it's Personal-specific formatting)
+        deadline = None
+        for dp in DEADLINE_PATTERNS:
+            dmatch = re.search(dp, sentence, re.IGNORECASE)
+            if dmatch:
+                deadline = dmatch.group(0)
+                break
+
+        commitments.append({
+            "text": sentence,
+            "claim_type": claim_type,
+            "deadline": deadline,
+        })
 
     return commitments
+
+
+# ---------------------------------------------------------------------------
 
 
 def detect_follow_ups_in_text(text: str) -> bool:
