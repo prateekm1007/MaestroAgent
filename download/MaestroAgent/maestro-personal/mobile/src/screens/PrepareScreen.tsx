@@ -1,14 +1,15 @@
 /**
- * Prepare screen — preparation for upcoming meetings/situations.
+ * PrepareScreen — 3 things that matter for THIS meeting.
  *
- * Calls GET /api/prepare. Uses Core's SituationPreparationBridge
- * via the shell.
+ * Bumble-inspired: warm cream, 3 cards (forgotten, open question,
+ * contradiction), honey accent headers.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, RefreshControl, StyleSheet } from 'react-native';
+import { View, Text, FlatList, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '../api/auth';
 import { getPrepare, PrepareItem } from '../api/client';
+import { theme } from '../theme';
 
 export default function PrepareScreen() {
   const { token } = useAuth();
@@ -30,9 +31,7 @@ export default function PrepareScreen() {
     }
   }, [token]);
 
-  useEffect(() => {
-    loadPreps();
-  }, [loadPreps]);
+  useEffect(() => { loadPreps(); }, [loadPreps]);
 
   return (
     <View style={styles.container}>
@@ -41,21 +40,46 @@ export default function PrepareScreen() {
         data={preps}
         keyExtractor={(item) => item.situation_id}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.situationId}>Situation: {item.situation_id.substring(0, 8)}...</Text>
-            {item.is_stale && <Text style={styles.stale}>⚠ Preparation is stale — reality changed</Text>}
-            {item.prep_points.length > 0 ? (
-              item.prep_points.map((point, i) => (
-                <Text key={i} style={styles.prepPoint}>• {point}</Text>
-              ))
-            ) : (
-              <Text style={styles.empty}>No prep points yet.</Text>
-            )}
+          <View style={styles.prepCard}>
+            {item.entity ? (
+              <Text style={styles.entity}>Meeting with {item.entity}</Text>
+            ) : null}
+            {item.meeting_context ? (
+              <Text style={styles.context}>{item.meeting_context}</Text>
+            ) : null}
+
+            {item.the_forgotten ? (
+              <View style={styles.thingCard}>
+                <Text style={styles.thingLabel}>THE FORGOTTEN</Text>
+                <Text style={styles.thingText}>{item.the_forgotten}</Text>
+              </View>
+            ) : null}
+
+            {item.the_open_question ? (
+              <View style={[styles.thingCard, styles.thingCardPurple]}>
+                <Text style={[styles.thingLabel, styles.thingLabelPurple]}>THE OPEN QUESTION</Text>
+                <Text style={[styles.thingText, styles.thingTextPurple]}>{item.the_open_question}</Text>
+              </View>
+            ) : null}
+
+            {item.the_contradiction ? (
+              <View style={[styles.thingCard, styles.thingCardWarning]}>
+                <Text style={[styles.thingLabel, styles.thingLabelWarning]}>THE CONTRADICTION</Text>
+                <Text style={[styles.thingText, styles.thingTextWarning]}>{item.the_contradiction}</Text>
+              </View>
+            ) : null}
+
+            {item.is_stale ? (
+              <Text style={styles.staleWarning}>⚠ Preparation is stale — reality changed</Text>
+            ) : null}
           </View>
         )}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadPreps} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadPreps} tintColor={theme.honey} />}
         ListEmptyComponent={
-          <Text style={styles.empty}>No situations need preparation right now.</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No situations need preparation right now.</Text>
+            <Text style={styles.emptyBody}>When a meeting approaches, Maestro will surface the 3 things that matter.</Text>
+          </View>
         }
       />
       {error && <Text style={styles.error}>{error}</Text>}
@@ -64,12 +88,34 @@ export default function PrepareScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#f5f4f3' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16, color: '#1b1a18' },
-  card: { backgroundColor: '#fff', padding: 16, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#bfbaac' },
-  situationId: { fontSize: 12, color: '#78766f', marginBottom: 8 },
-  stale: { fontSize: 13, color: '#9e5852', marginBottom: 8, fontWeight: 'bold' },
-  prepPoint: { fontSize: 14, color: '#1b1a18', marginTop: 4, lineHeight: 20 },
-  empty: { color: '#78766f', fontStyle: 'italic', padding: 16 },
-  error: { color: '#9e5852', padding: 16 },
+  container: { flex: 1, padding: 20, backgroundColor: theme.bg },
+  title: { ...theme.font.title, marginBottom: 20 },
+  prepCard: {
+    backgroundColor: theme.cardBg,
+    borderRadius: theme.radius.xl,
+    padding: 24,
+    marginBottom: 12,
+    ...theme.shadow.card,
+  },
+  entity: { fontSize: 18, fontWeight: '700', color: theme.textPrimary, marginBottom: 4 },
+  context: { fontSize: 13, color: theme.textSecondary, marginBottom: 20, textTransform: 'capitalize' },
+  thingCard: {
+    backgroundColor: theme.honey,
+    borderRadius: theme.radius.lg,
+    padding: 16,
+    marginBottom: 10,
+  },
+  thingCardPurple: { backgroundColor: theme.purpleLight },
+  thingCardWarning: { backgroundColor: '#FFF4E6' },
+  thingLabel: { fontSize: 10, fontWeight: '700', color: theme.textOnHoney, letterSpacing: 1.5, marginBottom: 8 },
+  thingLabelPurple: { color: theme.purple },
+  thingLabelWarning: { color: theme.warning },
+  thingText: { fontSize: 16, fontWeight: '600', color: theme.textOnHoney, lineHeight: 22 },
+  thingTextPurple: { color: theme.purple },
+  thingTextWarning: { color: '#8B5A00' },
+  staleWarning: { fontSize: 13, color: theme.warning, marginTop: 12, fontWeight: '600' },
+  emptyContainer: { alignItems: 'center', padding: 40, marginTop: 60 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: theme.textPrimary, textAlign: 'center', marginBottom: 12 },
+  emptyBody: { fontSize: 15, color: theme.textSecondary, textAlign: 'center', lineHeight: 22 },
+  error: { color: theme.error, padding: 16 },
 });

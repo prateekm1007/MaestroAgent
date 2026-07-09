@@ -1,13 +1,13 @@
 /**
- * Login screen — obtains bearer token from the API.
+ * LoginScreen — warm, inviting, Bumble-style.
  *
- * For v1 dogfood: any password works (shared token). In production,
- * this would validate against a user store.
+ * Honey accent, cream background, bold title. Feels human, not corporate.
  */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { useAuth } from '../api/auth';
+import { theme } from '../theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -27,17 +27,32 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Maestro Personal</Text>
-      <Text style={styles.subtitle}>Make me effective today</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Password (any for v1)"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoCapitalize="none"
-      />
-      <Button title={loading ? 'Logging in...' : 'Login'} onPress={handleLogin} disabled={loading} />
+      <View style={styles.content}>
+        <View style={styles.logoCircle}>
+          <Text style={styles.logoText}>M</Text>
+        </View>
+        <Text style={styles.title}>Maestro</Text>
+        <Text style={styles.subtitle}>Make me effective today</Text>
+
+        <View style={styles.formContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Password (any for now)"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            placeholderTextColor={theme.textSecondary}
+          />
+          <TouchableOpacity
+            style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text style={styles.loginBtnText}>{loading ? 'Logging in...' : 'Get Started'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
@@ -45,30 +60,62 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.bg,
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#f5f4f3',
+  },
+  content: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.honey,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    ...theme.shadow.card,
+  },
+  logoText: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: theme.textOnHoney,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontSize: 36,
+    fontWeight: '900',
+    color: theme.textPrimary,
     marginBottom: 8,
-    color: '#1b1a18',
   },
   subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 32,
-    color: '#78766f',
+    fontSize: 17,
+    color: theme.textSecondary,
+    marginBottom: 48,
+  },
+  formContainer: {
+    width: '100%',
   },
   input: {
+    backgroundColor: theme.cardBg,
     borderWidth: 1,
-    borderColor: '#bfbaac',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    borderColor: theme.border,
+    borderRadius: theme.radius.lg,
+    padding: 16,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: theme.textPrimary,
+    marginBottom: 16,
+  },
+  loginBtn: {
+    backgroundColor: theme.honey,
+    borderRadius: theme.radius.lg,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  loginBtnDisabled: { opacity: 0.6 },
+  loginBtnText: {
+    color: theme.textOnHoney,
+    fontSize: 17,
+    fontWeight: '700',
   },
 });

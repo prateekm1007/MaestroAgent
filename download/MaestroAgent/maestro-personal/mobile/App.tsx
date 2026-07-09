@@ -25,13 +25,14 @@ import CommitmentsScreen from './src/screens/CommitmentsScreen';
 import PrepareScreen from './src/screens/PrepareScreen';
 import AddSignalScreen from './src/screens/AddSignalScreen';
 import WhisperScreen from './src/screens/WhisperScreen';
+import { theme } from './src/theme';
 
 const Tab = createBottomTabNavigator();
 
 function LoadingScreen() {
   return (
     <SafeAreaView style={styles.loading}>
-      <ActivityIndicator size="large" color="#897128" />
+      <ActivityIndicator size="large" color={theme.honey} />
       <Text style={styles.loadingText}>Loading Maestro...</Text>
     </SafeAreaView>
   );
@@ -46,8 +47,16 @@ function MainApp() {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#897128',
-        tabBarStyle: { backgroundColor: '#f5f4f3', borderTopColor: '#bfbaac' },
+        tabBarActiveTintColor: theme.honeyDark,
+        tabBarInactiveTintColor: theme.textSecondary,
+        tabBarStyle: {
+          backgroundColor: theme.cardBg,
+          borderTopColor: theme.border,
+          borderTopWidth: 1,
+          paddingBottom: 4,
+          paddingTop: 4,
+        },
+        headerShown: false,
       }}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Home' }} />
@@ -72,6 +81,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f4f3' },
-  loadingText: { marginTop: 16, fontSize: 16, color: '#78766f' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
+  loadingText: { marginTop: 16, fontSize: 16, color: theme.textSecondary },
 });

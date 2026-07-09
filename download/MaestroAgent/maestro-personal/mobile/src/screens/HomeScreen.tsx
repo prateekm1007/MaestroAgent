@@ -1,18 +1,15 @@
 /**
  * HomeScreen — THE MOMENT.
  *
- * Not a dashboard. Not a list. One card.
- *
- * The single most important thing Maestro knows right now.
- * If nothing deserves attention: trusted silence.
- *
- * This is the Spotlight moment. The Tesla unlock. The inevitable interaction.
+ * Bumble-inspired: warm cream background, honey accent, bold typography,
+ * soft card shadows. One card. The inevitable interaction.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '../api/auth';
 import { getTheMoment, TheMoment } from '../api/client';
+import { theme } from '../theme';
 
 export default function HomeScreen({ navigation }: { navigation: any }) {
   const { token } = useAuth();
@@ -42,25 +39,28 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadMoment} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadMoment} tintColor={theme.honey} />}
       >
         {error && <Text style={styles.error}>{error}</Text>}
 
         {moment && moment.has_moment && moment.commitment && (
           <View style={styles.momentCard}>
-            <Text style={styles.kicker}>The moment</Text>
+            <Text style={styles.kicker}>THE MOMENT</Text>
             <Text style={styles.entity}>{moment.commitment.entity}</Text>
             <Text style={styles.commitmentText}>{moment.commitment.text}</Text>
 
-            {moment.why_this_one && (
-              <Text style={styles.why}>{moment.why_this_one}</Text>
-            )}
+            {moment.why_this_one ? (
+              <View style={styles.whyBadge}>
+                <Text style={styles.whyText}>{moment.why_this_one}</Text>
+              </View>
+            ) : null}
 
             {moment.situation && (
               <View style={styles.situationRow}>
-                <Text style={styles.situationLabel}>Situation:</Text>
-                <Text style={styles.situationState}>{moment.situation.state}</Text>
-                <Text style={styles.situationEvidence}>
+                <View style={styles.statePill}>
+                  <Text style={styles.stateText}>{moment.situation.state}</Text>
+                </View>
+                <Text style={styles.evidenceText}>
                   {moment.situation.evidence_count} evidence refs
                 </Text>
               </View>
@@ -68,8 +68,8 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
             {moment.source_evidence.length > 0 && (
               <View style={styles.evidenceContainer}>
-                <Text style={styles.evidenceLabel}>Source:</Text>
-                <Text style={styles.evidenceText}>
+                <Text style={styles.evidenceLabel}>SOURCE</Text>
+                <Text style={styles.evidenceText2}>
                   {moment.source_evidence[0].text}
                 </Text>
                 <Text style={styles.evidenceSource}>
@@ -79,24 +79,27 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
             )}
 
             <TouchableOpacity
-              style={styles.actButton}
+              style={styles.askButton}
               onPress={() => navigation.navigate('Ask', {
                 query: `What's the full situation with ${moment.commitment.entity}?`
               })}
             >
-              <Text style={styles.actButtonText}>Ask about this</Text>
+              <Text style={styles.askButtonText}>Ask about this</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {moment && !moment.has_moment && (
           <View style={styles.silenceCard}>
+            <View style={styles.silenceIcon}>
+              <Text style={styles.silenceIconText}>✦</Text>
+            </View>
             <Text style={styles.silenceTitle}>Nothing needs your attention right now.</Text>
             <Text style={styles.silenceBody}>
               Trusted silence. Maestro will surface the moment something matters.
             </Text>
             <TouchableOpacity
-              style={styles.addLink}
+              style={styles.addLinkButton}
               onPress={() => navigation.navigate('AddSignal')}
             >
               <Text style={styles.addLinkText}>Add a signal to get started</Text>
@@ -124,46 +127,49 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1b1a18',
+    backgroundColor: theme.bg,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
+    padding: 20,
     minHeight: '100%',
   },
   momentCard: {
-    backgroundColor: '#262422',
-    borderRadius: 16,
+    backgroundColor: theme.cardBg,
+    borderRadius: theme.radius.xl,
     padding: 28,
-    borderWidth: 1,
-    borderColor: '#64593a',
+    ...theme.shadow.card,
   },
   kicker: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 2,
-    color: '#897128',
-    textTransform: 'uppercase',
+    ...theme.font.kicker,
     marginBottom: 16,
   },
   entity: {
     fontSize: 14,
-    color: '#78766f',
+    fontWeight: '600',
+    color: theme.textSecondary,
     marginBottom: 8,
   },
   commitmentText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#f5f4f3',
-    lineHeight: 30,
+    fontSize: 24,
+    fontWeight: '800',
+    color: theme.textPrimary,
+    lineHeight: 32,
     marginBottom: 20,
   },
-  why: {
-    fontSize: 13,
-    color: '#897128',
+  whyBadge: {
+    backgroundColor: theme.purpleLight,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     marginBottom: 20,
-    fontStyle: 'italic',
+    alignSelf: 'flex-start',
+  },
+  whyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.purple,
   },
   situationRow: {
     flexDirection: 'row',
@@ -172,92 +178,112 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#3a3835',
+    borderBottomColor: theme.divider,
   },
-  situationLabel: {
-    fontSize: 12,
-    color: '#78766f',
+  statePill: {
+    backgroundColor: theme.honey,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
-  situationState: {
+  stateText: {
     fontSize: 12,
-    color: '#f5f4f3',
-    fontWeight: '600',
+    fontWeight: '700',
+    color: theme.textOnHoney,
     textTransform: 'capitalize',
   },
-  situationEvidence: {
-    fontSize: 11,
-    color: '#78766f',
+  evidenceText: {
+    fontSize: 12,
+    color: theme.textSecondary,
     marginLeft: 'auto',
   },
   evidenceContainer: {
-    backgroundColor: '#1b1a18',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: theme.bgSecondary,
+    borderRadius: theme.radius.md,
+    padding: 14,
     marginBottom: 20,
   },
   evidenceLabel: {
     fontSize: 10,
-    color: '#78766f',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
+    fontWeight: '700',
+    color: theme.textSecondary,
+    letterSpacing: 1.5,
+    marginBottom: 6,
   },
-  evidenceText: {
-    fontSize: 13,
-    color: '#bfbaac',
-    lineHeight: 18,
+  evidenceText2: {
+    fontSize: 14,
+    color: theme.textPrimary,
+    lineHeight: 20,
   },
   evidenceSource: {
-    fontSize: 11,
-    color: '#78766f',
-    marginTop: 4,
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 6,
     fontStyle: 'italic',
   },
-  actButton: {
-    backgroundColor: '#897128',
-    borderRadius: 8,
-    paddingVertical: 14,
+  askButton: {
+    backgroundColor: theme.honey,
+    borderRadius: theme.radius.lg,
+    paddingVertical: 16,
     alignItems: 'center',
   },
-  actButtonText: {
-    color: '#1b1a18',
-    fontSize: 15,
-    fontWeight: '600',
+  askButtonText: {
+    color: theme.textOnHoney,
+    fontSize: 16,
+    fontWeight: '700',
   },
   silenceCard: {
     alignItems: 'center',
     padding: 40,
   },
+  silenceIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.bgSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  silenceIconText: {
+    fontSize: 28,
+    color: theme.honeyDark,
+  },
   silenceTitle: {
     fontSize: 20,
-    color: '#78766f',
+    fontWeight: '700',
+    color: theme.textPrimary,
     textAlign: 'center',
     marginBottom: 12,
-    fontWeight: '500',
   },
   silenceBody: {
-    fontSize: 14,
-    color: '#5a5854',
+    fontSize: 15,
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
-  addLink: {
-    marginTop: 24,
+  addLinkButton: {
+    marginTop: 28,
+    backgroundColor: theme.honey,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
   },
   addLinkText: {
-    color: '#897128',
-    fontSize: 14,
+    color: theme.textOnHoney,
+    fontSize: 15,
+    fontWeight: '700',
   },
   loadingCard: {
     alignItems: 'center',
     padding: 40,
   },
   loadingText: {
-    color: '#78766f',
+    color: theme.textSecondary,
     fontSize: 16,
   },
   error: {
-    color: '#9e5852',
+    color: theme.error,
     padding: 20,
     textAlign: 'center',
   },
@@ -265,21 +291,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#897128',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: theme.honey,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    ...theme.shadow.cardHover,
   },
   fabText: {
-    color: '#1b1a18',
-    fontSize: 28,
+    color: theme.textOnHoney,
+    fontSize: 32,
     fontWeight: '300',
   },
 });
