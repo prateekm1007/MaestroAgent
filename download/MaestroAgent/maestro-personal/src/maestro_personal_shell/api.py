@@ -27,6 +27,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -256,10 +257,23 @@ def build_shell():
 # FastAPI app
 # ---------------------------------------------------------------------------
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler — replaces deprecated @app.on_event("startup")."""
+    init_db()
+    logger.info("Maestro Personal API starting on port %d", API_PORT)
+    logger.info("DB path: %s", DB_PATH)
+    logger.info("Auth token: %s", AUTH_TOKEN)
+    yield  # App runs here
+    # Shutdown (if needed)
+
+
 app = FastAPI(
     title="Maestro Personal API",
     description="HTTP API for Maestro Personal v1 — wraps the PersonalShell (Core via Python)",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS — allow the mobile app (Expo Metro bundler runs on :8081/:19000) to call
@@ -270,19 +284,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-async def startup():
-    init_db()
-    logger.info("Maestro Personal API starting on port %d", API_PORT)
-    logger.info("DB path: %s", DB_PATH)
-    logger.info("Auth token: %s", AUTH_TOKEN)
-
-
-# ---------------------------------------------------------------------------
-# 8 Endpoints
-# ---------------------------------------------------------------------------
 
 # 1. POST /api/auth/login — bearer token auth
 
@@ -308,10 +309,22 @@ async def get_situations(token: str = Depends(verify_token)):
 
     result = []
     for s in situations:
+        # Extract state value — handle enums (use .value) and plain strings
+        state_raw = getattr(s, "state", getattr(s, "operational_state", "unknown"))
+        if hasattr(state_raw, "value"):
+            state_val = state_raw.value
+        else:
+            # Strip enum repr like "SituationState.OBSERVING" → "OBSERVING" → lowercase
+            state_str = str(state_raw)
+            if "." in state_str:
+                state_val = state_str.split(".")[-1].lower()
+            else:
+                state_val = state_str.lower()
+
         result.append(SituationResponse(
             situation_id=str(getattr(s, "situation_id", uuid4())),
             entity=str(getattr(s, "entity", "")),
-            state=str(getattr(s, "state", getattr(s, "operational_state", "unknown"))),
+            state=state_val,
             evidence_count=len(getattr(s, "evidence_refs", []) or []),
         ))
     return result
