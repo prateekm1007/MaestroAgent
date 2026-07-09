@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maestro Personal</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="panel-header">
+      <div class="logo">
+        <span class="logo-mark">M</span>
+        <span class="logo-text">Maestro</span>
+      </div>
+      <div class="connection-status" id="connectionStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">Connecting...</span>
+      </div>
+    </header>
+
+    <!-- Consent dialog -->
+    <div id="consentDialog" class="consent-dialog hidden" role="dialog">
+      <h3>Consent Required</h3>
+      <p class="consent-message" id="consentMessage">Maestro needs your permission to capture meeting audio for real-time intelligence.</p>
+      <div class="consent-actions">
+        <button id="consentAllow" class="btn btn-primary">Allow</button>
+        <button id="consentDeny" class="btn btn-secondary">Deny</button>
+      </div>
+      <p class="consent-note">You can revoke at any time. Capture stops immediately.</p>
+    </div>
+
+    <main id="mainContent" class="main-content">
+      <!-- The Moment (default view) -->
+      <div id="momentView" class="view active">
+        <div class="kicker">THE MOMENT</div>
+        <div id="momentCard" class="moment-card">
+          <div class="entity" id="momentEntity"></div>
+          <div class="commitment-text" id="momentText"></div>
+          <div class="why-badge" id="momentWhy"></div>
+          <div class="source-evidence" id="momentSource"></div>
+        </div>
+        <div id="momentSilence" class="silence hidden">
+          <div class="silence-icon">✦</div>
+          <p>Nothing needs your attention right now.</p>
+          <p class="silence-sub">Trusted silence. We'll speak when something matters.</p>
+        </div>
+      </div>
+
+      <!-- Briefing (pre-call) -->
+      <div id="briefingView" class="view hidden">
+        <div class="kicker">PRE-CALL BRIEFING</div>
+        <div id="briefingGreeting" class="greeting"></div>
+        <div id="briefingTopSituation" class="briefing-section"></div>
+        <div id="briefingChanges" class="briefing-section"></div>
+        <div id="briefingUnknowns" class="briefing-section"></div>
+        <div id="briefingAsk" class="briefing-ask"></div>
+      </div>
+
+      <!-- Live (in-call) -->
+      <div id="liveView" class="view hidden">
+        <div class="live-indicator">
+          <span class="recording-dot"></span>
+          <span id="liveTimer">00:00</span>
+        </div>
+        <div id="suggestionCards" class="suggestion-cards"></div>
+        <div id="transcript" class="transcript"></div>
+      </div>
+
+      <!-- Ambient -->
+      <div id="ambientView" class="view hidden">
+        <div class="kicker">AMBIENT INTELLIGENCE</div>
+        <div id="ambientSummary" class="ambient-summary"></div>
+        <div id="ambientAlerts" class="ambient-alerts"></div>
+      </div>
+
+      <!-- Post-call -->
+      <div id="postCallView" class="view hidden">
+        <div class="summary-checkmark">✓</div>
+        <h3>Meeting Summary</h3>
+        <div id="summaryContent"></div>
+      </div>
+
+      <!-- Default (no meeting) -->
+      <div id="defaultView" class="view hidden">
+        <div class="default-icon">✦</div>
+        <p class="default-message">Open a meeting link to begin.</p>
+        <p class="default-submessage">Maestro surfaces pre-call intelligence when you arrive.</p>
+      </div>
+    </main>
+
+    <footer class="panel-footer">
+      <button id="startBtn" class="btn btn-primary" disabled>Start Copilot</button>
+      <button id="stopBtn" class="btn btn-danger hidden">Stop</button>
+      <button id="revokeBtn" class="btn btn-text hidden">Revoke Consent</button>
+    </footer>
+  </div>
+
+  <script src="lib/consent-manager.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
