@@ -24,6 +24,7 @@ import AskScreen from './src/screens/AskScreen';
 import CommitmentsScreen from './src/screens/CommitmentsScreen';
 import PrepareScreen from './src/screens/PrepareScreen';
 import AddSignalScreen from './src/screens/AddSignalScreen';
+import WhisperScreen from './src/screens/WhisperScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -50,6 +51,7 @@ function MainApp() {
       }}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Home' }} />
+      <Tab.Screen name="Whisper" component={WhisperScreen} options={{ title: 'Whisper' }} />
       <Tab.Screen name="Ask" component={AskScreen} options={{ title: 'Ask' }} />
       <Tab.Screen name="Commitments" component={CommitmentsScreen} options={{ title: 'Commitments' }} />
       <Tab.Screen name="Prepare" component={PrepareScreen} options={{ title: 'Prepare' }} />
