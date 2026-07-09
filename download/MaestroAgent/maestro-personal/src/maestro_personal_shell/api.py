@@ -635,6 +635,246 @@ async def export_data(token: str = Depends(verify_token)):
     }
 
 
+# 14. POST /api/devices/register — Register device for push (v2.4)
+
+
+class DeviceRegisterRequest(BaseModel):
+    push_token: str
+    platform: str = "ios"
+    user_timezone: str = "UTC"
+
+
+class DeviceRegisterResponse(BaseModel):
+    device_id: str
+    message: str
+
+
+@app.post("/api/devices/register", response_model=DeviceRegisterResponse)
+async def register_device_endpoint(req: DeviceRegisterRequest, token: str = Depends(verify_token)):
+    """Register a device for push notifications.
+
+    The mobile app calls this on launch after obtaining an Expo push token.
+    """
+    from maestro_personal_shell.push import register_device, init_push_db
+    init_push_db()
+    device_id = register_device(
+        push_token=req.push_token,
+        platform=req.platform,
+        user_timezone=req.user_timezone,
+    )
+    return DeviceRegisterResponse(
+        device_id=device_id,
+        message="Device registered for push notifications",
+    )
+
+
+# 15. POST /api/whisper/push — Deliver whispers as push (v2.4)
+
+
+class PushDeliverResponse(BaseModel):
+    whispers_pushed: int
+    whispers_suppressed: int
+    log: list[dict[str, Any]]
+
+
+@app.post("/api/whisper/push", response_model=PushDeliverResponse)
+async def deliver_whispers_push(token: str = Depends(verify_token)):
+    """Deliver high-priority whispers as push notifications.
+
+    GATE: only HIGH-priority whispers are pushed. Medium/low are batched
+    (appear in app, don't interrupt). Quiet hours (10pm-7am local) suppress
+    all pushes.
+    """
+    from maestro_personal_shell.push import deliver_whispers_as_push, init_push_db
+    from maestro_personal_shell.surfaces.whisper import WhisperSurface
+
+    init_push_db()
+    shell = build_shell()
+    surface = WhisperSurface(shell=shell)
+    whispers = surface.get_active_whispers()
+
+    log = deliver_whispers_as_push(whispers)
+
+    pushed = sum(1 for e in log if e.get("status") == "sent")
+    suppressed = sum(1 for e in log if e.get("status") == "suppressed")
+
+    return PushDeliverResponse(
+        whispers_pushed=pushed,
+        whispers_suppressed=suppressed,
+        log=log,
+    )
+
+
+# 16. GET /api/billing/tier — Get current billing tier (v3.1)
+
+
+class BillingTierResponse(BaseModel):
+    tier: str
+    connectors_used: int
+    connectors_limit: int
+    history_days_limit: int
+
+
+@app.get("/api/billing/tier", response_model=BillingTierResponse)
+async def get_billing_tier(token: str = Depends(verify_token)):
+    """Get the user's current billing tier and limits.
+
+    v3.1: Free tier = 3 connectors, 30-day history. Pro = unlimited.
+    """
+    from maestro_personal_shell.billing import get_user_tier, get_tier_limits
+    tier = get_user_tier()
+    limits = get_tier_limits(tier)
+
+    # Count connectors used (distinct sources in signals)
+    signals = load_signals_from_db()
+    sources = set()
+    for s in signals:
+        meta = json.loads(s.get("metadata", "{}")) if isinstance(s.get("metadata"), str) else s.get("metadata", {})
+        src = meta.get("source", "manual")
+        sources.add(src)
+
+    return BillingTierResponse(
+        tier=tier,
+        connectors_used=len(sources),
+        connectors_limit=limits["connectors"],
+        history_days_limit=limits["history_days"],
+    )
+
+
+# 17. POST /api/billing/upgrade — Upgrade tier (v3.1)
+
+
+class UpgradeRequest(BaseModel):
+    tier: str  # "free" | "pro" | "team"
+
+
+class UpgradeResponse(BaseModel):
+    tier: str
+    message: str
+
+
+@app.post("/api/billing/upgrade", response_model=UpgradeResponse)
+async def upgrade_tier(req: UpgradeRequest, token: str = Depends(verify_token)):
+    """Upgrade the user's billing tier.
+
+    In production, this is triggered by a Stripe webhook or RevenueCat
+    IAP callback. For v1 dogfood, this is a manual endpoint for testing.
+    """
+    from maestro_personal_shell.billing import set_user_tier
+    if req.tier not in ("free", "pro", "team"):
+        raise HTTPException(status_code=400, detail="Invalid tier — must be free, pro, or team")
+    set_user_tier(req.tier)
+    return UpgradeResponse(tier=req.tier, message=f"Tier upgraded to {req.tier}")
+
+
+# 18. PUT /api/user/role — Set role-adaptive UX mode (v3.2)
+
+
+class RoleRequest(BaseModel):
+    role: str  # "intern" | "ic" | "manager" | "executive"
+
+
+class RoleResponse(BaseModel):
+    role: str
+    default_view: str
+    salience_priority: list[str]
+
+
+@app.put("/api/user/role", response_model=RoleResponse)
+async def set_user_role(req: RoleRequest, token: str = Depends(verify_token)):
+    """Set the user's role-adaptive UX mode.
+
+    v3.2: 4 roles with different default views and salience weighting.
+    """
+    from maestro_personal_shell.roles import set_role, get_role_config
+    if req.role not in ("intern", "ic", "manager", "executive"):
+        raise HTTPException(status_code=400, detail="Invalid role")
+    set_role(req.role)
+    config = get_role_config(req.role)
+    return RoleResponse(
+        role=req.role,
+        default_view=config["default_view"],
+        salience_priority=config["salience_priority"],
+    )
+
+
+# 19. GET /api/user/role — Get current role (v3.2)
+
+
+@app.get("/api/user/role", response_model=RoleResponse)
+async def get_user_role(token: str = Depends(verify_token)):
+    """Get the user's current role-adaptive UX mode."""
+    from maestro_personal_shell.roles import get_role, get_role_config
+    role = get_role()
+    config = get_role_config(role)
+    return RoleResponse(
+        role=role,
+        default_view=config["default_view"],
+        salience_priority=config["salience_priority"],
+    )
+
+
+# 20. GET /api/persona — Get persona model (v4)
+
+
+class PersonaResponse(BaseModel):
+    persona_id: str
+    created_at: str
+    dimensions: dict[str, Any]
+    action_count: int
+
+
+@app.get("/api/persona", response_model=PersonaResponse)
+async def get_persona(token: str = Depends(verify_token)):
+    """Get the user's persona model (v4).
+
+    Returns what the persona system has learned about the user's patterns.
+    The user can see this for transparency (privacy control).
+    """
+    from maestro_personal_shell.persona import get_persona_model
+    model = get_persona_model()
+    return PersonaResponse(
+        persona_id=model["persona_id"],
+        created_at=model["created_at"],
+        dimensions=model["dimensions"],
+        action_count=model["action_count"],
+    )
+
+
+# 21. POST /api/persona/action — Record a user action (v4)
+
+
+class PersonaActionRequest(BaseModel):
+    action_type: str  # "open" | "dismiss" | "act" | "snooze"
+    surface: str      # "whisper" | "commitment" | "prepare" | "ask"
+    entity: str = ""
+    timestamp: str = ""
+
+
+class PersonaActionResponse(BaseModel):
+    recorded: bool
+    action_count: int
+
+
+@app.post("/api/persona/action", response_model=PersonaActionResponse)
+async def record_persona_action(req: PersonaActionRequest, token: str = Depends(verify_token)):
+    """Record a user action for the persona model (v4).
+
+    The persona system learns from: opens, dismissals, actions, snoozes.
+    This data personalizes delivery (timing, format, salience).
+    """
+    from maestro_personal_shell.persona import record_action, get_persona_model
+    ts = req.timestamp or datetime.now(timezone.utc).isoformat()
+    record_action(
+        action_type=req.action_type,
+        surface=req.surface,
+        entity=req.entity,
+        timestamp=ts,
+    )
+    model = get_persona_model()
+    return PersonaActionResponse(recorded=True, action_count=model["action_count"])
+
+
 # ---------------------------------------------------------------------------
 # Health check (no auth)
 # ---------------------------------------------------------------------------
