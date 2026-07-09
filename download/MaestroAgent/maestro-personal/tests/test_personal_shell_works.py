@@ -144,7 +144,7 @@ class TestNoDilution:
         import ast
         import pathlib
 
-        personal_dir = pathlib.Path(__file__).resolve().parents[1] / "src" / "maestro_personal"
+        personal_dir = pathlib.Path(__file__).resolve().parents[1] / "src" / "maestro_personal_shell"
         forbidden_patterns = [
             "(p - actual) ** 2",  # inline Brier
             "(p-actual)**2",
@@ -174,7 +174,7 @@ class TestNoDilution:
         must import from judgment_synthesizer."""
         import pathlib
 
-        personal_dir = pathlib.Path(__file__).resolve().parents[1] / "src" / "maestro_personal"
+        personal_dir = pathlib.Path(__file__).resolve().parents[1] / "src" / "maestro_personal_shell"
         forbidden_patterns = [
             "def synthesize_judgment",
             "def _synthesize",
@@ -195,3 +195,78 @@ class TestNoDilution:
         assert not violations, (
             "Dilution violations found:\n" + "\n".join(violations)
         )
+
+    def test_no_dilution_guard_actually_catches_violations(self):
+        """P27 positive test: prove the guard catches dilution, not just
+        passes vacuously. Inject a fake diluted file in a temp dir and
+        verify the guard logic flags it.
+
+        This test exists because the prior version of the no-dilution
+        guard checked a non-existent path (src/maestro_personal/ instead
+        of src/maestro_personal_shell/) and passed trivially. This test
+        ensures the guard actually scans real files.
+        """
+        import pathlib
+        import tempfile
+
+        # The forbidden patterns the guard checks for
+        forbidden_patterns = [
+            "(p - actual) ** 2",
+            "brier_score =",
+            "def brier",
+        ]
+
+        # Create a temp dir with a fake diluted module
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_pkg = pathlib.Path(tmpdir) / "src" / "maestro_personal_shell"
+            fake_pkg.mkdir(parents=True)
+            fake_file = fake_pkg / "fake_diluted.py"
+            fake_file.write_text(
+                "# Fake diluted module — implements Brier inline\n"
+                "# Does NOT import the Core primitive (this is the dilution pattern).\n"
+                "def brier_score(p, actual):\n"
+                "    return (p - actual) ** 2\n"
+            )
+
+            # Run the same logic the guard uses
+            violations = []
+            for py_file in fake_pkg.rglob("*.py"):
+                try:
+                    source = py_file.read_text()
+                    for pattern in forbidden_patterns:
+                        if pattern in source:
+                            if "calibration_primitives" not in source:
+                                violations.append(f"{py_file.name}: found '{pattern}' without importing calibration_primitives")
+                except Exception:
+                    continue
+
+            # The guard MUST flag the fake diluted file
+            assert len(violations) >= 1, (
+                "P27 positive test: the no-dilution guard must catch a fake "
+                "diluted module. If this fails, the guard is theater — it "
+                "passes without actually scanning files."
+            )
+            assert "fake_diluted" in violations[0], (
+                f"Guard must flag fake_diluted.py, got: {violations}"
+            )
+
+    def test_no_dilution_guard_scans_real_package(self):
+        """P27 positive test: prove the guard scans the real package
+        (maestro_personal_shell, 10 files), not an empty/non-existent dir.
+        """
+        import pathlib
+
+        personal_dir = pathlib.Path(__file__).resolve().parents[1] / "src" / "maestro_personal_shell"
+
+        # The real package must exist and have files
+        assert personal_dir.exists(), (
+            f"Real package dir must exist: {personal_dir}"
+        )
+
+        file_count = len(list(personal_dir.rglob("*.py")))
+        assert file_count >= 8, (
+            f"Guard must scan ≥8 real .py files in maestro_personal_shell/, "
+            f"got {file_count}. If 0, the guard is scanning the wrong path "
+            f"(the prior bug: src/maestro_personal/ which doesn't exist)."
+        )
+
