@@ -1389,6 +1389,135 @@ async def post_call_summary(req: PostCallSummaryRequest, token: str = Depends(ve
 
 
 # ---------------------------------------------------------------------------
+# NERVE PARITY: Agent dashboard + per-agent query + evening briefing
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/agents")
+async def list_agents(token: str = Depends(verify_token)):
+    """List all wired Nerve agents.
+
+    Nerve parity gap 1a: Personal now exposes which agents are available.
+    """
+    shell = build_shell()
+    nerve = shell.nerve
+    return {
+        "agents": nerve.wired_agents,
+        "count": nerve.wired_count,
+    }
+
+
+@app.get("/api/agents/dashboard")
+async def agent_dashboard(
+    token: str = Depends(verify_token),
+    agent: str = "",
+    priority: str = "",
+    min_confidence: float = 0.0,
+):
+    """Unified dashboard view: all insights from all agents.
+
+    Nerve parity gap 1b: Personal now has an agent dashboard with filters.
+    Filters: agent (by name), priority (high/medium/low), min_confidence.
+    """
+    shell = build_shell()
+    nerve = shell.nerve
+    insights = nerve.get_insights()
+
+    # Apply filters
+    if agent:
+        insights = [i for i in insights if i.get("agent") == agent]
+    if priority:
+        insights = [i for i in insights if i.get("priority") == priority]
+    if min_confidence > 0:
+        insights = [i for i in insights if i.get("confidence", 0) >= min_confidence]
+
+    # Group by agent
+    by_agent = {}
+    for ins in insights:
+        a = ins.get("agent", "unknown")
+        if a not in by_agent:
+            by_agent[a] = []
+        by_agent[a].append(ins)
+
+    return {
+        "total_insights": len(insights),
+        "agent_count": len(by_agent),
+        "by_agent": {
+            a: {
+                "count": len(items),
+                "insights": items,
+            }
+            for a, items in by_agent.items()
+        },
+        "filters": {"agent": agent, "priority": priority, "min_confidence": min_confidence},
+    }
+
+
+@app.get("/api/agents/{agent_name}/insights")
+async def per_agent_insights(agent_name: str, token: str = Depends(verify_token)):
+    """Query a specific agent's insights.
+
+    Nerve parity gap 2: Personal now supports per-agent queries.
+    """
+    shell = build_shell()
+    nerve = shell.nerve
+    all_insights = nerve.get_insights()
+    agent_insights = [i for i in all_insights if i.get("agent") == agent_name]
+
+    return {
+        "agent": agent_name,
+        "insights": agent_insights,
+        "count": len(agent_insights),
+    }
+
+
+@app.get("/api/briefing/evening")
+async def get_evening_briefing(token: str = Depends(verify_token)):
+    """Evening briefing — what happened today, what's pending.
+
+    Nerve parity gap 3: Personal now has evening briefing alongside morning.
+    Calls Core's SituationBriefingEngine.generate_evening_briefing().
+    """
+    shell = build_shell()
+    core = shell.core
+
+    if not core.briefing_bridge:
+        return BriefingResponse(
+            greeting="Good evening. Briefing engine unavailable.",
+            ask_prompt="What do you want to understand?",
+        )
+
+    try:
+        briefing = core.briefing_bridge.generate_evening_briefing(
+            user_email="personal",
+            org_id="personal",
+        )
+
+        return BriefingResponse(
+            greeting=getattr(briefing, "greeting", ""),
+            top_situation=getattr(briefing, "top_situation", None),
+            material_changes=getattr(briefing, "material_changes", []) or [],
+            unknowns=getattr(briefing, "unknowns", []) or [],
+            disputes=getattr(briefing, "disputes", []) or [],
+            can_decide_now=getattr(briefing, "can_decide_now", []) or [],
+            cannot_decide_yet=getattr(briefing, "cannot_decide_yet", []) or [],
+            why_boundary=getattr(briefing, "why_boundary", ""),
+            next_step=getattr(briefing, "next_step", ""),
+            belief=getattr(briefing, "belief", ""),
+            why_belief=getattr(briefing, "why_belief", ""),
+            what_would_change_belief=getattr(briefing, "what_would_change_belief", ""),
+            watching_quietly=getattr(briefing, "watching_quietly", []) or [],
+            ask_prompt=getattr(briefing, "ask_prompt", "What do you want to understand?"),
+        )
+    except Exception as e:
+        logger.debug("Evening briefing failed: %s", e)
+        return BriefingResponse(
+            greeting="Good evening.",
+            ask_prompt="What do you want to understand?",
+        )
+
+
+# ---------------------------------------------------------------------------
 # PHASE 4+: TALK RATIO COACHING
 # ---------------------------------------------------------------------------
 
