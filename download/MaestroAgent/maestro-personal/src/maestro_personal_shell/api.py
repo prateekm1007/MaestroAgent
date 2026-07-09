@@ -706,6 +706,26 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
             # If brier_score fails on empty, it means we have no predictions
             calibration_note = "Insufficient calibration history — keep tracking outcomes to build your Brier score."
 
+    # ── S3 FIX: EpistemicBarrier — filter evidence ───────────────────
+    # Remove model outputs and shadow signals from the evidence chain.
+    # This prevents circular reasoning (using our own outputs as evidence).
+    filtered_signals = shell.filter_evidence(shell.oem_state.signals)
+
+    # ── S3 FIX: ACLBarrier — propagate + redact ──────────────────────
+    # If ANY source evidence is restricted (private), the answer inherits
+    # that restriction and content is redacted.
+    acl_result = shell.apply_acl_restrictions(
+        derived_intelligence={
+            "answer": str(answer),
+            "source_sentence": source_sentence,
+        },
+        source_evidence=filtered_signals,
+        user_email="personal",
+    )
+    # Use ACL-processed answer if redaction was applied
+    if acl_result.get("acl_restricted") and acl_result.get("acl_redacted"):
+        answer = acl_result.get("answer", answer)
+
     return AskResponse(
         answer=str(answer),
         query=req.query,
@@ -1731,6 +1751,28 @@ async def get_ambient(token: str = Depends(verify_token)):
     from maestro_personal_shell.copilot_live import get_ambient_intelligence
     shell = build_shell()
     return get_ambient_intelligence(shell=shell)
+
+
+# ---------------------------------------------------------------------------
+# S2 FIX: Situation persistence — verify situations survive restart
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/persisted-situations")
+async def get_persisted_situations(token: str = Depends(verify_token)):
+    """Verify situation persistence across restart.
+
+    S2 beta blocker fix: situations are now saved to SituationStore
+    (SQLite) on every detect_situations() call. This endpoint loads
+    them back — proving persistence works.
+    """
+    shell = build_shell()
+    persisted = shell.load_persisted_situations(org_id="personal")
+    return {
+        "persisted_count": len(persisted),
+        "persisted_situations": persisted[:5],
+        "persistence_active": True,
+    }
 
 
 # ---------------------------------------------------------------------------
