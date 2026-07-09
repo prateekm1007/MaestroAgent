@@ -102,10 +102,98 @@ class PersonalShell:
 
         Calls SituationEngine.detect_situations() directly. No HTTP.
         No enterprise oem_state. No demo seed.
+
+        POST-PROCESSING: Core's NEEDS_PREPARATION transition checks for
+        enterprise keywords ("availability", "expectation", "production").
+        Personal signals use different triggers ("meeting", "deadline",
+        "tomorrow"). This method post-processes Core's output to apply
+        personal expectation-mismatch triggers — without modifying Core.
         """
         engine = self.situation_engine
         situations = engine.detect_situations(org_id=org_id)
-        return situations or []
+        situations = situations or []
+
+        # Post-process: apply personal NEEDS_PREPARATION triggers
+        # This is the Day 14 salience gap fix — personal signals that
+        # indicate an approaching meeting or deadline should transition
+        # the situation to NEEDS_PREPARATION, the same way enterprise
+        # signals with "availability" or "expectation" do.
+        self._apply_personal_preparation_triggers(situations)
+
+        return situations
+
+    def _apply_personal_preparation_triggers(self, situations: list[Any]) -> None:
+        """Apply personal expectation-mismatch triggers to situations.
+
+        This is the Day 14 fix. Core's transition at situation_engine.py:1556
+        checks for "availability"/"expectation"/"production" — enterprise
+        keywords. Personal signals use "meeting", "deadline", "tomorrow",
+        "approaching", "not ready". This method post-processes Core's
+        output to catch personal triggers.
+
+        Does NOT modify Core. Post-processes the situation objects in-place.
+        """
+        # Personal keywords that indicate an expectation mismatch
+        # (the user's internal state may not match what the other party expects)
+        personal_trigger_keywords = [
+            "meeting",         # "meeting tomorrow" — need to prepare
+            "deadline",        # "deadline approaching" — need to prepare
+            "tomorrow",        # time pressure
+            "approaching",     # something is coming due
+            "not ready",       # explicit expectation gap
+            "by friday",       # deadline reference
+            "by monday",       # deadline reference
+            "by tuesday",      # deadline reference
+            "by wednesday",    # deadline reference
+            "by thursday",     # deadline reference
+            "prep",            # explicit preparation mention
+            "prepare",         # explicit preparation mention
+            "review",          # need to review before meeting
+        ]
+
+        try:
+            from maestro_cognitive_council.situation_engine import SituationState
+        except ImportError:
+            return  # Core not available — skip post-processing
+
+        for situation in situations:
+            # Only transition if currently in OBSERVING or MATERIAL
+            current_state = getattr(situation, "state", None)
+            if hasattr(current_state, "value"):
+                state_val = current_state.value
+            else:
+                state_val = str(current_state).split(".")[-1].lower()
+
+            if state_val not in ("observing", "material"):
+                continue
+
+            # Check if any signal for this entity contains personal triggers
+            entity = str(getattr(situation, "entity", "")).lower()
+            for sig in self._oem_state.signals:
+                sig_entity = str(getattr(sig, "entity", "")).lower()
+                if sig_entity != entity:
+                    continue
+
+                sig_text = str(getattr(sig, "text", "")).lower()
+                sig_type = str(getattr(sig, "signal_type", "") or
+                              getattr(getattr(sig, "type", ""), "value", "")).lower()
+
+                # Check for personal trigger keywords in text
+                has_trigger = any(kw in sig_text for kw in personal_trigger_keywords)
+                # Also check for meeting/deadline signal types
+                if not has_trigger:
+                    has_trigger = any(kw in sig_type for kw in ("meeting", "deadline", "approaching"))
+
+                if has_trigger:
+                    try:
+                        situation.transition_to(
+                            SituationState.NEEDS_PREPARATION,
+                            reason="Personal expectation mismatch: meeting/deadline approaching",
+                            triggering_evidence_ref=getattr(sig, "signal_id", None),
+                        )
+                    except Exception as e:
+                        logger.debug("Personal prep transition failed: %s", e)
+                    break  # Only transition once per situation
 
     def get_situations_for_entity(self, entity: str, org_id: str = "personal") -> list[Any]:
         """Get all situations for a given entity (e.g., 'Alex')."""

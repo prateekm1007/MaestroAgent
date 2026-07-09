@@ -50,7 +50,23 @@ class PrepareSurface:
     def get_situations_needing_preparation(self) -> list[Any]:
         """Get all situations that need preparation.
 
-        Calls Core's SituationEngine.get_situations_needing_preparation().
+        Routes through shell.detect_situations() (which applies personal
+        NEEDS_PREPARATION triggers) and filters for NEEDS_PREPARATION state.
+        This ensures personal signals trigger the preparation state, not
+        just enterprise keywords.
         """
-        engine = self._shell.situation_engine
-        return engine.get_situations_needing_preparation() or []
+        all_situations = self._shell.detect_situations()
+
+        # Filter for NEEDS_PREPARATION state
+        needing_prep = []
+        for s in all_situations:
+            state = getattr(s, "state", None)
+            if hasattr(state, "value"):
+                state_val = state.value
+            else:
+                state_val = str(state).split(".")[-1].lower()
+
+            if state_val == "needs_preparation":
+                needing_prep.append(s)
+
+        return needing_prep
