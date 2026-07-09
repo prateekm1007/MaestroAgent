@@ -60,25 +60,52 @@ class PersonalPredictionMarket:
 
     No leaderboards, no sharing, no social pressure. The user bets on
     their own goals and tracks calibration over time.
+
+    MULTI-USER SAFETY (P7 isolation fix):
+    Predictions are scoped per-user via a user_id key. The prior
+    implementation used a bare class-level ``_predictions: dict = {}``
+    which is a shared mutable — all "users" (in a multi-tenant
+    deployment) would see the same dict, leaking predictions across
+    users. The fix keys the dict by ``user_id``; callers MUST pass
+    ``user_id``. The single-user convenience API (no user_id) routes
+    to the ``"__default__"`` slot for backward compatibility with
+    existing tests, but production callers must pass a real user_id.
     """
 
-    _predictions: dict[str, Prediction] = {}
+    _predictions: dict[str, dict[str, Prediction]] = {}
 
     @classmethod
-    def create_prediction(cls, question: str, probability: float) -> Prediction:
-        """Create a prediction. Probability must be 0..1."""
+    def create_prediction(cls, question: str, probability: float, user_id: str = "__default__") -> Prediction:
+        """Create a prediction. Probability must be 0..1.
+
+        Args:
+            question: The prediction question.
+            probability: User's stated probability (0..1).
+            user_id: The user this prediction belongs to. Required in
+                multi-user deployment; defaults to "__default__" for
+                single-user backward compatibility.
+        """
         if not 0.0 <= probability <= 1.0:
             raise ValueError("Probability must be between 0 and 1.")
         pred = Prediction(question=question, user_probability=probability)
-        cls._predictions[pred.prediction_id] = pred
+        cls._predictions.setdefault(user_id, {})[pred.prediction_id] = pred
         return pred
 
     @classmethod
-    def resolve_prediction(cls, prediction_id: str, outcome: str) -> Prediction | None:
-        """Resolve a prediction. outcome must be 'yes' or 'no'."""
+    def resolve_prediction(cls, prediction_id: str, outcome: str, user_id: str = "__default__") -> Prediction | None:
+        """Resolve a prediction. outcome must be 'yes' or 'no'.
+
+        Args:
+            prediction_id: The prediction to resolve.
+            outcome: Must be 'yes' or 'no'.
+            user_id: The user the prediction belongs to. Required in
+                multi-user deployment; defaults to "__default__" for
+                single-user backward compatibility.
+        """
         if outcome not in ("yes", "no"):
             raise ValueError("Outcome must be 'yes' or 'no'.")
-        pred = cls._predictions.get(prediction_id)
+        user_preds = cls._predictions.get(user_id, {})
+        pred = user_preds.get(prediction_id)
         if not pred:
             return None
         pred.outcome = outcome
@@ -86,23 +113,47 @@ class PersonalPredictionMarket:
         return pred
 
     @classmethod
-    def get_predictions(cls) -> list[Prediction]:
-        return list(cls._predictions.values())
+    def get_predictions(cls, user_id: str = "__default__") -> list[Prediction]:
+        """Get all predictions for a user. Defaults to '__default__' for backward compat."""
+        return list(cls._predictions.get(user_id, {}).values())
 
     @classmethod
-    def get_calibration(cls) -> dict[str, Any]:
-        """Get calibration summary — average Brier score across resolved predictions."""
-        resolved = [p for p in cls._predictions.values() if p.outcome != "pending"]
+    def get_calibration(cls, user_id: str = "__default__") -> dict[str, Any]:
+        """Get calibration summary — average Brier score across resolved predictions.
+
+        P25 (confidence display gate): if fewer than 10 resolved predictions
+        exist, the message says "insufficient calibration history" rather
+        than displaying a 4-decimal Brier average that implies more rigor
+        than the sample supports.
+        """
+        resolved = [p for p in cls._predictions.get(user_id, {}).values() if p.outcome != "pending"]
         if not resolved:
             return {"total": 0, "average_brier": None, "message": "No resolved predictions yet."}
         brier_scores = [p.brier_score for p in resolved if p.brier_score is not None]
         avg_brier = sum(brier_scores) / len(brier_scores) if brier_scores else None
+        # P25: gate 4-decimal precision on sample size
+        if len(resolved) < 10:
+            message = (
+                f"Insufficient calibration history: {len(resolved)} resolved prediction(s). "
+                f"Need 10+ for a reliable Brier average. Keep predicting."
+            )
+        else:
+            message = f"Average Brier score: {avg_brier:.4f} across {len(resolved)} resolved predictions."
         return {
             "total": len(resolved),
             "average_brier": round(avg_brier, 4) if avg_brier is not None else None,
-            "message": f"Average Brier score: {avg_brier:.4f}" if avg_brier is not None else "No Brier scores.",
+            "message": message,
         }
 
     @classmethod
-    def clear(cls) -> None:
-        cls._predictions = {}
+    def clear(cls, user_id: str | None = None) -> None:
+        """Clear predictions. If user_id is None, clears ALL users (test helper only).
+
+        Args:
+            user_id: If provided, clears only that user's predictions.
+                If None, clears all users. Use None only in test teardown.
+        """
+        if user_id is None:
+            cls._predictions = {}
+        else:
+            cls._predictions.pop(user_id, None)
