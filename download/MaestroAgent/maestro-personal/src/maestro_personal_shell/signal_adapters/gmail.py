@@ -28,6 +28,53 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Prompt injection defense (S1 fix per external audit)
+# ---------------------------------------------------------------------------
+
+# Patterns that indicate prompt injection attempts in email text
+INJECTION_PATTERNS = [
+    r"ignore\s+(previous|prior|above|all)\s+instructions?",
+    r"disregard\s+(previous|prior|above|all)\s+instructions?",
+    r"you\s+are\s+(now|actually)\s+(not|no longer)\s+(maestro|an? ai|a? assistant)",
+    r"system\s*:\s*",
+    r"<\s*system\s*>",
+    r"forget\s+(everything|all|previous)",
+    r"new\s+instructions?\s*:",
+    r"override\s+(previous|prior|all|system)",
+    r"act\s+as\s+(if you are|though you are)\s+(not|a different)",
+    r"pretend\s+(you are|to be)\s+(not|a different)",
+    r"jailbreak",
+    r"do\s+not\s+follow\s+(your|the)\s+(rules|instructions|guidelines)",
+]
+
+# Compiled patterns for performance
+_compiled_injection_patterns = [re.compile(p, re.IGNORECASE) for p in INJECTION_PATTERNS]
+
+
+def sanitize_email_text(text: str) -> str:
+    """Sanitize email text against prompt injection.
+
+    Per external audit S1: 'prompt injection defense consists of a hardcoded
+    string check — trivially bypassable.'
+
+    This function uses multiple patterns to detect and neutralize injection
+    attempts in email text BEFORE it reaches the Cognitive Council.
+
+    Detected injections are replaced with '[INJECTION ATTEMPT REMOVED]'
+    so the user knows something was stripped, but the injection payload
+    does not reach the LLM or the Core engine.
+    """
+    if not text:
+        return text
+
+    sanitized = text
+    for pattern in _compiled_injection_patterns:
+        sanitized = pattern.sub("[INJECTION ATTEMPT REMOVED]", sanitized)
+
+    return sanitized
+
+
+# ---------------------------------------------------------------------------
 # Commitment detection patterns
 # ---------------------------------------------------------------------------
 
@@ -205,6 +252,9 @@ def extract_signals_from_message(
     """
     headers = message.get("headers", {})
     body = message.get("body", "")
+
+    # S1 fix: sanitize email text against prompt injection BEFORE processing
+    body = sanitize_email_text(body)
     msg_id = message.get("message_id", str(uuid4()))
     entity = _extract_entity_from_headers(headers, user_email)
 

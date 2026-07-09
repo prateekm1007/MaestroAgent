@@ -364,6 +364,21 @@ async def login(req: LoginRequest):
     return LoginResponse(token=AUTH_TOKEN, message="Login successful")
 
 
+def _get_real_calibration() -> str:
+    """Get the REAL calibration note from the outcome tracker.
+
+    Replaces the hardcoded 'Insufficient calibration history' string
+    with a real Brier score when outcomes have been tracked.
+    """
+    try:
+        from maestro_personal_shell.outcome_tracker import get_calibration_report, init_outcome_db
+        init_outcome_db()
+        report = get_calibration_report()
+        return report.get("message", "Insufficient calibration history — keep tracking outcomes.")
+    except Exception:
+        return "Insufficient calibration history — keep tracking outcomes."
+
+
 # 2. GET /api/situations — list detected situations
 
 
@@ -755,12 +770,12 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
             # Try to call brier_score with empty data to test
             brier = core.calibration_primitives.brier_score([])
             if brier is None:
-                calibration_note = "Insufficient calibration history — keep tracking outcomes to build your Brier score."
+                calibration_note = _get_real_calibration()
             else:
                 calibration_note = f"Brier score: {brier:.4f} (lower is better)"
         except Exception:
             # If brier_score fails on empty, it means we have no predictions
-            calibration_note = "Insufficient calibration history — keep tracking outcomes to build your Brier score."
+            calibration_note = _get_real_calibration()
 
     # ── S3 FIX: EpistemicBarrier — filter evidence ───────────────────
     # Remove model outputs and shadow signals from the evidence chain.
@@ -832,11 +847,11 @@ async def get_commitments(token: str = Depends(verify_token)):
         try:
             brier = core.calibration_primitives.brier_score([])
             if brier is None:
-                cal_note = "Insufficient calibration history — keep tracking outcomes."
+                cal_note = _get_real_calibration()
             else:
                 cal_note = f"Brier score: {brier:.4f} (lower is better)"
         except Exception:
-            cal_note = "Insufficient calibration history — keep tracking outcomes."
+            cal_note = _get_real_calibration()
 
     result = []
     for c in commitments:
@@ -1829,6 +1844,77 @@ async def get_persisted_situations(token: str = Depends(verify_token)):
         "persisted_situations": persisted[:5],
         "persistence_active": True,
     }
+
+
+# ---------------------------------------------------------------------------
+# OUTCOME TRACKING — closes the learning + calibration loop
+# ---------------------------------------------------------------------------
+
+
+class PredictionRequest(BaseModel):
+    predicted_confidence: float
+    expected_outcome: str = "hit"
+    prediction_type: str = "recommendation"
+    entity_id: str = ""
+
+
+@app.post("/api/predictions")
+async def register_prediction_endpoint(req: PredictionRequest, token: str = Depends(verify_token)):
+    """Register a prediction — the START of the learning loop.
+
+    Before a commitment is resolved, register what we predict will happen
+    and at what confidence. Later, resolve with the actual outcome to
+    compute Brier score.
+    """
+    from maestro_personal_shell.outcome_tracker import register_prediction, init_outcome_db
+    init_outcome_db()
+    result = register_prediction(
+        predicted_confidence=req.predicted_confidence,
+        expected_outcome=req.expected_outcome,
+        prediction_type=req.prediction_type,
+        entity_id=req.entity_id,
+    )
+    return result
+
+
+class OutcomeRequest(BaseModel):
+    prediction_id: str
+    actual_outcome: str  # "hit" or "miss"
+
+
+@app.post("/api/outcomes")
+async def resolve_outcome_endpoint(req: OutcomeRequest, token: str = Depends(verify_token)):
+    """Resolve a prediction with the actual outcome — CLOSES the learning loop.
+
+    The prediction had a confidence; the outcome is now known. The Brier
+    score is computed from the difference. The BehavioralLearningEngine
+    is fed the outcome to update future behavior.
+    """
+    from maestro_personal_shell.outcome_tracker import resolve_outcome, init_outcome_db
+    init_outcome_db()
+    result = resolve_outcome(
+        prediction_id=req.prediction_id,
+        actual_outcome=req.actual_outcome,
+    )
+    return result
+
+
+@app.get("/api/calibration")
+async def get_calibration(token: str = Depends(verify_token)):
+    """Get the Brier score + calibration report.
+
+    When >= 10 resolved predictions: returns real Brier score + 10-bucket report.
+    When < 10: returns 'Insufficient calibration history' (honest P25).
+
+    This replaces the hardcoded 'Insufficient calibration history' string
+    in Commitments and Ask with a REAL calibration that evolves as outcomes
+    are tracked.
+    """
+    from maestro_personal_shell.outcome_tracker import get_calibration_report, get_prediction_count, init_outcome_db
+    init_outcome_db()
+    report = get_calibration_report()
+    counts = get_prediction_count()
+    return {**report, "counts": counts}
 
 
 # ---------------------------------------------------------------------------
