@@ -196,6 +196,10 @@ class CommitmentResponse(BaseModel):
     is_at_risk: bool = False
     days_stale: int = 0
     deadline: str = ""
+    # DEPTH FIELDS (wired from Core)
+    calibration_note: str = ""        # from CalibrationPrimitives — "insufficient history" or Brier score
+    outcome_history: str = ""         # from BehavioralLearningEngine — "kept 3/5 like this"
+    confidence: float = 0.0           # calibrated confidence in this commitment being kept
 
 
 class CommitmentsMasterpieceResponse(BaseModel):
@@ -208,6 +212,8 @@ class CommitmentsMasterpieceResponse(BaseModel):
     primary: CommitmentResponse | None = None
     why_primary: str = ""
     secondary: list[CommitmentResponse] = []
+    # DEPTH: overall calibration across all commitments
+    overall_calibration: str = ""     # from CalibrationPrimitives — aggregate Brier or "insufficient history"
 
 
 class SituationResponse(BaseModel):
@@ -239,7 +245,8 @@ class PrepareResponse(BaseModel):
     """The masterpiece Prepare response — 3 things that matter for THIS meeting.
 
     Not 5 prep points. Three. The forgotten commitment, the open question,
-    the contradiction. The right three.
+    the contradiction. The right three. PLUS: Cluely-class depth from
+    CopilotSituationBridge.pre_call_briefing().
     """
     situation_id: str
     entity: str = ""
@@ -249,6 +256,12 @@ class PrepareResponse(BaseModel):
     the_open_question: str = ""
     the_contradiction: str = ""
     prep_points: list[str] = []  # kept for backward compat, but the 3 above are the point
+    # DEPTH FIELDS (wired from Core's CopilotSituationBridge)
+    copilot_talking_points: list[dict[str, Any]] = []  # from pre_call_briefing — each cites evidence_refs
+    copilot_blocking_unknowns: list[str] = []           # what you DON'T know going into this meeting
+    copilot_can_decide: list[str] = []                  # what you can decide in this meeting
+    copilot_cannot_decide: list[str] = []               # what you should NOT decide yet
+    copilot_timeline: list[dict[str, Any]] = []         # the situation's timeline summary
 
 
 # ---------------------------------------------------------------------------
@@ -672,8 +685,13 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
 
 @app.get("/api/commitments", response_model=list[CommitmentResponse])
 async def get_commitments(token: str = Depends(verify_token)):
-    """Get active commitments — calls Core's commitment classifier via the shell."""
+    """Get active commitments — calls Core's commitment classifier via the shell.
+
+    DEPTH: each commitment includes calibration_note (from CalibrationPrimitives)
+    and outcome_history (from BehavioralLearningEngine).
+    """
     shell = build_shell()
+    core = shell.core
 
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
     surface = CommitmentsSurface(shell=shell)
@@ -690,10 +708,39 @@ async def get_commitments(token: str = Depends(verify_token)):
         if sig_id:
             stale_map[sig_id] = s.get("days_stale", 0)
 
+    # DEPTH: get calibration note from Core's calibration_primitives
+    cal_note = ""
+    if core.calibration_primitives:
+        try:
+            brier = core.calibration_primitives.brier_score([])
+            if brier is None:
+                cal_note = "Insufficient calibration history — keep tracking outcomes."
+            else:
+                cal_note = f"Brier score: {brier:.4f} (lower is better)"
+        except Exception:
+            cal_note = "Insufficient calibration history — keep tracking outcomes."
+
     result = []
     for c in commitments:
         sig_id = c.get("signal_id", "")
         days_stale = stale_map.get(sig_id, 0)
+
+        # DEPTH: get outcome history from BehavioralLearningEngine
+        outcome = ""
+        if core.behavioral_learning_engine:
+            try:
+                entity = c.get("entity", "")
+                metrics = core.behavioral_learning_engine.get_replication_metrics(
+                    candidate_id=None
+                ) if hasattr(core.behavioral_learning_engine, "get_replication_metrics") else {}
+                if metrics and isinstance(metrics, dict):
+                    resolved = metrics.get("resolved_count", 0)
+                    confirmed = metrics.get("confirmed_count", 0)
+                    if resolved > 0:
+                        outcome = f"Kept {confirmed}/{resolved} like this"
+            except Exception:
+                pass
+
         result.append(CommitmentResponse(
             entity=c["entity"],
             text=c["text"],
@@ -703,6 +750,9 @@ async def get_commitments(token: str = Depends(verify_token)):
             is_at_risk=sig_id in stale_map,
             days_stale=days_stale,
             deadline=(c.get("metadata", {}) or {}).get("deadline", ""),
+            calibration_note=cal_note,
+            outcome_history=outcome,
+            confidence=0.5 if not cal_note.startswith("Insufficient") else 0.0,
         ))
 
     return result
@@ -867,6 +917,7 @@ async def get_prepare(token: str = Depends(verify_token)):
     Not 5 prep points. Three. The right three.
     """
     shell = build_shell()
+    core = shell.core
 
     from maestro_personal_shell.surfaces.prepare import PrepareSurface
     surface = PrepareSurface(shell=shell)
@@ -928,6 +979,37 @@ async def get_prepare(token: str = Depends(verify_token)):
         else:
             meeting_context = f"Situation is {str(state_raw).split('.')[-1].lower()}"
 
+        # DEPTH: call Core's CopilotSituationBridge.pre_call_briefing()
+        # This is the Cluely-class depth — Situation-aware pre-call intelligence
+        copilot_talking_points = []
+        copilot_blocking_unknowns = []
+        copilot_can_decide = []
+        copilot_cannot_decide = []
+        copilot_timeline = []
+
+        if core.copilot_bridge:
+            try:
+                pre_call = core.copilot_bridge.pre_call_briefing(
+                    meeting_title=f"Meeting with {entity}",
+                    attendees=[entity] if entity else [],
+                    user_email="personal",
+                    org_id="personal",
+                )
+                if pre_call:
+                    copilot_talking_points = [
+                        tp if isinstance(tp, dict) else {"point": str(tp)}
+                        for tp in (getattr(pre_call, "talking_points", []) or [])[:5]
+                    ]
+                    copilot_blocking_unknowns = getattr(pre_call, "blocking_unknowns", []) or []
+                    copilot_can_decide = getattr(pre_call, "can_decide_now", []) or []
+                    copilot_cannot_decide = getattr(pre_call, "cannot_decide_yet", []) or []
+                    copilot_timeline = [
+                        ts if isinstance(ts, dict) else {"summary": str(ts)}
+                        for ts in (getattr(pre_call, "timeline_summary", []) or [])[:5]
+                    ]
+            except Exception as e:
+                logger.debug("Copilot pre_call_briefing failed: %s", e)
+
         result.append(PrepareResponse(
             situation_id=sit_id,
             entity=entity,
@@ -936,6 +1018,11 @@ async def get_prepare(token: str = Depends(verify_token)):
             the_forgotten=the_forgotten,
             the_open_question=the_open_question,
             the_contradiction=the_contradiction,
+            copilot_talking_points=copilot_talking_points,
+            copilot_blocking_unknowns=copilot_blocking_unknowns,
+            copilot_can_decide=copilot_can_decide,
+            copilot_cannot_decide=copilot_cannot_decide,
+            copilot_timeline=copilot_timeline,
         ))
 
     return result
@@ -951,31 +1038,76 @@ class WhisperResponse(BaseModel):
     body: str
     priority: str
     action_url: str = ""
+    # DEPTH FIELDS (wired from Core)
+    delivery_route: str = ""          # from Core's DeliveryGovernor via WhisperSituationBridge
+    delivery_explanation: str = ""    # WHY this route was chosen
+    suppression_reason: str = ""      # if SILENT, why
+    evidence_refs: list[str] = []     # provenance — which signals led to this whisper
 
 
 @app.get("/api/whisper", response_model=list[WhisperResponse])
 async def get_whispers(token: str = Depends(verify_token)):
     """Get active whispers — things that deserve attention RIGHT NOW.
 
+    DEPTH: calls Core's WhisperSituationBridge.from_situation() for each
+    situation to generate nuanced, situation-aware whisper content with
+    delivery route + explanation + evidence refs.
+
     Empty list = trusted silence (break-test dimension 7: Restraint).
     """
     shell = build_shell()
+    core = shell.core
 
     from maestro_personal_shell.surfaces.whisper import WhisperSurface
     surface = WhisperSurface(shell=shell)
     whispers = surface.get_active_whispers()
 
-    return [
-        WhisperResponse(
+    # DEPTH: enrich each whisper with Core's WhisperSituationBridge content
+    situations = shell.detect_situations()
+    sit_by_entity = {}
+    for s in situations:
+        entity = str(getattr(s, "entity", "")).lower()
+        if entity:
+            sit_by_entity[entity] = s
+
+    result = []
+    for w in whispers:
+        delivery_route = ""
+        delivery_explanation = ""
+        suppression_reason = ""
+        evidence_refs = []
+
+        # Call Core's WhisperSituationBridge for the matching situation
+        entity_lower = w.get("entity", "").lower()
+        matching_sit = sit_by_entity.get(entity_lower)
+        if core.whisper_bridge and matching_sit:
+            try:
+                whisper_result = core.whisper_bridge.from_situation(
+                    situation=matching_sit,
+                    context="meeting" if "meeting" in w.get("type", "") else "",
+                )
+                if whisper_result:
+                    delivery_route = str(getattr(whisper_result, "delivery_route", ""))
+                    delivery_explanation = str(getattr(whisper_result, "delivery_explanation", ""))
+                    suppression_reason = str(getattr(whisper_result, "suppression_reason", ""))
+                    evidence_refs = [str(r) for r in (getattr(whisper_result, "evidence_refs", []) or [])[:3]]
+            except Exception as e:
+                logger.debug("WhisperSituationBridge call failed: %s", e)
+
+        result.append(WhisperResponse(
             type=w["type"],
             entity=w["entity"],
             title=w["title"],
             body=w["body"],
             priority=w["priority"],
             action_url=w.get("action_url", ""),
-        )
-        for w in whispers
-    ]
+            delivery_route=delivery_route,
+            delivery_explanation=delivery_explanation,
+            suppression_reason=suppression_reason,
+            evidence_refs=evidence_refs,
+        ))
+
+    return result
 
 
 # 10. POST /api/sync/gmail — Gmail sync (v2: accepts pre-fetched messages)
@@ -1181,6 +1313,88 @@ async def get_depth(token: str = Depends(verify_token)):
         "target": "80%+",
         "status": "ON_TARGET" if len(wired) >= 18 else "IN_PROGRESS",
     }
+
+
+# ---------------------------------------------------------------------------
+# DEPTH ENDPOINT — GET /api/briefing
+# Morning briefing from Core's SituationBriefingEngine.
+# Not a feed — a Situation-centric briefing with the one thing, unknowns,
+# disputes, decision boundary, and what Maestro believes.
+# ---------------------------------------------------------------------------
+
+
+class BriefingResponse(BaseModel):
+    """The masterpiece briefing — Situation-centric, not agent-centric.
+
+    Structure (from Core's SituationCentricBriefing):
+      - Greeting
+      - The one thing that needs your judgment
+      - What changed since last briefing
+      - What is unknown / disputed
+      - What can/cannot be decided
+      - What Maestro believes, why, what would change that
+      - Situations being watched quietly
+    """
+    greeting: str = ""
+    top_situation: dict[str, Any] | None = None
+    material_changes: list[str] = []
+    unknowns: list[str] = []
+    disputes: list[dict[str, Any]] = []
+    can_decide_now: list[str] = []
+    cannot_decide_yet: list[str] = []
+    why_boundary: str = ""
+    next_step: str = ""
+    belief: str = ""
+    why_belief: str = ""
+    what_would_change_belief: str = ""
+    watching_quietly: list[dict[str, Any]] = []
+    ask_prompt: str = ""
+
+
+@app.get("/api/briefing", response_model=BriefingResponse)
+async def get_briefing(token: str = Depends(verify_token)):
+    """Morning briefing — the full Situation-centric intelligence.
+
+    DEPTH: calls Core's SituationBriefingEngine.generate_morning_briefing().
+    This is the orchestrated intelligence behind the Home screen.
+    """
+    shell = build_shell()
+    core = shell.core
+
+    if not core.briefing_bridge:
+        return BriefingResponse(
+            greeting="Good morning. Briefing engine unavailable.",
+            ask_prompt="What do you want to understand?",
+        )
+
+    try:
+        briefing = core.briefing_bridge.generate_morning_briefing(
+            user_email="personal",
+            org_id="personal",
+        )
+
+        return BriefingResponse(
+            greeting=getattr(briefing, "greeting", ""),
+            top_situation=getattr(briefing, "top_situation", None),
+            material_changes=getattr(briefing, "material_changes", []) or [],
+            unknowns=getattr(briefing, "unknowns", []) or [],
+            disputes=getattr(briefing, "disputes", []) or [],
+            can_decide_now=getattr(briefing, "can_decide_now", []) or [],
+            cannot_decide_yet=getattr(briefing, "cannot_decide_yet", []) or [],
+            why_boundary=getattr(briefing, "why_boundary", ""),
+            next_step=getattr(briefing, "next_step", ""),
+            belief=getattr(briefing, "belief", ""),
+            why_belief=getattr(briefing, "why_belief", ""),
+            what_would_change_belief=getattr(briefing, "what_would_change_belief", ""),
+            watching_quietly=getattr(briefing, "watching_quietly", []) or [],
+            ask_prompt=getattr(briefing, "ask_prompt", "What do you want to understand?"),
+        )
+    except Exception as e:
+        logger.debug("Briefing generation failed: %s", e)
+        return BriefingResponse(
+            greeting="Good morning.",
+            ask_prompt="What do you want to understand?",
+        )
 
 
 # ---------------------------------------------------------------------------
