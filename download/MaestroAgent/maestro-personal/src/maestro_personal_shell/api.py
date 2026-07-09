@@ -489,6 +489,152 @@ async def get_prepare(token: str = Depends(verify_token)):
     return result
 
 
+# 9. GET /api/whisper — Whisper surface (v2: proactive push)
+
+
+class WhisperResponse(BaseModel):
+    type: str
+    entity: str
+    title: str
+    body: str
+    priority: str
+    action_url: str = ""
+
+
+@app.get("/api/whisper", response_model=list[WhisperResponse])
+async def get_whispers(token: str = Depends(verify_token)):
+    """Get active whispers — things that deserve attention RIGHT NOW.
+
+    Empty list = trusted silence (break-test dimension 7: Restraint).
+    """
+    shell = build_shell()
+
+    from maestro_personal_shell.surfaces.whisper import WhisperSurface
+    surface = WhisperSurface(shell=shell)
+    whispers = surface.get_active_whispers()
+
+    return [
+        WhisperResponse(
+            type=w["type"],
+            entity=w["entity"],
+            title=w["title"],
+            body=w["body"],
+            priority=w["priority"],
+            action_url=w.get("action_url", ""),
+        )
+        for w in whispers
+    ]
+
+
+# 10. POST /api/sync/gmail — Gmail sync (v2: accepts pre-fetched messages)
+
+
+class GmailSyncRequest(BaseModel):
+    messages: list[dict[str, Any]]
+    user_email: str = "me"
+
+
+class GmailSyncResponse(BaseModel):
+    signals_created: int
+    message: str
+
+
+@app.post("/api/sync/gmail", response_model=GmailSyncResponse)
+async def sync_gmail(req: GmailSyncRequest, token: str = Depends(verify_token)):
+    """Sync Gmail messages → signals.
+
+    Accepts pre-fetched Gmail messages (the OAuth wiring happens in the
+    mobile app or a background worker). Extracts commitments, follow-ups,
+    and meeting changes using the Gmail adapter.
+    """
+    from maestro_personal_shell.signal_adapters.gmail import extract_signals_from_message
+
+    count = 0
+    for message in req.messages:
+        signals = extract_signals_from_message(message, req.user_email)
+        for sig in signals:
+            sig["signal_id"] = str(uuid4())
+            sig["created_at"] = datetime.now(timezone.utc).isoformat()
+            sig["source_acl"] = "private"  # Gmail is private by default
+            save_signal_to_db(sig)
+            count += 1
+
+    return GmailSyncResponse(
+        signals_created=count,
+        message=f"Extracted {count} signals from {len(req.messages)} Gmail messages",
+    )
+
+
+# 11. POST /api/sync/calendar — Calendar sync (v2: accepts pre-fetched events)
+
+
+class CalendarSyncRequest(BaseModel):
+    events: list[dict[str, Any]]
+    user_email: str = "me"
+
+
+class CalendarSyncResponse(BaseModel):
+    signals_created: int
+    message: str
+
+
+@app.post("/api/sync/calendar", response_model=CalendarSyncResponse)
+async def sync_calendar(req: CalendarSyncRequest, token: str = Depends(verify_token)):
+    """Sync Calendar events → signals.
+
+    Accepts pre-fetched calendar events. Extracts meeting.scheduled,
+    meeting.cancelled, and deadline.approaching signals.
+    """
+    from maestro_personal_shell.signal_adapters.calendar import extract_signals_from_event
+
+    count = 0
+    for event in req.events:
+        signals = extract_signals_from_event(event, req.user_email)
+        for sig in signals:
+            sig["signal_id"] = str(uuid4())
+            sig["created_at"] = datetime.now(timezone.utc).isoformat()
+            sig["source_acl"] = "private"
+            save_signal_to_db(sig)
+            count += 1
+
+    return CalendarSyncResponse(
+        signals_created=count,
+        message=f"Extracted {count} signals from {len(req.events)} calendar events",
+    )
+
+
+# 12. DELETE /api/account — Account deletion (v3: App Store Guideline 5.1.1)
+
+
+@app.delete("/api/account")
+async def delete_account(token: str = Depends(verify_token)):
+    """Delete the user's account and all associated data.
+
+    Per App Store Guideline 5.1.1(v): apps that support account creation
+    must also offer account deletion. This endpoint deletes ALL signals
+    and associated data from the SQLite database.
+    """
+    clear_signals_db()
+    return {"message": "Account deleted. All signals removed.", "status": "ok"}
+
+
+# 13. GET /api/account/export — GDPR/CCPA data export (v3)
+
+
+@app.get("/api/account/export")
+async def export_data(token: str = Depends(verify_token)):
+    """Export all user data (GDPR/CCPA compliance).
+
+    Returns all signals in JSON format for download.
+    """
+    signals = load_signals_from_db()
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "signal_count": len(signals),
+        "signals": signals,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Health check (no auth)
 # ---------------------------------------------------------------------------

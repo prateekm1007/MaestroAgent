@@ -130,3 +130,65 @@ export async function getPrepare(token: string): Promise<PrepareItem[]> {
   const response = await apiFetch('/api/prepare', {}, token);
   return response.json();
 }
+
+// v2: Whisper surface
+export interface WhisperItem {
+  type: string;
+  entity: string;
+  title: string;
+  body: string;
+  priority: string;
+  action_url: string;
+}
+
+export async function getWhispers(token: string): Promise<WhisperItem[]> {
+  const response = await apiFetch('/api/whisper', {}, token);
+  return response.json();
+}
+
+// v2: Gmail sync
+export interface GmailSyncResult {
+  signals_created: number;
+  message: string;
+}
+
+export async function syncGmail(
+  token: string,
+  messages: Record<string, any>[],
+  userEmail: string = 'me'
+): Promise<GmailSyncResult> {
+  const response = await apiFetch('/api/sync/gmail', {
+    method: 'POST',
+    body: JSON.stringify({ messages, user_email: userEmail }),
+  }, token);
+  return response.json();
+}
+
+// v2: Calendar sync
+export async function syncCalendar(
+  token: string,
+  events: Record<string, any>[],
+  userEmail: string = 'me'
+): Promise<GmailSyncResult> {
+  const response = await apiFetch('/api/sync/calendar', {
+    method: 'POST',
+    body: JSON.stringify({ events, user_email: userEmail }),
+  }, token);
+  return response.json();
+}
+
+// v3: Account deletion
+export async function deleteAccount(token: string): Promise<{ message: string; status: string }> {
+  const response = await apiFetch('/api/account', { method: 'DELETE' }, token);
+  return response.json();
+}
+
+// v3: Data export (GDPR/CCPA)
+export async function exportData(token: string): Promise<{
+  exported_at: string;
+  signal_count: number;
+  signals: Record<string, any>[];
+}> {
+  const response = await apiFetch('/api/account/export', {}, token);
+  return response.json();
+}
