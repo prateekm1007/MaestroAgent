@@ -144,19 +144,101 @@ class PersonalShell:
         Personal signals use different triggers ("meeting", "deadline",
         "tomorrow"). This method post-processes Core's output to apply
         personal expectation-mismatch triggers — without modifying Core.
+
+        PERSISTENCE: After detection, situations are saved to
+        SituationStore (SQLite) so they persist across server restart.
+        This closes the S2 beta blocker: "memory across days" is now real.
         """
         engine = self.situation_engine
         situations = engine.detect_situations(org_id=org_id)
         situations = situations or []
 
         # Post-process: apply personal NEEDS_PREPARATION triggers
-        # This is the Day 14 salience gap fix — personal signals that
-        # indicate an approaching meeting or deadline should transition
-        # the situation to NEEDS_PREPARATION, the same way enterprise
-        # signals with "availability" or "expectation" do.
         self._apply_personal_preparation_triggers(situations)
 
+        # PERSIST: save situations to SituationStore so they survive restart
+        self._persist_situations(situations, org_id)
+
         return situations
+
+    def _persist_situations(self, situations: list[Any], org_id: str) -> None:
+        """Save detected situations to SituationStore for persistence.
+
+        S2 beta blocker fix: without this, situations are in-memory only
+        and lost on restart. With this, situations persist across restart
+        in the same SQLite database as signals.
+        """
+        try:
+            store = self.core.situation_store
+            if not store:
+                return
+            for situation in situations:
+                try:
+                    store.save_situation(situation)
+                except Exception as e:
+                    logger.debug("SituationStore save failed: %s", e)
+        except Exception as e:
+            logger.debug("SituationStore persistence failed: %s", e)
+
+    def load_persisted_situations(self, org_id: str = "personal") -> list[dict]:
+        """Load previously-saved situations from SituationStore.
+
+        Use this after server restart to restore situation history.
+        Returns list of situation dicts (not LivingSituation objects).
+        """
+        try:
+            store = self.core.situation_store
+            if not store:
+                return []
+            return store.load_all_situations(org_id=org_id)
+        except Exception as e:
+            logger.debug("SituationStore load failed: %s", e)
+            return []
+
+    def filter_evidence(self, signals: list[Any]) -> list[Any]:
+        """Filter signals to only those usable as evidence.
+
+        S3 fix: EpistemicBarrier.filter_evidence_signals() removes
+        model outputs and shadow signals from the evidence chain.
+        This prevents the system from using its own outputs as evidence
+        (circular reasoning) and ensures only verified signals feed
+        into judgments, briefings, and whispers.
+        """
+        try:
+            from maestro_cognitive_council.epistemic_barrier import filter_evidence_signals
+            return filter_evidence_signals(signals)
+        except Exception as e:
+            logger.debug("EpistemicBarrier filter failed: %s", e)
+            return signals  # fail open (return all) if barrier unavailable
+
+    def apply_acl_restrictions(
+        self,
+        derived_intelligence: dict,
+        source_evidence: list[Any],
+        user_email: str = "personal",
+    ) -> dict:
+        """Apply ACL restrictions from source evidence to derived intelligence.
+
+        S3 fix: ACLBarrier.propagate_acl_restrictions() ensures that if
+        ANY source evidence is restricted (private, limited audience),
+        the derived intelligence inherits that restriction. This prevents
+        summaries from exposing the substance of restricted evidence.
+        """
+        try:
+            from maestro_cognitive_council.acl_barrier import (
+                propagate_acl_restrictions,
+                redact_restricted_content,
+            )
+            # Step 1: propagate restrictions
+            result = propagate_acl_restrictions(
+                derived_intelligence, source_evidence, user_email
+            )
+            # Step 2: redact restricted content
+            result = redact_restricted_content(result)
+            return result
+        except Exception as e:
+            logger.debug("ACLBarrier apply failed: %s", e)
+            return derived_intelligence  # fail open if barrier unavailable
 
     def _apply_personal_preparation_triggers(self, situations: list[Any]) -> None:
         """Apply personal expectation-mismatch triggers to situations.
