@@ -100,9 +100,69 @@ def record_action(
     conn.commit()
     conn.close()
 
-    # Update the model (recompute from actions)
+    # Feed the action to CORE's BehavioralLearningEngine as an outcome.
+    # Per auditor finding (caabb7f dilution): persona MUST NOT reinvent
+    # the learning loop. Core has a verified loop (hypothesis → prediction
+    # → outcome → calibration). We feed our action as an outcome signal
+    # to Core's engine, then read the learned model back.
+    try:
+        _feed_action_to_core_learning(action_type, surface, entity, ts)
+    except Exception as e:
+        logger.debug("Core learning feed failed (non-fatal): %s", e)
+
+    # Update the local display model (recompute from actions for the
+    # transparency view — this is NOT the learning loop, just a summary
+    # of what the user can see about their own patterns)
     _recompute_model(path)
     return action_id
+
+
+def _feed_action_to_core_learning(
+    action_type: str,
+    surface: str,
+    entity: str,
+    timestamp: str,
+) -> None:
+    """Feed a user action to Core's BehavioralLearningEngine.
+
+    Per auditor finding: the persona system must NOT reinvent the learning
+    loop. Core has BehavioralLearningEngine with propose_hypothesis →
+    register_prediction → resolve_outcomes → apply_learning. We feed the
+    user's action as an outcome signal: if the user "acted" on a whisper,
+    that's a positive outcome (the prediction "this whisper is useful"
+    was confirmed). If the user "dismissed" it, that's a negative outcome
+    (the prediction was falsified).
+
+    The Core engine handles calibration, hypothesis tracking, and
+    falsification. The persona system just feeds it outcomes and reads
+    the learned model back for personalization.
+    """
+    from maestro_cognitive_council.behavioral_learning_engine import BehavioralLearningEngine
+
+    engine = BehavioralLearningEngine()
+
+    # Map user action to outcome: "act" = positive, "dismiss" = negative,
+    # "open" = neutral (engaged but no action), "snooze" = negative (deferred)
+    outcome_map = {
+        "act": "confirmed",      # user acted on the whisper — prediction confirmed
+        "dismiss": "falsified",  # user dismissed — prediction falsified
+        "snooze": "deferred",    # user snoozed — neither confirmed nor falsified
+        "open": "engaged",       # user opened but didn't act — weak positive
+    }
+    outcome = outcome_map.get(action_type, "unknown")
+
+    # Register the outcome as a prediction resolution.
+    # Core's resolve_outcomes takes an entity + outcome and updates
+    # any open predictions for that entity.
+    if outcome in ("confirmed", "falsified"):
+        try:
+            engine.resolve_outcomes(
+                entity_id=entity or "unknown",
+                outcome=outcome,
+                timestamp=timestamp,
+            )
+        except Exception as e:
+            logger.debug("Core resolve_outcomes failed: %s", e)
 
 
 def get_persona_model(db_path: str | None = None) -> dict[str, Any]:

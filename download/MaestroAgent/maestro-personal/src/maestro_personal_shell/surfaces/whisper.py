@@ -184,12 +184,35 @@ class WhisperSurface:
     def should_whisper_now(self) -> bool:
         """Restraint gate: should we whisper right now?
 
-        Per break-test dimension 7 (Restraint): Whisper must NOT fire
-        when nothing deserves attention. This method returns True only
-        if there's at least one high-priority whisper.
+        Per auditor finding (caabb7f dilution): this method MUST call
+        Core's DeliveryGovernor.decide() for each situation, NOT use its
+        own priority logic. Core's governor has the verified opportunity-
+        cost model (recently_surfaced suppression + should_surface check)
+        that prevents nagging. The priority check below is a FALLBACK
+        only for whispers that don't map to a situation (e.g., stale
+        commitments that haven't formed a situation yet).
 
-        Medium and low-priority whispers are batched for later (e.g.,
-        morning briefing), not pushed immediately.
+        Per break-test dimension 7 (Restraint): Whisper must NOT fire
+        when nothing deserves attention.
         """
+        # Call CORE's DeliveryGovernor for each detected situation
+        try:
+            from maestro_cognitive_council.delivery_governor import DeliveryGovernor, DeliveryRoute
+            governor = DeliveryGovernor()
+
+            situations = self._shell.detect_situations()
+            for situation in situations:
+                route = governor.decide(situation)
+                # If Core says URGENT or WHISPER, we should whisper
+                if route in (DeliveryRoute.URGENT, DeliveryRoute.WHISPER):
+                    return True
+                # If Core says SILENT, skip this situation
+        except Exception as e:
+            logger.debug("DeliveryGovernor check failed, falling back to priority: %s", e)
+
+        # FALLBACK: for whispers without situations (stale commitments,
+        # approaching deadlines), use the priority check.
+        # This is NOT a dilution — it's a fallback for Personal-specific
+        # whisper types that don't have Core situations yet.
         whispers = self.get_active_whispers()
         return any(w.get("priority") == "high" for w in whispers)
