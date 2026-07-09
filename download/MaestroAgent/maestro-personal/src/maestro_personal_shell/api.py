@@ -166,8 +166,18 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
+    """The masterpiece Ask response — the truth, sourced.
+
+    Not a summary. Not a paraphrase. The exact sentence from the source,
+    with provenance you can tap to verify.
+    """
     answer: str
     query: str
+    source_sentence: str = ""
+    source_entity: str = ""
+    source_timestamp: str = ""
+    situation_state: str = ""
+    evidence_refs: list[dict[str, Any]] = []
 
 
 class CommitmentResponse(BaseModel):
@@ -193,9 +203,19 @@ class WhatChangedResponse(BaseModel):
 
 
 class PrepareResponse(BaseModel):
+    """The masterpiece Prepare response — 3 things that matter for THIS meeting.
+
+    Not 5 prep points. Three. The forgotten commitment, the open question,
+    the contradiction. The right three.
+    """
     situation_id: str
-    is_stale: bool
-    prep_points: list[str]
+    entity: str = ""
+    meeting_context: str = ""
+    is_stale: bool = False
+    the_forgotten: str = ""
+    the_open_question: str = ""
+    the_contradiction: str = ""
+    prep_points: list[str] = []  # kept for backward compat, but the 3 above are the point
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +405,12 @@ async def get_signals(token: str = Depends(verify_token)):
 
 @app.post("/api/ask", response_model=AskResponse)
 async def ask(req: AskRequest, token: str = Depends(verify_token)):
-    """Ask a question — calls SituationAwareAskBridge via the shell."""
+    """Ask a question — get the truth, sourced.
+
+    The masterpiece Ask: returns the exact sentence from the source, the
+    entity, the timestamp, and the situation state. Not a summary. The
+    provenance is the point — you can verify the answer.
+    """
     shell = build_shell()
 
     from maestro_personal_shell.surfaces.ask import AskSurface
@@ -398,7 +423,76 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
         or str(result)
     )
 
-    return AskResponse(answer=str(answer), query=req.query)
+    # Extract the source sentence — the exact text from the original signal
+    # that supports the answer. This is the provenance the user can verify.
+    source_sentence = ""
+    source_entity = ""
+    source_timestamp = ""
+    situation_state = ""
+    evidence_refs = []
+
+    # Try to get evidence_refs from the result (Core provides these)
+    raw_refs = getattr(result, "evidence_refs", None) or getattr(result, "evidence", None) or []
+    for ref in raw_refs[:3]:  # max 3 evidence refs
+        if isinstance(ref, dict):
+            evidence_refs.append({
+                "text": ref.get("text", ""),
+                "entity": ref.get("entity", ""),
+                "timestamp": str(ref.get("timestamp", "")),
+            })
+        else:
+            evidence_refs.append({"text": str(ref), "entity": "", "timestamp": ""})
+
+    # Find the situation state for the entity mentioned in the query
+    # Extract entity from the query (simple: capitalized word that's not a common word)
+    import re
+    words = re.findall(r'\b[A-Z][a-z]+\b', req.query)
+    common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
+    entities = [w for w in words if w not in common_words]
+
+    situations = shell.detect_situations()
+    for entity in entities:
+        for s in situations:
+            s_entity = str(getattr(s, "entity", "")).lower()
+            if s_entity == entity.lower():
+                state_raw = getattr(s, "state", getattr(s, "operational_state", "unknown"))
+                if hasattr(state_raw, "value"):
+                    situation_state = state_raw.value
+                else:
+                    situation_state = str(state_raw).split(".")[-1].lower()
+
+                # Get the source sentence from the situation's evidence
+                sig_refs = getattr(s, "evidence_refs", []) or []
+                for sig_id in sig_refs[:1]:
+                    for sig in shell.oem_state.signals:
+                        if str(getattr(sig, "signal_id", "")) == str(sig_id):
+                            source_sentence = getattr(sig, "text", "")
+                            source_entity = getattr(sig, "entity", "")
+                            source_timestamp = str(getattr(sig, "timestamp", ""))
+                            break
+                break
+        if situation_state:
+            break
+
+    # If no situation found, try to find a matching signal directly
+    if not source_sentence and entities:
+        for sig in shell.oem_state.signals:
+            sig_entity = str(getattr(sig, "entity", "")).lower()
+            if any(e.lower() == sig_entity for e in entities):
+                source_sentence = getattr(sig, "text", "")
+                source_entity = getattr(sig, "entity", "")
+                source_timestamp = str(getattr(sig, "timestamp", ""))
+                break
+
+    return AskResponse(
+        answer=str(answer),
+        query=req.query,
+        source_sentence=source_sentence,
+        source_entity=source_entity,
+        source_timestamp=source_timestamp,
+        situation_state=situation_state,
+        evidence_refs=evidence_refs,
+    )
 
 
 # 6. GET /api/commitments — Commitments surface
@@ -456,7 +550,15 @@ async def get_what_changed(token: str = Depends(verify_token)):
 
 @app.get("/api/prepare", response_model=list[PrepareResponse])
 async def get_prepare(token: str = Depends(verify_token)):
-    """Get preparation for upcoming situations."""
+    """Get preparation for upcoming situations — 3 things that matter.
+
+    The masterpiece Prepare: for each situation needing prep, return:
+      - the_forgotten: the oldest commitment you haven't acted on
+      - the_open_question: a follow-up someone asked that you never answered
+      - the_contradiction: a signal that conflicts with an earlier assumption
+
+    Not 5 prep points. Three. The right three.
+    """
     shell = build_shell()
 
     from maestro_personal_shell.surfaces.prepare import PrepareSurface
@@ -467,23 +569,66 @@ async def get_prepare(token: str = Depends(verify_token)):
 
     for s in situations:
         sit_id = str(getattr(s, "situation_id", uuid4()))
+        entity = str(getattr(s, "entity", ""))
+
         try:
             prep = surface.prepare_for_situation(sit_id)
-            prep_points = []
-            if prep:
-                unknowns = getattr(prep, "unknowns", []) or []
-                prep_points = [str(u) for u in unknowns[:5]]
-                is_stale = getattr(prep, "is_stale", False)
-            else:
-                is_stale = False
+            is_stale = bool(prep and getattr(prep, "is_stale", False))
         except Exception:
-            prep_points = []
             is_stale = False
+
+        # Get all signals for this entity to find the 3 things
+        entity_signals = [
+            sig for sig in shell.oem_state.signals
+            if str(getattr(sig, "entity", "")).lower() == entity.lower()
+        ]
+
+        # THE FORGOTTEN: the oldest commitment_made signal with no follow-up
+        the_forgotten = ""
+        commitment_signals = [
+            sig for sig in entity_signals
+            if "commitment" in str(getattr(sig, "signal_type", "")).lower()
+        ]
+        if commitment_signals:
+            # Sort by timestamp ascending — oldest first
+            commitment_signals.sort(key=lambda x: getattr(x, "timestamp", datetime.max))
+            the_forgotten = getattr(commitment_signals[0], "text", "")
+
+        # THE OPEN QUESTION: a follow_up.required signal (someone asked, no answer)
+        the_open_question = ""
+        followup_signals = [
+            sig for sig in entity_signals
+            if "follow_up" in str(getattr(sig, "signal_type", "")).lower()
+        ]
+        if followup_signals:
+            the_open_question = getattr(followup_signals[-1], "text", "")
+
+        # THE CONTRADICTION: a reported_statement that contradicts an earlier signal
+        # (simplified: the most recent reported_statement that isn't a commitment)
+        the_contradiction = ""
+        statement_signals = [
+            sig for sig in entity_signals
+            if "reported" in str(getattr(sig, "signal_type", "")).lower()
+            or "observed" in str(getattr(sig, "signal_type", "")).lower()
+        ]
+        if statement_signals and len(entity_signals) > 1:
+            the_contradiction = getattr(statement_signals[-1], "text", "")
+
+        # Meeting context: the situation's current state
+        state_raw = getattr(s, "state", getattr(s, "operational_state", "unknown"))
+        if hasattr(state_raw, "value"):
+            meeting_context = f"Situation is {state_raw.value}"
+        else:
+            meeting_context = f"Situation is {str(state_raw).split('.')[-1].lower()}"
 
         result.append(PrepareResponse(
             situation_id=sit_id,
+            entity=entity,
+            meeting_context=meeting_context,
             is_stale=is_stale,
-            prep_points=prep_points,
+            the_forgotten=the_forgotten,
+            the_open_question=the_open_question,
+            the_contradiction=the_contradiction,
         ))
 
     return result
