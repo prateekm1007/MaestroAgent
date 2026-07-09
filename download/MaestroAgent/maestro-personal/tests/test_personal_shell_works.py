@@ -136,87 +136,94 @@ class TestPersonalShellSurfaces:
 
 class TestNoDilution:
     """Day 4: the architectural guard. Personal modules must not reimplement
-    Core capabilities — they must import them."""
+    Core capabilities — they must import them.
+
+    The guard logic lives in no_dilution_guard.py (shared module). Both
+    the real tests and the positive test call check_for_dilution() — no
+    duplication. This fixes the prior weakness where the positive test
+    reimplemented the guard logic (auditor P27 finding at cfbe442).
+    """
 
     def test_no_personal_module_implements_brier_score(self):
-        """No maestro_personal/*.py may implement Brier score inline —
-        must import from calibration_primitives."""
-        import ast
+        """No maestro_personal_shell/*.py may implement Brier score inline —
+        must import from calibration_primitives.
+
+        Uses AST-based import checking (not string presence) so a comment
+        mentioning 'calibration_primitives' does not bypass the guard.
+        """
         import pathlib
+        from no_dilution_guard import check_for_dilution, DilutionRule
 
         personal_dir = pathlib.Path(__file__).resolve().parents[1] / "src" / "maestro_personal_shell"
-        forbidden_patterns = [
-            "(p - actual) ** 2",  # inline Brier
-            "(p-actual)**2",
-            "brier_score =",
-            "def brier",
-        ]
 
-        violations = []
-        for py_file in personal_dir.rglob("*.py"):
-            try:
-                source = py_file.read_text()
-                for pattern in forbidden_patterns:
-                    if pattern in source:
-                        # Check if it imports the Core primitive
-                        if "calibration_primitives" not in source:
-                            violations.append(f"{py_file.name}: found '{pattern}' without importing calibration_primitives")
-            except Exception:
-                continue
+        # Use only the Brier rule for this test
+        brier_rule = DilutionRule(
+            forbidden_patterns=[
+                "(p - actual) ** 2",
+                "(p-actual)**2",
+                "brier_score =",
+                "def brier",
+            ],
+            required_imports=["calibration_primitives"],
+            capability_name="Brier score / calibration",
+        )
+
+        violations = check_for_dilution(personal_dir, rules=[brier_rule])
 
         assert not violations, (
-            "Dilution violations found:\n" + "\n".join(violations) +
+            "Dilution violations found:\n" + "\n".join(str(v) for v in violations) +
             "\n\nPersonal modules must import Core primitives, not reimplement them."
         )
 
     def test_no_personal_module_implements_judgment_synthesis(self):
-        """No maestro_personal/*.py may implement judgment synthesis inline —
-        must import from judgment_synthesizer."""
+        """No maestro_personal_shell/*.py may implement judgment synthesis
+        inline — must import from judgment_synthesizer."""
         import pathlib
+        from no_dilution_guard import check_for_dilution, DilutionRule
 
         personal_dir = pathlib.Path(__file__).resolve().parents[1] / "src" / "maestro_personal_shell"
-        forbidden_patterns = [
-            "def synthesize_judgment",
-            "def _synthesize",
-            "MIN_EVIDENCE_FOR_DECISION =",
-        ]
 
-        violations = []
-        for py_file in personal_dir.rglob("*.py"):
-            try:
-                source = py_file.read_text()
-                for pattern in forbidden_patterns:
-                    if pattern in source:
-                        if "judgment_synthesizer" not in source and "JudgmentSynthesizer" not in source:
-                            violations.append(f"{py_file.name}: found '{pattern}' without importing judgment_synthesizer")
-            except Exception:
-                continue
+        judgment_rule = DilutionRule(
+            forbidden_patterns=[
+                "def synthesize_judgment",
+                "def _synthesize",
+                "MIN_EVIDENCE_FOR_DECISION =",
+            ],
+            required_imports=["judgment_synthesizer", "JudgmentSynthesizer"],
+            capability_name="Judgment synthesis",
+        )
+
+        violations = check_for_dilution(personal_dir, rules=[judgment_rule])
 
         assert not violations, (
-            "Dilution violations found:\n" + "\n".join(violations)
+            "Dilution violations found:\n" + "\n".join(str(v) for v in violations)
         )
 
     def test_no_dilution_guard_actually_catches_violations(self):
         """P27 positive test: prove the guard catches dilution, not just
         passes vacuously. Inject a fake diluted file in a temp dir and
-        verify the guard logic flags it.
+        verify the GUARD (not a copy of its logic) flags it.
 
-        This test exists because the prior version of the no-dilution
-        guard checked a non-existent path (src/maestro_personal/ instead
-        of src/maestro_personal_shell/) and passed trivially. This test
-        ensures the guard actually scans real files.
+        This test calls check_for_dilution() directly — the same function
+        the real tests use. If the guard is modified, this test exercises
+        the modified guard, not a stale copy. This fixes the prior weakness
+        where the positive test reimplemented the guard logic.
         """
         import pathlib
         import tempfile
+        from no_dilution_guard import check_for_dilution, DilutionRule
 
-        # The forbidden patterns the guard checks for
-        forbidden_patterns = [
-            "(p - actual) ** 2",
-            "brier_score =",
-            "def brier",
-        ]
+        brier_rule = DilutionRule(
+            forbidden_patterns=[
+                "(p - actual) ** 2",
+                "brier_score =",
+                "def brier",
+            ],
+            required_imports=["calibration_primitives"],
+            capability_name="Brier score / calibration",
+        )
 
-        # Create a temp dir with a fake diluted module
+        # Create a temp dir with a fake diluted module (NO import statement)
         with tempfile.TemporaryDirectory() as tmpdir:
             fake_pkg = pathlib.Path(tmpdir) / "src" / "maestro_personal_shell"
             fake_pkg.mkdir(parents=True)
@@ -228,17 +235,8 @@ class TestNoDilution:
                 "    return (p - actual) ** 2\n"
             )
 
-            # Run the same logic the guard uses
-            violations = []
-            for py_file in fake_pkg.rglob("*.py"):
-                try:
-                    source = py_file.read_text()
-                    for pattern in forbidden_patterns:
-                        if pattern in source:
-                            if "calibration_primitives" not in source:
-                                violations.append(f"{py_file.name}: found '{pattern}' without importing calibration_primitives")
-                except Exception:
-                    continue
+            # Call the ACTUAL guard function — not a copy of its logic
+            violations = check_for_dilution(fake_pkg, rules=[brier_rule])
 
             # The guard MUST flag the fake diluted file
             assert len(violations) >= 1, (
@@ -246,8 +244,87 @@ class TestNoDilution:
                 "diluted module. If this fails, the guard is theater — it "
                 "passes without actually scanning files."
             )
-            assert "fake_diluted" in violations[0], (
+            assert "fake_diluted" in violations[0].file_name, (
                 f"Guard must flag fake_diluted.py, got: {violations}"
+            )
+
+    def test_no_dilution_guard_ast_catches_comment_bypass(self):
+        """P32 positive test: prove the AST-based import check cannot be
+        bypassed by mentioning the module name in a comment.
+
+        Prior guard used string presence: a comment like
+        '# must import calibration_primitives' bypassed the guard.
+        The new AST-based check parses the source and looks for real
+        import statements — comments don't count.
+        """
+        import pathlib
+        import tempfile
+        from no_dilution_guard import check_for_dilution, DilutionRule
+
+        brier_rule = DilutionRule(
+            forbidden_patterns=["def brier"],
+            required_imports=["calibration_primitives"],
+            capability_name="Brier score / calibration",
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_pkg = pathlib.Path(tmpdir) / "fake_pkg"
+            fake_pkg.mkdir()
+            fake_file = fake_pkg / "comment_bypass.py"
+            # The file mentions calibration_primitives in a COMMENT but
+            # does not actually import it. The guard MUST flag this.
+            fake_file.write_text(
+                "# This module mentions calibration_primitives in a comment\n"
+                "# but does NOT actually import it.\n"
+                "def brier_score(p, actual):\n"
+                "    return (p - actual) ** 2\n"
+            )
+
+            violations = check_for_dilution(fake_pkg, rules=[brier_rule])
+
+            assert len(violations) >= 1, (
+                "P32 test: AST-based guard must flag a file that mentions "
+                "calibration_primitives in a comment but does not actually "
+                "import it. If this fails, the guard is still using string "
+                "presence (the prior weakness)."
+            )
+
+    def test_no_dilution_guard_passes_when_real_import_exists(self):
+        """P32 positive test: prove the AST-based check correctly recognizes
+        real import statements. A file with a forbidden pattern BUT a real
+        import of the Core primitive should NOT be flagged.
+        """
+        import pathlib
+        import tempfile
+        from no_dilution_guard import check_for_dilution, DilutionRule
+
+        brier_rule = DilutionRule(
+            forbidden_patterns=["def brier"],
+            required_imports=["calibration_primitives"],
+            capability_name="Brier score / calibration",
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_pkg = pathlib.Path(tmpdir) / "fake_pkg"
+            fake_pkg.mkdir()
+            fake_file = fake_pkg / "real_import.py"
+            # This file has the forbidden pattern BUT also a real import.
+            # The guard should NOT flag this — the import satisfies the rule.
+            fake_file.write_text(
+                "from maestro_cognitive_council.calibration_primitives import compute_brier\n"
+                "\n"
+                "def brier_wrapper(p, actual):\n"
+                "    # Uses the imported Core primitive — not dilution\n"
+                "    return compute_brier(p, actual)\n"
+            )
+
+            violations = check_for_dilution(fake_pkg, rules=[brier_rule])
+
+            assert len(violations) == 0, (
+                "P32 test: guard must NOT flag a file that has a real import "
+                "of the Core primitive, even if it contains a forbidden pattern "
+                "like 'def brier'. If this fails, the AST check is too strict. "
+                f"Violations: {violations}"
             )
 
     def test_no_dilution_guard_scans_real_package(self):

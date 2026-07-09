@@ -1,12 +1,17 @@
-"""conftest.py — set up sys.path so maestro_personal + maestro_cognitive_council are importable."""
+"""conftest.py — set up sys.path so maestro_personal_shell + maestro_cognitive_council + no_dilution_guard are importable."""
 
 import sys
 import pathlib
 
-# Add maestro-personal/src to path
+# Add maestro-personal/src to path (the Personal shell package)
 personal_src = pathlib.Path(__file__).resolve().parents[1] / "src"
 if str(personal_src) not in sys.path:
     sys.path.insert(0, str(personal_src))
+
+# Add maestro-personal/tests to path (so no_dilution_guard is importable)
+tests_dir = pathlib.Path(__file__).resolve().parent
+if str(tests_dir) not in sys.path:
+    sys.path.insert(0, str(tests_dir))
 
 # Add backend/ to path so maestro_cognitive_council is importable
 # (the Core lives in backend/maestro_cognitive_council/)
