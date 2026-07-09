@@ -1389,6 +1389,236 @@ async def post_call_summary(req: PostCallSummaryRequest, token: str = Depends(ve
 
 
 # ---------------------------------------------------------------------------
+# PHASE 4+: TALK RATIO COACHING
+# ---------------------------------------------------------------------------
+
+
+class TalkRatioRequest(BaseModel):
+    segments: list[dict[str, Any]]
+
+
+@app.post("/api/copilot/talk-ratio")
+async def get_talk_ratio(req: TalkRatioRequest, token: str = Depends(verify_token)):
+    """Get talk ratio coaching from Core's TalkRatioCoach.
+
+    Processes speech segments and returns your % vs their %, interruptions,
+    and coaching feedback.
+    """
+    from maestro_personal_shell.copilot_live import get_talk_ratio_coaching
+    shell = build_shell()
+    return get_talk_ratio_coaching(shell=shell, segments=req.segments)
+
+
+# ---------------------------------------------------------------------------
+# PHASE 4+: NEGOTIATION COACHING
+# ---------------------------------------------------------------------------
+
+
+class NegotiationRequest(BaseModel):
+    text: str
+    speaker: str = ""
+    batna: float | None = None
+
+
+@app.post("/api/copilot/negotiation")
+async def get_negotiation(req: NegotiationRequest, token: str = Depends(verify_token)):
+    """Get negotiation coaching from Core's NegotiationStrategyEngine.
+
+    Processes a transcript chunk and returns phase, anchors, concessions,
+    and recommended strategy.
+    """
+    from maestro_personal_shell.copilot_live import get_negotiation_coaching
+    shell = build_shell()
+    return get_negotiation_coaching(
+        shell=shell,
+        text=req.text,
+        speaker=req.speaker,
+        batna=req.batna,
+    )
+
+
+# ---------------------------------------------------------------------------
+# PHASE 4+: WEBSOCKET for real-time bidirectional
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws/copilot")
+async def websocket_copilot(websocket: Request):
+    """WebSocket endpoint for real-time bidirectional copilot communication.
+
+    The browser extension connects here during a call. Transcript chunks
+    are sent as messages; suggestions are pushed back in real-time.
+
+    Message format (from extension):
+      {"type": "transcript", "text": "...", "speaker": "...", "entity": "..."}
+      {"type": "start", "meeting_title": "...", "entity": "..."}
+      {"type": "stop"}
+
+    Message format (to extension):
+      {"type": "suggestion", "transitions": [...], "commitments_detected": [...]}
+      {"type": "briefing", "greeting": "...", "top_situation": {...}}
+      {"type": "ambient", "summary": "...", "alerts": [...]}
+      {"type": "post_call", "summary": {...}}
+      {"type": "error", "message": "..."}
+    """
+    from fastapi import WebSocket, WebSocketDisconnect
+    import json
+
+    # Note: FastAPI WebSocket needs the actual WebSocket type, not Request
+    # This endpoint is defined but requires the server to support WebSocket
+    # The actual WebSocket handler is below
+    pass
+
+
+# Real WebSocket handler (separate function because FastAPI needs WebSocket type)
+async def websocket_copilot_handler(websocket: "WebSocket"):
+    """Handle WebSocket connection for real-time copilot.
+
+    This is the actual handler — registered via app.websocket().
+    """
+    from fastapi import WebSocket, WebSocketDisconnect
+    from maestro_personal_shell.copilot_live import (
+        process_transcript_chunk,
+        generate_post_call_summary,
+        get_ambient_intelligence,
+    )
+    import json
+
+    await websocket.accept()
+
+    # Auth: get token from first message or query param
+    try:
+        # Wait for auth message
+        auth_msg = await websocket.receive_text()
+        auth_data = json.loads(auth_msg)
+        token = auth_data.get("token", "")
+        if token != AUTH_TOKEN:
+            await websocket.send_json({"type": "error", "message": "Invalid token"})
+            await websocket.close()
+            return
+    except Exception:
+        await websocket.send_json({"type": "error", "message": "Auth failed"})
+        await websocket.close()
+        return
+
+    transcript_chunks = []
+    meeting_entity = ""
+    is_active = False
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            msg = json.loads(data)
+            msg_type = msg.get("type", "")
+
+            if msg_type == "start":
+                is_active = True
+                meeting_entity = msg.get("entity", "")
+                transcript_chunks = []
+
+                # Send pre-call briefing
+                shell = build_shell()
+                core = shell.core
+                if core.briefing_bridge:
+                    try:
+                        briefing = core.briefing_bridge.generate_morning_briefing(
+                            user_email="personal", org_id="personal")
+                        await websocket.send_json({
+                            "type": "briefing",
+                            "greeting": getattr(briefing, "greeting", ""),
+                            "top_situation": getattr(briefing, "top_situation", None),
+                            "material_changes": getattr(briefing, "material_changes", []),
+                            "unknowns": getattr(briefing, "unknowns", []),
+                            "ask_prompt": getattr(briefing, "ask_prompt", ""),
+                        })
+                    except Exception:
+                        pass
+
+                # Send ambient
+                ambient = get_ambient_intelligence(shell)
+                await websocket.send_json({"type": "ambient", **ambient})
+
+                await websocket.send_json({"type": "started"})
+
+            elif msg_type == "transcript" and is_active:
+                shell = build_shell()
+
+                # Get situation ID
+                situations = shell.detect_situations()
+                sit_id = situations[0].situation_id if situations else "unknown"
+
+                chunk = {
+                    "speaker": msg.get("speaker", ""),
+                    "text": msg.get("text", ""),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                transcript_chunks.append(chunk)
+
+                result = process_transcript_chunk(
+                    shell=shell,
+                    situation_id=sit_id,
+                    text=msg.get("text", ""),
+                    speaker=msg.get("speaker", ""),
+                    entity=meeting_entity,
+                )
+
+                # Send suggestion if something detected
+                if result.get("transitions") or result.get("commitments_detected"):
+                    await websocket.send_json({
+                        "type": "suggestion",
+                        **result,
+                    })
+                else:
+                    await websocket.send_json({"type": "ack"})
+
+            elif msg_type == "talk_ratio":
+                # Process talk ratio
+                from maestro_personal_shell.copilot_live import get_talk_ratio_coaching
+                shell = build_shell()
+                result = get_talk_ratio_coaching(shell, msg.get("segments", []))
+                await websocket.send_json({"type": "talk_ratio", **result})
+
+            elif msg_type == "negotiation":
+                # Process negotiation
+                from maestro_personal_shell.copilot_live import get_negotiation_coaching
+                shell = build_shell()
+                result = get_negotiation_coaching(
+                    shell,
+                    text=msg.get("text", ""),
+                    speaker=msg.get("speaker", ""),
+                    batna=msg.get("batna"),
+                )
+                await websocket.send_json({"type": "negotiation", **result})
+
+            elif msg_type == "stop":
+                is_active = False
+                shell = build_shell()
+                situations = shell.detect_situations()
+                sit_id = situations[0].situation_id if situations else "unknown"
+
+                summary = generate_post_call_summary(
+                    shell=shell,
+                    situation_id=sit_id,
+                    transcript_chunks=transcript_chunks,
+                    commitments=[],
+                    entity=meeting_entity,
+                )
+                await websocket.send_json({"type": "post_call", **summary})
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+
+
+# Register the WebSocket route properly
+from fastapi import WebSocket
+app.add_api_websocket_route("/ws/copilot", websocket_copilot_handler)
+
+
+# ---------------------------------------------------------------------------
 # PHASE 5: AMBIENT INTELLIGENCE — calendar + sentiment between calls
 # ---------------------------------------------------------------------------
 

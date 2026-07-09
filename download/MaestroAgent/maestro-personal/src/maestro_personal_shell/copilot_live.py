@@ -231,3 +231,118 @@ def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
     result["ambient_summary"] = ". ".join(parts) + "." if parts else "Nothing urgent right now."
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 4+: Talk Ratio Coaching
+# ---------------------------------------------------------------------------
+
+
+def get_talk_ratio_coaching(
+    shell: Any,
+    segments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Get talk ratio coaching from Core's TalkRatioCoach.
+
+    Processes speech segments (speaker + duration) and returns:
+      - talk_ratio: your % vs their %
+      - interruptions: detected
+      - coaching: specific feedback
+      - confidence_label: calibration status
+    """
+    try:
+        from maestro_oem.talk_ratio_coach import TalkRatioCoach, SpeechSegment
+        coach = TalkRatioCoach()
+
+        for seg in segments:
+            coach.add_segment_from_dict(seg)
+
+        report = coach.generate_report()
+
+        # TalkRatioReport uses talk_ratios dict (speaker→percentage) not your_talk_ratio
+        your_ratio = report.talk_ratios.get("you", 0) / 100.0
+        their_ratio = report.talk_ratios.get("them", 0) / 100.0
+
+        return {
+            "your_ratio": your_ratio,
+            "their_ratio": their_ratio,
+            "balanced": your_ratio < 0.6 and their_ratio < 0.6,
+            "interruptions": report.interruption_count,
+            "coaching": "; ".join(
+                s.get("suggestion", str(s)) for s in report.coaching_suggestions
+            ) if report.coaching_suggestions else "Talk ratio is balanced.",
+            "confidence_label": report.confidence_label if isinstance(report.confidence_label, str) else "unknown",
+            "report": report.to_dict(),
+        }
+    except Exception as e:
+        logger.debug("Talk ratio coaching failed: %s", e)
+        return {"error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Phase 4+: Negotiation Coaching
+# ---------------------------------------------------------------------------
+
+
+def get_negotiation_coaching(
+    shell: Any,
+    text: str,
+    speaker: str = "",
+    batna: float | None = None,
+) -> dict[str, Any]:
+    """Get negotiation coaching from Core's NegotiationStrategyEngine.
+
+    Processes a transcript chunk and returns:
+      - phase: current negotiation phase
+      - anchors: detected price anchors
+      - concessions: detected concessions
+      - strategy: recommended strategy
+      - confidence_label: calibration status
+    """
+    try:
+        from maestro_oem.negotiation_strategy import NegotiationStrategyEngine
+        engine = NegotiationStrategyEngine(oem_state=shell.oem_state)
+
+        if batna is not None:
+            engine.set_batna(batna)
+
+        strategy = engine.process_transcript(text, speaker)
+
+        # NegotiationStrategy: phase is a NegotiationPhase enum, confidence_label is a @property
+        phase_val = getattr(strategy, "phase", "unknown")
+        if hasattr(phase_val, "value"):
+            phase_str = phase_val.value
+        else:
+            phase_str = str(phase_val)
+
+        # confidence_label is a @property (not a method)
+        conf_label = getattr(strategy, "confidence_label", "unknown")
+        if callable(conf_label):
+            conf_label = conf_label()
+
+        # strategy uses counter_offer_suggestion + action_suggestion (not "recommendation")
+        strat_text = getattr(strategy, "counter_offer_suggestion", "") or \
+                     getattr(strategy, "action_suggestion", "") or "No specific strategy yet."
+
+        # anchors: their_anchor + your_anchor (not a list)
+        anchors = []
+        their_anchor = getattr(strategy, "their_anchor", None)
+        your_anchor = getattr(strategy, "your_anchor", None)
+        if their_anchor is not None:
+            anchors.append({"who": "them", "value": their_anchor})
+        if your_anchor is not None:
+            anchors.append({"who": "you", "value": your_anchor})
+
+        return {
+            "phase": phase_str,
+            "anchors": anchors,
+            "concessions": [
+                c.to_dict() if hasattr(c, "to_dict") else {"value": str(c)}
+                for c in (getattr(strategy, "concessions", []) or [])
+            ][:3],
+            "strategy": str(strat_text)[:300],
+            "confidence_label": conf_label,
+        }
+    except Exception as e:
+        logger.debug("Negotiation coaching failed: %s", e)
+        return {"error": str(e)}
