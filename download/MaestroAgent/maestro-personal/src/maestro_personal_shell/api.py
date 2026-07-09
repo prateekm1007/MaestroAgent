@@ -1332,6 +1332,83 @@ async def deliver_whispers_push(token: str = Depends(verify_token)):
 
 
 # ---------------------------------------------------------------------------
+# PHASE 4: LIVE COPILOT — real-time call intelligence
+# ---------------------------------------------------------------------------
+
+
+class TranscriptChunkRequest(BaseModel):
+    situation_id: str
+    text: str
+    speaker: str = ""
+    entity: str = ""
+
+
+@app.post("/api/copilot/transcript")
+async def process_transcript(req: TranscriptChunkRequest, token: str = Depends(verify_token)):
+    """Process a transcript chunk during a live call.
+
+    Phase 4: Cluely-class real-time intelligence. Calls Core's
+    CopilotSituationBridge.on_transcript_chunk(). Updates the Situation's
+    operational state in real-time, detects new commitments, resolves unknowns.
+    """
+    from maestro_personal_shell.copilot_live import process_transcript_chunk
+    shell = build_shell()
+    return process_transcript_chunk(
+        shell=shell,
+        situation_id=req.situation_id,
+        text=req.text,
+        speaker=req.speaker,
+        entity=req.entity,
+    )
+
+
+class PostCallSummaryRequest(BaseModel):
+    situation_id: str
+    transcript_chunks: list[dict[str, Any]] = []
+    commitments: list[dict[str, Any]] = []
+    entity: str = ""
+
+
+@app.post("/api/copilot/post-call")
+async def post_call_summary(req: PostCallSummaryRequest, token: str = Depends(verify_token)):
+    """Generate a post-call summary after the meeting ends.
+
+    Phase 4: calls Core's CopilotSituationBridge.post_call_summary().
+    Transitions state → AWAITING_OUTCOME, ingests commitments, triggers
+    learning, generates draft follow-up.
+    """
+    from maestro_personal_shell.copilot_live import generate_post_call_summary
+    shell = build_shell()
+    return generate_post_call_summary(
+        shell=shell,
+        situation_id=req.situation_id,
+        transcript_chunks=req.transcript_chunks,
+        commitments=req.commitments,
+        entity=req.entity,
+    )
+
+
+# ---------------------------------------------------------------------------
+# PHASE 5: AMBIENT INTELLIGENCE — calendar + sentiment between calls
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/ambient")
+async def get_ambient(token: str = Depends(verify_token)):
+    """Get ambient intelligence — what's happening between calls.
+
+    Phase 5: combines calendar awareness (upcoming meetings, preparation
+    needed), sentiment patterns (frustration/positivity detected), and
+    commitment staleness into a single ambient view.
+
+    This is the background intelligence that feeds Whisper between calls.
+    """
+    from maestro_personal_shell.copilot_live import get_ambient_intelligence
+    shell = build_shell()
+    return get_ambient_intelligence(shell=shell)
+
+
+# ---------------------------------------------------------------------------
 # DEPTH ENDPOINT — GET /api/depth
 # Shows which Core modules are wired. The CEO can verify the depth.
 # ---------------------------------------------------------------------------
