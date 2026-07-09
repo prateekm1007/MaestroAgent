@@ -186,6 +186,21 @@ class CommitmentResponse(BaseModel):
     claim_type: str
     signal_id: str
     is_commitment: bool
+    is_at_risk: bool = False
+    days_stale: int = 0
+    deadline: str = ""
+
+
+class CommitmentsMasterpieceResponse(BaseModel):
+    """The masterpiece Commitments response — one at risk, rest secondary.
+
+    Not a list of 47. One primary (the at-risk commitment), the rest
+    available but secondary. The inevitability: you know what you owe
+    without scrolling.
+    """
+    primary: CommitmentResponse | None = None
+    why_primary: str = ""
+    secondary: list[CommitmentResponse] = []
 
 
 class SituationResponse(BaseModel):
@@ -200,6 +215,17 @@ class WhatChangedResponse(BaseModel):
     text: str
     type: str
     is_meaningful: bool
+
+
+class WhatChangedMasterpieceResponse(BaseModel):
+    """The masterpiece What Changed response — 2 material shifts, not a feed.
+
+    Not a chronological inbox dump. Two cards. The things that materially
+    changed since you last looked. The inevitability: you're already
+    caught up.
+    """
+    the_shifts: list[WhatChangedResponse] = []
+    silence_message: str = ""
 
 
 class PrepareResponse(BaseModel):
@@ -507,16 +533,105 @@ async def get_commitments(token: str = Depends(verify_token)):
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
 
-    return [
-        CommitmentResponse(
+    # Get stale commitments for at-risk flagging
+    stale = shell.detect_stale_commitments(days_threshold=2)
+    stale_map = {}
+    for s in stale:
+        sig_id = ""
+        commit = s.get("commitment", None)
+        if commit:
+            sig_id = getattr(commit, "signal_id", "") or (commit.get("signal_id", "") if isinstance(commit, dict) else "")
+        if sig_id:
+            stale_map[sig_id] = s.get("days_stale", 0)
+
+    result = []
+    for c in commitments:
+        sig_id = c.get("signal_id", "")
+        days_stale = stale_map.get(sig_id, 0)
+        result.append(CommitmentResponse(
             entity=c["entity"],
             text=c["text"],
             claim_type=str(c.get("claim_type", "commitment")),
-            signal_id=c["signal_id"],
+            signal_id=sig_id,
             is_commitment=c.get("is_commitment", True),
-        )
-        for c in commitments
-    ]
+            is_at_risk=sig_id in stale_map,
+            days_stale=days_stale,
+            deadline=(c.get("metadata", {}) or {}).get("deadline", ""),
+        ))
+
+    return result
+
+
+# 6b. GET /api/commitments/the-one — the masterpiece Commitments endpoint
+
+
+@app.get("/api/commitments/the-one", response_model=CommitmentsMasterpieceResponse)
+async def get_the_one_commitment(token: str = Depends(verify_token)):
+    """The one commitment at risk today — not a list of 47.
+
+    The masterpiece Commitments: returns ONE primary commitment (the
+    most at-risk) + the rest as secondary. The inevitability: you know
+    what you owe without scrolling.
+    """
+    shell = build_shell()
+
+    from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
+    surface = CommitmentsSurface(shell=shell)
+    commitments = surface.get_active_commitments()
+
+    if not commitments:
+        return CommitmentsMasterpieceResponse(primary=None, why_primary="", secondary=[])
+
+    # Get stale commitments
+    stale = shell.detect_stale_commitments(days_threshold=2)
+    stale_map = {}
+    for s in stale:
+        sig_id = ""
+        commit = s.get("commitment", None)
+        if commit:
+            sig_id = getattr(commit, "signal_id", "") or (commit.get("signal_id", "") if isinstance(commit, dict) else "")
+        if sig_id:
+            stale_map[sig_id] = s.get("days_stale", 0)
+
+    # Build commitment responses with at-risk info
+    all_commitments = []
+    for c in commitments:
+        sig_id = c.get("signal_id", "")
+        days_stale = stale_map.get(sig_id, 0)
+        all_commitments.append(CommitmentResponse(
+            entity=c["entity"],
+            text=c["text"],
+            claim_type=str(c.get("claim_type", "commitment")),
+            signal_id=sig_id,
+            is_commitment=c.get("is_commitment", True),
+            is_at_risk=sig_id in stale_map,
+            days_stale=days_stale,
+            deadline=(c.get("metadata", {}) or {}).get("deadline", ""),
+        ))
+
+    # The primary is the most at-risk: highest days_stale, then oldest
+    def risk_score(c: CommitmentResponse) -> tuple[int, int]:
+        return (c.days_stale, -len(c.signal_id))  # stale first, then by ID for stability
+
+    all_commitments.sort(key=risk_score, reverse=True)
+    primary = all_commitments[0] if all_commitments else None
+
+    why = ""
+    if primary:
+        reasons = []
+        if primary.is_at_risk:
+            reasons.append(f"no follow-up for {primary.days_stale} days")
+        if primary.deadline:
+            reasons.append(f"deadline: {primary.deadline}")
+        if primary.claim_type == "commitment":
+            reasons.append("you made this promise")
+        why = "; ".join(reasons) if reasons else "most active commitment"
+
+    return CommitmentsMasterpieceResponse(
+        primary=primary,
+        why_primary=why,
+        secondary=all_commitments[1:] if len(all_commitments) > 1 else [],
+    )
 
 
 # 7. GET /api/what-changed — What Changed surface
@@ -543,6 +658,52 @@ async def get_what_changed(token: str = Depends(verify_token)):
         )
         for d in deltas
     ]
+
+
+# 7b. GET /api/what-changed/the-shifts — the masterpiece What Changed endpoint
+
+
+@app.get("/api/what-changed/the-shifts", response_model=WhatChangedMasterpieceResponse)
+async def get_the_shifts(token: str = Depends(verify_token)):
+    """The 2 things that materially shifted — not a feed.
+
+    The masterpiece What Changed: returns at most 2 meaningful shifts.
+    Not a chronological inbox dump. Two cards. The inevitability: you're
+    already caught up.
+    """
+    shell = build_shell()
+
+    from maestro_personal_shell.surfaces.what_changed import WhatChangedSurface
+    from datetime import timedelta
+
+    surface = WhatChangedSurface(shell=shell)
+    since = datetime.now(timezone.utc) - timedelta(days=30)
+    deltas = surface.get_recent_deltas(since_timestamp=since)
+
+    # Filter to meaningful only, take top 2
+    meaningful = [d for d in deltas if d.get("is_meaningful")]
+
+    if not meaningful:
+        return WhatChangedMasterpieceResponse(
+            the_shifts=[],
+            silence_message="Nothing material changed since you last looked."
+        )
+
+    # Take at most 2 — the 2 most recent meaningful shifts
+    the_shifts = meaningful[:2]
+
+    return WhatChangedMasterpieceResponse(
+        the_shifts=[
+            WhatChangedResponse(
+                entity=d["entity"],
+                text=d["text"],
+                type=d["type"],
+                is_meaningful=d["is_meaningful"],
+            )
+            for d in the_shifts
+        ],
+        silence_message="",
+    )
 
 
 # 8. GET /api/prepare — Prepare surface
