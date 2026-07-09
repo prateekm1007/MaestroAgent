@@ -330,7 +330,7 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Maestro Personal API starting on port %d", API_PORT)
     logger.info("DB path: %s", DB_PATH)
-    logger.info("Auth token: %s", AUTH_TOKEN)
+    logger.info("Maestro Personal API auth configured (token not logged for security)")
     yield  # App runs here
     # Shutdown (if needed)
 
@@ -345,7 +345,7 @@ app = FastAPI(
 # CORS — allow the mobile app (Expo Metro bundler runs on :8081/:19000) to call
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # v1 dogfood — tighten in production
+    allow_origins=["http://localhost:8081", "http://localhost:19000", "http://localhost:8766"],  # Expo Metro + API only
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
