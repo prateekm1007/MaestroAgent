@@ -132,6 +132,10 @@ class NerveWiring:
     def get_insights(self, org_id: str = "personal") -> list[dict[str, Any]]:
         """Generate insights from all wired agents.
 
+        Per Phase 3+ directive: adapt agents with personal-mode adapters
+        before calling generate_insights. The adapters patch the agents'
+        enterprise engine factories to use personal-mode equivalents.
+
         Returns a list of insight dicts with:
           - agent: which agent produced it
           - title: short headline
@@ -143,6 +147,14 @@ class NerveWiring:
         """
         self._init_agents()
         from maestro_nerve.base_agent import AgentContext
+
+        # ADAPT: patch agents' enterprise engines with personal adapters
+        try:
+            from maestro_personal_shell.agent_adapters import PersonalAgentAdapter
+            adapter = PersonalAgentAdapter(shell=self._shell)
+            adapter.adapt_all(self._agents)
+        except Exception as e:
+            logger.debug("Agent adaptation failed: %s", e)
 
         ctx = AgentContext(
             user_email="personal",
