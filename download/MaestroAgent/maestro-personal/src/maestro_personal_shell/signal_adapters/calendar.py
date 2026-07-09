@@ -38,6 +38,10 @@ def extract_signals_from_event(
     event: dict[str, Any],
     user_email: str = "me",
 ) -> list[dict[str, Any]]:
+    # Guard against malformed input (S2 fix: calendar sync crash on non-dict)
+    if not isinstance(event, dict):
+        logger.warning("Calendar adapter received non-dict event: %s", type(event).__name__)
+        return []
     """Extract personal signals from a calendar event.
 
     Args:
