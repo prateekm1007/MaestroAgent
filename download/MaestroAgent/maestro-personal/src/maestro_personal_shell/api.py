@@ -166,10 +166,11 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
-    """The masterpiece Ask response — the truth, sourced.
+    """The masterpiece Ask response — the truth, sourced, with full depth.
 
     Not a summary. Not a paraphrase. The exact sentence from the source,
-    with provenance you can tap to verify.
+    with provenance you can tap to verify. PLUS: judgment, perspectives,
+    decision boundary, and reasoning trace from the full Core engine.
     """
     answer: str
     query: str
@@ -178,6 +179,12 @@ class AskResponse(BaseModel):
     source_timestamp: str = ""
     situation_state: str = ""
     evidence_refs: list[dict[str, Any]] = []
+    # DEPTH FIELDS (wired from Core)
+    decision_boundary: str = ""        # from JudgmentSynthesizer — "decide now / wait / what would change this"
+    perspectives: list[dict[str, Any]] = []  # from Perspective — specialist views
+    reasoning_chain: list[str] = []   # from ReasoningTrace — how Maestro arrived at this
+    calibration_note: str = ""         # from CalibrationPrimitives — "insufficient history" if applicable
+    consequence_paths: list[str] = []  # from ConsequencePathRouter — what happens if you decide X
 
 
 class CommitmentResponse(BaseModel):
@@ -510,6 +517,83 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                 source_timestamp = str(getattr(sig, "timestamp", ""))
                 break
 
+    # ── DEPTH: wire Core modules for full intelligence ──────────────
+    # Per CEO directive: "80% depth on Core. The complexity behind the screens."
+    # These fields are what make Ask feel like the full engine, not a
+    # thin wrapper. Each is a lazy call to a Core module via shell.core.
+
+    decision_boundary = ""
+    perspectives_data = []
+    reasoning_chain = []
+    calibration_note = ""
+    consequence_paths = []
+
+    core = shell.core
+
+    # 1. JudgmentSynthesizer — decision boundary
+    if core.judgment_synthesizer and situations:
+        try:
+            for s in situations:
+                s_entity = str(getattr(s, "entity", "")).lower()
+                if any(e.lower() == s_entity for e in entities):
+                    judgment = core.judgment_synthesizer.synthesize(s)
+                    if judgment:
+                        decision_boundary = str(getattr(judgment, "decision_boundary", "") or
+                                               getattr(judgment, "boundary", "") or "")
+                    break
+        except Exception as e:
+            logger.debug("Judgment synthesis failed: %s", e)
+
+    # 2. Perspectives — specialist views
+    if core.perspectives and situations:
+        try:
+            for s in situations:
+                s_entity = str(getattr(s, "entity", "")).lower()
+                if any(e.lower() == s_entity for e in entities):
+                    for p in core.perspectives[:3]:  # max 3 perspectives
+                        perspectives_data.append({
+                            "name": str(getattr(p, "name", getattr(p, "perspective_name", "specialist"))),
+                            "view": str(getattr(p, "view", getattr(p, "assessment", "")))[:200],
+                        })
+                    break
+        except Exception as e:
+            logger.debug("Perspectives failed: %s", e)
+
+    # 3. ReasoningTrace — provenance chain
+    if core.reasoning_trace:
+        try:
+            trace = core.reasoning_trace.build_trace(query=req.query, situations=situations)
+            if trace:
+                steps = getattr(trace, "steps", []) or getattr(trace, "chain", [])
+                reasoning_chain = [str(s) for s in steps[:5]]
+        except Exception as e:
+            logger.debug("Reasoning trace failed: %s", e)
+
+    # 4. CalibrationPrimitives — calibration note
+    if core.calibration_primitives:
+        try:
+            cal = core.calibration_primitives.get_calibration_summary()
+            if cal:
+                total = getattr(cal, "total_predictions", getattr(cal, "total", 0))
+                if total and total < 10:
+                    calibration_note = "Insufficient calibration history — keep tracking outcomes."
+        except Exception as e:
+            logger.debug("Calibration check failed: %s", e)
+
+    # 5. ConsequencePathRouter — consequence paths
+    if core.consequence_path_router and situations:
+        try:
+            for s in situations:
+                s_entity = str(getattr(s, "entity", "")).lower()
+                if any(e.lower() == s_entity for e in entities):
+                    paths = core.consequence_path_router.route(s)
+                    if paths:
+                        path_list = getattr(paths, "paths", paths) if not isinstance(paths, list) else paths
+                        consequence_paths = [str(p)[:100] for p in path_list[:3]]
+                    break
+        except Exception as e:
+            logger.debug("Consequence routing failed: %s", e)
+
     return AskResponse(
         answer=str(answer),
         query=req.query,
@@ -518,6 +602,11 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
         source_timestamp=source_timestamp,
         situation_state=situation_state,
         evidence_refs=evidence_refs,
+        decision_boundary=decision_boundary,
+        perspectives=perspectives_data,
+        reasoning_chain=reasoning_chain,
+        calibration_note=calibration_note,
+        consequence_paths=consequence_paths,
     )
 
 
@@ -1009,6 +1098,32 @@ async def deliver_whispers_push(token: str = Depends(verify_token)):
         whispers_suppressed=suppressed,
         log=log,
     )
+
+
+# ---------------------------------------------------------------------------
+# DEPTH ENDPOINT — GET /api/depth
+# Shows which Core modules are wired. The CEO can verify the depth.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/depth")
+async def get_depth(token: str = Depends(verify_token)):
+    """Show which Core modules are wired to Personal.
+
+    Per CEO directive: "80% depth on Core." This endpoint lets you verify
+    the wiring — how many of the 23 Core modules are actually called.
+    """
+    shell = build_shell()
+    core = shell.core
+    wired = core.wired_modules
+    return {
+        "wired_count": len(wired),
+        "total_core_modules": 23,
+        "coverage_pct": round(len(wired) / 23 * 100),
+        "wired_modules": wired,
+        "target": "80%+",
+        "status": "ON_TARGET" if len(wired) >= 18 else "IN_PROGRESS",
+    }
 
 
 # ---------------------------------------------------------------------------

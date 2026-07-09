@@ -63,6 +63,25 @@ class PersonalShell:
         return self._oem_state
 
     @property
+    def core(self) -> Any:
+        """CoreWiring — exposes all Core cognitive modules to the shell.
+
+        Per CEO directive: "80% depth on Core." This gives every surface
+        access to the full engine: judgment_synthesizer, perspectives,
+        calibration_primitives, reasoning_trace, briefing_bridge,
+        epistemic_barrier, whisper_bridge, copilot_bridge, and more.
+
+        Usage:
+            shell.core.judgment_synthesizer
+            shell.core.calibration_primitives
+            shell.core.briefing_bridge
+        """
+        if not hasattr(self, '_core_wiring') or self._core_wiring is None:
+            from maestro_personal_shell.core_wiring import CoreWiring
+            self._core_wiring = CoreWiring(shell=self)
+        return self._core_wiring
+
+    @property
     def situation_engine(self) -> Any:
         """Lazy-init the SituationEngine with personal salience config applied.
 
