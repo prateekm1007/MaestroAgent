@@ -1441,39 +1441,11 @@ async def get_negotiation(req: NegotiationRequest, token: str = Depends(verify_t
 # PHASE 4+: WEBSOCKET for real-time bidirectional
 # ---------------------------------------------------------------------------
 
-@app.websocket("/ws/copilot")
-async def websocket_copilot(websocket: Request):
-    """WebSocket endpoint for real-time bidirectional copilot communication.
-
-    The browser extension connects here during a call. Transcript chunks
-    are sent as messages; suggestions are pushed back in real-time.
-
-    Message format (from extension):
-      {"type": "transcript", "text": "...", "speaker": "...", "entity": "..."}
-      {"type": "start", "meeting_title": "...", "entity": "..."}
-      {"type": "stop"}
-
-    Message format (to extension):
-      {"type": "suggestion", "transitions": [...], "commitments_detected": [...]}
-      {"type": "briefing", "greeting": "...", "top_situation": {...}}
-      {"type": "ambient", "summary": "...", "alerts": [...]}
-      {"type": "post_call", "summary": {...}}
-      {"type": "error", "message": "..."}
-    """
-    from fastapi import WebSocket, WebSocketDisconnect
-    import json
-
-    # Note: FastAPI WebSocket needs the actual WebSocket type, not Request
-    # This endpoint is defined but requires the server to support WebSocket
-    # The actual WebSocket handler is below
-    pass
-
-
-# Real WebSocket handler (separate function because FastAPI needs WebSocket type)
+# Real WebSocket handler — registered via add_api_websocket_route below
 async def websocket_copilot_handler(websocket: "WebSocket"):
     """Handle WebSocket connection for real-time copilot.
 
-    This is the actual handler — registered via app.websocket().
+    Auth via query param: ws://localhost:8766/ws/copilot?token=<TOKEN>
     """
     from fastapi import WebSocket, WebSocketDisconnect
     from maestro_personal_shell.copilot_live import (
@@ -1485,18 +1457,10 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
 
     await websocket.accept()
 
-    # Auth: get token from first message or query param
-    try:
-        # Wait for auth message
-        auth_msg = await websocket.receive_text()
-        auth_data = json.loads(auth_msg)
-        token = auth_data.get("token", "")
-        if token != AUTH_TOKEN:
-            await websocket.send_json({"type": "error", "message": "Invalid token"})
-            await websocket.close()
-            return
-    except Exception:
-        await websocket.send_json({"type": "error", "message": "Auth failed"})
+    # Auth via query param (simpler than first-message auth)
+    token = websocket.query_params.get("token", "")
+    if token != AUTH_TOKEN:
+        await websocket.send_json({"type": "error", "message": "Invalid token"})
         await websocket.close()
         return
 
@@ -1515,29 +1479,31 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                 meeting_entity = msg.get("entity", "")
                 transcript_chunks = []
 
-                # Send pre-call briefing
+                # Send started confirmation (with briefing + ambient inline)
                 shell = build_shell()
                 core = shell.core
+                briefing_data = {}
                 if core.briefing_bridge:
                     try:
                         briefing = core.briefing_bridge.generate_morning_briefing(
                             user_email="personal", org_id="personal")
-                        await websocket.send_json({
-                            "type": "briefing",
+                        briefing_data = {
                             "greeting": getattr(briefing, "greeting", ""),
                             "top_situation": getattr(briefing, "top_situation", None),
                             "material_changes": getattr(briefing, "material_changes", []),
                             "unknowns": getattr(briefing, "unknowns", []),
                             "ask_prompt": getattr(briefing, "ask_prompt", ""),
-                        })
+                        }
                     except Exception:
                         pass
 
-                # Send ambient
-                ambient = get_ambient_intelligence(shell)
-                await websocket.send_json({"type": "ambient", **ambient})
+                ambient_data = get_ambient_intelligence(shell)
 
-                await websocket.send_json({"type": "started"})
+                await websocket.send_json({
+                    "type": "started",
+                    "briefing": briefing_data,
+                    "ambient": ambient_data,
+                })
 
             elif msg_type == "transcript" and is_active:
                 shell = build_shell()
