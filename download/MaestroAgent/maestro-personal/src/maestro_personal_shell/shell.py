@@ -82,6 +82,23 @@ class PersonalShell:
         return self._core_wiring
 
     @property
+    def nerve(self) -> Any:
+        """NerveWiring — exposes all Nerve agents to the shell.
+
+        Per CEO Phase 3 directive: replace template perspectives with
+        real Nerve agent insights. Each agent reads .signals from
+        PersonalOemState and generates AgentInsight objects.
+
+        Usage:
+            shell.nerve.get_perspectives_for_entity("Alex")
+            shell.nerve.get_insights()
+        """
+        if not hasattr(self, '_nerve_wiring') or self._nerve_wiring is None:
+            from maestro_personal_shell.nerve_wiring import NerveWiring
+            self._nerve_wiring = NerveWiring(shell=self)
+        return self._nerve_wiring
+
+    @property
     def situation_engine(self) -> Any:
         """Lazy-init the SituationEngine with personal salience config applied.
 

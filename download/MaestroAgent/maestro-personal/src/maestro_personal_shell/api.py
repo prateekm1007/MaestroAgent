@@ -571,22 +571,57 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
         except Exception as e:
             logger.debug("Consequence routing failed: %s", e)
 
-    # 2. Perspectives — create Perspective objects for the matching situation
-    # Perspective is a dataclass — we create instances with the specialist names
-    # from the ConsequencePathRouter. This is NOT dilution — we're using Core's
-    # Perspective dataclass to structure specialist views.
+    # 2. Perspectives — REAL Nerve agent insights (not template strings)
+    # Per CEO Phase 3 directive: replace "Analyzing Alex from X perspective"
+    # with real agent.generate_insights() output — title, body, evidence,
+    # recommended_action, priority.
     from maestro_cognitive_council.perspective import Perspective
     from uuid import uuid4 as _uuid4
+
+    # First try Nerve agents for real insights
+    nerve_perspectives = []
+    try:
+        nerve = shell.nerve
+        entity_name = ""
+        if matching_situation:
+            entity_name = str(getattr(matching_situation, "entity", ""))
+        if not entity_name and entities:
+            entity_name = entities[0]
+
+        if entity_name:
+            nerve_perspectives = nerve.get_perspectives_for_entity(entity_name)
+    except Exception as e:
+        logger.debug("Nerve perspectives failed: %s", e)
+
+    # Build Perspective objects from real Nerve insights (or fall back to
+    # ConsequencePathRouter specialists if Nerve produces nothing)
     persp_objects = []
-    if matching_situation:
-        for specialist_name in (specialists[:3] if specialists else ["general"]):
+    if nerve_perspectives:
+        # Use real Nerve agent insights
+        for np in nerve_perspectives[:3]:
+            try:
+                p = Perspective(
+                    situation_id=str(getattr(matching_situation, "situation_id", "")) if matching_situation else "",
+                    specialist=np.get("name", "specialist"),
+                    observation=np.get("observation", np.get("view", "")),
+                    implication=np.get("implication", ""),
+                    recommended_next_step=np.get("recommended_next_step", ""),
+                    evidence=np.get("evidence", []),
+                )
+                persp_objects.append(p)
+            except Exception:
+                pass
+    elif matching_situation:
+        # Fallback: use ConsequencePathRouter specialists (NOT template strings)
+        # Honest: "No agent insight available" if Nerve produced nothing
+        for specialist_name in (specialists[:3] if specialists else []):
             try:
                 p = Perspective(
                     situation_id=str(getattr(matching_situation, "situation_id", "")),
                     specialist=specialist_name,
-                    observation=f"Analyzing {getattr(matching_situation, 'entity', 'this situation')} from {specialist_name} perspective",
-                    implication="May require attention based on available evidence",
-                    recommended_next_step="Review the situation details",
+                    observation="No agent insight available for this specialist",
+                    implication="The agent did not produce an insight from the available signals",
+                    recommended_next_step="Add more signals to enable agent analysis",
                 )
                 persp_objects.append(p)
             except Exception:
@@ -616,11 +651,18 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
             logger.debug("Judgment synthesis failed: %s", e)
 
     # If judgment didn't produce perspectives, use the Perspective objects directly
+    # These now contain REAL Nerve agent insights (or honest "No agent insight available")
     if not perspectives_data:
         for p in persp_objects[:3]:
             perspectives_data.append({
                 "name": p.specialist,
-                "view": p.observation[:200],
+                "view": f"{p.observation}. {p.implication}"[:300],
+                "observation": p.observation,
+                "implication": p.implication,
+                "recommended_next_step": p.recommended_next_step,
+                "evidence": p.evidence if hasattr(p, 'evidence') else [],
+                "urgency": getattr(p, 'urgency', 'normal'),
+                "confidence": getattr(p, 'confidence', 0.0),
             })
 
     # 4. ReasoningTrace — capture provenance chain
