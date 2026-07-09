@@ -146,6 +146,36 @@ export async function getWhispers(token: string): Promise<WhisperItem[]> {
   return response.json();
 }
 
+// THE MASTERPIECE — the single most important thing Maestro knows right now
+export interface TheMoment {
+  has_moment: boolean;
+  commitment: {
+    entity: string;
+    text: string;
+    claim_type: string;
+    signal_id: string;
+    timestamp: string;
+  } | null;
+  situation: {
+    situation_id: string;
+    entity: string;
+    state: string;
+    evidence_count: number;
+  } | null;
+  why_this_one: string;
+  source_evidence: Array<{
+    text: string;
+    entity: string;
+    timestamp: string;
+    source: string;
+  }>;
+}
+
+export async function getTheMoment(token: string): Promise<TheMoment> {
+  const response = await apiFetch('/api/the-moment', {}, token);
+  return response.json();
+}
+
 // v2: Gmail sync
 export interface GmailSyncResult {
   signals_created: number;
@@ -177,13 +207,13 @@ export async function syncCalendar(
   return response.json();
 }
 
-// v3: Account deletion
+// Account deletion (privacy, not SaaS)
 export async function deleteAccount(token: string): Promise<{ message: string; status: string }> {
   const response = await apiFetch('/api/account', { method: 'DELETE' }, token);
   return response.json();
 }
 
-// v3: Data export (GDPR/CCPA)
+// Data export (privacy, not SaaS)
 export async function exportData(token: string): Promise<{
   exported_at: string;
   signal_count: number;

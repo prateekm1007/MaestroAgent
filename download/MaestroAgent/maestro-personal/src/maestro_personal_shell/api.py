@@ -705,174 +705,141 @@ async def deliver_whispers_push(token: str = Depends(verify_token)):
     )
 
 
-# 16. GET /api/billing/tier — Get current billing tier (v3.1)
+# ---------------------------------------------------------------------------
+# THE MASTERPIECE ENDPOINT — GET /api/the-moment
+# Returns ONE thing: the commitment that matters most right now.
+# Not a list. Not a dashboard. One card. The Spotlight moment.
+# ---------------------------------------------------------------------------
 
 
-class BillingTierResponse(BaseModel):
-    tier: str
-    connectors_used: int
-    connectors_limit: int
-    history_days_limit: int
+class TheMomentResponse(BaseModel):
+    """The single most important thing Maestro knows right now.
 
+    This is not a list. This is one commitment, one situation, one moment.
+    The salience gate fires on the commitment whose deadline is closest
+    AND whose last signal is oldest — the one you're most likely to miss.
 
-@app.get("/api/billing/tier", response_model=BillingTierResponse)
-async def get_billing_tier(token: str = Depends(verify_token)):
-    """Get the user's current billing tier and limits.
-
-    v3.1: Free tier = 3 connectors, 30-day history. Pro = unlimited.
+    If nothing deserves attention, this returns null. Trusted silence.
     """
-    from maestro_personal_shell.billing import get_user_tier, get_tier_limits
-    tier = get_user_tier()
-    limits = get_tier_limits(tier)
-
-    # Count connectors used (distinct sources in signals)
-    signals = load_signals_from_db()
-    sources = set()
-    for s in signals:
-        meta = json.loads(s.get("metadata", "{}")) if isinstance(s.get("metadata"), str) else s.get("metadata", {})
-        src = meta.get("source", "manual")
-        sources.add(src)
-
-    return BillingTierResponse(
-        tier=tier,
-        connectors_used=len(sources),
-        connectors_limit=limits["connectors"],
-        history_days_limit=limits["history_days"],
-    )
+    has_moment: bool
+    commitment: dict[str, Any] | None = None
+    situation: dict[str, Any] | None = None
+    why_this_one: str = ""
+    source_evidence: list[dict[str, Any]] = []
 
 
-# 17. POST /api/billing/upgrade — Upgrade tier (v3.1)
+@app.get("/api/the-moment", response_model=TheMomentResponse)
+async def get_the_moment(token: str = Depends(verify_token)):
+    """The single most important thing Maestro knows right now.
 
-
-class UpgradeRequest(BaseModel):
-    tier: str  # "free" | "pro" | "team"
-
-
-class UpgradeResponse(BaseModel):
-    tier: str
-    message: str
-
-
-@app.post("/api/billing/upgrade", response_model=UpgradeResponse)
-async def upgrade_tier(req: UpgradeRequest, token: str = Depends(verify_token)):
-    """Upgrade the user's billing tier.
-
-    In production, this is triggered by a Stripe webhook or RevenueCat
-    IAP callback. For v1 dogfood, this is a manual endpoint for testing.
+    This is the Spotlight moment — the one commitment that matters most.
+    Not a list. One card. If nothing deserves attention, returns has_moment=False.
     """
-    from maestro_personal_shell.billing import set_user_tier
-    if req.tier not in ("free", "pro", "team"):
-        raise HTTPException(status_code=400, detail="Invalid tier — must be free, pro, or team")
-    set_user_tier(req.tier)
-    return UpgradeResponse(tier=req.tier, message=f"Tier upgraded to {req.tier}")
+    shell = build_shell()
 
+    # Get all commitments via the Commitments surface (calls Core)
+    from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
+    surface = CommitmentsSurface(shell=shell)
+    commitments = surface.get_active_commitments()
 
-# 18. PUT /api/user/role — Set role-adaptive UX mode (v3.2)
+    if not commitments:
+        return TheMomentResponse(has_moment=False)
 
+    # Get stale commitments (absence detection — the ones at risk)
+    stale = shell.detect_stale_commitments(days_threshold=2)
+    stale_ids = {s.get("commitment", None) and getattr(s["commitment"], "signal_id", "") or
+                 s.get("commitment", {}).get("signal_id", "") for s in stale}
 
-class RoleRequest(BaseModel):
-    role: str  # "intern" | "ic" | "manager" | "executive"
+    # Score each commitment: the one with the closest deadline AND oldest last signal wins
+    # This is NOT a new salience model — it's the Core's salience applied to personal data
+    best_commitment = None
+    best_score = -1
+    best_why = ""
 
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
 
-class RoleResponse(BaseModel):
-    role: str
-    default_view: str
-    salience_priority: list[str]
+    for c in commitments:
+        score = 0
+        reasons = []
 
+        # Stale commitments score higher (at risk)
+        if c.get("signal_id") in stale_ids:
+            score += 50
+            reasons.append("no follow-up in days")
 
-@app.put("/api/user/role", response_model=RoleResponse)
-async def set_user_role(req: RoleRequest, token: str = Depends(verify_token)):
-    """Set the user's role-adaptive UX mode.
+        # Commitments with deadlines score higher
+        sig_meta = c.get("metadata", {}) or {}
+        deadline = sig_meta.get("deadline")
+        if deadline:
+            score += 30
+            reasons.append(f"deadline: {deadline}")
 
-    v3.2: 4 roles with different default views and salience weighting.
-    """
-    from maestro_personal_shell.roles import set_role, get_role_config
-    if req.role not in ("intern", "ic", "manager", "executive"):
-        raise HTTPException(status_code=400, detail="Invalid role")
-    set_role(req.role)
-    config = get_role_config(req.role)
-    return RoleResponse(
-        role=req.role,
-        default_view=config["default_view"],
-        salience_priority=config["salience_priority"],
+        # Commitments made by the user (commitment_made) score higher than received
+        if c.get("claim_type") == "commitment":
+            score += 20
+            reasons.append("you made this promise")
+
+        # Older commitments score slightly higher (more likely forgotten)
+        ts = c.get("timestamp")
+        if ts:
+            try:
+                ct = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                age_days = (now - ct).days
+                score += min(age_days, 20)
+                if age_days > 7:
+                    reasons.append(f"made {age_days} days ago")
+            except Exception:
+                pass
+
+        if score > best_score:
+            best_score = score
+            best_commitment = c
+            best_why = "; ".join(reasons) if reasons else "active commitment"
+
+    if not best_commitment:
+        return TheMomentResponse(has_moment=False)
+
+    # Find the situation this commitment belongs to (if any)
+    situations = shell.detect_situations()
+    related_situation = None
+    for s in situations:
+        s_entity = str(getattr(s, "entity", "")).lower()
+        c_entity = str(best_commitment.get("entity", "")).lower()
+        if s_entity and c_entity and s_entity == c_entity:
+            related_situation = {
+                "situation_id": str(getattr(s, "situation_id", "")),
+                "entity": str(getattr(s, "entity", "")),
+                "state": str(getattr(s, "state", getattr(s, "operational_state", "unknown"))).split(".")[-1].lower(),
+                "evidence_count": len(getattr(s, "evidence_refs", []) or []),
+            }
+            break
+
+    # Get source evidence (the original email/signal)
+    source_evidence = []
+    for sig in shell.oem_state.signals:
+        if str(getattr(sig, "signal_id", "")) == str(best_commitment.get("signal_id", "")):
+            source_evidence.append({
+                "text": getattr(sig, "text", ""),
+                "entity": getattr(sig, "entity", ""),
+                "timestamp": str(getattr(sig, "timestamp", "")),
+                "source": (getattr(sig, "metadata", {}) or {}).get("source", "manual"),
+            })
+            break
+
+    return TheMomentResponse(
+        has_moment=True,
+        commitment={
+            "entity": best_commitment.get("entity", ""),
+            "text": best_commitment.get("text", ""),
+            "claim_type": str(best_commitment.get("claim_type", "commitment")),
+            "signal_id": best_commitment.get("signal_id", ""),
+            "timestamp": str(best_commitment.get("timestamp", "")),
+        },
+        situation=related_situation,
+        why_this_one=best_why,
+        source_evidence=source_evidence,
     )
-
-
-# 19. GET /api/user/role — Get current role (v3.2)
-
-
-@app.get("/api/user/role", response_model=RoleResponse)
-async def get_user_role(token: str = Depends(verify_token)):
-    """Get the user's current role-adaptive UX mode."""
-    from maestro_personal_shell.roles import get_role, get_role_config
-    role = get_role()
-    config = get_role_config(role)
-    return RoleResponse(
-        role=role,
-        default_view=config["default_view"],
-        salience_priority=config["salience_priority"],
-    )
-
-
-# 20. GET /api/persona — Get persona model (v4)
-
-
-class PersonaResponse(BaseModel):
-    persona_id: str
-    created_at: str
-    dimensions: dict[str, Any]
-    action_count: int
-
-
-@app.get("/api/persona", response_model=PersonaResponse)
-async def get_persona(token: str = Depends(verify_token)):
-    """Get the user's persona model (v4).
-
-    Returns what the persona system has learned about the user's patterns.
-    The user can see this for transparency (privacy control).
-    """
-    from maestro_personal_shell.persona import get_persona_model
-    model = get_persona_model()
-    return PersonaResponse(
-        persona_id=model["persona_id"],
-        created_at=model["created_at"],
-        dimensions=model["dimensions"],
-        action_count=model["action_count"],
-    )
-
-
-# 21. POST /api/persona/action — Record a user action (v4)
-
-
-class PersonaActionRequest(BaseModel):
-    action_type: str  # "open" | "dismiss" | "act" | "snooze"
-    surface: str      # "whisper" | "commitment" | "prepare" | "ask"
-    entity: str = ""
-    timestamp: str = ""
-
-
-class PersonaActionResponse(BaseModel):
-    recorded: bool
-    action_count: int
-
-
-@app.post("/api/persona/action", response_model=PersonaActionResponse)
-async def record_persona_action(req: PersonaActionRequest, token: str = Depends(verify_token)):
-    """Record a user action for the persona model (v4).
-
-    The persona system learns from: opens, dismissals, actions, snoozes.
-    This data personalizes delivery (timing, format, salience).
-    """
-    from maestro_personal_shell.persona import record_action, get_persona_model
-    ts = req.timestamp or datetime.now(timezone.utc).isoformat()
-    record_action(
-        action_type=req.action_type,
-        surface=req.surface,
-        entity=req.entity,
-        timestamp=ts,
-    )
-    model = get_persona_model()
-    return PersonaActionResponse(recorded=True, action_count=model["action_count"])
 
 
 # ---------------------------------------------------------------------------
