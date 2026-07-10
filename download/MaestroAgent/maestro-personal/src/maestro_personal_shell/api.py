@@ -3465,6 +3465,24 @@ async def get_audit_log_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# DIRECTIVE 6: Success metrics
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/metrics")
+async def get_metrics(token: str = Depends(verify_token)):
+    """Get success metrics — tracks real user value.
+
+    Directive 6: tracks commitment completion rate, silence accuracy,
+    calibration trend, engagement, and learning loop health.
+    """
+    from maestro_personal_shell.success_metrics import get_success_metrics
+    from maestro_personal_shell.audit_trust import log_data_access
+    log_data_access(token, "read", "/api/metrics")
+    return get_success_metrics(user_email=token)
+
+
+# ---------------------------------------------------------------------------
 # DEPTH ENDPOINT — GET /api/depth
 # Shows which Core modules are wired. The CEO can verify the depth.
 # ---------------------------------------------------------------------------
