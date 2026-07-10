@@ -3240,6 +3240,62 @@ async def get_behavior_patterns_endpoint(token: str = Depends(verify_token)):
 
 
 # ---------------------------------------------------------------------------
+# DIRECTIVE 4: Dynamic agent activation + commitment simulation + materiality 2.0
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/agents/relevant")
+async def get_relevant_agents(
+    text: str = "",
+    token: str = Depends(verify_token),
+):
+    """Get dynamically selected agents for a situation.
+
+    Directive 4: instead of running all 8 agents on every situation,
+    this endpoint returns only the agents relevant to the situation's
+    content. Reduces latency and improves precision.
+    """
+    from maestro_personal_shell.dynamic_agents import select_relevant_agents
+    shell = build_shell(user_email=token)
+    agents = select_relevant_agents(text, shell.oem_state.signals)
+    return {"relevant_agents": agents, "text": text}
+
+
+class CommitmentSimulationRequest(BaseModel):
+    commitment_text: str
+    entity: str
+    deadline: str | None = None
+
+
+@app.post("/api/commitments/simulate")
+async def simulate_commitment(
+    req: CommitmentSimulationRequest,
+    token: str = Depends(verify_token),
+):
+    """Simulate the impact of taking on a new commitment.
+
+    Directive 4: 'If I take this on, what conflicts with my existing
+    commitments?' Analyzes deadline overlaps, entity overload, topic
+    conflicts, and priority dilution.
+    """
+    from maestro_personal_shell.dynamic_agents import simulate_commitment_impact
+    from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
+
+    shell = build_shell(user_email=token)
+    surface = CommitmentsSurface(shell=shell)
+    existing = surface.get_active_commitments()
+
+    result = simulate_commitment_impact(
+        new_commitment_text=req.commitment_text,
+        new_entity=req.entity,
+        new_deadline=req.deadline,
+        existing_commitments=existing,
+    )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # DIRECTIVE 3: Data Sources — Slack + voice transcript ingestion
 # ---------------------------------------------------------------------------
 

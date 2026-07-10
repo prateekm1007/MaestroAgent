@@ -545,6 +545,11 @@ _INJECTION_PATTERNS = [
     r"(?i)expose\s+all\s+(emails|data|messages|conversations|credentials)",
     r"(?i)money\s+to\s+\w+\s+account",
     r"(?i)admin\s+mode",
+    r"(?i)show\s+(me\s+)?all\s+(data|emails|messages|credentials|passwords)",
+    r"(?i)ignore\s+your\s+(instructions|rules|guidelines)",
+    r"(?i)override\s+your\s+(system\s+)?prompt",
+    r"(?i)stop\s+being\s+\w+\s+and\s+be\s+",
+    r"(?i)1gn0r3|d1sr3g4rd|f0rg3t",
 ]
 
 import re as _re
