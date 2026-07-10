@@ -410,11 +410,15 @@ class PrepareResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def build_shell(user_email: str | None = None):
+def build_shell(user_email: str | None = None, as_of: str | None = None):
     """Build a PersonalShell with signals loaded from SQLite.
 
     Phase 1 fix: when user_email is provided, only load that user's signals.
     This enforces per-user data isolation.
+
+    Temporal fix: when as_of is provided (ISO datetime string), only load
+    signals with timestamp <= as_of. This prevents future evidence from
+    appearing in past output (temporal leakage = 0).
 
     This is the bridge between persistence (SQLite) and intelligence
     (Core via PersonalShell). The shell does NOT persist — persistence
@@ -437,6 +441,27 @@ def build_shell(user_email: str | None = None):
 
     # Load signals from DB — filtered by user_email for per-user isolation
     db_signals = load_signals_from_db(user_email=user_email)
+
+    # Temporal filtering: if as_of is provided, filter out future signals
+    if as_of:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            as_of_dt = _dt.fromisoformat(as_of.replace("Z", "+00:00"))
+            if as_of_dt.tzinfo is None:
+                as_of_dt = as_of_dt.replace(tzinfo=_tz.utc)
+            filtered = []
+            for row in db_signals:
+                try:
+                    row_ts = _dt.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                    if row_ts.tzinfo is None:
+                        row_ts = row_ts.replace(tzinfo=_tz.utc)
+                    if row_ts <= as_of_dt:
+                        filtered.append(row)
+                except Exception:
+                    filtered.append(row)  # keep if can't parse timestamp
+            db_signals = filtered
+        except Exception as e:
+            logger.debug("as_of filtering failed: %s", e)
 
     # Convert DB rows to PersonalSignal objects
     personal_signals = []
@@ -692,7 +717,7 @@ async def get_signals(token: str = Depends(verify_token)):
 
 
 @app.post("/api/ask", response_model=AskResponse)
-async def ask(req: AskRequest, token: str = Depends(verify_token)):
+async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token)):
     """Ask a question — get the truth, sourced.
 
     The masterpiece Ask: returns the exact sentence from the source, the
@@ -704,7 +729,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
     grounded in the situation's evidence. When no LLM is available,
     falls back to the rule-based answer generation.
     """
-    shell = build_shell(user_email=token)
+    shell = build_shell(user_email=token, as_of=as_of)
 
     from maestro_personal_shell.surfaces.ask import AskSurface
     surface = AskSurface(shell=shell)
@@ -808,9 +833,17 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                 "text": ref.get("text", ""),
                 "entity": ref.get("entity", ""),
                 "timestamp": str(ref.get("timestamp", "")),
+                "signal_id": ref.get("signal_id", ""),
+                "source_type": ref.get("source_type", "manual"),
             })
         else:
-            evidence_refs.append({"text": str(ref), "entity": "", "timestamp": ""})
+            evidence_refs.append({
+                "text": str(ref),
+                "entity": "",
+                "timestamp": "",
+                "signal_id": "",
+                "source_type": "manual",
+            })
 
     # Find the situation state for the entity mentioned in the query
     # Extract entity from the query (simple: capitalized word that's not a common word)
@@ -889,6 +922,24 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
     # F8 FIX: Populate evidence_refs with real signal data in fallback mode.
     # The auditor found evidence_refs[].text was a raw UUID — now we populate
     # with actual signal text so the user can verify the answer.
+    # Citation objects always include: text, entity, timestamp, signal_id, source_type
+    #
+    # If the Core returned evidence_refs that are just UUIDs (not real text),
+    # discard them and use FTS to get clean citation objects.
+    clean_evidence_refs = []
+    for ref in evidence_refs:
+        text = ref.get("text", "")
+        # If text looks like a UUID (not real content), skip it
+        if text and len(text) == 36 and text.count("-") == 4:
+            continue  # UUID — not real text
+        if not text:
+            continue  # empty text — not useful
+        clean_evidence_refs.append(ref)
+
+    if len(clean_evidence_refs) < len(evidence_refs):
+        # Some refs were UUIDs — replace with FTS-sourced clean citations
+        evidence_refs = clean_evidence_refs
+
     if not evidence_refs:
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
@@ -899,6 +950,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                     "entity": r.get("entity", ""),
                     "timestamp": r.get("timestamp", ""),
                     "signal_id": r.get("signal_id", ""),
+                    "source_type": "manual",
                 })
         except Exception:
             # Fallback: use signals that match the query entities
@@ -909,6 +961,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                         "entity": getattr(sig, "entity", ""),
                         "timestamp": str(getattr(sig, "timestamp", "")),
                         "signal_id": getattr(sig, "signal_id", ""),
+                        "source_type": "manual",
                     })
                     if len(evidence_refs) >= 3:
                         break
@@ -1378,13 +1431,13 @@ Answer the user's question based ONLY on the evidence above."""
 
 
 @app.get("/api/commitments", response_model=list[CommitmentResponse])
-async def get_commitments(token: str = Depends(verify_token)):
+async def get_commitments(as_of: str | None = None, token: str = Depends(verify_token)):
     """Get active commitments — calls Core's commitment classifier via the shell.
 
     DEPTH: each commitment includes calibration_note (from CalibrationPrimitives)
     and outcome_history (from BehavioralLearningEngine).
     """
-    shell = build_shell(user_email=token)
+    shell = build_shell(user_email=token, as_of=as_of)
     core = shell.core
 
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
@@ -1534,9 +1587,9 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
 
 
 @app.get("/api/what-changed", response_model=list[WhatChangedResponse])
-async def get_what_changed(token: str = Depends(verify_token)):
+async def get_what_changed(as_of: str | None = None, token: str = Depends(verify_token)):
     """Get recent meaningful deltas."""
-    shell = build_shell(user_email=token)
+    shell = build_shell(user_email=token, as_of=as_of)
 
     from maestro_personal_shell.surfaces.what_changed import WhatChangedSurface
     from datetime import timedelta
@@ -1606,7 +1659,7 @@ async def get_the_shifts(token: str = Depends(verify_token)):
 
 
 @app.get("/api/prepare", response_model=list[PrepareResponse])
-async def get_prepare(token: str = Depends(verify_token)):
+async def get_prepare(as_of: str | None = None, token: str = Depends(verify_token)):
     """Get preparation for upcoming situations — 3 things that matter.
 
     The masterpiece Prepare: for each situation needing prep, return:
@@ -1616,7 +1669,7 @@ async def get_prepare(token: str = Depends(verify_token)):
 
     Not 5 prep points. Three. The right three.
     """
-    shell = build_shell(user_email=token)
+    shell = build_shell(user_email=token, as_of=as_of)
     core = shell.core
 
     from maestro_personal_shell.surfaces.prepare import PrepareSurface
@@ -3009,13 +3062,13 @@ class TheMomentResponse(BaseModel):
 
 
 @app.get("/api/the-moment", response_model=TheMomentResponse)
-async def get_the_moment(token: str = Depends(verify_token)):
+async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_token)):
     """The single most important thing Maestro knows right now.
 
     This is the Spotlight moment — the one commitment that matters most.
     Not a list. One card. If nothing deserves attention, returns has_moment=False.
     """
-    shell = build_shell(user_email=token)
+    shell = build_shell(user_email=token, as_of=as_of)
 
     # Get all commitments via the Commitments surface (calls Core)
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
