@@ -859,12 +859,21 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                 evidence_refs_for_llm = []
 
                 try:
+                    # P11 fix: use ask_ranker to rerank signals by entity match,
+                    # topic match, intent, and noise penalty — not just FTS5 BM25.
                     from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-                    relevant = get_relevant_signals(
+                    from maestro_personal_shell.ask_ranker import rank_for_ask
+                    raw_relevant = get_relevant_signals(
                         req.query,
                         user_email=token,
-                        limit=5,
+                        limit=10,
                     )
+                    if raw_relevant:
+                        # Rerank using the ask_ranker pipeline
+                        ranked = rank_for_ask(req.query, raw_relevant)
+                        relevant = ranked["top_evidence"]
+                    else:
+                        relevant = []
                     if relevant:
                         # Use the top-ranked signal as the primary source sentence
                         source_sent = relevant[0].get("text", "")
@@ -995,11 +1004,15 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     if not source_sentence:
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-            relevant = get_relevant_signals(req.query, user_email=token, limit=1, as_of=as_of)
-            if relevant:
-                source_sentence = relevant[0].get("text", "")
-                source_entity = relevant[0].get("entity", "")
-                source_timestamp = relevant[0].get("timestamp", "")
+            from maestro_personal_shell.ask_ranker import rank_for_ask
+            raw = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of)
+            if raw:
+                ranked = rank_for_ask(req.query, raw)
+                if ranked["top_evidence"]:
+                    top = ranked["top_evidence"][0]
+                    source_sentence = top.get("text", "")
+                    source_entity = top.get("entity", "")
+                    source_timestamp = top.get("timestamp", "")
         except Exception:
             pass
 
@@ -1027,15 +1040,18 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     if not evidence_refs:
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-            relevant = get_relevant_signals(req.query, user_email=token, limit=3, as_of=as_of)
-            for r in relevant:
-                evidence_refs.append({
-                    "text": r.get("text", ""),
-                    "entity": r.get("entity", ""),
-                    "timestamp": r.get("timestamp", ""),
-                    "signal_id": r.get("signal_id", ""),
-                    "source_type": "manual",
-                })
+            from maestro_personal_shell.ask_ranker import rank_for_ask
+            raw = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of)
+            if raw:
+                ranked = rank_for_ask(req.query, raw)
+                for r in ranked["top_evidence"]:
+                    evidence_refs.append({
+                        "text": r.get("text", ""),
+                        "entity": r.get("entity", ""),
+                        "timestamp": r.get("timestamp", ""),
+                        "signal_id": r.get("signal_id", ""),
+                        "source_type": "manual",
+                    })
         except Exception:
             # Fallback: use signals that match the query entities
             for sig in shell.oem_state.signals:
@@ -1437,13 +1453,16 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token)):
             yield "data: [DONE]\n\n"
             return
 
-        # Get relevant evidence via semantic retrieval
+        # Get relevant evidence via semantic retrieval + ask_ranker
         source_sent = ""
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-            relevant = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of)
-            if relevant:
-                source_sent = relevant[0].get("text", "")
+            from maestro_personal_shell.ask_ranker import rank_for_ask
+            raw = get_relevant_signals(req.query, user_email=token, limit=10, as_of=as_of)
+            if raw:
+                ranked = rank_for_ask(req.query, raw)
+                if ranked["top_evidence"]:
+                    source_sent = ranked["top_evidence"][0].get("text", "")
         except Exception:
             for sig in shell.oem_state.signals:
                 if str(getattr(sig, "entity", "")).lower() == str(getattr(matching_situation, "entity", "")).lower():
