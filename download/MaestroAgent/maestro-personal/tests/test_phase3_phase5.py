@@ -120,7 +120,10 @@ class TestCommitmentClassifier:
         from maestro_personal_shell.commitment_classifier import _rule_based_classify
         result = _rule_based_classify("Sent the proposal yesterday", "AcmeCorp")
         assert result["commitment_type"] == "completed"
-        assert result["is_commitment"] is False
+        # Phase 3 semantic fix: a completed commitment IS a commitment
+        # (in the completed_claimed lifecycle state). The roadmap schema
+        # has is_commitment=true for completed items.
+        assert result["is_commitment"] is True
         assert result["state"] == "completed_claimed"
 
     def test_rule_based_cancellation(self):

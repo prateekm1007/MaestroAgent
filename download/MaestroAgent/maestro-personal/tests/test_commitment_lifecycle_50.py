@@ -183,7 +183,10 @@ class TestCompletion:
         assert result["commitment_type"] == "completed", \
             f"Completed expected, got {result['commitment_type']}: {text}"
         assert result["state"] == "completed_claimed"
-        assert result["is_commitment"] is False
+        # Phase 3 semantic fix: a completed commitment IS a commitment
+        # (it's a commitment in the completed_claimed lifecycle state).
+        # The roadmap schema has is_commitment=true for completed items.
+        assert result["is_commitment"] is True
 
 
 # ===========================================================================

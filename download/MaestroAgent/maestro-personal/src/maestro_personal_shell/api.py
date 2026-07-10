@@ -728,6 +728,56 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
     except Exception:
         pass
 
+    # Phase 3: Persist the commitment classification into the normalized
+    # ledger. The ledger is the source of truth for commitment lifecycle
+    # (state machine, closure matching, correction propagation). The
+    # signals table holds raw observations; the ledger holds the
+    # normalized commitment derived from each signal.
+    try:
+        from maestro_personal_shell.commitment_ledger import upsert_ledger_entry, match_closure, transition_ledger_state, get_ledger_entries
+        from pathlib import Path as _P
+        _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parent / "personal.db"))
+        # Persist the classification (upsert handles state-machine routing).
+        ledger_entry = upsert_ledger_entry(
+            classification={
+                "is_commitment": metadata.get("is_commitment", False),
+                "commitment_type": metadata.get("commitment_type", "not_a_commitment"),
+                "state": metadata.get("commitment_state", "candidate"),
+                "owner": metadata.get("commitment_owner", "unknown"),
+                "recipient": "",  # not extracted by current classifier; future work
+                "action": sanitized_text,  # use full text as action for closure matching
+                "deadline_text": "",
+                "deadline_datetime": "",
+                "confidence": metadata.get("commitment_confidence", 0.5),
+                "evidence_quote": sanitized_text,
+            },
+            signal=signal_data,
+            user_email=token,
+            db_path=_db,
+        )
+
+        # Closure matching (roadmap requirement #4): if this new signal
+        # is a completion/cancellation, find the active ledger entry it
+        # closes and transition that entry. This is how "Sent the proposal"
+        # closes "I'll send the proposal by Friday" — by action overlap,
+        # not just entity.
+        if ledger_entry and metadata.get("commitment_state") in ("completed_claimed", "completed_verified", "cancelled"):
+            active_entries = [
+                e for e in get_ledger_entries(token, _db, state="active")
+                + get_ledger_entries(token, _db, state="at_risk")
+                + get_ledger_entries(token, _db, state="completed_claimed")
+                if e.get("signal_id") != signal_id  # don't close ourselves
+            ]
+            match = match_closure(
+                {"entity": canonical_entity, "text": sanitized_text, "recipient": ""},
+                active_entries,
+            )
+            if match:
+                target = metadata.get("commitment_state")
+                transition_ledger_state(match["ledger_id"], target, token, _db)
+    except Exception as e:
+        logger.debug("Ledger persistence failed (non-fatal): %s", e)
+
     # Directive 2: Auto-register prediction when a commitment is created.
     # The learning loop is now automatic — no manual /api/predictions needed.
     # Also add to personal knowledge graph.
@@ -1684,6 +1734,64 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
         why_primary=why,
         secondary=all_commitments[1:] if len(all_commitments) > 1 else [],
     )
+
+
+# 6c. GET /api/commitments/ledger — the normalized Phase 3 ledger
+
+
+@app.get("/api/commitments/ledger")
+async def get_commitments_ledger(
+    state: str | None = None,
+    entity: str | None = None,
+    limit: int = 100,
+    token: str = Depends(verify_token),
+):
+    """Read the normalized commitments ledger (Phase 3).
+
+    Returns persisted commitment entries with their lifecycle state,
+    owner, recipient, action, deadline, and confidence. This is the
+    source of truth for commitment lifecycle — the signals table holds
+    raw observations; the ledger holds the normalized commitments.
+
+    Filters:
+      - state: filter by lifecycle state (candidate/active/at_risk/
+        completed_claimed/completed_verified/disputed/cancelled/
+        superseded/tombstoned)
+      - entity: filter by entity name (exact match)
+    """
+    from pathlib import Path as _P
+    _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parent / "personal.db"))
+    from maestro_personal_shell.commitment_ledger import get_ledger_entries
+    entries = get_ledger_entries(token, _db, state=state, entity=entity, limit=limit)
+    return {"entries": entries, "count": len(entries)}
+
+
+# 6d. POST /api/commitments/{ledger_id}/transition — lifecycle transition
+
+
+@app.post("/api/commitments/{ledger_id}/transition")
+async def transition_commitment(
+    ledger_id: str,
+    to_state: str,
+    token: str = Depends(verify_token),
+):
+    """Transition a commitment to a new lifecycle state (Phase 3).
+
+    The transition must be legal per the state machine. Illegal
+    transitions are rejected (400) AND audit-logged as
+    'rejected_transition'. Legal transitions are applied AND
+    audit-logged as 'commitment_transition'.
+    """
+    from pathlib import Path as _P
+    _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parent / "personal.db"))
+    from maestro_personal_shell.commitment_ledger import transition_ledger_state, is_legal_transition
+    if to_state not in {"candidate", "active", "at_risk", "completed_claimed",
+                        "completed_verified", "disputed", "cancelled", "superseded", "tombstoned"}:
+        raise HTTPException(status_code=400, detail=f"Unknown state: {to_state}")
+    ok = transition_ledger_state(ledger_id, to_state, token, _db)
+    if not ok:
+        raise HTTPException(status_code=409, detail="Illegal transition or ledger entry not found")
+    return {"ledger_id": ledger_id, "state": to_state, "transitioned": True}
 
 
 # 7. GET /api/what-changed — What Changed surface
@@ -3049,6 +3157,16 @@ async def correct_signal(
     )
     conn.commit()
     conn.close()
+
+    # Phase 3: Propagate the correction to the commitment ledger + FTS.
+    # This transitions the ledger entry (active → cancelled for dismiss/cancel,
+    # active → completed_claimed for complete) and removes the signal from
+    # FTS so retrieval stops surfacing it. Roadmap requirement #6.
+    try:
+        from maestro_personal_shell.commitment_ledger import propagate_correction
+        propagate_correction(signal_id, action, token, db_path)
+    except Exception as e:
+        logger.debug("Ledger correction propagation failed (non-fatal): %s", e)
 
     # Directive 2: Auto-resolve prediction + record behavior + update graph
     try:
