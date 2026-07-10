@@ -150,6 +150,25 @@ class TestPhase5AskEval:
         assert violations["met"], \
             f"Entity isolation violations: {violations['value']} ({violations['support']})"
 
+    def test_eval_reports_mode_and_llm_split(self, isolated_api, client, auth_headers):
+        """The eval must report which mode it ran in (rule vs llm) and the
+        LLM/rule split. The auditor found the eval was opaque about this."""
+        from ask_eval import evaluate_ask
+        # Rule mode (default)
+        report = evaluate_ask(isolated_api, client, auth_headers,
+                              os.environ["MAESTRO_PERSONAL_DB"], "test-p5", limit=5)
+        assert report["mode"] == "rule"
+        assert "llm_split" in report
+        assert report["llm_split"]["rule_fallback"] == 5
+        assert report["llm_split"]["llm_active"] == 0
+
+        # LLM mode (no mocks)
+        report_llm = evaluate_ask(isolated_api, client, auth_headers,
+                                   os.environ["MAESTRO_PERSONAL_DB"], "test-p5",
+                                   limit=5, llm_mode=True)
+        assert report_llm["mode"] == "llm"
+        assert "llm_split" in report_llm
+
 
 class TestPhase5PrepareBenchmark:
     """The 50-meeting Prepare benchmark must exist and be well-formed."""

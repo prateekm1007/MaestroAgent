@@ -70,10 +70,21 @@ def _seed_benchmark_signals(api_module, db_path: str, user_email: str):
 
 
 def evaluate_ask(api_module, client, auth_headers, db_path: str, user_email: str,
-                 limit: int | None = None) -> dict[str, Any]:
+                 limit: int | None = None, llm_mode: bool = False) -> dict[str, Any]:
     """Run the Ask benchmark and compute all Phase 5 metrics.
 
+    Args:
+        llm_mode: If True, do NOT mock the LLM — measure real LLM performance.
+                  If False (default), mock the LLM to None and measure rule-mode
+                  performance (the original behavior for deterministic testing).
+
+    The auditor found that the eval deliberately mocked the LLM to None and
+    presented rule-mode numbers as the system's performance. This is misleading
+    because is_llm_available() may return True and the LLM path works. The fix
+    is to support both modes and report which mode was used.
+
     Returns a dict with per-metric results and per-category breakdowns.
+    The 'mode' field indicates whether the eval ran in 'rule' or 'llm' mode.
     """
     # Seed the benchmark signals
     _seed_benchmark_signals(api_module, db_path, user_email)
@@ -96,23 +107,37 @@ def evaluate_ask(api_module, client, auth_headers, db_path: str, user_email: str
     # Per-category
     category_stats: dict[str, dict] = {}
 
-    # Mock the LLM + classifier for deterministic rule-mode testing
-    from unittest.mock import patch, AsyncMock
-    mock_llm = (
-        patch("maestro_personal_shell.commitment_classifier.classify_commitment",
-              new_callable=AsyncMock,
-              return_value={"commitment_type": "explicit", "is_commitment": True,
-                            "confidence": 0.85, "state": "active", "owner": "user",
-                            "reasoning": "test", "llm_powered": False}),
-        patch("maestro_personal_shell.llm_bridge.llm_complete",
-              new_callable=AsyncMock, return_value=None),
-        patch("maestro_personal_shell.dynamic_agents.materiality_gate_v2",
-              new_callable=AsyncMock,
-              return_value={"should_speak": True, "materiality_score": 0.5,
-                            "urgency": "medium", "reasoning": "test", "llm_powered": False}),
-    )
+    # Track LLM vs rule-mode per question (like Phase 3's llm_split).
+    llm_active_count = 0
+    rule_fallback_count = 0
 
-    m1, m2, m3 = mock_llm
+    # When llm_mode=False (default), mock the LLM for deterministic rule-mode
+    # testing. When llm_mode=True, do NOT mock — measure real LLM performance.
+    from unittest.mock import patch, AsyncMock
+    from contextlib import nullcontext
+
+    if not llm_mode:
+        mock_llm = (
+            patch("maestro_personal_shell.commitment_classifier.classify_commitment",
+                  new_callable=AsyncMock,
+                  return_value={"commitment_type": "explicit", "is_commitment": True,
+                                "confidence": 0.85, "state": "active", "owner": "user",
+                                "reasoning": "test", "llm_powered": False}),
+            patch("maestro_personal_shell.llm_bridge.llm_complete",
+                  new_callable=AsyncMock, return_value=None),
+            patch("maestro_personal_shell.dynamic_agents.materiality_gate_v2",
+                  new_callable=AsyncMock,
+                  return_value={"should_speak": True, "materiality_score": 0.5,
+                                "urgency": "medium", "reasoning": "test", "llm_powered": False}),
+        )
+        m1, m2, m3 = mock_llm
+        ctx = m1, m2, m3
+    else:
+        # LLM mode: no mocks. The real LLM (if available) fires.
+        # We still need a dummy context manager for the `with` block.
+        ctx = (nullcontext(), nullcontext(), nullcontext())
+
+    m1, m2, m3 = ctx
     with m1, m2, m3:
         for i, q in enumerate(questions):
             question = q["question"]
@@ -134,6 +159,13 @@ def evaluate_ask(api_module, client, auth_headers, db_path: str, user_email: str
             confidence = data.get("confidence", 0.0)
             counterevidence = data.get("counterevidence", [])
             unsupported = data.get("unknowns", [])
+            llm_active = data.get("llm_active", False)
+
+            # Track LLM vs rule mode
+            if llm_active:
+                llm_active_count += 1
+            else:
+                rule_fallback_count += 1
 
             # 1. Factual accuracy: does the answer contain expected keywords?
             factual_total += 1
@@ -192,7 +224,19 @@ def evaluate_ask(api_module, client, auth_headers, db_path: str, user_email: str
     isolation_violation_rate = entity_isolation_violations / entity_isolation_total if entity_isolation_total > 0 else 0.0
 
     return {
+        "mode": "llm" if llm_mode else "rule",
         "total_questions": len(questions),
+        "llm_split": {
+            "llm_active": llm_active_count,
+            "rule_fallback": rule_fallback_count,
+            "note": "rule_fallback > 0 in LLM mode means the LLM rate-limited or failed "
+                    "mid-run; overall numbers are dragged down. Use llm_mode=True with a "
+                    "stable LLM key for the true LLM performance.",
+        } if llm_mode else {
+            "llm_active": 0,
+            "rule_fallback": len(questions),
+            "note": "Rule mode: LLM deliberately mocked to None for deterministic testing.",
+        },
         "metrics": {
             "factual_accuracy": {
                 "value": round(factual_accuracy, 4),
@@ -306,9 +350,18 @@ def evaluate_paraphrase_consistency(api_module, client, auth_headers, db_path: s
     }
 
 
-def run_full_ask_eval(api_module, client, auth_headers, db_path: str, user_email: str) -> dict[str, Any]:
-    """Run all Phase 5 Ask metrics and return a single report."""
-    main_eval = evaluate_ask(api_module, client, auth_headers, db_path, user_email)
+def run_full_ask_eval(api_module, client, auth_headers, db_path: str, user_email: str,
+                      llm_mode: bool = False) -> dict[str, Any]:
+    """Run all Phase 5 Ask metrics and return a single report.
+
+    Args:
+        llm_mode: If True, run in LLM mode (no mocks). If False, run in
+                  rule mode (mocks applied). The auditor found that the
+                  eval only ran in rule mode and presented those numbers
+                  as the system's performance — this now supports both.
+    """
+    main_eval = evaluate_ask(api_module, client, auth_headers, db_path, user_email,
+                             llm_mode=llm_mode)
     paraphrase = evaluate_paraphrase_consistency(api_module, client, auth_headers, db_path, user_email)
 
     return {
@@ -318,9 +371,12 @@ def run_full_ask_eval(api_module, client, auth_headers, db_path: str, user_email
 
 
 if __name__ == "__main__":
-    # Standalone run — requires a test DB + client setup
+    import sys
     import tempfile
     import importlib
+
+    # --llm flag: run in LLM mode (no mocks). Default: rule mode.
+    llm_mode = "--llm" in sys.argv
 
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
     os.close(db_fd)
@@ -338,7 +394,8 @@ if __name__ == "__main__":
     token = resp.json()["token"]
     auth_headers = {"Authorization": f"Bearer {token}"}
 
-    report = run_full_ask_eval(api_module, client, auth_headers, db_path, "ask-eval")
+    report = run_full_ask_eval(api_module, client, auth_headers, db_path, "ask-eval",
+                               llm_mode=llm_mode)
     print(json.dumps(report, indent=2, default=str))
 
     os.unlink(db_path)
