@@ -132,6 +132,8 @@ class ZAIRouter:
         Instead, we verify the CLI binary exists. If it exists, we
         assume it works — individual calls will fall back to rules
         if the API is unavailable or rate limited.
+
+        Use probe_provider() for a real end-to-end verification.
         """
         return shutil.which("z-ai") is not None
 
@@ -224,6 +226,109 @@ def reset_llm_router() -> None:
     global _router, _router_checked
     _router = None
     _router_checked = False
+    # Also clear the probe cache so tests get a fresh probe
+    global _probe_cache, _probe_cache_time
+    _probe_cache = None
+    _probe_cache_time = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Real provider probe — verifies the LLM actually responds, not just exists
+# ---------------------------------------------------------------------------
+
+# Cached probe result — avoids repeated API calls on every /api/llm-status hit.
+# The probe makes a real LLM call to verify the provider works end-to-end.
+_probe_cache: dict[str, Any] | None = None
+_probe_cache_time: float = 0.0
+_PROBE_CACHE_TTL = 60.0  # 60 seconds — balances freshness vs API load
+
+
+async def probe_provider(force: bool = False) -> dict[str, Any]:
+    """Make a real LLM call to verify the provider actually works.
+
+    This is the truthful version of health_check(). Instead of just
+    checking if the CLI binary exists, it makes an actual lightweight
+    LLM call and verifies the response.
+
+    The result is cached for 60 seconds to avoid repeated API calls.
+
+    Returns:
+    {
+        "provider": "zai-glm" | "openai" | ... | "none",
+        "verified": True | False,  # True = real call succeeded
+        "error": "" | "error message",
+        "latency_ms": 0,  # response time
+    }
+    """
+    global _probe_cache, _probe_cache_time
+    import time as _time
+
+    # Return cached result if fresh
+    if not force and _probe_cache is not None:
+        if _time.time() - _probe_cache_time < _PROBE_CACHE_TTL:
+            return _probe_cache
+
+    router = get_llm_router()
+    if not router:
+        result = {
+            "provider": "none",
+            "verified": False,
+            "error": "No LLM provider available",
+            "latency_ms": 0,
+        }
+        _probe_cache = result
+        _probe_cache_time = _time.time()
+        return result
+
+    provider_name = str(getattr(router, "default_provider", "unknown"))
+
+    # Make a real lightweight LLM call to verify the provider works
+    start = _time.time()
+    try:
+        response = await asyncio.wait_for(
+            router.complete(
+                system="You are a health check. Reply with exactly: OK",
+                user="Health check.",
+                temperature=0.0,
+                max_tokens=5,
+            ),
+            timeout=10.0,
+        )
+        latency_ms = int((_time.time() - start) * 1000)
+
+        if response and response.text and len(response.text) > 0:
+            result = {
+                "provider": provider_name,
+                "verified": True,
+                "error": "",
+                "latency_ms": latency_ms,
+            }
+        else:
+            result = {
+                "provider": provider_name,
+                "verified": False,
+                "error": "Provider returned empty response",
+                "latency_ms": latency_ms,
+            }
+    except asyncio.TimeoutError:
+        result = {
+            "provider": provider_name,
+            "verified": False,
+            "error": "Provider timed out (10s)",
+            "latency_ms": 10000,
+        }
+    except Exception as e:
+        latency_ms = int((_time.time() - start) * 1000)
+        result = {
+            "provider": provider_name,
+            "verified": False,
+            "error": str(e)[:200],
+            "latency_ms": latency_ms,
+        }
+
+    _probe_cache = result
+    _probe_cache_time = _time.time()
+    return result
 
 
 # ---------------------------------------------------------------------------
