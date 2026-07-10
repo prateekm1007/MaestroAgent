@@ -150,12 +150,15 @@ class NerveWiring:
         self._init_agents()
         return list(self._agents.keys())
 
-    def get_insights(self, org_id: str = "personal") -> list[dict[str, Any]]:
-        """Generate insights from all wired agents.
+    def get_insights(self, org_id: str = "personal", situation_text: str = "") -> list[dict[str, Any]]:
+        """Generate insights from dynamically selected agents.
 
-        Per Phase 3+ directive: adapt agents with personal-mode adapters
-        before calling generate_insights. The adapters patch the agents'
-        enterprise engine factories to use personal-mode equivalents.
+        Directive 4 / P11 fix: instead of running all 8 agents on every
+        situation, dynamically select only the agents relevant to the
+        situation's content. This reduces latency and improves precision.
+
+        If situation_text is provided, uses select_relevant_agents() to
+        pick the top 3 agents. If not provided, runs all (backward compat).
 
         Returns a list of insight dicts with:
           - agent: which agent produced it
@@ -183,8 +186,28 @@ class NerveWiring:
             tenant_id=org_id,
         )
 
+        # P11 fix: dynamically select relevant agents when situation_text is provided
+        agents_to_run = self._agents
+        if situation_text:
+            try:
+                from maestro_personal_shell.dynamic_agents import select_relevant_agents
+                relevant_names = select_relevant_agents(
+                    situation_text, self._shell.oem_state.signals,
+                )
+                agents_to_run = {
+                    name: agent for name, agent in self._agents.items()
+                    if name in relevant_names
+                }
+                if not agents_to_run:
+                    agents_to_run = self._agents  # fallback to all if none selected
+                logger.debug("Dynamic agent selection: %s → %s",
+                             list(self._agents.keys()), list(agents_to_run.keys()))
+            except Exception as e:
+                logger.debug("Dynamic agent selection failed, running all: %s", e)
+                agents_to_run = self._agents
+
         all_insights = []
-        for name, agent in self._agents.items():
+        for name, agent in agents_to_run.items():
             if name == "chief_of_staff":
                 continue  # ChiefOfStaff aggregates others — skip to avoid recursion
             try:

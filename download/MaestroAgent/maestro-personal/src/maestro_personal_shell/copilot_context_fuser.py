@@ -107,8 +107,8 @@ class CopilotContextFuser:
             contradictions, stale_commitments, talk_ratio, negotiation_anchors
         )
 
-        # 9. Materiality gate — should we whisper?
-        should_whisper, whisper_reason = self._evaluate_materiality(
+        # 9. Materiality gate v2 — should we whisper? (learns from user dismissals)
+        should_whisper, whisper_reason = await self._evaluate_materiality_v2(
             contradictions, stale_commitments, suggestions
         )
 
@@ -517,3 +517,45 @@ Provide a whisper for this moment. Output ONLY valid JSON."""
 
         # Otherwise, stay silent (trusted silence)
         return False, "No material signal — staying silent"
+
+    async def _evaluate_materiality_v2(
+        self,
+        contradictions: list[dict],
+        stale_commitments: list[dict],
+        suggestions: list[dict],
+    ) -> tuple[bool, str]:
+        """Evaluate materiality using v2 gate (learns from user dismissals).
+
+        P11 fix: this method delegates to materiality_gate_v2 which uses
+        user behavior patterns to adjust thresholds. Falls back to the
+        v1 rule-based logic if v2 is unavailable.
+        """
+        # First check the v1 hard rules (high-severity always speaks)
+        high_severity = [c for c in contradictions if c.get("severity") == "high"]
+        if high_severity:
+            return True, f"High-severity contradiction: {high_severity[0].get('evidence', '')}"
+
+        # Build a commitment-like dict for the v2 gate
+        commitment = {
+            "entity": stale_commitments[0].get("entity", "") if stale_commitments else "",
+            "text": suggestions[0].get("text", "") if suggestions else "",
+            "claim_type": "commitment" if suggestions else "fyi",
+        }
+        context = {
+            "days_stale": stale_commitments[0].get("days_stale", 0) if stale_commitments else 0,
+            "has_deadline": any(s.get("urgency") == "high" for s in suggestions),
+            "age_days": 0,
+        }
+
+        try:
+            from maestro_personal_shell.dynamic_agents import materiality_gate_v2
+            result = await materiality_gate_v2(
+                commitment, context, user_email=self._user_email,
+            )
+            if result.get("should_speak"):
+                return True, result.get("reasoning", "Material signal detected")
+            return False, result.get("reasoning", "No material signal — staying silent")
+        except Exception as e:
+            logger.debug("materiality_gate_v2 failed, falling back to v1: %s", e)
+            # Fall back to v1 logic
+            return self._evaluate_materiality(contradictions, stale_commitments, suggestions)
