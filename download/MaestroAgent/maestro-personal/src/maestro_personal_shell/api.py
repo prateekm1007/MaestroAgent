@@ -44,6 +44,15 @@ DB_PATH = os.environ.get(
 # a single shared token from env or auto-generated on first run.
 AUTH_TOKEN = os.environ.get("MAESTRO_PERSONAL_TOKEN") or secrets.token_urlsafe(32)
 
+
+# Production mode: when MAESTRO_PERSONAL_ENV=production, the shared bootstrap
+# token is DISABLED. Only per-user tokens (from /api/auth/login) are accepted.
+# This closes the S3 cross-user data access vector.
+def _is_production() -> bool:
+    """Check if running in production mode."""
+    return os.environ.get("MAESTRO_PERSONAL_ENV", "").lower() == "production"
+
+
 # Per-user token store (F1 fix) — persisted in SQLite for cross-restart
 def _get_db():
     """Get DB path from env (always fresh — avoids reload staleness)."""
@@ -123,13 +132,16 @@ async def verify_token(authorization: str = Header(None)) -> str:
     except Exception:
         pass
 
-    # Fallback: shared bootstrap token (for backward compat with existing tests)
-    env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
-    if token == env_token and env_token:
-        return "bootstrap"
-    # Also check the module-level AUTH_TOKEN (set at import time)
-    if token == AUTH_TOKEN:
-        return "bootstrap"
+    # Fallback: shared bootstrap token — DISABLED in production mode
+    # In production, only per-user tokens are accepted (no shared token).
+    # This closes the cross-user data access vector.
+    if not _is_production():
+        env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+        if token == env_token and env_token:
+            return "bootstrap"
+        # Also check the module-level AUTH_TOKEN (set at import time)
+        if token == AUTH_TOKEN:
+            return "bootstrap"
 
     raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -150,9 +162,16 @@ def init_db(db_path: str = DB_PATH) -> None:
             timestamp TEXT NOT NULL,
             metadata TEXT DEFAULT '{}',
             source_acl TEXT DEFAULT 'public',
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            user_email TEXT DEFAULT 'bootstrap'
         )
     """)
+    # Migration: add user_email column if it doesn't exist (for existing DBs)
+    try:
+        conn.execute("SELECT user_email FROM signals LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE signals ADD COLUMN user_email TEXT DEFAULT 'bootstrap'")
+        logger.info("Migrated signals table: added user_email column")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS auth_tokens (
             token TEXT PRIMARY KEY,
@@ -164,24 +183,37 @@ def init_db(db_path: str = DB_PATH) -> None:
     conn.close()
 
 
-def load_signals_from_db(db_path: str = DB_PATH) -> list[dict[str, Any]]:
-    """Load all signals from SQLite, ordered by timestamp."""
+def load_signals_from_db(db_path: str = DB_PATH, user_email: str | None = None) -> list[dict[str, Any]]:
+    """Load signals from SQLite, ordered by timestamp.
+
+    Phase 1 fix: when user_email is provided, only load that user's signals.
+    When user_email is None, load all (backward compat / admin only).
+    """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT * FROM signals ORDER BY timestamp ASC"
-    ).fetchall()
+    if user_email:
+        rows = conn.execute(
+            "SELECT * FROM signals WHERE user_email = ? ORDER BY timestamp ASC",
+            (user_email,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM signals ORDER BY timestamp ASC"
+        ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
-def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH) -> None:
-    """Save a signal to SQLite."""
+def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email: str = "bootstrap") -> None:
+    """Save a signal to SQLite.
+
+    Phase 1 fix: stores user_email with each signal for per-user isolation.
+    """
     conn = sqlite3.connect(db_path)
     conn.execute(
         """INSERT OR REPLACE INTO signals
-           (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at, user_email)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             signal["signal_id"],
             signal["entity"],
@@ -191,6 +223,7 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH) -> None:
             json.dumps(signal.get("metadata", {})),
             signal.get("source_acl", "public"),
             signal.get("created_at", datetime.now(timezone.utc).isoformat()),
+            user_email,
         ),
     )
     conn.commit()
@@ -206,20 +239,14 @@ def clear_signals_db(db_path: str = DB_PATH) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Auth
+# Auth — single verify_token (per-user tokens + gated bootstrap fallback)
 # ---------------------------------------------------------------------------
 
-
-async def verify_token(authorization: str = Header(None)) -> str:
-    """Verify bearer token. Returns the token if valid."""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid auth scheme — expected 'Bearer <token>'")
-    token = authorization.split(" ", 1)[1]
-    if token != AUTH_TOKEN:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return token
+# verify_token is defined above with per-user token support.
+# The old shared-token-only verify_token that was here has been REMOVED to
+# fix the shadowing bug where the second definition silently overrode the
+# per-user auth. There is now ONLY ONE verify_token — the per-user one.
+# Bootstrap token is gated by _is_production() (also defined above).
 
 
 # ---------------------------------------------------------------------------
@@ -363,8 +390,11 @@ class PrepareResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def build_shell():
+def build_shell(user_email: str | None = None):
     """Build a PersonalShell with signals loaded from SQLite.
+
+    Phase 1 fix: when user_email is provided, only load that user's signals.
+    This enforces per-user data isolation.
 
     This is the bridge between persistence (SQLite) and intelligence
     (Core via PersonalShell). The shell does NOT persist — persistence
@@ -385,8 +415,8 @@ def build_shell():
     from maestro_personal_shell.personal_oem_state import PersonalOemState, PersonalSignal
     from maestro_personal_shell.shell import PersonalShell
 
-    # Load signals from DB
-    db_signals = load_signals_from_db()
+    # Load signals from DB — filtered by user_email for per-user isolation
+    db_signals = load_signals_from_db(user_email=user_email)
 
     # Convert DB rows to PersonalSignal objects
     personal_signals = []
@@ -491,7 +521,7 @@ def _get_real_calibration() -> str:
 @app.get("/api/situations", response_model=list[SituationResponse])
 async def get_situations(token: str = Depends(verify_token)):
     """Get all detected situations from personal signals."""
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     situations = shell.detect_situations()
 
     result = []
@@ -545,7 +575,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
         "created_at": now.isoformat(),
     }
 
-    save_signal_to_db(signal_data)
+    save_signal_to_db(signal_data, user_email=token)
 
     return SignalResponse(
         signal_id=signal_id,
@@ -561,8 +591,8 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
 
 @app.get("/api/signals", response_model=list[SignalResponse])
 async def get_signals(token: str = Depends(verify_token)):
-    """Get all stored signals."""
-    db_signals = load_signals_from_db()
+    """Get all stored signals (scoped to the authenticated user)."""
+    db_signals = load_signals_from_db(user_email=token)
     return [
         SignalResponse(
             signal_id=r["signal_id"],
@@ -591,7 +621,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
     grounded in the situation's evidence. When no LLM is available,
     falls back to the rule-based answer generation.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
 
     from maestro_personal_shell.surfaces.ask import AskSurface
     surface = AskSurface(shell=shell)
@@ -1050,7 +1080,7 @@ async def get_commitments(token: str = Depends(verify_token)):
     DEPTH: each commitment includes calibration_note (from CalibrationPrimitives)
     and outcome_history (from BehavioralLearningEngine).
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     core = shell.core
 
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
@@ -1131,7 +1161,7 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
     most at-risk) + the rest as secondary. The inevitability: you know
     what you owe without scrolling.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
 
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
     surface = CommitmentsSurface(shell=shell)
@@ -1200,7 +1230,7 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
 @app.get("/api/what-changed", response_model=list[WhatChangedResponse])
 async def get_what_changed(token: str = Depends(verify_token)):
     """Get recent meaningful deltas."""
-    shell = build_shell()
+    shell = build_shell(user_email=token)
 
     from maestro_personal_shell.surfaces.what_changed import WhatChangedSurface
     from datetime import timedelta
@@ -1231,7 +1261,7 @@ async def get_the_shifts(token: str = Depends(verify_token)):
     Not a chronological inbox dump. Two cards. The inevitability: you're
     already caught up.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
 
     from maestro_personal_shell.surfaces.what_changed import WhatChangedSurface
     from datetime import timedelta
@@ -1280,7 +1310,7 @@ async def get_prepare(token: str = Depends(verify_token)):
 
     Not 5 prep points. Three. The right three.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     core = shell.core
 
     from maestro_personal_shell.surfaces.prepare import PrepareSurface
@@ -1419,7 +1449,7 @@ async def get_whispers(token: str = Depends(verify_token)):
 
     Empty list = trusted silence (break-test dimension 7: Restraint).
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     core = shell.core
 
     from maestro_personal_shell.surfaces.whisper import WhisperSurface
@@ -1504,7 +1534,7 @@ async def sync_gmail(req: GmailSyncRequest, token: str = Depends(verify_token)):
             sig["signal_id"] = str(uuid4())
             sig["created_at"] = datetime.now(timezone.utc).isoformat()
             sig["source_acl"] = "private"  # Gmail is private by default
-            save_signal_to_db(sig)
+            save_signal_to_db(sig, user_email=token)
             count += 1
 
     return GmailSyncResponse(
@@ -1542,7 +1572,7 @@ async def sync_calendar(req: CalendarSyncRequest, token: str = Depends(verify_to
             sig["signal_id"] = str(uuid4())
             sig["created_at"] = datetime.now(timezone.utc).isoformat()
             sig["source_acl"] = "private"
-            save_signal_to_db(sig)
+            save_signal_to_db(sig, user_email=token)
             count += 1
 
     return CalendarSyncResponse(
@@ -1573,9 +1603,9 @@ async def delete_account(token: str = Depends(verify_token)):
 async def export_data(token: str = Depends(verify_token)):
     """Export all user data (GDPR/CCPA compliance).
 
-    Returns all signals in JSON format for download.
+    Returns all signals in JSON format for download (scoped to the authenticated user).
     """
-    signals = load_signals_from_db()
+    signals = load_signals_from_db(user_email=token)
     return {
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "signal_count": len(signals),
@@ -1637,7 +1667,7 @@ async def deliver_whispers_push(token: str = Depends(verify_token)):
     from maestro_personal_shell.surfaces.whisper import WhisperSurface
 
     init_push_db()
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     surface = WhisperSurface(shell=shell)
     whispers = surface.get_active_whispers()
 
@@ -1674,7 +1704,7 @@ async def process_transcript(req: TranscriptChunkRequest, token: str = Depends(v
     operational state in real-time, detects new commitments, resolves unknowns.
     """
     from maestro_personal_shell.copilot_live import process_transcript_chunk
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     return process_transcript_chunk(
         shell=shell,
         situation_id=req.situation_id,
@@ -1700,7 +1730,7 @@ async def post_call_summary(req: PostCallSummaryRequest, token: str = Depends(ve
     learning, generates draft follow-up.
     """
     from maestro_personal_shell.copilot_live import generate_post_call_summary
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     return generate_post_call_summary(
         shell=shell,
         situation_id=req.situation_id,
@@ -1721,7 +1751,7 @@ async def list_agents(token: str = Depends(verify_token)):
 
     Nerve parity gap 1a: Personal now exposes which agents are available.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     nerve = shell.nerve
     return {
         "agents": nerve.wired_agents,
@@ -1741,7 +1771,7 @@ async def agent_dashboard(
     Nerve parity gap 1b: Personal now has an agent dashboard with filters.
     Filters: agent (by name), priority (high/medium/low), min_confidence.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     nerve = shell.nerve
     insights = nerve.get_insights()
 
@@ -1781,7 +1811,7 @@ async def per_agent_insights(agent_name: str, token: str = Depends(verify_token)
 
     Nerve parity gap 2: Personal now supports per-agent queries.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     nerve = shell.nerve
     all_insights = nerve.get_insights()
     agent_insights = [i for i in all_insights if i.get("agent") == agent_name]
@@ -1800,7 +1830,7 @@ async def get_evening_briefing(token: str = Depends(verify_token)):
     Nerve parity gap 3: Personal now has evening briefing alongside morning.
     Calls Core's SituationBriefingEngine.generate_evening_briefing().
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     core = shell.core
 
     if not core.briefing_bridge:
@@ -1856,7 +1886,7 @@ async def get_talk_ratio(req: TalkRatioRequest, token: str = Depends(verify_toke
     and coaching feedback.
     """
     from maestro_personal_shell.copilot_live import get_talk_ratio_coaching
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     return get_talk_ratio_coaching(shell=shell, segments=req.segments)
 
 
@@ -1879,7 +1909,7 @@ async def get_negotiation(req: NegotiationRequest, token: str = Depends(verify_t
     and recommended strategy.
     """
     from maestro_personal_shell.copilot_live import get_negotiation_coaching
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     return get_negotiation_coaching(
         shell=shell,
         text=req.text,
@@ -1908,12 +1938,36 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
 
     await websocket.accept()
 
-    # Auth via query param (simpler than first-message auth)
-    token = websocket.query_params.get("token", "")
-    if token != AUTH_TOKEN:
+    # Auth via query param — resolve user_email from token
+    raw_token = websocket.query_params.get("token", "")
+
+    # Check per-user tokens first
+    user_email = None
+    try:
+        db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+        conn = sqlite3.connect(db)
+        row = conn.execute("SELECT user_email FROM user_tokens WHERE token = ?", (raw_token,)).fetchone()
+        conn.close()
+        if row:
+            user_email = row[0]
+    except Exception:
+        pass
+
+    # Fallback: bootstrap token (disabled in production)
+    if not user_email and not _is_production():
+        env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+        if raw_token == env_token and env_token:
+            user_email = "bootstrap"
+        elif raw_token == AUTH_TOKEN:
+            user_email = "bootstrap"
+
+    if not user_email:
         await websocket.send_json({"type": "error", "message": "Invalid token"})
         await websocket.close()
         return
+
+    # Use user_email as the token variable so build_shell(user_email=token) works
+    token = user_email
 
     transcript_chunks = []
     meeting_entity = ""
@@ -1931,7 +1985,7 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                 transcript_chunks = []
 
                 # Send started confirmation (with briefing + ambient inline)
-                shell = build_shell()
+                shell = build_shell(user_email=token)
                 core = shell.core
                 briefing_data = {}
                 if core.briefing_bridge:
@@ -1957,7 +2011,7 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                 })
 
             elif msg_type == "transcript" and is_active:
-                shell = build_shell()
+                shell = build_shell(user_email=token)
 
                 # Get situation ID
                 situations = shell.detect_situations()
@@ -1990,14 +2044,14 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
             elif msg_type == "talk_ratio":
                 # Process talk ratio
                 from maestro_personal_shell.copilot_live import get_talk_ratio_coaching
-                shell = build_shell()
+                shell = build_shell(user_email=token)
                 result = get_talk_ratio_coaching(shell, msg.get("segments", []))
                 await websocket.send_json({"type": "talk_ratio", **result})
 
             elif msg_type == "negotiation":
                 # Process negotiation
                 from maestro_personal_shell.copilot_live import get_negotiation_coaching
-                shell = build_shell()
+                shell = build_shell(user_email=token)
                 result = get_negotiation_coaching(
                     shell,
                     text=msg.get("text", ""),
@@ -2008,7 +2062,7 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
 
             elif msg_type == "stop":
                 is_active = False
-                shell = build_shell()
+                shell = build_shell(user_email=token)
                 situations = shell.detect_situations()
                 sit_id = situations[0].situation_id if situations else "unknown"
 
@@ -2051,7 +2105,7 @@ async def get_ambient(token: str = Depends(verify_token)):
     This is the background intelligence that feeds Whisper between calls.
     """
     from maestro_personal_shell.copilot_live import get_ambient_intelligence
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     return await get_ambient_intelligence(shell=shell)
 
 
@@ -2068,7 +2122,7 @@ async def get_persisted_situations(token: str = Depends(verify_token)):
     (SQLite) on every detect_situations() call. This endpoint loads
     them back — proving persistence works.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     persisted = shell.load_persisted_situations(org_id="personal")
     return {
         "persisted_count": len(persisted),
@@ -2153,8 +2207,11 @@ async def correct_signal(
     db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
     conn = sqlite3.connect(db_path)
 
-    # Check signal exists
-    row = conn.execute("SELECT * FROM signals WHERE signal_id = ?", (signal_id,)).fetchone()
+    # Check signal exists AND belongs to the authenticated user (cross-user protection)
+    row = conn.execute(
+        "SELECT * FROM signals WHERE signal_id = ? AND user_email = ?",
+        (signal_id, token),
+    ).fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Signal not found")
@@ -2338,7 +2395,7 @@ async def get_depth(token: str = Depends(verify_token)):
     Per CEO directive: "80% depth on Core." This endpoint lets you verify
     the wiring — how many of the 23 Core modules are actually called.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     core = shell.core
     wired = core.wired_modules
     return {
@@ -2394,7 +2451,7 @@ async def get_briefing(token: str = Depends(verify_token)):
     DEPTH: calls Core's SituationBriefingEngine.generate_morning_briefing().
     This is the orchestrated intelligence behind the Home screen.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
     core = shell.core
 
     if not core.briefing_bridge:
@@ -2463,7 +2520,7 @@ async def get_the_moment(token: str = Depends(verify_token)):
     This is the Spotlight moment — the one commitment that matters most.
     Not a list. One card. If nothing deserves attention, returns has_moment=False.
     """
-    shell = build_shell()
+    shell = build_shell(user_email=token)
 
     # Get all commitments via the Commitments surface (calls Core)
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
