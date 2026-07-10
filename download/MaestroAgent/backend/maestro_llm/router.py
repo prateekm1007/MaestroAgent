@@ -59,6 +59,7 @@ class LLMRouter:
             "anthropic": "claude-3-5-haiku",
             "openrouter": "openrouter/auto",
             "grok": "grok-beta",
+            "gemini": "gemini-2.0-flash",
         }
     )
     # Cache for temperature=0 calls.
@@ -114,11 +115,23 @@ class LLMRouter:
             providers["openrouter"] = OpenRouterProvider(api_key=os.environ["OPENROUTER_API_KEY"])
         if os.environ.get("XAI_API_KEY"):
             providers["grok"] = GrokProvider(api_key=os.environ["XAI_API_KEY"])
+        if os.environ.get("GEMINI_API_KEY"):
+            # Gemini has an OpenAI-compatible endpoint at generativelanguage.googleapis.com.
+            # Reuse OpenAIProvider with the Gemini base_url + Bearer auth.
+            gemini_base = os.environ.get(
+                "GEMINI_BASE_URL",
+                "https://generativelanguage.googleapis.com/v1beta/openai",
+            )
+            providers["gemini"] = OpenAIProvider(
+                base_url=gemini_base,
+                api_key=os.environ["GEMINI_API_KEY"],
+            )
         default_provider = (
             "openai" if "openai" in providers else
             "anthropic" if "anthropic" in providers else
             "openrouter" if "openrouter" in providers else
             "grok" if "grok" in providers else
+            "gemini" if "gemini" in providers else
             "ollama"
         )
         router = cls(providers=providers, ledger=ledger, default_provider=default_provider)
@@ -129,6 +142,12 @@ class LLMRouter:
         openrouter_model = os.environ.get("OPENROUTER_MODEL")
         if openrouter_model and "openrouter" in providers:
             router.default_models["openrouter"] = openrouter_model
+        # Allow overriding the Gemini model. Default is gemini-2.0-flash
+        # (fast + cheap). Set GEMINI_MODEL to gemini-2.0-flash-lite for
+        # even lower cost, or gemini-2.5-pro for higher quality.
+        gemini_model = os.environ.get("GEMINI_MODEL")
+        if gemini_model and "gemini" in providers:
+            router.default_models["gemini"] = gemini_model
         return router
 
     @classmethod
@@ -138,6 +157,7 @@ class LLMRouter:
         return any(os.environ.get(k) for k in [
             "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
             "OPENROUTER_API_KEY", "XAI_API_KEY",
+            "GEMINI_API_KEY",
         ])
 
     @classmethod
