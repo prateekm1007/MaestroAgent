@@ -60,6 +60,7 @@ class LLMRouter:
             "openrouter": "openrouter/auto",
             "grok": "grok-beta",
             "gemini": "gemini-2.0-flash",
+            "deepseek": "deepseek-chat",
         }
     )
     # Cache for temperature=0 calls.
@@ -126,12 +127,24 @@ class LLMRouter:
                 base_url=gemini_base,
                 api_key=os.environ["GEMINI_API_KEY"],
             )
+        if os.environ.get("DEEPSEEK_API_KEY"):
+            # DeepSeek has an OpenAI-compatible API at api.deepseek.com.
+            # Models: deepseek-chat (was v3, now v4-flash), deepseek-reasoner.
+            deepseek_base = os.environ.get(
+                "DEEPSEEK_BASE_URL",
+                "https://api.deepseek.com/v1",
+            )
+            providers["deepseek"] = OpenAIProvider(
+                base_url=deepseek_base,
+                api_key=os.environ["DEEPSEEK_API_KEY"],
+            )
         default_provider = (
             "openai" if "openai" in providers else
             "anthropic" if "anthropic" in providers else
             "openrouter" if "openrouter" in providers else
             "grok" if "grok" in providers else
             "gemini" if "gemini" in providers else
+            "deepseek" if "deepseek" in providers else
             "ollama"
         )
         router = cls(providers=providers, ledger=ledger, default_provider=default_provider)
@@ -148,6 +161,12 @@ class LLMRouter:
         gemini_model = os.environ.get("GEMINI_MODEL")
         if gemini_model and "gemini" in providers:
             router.default_models["gemini"] = gemini_model
+        # Allow overriding the DeepSeek model. Default is deepseek-chat
+        # (v4-flash, fast + cheap). Set DEEPSEEK_MODEL to deepseek-reasoner
+        # for higher quality reasoning.
+        deepseek_model = os.environ.get("DEEPSEEK_MODEL")
+        if deepseek_model and "deepseek" in providers:
+            router.default_models["deepseek"] = deepseek_model
         return router
 
     @classmethod
@@ -157,7 +176,7 @@ class LLMRouter:
         return any(os.environ.get(k) for k in [
             "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
             "OPENROUTER_API_KEY", "XAI_API_KEY",
-            "GEMINI_API_KEY",
+            "GEMINI_API_KEY", "DEEPSEEK_API_KEY",
         ])
 
     @classmethod
