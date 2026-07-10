@@ -61,7 +61,7 @@ def client(isolated_api):
 
 @pytest.fixture
 def auth_headers(client):
-    response = client.post("/api/auth/login", json={"password": "any"})
+    response = client.post("/api/auth/login", json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
     token = response.json()["token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -130,7 +130,7 @@ class TestSuccessMetrics:
     def test_metrics_user_scoped(self, client, auth_headers):
         """Metrics must be scoped to the authenticated user."""
         # Create user B
-        resp = client.post("/api/auth/login", json={"user_email": "metrics-b@test.com"})
+        resp = client.post("/api/auth/login", json={"user_email": "metrics-b@test.com", "password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
         b_headers = {"Authorization": f"Bearer {resp.json()['token']}"}
 
         m1, m2, m3 = _mock_llm()
@@ -298,7 +298,7 @@ class TestEdgeCases:
 
     def test_edge_10_cross_user_metrics_isolation(self, client, auth_headers):
         """User A's metrics must not include User B's data."""
-        resp = client.post("/api/auth/login", json={"user_email": "iso-b@test.com"})
+        resp = client.post("/api/auth/login", json={"user_email": "iso-b@test.com", "password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
         b_headers = {"Authorization": f"Bearer {resp.json()['token']}"}
 
         m1, m2, m3 = _mock_llm()

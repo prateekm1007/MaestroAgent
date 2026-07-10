@@ -52,7 +52,7 @@ def client(isolated_api):
 
 @pytest.fixture
 def auth_headers(client):
-    response = client.post("/api/auth/login", json={"password": "any"})
+    response = client.post("/api/auth/login", json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
     token = response.json()["token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -85,7 +85,7 @@ class TestCalibrationHistory:
     def test_history_scoped_to_user(self, client, auth_headers):
         """Calibration history must be scoped to the authenticated user."""
         # Login as a different user
-        resp = client.post("/api/auth/login", json={"user_email": "other@example.com"})
+        resp = client.post("/api/auth/login", json={"user_email": "other@example.com", "password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
         other_token = resp.json()["token"]
         other_headers = {"Authorization": f"Bearer {other_token}"}
 
@@ -183,9 +183,9 @@ class TestAuditLog:
     def test_audit_log_scoped_to_user(self, client, auth_headers):
         """Audit log must only show events for the authenticated user."""
         # Login as different users
-        resp = client.post("/api/auth/login", json={"user_email": "alice@example.com"})
+        resp = client.post("/api/auth/login", json={"user_email": "alice@example.com", "password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
         alice_headers = {"Authorization": f"Bearer {resp.json()['token']}"}
-        resp = client.post("/api/auth/login", json={"user_email": "bob@example.com"})
+        resp = client.post("/api/auth/login", json={"user_email": "bob@example.com", "password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
         bob_headers = {"Authorization": f"Bearer {resp.json()['token']}"}
 
         from maestro_personal_shell.audit_trust import log_data_access

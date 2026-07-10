@@ -544,22 +544,46 @@ app.add_middleware(
 async def login(req: LoginRequest):
     """Login — returns a bearer token.
 
-    F1 fix: accepts user_email for per-user tokens. If user_email is
-    provided, creates a per-user token. If not, returns the shared
-    bootstrap token (backward compat with existing tests).
+    P1 fix: passwordless email login removed. The login now requires
+    either:
+    1. The MAESTRO_PERSONAL_TOKEN env var (single-user local mode) —
+       the caller must provide it as the password. No email-based login.
+    2. A per-user token that was previously created via _create_user_token.
+       But tokens are never created without the setup password.
 
-    For production: validate password against a user store.
+    In dev mode (MAESTRO_PERSONAL_ENV not 'production'):
+    - Bootstrap token works with password=AUTH_TOKEN (backward compat for tests)
+    - Email-only login is REJECTED
+
+    In production mode:
+    - Only per-user tokens work (no bootstrap)
+    - Login requires password validation against user store (future)
+
+    This closes the P0-2 passwordless login vulnerability.
     """
-    user_email = req.user_email or "default@personal.local"
+    env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
 
-    # If user_email provided, create per-user token
-    if req.user_email:
+    # P1 fix: if password matches the env token, issue a token
+    # This is single-user local mode — the "password" is the shared secret
+    if env_token and req.password == env_token:
+        user_email = req.user_email or "default@personal.local"
         token = _create_user_token(user_email)
-    else:
-        # Backward compat: return shared bootstrap token
-        token = AUTH_TOKEN
+        return LoginResponse(token=token, user_email=user_email, message="Login successful")
 
-    return LoginResponse(token=token, user_email=user_email, message="Login successful")
+    # Dev mode: allow bootstrap token as password (for tests)
+    if not _is_production() and req.password == AUTH_TOKEN:
+        user_email = req.user_email or "default@personal.local"
+        if req.user_email:
+            token = _create_user_token(user_email)
+        else:
+            token = AUTH_TOKEN
+        return LoginResponse(token=token, user_email=user_email, message="Login successful (dev mode)")
+
+    # P1 fix: REJECT passwordless email login
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid credentials. Password required. Set MAESTRO_PERSONAL_TOKEN env var for local mode."
+    )
 
 
 def _get_real_calibration() -> str:
@@ -2297,9 +2321,31 @@ async def get_evening_briefing(token: str = Depends(verify_token)):
             org_id="personal",
         )
 
+        # P1-2 fix: filter noise from top_situation
+        # The auditor found that newsletter/noise entities were ranked as
+        # top_situation by volume. Filter them out.
+        top_situation = getattr(briefing, "top_situation", None)
+        if top_situation:
+            top_entity = str(getattr(top_situation, "entity", "") or
+                           (top_situation.get("entity", "") if isinstance(top_situation, dict) else "")).lower()
+            # Check if this entity is noise (newsletter, FYI, notification)
+            is_noise = False
+            for sig in shell.oem_state.signals:
+                sig_entity = str(getattr(sig, "entity", "")).lower()
+                sig_type = str(getattr(sig, "signal_type", "") or
+                             getattr(getattr(sig, "type", ""), "value", "")).lower()
+                if sig_entity == top_entity and sig_type in (
+                    "newsletter", "fyi", "notification", "notification_digest",
+                    "blog", "social", "marketing", "announcement",
+                ):
+                    is_noise = True
+                    break
+            if is_noise:
+                top_situation = None  # suppress noise from top_situation
+
         return BriefingResponse(
             greeting=getattr(briefing, "greeting", ""),
-            top_situation=getattr(briefing, "top_situation", None),
+            top_situation=top_situation,
             material_changes=getattr(briefing, "material_changes", []) or [],
             unknowns=getattr(briefing, "unknowns", []) or [],
             disputes=getattr(briefing, "disputes", []) or [],
