@@ -58,7 +58,7 @@ def client(temp_db):
 @pytest.fixture
 def auth_headers(client):
     """Get auth headers by logging in."""
-    response = client.post("/api/auth/login", json={"password": "any"})
+    response = client.post("/api/auth/login", json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
     token = response.json()["token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -76,7 +76,7 @@ class TestHealthAndAuth:
 
     def test_login_returns_token(self, client):
         """Login must return a bearer token."""
-        response = client.post("/api/auth/login", json={"password": "any"})
+        response = client.post("/api/auth/login", json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
         assert response.status_code == 200
         data = response.json()
         assert "token" in data

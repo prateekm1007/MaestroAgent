@@ -52,7 +52,7 @@ def client(isolated_api):
 
 def _login(client, user_email):
     """Login as a specific user and return the token."""
-    response = client.post("/api/auth/login", json={"user_email": user_email})
+    response = client.post("/api/auth/login", json={"user_email": user_email, "password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
     assert response.status_code == 200
     return response.json()["token"]
 
@@ -271,7 +271,7 @@ class TestBootstrapTokenGating:
         """In dev mode, the bootstrap token should work."""
         response = client.post(
             "/api/auth/login",
-            json={"password": "any"},
+            json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")},
         )
         assert response.status_code == 200
         token = response.json()["token"]
@@ -307,10 +307,10 @@ class TestBootstrapTokenGating:
             assert response.status_code == 401, \
                 "Bootstrap token must be rejected in production mode"
 
-            # But per-user tokens should still work
+            # But per-user tokens should still work (with correct password)
             response = client.post(
                 "/api/auth/login",
-                json={"user_email": "user@example.com"},
+                json={"user_email": "user@example.com", "password": "bootstrap-token-prod"},
             )
             assert response.status_code == 200
             user_token = response.json()["token"]

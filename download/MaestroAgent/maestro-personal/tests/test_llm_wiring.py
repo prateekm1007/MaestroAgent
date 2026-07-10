@@ -58,7 +58,7 @@ def client(temp_api):
 @pytest.fixture
 def auth_headers(client):
     """Get auth headers."""
-    response = client.post("/api/auth/login", json={"password": "any"})
+    response = client.post("/api/auth/login", json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
     token = response.json()["token"]
     return {"Authorization": f"Bearer {token}"}
 

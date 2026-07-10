@@ -56,7 +56,7 @@ def client(isolated_api):
 
 
 def _login(client, user_email):
-    response = client.post("/api/auth/login", json={"user_email": user_email})
+    response = client.post("/api/auth/login", json={"user_email": user_email, "password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
     return response.json()["token"]
 
 
