@@ -164,10 +164,18 @@ Classify this text. Output ONLY valid JSON."""
     if state not in COMMITMENT_STATES:
         state = "candidate"
 
-    # is_commitment = True only for active commitment types
-    is_commitment = parsed.get("is_commitment", ctype in ("explicit", "implicit", "conditional"))
-    if ctype in ("proposal", "request", "tentative", "aspiration", "negation",
-                 "third_party_report", "not_a_commitment"):
+    # is_commitment semantics (aligned with the roadmap's Phase 3 schema):
+    # A commitment is any statement that creates, updates, or closes an
+    # obligation — including completed, cancelled, disputed, superseded,
+    # and third-party reports. Only proposal/request/tentative/aspiration/
+    # negation/not_a_commitment are NOT commitments (they're suggestions,
+    # questions, hedges, hopes, refusals, or irrelevant).
+    is_commitment = parsed.get("is_commitment", ctype in (
+        "explicit", "implicit", "conditional", "third_party_report",
+        "completed", "cancelled", "disputed", "superseded",
+    ))
+    if ctype in ("proposal", "request", "tentative", "aspiration",
+                 "negation", "not_a_commitment"):
         is_commitment = False
 
     return {
@@ -230,7 +238,7 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     if any(kw in text_lower for kw in completion_keywords):
         return {
             "commitment_type": "completed",
-            "is_commitment": False,
+            "is_commitment": True,  # a completed commitment is still a commitment
             "confidence": 0.7,
             "state": "completed_claimed",
             "owner": "unknown",
@@ -243,7 +251,7 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
         if any(kw in text_lower for kw in ["is done", "got it done", "have done", "has done", "i'm done"]):
             return {
                 "commitment_type": "completed",
-                "is_commitment": False,
+                "is_commitment": True,  # completed is still a commitment
                 "confidence": 0.7,
                 "state": "completed_claimed",
                 "owner": "unknown",
@@ -257,7 +265,7 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     if any(kw in text_lower for kw in cancel_keywords):
         return {
             "commitment_type": "cancelled",
-            "is_commitment": False,
+            "is_commitment": True,  # a cancelled commitment is still a commitment
             "confidence": 0.7,
             "state": "cancelled",
             "owner": "unknown",
@@ -271,7 +279,7 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     if any(kw in text_lower for kw in dispute_keywords):
         return {
             "commitment_type": "disputed",
-            "is_commitment": False,
+            "is_commitment": True,  # a disputed commitment is still a commitment
             "confidence": 0.6,
             "state": "disputed",
             "owner": "unknown",
