@@ -310,6 +310,11 @@ class AskResponse(BaseModel):
     Not a summary. Not a paraphrase. The exact sentence from the source,
     with provenance you can tap to verify. PLUS: judgment, perspectives,
     decision boundary, and reasoning trace from the full Core engine.
+
+    Phase 5: added counterevidence, unknowns, confidence, as_of fields
+    per the roadmap answer schema. The claim verifier populates
+    counterevidence (claims not supported by evidence) and the answer
+    confidence is calibrated from evidence quality.
     """
     answer: str
     query: str
@@ -318,6 +323,11 @@ class AskResponse(BaseModel):
     source_timestamp: str = ""
     situation_state: str = ""
     evidence_refs: list[dict[str, Any]] = []
+    # Phase 5: roadmap answer schema fields
+    confidence: float = 0.0            # calibrated confidence in the answer (0.0-1.0)
+    counterevidence: list[dict[str, Any]] = []  # evidence that contradicts the answer
+    unknowns: list[str] = []           # what we don't know / can't verify
+    as_of: str = ""                    # the temporal cutoff used for this answer
     # DEPTH FIELDS (wired from Core)
     decision_boundary: str = ""        # from JudgmentSynthesizer — "decide now / wait / what would change this"
     perspectives: list[dict[str, Any]] = []  # from Perspective — specialist views
@@ -1421,14 +1431,28 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
         llm_answer_used or llm_perspectives_used or llm_judgment_used or llm_consequence_routed
     )
 
+    # Phase 5: claim verification — check the answer against evidence.
+    # Removes unsupported claims, identifies counterevidence, calibrates
+    # confidence, and computes unknowns (what we can't verify).
+    from maestro_personal_shell.claim_verifier import verify_claims, compute_unknowns
+    verification = verify_claims(str(answer), evidence_refs, source_sentence)
+    unknowns = compute_unknowns(str(answer), evidence_refs, req.query)
+    # Use the verified answer (unsupported claims removed).
+    verified_answer = verification["verified_answer"]
+
     return AskResponse(
-        answer=str(answer),
+        answer=str(verified_answer),
         query=req.query,
         source_sentence=source_sentence,
         source_entity=source_entity,
         source_timestamp=source_timestamp,
         situation_state=situation_state,
         evidence_refs=evidence_refs,
+        # Phase 5: roadmap answer schema fields
+        confidence=verification["confidence"],
+        counterevidence=verification["counterevidence"],
+        unknowns=unknowns,
+        as_of=as_of or "",
         decision_boundary=decision_boundary,
         perspectives=perspectives_data,
         reasoning_chain=reasoning_chain,
