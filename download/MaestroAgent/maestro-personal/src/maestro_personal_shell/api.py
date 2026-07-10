@@ -627,9 +627,29 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
         metadata["commitment_type"] = "unclassified"
         metadata["is_commitment"] = None  # unknown — don't filter
 
+    # F3: Resolve entity to canonical form to prevent fragmentation.
+    # "Acme Corp", "client", "AcmeCorp" → single canonical entity.
+    canonical_entity = req.entity
+    original_entity = req.entity
+    try:
+        from maestro_personal_shell.entity_resolver import resolve_entity_with_signals
+        # Load existing signals to build the known-entity pool
+        existing_signals = load_signals_from_db(user_email=token)
+        known_entities = list({s.get("entity", "") for s in existing_signals if s.get("entity")})
+        canonical_entity = resolve_entity_with_signals(
+            req.entity,
+            existing_signals,
+            user_email=token,
+        )
+        if canonical_entity != original_entity:
+            metadata["original_entity"] = original_entity
+            metadata["entity_resolved"] = True
+    except Exception as e:
+        logger.debug("Entity resolution failed (non-fatal): %s", e)
+
     signal_data = {
         "signal_id": signal_id,
-        "entity": req.entity,
+        "entity": canonical_entity,  # F3: store canonical entity, not raw
         "text": sanitized_text,  # F4: sanitized, not raw
         "signal_type": req.signal_type,
         "timestamp": now.isoformat(),
@@ -642,7 +662,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
 
     return SignalResponse(
         signal_id=signal_id,
-        entity=req.entity,
+        entity=canonical_entity,  # F3: echo canonical entity
         text=sanitized_text,  # F6 FIX: echo sanitized text, not raw (consistency with GET)
         signal_type=req.signal_type,
         timestamp=now.isoformat(),
@@ -824,6 +844,8 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
             break
 
     # If no situation found, try to find a matching signal directly
+    # F8 FIX: also try fuzzy entity matching so provenance works even when
+    # the query entity doesn't exactly match the stored entity.
     if not source_sentence and entities:
         for sig in shell.oem_state.signals:
             sig_entity = str(getattr(sig, "entity", "")).lower()
@@ -832,6 +854,64 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                 source_entity = getattr(sig, "entity", "")
                 source_timestamp = str(getattr(sig, "timestamp", ""))
                 break
+
+    # F8 FIX: If still no source_sentence, try fuzzy entity matching.
+    # The auditor found that provenance was empty in fallback mode because
+    # exact entity matching fails for "AcmeCorp" vs "Acme Corp". Use the
+    # entity_resolver to find matching signals.
+    if not source_sentence and entities:
+        try:
+            from maestro_personal_shell.entity_resolver import resolve_entity_with_signals, _fuzzy_match
+            for sig in shell.oem_state.signals:
+                sig_entity = str(getattr(sig, "entity", ""))
+                if any(_fuzzy_match(e, sig_entity) for e in entities):
+                    source_sentence = getattr(sig, "text", "")
+                    source_entity = sig_entity
+                    source_timestamp = str(getattr(sig, "timestamp", ""))
+                    break
+        except Exception:
+            pass
+
+    # F8 FIX: If still no source_sentence, try semantic retrieval (FTS5).
+    # This catches cases where the query mentions keywords that appear in
+    # signal text but not in the entity name.
+    if not source_sentence:
+        try:
+            from maestro_personal_shell.semantic_retrieval import get_relevant_signals
+            relevant = get_relevant_signals(req.query, user_email=token, limit=1)
+            if relevant:
+                source_sentence = relevant[0].get("text", "")
+                source_entity = relevant[0].get("entity", "")
+                source_timestamp = relevant[0].get("timestamp", "")
+        except Exception:
+            pass
+
+    # F8 FIX: Populate evidence_refs with real signal data in fallback mode.
+    # The auditor found evidence_refs[].text was a raw UUID — now we populate
+    # with actual signal text so the user can verify the answer.
+    if not evidence_refs:
+        try:
+            from maestro_personal_shell.semantic_retrieval import get_relevant_signals
+            relevant = get_relevant_signals(req.query, user_email=token, limit=3)
+            for r in relevant:
+                evidence_refs.append({
+                    "text": r.get("text", ""),
+                    "entity": r.get("entity", ""),
+                    "timestamp": r.get("timestamp", ""),
+                    "signal_id": r.get("signal_id", ""),
+                })
+        except Exception:
+            # Fallback: use signals that match the query entities
+            for sig in shell.oem_state.signals:
+                if entities and any(e.lower() in str(getattr(sig, "entity", "")).lower() for e in entities):
+                    evidence_refs.append({
+                        "text": getattr(sig, "text", ""),
+                        "entity": getattr(sig, "entity", ""),
+                        "timestamp": str(getattr(sig, "timestamp", "")),
+                        "signal_id": getattr(sig, "signal_id", ""),
+                    })
+                    if len(evidence_refs) >= 3:
+                        break
 
     # ── DEPTH: wire Core modules for full intelligence ──────────────
     # Per CEO directive: "80% depth on Core. The complexity behind the screens."
@@ -1369,7 +1449,7 @@ async def get_commitments(token: str = Depends(verify_token)):
             deadline=(c.get("metadata", {}) or {}).get("deadline", ""),
             calibration_note=cal_note,
             outcome_history=outcome,
-            confidence=0.5 if not cal_note.startswith("Insufficient") else 0.0,
+            confidence=_compute_commitment_confidence(c, cal_note, days_stale),
         ))
 
     return result
@@ -2383,6 +2463,74 @@ async def get_persisted_situations(token: str = Depends(verify_token)):
 # ---------------------------------------------------------------------------
 # F2 FIX: Commitment closure — completed commitments must NOT nag
 # ---------------------------------------------------------------------------
+
+
+def _compute_commitment_confidence(
+    commitment: dict,
+    calibration_note: str,
+    days_stale: int = 0,
+) -> float:
+    """Compute real per-item confidence for a commitment.
+
+    F5 fix: replaces the flat 0.5/0.0 confidence with a real calculation
+    based on:
+    - Classification confidence (from commitment_classifier)
+    - Calibration history (Brier score)
+    - Staleness (older = less confident it'll be kept)
+    - Evidence quality (classification type)
+
+    Returns a float 0.0-1.0.
+    """
+    confidence = 0.5  # base
+
+    # 1. Use classification confidence if available
+    meta = commitment.get("metadata", {}) or {}
+    if isinstance(meta, str):
+        try:
+            import json as _json
+            meta = _json.loads(meta)
+        except Exception:
+            meta = {}
+
+    class_conf = meta.get("commitment_confidence")
+    if class_conf is not None:
+        confidence = float(class_conf)
+
+    # 2. Adjust for staleness — older commitments are less likely to be kept
+    if days_stale > 7:
+        confidence *= 0.6  # 40% less confident
+    elif days_stale > 3:
+        confidence *= 0.8  # 20% less confident
+    elif days_stale > 1:
+        confidence *= 0.9  # 10% less confident
+
+    # 3. Adjust for commitment type — explicit > implicit > conditional
+    ctype = meta.get("commitment_type", "unclassified")
+    type_adjustments = {
+        "explicit": 1.0,      # strong promise
+        "implicit": 0.85,     # implied
+        "conditional": 0.6,   # depends on condition
+        "unclassified": 0.7,  # unknown
+    }
+    confidence *= type_adjustments.get(ctype, 0.7)
+
+    # 4. If calibration says "insufficient", reduce confidence (be humble)
+    if "Insufficient" in calibration_note or "insufficient" in calibration_note:
+        confidence *= 0.8  # 20% less confident when uncalibrated
+
+    # 5. If real Brier score exists, adjust based on past accuracy
+    # (Brier < 0.25 = well-calibrated, > 0.33 = poor)
+    import re as _re
+    brier_match = _re.search(r'Brier[^0-9]*(\d+\.?\d*)', calibration_note)
+    if brier_match:
+        brier = float(brier_match.group(1))
+        if brier < 0.2:
+            confidence *= 1.1  # well-calibrated — slightly more confident
+        elif brier > 0.35:
+            confidence *= 0.7  # poorly calibrated — much less confident
+
+    # Clamp to 0.0-1.0
+    return max(0.0, min(1.0, confidence))
 
 
 def _detect_completion(signals: list) -> dict[str, str]:
