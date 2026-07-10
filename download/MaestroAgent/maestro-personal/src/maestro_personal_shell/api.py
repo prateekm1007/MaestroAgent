@@ -3603,6 +3603,8 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
     # Falls back to rule-based when no LLM is available.
     try:
         from maestro_personal_shell.materiality_gate import evaluate_materiality
+        # P11 fix: use materiality_gate_v2 (learns from user dismissals)
+        from maestro_personal_shell.dynamic_agents import materiality_gate_v2
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
 
@@ -3627,7 +3629,8 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
             except Exception:
                 pass
 
-        materiality = await evaluate_materiality(best_commitment, mat_context)
+        # P11 fix: use materiality_gate_v2 (learns from user dismissals)
+        materiality = await materiality_gate_v2(best_commitment, mat_context, user_email=token)
 
         # Trusted Silence: if the materiality gate says "don't speak", stay silent
         if not materiality.get("should_speak", True):
