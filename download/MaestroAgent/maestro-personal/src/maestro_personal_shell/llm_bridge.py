@@ -416,14 +416,29 @@ def _get_calibration_context() -> str:
     prompt so the model can calibrate its confidence based on past
     performance. This closes the learning loop.
 
+    Phase 2.2: also feeds past user corrections so the LLM avoids
+    repeating rejected recommendations.
+
     Returns an empty string if no calibration data exists (Day 1).
     """
+    parts = []
     try:
         from maestro_personal_shell.outcome_tracker import get_calibration_context_for_llm
-        return get_calibration_context_for_llm()
+        calib = get_calibration_context_for_llm()
+        if calib:
+            parts.append(calib)
     except Exception as e:
         logger.debug("Calibration context fetch failed: %s", e)
-        return ""
+
+    try:
+        from maestro_personal_shell.outcome_tracker import get_corrections_context_for_llm
+        corrections = get_corrections_context_for_llm()
+        if corrections:
+            parts.append(corrections)
+    except Exception as e:
+        logger.debug("Corrections context fetch failed: %s", e)
+
+    return "\n\n".join(parts) if parts else ""
 
 
 # ---------------------------------------------------------------------------

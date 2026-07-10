@@ -399,3 +399,76 @@ Recent outcomes (most recent first):
 Based on this history, calibrate your confidence in current predictions. If you've been overconfident on similar situations, lower your confidence. If underconfident, raise it."""
 
     return context
+
+
+def get_corrections_context_for_llm(db_path: str | None = None, user_email: str | None = None) -> str:
+    """Build a corrections context string for injection into LLM system prompts.
+
+    Phase 2.2 fix: the roadmap requires that the LLM queries past user
+    corrections before generating judgments. This function retrieves all
+    dismissed/cancelled/corrected signals and builds a context string
+    that tells the LLM what the user has previously rejected.
+
+    This closes the correction-persistence loop: when the user dismisses
+    something, the LLM sees it and avoids repeating the mistake.
+
+    Returns an empty string if there are no corrections (Day 1).
+    """
+    path = db_path or _get_db_path()
+    init_outcome_db(path)
+
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+
+    # Ensure the signals table exists (it's created by api.init_db, but
+    # outcome_tracker may be called before that in some test scenarios)
+    try:
+        conn.execute("SELECT 1 FROM signals LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.close()
+        return ""  # signals table doesn't exist yet — no corrections possible
+
+    # Query signals that have been corrected (stored in metadata)
+    if user_email:
+        rows = conn.execute(
+            """SELECT signal_id, entity, text, signal_type, metadata, user_email
+               FROM signals
+               WHERE user_email = ? AND metadata LIKE '%correction%'
+               ORDER BY created_at DESC LIMIT 20""",
+            (user_email,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT signal_id, entity, text, signal_type, metadata
+               FROM signals
+               WHERE metadata LIKE '%correction%'
+               ORDER BY created_at DESC LIMIT 20""",
+        ).fetchall()
+    conn.close()
+
+    if not rows:
+        return ""
+
+    corrections = []
+    for r in rows:
+        try:
+            meta = json.loads(r["metadata"]) if r["metadata"] else {}
+            action = meta.get("correction", "unknown")
+            entity = r["entity"]
+            text = r["text"][:100]
+            corrections.append(f"  - [{action}] {entity}: {text}")
+        except Exception:
+            continue
+
+    if not corrections:
+        return ""
+
+    context = f"""USER CORRECTIONS (the user has rejected these — do NOT repeat):
+{chr(10).join(corrections)}
+
+Before generating a judgment, check if the current situation resembles any
+of these corrected items. If it does, lower confidence or suppress the
+recommendation entirely. The user has explicitly told you these are not
+commitments or not relevant."""
+
+    return context
