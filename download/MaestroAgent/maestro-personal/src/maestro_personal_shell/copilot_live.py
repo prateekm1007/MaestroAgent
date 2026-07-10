@@ -258,17 +258,18 @@ async def _llm_sentiment_analysis(shell: Any) -> list[dict[str, Any]]:
     frustration, urgency, and relationship dynamics — genuine
     understanding, not keyword matching.
     """
-    from maestro_personal_shell.llm_bridge import llm_complete
+    from maestro_personal_shell.llm_bridge import llm_complete, sanitize_for_llm
 
     # Gather recent signals (last 20)
     signals = list(shell.oem_state.signals)[:20]
     if not signals:
         return []
 
+    # S4: Sanitize signal text before it enters the LLM prompt
     signals_text = ""
     for s in signals:
-        entity = getattr(s, "entity", "unknown")
-        text = str(getattr(s, "text", ""))[:150]
+        entity = sanitize_for_llm(str(getattr(s, "entity", "unknown")), max_length=100)
+        text = sanitize_for_llm(str(getattr(s, "text", "")), max_length=150)
         signals_text += f"- [{entity}] {text}\n"
 
     system_prompt = """You are Maestro's ambient intelligence engine. Analyze the recent signals and identify any sentiment shifts, frustration, urgency, or notable relationship dynamics.
