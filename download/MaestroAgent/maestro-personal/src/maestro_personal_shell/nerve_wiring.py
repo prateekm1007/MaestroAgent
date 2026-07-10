@@ -28,22 +28,43 @@ class NerveWiring:
     Each agent lazy-initializes on first access, cached for reuse.
     """
 
-    # The 14 personal-applicable agents (3 excluded: security, support, partnerships)
+    # F4: Personal-applicable agents — pruned from 14 to 8.
+    #
+    # The auditor noted: "an individual doesn't obviously need an 'HR agent'
+    # perspective on their own life." The original 14-agent list was the
+    # Enterprise org-chart reused wholesale — dilutive for personal use.
+    #
+    # Removed (enterprise org functions, not personal):
+    #   - hr: you are not your own HR department
+    #   - legal: individuals rarely need legal framing on daily commitments
+    #   - operations: operational efficiency is an org concept
+    #   - data: data pipeline analysis is enterprise
+    #   - growth: growth hacking is a business function
+    #   - marketing: marketing strategy is enterprise
+    #
+    # Kept (personally meaningful):
+    #   - chief_of_staff: broad prioritization (useful for anyone)
+    #   - customer_success: relationship management (your clients/contacts)
+    #   - sales: deal/negotiation tracking (your professional commitments)
+    #   - finance: financial commitments (invoices, payments, budget)
+    #   - engineering: technical commitments (code, infra, deliverables)
+    #   - product: project/product thinking (useful for builders)
+    #   - strategy: strategic thinking (career, priorities)
+    #   - communications: communication follow-ups (emails, calls)
+    #
+    # This is the "less is more" principle — 8 focused perspectives beat
+    # 14 dilutive ones. The LLM holistic analysis still can recommend any
+    # specialist from the full list; this just controls which agents
+    # generate standalone insights.
     PERSONAL_AGENTS = [
         "chief_of_staff",
-        "engineering",
-        "product",
         "customer_success",
-        "strategy",
-        "operations",
-        "growth",
         "sales",
         "finance",
-        "marketing",
-        "data",
+        "engineering",
+        "product",
+        "strategy",
         "communications",
-        "hr",
-        "legal",
     ]
 
     def __init__(self, shell: Any) -> None:
