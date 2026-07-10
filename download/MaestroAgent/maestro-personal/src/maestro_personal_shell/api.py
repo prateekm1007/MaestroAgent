@@ -744,142 +744,200 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
     if not matching_situation and situations:
         matching_situation = situations[0]  # fall back to first
 
-    # 1. ConsequencePathRouter — route first (produces specialists + paths)
-    # This MUST come before JudgmentSynthesizer because synthesize() needs perspectives
+    # ═══════════════════════════════════════════════════════════════════
+    # S2 FIX: Holistic LLM analysis (single call) replaces the N+1 roleplay loop
+    # ═══════════════════════════════════════════════════════════════════
+    # The auditor correctly identified that calling the LLM N times to
+    # roleplay as N specialists, then again to synthesize, is token-
+    # inefficient and degrades the LLM's natural reasoning.
     #
-    # LLM-powered path: when the LLM bridge is active, use semantic LLM routing
-    # instead of the static CONSEQUENCE_GRAPH dictionary lookup.
+    # PRIMARY PATH: llm_holistic_analysis() — ONE LLM call that produces
+    # specialists + perspectives + judgment in a single structured response.
+    # This lets the LLM reason holistically about the situation.
+    #
+    # FALLBACK: The original N+1 loop (route → N×perspective → synthesize)
+    # is preserved as a fallback when the holistic call fails or when no
+    # LLM is available (rule-based path).
+    # ═══════════════════════════════════════════════════════════════════
+
     specialists = []
     llm_consequence_routed = False
-    from maestro_personal_shell.llm_bridge import is_llm_available, llm_route_consequence
+    llm_perspectives_used = False
+    llm_judgment_used = False
+    persp_objects = []
+
+    from maestro_personal_shell.llm_bridge import is_llm_available
+
+    # ── PRIMARY: Holistic LLM analysis (single call) ──────────────────
     if is_llm_available() and matching_situation:
         try:
-            llm_specialists = await llm_route_consequence(matching_situation)
-            if llm_specialists:
-                specialists = llm_specialists
-                llm_consequence_routed = True
-                # Build human-readable consequence paths from the LLM's specialist selection
-                consequence_paths = [
-                    f"Consult {s} specialist" for s in specialists[:3]
-                ]
+            from maestro_personal_shell.llm_bridge import llm_holistic_analysis
+
+            # Gather signals for this situation
+            holistic_signals = []
+            entity_name_holistic = str(getattr(matching_situation, "entity", ""))
+            for sig in shell.oem_state.signals:
+                sig_entity = str(getattr(sig, "entity", "")).lower()
+                sig_text = str(getattr(sig, "text", "")).lower()
+                if entity_name_holistic.lower() in sig_entity or entity_name_holistic.lower() in sig_text:
+                    holistic_signals.append(sig)
+
+            if holistic_signals:
+                holistic_result = await llm_holistic_analysis(matching_situation, holistic_signals)
+
+                if holistic_result and holistic_result.get("llm_powered"):
+                    # Extract specialists
+                    holistic_specialists = holistic_result.get("specialists", [])
+                    if holistic_specialists:
+                        specialists = holistic_specialists
+                        llm_consequence_routed = True
+                        consequence_paths = [
+                            f"Consult {s} specialist" for s in specialists[:3]
+                        ]
+
+                    # Extract perspectives
+                    holistic_persps = holistic_result.get("perspectives", [])
+                    from maestro_cognitive_council.perspective import Perspective
+                    for hp in holistic_persps[:3]:
+                        try:
+                            p = Perspective(
+                                situation_id=str(getattr(matching_situation, "situation_id", "")),
+                                specialist=hp.get("name", "specialist"),
+                                observation=hp.get("observation", ""),
+                                implication=hp.get("implication", ""),
+                                recommended_next_step=hp.get("recommended_next_step", ""),
+                                evidence=[{"text": str(getattr(s, "text", ""))[:200]} for s in holistic_signals[:3]],
+                            )
+                            persp_objects.append(p)
+                            perspectives_data.append({
+                                "name": hp.get("name", "specialist"),
+                                "view": f"{hp.get('observation', '')}. {hp.get('implication', '')}"[:300],
+                                "observation": hp.get("observation", ""),
+                                "implication": hp.get("implication", ""),
+                                "recommended_next_step": hp.get("recommended_next_step", ""),
+                                "urgency": hp.get("urgency", "normal"),
+                                "confidence": hp.get("confidence", 0.0),
+                                "llm_powered": True,
+                            })
+                        except Exception:
+                            pass
+                    if holistic_persps:
+                        llm_perspectives_used = True
+
+                    # Extract judgment
+                    holistic_judgment = holistic_result.get("judgment", {})
+                    if holistic_judgment and holistic_judgment.get("central_claim"):
+                        llm_judgment_used = True
+                        boundary = holistic_judgment.get("decision_boundary", "")
+                        if boundary:
+                            decision_boundary = str(boundary)[:300]
+                        central_claim = holistic_judgment.get("central_claim", "")
+                        if central_claim:
+                            calibration_note = f"LLM judgment: {central_claim[:200]}"
+
         except Exception as e:
-            logger.debug("LLM consequence routing failed: %s", e)
+            logger.debug("Holistic LLM analysis failed, falling back to N+1 loop: %s", e)
 
-    # Fallback: rule-based ConsequencePathRouter
-    if not llm_consequence_routed and core.consequence_path_router and matching_situation:
-        try:
-            routing = core.consequence_path_router.route(matching_situation)
-            if routing:
-                specialists = getattr(routing, "specialists", []) or []
-                raw_paths = getattr(routing, "paths", []) or []
-                for p in raw_paths[:3]:
-                    consequence_paths.append(str(getattr(p, "description", str(p))[:100]))
-        except Exception as e:
-            logger.debug("Consequence routing failed: %s", e)
-
-    # 2. Perspectives — LLM-powered specialist analysis (primary path)
-    # When the LLM bridge is active, the LLM generates genuine specialist
-    # perspectives from the situation + signals. Falls back to keyword-based
-    # Nerve agent insights when no LLM is available.
-    from maestro_cognitive_council.perspective import Perspective
-    from uuid import uuid4 as _uuid4
-
-    # First try Nerve agents for real insights (LLM-powered or keyword fallback)
-    nerve_perspectives = []
-    llm_perspectives_used = False
-    try:
-        nerve = shell.nerve
-        entity_name = ""
-        if matching_situation:
-            entity_name = str(getattr(matching_situation, "entity", ""))
-        if not entity_name and entities:
-            entity_name = entities[0]
-
-        if entity_name:
-            nerve_perspectives = await nerve.get_perspectives_for_entity(entity_name)
-            # Check if any perspective was LLM-powered
-            if nerve_perspectives and nerve_perspectives[0].get("llm_powered"):
-                llm_perspectives_used = True
-    except Exception as e:
-        logger.debug("Nerve perspectives failed: %s", e)
-
-    # Build Perspective objects from real Nerve insights (or fall back to
-    # ConsequencePathRouter specialists if Nerve produces nothing)
-    persp_objects = []
-    if nerve_perspectives:
-        # Use real Nerve agent insights (LLM-powered or keyword-based)
-        for np in nerve_perspectives[:3]:
+    # ── FALLBACK: N+1 roleplay loop (when holistic call failed or no LLM) ──
+    if not llm_perspectives_used:
+        # 1. ConsequencePathRouter (fallback)
+        if not llm_consequence_routed and core.consequence_path_router and matching_situation:
             try:
-                p = Perspective(
-                    situation_id=str(getattr(matching_situation, "situation_id", "")) if matching_situation else "",
-                    specialist=np.get("name", "specialist"),
-                    observation=np.get("observation", np.get("view", "")),
-                    implication=np.get("implication", ""),
-                    recommended_next_step=np.get("recommended_next_step", ""),
-                    evidence=np.get("evidence", []),
-                )
-                persp_objects.append(p)
-            except Exception:
-                pass
-    elif matching_situation:
-        # Fallback: use ConsequencePathRouter specialists (NOT template strings)
-        # Honest: "No agent insight available" if Nerve produced nothing
-        for specialist_name in (specialists[:3] if specialists else []):
+                routing = core.consequence_path_router.route(matching_situation)
+                if routing:
+                    specialists = getattr(routing, "specialists", []) or []
+                    raw_paths = getattr(routing, "paths", []) or []
+                    for p in raw_paths[:3]:
+                        consequence_paths.append(str(getattr(p, "description", str(p))[:100]))
+            except Exception as e:
+                logger.debug("Consequence routing failed: %s", e)
+
+        # 2. Perspectives (fallback: Nerve agents or keyword-based)
+        from maestro_cognitive_council.perspective import Perspective
+        from uuid import uuid4 as _uuid4
+
+        nerve_perspectives = []
+        try:
+            nerve = shell.nerve
+            entity_name = ""
+            if matching_situation:
+                entity_name = str(getattr(matching_situation, "entity", ""))
+            if not entity_name and entities:
+                entity_name = entities[0]
+
+            if entity_name:
+                nerve_perspectives = await nerve.get_perspectives_for_entity(entity_name)
+                if nerve_perspectives and nerve_perspectives[0].get("llm_powered"):
+                    llm_perspectives_used = True
+        except Exception as e:
+            logger.debug("Nerve perspectives failed: %s", e)
+
+        # Build Perspective objects from Nerve insights or fallback
+        if nerve_perspectives:
+            for np in nerve_perspectives[:3]:
+                try:
+                    p = Perspective(
+                        situation_id=str(getattr(matching_situation, "situation_id", "")) if matching_situation else "",
+                        specialist=np.get("name", "specialist"),
+                        observation=np.get("observation", np.get("view", "")),
+                        implication=np.get("implication", ""),
+                        recommended_next_step=np.get("recommended_next_step", ""),
+                        evidence=np.get("evidence", []),
+                    )
+                    persp_objects.append(p)
+                except Exception:
+                    pass
+        elif matching_situation:
+            for specialist_name in (specialists[:3] if specialists else []):
+                try:
+                    p = Perspective(
+                        situation_id=str(getattr(matching_situation, "situation_id", "")),
+                        specialist=specialist_name,
+                        observation="No agent insight available for this specialist",
+                        implication="The agent did not produce an insight from the available signals",
+                        recommended_next_step="Add more signals to enable agent analysis",
+                    )
+                    persp_objects.append(p)
+                except Exception:
+                    pass
+
+        # 3. JudgmentSynthesizer (fallback)
+        if not llm_judgment_used and is_llm_available() and matching_situation and persp_objects:
             try:
-                p = Perspective(
-                    situation_id=str(getattr(matching_situation, "situation_id", "")),
-                    specialist=specialist_name,
-                    observation="No agent insight available for this specialist",
-                    implication="The agent did not produce an insight from the available signals",
-                    recommended_next_step="Add more signals to enable agent analysis",
-                )
-                persp_objects.append(p)
-            except Exception:
-                pass
+                from maestro_personal_shell.llm_bridge import llm_synthesize_judgment
+                llm_judgment = await llm_synthesize_judgment(matching_situation, persp_objects)
+                if llm_judgment and isinstance(llm_judgment, dict):
+                    llm_judgment_used = True
+                    boundary = llm_judgment.get("decision_boundary", "") or \
+                               llm_judgment.get("central_claim", "")
+                    if boundary:
+                        decision_boundary = str(boundary)[:300]
+                    central_claim = llm_judgment.get("central_claim", "")
+                    if central_claim:
+                        calibration_note = f"LLM judgment: {central_claim[:200]}"
+            except Exception as e:
+                logger.debug("LLM judgment synthesis failed: %s", e)
 
-    # 3. JudgmentSynthesizer — synthesize judgment from perspectives
-    #
-    # LLM-powered path: when the LLM bridge is active, use genuine LLM
-    # judgment synthesis instead of rule-based concatenation.
-    llm_judgment_used = False
-    if is_llm_available() and matching_situation and persp_objects:
-        try:
-            from maestro_personal_shell.llm_bridge import llm_synthesize_judgment
-            llm_judgment = await llm_synthesize_judgment(matching_situation, persp_objects)
-            if llm_judgment and isinstance(llm_judgment, dict):
-                llm_judgment_used = True
-                boundary = llm_judgment.get("decision_boundary", "") or \
-                           llm_judgment.get("central_claim", "")
-                if boundary:
-                    decision_boundary = str(boundary)[:300]
-                # Use LLM-generated judgment as the central claim
-                central_claim = llm_judgment.get("central_claim", "")
-                if central_claim:
-                    calibration_note = f"LLM judgment: {central_claim[:200]}"
-        except Exception as e:
-            logger.debug("LLM judgment synthesis failed: %s", e)
+        if not llm_judgment_used and core.judgment_synthesizer and matching_situation and persp_objects:
+            try:
+                judgment = core.judgment_synthesizer.synthesize(matching_situation, persp_objects)
+                if judgment:
+                    boundary = getattr(judgment, "decision_boundary", "") or \
+                               getattr(judgment, "boundary", "") or \
+                               getattr(judgment, "central_claim", "")
+                    if boundary:
+                        decision_boundary = str(boundary)[:300]
 
-    # Fallback: rule-based JudgmentSynthesizer
-    if not llm_judgment_used and core.judgment_synthesizer and matching_situation and persp_objects:
-        try:
-            judgment = core.judgment_synthesizer.synthesize(matching_situation, persp_objects)
-            if judgment:
-                # Extract decision boundary from the Judgment object
-                boundary = getattr(judgment, "decision_boundary", "") or \
-                           getattr(judgment, "boundary", "") or \
-                           getattr(judgment, "central_claim", "")
-                if boundary:
-                    decision_boundary = str(boundary)[:300]
+                    judgment_perspectives = getattr(judgment, "perspectives", []) or []
+                    for jp in judgment_perspectives[:3]:
+                        perspectives_data.append({
+                            "name": str(getattr(jp, "specialist", "specialist")),
+                            "view": str(getattr(jp, "observation", "") or getattr(jp, "implication", ""))[:200],
+                        })
+            except Exception as e:
+                logger.debug("Judgment synthesis failed: %s", e)
 
-                # Extract perspectives from the judgment if available
-                judgment_perspectives = getattr(judgment, "perspectives", []) or []
-                for jp in judgment_perspectives[:3]:
-                    perspectives_data.append({
-                        "name": str(getattr(jp, "specialist", "specialist")),
-                        "view": str(getattr(jp, "observation", "") or getattr(jp, "implication", ""))[:200],
-                    })
-        except Exception as e:
-            logger.debug("Judgment synthesis failed: %s", e)
+    # If perspectives_data is still empty, use the Perspective objects directly
 
     # If judgment didn't produce perspectives, use the Perspective objects directly
     # These now contain REAL Nerve agent insights (or honest "No agent insight available")

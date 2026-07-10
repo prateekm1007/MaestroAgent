@@ -291,3 +291,111 @@ def get_prediction_count(db_path: str | None = None) -> dict[str, int]:
     pending = total - resolved
     conn.close()
     return {"total": total, "resolved": resolved, "pending": pending}
+
+
+def get_calibration_context_for_llm(db_path: str | None = None) -> str:
+    """Build a calibration context string for injection into LLM system prompts.
+
+    This is the fix for the S0 finding: 'the Brier score is never fed
+    back into the LLM prompts. The LLM operates completely amnesiac to
+    its past predictive failures.'
+
+    This function queries the outcome database and returns a concise
+    summary of:
+    - Current Brier score (calibration quality)
+    - Number of resolved predictions
+    - Recent prediction outcomes (last 5 hits/misses)
+    - Calibration guidance (overconfident / underconfident / well-calibrated)
+
+    The returned string is injected into LLM system prompts so the model
+    can calibrate its confidence based on past performance.
+
+    Returns an empty string if there's no calibration data (Day 1).
+    """
+    path = db_path or _get_db_path()
+    init_outcome_db(path)
+
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+
+    # Get resolved predictions
+    rows = conn.execute(
+        """SELECT predicted_confidence, actual_outcome, expected_outcome,
+                  entity_id, predicted_at, resolved_at
+           FROM predictions
+           WHERE resolved_at IS NOT NULL
+           ORDER BY resolved_at DESC
+           LIMIT 20""",
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return ""
+
+    # Compute Brier score
+    resolved = []
+    for r in rows:
+        confidence = r["predicted_confidence"]
+        outcome = r["actual_outcome"]
+        actual_value = 1.0 if outcome == "hit" else 0.0
+        resolved.append((confidence, actual_value))
+
+    try:
+        import sys
+        sys.path.insert(0, "backend")
+        from maestro_cognitive_council.calibration_primitives import brier_score
+        brier = brier_score([(c, a) for c, a in resolved])
+    except Exception:
+        brier = None
+
+    # Build calibration guidance
+    hits = sum(1 for _, a in resolved if a == 1.0)
+    misses = len(resolved) - hits
+    avg_confidence = sum(c for c, _ in resolved) / len(resolved) if resolved else 0
+    actual_rate = hits / len(resolved) if resolved else 0
+
+    if brier is not None:
+        if avg_confidence > actual_rate + 0.15:
+            calibration_guidance = (
+                f"OVERCONFIDENT: Your average predicted confidence was {avg_confidence:.0%} "
+                f"but only {actual_rate:.0%} of predictions were correct. "
+                f"LOWER your confidence on similar predictions."
+            )
+        elif avg_confidence < actual_rate - 0.15:
+            calibration_guidance = (
+                f"UNDERCONFIDENT: Your average predicted confidence was {avg_confidence:.0%} "
+                f"but {actual_rate:.0%} of predictions were correct. "
+                f"You can be MORE confident on similar predictions."
+            )
+        else:
+            calibration_guidance = (
+                f"WELL-CALIBRATED: Your confidence ({avg_confidence:.0%}) closely "
+                f"matches your accuracy ({actual_rate:.0%}). Maintain this level."
+            )
+    else:
+        calibration_guidance = "Insufficient data for calibration guidance."
+
+    # Build recent outcomes summary (last 5)
+    recent = rows[:5]
+    recent_summary = []
+    for r in recent:
+        outcome_label = "correct" if r["actual_outcome"] == "hit" else "wrong"
+        entity = r["entity_id"] or "unknown"
+        conf = r["predicted_confidence"]
+        recent_summary.append(f"  - {entity} (predicted {conf:.0%}, {outcome_label})")
+
+    brier_str = f"{brier:.4f}" if brier is not None else "N/A"
+
+    context = f"""YOUR CALIBRATION HISTORY (use this to calibrate your confidence):
+- Brier score: {brier_str} (lower is better; 0.0=perfect, 0.33=random)
+- Resolved predictions: {len(resolved)} ({hits} correct, {misses} wrong)
+- Average predicted confidence: {avg_confidence:.0%}
+- Actual accuracy: {actual_rate:.0%}
+- {calibration_guidance}
+
+Recent outcomes (most recent first):
+{chr(10).join(recent_summary)}
+
+Based on this history, calibrate your confidence in current predictions. If you've been overconfident on similar situations, lower your confidence. If underconfident, raise it."""
+
+    return context
