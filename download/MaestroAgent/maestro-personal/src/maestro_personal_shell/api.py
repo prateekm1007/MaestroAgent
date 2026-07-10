@@ -2010,6 +2010,13 @@ async def delete_account(token: str = Depends(verify_token)):
     arguments, which ran `DELETE FROM signals` (no WHERE clause) and
     destroyed EVERY user's data. Now scoped to the authenticated user.
     """
+    # P11 fix: audit-log the deletion BEFORE the data is wiped
+    try:
+        from maestro_personal_shell.audit_trust import log_data_access
+        log_data_access(token, "delete", "/api/account", None, {"user_email": token})
+    except Exception:
+        pass
+
     # F1 FIX: scope deletion to the calling user only
     clear_signals_db(user_email=token)
 
@@ -2948,6 +2955,13 @@ async def correct_signal(
     metadata["correction"] = action
     metadata["corrected_at"] = datetime.now(timezone.utc).isoformat()
     metadata["corrected_by"] = token  # user_email from verify_token
+
+    # P11 fix: audit-log the correction
+    try:
+        from maestro_personal_shell.audit_trust import log_data_access
+        log_data_access(token, "correct", f"/api/signals/{signal_id}/correct", signal_id, {"action": action})
+    except Exception:
+        pass
 
     if action == "dismiss":
         metadata["status"] = "dismissed"
