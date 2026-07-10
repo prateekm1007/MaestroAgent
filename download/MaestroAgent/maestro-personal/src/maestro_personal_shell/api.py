@@ -2195,6 +2195,7 @@ async def agent_dashboard(
     agent: str = "",
     priority: str = "",
     min_confidence: float = 0.0,
+    text: str = "",
 ):
     """Unified dashboard view: all insights from all agents.
 
@@ -2203,7 +2204,8 @@ async def agent_dashboard(
     """
     shell = build_shell(user_email=token)
     nerve = shell.nerve
-    insights = nerve.get_insights()
+    # P11 fix: pass text as situation_text so dynamic agent selection triggers
+    insights = nerve.get_insights(situation_text=text) if text else nerve.get_insights()
 
     # Apply filters
     if agent:
@@ -2243,7 +2245,8 @@ async def per_agent_insights(agent_name: str, token: str = Depends(verify_token)
     """
     shell = build_shell(user_email=token)
     nerve = shell.nerve
-    all_insights = nerve.get_insights()
+    # P11 fix: pass agent_name as situation_text so dynamic selection triggers
+    all_insights = nerve.get_insights(situation_text=agent_name)
     agent_insights = [i for i in all_insights if i.get("agent") == agent_name]
 
     return {
