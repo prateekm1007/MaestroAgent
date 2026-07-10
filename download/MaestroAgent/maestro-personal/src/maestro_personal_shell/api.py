@@ -591,6 +591,10 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
     """Create a new personal signal (manual entry for v1).
 
     F4 fix: sanitizes signal text against prompt injection BEFORE storing.
+    S4 fix: classifies commitment type + lifecycle state on ingest using
+            the LLM-powered commitment_classifier. The classification is
+            stored in metadata and used by Commitments/The Moment to filter
+            non-commitments (tentative/proposal/request) from active commitments.
     """
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
 
@@ -600,13 +604,36 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
     signal_id = str(uuid4())
     now = datetime.now(timezone.utc)
 
+    # S4: Classify commitment type + lifecycle state on ingest.
+    # This runs the LLM-powered classifier (or rule-based fallback) and
+    # stores the result in metadata. Downstream endpoints (Commitments,
+    # The Moment) use this to filter non-commitments.
+    metadata = {}
+    try:
+        from maestro_personal_shell.commitment_classifier import classify_commitment
+        classification = await classify_commitment(
+            text=sanitized_text,
+            entity=req.entity,
+        )
+        metadata["commitment_type"] = classification.get("commitment_type", "not_a_commitment")
+        metadata["is_commitment"] = classification.get("is_commitment", False)
+        metadata["commitment_state"] = classification.get("state", "candidate")
+        metadata["commitment_confidence"] = classification.get("confidence", 0.5)
+        metadata["commitment_owner"] = classification.get("owner", "unknown")
+        metadata["classification_reasoning"] = classification.get("reasoning", "")
+        metadata["llm_powered"] = classification.get("llm_powered", False)
+    except Exception as e:
+        logger.debug("Commitment classification failed (non-fatal): %s", e)
+        metadata["commitment_type"] = "unclassified"
+        metadata["is_commitment"] = None  # unknown — don't filter
+
     signal_data = {
         "signal_id": signal_id,
         "entity": req.entity,
         "text": sanitized_text,  # F4: sanitized, not raw
         "signal_type": req.signal_type,
         "timestamp": now.isoformat(),
-        "metadata": {},
+        "metadata": metadata,
         "source_acl": "public",
         "created_at": now.isoformat(),
     }
@@ -1147,6 +1174,7 @@ async def get_commitments(token: str = Depends(verify_token)):
     commitments = surface.get_active_commitments()
     commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
     commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
+    commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
 
     # Get stale commitments for at-risk flagging
     stale = shell.detect_stale_commitments(days_threshold=2)
@@ -1227,6 +1255,7 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
     commitments = surface.get_active_commitments()
     commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
     commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
+    commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
 
     if not commitments:
         return CommitmentsMasterpieceResponse(primary=None, why_primary="", secondary=[])
@@ -2264,6 +2293,87 @@ def _filter_completed_commitments(commitments: list[dict], signals: list) -> lis
     ]
 
 
+def _filter_non_commitments_by_classification(
+    commitments: list[dict],
+    signals: list | None = None,
+) -> list[dict]:
+    """Filter out signals classified as non-commitments (S4 fix).
+
+    Uses the commitment_type stored in signal metadata by the
+    commitment_classifier on ingest. Filters out:
+    - tentative (hedged, "maybe")
+    - proposal (suggestion, not a promise)
+    - request (asking, not promising)
+    - aspiration ("I hope to")
+    - negation (explicit refusal)
+    - third_party_report ("he said he will")
+    - not_a_commitment
+
+    Keeps:
+    - explicit, implicit, conditional (active commitments)
+    - unclassified (preserves backward compat when classifier didn't run)
+    - None is_commitment (unknown — don't filter)
+
+    The commitments from CommitmentsSurface don't carry metadata, so we
+    look up the signal's metadata by signal_id from the signals list.
+    """
+    NON_COMMITMENT_TYPES = {
+        "tentative", "proposal", "request", "aspiration",
+        "negation", "third_party_report", "not_a_commitment",
+    }
+
+    # Build a lookup of signal_id -> metadata from the signals list
+    sig_meta_lookup: dict[str, dict] = {}
+    if signals:
+        for sig in signals:
+            sig_id = getattr(sig, "signal_id", "")
+            if not sig_id:
+                continue
+            meta = getattr(sig, "metadata", {}) or {}
+            if isinstance(meta, str):
+                try:
+                    import json as _json
+                    meta = _json.loads(meta)
+                except Exception:
+                    meta = {}
+            sig_meta_lookup[str(sig_id)] = meta if isinstance(meta, dict) else {}
+
+    filtered = []
+    for c in commitments:
+        sig_id = str(c.get("signal_id", ""))
+
+        # Look up metadata: first from the commitment dict, then from signals
+        meta = c.get("metadata", {})
+        if not meta and sig_id and sig_id in sig_meta_lookup:
+            meta = sig_meta_lookup[sig_id]
+
+        if isinstance(meta, str):
+            try:
+                import json as _json
+                meta = _json.loads(meta)
+            except Exception:
+                meta = {}
+
+        if not isinstance(meta, dict):
+            meta = {}
+
+        ctype = meta.get("commitment_type", "unclassified")
+        is_commitment = meta.get("is_commitment", None)
+
+        # If classifier explicitly said "not a commitment", filter it out
+        if ctype in NON_COMMITMENT_TYPES:
+            continue
+
+        # If is_commitment is explicitly False, filter it out
+        if is_commitment is False:
+            continue
+
+        # Otherwise keep it (includes unclassified and explicit True)
+        filtered.append(c)
+
+    return filtered
+
+
 # ---------------------------------------------------------------------------
 # F7 FIX: Correction API — users can dismiss/correct commitments
 # ---------------------------------------------------------------------------
@@ -2627,6 +2737,7 @@ async def get_the_moment(token: str = Depends(verify_token)):
     commitments = surface.get_active_commitments()
     commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
     commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
+    commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
 
     if not commitments:
         return TheMomentResponse(has_moment=False)
