@@ -468,16 +468,9 @@ def validate_llm_output(text: str, expected_format: str = "text") -> str | None:
             return None
 
     if expected_format == "json":
-        # Validate JSON parseability
-        import json
-        try:
-            # Find JSON in the response
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            if start < 0 or end <= start:
-                return None
-            json.loads(text[start:end])
-        except Exception:
+        # Validate JSON parseability — use robust extract_json, not brittle .find
+        parsed = extract_json(text, expect="object")
+        if parsed is None:
             return None
 
     return text
