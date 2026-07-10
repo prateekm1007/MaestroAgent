@@ -189,6 +189,26 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     """
     text_lower = text.lower()
 
+    # Tentative-if check — must run BEFORE explicit/implicit so
+    # "If I have time I'll sketch options" is tentative, not a commitment.
+    # The auditor found this was classified as a commitment.
+    tentative_if_keywords = [
+        "if i have time", "if i get a chance", "if i can find time",
+        "if things work out", "if all goes well", "if nothing comes up",
+        "if i can", "if time permits", "if my schedule allows",
+    ]
+    if any(kw in text_lower for kw in tentative_if_keywords):
+        return {
+            "commitment_type": "tentative",
+            "is_commitment": False,
+            "confidence": 0.7,
+            "state": "candidate",
+            "owner": "user",
+            "deadline_text": "",
+            "reasoning": "rule-based: tentative (hedged with if + time/uncertainty)",
+            "llm_powered": False,
+        }
+
     # Negation signals — check BEFORE explicit (so "I will not" isn't classified as explicit)
     negation_keywords = ["won't", "will not", "can't", "cannot", "not able to", "unable to"]
     if any(kw in text_lower for kw in negation_keywords):
@@ -274,8 +294,55 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "llm_powered": False,
         }
 
-    # Conditional
-    if "if " in text_lower and any(kw in text_lower for kw in ["will", "ll ", "send", "deliver"]):
+    # Implicit commitments — auditor found 68% recall, target 88%.
+    # These are commitments that don't use "I will" but are still promises.
+    implicit_keywords = [
+        "let me take that", "consider it done", "that's on me", "i'm on it",
+        "i'm on it", "im on it", "i own the", "count me in", "you'll have it",
+        "you will have it", "we're good for", "we are good for",
+        "i'll own", "i can do that", "i can get that", "i can have that",
+        "i'll make sure", "i'll ensure", "i'll handle", "i'll take care",
+        "i'll follow up", "i'll get back", "i'll send", "i'll deliver",
+        "i'll prepare", "i'll review", "i'll check", "i'll verify",
+        "i'll set up", "i'll create", "i'll update", "i'll provide",
+        "i'll share", "i'll coordinate", "i'll organize", "i'll schedule",
+        "let me handle", "let me take care", "let me get", "let me send",
+        "let me prepare", "let me review", "let me check",
+        "i'll have", "i'll give", "i'll bring", "i'll write",
+        "i'll put together", "i'll draft", "i'll finalize",
+        "expect it by", "you can expect", "i should have",
+        "i plan to", "i intend to", "i'm planning to", "im planning to",
+    ]
+    if any(kw in text_lower for kw in implicit_keywords):
+        return {
+            "commitment_type": "implicit",
+            "is_commitment": True,
+            "confidence": 0.75,
+            "state": "active",
+            "owner": "user",
+            "deadline_text": "",
+            "reasoning": "rule-based: implicit commitment detected",
+            "llm_powered": False,
+        }
+
+    # Conditional — must check AFTER implicit so "if" doesn't catch implicit phrases
+    # Tentative phrases that include "if" should be tentative, not conditional
+    tentative_if_keywords = ["if i have time", "if i get a chance", "if i can find time",
+                             "if things work out", "if all goes well", "if nothing comes up"]
+    if any(kw in text_lower for kw in tentative_if_keywords):
+        return {
+            "commitment_type": "tentative",
+            "is_commitment": False,
+            "confidence": 0.6,
+            "state": "candidate",
+            "owner": "user",
+            "deadline_text": "",
+            "reasoning": "rule-based: tentative conditional (hedged with if + time/uncertainty)",
+            "llm_powered": False,
+        }
+
+    # Conditional commitment (not tentative)
+    if " if " in f" {text_lower} " and any(kw in text_lower for kw in ["will", "i'll", "ll ", "send", "deliver", "provide", "share"]):
         return {
             "commitment_type": "conditional",
             "is_commitment": True,
@@ -288,7 +355,10 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
         }
 
     # Tentative
-    tentative_keywords = ["maybe", "might", "possibly", "don't count on", "not sure", "try to"]
+    tentative_keywords = ["maybe", "might", "possibly", "don't count on", "not sure", "try to",
+                          "i hope", "hopefully", "i'd like to", "i wish i could",
+                          "no promises", "can't guarantee", "might be able",
+                          "i'll try", "i'll see", "we'll see"]
     if any(kw in text_lower for kw in tentative_keywords):
         return {
             "commitment_type": "tentative",
