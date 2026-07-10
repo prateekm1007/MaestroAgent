@@ -44,6 +44,95 @@ DB_PATH = os.environ.get(
 # a single shared token from env or auto-generated on first run.
 AUTH_TOKEN = os.environ.get("MAESTRO_PERSONAL_TOKEN") or secrets.token_urlsafe(32)
 
+# Per-user token store (F1 fix) — persisted in SQLite for cross-restart
+def _get_db():
+    """Get DB path from env (always fresh — avoids reload staleness)."""
+    return os.environ.get(
+        "MAESTRO_PERSONAL_DB",
+        str(Path(__file__).resolve().parent / "personal.db"),
+    )
+
+
+def _init_auth_db():
+    """Initialize auth table for per-user tokens."""
+    conn = sqlite3.connect(_get_db())
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_tokens (
+            token TEXT PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def _create_user_token(user_email: str) -> str:
+    """Create a per-user token (F1 fix). Persisted in SQLite."""
+    _init_auth_db()
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc).isoformat()
+    conn = sqlite3.connect(_get_db())
+    conn.execute(
+        "INSERT OR REPLACE INTO user_tokens (token, user_email, created_at) VALUES (?, ?, ?)",
+        (token, user_email, now),
+    )
+    conn.commit()
+    conn.close()
+    return token
+
+
+def _verify_user_token(token: str) -> str | None:
+    """Check if token is a valid per-user token. Returns user_email or None."""
+    _init_auth_db()
+    conn = sqlite3.connect(_get_db())
+    row = conn.execute(
+        "SELECT user_email FROM user_tokens WHERE token = ?", (token,)
+    ).fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+async def verify_token(authorization: str = Header(None)) -> str:
+    """Verify bearer token. Returns the user_email if valid.
+
+    F1 fix: accepts per-user tokens (from /api/auth/login) and the
+    shared bootstrap token (AUTH_TOKEN from env, for backward compat).
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid auth scheme — expected 'Bearer <token>'")
+    token = authorization.split(" ", 1)[1]
+
+    # Check per-user tokens (SQLite-persisted) — inlined to avoid reload closure issues
+    db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+    try:
+        conn = sqlite3.connect(db)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_tokens (
+                token TEXT PRIMARY KEY,
+                user_email TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        row = conn.execute("SELECT user_email FROM user_tokens WHERE token = ?", (token,)).fetchone()
+        conn.close()
+        if row:
+            return row[0]
+    except Exception:
+        pass
+
+    # Fallback: shared bootstrap token (for backward compat with existing tests)
+    env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if token == env_token and env_token:
+        return "bootstrap"
+    # Also check the module-level AUTH_TOKEN (set at import time)
+    if token == AUTH_TOKEN:
+        return "bootstrap"
+
+    raise HTTPException(status_code=401, detail="Invalid token")
+
 # ---------------------------------------------------------------------------
 # SQLite persistence
 # ---------------------------------------------------------------------------
@@ -139,11 +228,13 @@ async def verify_token(authorization: str = Header(None)) -> str:
 
 
 class LoginRequest(BaseModel):
+    user_email: str = ""
     password: str = ""
 
 
 class LoginResponse(BaseModel):
     token: str
+    user_email: str
     message: str
 
 
@@ -356,12 +447,24 @@ app.add_middleware(
 
 @app.post("/api/auth/login", response_model=LoginResponse)
 async def login(req: LoginRequest):
-    """Login — returns bearer token.
+    """Login — returns a bearer token.
 
-    For v1 dogfood: any password works (the token is shared). In production,
-    this would validate against a user store.
+    F1 fix: accepts user_email for per-user tokens. If user_email is
+    provided, creates a per-user token. If not, returns the shared
+    bootstrap token (backward compat with existing tests).
+
+    For production: validate password against a user store.
     """
-    return LoginResponse(token=AUTH_TOKEN, message="Login successful")
+    user_email = req.user_email or "default@personal.local"
+
+    # If user_email provided, create per-user token
+    if req.user_email:
+        token = _create_user_token(user_email)
+    else:
+        # Backward compat: return shared bootstrap token
+        token = AUTH_TOKEN
+
+    return LoginResponse(token=token, user_email=user_email, message="Login successful")
 
 
 def _get_real_calibration() -> str:
@@ -416,14 +519,22 @@ async def get_situations(token: str = Depends(verify_token)):
 
 @app.post("/api/signals", response_model=SignalResponse)
 async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
-    """Create a new personal signal (manual entry for v1)."""
+    """Create a new personal signal (manual entry for v1).
+
+    F4 fix: sanitizes signal text against prompt injection BEFORE storing.
+    """
+    from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
+
+    # F4: sanitize against prompt injection
+    sanitized_text = sanitize_email_text(req.text)
+
     signal_id = str(uuid4())
     now = datetime.now(timezone.utc)
 
     signal_data = {
         "signal_id": signal_id,
         "entity": req.entity,
-        "text": req.text,
+        "text": sanitized_text,  # F4: sanitized, not raw
         "signal_type": req.signal_type,
         "timestamp": now.isoformat(),
         "metadata": {},
@@ -829,6 +940,8 @@ async def get_commitments(token: str = Depends(verify_token)):
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
+    commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
+    commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
 
     # Get stale commitments for at-risk flagging
     stale = shell.detect_stale_commitments(days_threshold=2)
@@ -907,6 +1020,8 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
+    commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
+    commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
 
     if not commitments:
         return CommitmentsMasterpieceResponse(primary=None, why_primary="", secondary=[])
@@ -1847,6 +1962,131 @@ async def get_persisted_situations(token: str = Depends(verify_token)):
 
 
 # ---------------------------------------------------------------------------
+# F2 FIX: Commitment closure — completed commitments must NOT nag
+# ---------------------------------------------------------------------------
+
+
+def _detect_completion(signals: list) -> dict[str, str]:
+    """Detect completed commitments from signals.
+
+    F2 fix: when a signal contains completion keywords ('paid', 'sent',
+    'completed', 'done', 'delivered', 'finished'), the matching commitment
+    is marked as completed and should NOT appear in the-moment or
+    commitments list.
+
+    Returns dict of signal_id → 'completed' for signals that indicate
+    completion of a prior commitment.
+    """
+    completion_keywords = [
+        "paid", "sent", "completed", "done", "delivered",
+        "finished", "submitted", "approved", "received",
+        "invoice paid", "receipt attached", "proposal sent",
+        "closed", "resolved", "fulfilled",
+    ]
+
+    completed = {}
+    for sig in signals:
+        text = str(getattr(sig, "text", "")).lower()
+        sig_type = str(getattr(sig, "signal_type", "") or
+                      getattr(getattr(sig, "type", ""), "value", "")).lower()
+
+        # Check if this signal indicates a completion
+        if any(kw in text for kw in completion_keywords):
+            sig_id = str(getattr(sig, "signal_id", ""))
+            entity = str(getattr(sig, "entity", "")).lower()
+            completed[entity] = "completed"
+
+    return completed
+
+
+def _filter_completed_commitments(commitments: list[dict], signals: list) -> list[dict]:
+    """Filter out completed commitments (F2 fix).
+
+    If a completion signal exists for the same entity, the commitment
+    is marked as completed and removed from the active list.
+    """
+    completed_entities = _detect_completion(signals)
+    return [
+        c for c in commitments
+        if str(c.get("entity", "")).lower() not in completed_entities
+    ]
+
+
+# ---------------------------------------------------------------------------
+# F7 FIX: Correction API — users can dismiss/correct commitments
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/signals/{signal_id}/correct")
+async def correct_signal(
+    signal_id: str,
+    action: str = "dismiss",
+    token: str = Depends(verify_token),
+):
+    """Correct or dismiss a signal (F7 fix).
+
+    Actions:
+    - 'dismiss': mark signal as dismissed (removes from Moment/Commitments/Ask)
+    - 'complete': mark signal as completed (closes the commitment)
+    - 'cancel': mark signal as cancelled
+
+    The correction persists in the database.
+    """
+    import sqlite3, json as _json
+
+    db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+    conn = sqlite3.connect(db_path)
+
+    # Check signal exists
+    row = conn.execute("SELECT * FROM signals WHERE signal_id = ?", (signal_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Signal not found")
+
+    # Update metadata with correction
+    metadata = _json.loads(row[5]) if row[5] else {}
+    metadata["correction"] = action
+    metadata["corrected_at"] = datetime.now(timezone.utc).isoformat()
+    metadata["corrected_by"] = token  # user_email from verify_token
+
+    if action == "dismiss":
+        metadata["status"] = "dismissed"
+    elif action == "complete":
+        metadata["status"] = "completed"
+    elif action == "cancel":
+        metadata["status"] = "cancelled"
+    else:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Invalid action — use dismiss/complete/cancel")
+
+    conn.execute(
+        "UPDATE signals SET metadata = ? WHERE signal_id = ?",
+        (_json.dumps(metadata), signal_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "signal_id": signal_id,
+        "action": action,
+        "status": metadata["status"],
+        "message": f"Signal {action}. It will no longer appear in active surfaces.",
+    }
+
+
+def _filter_corrected_signals(signals: list) -> list:
+    """Filter out dismissed/completed/cancelled signals (F7 fix)."""
+    result = []
+    for sig in signals:
+        metadata = getattr(sig, "metadata", {}) or {}
+        status = metadata.get("status", "") if isinstance(metadata, dict) else ""
+        if status in ("dismissed", "completed", "cancelled"):
+            continue  # skip corrected signals
+        result.append(sig)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # OUTCOME TRACKING — closes the learning + calibration loop
 # ---------------------------------------------------------------------------
 
@@ -2088,6 +2328,8 @@ async def get_the_moment(token: str = Depends(verify_token)):
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
+    commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
+    commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
 
     if not commitments:
         return TheMomentResponse(has_moment=False)

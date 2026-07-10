@@ -61,7 +61,7 @@ class TestCoreWiring:
         from maestro_personal_shell.personal_oem_state import PersonalOemState
         shell = PersonalShell(oem_state=PersonalOemState(signals=[]))
         # The property should exist (may be None if import fails, but the property must exist)
-        assert shell.core.judgment_synthesizer is not None or True  # lazy init, may fail gracefully
+        assert shell.core.judgment_synthesizer is not None  # must initialize (no or True)
 
     def test_core_wiring_has_calibration_primitives(self):
         """CoreWiring must expose calibration_primitives."""
