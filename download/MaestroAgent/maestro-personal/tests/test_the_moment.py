@@ -37,7 +37,16 @@ def temp_db():
 @pytest.fixture
 def client(temp_db):
     from fastapi.testclient import TestClient
-    return TestClient(temp_db.app)
+    from unittest.mock import patch, AsyncMock
+    # Mock the materiality gate so Moment tests don't depend on LLM availability.
+    # The materiality gate returns "speak" (permissive) so the rule-based scoring
+    # determines the Moment — not the LLM.
+    with patch(
+        "maestro_personal_shell.materiality_gate.evaluate_materiality",
+        new_callable=AsyncMock,
+        return_value={"should_speak": True, "materiality_score": 0.5, "urgency": "medium", "reasoning": "test", "llm_powered": False},
+    ):
+        yield TestClient(temp_db.app)
 
 
 @pytest.fixture

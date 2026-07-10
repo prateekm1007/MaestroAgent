@@ -239,10 +239,21 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email
         logger.debug("FTS indexing failed (non-fatal): %s", e)
 
 
-def clear_signals_db(db_path: str = DB_PATH) -> None:
-    """Clear all signals (for testing)."""
+def clear_signals_db(db_path: str = DB_PATH, user_email: str | None = None) -> None:
+    """Clear signals from SQLite.
+
+    F1 CRITICAL FIX: when user_email is provided, only deletes THAT user's
+    signals. When user_email is None, deletes all (test-only).
+
+    The old version ran `DELETE FROM signals` with no WHERE clause — any
+    authenticated user calling DELETE /api/account would destroy EVERY
+    user's data. This is now scoped to the caller.
+    """
     conn = sqlite3.connect(db_path)
-    conn.execute("DELETE FROM signals")
+    if user_email:
+        conn.execute("DELETE FROM signals WHERE user_email = ?", (user_email,))
+    else:
+        conn.execute("DELETE FROM signals")
     conn.commit()
     conn.close()
 
@@ -461,6 +472,22 @@ def build_shell(user_email: str | None = None):
 async def lifespan(app: FastAPI):
     """Lifespan event handler — replaces deprecated @app.on_event("startup")."""
     init_db()
+
+    # F2 FIX: initialize FTS5 index at startup so semantic retrieval works.
+    # Without this, every save_signal_to_db() silently fails to index
+    # (logged at DEBUG, swallowed) and semantic_search returns empty.
+    try:
+        from maestro_personal_shell.semantic_retrieval import init_fts_index, rebuild_fts_index
+        init_fts_index()
+        # Rebuild index from existing signals (covers signals saved before FTS init)
+        count = rebuild_fts_index()
+        if count > 0:
+            logger.info("FTS5 index initialized with %d existing signals", count)
+        else:
+            logger.info("FTS5 index initialized (no existing signals)")
+    except Exception as e:
+        logger.warning("FTS5 initialization failed (semantic search disabled): %s", e)
+
     logger.info("Maestro Personal API starting on port %d", API_PORT)
     logger.info("DB path: %s", DB_PATH)
     logger.info("Maestro Personal API auth configured (token not logged for security)")
@@ -589,7 +616,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
     return SignalResponse(
         signal_id=signal_id,
         entity=req.entity,
-        text=req.text,
+        text=sanitized_text,  # F6 FIX: echo sanitized text, not raw (consistency with GET)
         signal_type=req.signal_type,
         timestamp=now.isoformat(),
     )
@@ -1621,11 +1648,34 @@ async def delete_account(token: str = Depends(verify_token)):
     """Delete the user's account and all associated data.
 
     Per App Store Guideline 5.1.1(v): apps that support account creation
-    must also offer account deletion. This endpoint deletes ALL signals
-    and associated data from the SQLite database.
+    must also offer account deletion. This endpoint deletes ONLY the
+    calling user's signals and associated data — NOT other users' data.
+
+    F1 CRITICAL FIX: the old version called clear_signals_db() with no
+    arguments, which ran `DELETE FROM signals` (no WHERE clause) and
+    destroyed EVERY user's data. Now scoped to the authenticated user.
     """
-    clear_signals_db()
-    return {"message": "Account deleted. All signals removed.", "status": "ok"}
+    # F1 FIX: scope deletion to the calling user only
+    clear_signals_db(user_email=token)
+
+    # Also clean up FTS index for this user
+    try:
+        from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
+        rebuild_fts_index(user_email=token)
+    except Exception as e:
+        logger.debug("FTS cleanup after delete failed (non-fatal): %s", e)
+
+    # Also delete this user's tokens (they can no longer authenticate)
+    try:
+        db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+        conn = sqlite3.connect(db)
+        conn.execute("DELETE FROM user_tokens WHERE user_email = ?", (token,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("Token cleanup after delete failed: %s", e)
+
+    return {"message": f"Account deleted. All signals for {token} removed.", "status": "ok"}
 
 
 # 13. GET /api/account/export — GDPR/CCPA data export (v3)
