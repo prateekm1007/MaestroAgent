@@ -289,6 +289,7 @@ class SignalCreate(BaseModel):
     entity: str
     text: str
     signal_type: str = "reported_statement"
+    timestamp: str | None = None  # P0-3 fix: accept client timestamp to preserve history
 
 
 class SignalResponse(BaseModel):
@@ -636,6 +637,10 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
     signal_id = str(uuid4())
     now = datetime.now(timezone.utc)
 
+    # P0-3 fix: use client-provided timestamp if available (preserves history)
+    # Otherwise use server now (backward compat)
+    signal_timestamp = req.timestamp if req.timestamp else now.isoformat()
+
     # S4: Classify commitment type + lifecycle state on ingest.
     # This runs the LLM-powered classifier (or rule-based fallback) and
     # stores the result in metadata. Downstream endpoints (Commitments,
@@ -684,7 +689,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
         "entity": canonical_entity,  # F3: store canonical entity, not raw
         "text": sanitized_text,  # F4: sanitized, not raw
         "signal_type": req.signal_type,
-        "timestamp": now.isoformat(),
+        "timestamp": signal_timestamp,  # P0-3: preserve client timestamp
         "metadata": metadata,
         "source_acl": "public",
         "created_at": now.isoformat(),
@@ -716,7 +721,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
             )
 
             # Add to personal graph
-            graph = PersonalGraph()
+            graph = PersonalGraph(user_email=token)
             graph.add_entity(canonical_entity, entity_type="contact", user_email=token)
             graph.add_edge(
                 source_entity=canonical_entity,
@@ -3009,10 +3014,10 @@ async def correct_signal(
 
         # Update personal graph
         if action == "complete":
-            graph = PersonalGraph()
+            graph = PersonalGraph(user_email=token)
             graph.update_outcome(row[1] if row else "", row[2] if row else "", "hit")
         elif action in ("dismiss", "cancel"):
-            graph = PersonalGraph()
+            graph = PersonalGraph(user_email=token)
             graph.update_outcome(row[1] if row else "", row[2] if row else "", "miss")
     except Exception as e:
         logger.debug("Learning loop v2 auto-resolve failed: %s", e)
@@ -3227,7 +3232,7 @@ async def get_entity_graph(entity_name: str, token: str = Depends(verify_token))
     and risk prediction for this entity.
     """
     from maestro_personal_shell.personal_graph import PersonalGraph
-    graph = PersonalGraph()
+    graph = PersonalGraph(user_email=token)
     summary = graph.get_entity_summary(entity_name)
 
     if not summary.get("exists"):
@@ -3248,7 +3253,7 @@ async def get_entity_risk(entity_name: str, token: str = Depends(verify_token)):
     commitment will be kept.
     """
     from maestro_personal_shell.personal_graph import PersonalGraph
-    graph = PersonalGraph()
+    graph = PersonalGraph(user_email=token)
     return graph.predict_risk(entity_name)
 
 

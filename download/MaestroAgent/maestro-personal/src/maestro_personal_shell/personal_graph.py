@@ -47,10 +47,14 @@ class PersonalGraph:
     Stores entities, their relationships, commitments, outcomes, and
     patterns. Enables predictive anticipation ("this entity historically
     misses follow-ups on contracts").
+
+    P0 fix: all reads/writes are user-scoped. Every entity, edge, and
+    pattern is tagged with user_email and queries filter by it.
     """
 
-    def __init__(self, db_path: str | None = None):
+    def __init__(self, db_path: str | None = None, user_email: str = "bootstrap"):
         self._db_path = db_path or _get_db_path()
+        self._user_email = user_email
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -58,15 +62,25 @@ class PersonalGraph:
         conn = sqlite3.connect(self._db_path)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS graph_entities (
-                entity_id TEXT PRIMARY KEY,
+                entity_id TEXT NOT NULL,
                 entity_name TEXT NOT NULL,
                 entity_type TEXT DEFAULT 'unknown',
-                user_email TEXT DEFAULT 'bootstrap',
+                user_email TEXT NOT NULL DEFAULT 'bootstrap',
                 first_seen TEXT NOT NULL,
                 last_seen TEXT NOT NULL,
-                metadata TEXT DEFAULT '{}'
+                metadata TEXT DEFAULT '{}',
+                PRIMARY KEY (entity_id, user_email)
             )
         """)
+        # Migration: add user_email to edges if missing
+        try:
+            conn.execute("ALTER TABLE graph_edges ADD COLUMN user_email TEXT DEFAULT 'bootstrap'")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        try:
+            conn.execute("ALTER TABLE graph_patterns ADD COLUMN user_email TEXT DEFAULT 'bootstrap'")
+        except sqlite3.OperationalError:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS graph_edges (
                 edge_id TEXT PRIMARY KEY,
@@ -80,7 +94,7 @@ class PersonalGraph:
                 resolved_at TEXT,
                 outcome TEXT,
                 metadata TEXT DEFAULT '{}',
-                FOREIGN KEY (source_entity) REFERENCES graph_entities(entity_id)
+                user_email TEXT DEFAULT 'bootstrap'
             )
         """)
         conn.execute("""
@@ -91,7 +105,8 @@ class PersonalGraph:
                 pattern_description TEXT,
                 occurrence_count INTEGER DEFAULT 1,
                 last_occurred TEXT NOT NULL,
-                metadata TEXT DEFAULT '{}'
+                metadata TEXT DEFAULT '{}',
+                user_email TEXT DEFAULT 'bootstrap'
             )
         """)
         conn.commit()
@@ -101,10 +116,11 @@ class PersonalGraph:
         self,
         entity_name: str,
         entity_type: str = "unknown",
-        user_email: str = "bootstrap",
+        user_email: str | None = None,
         metadata: dict | None = None,
     ) -> str:
-        """Add or update an entity in the graph."""
+        """Add or update an entity in the graph (user-scoped)."""
+        ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
         now = datetime.now(timezone.utc).isoformat()
 
@@ -117,9 +133,9 @@ class PersonalGraph:
                 entity_id,
                 entity_name,
                 entity_type,
-                user_email,
-                now,  # first_seen (may overwrite, acceptable for v1)
-                now,  # last_seen
+                ue,
+                now,
+                now,
                 json.dumps(metadata or {}),
             ),
         )
@@ -135,21 +151,22 @@ class PersonalGraph:
         target_entity: str = "",
         confidence: float = 0.5,
         metadata: dict | None = None,
+        user_email: str | None = None,
     ) -> str:
-        """Add an edge (commitment, completion, dispute, etc.) to the graph."""
+        """Add an edge (user-scoped)."""
         from uuid import uuid4
+        ue = user_email or self._user_email
         edge_id = str(uuid4())
         now = datetime.now(timezone.utc).isoformat()
 
-        # Ensure source entity exists
-        self.add_entity(source_entity)
+        self.add_entity(source_entity, user_email=ue)
 
         conn = sqlite3.connect(self._db_path)
         conn.execute(
             """INSERT INTO graph_edges
                (edge_id, source_entity, target_entity, edge_type, topic,
-                confidence, status, created_at, resolved_at, outcome, metadata)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                confidence, status, created_at, resolved_at, outcome, metadata, user_email)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 edge_id,
                 source_entity.lower().strip(),
@@ -162,6 +179,7 @@ class PersonalGraph:
                 None,
                 None,
                 json.dumps(metadata or {}),
+                ue,
             ),
         )
         conn.commit()
@@ -173,18 +191,19 @@ class PersonalGraph:
         entity_name: str,
         topic: str,
         outcome: str,
+        user_email: str | None = None,
     ) -> bool:
-        """Update the outcome of an edge (hit/miss/dismissed)."""
+        """Update the outcome of an edge (user-scoped)."""
+        ue = user_email or self._user_email
         conn = sqlite3.connect(self._db_path)
         now = datetime.now(timezone.utc).isoformat()
         entity_id = entity_name.lower().strip()
 
-        # Find the most recent active edge for this entity + topic
         row = conn.execute(
             """SELECT edge_id FROM graph_edges
-               WHERE source_entity = ? AND topic LIKE ? AND status = 'active'
+               WHERE source_entity = ? AND topic LIKE ? AND status = 'active' AND user_email = ?
                ORDER BY created_at DESC LIMIT 1""",
-            (entity_id, f"%{topic.lower()}%"),
+            (entity_id, f"%{topic.lower()}%", ue),
         ).fetchone()
 
         if not row:
@@ -201,42 +220,40 @@ class PersonalGraph:
         conn.commit()
         conn.close()
 
-        # Record pattern if outcome is negative
         if outcome == "miss":
-            self._record_pattern(entity_id, "missed_commitment", f"Missed commitment on '{topic}'")
+            self._record_pattern(entity_id, "missed_commitment", f"Missed commitment on '{topic}'", ue)
 
         return True
 
-    def get_completion_rate(self, entity_name: str) -> float:
-        """Get the historical completion rate for an entity.
-
-        Returns 0.0-1.0. 0.0 = never completes, 1.0 = always completes.
-        Returns 0.5 (neutral) if no data.
-        """
+    def get_completion_rate(self, entity_name: str, user_email: str | None = None) -> float:
+        """Get the historical completion rate for an entity (user-scoped)."""
+        ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
         conn = sqlite3.connect(self._db_path)
 
         rows = conn.execute(
             """SELECT outcome FROM graph_edges
-               WHERE source_entity = ? AND status = 'resolved'""",
-            (entity_id,),
+               WHERE source_entity = ? AND status = 'resolved' AND user_email = ?""",
+            (entity_id, ue),
         ).fetchall()
         conn.close()
 
         if not rows:
-            return 0.5  # neutral — no data
+            return 0.5
 
         hits = sum(1 for r in rows if r[0] == "hit")
         return hits / len(rows)
 
-    def get_entity_summary(self, entity_name: str) -> dict[str, Any]:
-        """Get a summary of an entity's history in the graph."""
+    def get_entity_summary(self, entity_name: str, user_email: str | None = None) -> dict[str, Any]:
+        """Get a summary of an entity's history (user-scoped)."""
+        ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row
 
         entity = conn.execute(
-            "SELECT * FROM graph_entities WHERE entity_id = ?", (entity_id,)
+            "SELECT * FROM graph_entities WHERE entity_id = ? AND user_email = ?",
+            (entity_id, ue),
         ).fetchone()
 
         if not entity:
@@ -244,18 +261,19 @@ class PersonalGraph:
             return {"exists": False}
 
         edges = conn.execute(
-            "SELECT * FROM graph_edges WHERE source_entity = ? ORDER BY created_at DESC LIMIT 20",
-            (entity_id,),
+            """SELECT * FROM graph_edges WHERE source_entity = ? AND user_email = ?
+               ORDER BY created_at DESC LIMIT 20""",
+            (entity_id, ue),
         ).fetchall()
 
         patterns = conn.execute(
-            "SELECT * FROM graph_patterns WHERE entity_id = ? ORDER BY last_occurred DESC LIMIT 5",
-            (entity_id,),
+            """SELECT * FROM graph_patterns WHERE entity_id = ? AND user_email = ?
+               ORDER BY last_occurred DESC LIMIT 5""",
+            (entity_id, ue),
         ).fetchall()
 
         conn.close()
 
-        # Compute stats
         total_edges = len(edges)
         resolved = [e for e in edges if e["status"] == "resolved"]
         hits = sum(1 for e in resolved if e["outcome"] == "hit")
@@ -291,22 +309,17 @@ class PersonalGraph:
             ],
         }
 
-    def predict_risk(self, entity_name: str, topic: str = "") -> dict[str, Any]:
-        """Predict the risk of a new commitment for this entity.
-
-        Uses historical patterns to anticipate:
-        - "this entity misses 40% of commitments" → medium risk
-        - "this entity has a 'missed_commitment' pattern on contracts" → high risk
-        """
-        completion_rate = self.get_completion_rate(entity_name)
+    def predict_risk(self, entity_name: str, topic: str = "", user_email: str | None = None) -> dict[str, Any]:
+        """Predict the risk of a new commitment (user-scoped)."""
+        ue = user_email or self._user_email
+        completion_rate = self.get_completion_rate(entity_name, ue)
         entity_id = entity_name.lower().strip()
 
-        # Check for patterns
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row
         patterns = conn.execute(
-            "SELECT * FROM graph_patterns WHERE entity_id = ?",
-            (entity_id,),
+            "SELECT * FROM graph_patterns WHERE entity_id = ? AND user_email = ?",
+            (entity_id, ue),
         ).fetchall()
         conn.close()
 
@@ -320,7 +333,6 @@ class PersonalGraph:
             risk_level = "medium"
             risk_factors.append(f"Moderate completion rate ({completion_rate:.0%})")
 
-        # Check for topic-specific patterns
         for p in patterns:
             if p["pattern_type"] == "missed_commitment" and topic.lower() in (p["pattern_description"] or "").lower():
                 risk_level = "high"
@@ -345,18 +357,19 @@ class PersonalGraph:
         entity_id: str,
         pattern_type: str,
         description: str,
+        user_email: str | None = None,
     ) -> None:
-        """Record or update a behavioral pattern."""
+        """Record or update a behavioral pattern (user-scoped)."""
         from uuid import uuid4
+        ue = user_email or self._user_email
         now = datetime.now(timezone.utc).isoformat()
 
         conn = sqlite3.connect(self._db_path)
 
-        # Check if this pattern already exists
         existing = conn.execute(
             """SELECT pattern_id, occurrence_count FROM graph_patterns
-               WHERE entity_id = ? AND pattern_type = ? AND pattern_description = ?""",
-            (entity_id, pattern_type, description),
+               WHERE entity_id = ? AND pattern_type = ? AND pattern_description = ? AND user_email = ?""",
+            (entity_id, pattern_type, description, ue),
         ).fetchone()
 
         if existing:
@@ -370,9 +383,9 @@ class PersonalGraph:
             conn.execute(
                 """INSERT INTO graph_patterns
                    (pattern_id, entity_id, pattern_type, pattern_description,
-                    occurrence_count, last_occurred, metadata)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (str(uuid4()), entity_id, pattern_type, description, 1, now, "{}"),
+                    occurrence_count, last_occurred, metadata, user_email)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (str(uuid4()), entity_id, pattern_type, description, 1, now, "{}", ue),
             )
 
         conn.commit()
