@@ -2339,44 +2339,61 @@ async def get_calibration(token: str = Depends(verify_token)):
 async def llm_status(token: str = Depends(verify_token)):
     """Verify whether the Cognitive Council is LLM-powered or rule-based.
 
-    Per external audit fix: this endpoint shows whether the LLM bridge is
-    connected and which intelligence paths are LLM-powered.
+    Phase 1 truthfulness fix: this endpoint now makes a REAL LLM call
+    to verify the provider actually responds — not just checks if the
+    CLI binary exists. The probe result is cached for 60 seconds.
 
-    When llm_active=True, all five intelligence paths use LLM:
-    - Ask: RAG-grounded answer generation
-    - Perspectives: LLM-generated specialist analysis (not keyword counters)
-    - Judgment: LLM-synthesized judgment (not rule concatenation)
-    - Consequence routing: LLM semantic routing (not dictionary lookup)
-    - Ambient: LLM context analysis (not keyword triggers)
+    Returns:
+    - llm_active: True if a provider is configured (binary-level)
+    - verified: True if the provider actually responded to a real call
+    - probe_latency_ms: response time of the verification call
+    - probe_error: error message if the probe failed
+    - intelligence_paths: which paths are LLM-powered
 
-    When llm_active=False, all paths fall back to rule-based heuristics.
+    When verified=False but llm_active=True, the provider is configured
+    but not actually working (rate limited, invalid credentials, etc).
+    In this case, the product falls back to rules and labels it honestly.
     """
     from maestro_personal_shell.llm_bridge import (
         is_llm_available,
         get_llm_router,
         get_llm_provider_name,
+        probe_provider,
     )
     available = is_llm_available()
     router = get_llm_router() if available else None
     provider = get_llm_provider_name()
 
+    # Phase 1 fix: make a real probe to verify the provider actually works
+    # This is the truthful version — not just "CLI exists"
+    probe = await probe_provider()
+    verified = probe.get("verified", False)
+
+    # llm_active for intelligence paths = True only if verified
+    # If the provider exists but isn't verified, we're in fallback mode
+    truly_active = available and verified
+
     return {
-        "llm_active": available,
+        "llm_active": truly_active,
         "provider": provider,
+        "verified": verified,
+        "probe_latency_ms": probe.get("latency_ms", 0),
+        "probe_error": probe.get("error", ""),
+        "probe_cached_seconds": 60,
         "available_providers": getattr(router, "available_providers", [provider] if router else []),
-        "mode": "LLM-powered (genuine AI reasoning)" if available else "Rule-based (keyword fallback)",
+        "mode": "LLM-powered (genuine AI reasoning)" if truly_active else "Rule-based (keyword fallback)",
         "intelligence_paths": {
-            "ask_answer": "llm" if available else "rule-based",
-            "perspectives": "llm" if available else "keyword-counters",
-            "judgment_synthesis": "llm" if available else "rule-concatenation",
-            "consequence_routing": "llm" if available else "dictionary-lookup",
-            "ambient": "llm" if available else "keyword-triggers",
+            "ask_answer": "llm" if truly_active else "rule-based",
+            "perspectives": "llm" if truly_active else "keyword-counters",
+            "judgment_synthesis": "llm" if truly_active else "rule-concatenation",
+            "consequence_routing": "llm" if truly_active else "dictionary-lookup",
+            "ambient": "llm" if truly_active else "keyword-triggers",
         },
         "note": (
-            "LLM is connected via z-ai (GLM). All intelligence paths use genuine AI reasoning."
-            if available and provider == "zai-glm"
-            else f"LLM is connected via {provider}. All intelligence paths use genuine AI reasoning."
-            if available
+            f"LLM verified via {provider} ({probe.get('latency_ms', 0)}ms). All intelligence paths use genuine AI reasoning."
+            if truly_active
+            else f"Provider '{provider}' configured but probe failed: {probe.get('error', 'unknown')}. Falling back to rules."
+            if available and not verified
             else "No LLM available. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, XAI_API_KEY, run Ollama, or install the z-ai CLI to activate LLM mode."
         ),
     }
