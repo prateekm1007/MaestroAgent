@@ -237,10 +237,11 @@ class NerveWiring:
     def get_insights_for_entity(self, entity: str, org_id: str = "personal") -> list[dict[str, Any]]:
         """Get insights filtered to a specific entity.
 
-        Filters insights where the agent name, title, or body mentions
-        the entity name.
+        P11 fix: passes the entity name as situation_text so dynamic
+        agent selection triggers — only agents relevant to this entity
+        run, not all 8.
         """
-        all_insights = self.get_insights(org_id)
+        all_insights = self.get_insights(org_id, situation_text=entity)
         entity_lower = entity.lower()
 
         filtered = []
