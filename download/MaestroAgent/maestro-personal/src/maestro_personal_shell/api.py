@@ -3370,14 +3370,12 @@ async def llm_status(token: str = Depends(verify_token)):
     to verify the provider actually responds — not just checks if the
     CLI binary exists. The probe result is cached for 60 seconds.
 
-    Returns:
-    - llm_active: True if a provider is configured (binary-level)
-    - verified: True if the provider actually responded to a real call
-    - probe_latency_ms: response time of the verification call
-    - probe_error: error message if the probe failed
-    - intelligence_paths: which paths are LLM-powered
+    Phase 7: three separate booleans per the roadmap:
+      - configured: provider/credential/CLI exists
+      - verified: live probe succeeded
+      - active: verified AND enabled for intelligence paths
 
-    When verified=False but llm_active=True, the provider is configured
+    When verified=False but configured=True, the provider is configured
     but not actually working (rate limited, invalid credentials, etc).
     In this case, the product falls back to rules and labels it honestly.
     """
@@ -3387,8 +3385,9 @@ async def llm_status(token: str = Depends(verify_token)):
         get_llm_provider_name,
         probe_provider,
     )
-    available = is_llm_available()
-    router = get_llm_router() if available else None
+    # Phase 7: three booleans
+    configured = is_llm_available()
+    router = get_llm_router() if configured else None
     provider = get_llm_provider_name()
 
     # Phase 1 fix: make a real probe to verify the provider actually works
@@ -3396,31 +3395,35 @@ async def llm_status(token: str = Depends(verify_token)):
     probe = await probe_provider()
     verified = probe.get("verified", False)
 
-    # llm_active for intelligence paths = True only if verified
-    # If the provider exists but isn't verified, we're in fallback mode
-    truly_active = available and verified
+    # active = verified AND enabled for intelligence paths.
+    # Intelligence paths are enabled when the router is present and verified.
+    active = configured and verified
 
     return {
-        "llm_active": truly_active,
-        "provider": provider,
+        # Phase 7: three booleans (roadmap requirement)
+        "configured": configured,
         "verified": verified,
+        "active": active,
+        # Backward-compat: llm_active = active (same semantics)
+        "llm_active": active,
+        "provider": provider,
         "probe_latency_ms": probe.get("latency_ms", 0),
         "probe_error": probe.get("error", ""),
         "probe_cached_seconds": 60,
         "available_providers": getattr(router, "available_providers", [provider] if router else []),
-        "mode": "LLM-powered (genuine AI reasoning)" if truly_active else "Rule-based (keyword fallback)",
+        "mode": "LLM-powered (genuine AI reasoning)" if active else "Rule-based (keyword fallback)",
         "intelligence_paths": {
-            "ask_answer": "llm" if truly_active else "rule-based",
-            "perspectives": "llm" if truly_active else "keyword-counters",
-            "judgment_synthesis": "llm" if truly_active else "rule-concatenation",
-            "consequence_routing": "llm" if truly_active else "dictionary-lookup",
-            "ambient": "llm" if truly_active else "keyword-triggers",
+            "ask_answer": "llm" if active else "rule-based",
+            "perspectives": "llm" if active else "keyword-counters",
+            "judgment_synthesis": "llm" if active else "rule-concatenation",
+            "consequence_routing": "llm" if active else "dictionary-lookup",
+            "ambient": "llm" if active else "keyword-triggers",
         },
         "note": (
             f"LLM verified via {provider} ({probe.get('latency_ms', 0)}ms). All intelligence paths use genuine AI reasoning."
-            if truly_active
+            if active
             else f"Provider '{provider}' configured but probe failed: {probe.get('error', 'unknown')}. Falling back to rules."
-            if available and not verified
+            if configured and not verified
             else "No LLM available. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, XAI_API_KEY, run Ollama, or install the z-ai CLI to activate LLM mode."
         ),
     }
