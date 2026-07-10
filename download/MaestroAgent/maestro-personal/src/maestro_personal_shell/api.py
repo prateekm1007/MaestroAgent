@@ -1671,23 +1671,23 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
     The masterpiece Commitments: returns ONE primary commitment (the
     most at-risk) + the rest as secondary. The inevitability: you know
     what you owe without scrolling.
+
+    Phase 4: reads from the canonical WorldModel so all surfaces agree.
     """
     shell = build_shell(user_email=token)
 
-    from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
-    surface = CommitmentsSurface(shell=shell)
-    commitments = surface.get_active_commitments()
-    commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
-    commitments = _filter_dismissed_commitments(commitments, shell.oem_state.signals)  # F7: filter dismissed by signal_id
-    commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
+    # Phase 4: use the canonical WorldModel instead of independently
+    # recomputing filters. This ensures cross-surface coherence.
+    from maestro_personal_shell.world_model import build_world_model
+    wm = build_world_model(shell=shell, user_email=token)
+    commitments = wm.commitments  # canonical: already filtered for completed/dismissed/non-commitment/tombstoned/superseded
 
     if not commitments:
         return CommitmentsMasterpieceResponse(primary=None, why_primary="", secondary=[])
 
-    # Get stale commitments
-    stale = shell.detect_stale_commitments(days_threshold=2)
+    # Stale commitments — from the canonical WorldModel (computed once).
     stale_map = {}
-    for s in stale:
+    for s in wm.stale_commitments:
         sig_id = ""
         commit = s.get("commitment", None)
         if commit:
