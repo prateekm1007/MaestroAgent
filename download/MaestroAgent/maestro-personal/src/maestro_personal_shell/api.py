@@ -692,6 +692,35 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
 
     save_signal_to_db(signal_data, user_email=token)
 
+    # Directive 2: Auto-register prediction when a commitment is created.
+    # The learning loop is now automatic — no manual /api/predictions needed.
+    # Also add to personal knowledge graph.
+    try:
+        from maestro_personal_shell.learning_loop_v2 import auto_register_prediction
+        from maestro_personal_shell.personal_graph import PersonalGraph
+
+        if metadata.get("is_commitment") is True:
+            auto_register_prediction(
+                signal_id=signal_id,
+                commitment_type=metadata.get("commitment_type", "explicit"),
+                confidence=metadata.get("commitment_confidence", 0.5),
+                entity=canonical_entity,
+                user_email=token,
+            )
+
+            # Add to personal graph
+            graph = PersonalGraph()
+            graph.add_entity(canonical_entity, entity_type="contact", user_email=token)
+            graph.add_edge(
+                source_entity=canonical_entity,
+                edge_type="commitment",
+                topic=sanitized_text[:100],
+                confidence=metadata.get("commitment_confidence", 0.5),
+                metadata={"signal_id": signal_id},
+            )
+    except Exception as e:
+        logger.debug("Learning loop v2 auto-register failed: %s", e)
+
     return SignalResponse(
         signal_id=signal_id,
         entity=canonical_entity,  # F3: echo canonical entity
@@ -2915,6 +2944,43 @@ async def correct_signal(
     conn.commit()
     conn.close()
 
+    # Directive 2: Auto-resolve prediction + record behavior + update graph
+    try:
+        from maestro_personal_shell.learning_loop_v2 import auto_resolve_prediction, record_user_behavior
+        from maestro_personal_shell.personal_graph import PersonalGraph
+
+        # Map correction action to prediction outcome
+        outcome_map = {
+            "dismiss": "miss",      # dismissed = prediction was wrong
+            "cancel": "miss",       # cancelled = not kept
+            "complete": "hit",      # completed = prediction was right
+        }
+        outcome = outcome_map.get(action, "miss")
+
+        # Auto-resolve the prediction
+        auto_resolve_prediction(signal_id, outcome, user_email=token)
+
+        # Record user behavior for pattern learning
+        record_user_behavior(
+            behavior_type="correct_commitment",
+            details={
+                "signal_id": signal_id,
+                "action": action,
+                "entity": row[1] if row else "",  # entity from the signal
+            },
+            user_email=token,
+        )
+
+        # Update personal graph
+        if action == "complete":
+            graph = PersonalGraph()
+            graph.update_outcome(row[1] if row else "", row[2] if row else "", "hit")
+        elif action in ("dismiss", "cancel"):
+            graph = PersonalGraph()
+            graph.update_outcome(row[1] if row else "", row[2] if row else "", "miss")
+    except Exception as e:
+        logger.debug("Learning loop v2 auto-resolve failed: %s", e)
+
     return {
         "signal_id": signal_id,
         "action": action,
@@ -3110,6 +3176,55 @@ async def llm_status(token: str = Depends(verify_token)):
             else "No LLM available. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, XAI_API_KEY, run Ollama, or install the z-ai CLI to activate LLM mode."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# DIRECTIVE 2: Learning Loop 2.0 — personal graph + behavior patterns
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/graph/entity/{entity_name}")
+async def get_entity_graph(entity_name: str, token: str = Depends(verify_token)):
+    """Get the personal knowledge graph summary for an entity.
+
+    Directive 2: returns entity history, completion rate, patterns,
+    and risk prediction for this entity.
+    """
+    from maestro_personal_shell.personal_graph import PersonalGraph
+    graph = PersonalGraph()
+    summary = graph.get_entity_summary(entity_name)
+
+    if not summary.get("exists"):
+        return {"exists": False, "message": f"No history for {entity_name}"}
+
+    # Add risk prediction
+    risk = graph.predict_risk(entity_name)
+    summary["risk_prediction"] = risk
+
+    return summary
+
+
+@app.get("/api/graph/risk/{entity_name}")
+async def get_entity_risk(entity_name: str, token: str = Depends(verify_token)):
+    """Get the risk prediction for a new commitment with this entity.
+
+    Directive 2: uses historical patterns to predict whether a new
+    commitment will be kept.
+    """
+    from maestro_personal_shell.personal_graph import PersonalGraph
+    graph = PersonalGraph()
+    return graph.predict_risk(entity_name)
+
+
+@app.get("/api/behavior/patterns")
+async def get_behavior_patterns_endpoint(token: str = Depends(verify_token)):
+    """Get the user's behavior patterns for personalization.
+
+    Directive 2: returns dismissal rates, override rates, and most
+    dismissed agents/types. Used to personalize Maestro's behavior.
+    """
+    from maestro_personal_shell.learning_loop_v2 import get_behavior_patterns
+    return get_behavior_patterns(user_email=token)
 
 
 # ---------------------------------------------------------------------------

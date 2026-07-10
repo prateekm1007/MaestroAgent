@@ -1,0 +1,379 @@
+"""
+Personal Knowledge Graph — longitudinal entity/commitment/outcome graph.
+
+CEO Directive 2: Build a richer SituationStore as a dynamic knowledge
+graph (entities, commitments, contradictions, outcomes). Use it for
+better entity resolution and predictive anticipation.
+
+The graph stores:
+- Entities (people, companies, projects)
+- Edges (commitments, completions, disputes, corrections)
+- Completion rates per entity
+- Predictive patterns ("this pattern historically led to missed follow-ups")
+
+Usage:
+    graph = PersonalGraph(db_path)
+    graph.add_entity("AcmeCorp", type="company")
+    graph.add_edge("AcmeCorp", "proposal", "commitment", {"confidence": 0.8})
+    graph.update_outcome("AcmeCorp", "proposal", "hit")
+    rate = graph.get_completion_rate("AcmeCorp")
+    predictions = graph.predict_risk("AcmeCorp", "contract")
+"""
+
+from __future__ import annotations
+
+import logging
+import sqlite3
+import json
+import os
+from typing import Any
+from datetime import datetime, timezone
+from pathlib import Path
+from collections import Counter
+
+logger = logging.getLogger(__name__)
+
+
+def _get_db_path() -> str:
+    return os.environ.get(
+        "MAESTRO_PERSONAL_DB",
+        str(Path(__file__).resolve().parent / "personal.db"),
+    )
+
+
+class PersonalGraph:
+    """Personal knowledge graph for longitudinal intelligence.
+
+    Stores entities, their relationships, commitments, outcomes, and
+    patterns. Enables predictive anticipation ("this entity historically
+    misses follow-ups on contracts").
+    """
+
+    def __init__(self, db_path: str | None = None):
+        self._db_path = db_path or _get_db_path()
+        self._init_schema()
+
+    def _init_schema(self) -> None:
+        """Initialize graph tables."""
+        conn = sqlite3.connect(self._db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS graph_entities (
+                entity_id TEXT PRIMARY KEY,
+                entity_name TEXT NOT NULL,
+                entity_type TEXT DEFAULT 'unknown',
+                user_email TEXT DEFAULT 'bootstrap',
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                metadata TEXT DEFAULT '{}'
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS graph_edges (
+                edge_id TEXT PRIMARY KEY,
+                source_entity TEXT NOT NULL,
+                target_entity TEXT,
+                edge_type TEXT NOT NULL,
+                topic TEXT DEFAULT '',
+                confidence REAL DEFAULT 0.5,
+                status TEXT DEFAULT 'active',
+                created_at TEXT NOT NULL,
+                resolved_at TEXT,
+                outcome TEXT,
+                metadata TEXT DEFAULT '{}',
+                FOREIGN KEY (source_entity) REFERENCES graph_entities(entity_id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS graph_patterns (
+                pattern_id TEXT PRIMARY KEY,
+                entity_id TEXT,
+                pattern_type TEXT NOT NULL,
+                pattern_description TEXT,
+                occurrence_count INTEGER DEFAULT 1,
+                last_occurred TEXT NOT NULL,
+                metadata TEXT DEFAULT '{}'
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+    def add_entity(
+        self,
+        entity_name: str,
+        entity_type: str = "unknown",
+        user_email: str = "bootstrap",
+        metadata: dict | None = None,
+    ) -> str:
+        """Add or update an entity in the graph."""
+        entity_id = entity_name.lower().strip()
+        now = datetime.now(timezone.utc).isoformat()
+
+        conn = sqlite3.connect(self._db_path)
+        conn.execute(
+            """INSERT OR REPLACE INTO graph_entities
+               (entity_id, entity_name, entity_type, user_email, first_seen, last_seen, metadata)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                entity_id,
+                entity_name,
+                entity_type,
+                user_email,
+                now,  # first_seen (may overwrite, acceptable for v1)
+                now,  # last_seen
+                json.dumps(metadata or {}),
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return entity_id
+
+    def add_edge(
+        self,
+        source_entity: str,
+        edge_type: str,
+        topic: str = "",
+        target_entity: str = "",
+        confidence: float = 0.5,
+        metadata: dict | None = None,
+    ) -> str:
+        """Add an edge (commitment, completion, dispute, etc.) to the graph."""
+        from uuid import uuid4
+        edge_id = str(uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Ensure source entity exists
+        self.add_entity(source_entity)
+
+        conn = sqlite3.connect(self._db_path)
+        conn.execute(
+            """INSERT INTO graph_edges
+               (edge_id, source_entity, target_entity, edge_type, topic,
+                confidence, status, created_at, resolved_at, outcome, metadata)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                edge_id,
+                source_entity.lower().strip(),
+                target_entity.lower().strip() if target_entity else "",
+                edge_type,
+                topic,
+                confidence,
+                "active",
+                now,
+                None,
+                None,
+                json.dumps(metadata or {}),
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return edge_id
+
+    def update_outcome(
+        self,
+        entity_name: str,
+        topic: str,
+        outcome: str,
+    ) -> bool:
+        """Update the outcome of an edge (hit/miss/dismissed)."""
+        conn = sqlite3.connect(self._db_path)
+        now = datetime.now(timezone.utc).isoformat()
+        entity_id = entity_name.lower().strip()
+
+        # Find the most recent active edge for this entity + topic
+        row = conn.execute(
+            """SELECT edge_id FROM graph_edges
+               WHERE source_entity = ? AND topic LIKE ? AND status = 'active'
+               ORDER BY created_at DESC LIMIT 1""",
+            (entity_id, f"%{topic.lower()}%"),
+        ).fetchone()
+
+        if not row:
+            conn.close()
+            return False
+
+        edge_id = row[0]
+        conn.execute(
+            """UPDATE graph_edges
+               SET status = 'resolved', resolved_at = ?, outcome = ?
+               WHERE edge_id = ?""",
+            (now, outcome, edge_id),
+        )
+        conn.commit()
+        conn.close()
+
+        # Record pattern if outcome is negative
+        if outcome == "miss":
+            self._record_pattern(entity_id, "missed_commitment", f"Missed commitment on '{topic}'")
+
+        return True
+
+    def get_completion_rate(self, entity_name: str) -> float:
+        """Get the historical completion rate for an entity.
+
+        Returns 0.0-1.0. 0.0 = never completes, 1.0 = always completes.
+        Returns 0.5 (neutral) if no data.
+        """
+        entity_id = entity_name.lower().strip()
+        conn = sqlite3.connect(self._db_path)
+
+        rows = conn.execute(
+            """SELECT outcome FROM graph_edges
+               WHERE source_entity = ? AND status = 'resolved'""",
+            (entity_id,),
+        ).fetchall()
+        conn.close()
+
+        if not rows:
+            return 0.5  # neutral — no data
+
+        hits = sum(1 for r in rows if r[0] == "hit")
+        return hits / len(rows)
+
+    def get_entity_summary(self, entity_name: str) -> dict[str, Any]:
+        """Get a summary of an entity's history in the graph."""
+        entity_id = entity_name.lower().strip()
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+
+        entity = conn.execute(
+            "SELECT * FROM graph_entities WHERE entity_id = ?", (entity_id,)
+        ).fetchone()
+
+        if not entity:
+            conn.close()
+            return {"exists": False}
+
+        edges = conn.execute(
+            "SELECT * FROM graph_edges WHERE source_entity = ? ORDER BY created_at DESC LIMIT 20",
+            (entity_id,),
+        ).fetchall()
+
+        patterns = conn.execute(
+            "SELECT * FROM graph_patterns WHERE entity_id = ? ORDER BY last_occurred DESC LIMIT 5",
+            (entity_id,),
+        ).fetchall()
+
+        conn.close()
+
+        # Compute stats
+        total_edges = len(edges)
+        resolved = [e for e in edges if e["status"] == "resolved"]
+        hits = sum(1 for e in resolved if e["outcome"] == "hit")
+        misses = sum(1 for e in resolved if e["outcome"] == "miss")
+        active = [e for e in edges if e["status"] == "active"]
+
+        return {
+            "exists": True,
+            "entity_name": entity["entity_name"],
+            "entity_type": entity["entity_type"],
+            "total_interactions": total_edges,
+            "active_commitments": len(active),
+            "resolved_commitments": len(resolved),
+            "completion_rate": hits / len(resolved) if resolved else 0.5,
+            "miss_rate": misses / len(resolved) if resolved else 0.0,
+            "patterns": [
+                {
+                    "type": p["pattern_type"],
+                    "description": p["pattern_description"],
+                    "count": p["occurrence_count"],
+                }
+                for p in patterns
+            ],
+            "recent_edges": [
+                {
+                    "type": e["edge_type"],
+                    "topic": e["topic"],
+                    "status": e["status"],
+                    "outcome": e["outcome"],
+                    "confidence": e["confidence"],
+                }
+                for e in edges[:5]
+            ],
+        }
+
+    def predict_risk(self, entity_name: str, topic: str = "") -> dict[str, Any]:
+        """Predict the risk of a new commitment for this entity.
+
+        Uses historical patterns to anticipate:
+        - "this entity misses 40% of commitments" → medium risk
+        - "this entity has a 'missed_commitment' pattern on contracts" → high risk
+        """
+        completion_rate = self.get_completion_rate(entity_name)
+        entity_id = entity_name.lower().strip()
+
+        # Check for patterns
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        patterns = conn.execute(
+            "SELECT * FROM graph_patterns WHERE entity_id = ?",
+            (entity_id,),
+        ).fetchall()
+        conn.close()
+
+        risk_level = "low"
+        risk_factors = []
+
+        if completion_rate < 0.5:
+            risk_level = "high"
+            risk_factors.append(f"Low completion rate ({completion_rate:.0%})")
+        elif completion_rate < 0.7:
+            risk_level = "medium"
+            risk_factors.append(f"Moderate completion rate ({completion_rate:.0%})")
+
+        # Check for topic-specific patterns
+        for p in patterns:
+            if p["pattern_type"] == "missed_commitment" and topic.lower() in (p["pattern_description"] or "").lower():
+                risk_level = "high"
+                risk_factors.append(f"Pattern: {p['pattern_description']}")
+
+        return {
+            "entity": entity_name,
+            "risk_level": risk_level,
+            "completion_rate": completion_rate,
+            "risk_factors": risk_factors,
+            "recommendation": (
+                "Set an earlier internal deadline and follow up proactively."
+                if risk_level == "high"
+                else "Monitor progress and send a reminder closer to deadline."
+                if risk_level == "medium"
+                else "Standard tracking is sufficient."
+            ),
+        }
+
+    def _record_pattern(
+        self,
+        entity_id: str,
+        pattern_type: str,
+        description: str,
+    ) -> None:
+        """Record or update a behavioral pattern."""
+        from uuid import uuid4
+        now = datetime.now(timezone.utc).isoformat()
+
+        conn = sqlite3.connect(self._db_path)
+
+        # Check if this pattern already exists
+        existing = conn.execute(
+            """SELECT pattern_id, occurrence_count FROM graph_patterns
+               WHERE entity_id = ? AND pattern_type = ? AND pattern_description = ?""",
+            (entity_id, pattern_type, description),
+        ).fetchone()
+
+        if existing:
+            conn.execute(
+                """UPDATE graph_patterns
+                   SET occurrence_count = ?, last_occurred = ?
+                   WHERE pattern_id = ?""",
+                (existing[1] + 1, now, existing[0]),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO graph_patterns
+                   (pattern_id, entity_id, pattern_type, pattern_description,
+                    occurrence_count, last_occurred, metadata)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (str(uuid4()), entity_id, pattern_type, description, 1, now, "{}"),
+            )
+
+        conn.commit()
+        conn.close()
