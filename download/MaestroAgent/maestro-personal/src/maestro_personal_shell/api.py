@@ -208,6 +208,7 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email
     """Save a signal to SQLite.
 
     Phase 1 fix: stores user_email with each signal for per-user isolation.
+    Phase 1.3 fix: also indexes the signal in FTS5 for semantic retrieval.
     """
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -228,6 +229,14 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email
     )
     conn.commit()
     conn.close()
+
+    # Phase 1.3: index signal in FTS5 for semantic retrieval
+    try:
+        from maestro_personal_shell.semantic_retrieval import index_signal
+        signal_with_user = {**signal, "user_email": user_email}
+        index_signal(signal_with_user, db_path=db_path)
+    except Exception as e:
+        logger.debug("FTS indexing failed (non-fatal): %s", e)
 
 
 def clear_signals_db(db_path: str = DB_PATH) -> None:
@@ -659,13 +668,36 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                 matching_situation = situations[0]
 
             if matching_situation:
-                # Gather evidence for the LLM
+                # Phase 1.3: Use semantic retrieval to find the most relevant
+                # evidence for this query, instead of iterating all signals.
+                # This grounds the LLM in relevant evidence and reduces
+                # context-window bloat.
                 source_sent = ""
-                for sig in shell.oem_state.signals:
-                    sig_entity = str(getattr(sig, "entity", "")).lower()
-                    if matching_situation and sig_entity == str(getattr(matching_situation, "entity", "")).lower():
-                        source_sent = getattr(sig, "text", "")
-                        break
+                evidence_refs_for_llm = []
+
+                try:
+                    from maestro_personal_shell.semantic_retrieval import get_relevant_signals
+                    relevant = get_relevant_signals(
+                        req.query,
+                        user_email=token,
+                        limit=5,
+                    )
+                    if relevant:
+                        # Use the top-ranked signal as the primary source sentence
+                        source_sent = relevant[0].get("text", "")
+                        # Pass all relevant signals as evidence refs
+                        evidence_refs_for_llm = [
+                            {"text": r.get("text", ""), "entity": r.get("entity", "")}
+                            for r in relevant[:5]
+                        ]
+                except Exception as e:
+                    logger.debug("Semantic retrieval failed, falling back to linear: %s", e)
+                    # Fallback: linear search (old behavior)
+                    for sig in shell.oem_state.signals:
+                        sig_entity = str(getattr(sig, "entity", "")).lower()
+                        if matching_situation and sig_entity == str(getattr(matching_situation, "entity", "")).lower():
+                            source_sent = getattr(sig, "text", "")
+                            break
 
                 state_val = str(getattr(matching_situation, "state", getattr(matching_situation, "operational_state", "unknown")))
                 if hasattr(state_val, "value"):
@@ -678,7 +710,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                     situation=matching_situation,
                     source_sentence=source_sent,
                     situation_state=state_str,
-                    evidence_refs=getattr(result, "evidence_refs", None),
+                    evidence_refs=evidence_refs_for_llm or getattr(result, "evidence_refs", None),
                 )
                 if llm_answer:
                     answer = llm_answer  # LLM answer replaces rule-based
