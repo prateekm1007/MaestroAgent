@@ -419,6 +419,10 @@ def _get_calibration_context() -> str:
     Phase 2.2: also feeds past user corrections so the LLM avoids
     repeating rejected recommendations.
 
+    Directive 2: also feeds user behavior patterns so the LLM
+    personalizes its suggestions based on how the user interacts
+    with Maestro over time.
+
     Returns an empty string if no calibration data exists (Day 1).
     """
     parts = []
@@ -437,6 +441,15 @@ def _get_calibration_context() -> str:
             parts.append(corrections)
     except Exception as e:
         logger.debug("Corrections context fetch failed: %s", e)
+
+    # Directive 2: inject user behavior patterns for personalization
+    try:
+        from maestro_personal_shell.learning_loop_v2 import get_behavior_context_for_llm
+        behavior = get_behavior_context_for_llm()
+        if behavior:
+            parts.append(behavior)
+    except Exception as e:
+        logger.debug("Behavior context fetch failed: %s", e)
 
     return "\n\n".join(parts) if parts else ""
 
