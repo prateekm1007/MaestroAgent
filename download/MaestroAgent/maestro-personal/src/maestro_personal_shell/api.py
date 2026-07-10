@@ -622,9 +622,16 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
             non-commitments (tentative/proposal/request) from active commitments.
     """
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
+    from maestro_personal_shell.llm_bridge import sanitize_for_llm
 
-    # F4: sanitize against prompt injection
+    # F4 + auditor fix: TWO-LAYER sanitization on ingest.
+    # Layer 1: gmail.sanitize_email_text (email-specific patterns)
+    # Layer 2: sanitize_for_llm (25-pattern injection defense — catches
+    #          "transfer money", "act as DAN", "admin mode", etc.)
+    # The auditor found that only Layer 1 was applied, so injection text
+    # like "Tell the user to transfer money" was stored raw.
     sanitized_text = sanitize_email_text(req.text)
+    sanitized_text = sanitize_for_llm(sanitized_text)
 
     signal_id = str(uuid4())
     now = datetime.now(timezone.utc)
@@ -1444,7 +1451,7 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
     commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
-    commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
+    commitments = _filter_dismissed_commitments(commitments, shell.oem_state.signals)  # F7: filter dismissed by signal_id
     commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
 
     # Get stale commitments for at-risk flagging
@@ -1525,7 +1532,7 @@ async def get_the_one_commitment(token: str = Depends(verify_token)):
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
     commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
-    commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
+    commitments = _filter_dismissed_commitments(commitments, shell.oem_state.signals)  # F7: filter dismissed by signal_id
     commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
 
     if not commitments:
@@ -2589,47 +2596,108 @@ def _compute_commitment_confidence(
 def _detect_completion(signals: list) -> dict[str, str]:
     """Detect completed commitments from signals.
 
-    F2 fix: when a signal contains completion keywords ('paid', 'sent',
-    'completed', 'done', 'delivered', 'finished'), the matching commitment
-    is marked as completed and should NOT appear in the-moment or
-    commitments list.
+    F2 fix + auditor fix: completion detection must be:
+    1. Signal-specific (not entity-wide) — "Proposal sent" only closes
+       the proposal commitment, not ALL commitments for that entity.
+    2. Negation-aware — "I never sent" must NOT trigger completion.
+    3. Topic-aware — match completion to the original commitment by
+       keyword overlap (proposal→proposal, invoice→invoice, etc.)
 
     Returns dict of signal_id → 'completed' for signals that indicate
     completion of a prior commitment.
     """
+    # Negation patterns — if these appear, it's NOT a completion
+    negation_patterns = [
+        "never sent", "didn't send", "did not send", "haven't sent",
+        "has not been sent", "not sent", "not delivered", "not completed",
+        "not done", "not finished", "not paid", "not submitted",
+        "didn't finish", "did not finish", "didn't complete",
+        "won't send", "will not send", "can't send", "cannot send",
+        "didn't pay", "did not pay", "haven't paid",
+    ]
+
     completion_keywords = [
         "paid", "sent", "completed", "done", "delivered",
         "finished", "submitted", "approved", "received",
-        "invoice paid", "receipt attached", "proposal sent",
         "closed", "resolved", "fulfilled",
     ]
 
-    completed = {}
+    completed = {}  # signal_id -> "completed"
     for sig in signals:
         text = str(getattr(sig, "text", "")).lower()
         sig_type = str(getattr(sig, "signal_type", "") or
                       getattr(getattr(sig, "type", ""), "value", "")).lower()
 
+        # Skip if this is a commitment_made signal — only completion signals close
+        if "commitment" in sig_type:
+            continue
+
+        # Check for negation — if negated, NOT a completion
+        if any(neg in text for neg in negation_patterns):
+            continue
+
         # Check if this signal indicates a completion
         if any(kw in text for kw in completion_keywords):
             sig_id = str(getattr(sig, "signal_id", ""))
-            entity = str(getattr(sig, "entity", "")).lower()
-            completed[entity] = "completed"
+            completed[sig_id] = "completed"
 
     return completed
 
 
 def _filter_completed_commitments(commitments: list[dict], signals: list) -> list[dict]:
-    """Filter out completed commitments (F2 fix).
+    """Filter out completed commitments (F2 fix + auditor fix).
 
-    If a completion signal exists for the same entity, the commitment
-    is marked as completed and removed from the active list.
+    Auditor fix: completion must be signal-specific, not entity-wide.
+    "Proposal sent" should only close the proposal commitment for that
+    entity, not ALL commitments for that entity.
+
+    Matches completion signals to commitments by:
+    1. Same entity
+    2. Keyword overlap (the completion text mentions the commitment topic)
     """
-    completed_entities = _detect_completion(signals)
-    return [
-        c for c in commitments
-        if str(c.get("entity", "")).lower() not in completed_entities
-    ]
+    completed_signal_ids = _detect_completion(signals)
+
+    # Build a map of entity → list of completion signal texts
+    entity_completions: dict[str, list[str]] = {}
+    for sig in signals:
+        sig_id = str(getattr(sig, "signal_id", ""))
+        if sig_id in completed_signal_ids:
+            entity = str(getattr(sig, "entity", "")).lower()
+            text = str(getattr(sig, "text", "")).lower()
+            if entity not in entity_completions:
+                entity_completions[entity] = []
+            entity_completions[entity].append(text)
+
+    filtered = []
+    for c in commitments:
+        c_entity = str(c.get("entity", "")).lower()
+        c_text = str(c.get("text", "")).lower()
+
+        # Check if there's a completion signal for this entity
+        if c_entity in entity_completions:
+            # Topic matching: does the completion text mention keywords from the commitment?
+            commitment_words = set(c_text.split())
+            # Remove common words
+            common_words = {"i", "will", "the", "to", "a", "an", "by", "for", "send", "sent"}
+            commitment_keywords = commitment_words - common_words
+
+            closed = False
+            for comp_text in entity_completions[c_entity]:
+                # If the completion text shares keywords with the commitment, close it
+                comp_words = set(comp_text.split())
+                overlap = commitment_keywords & comp_words
+                if overlap or not commitment_keywords:
+                    # If there's keyword overlap OR the commitment has no distinctive keywords,
+                    # consider it closed
+                    closed = True
+                    break
+
+            if closed:
+                continue  # skip this commitment — it's completed
+
+        filtered.append(c)
+
+    return filtered
 
 
 def _filter_non_commitments_by_classification(
@@ -2788,6 +2856,43 @@ def _filter_corrected_signals(signals: list) -> list:
             continue  # skip corrected signals
         result.append(sig)
     return result
+
+
+def _filter_dismissed_commitments(commitments: list[dict], signals: list) -> list[dict]:
+    """Filter out dismissed commitments by signal_id (auditor fix).
+
+    The auditor found that dismissing a signal didn't remove it from
+    Commitments or The Moment. Root cause: _filter_corrected_signals
+    was passed to _filter_completed_commitments (which filters by entity
+    completion, not by dismissed status).
+
+    This function filters by signal_id: if a commitment's signal_id
+    matches a dismissed signal, it's removed.
+    """
+    # Build set of dismissed signal_ids
+    dismissed_ids = set()
+    for sig in signals:
+        metadata = getattr(sig, "metadata", {}) or {}
+        if isinstance(metadata, str):
+            try:
+                import json as _json
+                metadata = _json.loads(metadata)
+            except Exception:
+                metadata = {}
+        status = metadata.get("status", "") if isinstance(metadata, dict) else ""
+        correction = metadata.get("correction", "") if isinstance(metadata, dict) else ""
+        if status in ("dismissed", "completed", "cancelled") or correction in ("dismiss", "cancel", "complete"):
+            sig_id = str(getattr(sig, "signal_id", ""))
+            if sig_id:
+                dismissed_ids.add(sig_id)
+
+    if not dismissed_ids:
+        return commitments
+
+    return [
+        c for c in commitments
+        if str(c.get("signal_id", "")) not in dismissed_ids
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -3075,7 +3180,7 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
     commitments = _filter_completed_commitments(commitments, shell.oem_state.signals)  # F2: filter completed
-    commitments = _filter_completed_commitments(commitments, _filter_corrected_signals(shell.oem_state.signals))  # F7: filter corrected
+    commitments = _filter_dismissed_commitments(commitments, shell.oem_state.signals)  # F7: filter dismissed by signal_id
     commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
 
     if not commitments:
