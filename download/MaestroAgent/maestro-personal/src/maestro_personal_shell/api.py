@@ -2421,14 +2421,55 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                     entity=meeting_entity,
                 )
 
-                # Send suggestion if something detected
-                if result.get("transitions") or result.get("commitments_detected"):
-                    await websocket.send_json({
-                        "type": "suggestion",
-                        **result,
-                    })
-                else:
-                    await websocket.send_json({"type": "ack"})
+                # Directive 1: Context fuser — multi-signal fusion for proactive coaching
+                try:
+                    from maestro_personal_shell.copilot_context_fuser import CopilotContextFuser
+                    fuser = CopilotContextFuser(shell=shell, user_email=token)
+                    fused = await fuser.fuse(
+                        transcript_chunks=transcript_chunks,
+                        meeting_entity=meeting_entity,
+                    )
+
+                    # If the fuser says whisper, send a proactive whisper
+                    if fused.get("should_whisper"):
+                        whisper_data = {
+                            "type": "whisper",
+                            "whisper": fused.get("whisper_reason", ""),
+                            "agent_whispers": fused.get("agent_whispers", []),
+                            "suggestions": fused.get("suggestions", []),
+                            "contradictions": fused.get("contradictions", []),
+                            "talk_ratio": fused.get("talk_ratio", {}),
+                            "negotiation_anchors": fused.get("negotiation_anchors", []),
+                            "fused_at": fused.get("fused_at", ""),
+                        }
+                        # Merge with existing suggestion if any
+                        if result.get("transitions") or result.get("commitments_detected"):
+                            await websocket.send_json({
+                                "type": "suggestion",
+                                **result,
+                                **whisper_data,
+                            })
+                        else:
+                            await websocket.send_json(whisper_data)
+                    else:
+                        # Send suggestion if something detected (old path)
+                        if result.get("transitions") or result.get("commitments_detected"):
+                            await websocket.send_json({
+                                "type": "suggestion",
+                                **result,
+                            })
+                        else:
+                            await websocket.send_json({"type": "ack"})
+                except Exception as e:
+                    logger.debug("Context fuser failed, falling back: %s", e)
+                    # Fallback to old behavior
+                    if result.get("transitions") or result.get("commitments_detected"):
+                        await websocket.send_json({
+                            "type": "suggestion",
+                            **result,
+                        })
+                    else:
+                        await websocket.send_json({"type": "ack"})
 
             elif msg_type == "talk_ratio":
                 # Process talk ratio
