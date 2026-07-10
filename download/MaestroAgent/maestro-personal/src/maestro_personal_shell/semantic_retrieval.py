@@ -167,12 +167,13 @@ def semantic_search(
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     try:
+        # BM25-ranked search via FTS5.
+        # Returns signal_id + relevance score from FTS, then looks up
+        # full signal data from the main signals table (source of truth).
         if user_email:
-            # BM25-ranked search, scoped to user
-            rows = conn.execute(
+            fts_rows = conn.execute(
                 """
-                SELECT signal_id, entity, text, signal_type, user_email, timestamp,
-                       bm25(signals_fts) as relevance_score
+                SELECT signal_id, bm25(signals_fts) as relevance_score
                 FROM signals_fts
                 WHERE signals_fts MATCH ? AND user_email = ?
                 ORDER BY relevance_score
@@ -181,10 +182,9 @@ def semantic_search(
                 (query, user_email, limit),
             ).fetchall()
         else:
-            rows = conn.execute(
+            fts_rows = conn.execute(
                 """
-                SELECT signal_id, entity, text, signal_type, user_email, timestamp,
-                       bm25(signals_fts) as relevance_score
+                SELECT signal_id, bm25(signals_fts) as relevance_score
                 FROM signals_fts
                 WHERE signals_fts MATCH ?
                 ORDER BY relevance_score
@@ -193,7 +193,43 @@ def semantic_search(
                 (query, limit),
             ).fetchall()
 
-        return [dict(r) for r in rows]
+        if not fts_rows:
+            return []
+
+        # Look up full signal data from the main signals table.
+        # If the signal isn't in the main table (test-only), fall back
+        # to querying FTS directly for that signal_id.
+        signal_ids = [r["signal_id"] for r in fts_rows]
+        placeholders = ",".join("?" * len(signal_ids))
+
+        try:
+            main_rows = conn.execute(
+                f"SELECT * FROM signals WHERE signal_id IN ({placeholders})",
+                signal_ids,
+            ).fetchall()
+            main_map = {r["signal_id"]: dict(r) for r in main_rows}
+        except Exception:
+            main_map = {}
+
+        results = []
+        for fts_row in fts_rows:
+            sid = fts_row["signal_id"]
+            if sid in main_map:
+                entry = main_map[sid]
+            else:
+                # Fallback: get data directly from FTS
+                fts_data = conn.execute(
+                    "SELECT signal_id, entity, text, signal_type, user_email, timestamp FROM signals_fts WHERE signal_id = ?",
+                    (sid,),
+                ).fetchone()
+                if fts_data:
+                    entry = dict(fts_data)
+                else:
+                    entry = {"signal_id": sid, "entity": "", "text": "", "signal_type": "", "user_email": "", "timestamp": ""}
+            entry["relevance_score"] = fts_row["relevance_score"]
+            results.append(entry)
+
+        return results
     except sqlite3.OperationalError as e:
         logger.debug("FTS search failed, falling back to empty: %s", e)
         return []

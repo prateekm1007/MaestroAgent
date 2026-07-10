@@ -189,8 +189,24 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     """
     text_lower = text.lower()
 
-    # Completion signals
-    completion_keywords = ["sent ", "delivered", "completed", "done", "finished", "paid", "submitted"]
+    # Negation signals — check BEFORE explicit (so "I will not" isn't classified as explicit)
+    negation_keywords = ["won't", "will not", "can't", "cannot", "not able to", "unable to"]
+    if any(kw in text_lower for kw in negation_keywords):
+        return {
+            "commitment_type": "negation",
+            "is_commitment": False,
+            "confidence": 0.75,
+            "state": "candidate",
+            "owner": "user",
+            "deadline_text": "",
+            "reasoning": "rule-based: negation keyword detected",
+            "llm_powered": False,
+        }
+
+    # Completion signals — check that it's past tense, not "consider it done"
+    completion_keywords = ["sent ", "delivered", "completed", "finished", "paid", "submitted"]
+    # "done" only counts as completion if preceded by "is done", "has been done", "got it done"
+    # NOT "consider it done" (which is a promise)
     if any(kw in text_lower for kw in completion_keywords):
         return {
             "commitment_type": "completed",
@@ -202,9 +218,22 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "reasoning": "rule-based: completion keyword detected",
             "llm_powered": False,
         }
+    # Check for "done" as completion (but not "consider it done")
+    if "done" in text_lower and "consider" not in text_lower and "it's done" not in text_lower:
+        if any(kw in text_lower for kw in ["is done", "got it done", "have done", "has done", "i'm done"]):
+            return {
+                "commitment_type": "completed",
+                "is_commitment": False,
+                "confidence": 0.7,
+                "state": "completed_claimed",
+                "owner": "unknown",
+                "deadline_text": "",
+                "reasoning": "rule-based: completion keyword detected",
+                "llm_powered": False,
+            }
 
     # Cancellation signals
-    cancel_keywords = ["cancelled", "never mind", "forget it", "don't need", "won't be able", "can't make"]
+    cancel_keywords = ["cancelled", "cancel ", "never mind", "forget it", "don't need", "won't be able", "can't make"]
     if any(kw in text_lower for kw in cancel_keywords):
         return {
             "commitment_type": "cancelled",
@@ -232,7 +261,7 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
         }
 
     # Explicit commitment
-    explicit_keywords = ["i will", "i'll", "i promise", "i commit", "i guarantee"]
+    explicit_keywords = ["i will", "i'll", "i promise", "i commit", "i guarantee", "i'm going to", "im going to"]
     if any(kw in text_lower for kw in explicit_keywords):
         return {
             "commitment_type": "explicit",
