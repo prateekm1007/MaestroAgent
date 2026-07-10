@@ -125,11 +125,13 @@ class TestAmbientIntelligence:
     def test_ambient_detects_stale_commitments(self, client, auth_headers):
         """Ambient detects stale commitments."""
         import sqlite3, uuid
+        # Get the user_email from the token (login returns per-user token)
+        # The auth_headers fixture logs in without user_email, so defaults to "default@personal.local"
         old_ts = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
         conn = sqlite3.connect(os.environ["MAESTRO_PERSONAL_DB"])
         conn.execute(
-            "INSERT INTO signals (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at) VALUES (?,?,?,?,?,?,?,?)",
-            (str(uuid.uuid4()), "Alex", "I will send the proposal", "commitment_made", old_ts, "{}", "public", old_ts),
+            "INSERT INTO signals (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at, user_email) VALUES (?,?,?,?,?,?,?,?,?)",
+            (str(uuid.uuid4()), "Alex", "I will send the proposal", "commitment_made", old_ts, "{}", "public", old_ts, "default@personal.local"),
         )
         conn.commit()
         conn.close()
@@ -167,8 +169,8 @@ class TestAmbientIntelligence:
             old_ts = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
             conn = sqlite3.connect(os.environ["MAESTRO_PERSONAL_DB"])
             conn.execute(
-                "INSERT INTO signals (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at) VALUES (?,?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()), "Sam", "I will review the PR", "commitment_made", old_ts, "{}", "public", old_ts),
+                "INSERT INTO signals (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at, user_email) VALUES (?,?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), "Sam", "I will review the PR", "commitment_made", old_ts, "{}", "public", old_ts, "default@personal.local"),
             )
             conn.commit()
             conn.close()
