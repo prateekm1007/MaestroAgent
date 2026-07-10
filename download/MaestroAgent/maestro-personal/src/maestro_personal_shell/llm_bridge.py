@@ -558,6 +558,11 @@ _INJECTION_PATTERNS = [
     r"(?i)override\s+your\s+(system\s+)?prompt",
     r"(?i)stop\s+being\s+\w+\s+and\s+be\s+",
     r"(?i)1gn0r3|d1sr3g4rd|f0rg3t",
+    # Phase 7: additional patterns for safety-guideline variants
+    r"(?i)ignore\s+(all\s+)?safety\s+(guidelines|guideline)",
+    r"(?i)disregard\s+(all\s+)?safety\s+(guidelines|guideline)",
+    r"(?i)reveal\s+hidden\s+(data|admin|secret)",
+    r"(?i)grant\s+(me|admin|you)\s+access",
 ]
 
 import re as _re
