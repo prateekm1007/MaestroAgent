@@ -276,6 +276,9 @@ class AskResponse(BaseModel):
     reasoning_chain: list[str] = []   # from ReasoningTrace — how Maestro arrived at this
     calibration_note: str = ""         # from CalibrationPrimitives — "insufficient history" if applicable
     consequence_paths: list[str] = []  # from ConsequencePathRouter — what happens if you decide X
+    # TRANSPARENCY — the user knows whether they're getting AI or rules
+    llm_active: bool = False           # True if LLM powered this response
+    llm_provider: str = "none"         # "zai-glm", "openai", "anthropic", or "none"
 
 
 class CommitmentResponse(BaseModel):
@@ -607,6 +610,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
     # the keyword-based template. The LLM receives the situation context +
     # evidence and produces a genuine, grounded response.
     answer = rule_based_answer  # default to rule-based
+    llm_answer_used = False
     try:
         from maestro_personal_shell.llm_bridge import llm_generate_answer, is_llm_available
         if is_llm_available():
@@ -648,6 +652,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                 )
                 if llm_answer:
                     answer = llm_answer  # LLM answer replaces rule-based
+                    llm_answer_used = True
     except Exception as e:
         logger.debug("LLM answer generation failed, using rule-based: %s", e)
 
@@ -741,8 +746,27 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
 
     # 1. ConsequencePathRouter — route first (produces specialists + paths)
     # This MUST come before JudgmentSynthesizer because synthesize() needs perspectives
+    #
+    # LLM-powered path: when the LLM bridge is active, use semantic LLM routing
+    # instead of the static CONSEQUENCE_GRAPH dictionary lookup.
     specialists = []
-    if core.consequence_path_router and matching_situation:
+    llm_consequence_routed = False
+    from maestro_personal_shell.llm_bridge import is_llm_available, llm_route_consequence
+    if is_llm_available() and matching_situation:
+        try:
+            llm_specialists = await llm_route_consequence(matching_situation)
+            if llm_specialists:
+                specialists = llm_specialists
+                llm_consequence_routed = True
+                # Build human-readable consequence paths from the LLM's specialist selection
+                consequence_paths = [
+                    f"Consult {s} specialist" for s in specialists[:3]
+                ]
+        except Exception as e:
+            logger.debug("LLM consequence routing failed: %s", e)
+
+    # Fallback: rule-based ConsequencePathRouter
+    if not llm_consequence_routed and core.consequence_path_router and matching_situation:
         try:
             routing = core.consequence_path_router.route(matching_situation)
             if routing:
@@ -753,15 +777,16 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
         except Exception as e:
             logger.debug("Consequence routing failed: %s", e)
 
-    # 2. Perspectives — REAL Nerve agent insights (not template strings)
-    # Per CEO Phase 3 directive: replace "Analyzing Alex from X perspective"
-    # with real agent.generate_insights() output — title, body, evidence,
-    # recommended_action, priority.
+    # 2. Perspectives — LLM-powered specialist analysis (primary path)
+    # When the LLM bridge is active, the LLM generates genuine specialist
+    # perspectives from the situation + signals. Falls back to keyword-based
+    # Nerve agent insights when no LLM is available.
     from maestro_cognitive_council.perspective import Perspective
     from uuid import uuid4 as _uuid4
 
-    # First try Nerve agents for real insights
+    # First try Nerve agents for real insights (LLM-powered or keyword fallback)
     nerve_perspectives = []
+    llm_perspectives_used = False
     try:
         nerve = shell.nerve
         entity_name = ""
@@ -771,7 +796,10 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
             entity_name = entities[0]
 
         if entity_name:
-            nerve_perspectives = nerve.get_perspectives_for_entity(entity_name)
+            nerve_perspectives = await nerve.get_perspectives_for_entity(entity_name)
+            # Check if any perspective was LLM-powered
+            if nerve_perspectives and nerve_perspectives[0].get("llm_powered"):
+                llm_perspectives_used = True
     except Exception as e:
         logger.debug("Nerve perspectives failed: %s", e)
 
@@ -779,7 +807,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
     # ConsequencePathRouter specialists if Nerve produces nothing)
     persp_objects = []
     if nerve_perspectives:
-        # Use real Nerve agent insights
+        # Use real Nerve agent insights (LLM-powered or keyword-based)
         for np in nerve_perspectives[:3]:
             try:
                 p = Perspective(
@@ -810,8 +838,29 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                 pass
 
     # 3. JudgmentSynthesizer — synthesize judgment from perspectives
-    # synthesize(situation, perspectives) requires BOTH args
-    if core.judgment_synthesizer and matching_situation and persp_objects:
+    #
+    # LLM-powered path: when the LLM bridge is active, use genuine LLM
+    # judgment synthesis instead of rule-based concatenation.
+    llm_judgment_used = False
+    if is_llm_available() and matching_situation and persp_objects:
+        try:
+            from maestro_personal_shell.llm_bridge import llm_synthesize_judgment
+            llm_judgment = await llm_synthesize_judgment(matching_situation, persp_objects)
+            if llm_judgment and isinstance(llm_judgment, dict):
+                llm_judgment_used = True
+                boundary = llm_judgment.get("decision_boundary", "") or \
+                           llm_judgment.get("central_claim", "")
+                if boundary:
+                    decision_boundary = str(boundary)[:300]
+                # Use LLM-generated judgment as the central claim
+                central_claim = llm_judgment.get("central_claim", "")
+                if central_claim:
+                    calibration_note = f"LLM judgment: {central_claim[:200]}"
+        except Exception as e:
+            logger.debug("LLM judgment synthesis failed: %s", e)
+
+    # Fallback: rule-based JudgmentSynthesizer
+    if not llm_judgment_used and core.judgment_synthesizer and matching_situation and persp_objects:
         try:
             judgment = core.judgment_synthesizer.synthesize(matching_situation, persp_objects)
             if judgment:
@@ -845,6 +894,7 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
                 "evidence": p.evidence if hasattr(p, 'evidence') else [],
                 "urgency": getattr(p, 'urgency', 'normal'),
                 "confidence": getattr(p, 'confidence', 0.0),
+                "llm_powered": llm_perspectives_used,
             })
 
     # 4. ReasoningTrace — capture provenance chain
@@ -908,6 +958,12 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
     if acl_result.get("acl_restricted") and acl_result.get("acl_redacted"):
         answer = acl_result.get("answer", answer)
 
+    # LLM transparency — the user knows whether they got AI or rules
+    from maestro_personal_shell.llm_bridge import is_llm_available, get_llm_provider_name
+    llm_active = is_llm_available() and (
+        llm_answer_used or llm_perspectives_used or llm_judgment_used or llm_consequence_routed
+    )
+
     return AskResponse(
         answer=str(answer),
         query=req.query,
@@ -921,6 +977,8 @@ async def ask(req: AskRequest, token: str = Depends(verify_token)):
         reasoning_chain=reasoning_chain,
         calibration_note=calibration_note,
         consequence_paths=consequence_paths,
+        llm_active=llm_active,
+        llm_provider=get_llm_provider_name() if llm_active else "none",
     )
 
 
@@ -1832,7 +1890,7 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                     except Exception:
                         pass
 
-                ambient_data = get_ambient_intelligence(shell)
+                ambient_data = await get_ambient_intelligence(shell)
 
                 await websocket.send_json({
                     "type": "started",
@@ -1929,14 +1987,14 @@ async def get_ambient(token: str = Depends(verify_token)):
     """Get ambient intelligence — what's happening between calls.
 
     Phase 5: combines calendar awareness (upcoming meetings, preparation
-    needed), sentiment patterns (frustration/positivity detected), and
+    needed), sentiment patterns (LLM-powered or keyword fallback), and
     commitment staleness into a single ambient view.
 
     This is the background intelligence that feeds Whisper between calls.
     """
     from maestro_personal_shell.copilot_live import get_ambient_intelligence
     shell = build_shell()
-    return get_ambient_intelligence(shell=shell)
+    return await get_ambient_intelligence(shell=shell)
 
 
 # ---------------------------------------------------------------------------
@@ -2166,21 +2224,46 @@ async def get_calibration(token: str = Depends(verify_token)):
 async def llm_status(token: str = Depends(verify_token)):
     """Verify whether the Cognitive Council is LLM-powered or rule-based.
 
-    Per external audit fix: this endpoint shows whether maestro_llm is
-    connected. When llm_active=True, Ask uses RAG-grounded LLM generation.
-    When llm_active=False, Ask uses rule-based keyword matching (fallback).
+    Per external audit fix: this endpoint shows whether the LLM bridge is
+    connected and which intelligence paths are LLM-powered.
+
+    When llm_active=True, all five intelligence paths use LLM:
+    - Ask: RAG-grounded answer generation
+    - Perspectives: LLM-generated specialist analysis (not keyword counters)
+    - Judgment: LLM-synthesized judgment (not rule concatenation)
+    - Consequence routing: LLM semantic routing (not dictionary lookup)
+    - Ambient: LLM context analysis (not keyword triggers)
+
+    When llm_active=False, all paths fall back to rule-based heuristics.
     """
-    from maestro_personal_shell.llm_bridge import is_llm_available, get_llm_router
+    from maestro_personal_shell.llm_bridge import (
+        is_llm_available,
+        get_llm_router,
+        get_llm_provider_name,
+    )
     available = is_llm_available()
     router = get_llm_router() if available else None
-    provider = getattr(router, "default_provider", "none") if router else "none"
+    provider = get_llm_provider_name()
 
     return {
         "llm_active": available,
         "provider": provider,
-        "available_providers": getattr(router, "available_providers", []) if router else [],
-        "mode": "LLM-powered (RAG)" if available else "Rule-based (fallback)",
-        "note": "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, XAI_API_KEY, or run Ollama to activate LLM mode." if not available else "LLM is connected. Ask uses RAG-grounded generation.",
+        "available_providers": getattr(router, "available_providers", [provider] if router else []),
+        "mode": "LLM-powered (genuine AI reasoning)" if available else "Rule-based (keyword fallback)",
+        "intelligence_paths": {
+            "ask_answer": "llm" if available else "rule-based",
+            "perspectives": "llm" if available else "keyword-counters",
+            "judgment_synthesis": "llm" if available else "rule-concatenation",
+            "consequence_routing": "llm" if available else "dictionary-lookup",
+            "ambient": "llm" if available else "keyword-triggers",
+        },
+        "note": (
+            "LLM is connected via z-ai (GLM). All intelligence paths use genuine AI reasoning."
+            if available and provider == "zai-glm"
+            else f"LLM is connected via {provider}. All intelligence paths use genuine AI reasoning."
+            if available
+            else "No LLM available. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, XAI_API_KEY, run Ollama, or install the z-ai CLI to activate LLM mode."
+        ),
     }
 
 

@@ -1,5 +1,8 @@
 """
 Phase 4+5 tests: live copilot + ambient intelligence.
+
+Note: These tests mock the LLM as unavailable to test the keyword-based
+fallback path. The LLM-powered path is tested in test_llm_wiring.py.
 """
 
 import sys
@@ -7,6 +10,7 @@ import os
 import pathlib
 import tempfile
 from datetime import datetime, timezone, timedelta
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "backend"))
@@ -136,32 +140,40 @@ class TestAmbientIntelligence:
         assert data["stale_commitments"][0]["entity"].lower() == "alex"
 
     def test_ambient_detects_sentiment(self, client, auth_headers):
-        """Ambient detects frustration/positivity from signal text."""
-        client.post("/api/signals", json={
-            "entity": "Alex",
-            "text": "This is unacceptable and urgent — I need the proposal ASAP",
-            "signal_type": "reported_statement",
-        }, headers=auth_headers)
+        """Ambient detects frustration/positivity from signal text (keyword fallback).
 
-        response = client.get("/api/ambient", headers=auth_headers)
-        data = response.json()
-        # Should detect frustration keywords
-        frustration = [s for s in data["sentiment_alerts"] if s["type"] == "frustration"]
-        assert len(frustration) >= 1
+        This tests the keyword-based fallback path. The LLM-powered path
+        is tested in test_llm_wiring.py.
+        """
+        # Mock LLM as unavailable to test keyword fallback
+        with patch("maestro_personal_shell.llm_bridge.is_llm_available", return_value=False):
+            client.post("/api/signals", json={
+                "entity": "Alex",
+                "text": "This is unacceptable and urgent — I need the proposal ASAP",
+                "signal_type": "reported_statement",
+            }, headers=auth_headers)
+
+            response = client.get("/api/ambient", headers=auth_headers)
+            data = response.json()
+            # Should detect frustration keywords
+            frustration = [s for s in data["sentiment_alerts"] if s["type"] == "frustration"]
+            assert len(frustration) >= 1
 
     def test_ambient_summary_combines_signals(self, client, auth_headers):
-        """Ambient summary combines multiple signals into one sentence."""
-        import sqlite3, uuid
-        old_ts = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
-        conn = sqlite3.connect(os.environ["MAESTRO_PERSONAL_DB"])
-        conn.execute(
-            "INSERT INTO signals (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at) VALUES (?,?,?,?,?,?,?,?)",
-            (str(uuid.uuid4()), "Sam", "I will review the PR", "commitment_made", old_ts, "{}", "public", old_ts),
-        )
-        conn.commit()
-        conn.close()
+        """Ambient summary combines multiple signals into one sentence (keyword fallback)."""
+        # Mock LLM as unavailable to test keyword fallback
+        with patch("maestro_personal_shell.llm_bridge.is_llm_available", return_value=False):
+            import sqlite3, uuid
+            old_ts = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+            conn = sqlite3.connect(os.environ["MAESTRO_PERSONAL_DB"])
+            conn.execute(
+                "INSERT INTO signals (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), "Sam", "I will review the PR", "commitment_made", old_ts, "{}", "public", old_ts),
+            )
+            conn.commit()
+            conn.close()
 
-        response = client.get("/api/ambient", headers=auth_headers)
-        data = response.json()
-        # Summary should mention the stale commitment
-        assert "Sam" in data["ambient_summary"] or "stale" in data["ambient_summary"].lower()
+            response = client.get("/api/ambient", headers=auth_headers)
+            data = response.json()
+            # Summary should mention the stale commitment
+            assert "Sam" in data["ambient_summary"] or "stale" in data["ambient_summary"].lower()

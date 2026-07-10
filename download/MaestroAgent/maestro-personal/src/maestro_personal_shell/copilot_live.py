@@ -117,13 +117,16 @@ def generate_post_call_summary(
 # ---------------------------------------------------------------------------
 
 
-def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
+async def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
     """Get ambient intelligence — what's happening between calls.
 
     Combines:
       - Calendar awareness: upcoming meetings, preparation status, urgency
-      - Sentiment patterns: detected frustration, positivity shifts
+      - Sentiment patterns: LLM-powered context analysis (or keyword fallback)
       - Commitment staleness: commitments approaching deadline with no action
+
+    When the LLM bridge is active, the ambient summary and sentiment
+    analysis use genuine LLM reasoning instead of keyword matching.
 
     This is the background intelligence that feeds Whisper between calls.
     """
@@ -134,6 +137,7 @@ def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
         "sentiment_alerts": [],
         "stale_commitments": [],
         "ambient_summary": "",
+        "llm_powered": False,
     }
 
     # 1. Calendar awareness — find upcoming meetings from signals
@@ -167,39 +171,22 @@ def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
     except Exception as e:
         logger.debug("Calendar awareness failed: %s", e)
 
-    # 2. Sentiment patterns — detect from signal text
-    try:
-        sentiment_alerts = []
-        for sig in shell.oem_state.signals:
-            text = str(getattr(sig, "text", "")).lower()
-            # Simple sentiment detection (the full SentimentPatternEngine
-            # requires audio samples; for text-based personal mode, we
-            # detect frustration/urgency from keywords)
-            frustration_keywords = ["frustrated", "angry", "disappointed", "unacceptable", "urgent", "asap", "immediately"]
-            positivity_keywords = ["great", "excellent", "thank you", "appreciate", "looking forward"]
+    # 2. Sentiment / context analysis
+    # LLM-powered path: when the LLM bridge is active, use it to analyze
+    # the signals for sentiment, urgency, and relationship dynamics.
+    # Fallback: keyword-based detection.
+    from maestro_personal_shell.llm_bridge import is_llm_available
+    llm_active = is_llm_available()
 
-            for kw in frustration_keywords:
-                if kw in text:
-                    sentiment_alerts.append({
-                        "entity": getattr(sig, "entity", ""),
-                        "type": "frustration",
-                        "keyword": kw,
-                        "text": getattr(sig, "text", "")[:100],
-                    })
-                    break
-            for kw in positivity_keywords:
-                if kw in text:
-                    sentiment_alerts.append({
-                        "entity": getattr(sig, "entity", ""),
-                        "type": "positivity",
-                        "keyword": kw,
-                        "text": getattr(sig, "text", "")[:100],
-                    })
-                    break
-
-        result["sentiment_alerts"] = sentiment_alerts[:3]
-    except Exception as e:
-        logger.debug("Sentiment detection failed: %s", e)
+    if llm_active:
+        try:
+            result["sentiment_alerts"] = await _llm_sentiment_analysis(shell)
+            result["llm_powered"] = True
+        except Exception as e:
+            logger.debug("LLM sentiment analysis failed: %s", e)
+            result["sentiment_alerts"] = _keyword_sentiment_analysis(shell)
+    else:
+        result["sentiment_alerts"] = _keyword_sentiment_analysis(shell)
 
     # 3. Stale commitments (already built in shell, reuse)
     try:
@@ -217,6 +204,125 @@ def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
         logger.debug("Stale commitment detection failed: %s", e)
 
     # 4. Ambient summary — the one-sentence "what's happening"
+    # LLM-powered path: generate a genuine ambient summary from all context.
+    if llm_active:
+        try:
+            llm_summary = await _llm_ambient_summary(shell, result)
+            if llm_summary:
+                result["ambient_summary"] = llm_summary
+            else:
+                result["ambient_summary"] = _keyword_ambient_summary(result)
+        except Exception as e:
+            logger.debug("LLM ambient summary failed: %s", e)
+            result["ambient_summary"] = _keyword_ambient_summary(result)
+    else:
+        result["ambient_summary"] = _keyword_ambient_summary(result)
+
+    return result
+
+
+def _keyword_sentiment_analysis(shell: Any) -> list[dict[str, Any]]:
+    """Keyword-based sentiment detection (fallback when no LLM)."""
+    sentiment_alerts = []
+    for sig in shell.oem_state.signals:
+        text = str(getattr(sig, "text", "")).lower()
+        frustration_keywords = ["frustrated", "angry", "disappointed", "unacceptable", "urgent", "asap", "immediately"]
+        positivity_keywords = ["great", "excellent", "thank you", "appreciate", "looking forward"]
+
+        for kw in frustration_keywords:
+            if kw in text:
+                sentiment_alerts.append({
+                    "entity": getattr(sig, "entity", ""),
+                    "type": "frustration",
+                    "keyword": kw,
+                    "text": getattr(sig, "text", "")[:100],
+                })
+                break
+        for kw in positivity_keywords:
+            if kw in text:
+                sentiment_alerts.append({
+                    "entity": getattr(sig, "entity", ""),
+                    "type": "positivity",
+                    "keyword": kw,
+                    "text": getattr(sig, "text", "")[:100],
+                })
+                break
+
+    return sentiment_alerts[:3]
+
+
+async def _llm_sentiment_analysis(shell: Any) -> list[dict[str, Any]]:
+    """LLM-powered sentiment and context analysis.
+
+    The LLM reads recent signals and identifies sentiment shifts,
+    frustration, urgency, and relationship dynamics — genuine
+    understanding, not keyword matching.
+    """
+    from maestro_personal_shell.llm_bridge import llm_complete
+
+    # Gather recent signals (last 20)
+    signals = list(shell.oem_state.signals)[:20]
+    if not signals:
+        return []
+
+    signals_text = ""
+    for s in signals:
+        entity = getattr(s, "entity", "unknown")
+        text = str(getattr(s, "text", ""))[:150]
+        signals_text += f"- [{entity}] {text}\n"
+
+    system_prompt = """You are Maestro's ambient intelligence engine. Analyze the recent signals and identify any sentiment shifts, frustration, urgency, or notable relationship dynamics.
+
+Output format (JSON array):
+[
+  {
+    "entity": "the person/entity name",
+    "type": "frustration" | "positivity" | "urgency" | "concern" | "opportunity",
+    "description": "What you observed and why it matters (1-2 sentences)",
+    "text": "The relevant signal text (truncated to 100 chars)"
+  }
+]
+
+Rules:
+1. Only include genuine sentiment shifts — don't invent alerts.
+2. If there are no notable sentiment patterns, return an empty array: []
+3. Maximum 3 alerts.
+4. Be specific — cite the actual signal text."""
+
+    user_prompt = f"""Recent signals:
+{signals_text}
+
+Identify any sentiment shifts or notable dynamics."""
+
+    result = await llm_complete(system_prompt, user_prompt, temperature=0.1, max_tokens=400)
+    if not result:
+        return []
+
+    import json
+    try:
+        start = result.find("[")
+        end = result.rfind("]") + 1
+        if start >= 0 and end > start:
+            alerts = json.loads(result[start:end])
+            # Validate and normalize
+            normalized = []
+            for a in alerts[:3]:
+                if isinstance(a, dict) and a.get("entity"):
+                    normalized.append({
+                        "entity": str(a.get("entity", "")),
+                        "type": str(a.get("type", "concern")),
+                        "description": str(a.get("description", ""))[:200],
+                        "text": str(a.get("text", ""))[:100],
+                    })
+            return normalized
+    except Exception:
+        pass
+
+    return []
+
+
+def _keyword_ambient_summary(result: dict[str, Any]) -> str:
+    """Keyword-based ambient summary (fallback when no LLM)."""
     parts = []
     if result["upcoming_meetings"]:
         m = result["upcoming_meetings"][0]
@@ -228,9 +334,44 @@ def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
         a = result["sentiment_alerts"][0]
         parts.append(f"{a['type']} detected from {a['entity']}")
 
-    result["ambient_summary"] = ". ".join(parts) + "." if parts else "Nothing urgent right now."
+    return ". ".join(parts) + "." if parts else "Nothing urgent right now."
 
-    return result
+
+async def _llm_ambient_summary(shell: Any, context: dict[str, Any]) -> str | None:
+    """LLM-powered ambient summary.
+
+    The LLM synthesizes all context (meetings, commitments, sentiment)
+    into a single, insightful one-sentence summary of what's happening.
+    """
+    from maestro_personal_shell.llm_bridge import llm_complete
+
+    # Build context for the LLM
+    context_parts = []
+    if context["upcoming_meetings"]:
+        m = context["upcoming_meetings"][0]
+        context_parts.append(f"Upcoming meeting with {m['entity']} in {m['hours_until']}h (urgency: {m['urgency']})")
+    if context["stale_commitments"]:
+        s = context["stale_commitments"][0]
+        context_parts.append(f"Stale commitment to {s['entity']} ({s['days_stale']} days old)")
+    if context["sentiment_alerts"]:
+        a = context["sentiment_alerts"][0]
+        desc = a.get("description", a.get("type", "sentiment shift"))
+        context_parts.append(f"Sentiment: {a['entity']} — {desc}")
+
+    if not context_parts:
+        return None
+
+    system_prompt = """You are Maestro's ambient intelligence. Synthesize the current context into a single, insightful sentence about what's happening right now. Be specific and actionable. One sentence only. No preamble."""
+
+    user_prompt = "Current context:\n" + "\n".join(f"- {p}" for p in context_parts) + "\n\nWhat's happening right now? One sentence."
+
+    result = await llm_complete(system_prompt, user_prompt, temperature=0.2, max_tokens=100)
+    if not result:
+        return None
+
+    # Clean up the response — take the first sentence
+    result = result.strip().strip('"').strip()
+    return result[:200] if result else None
 
 
 # ---------------------------------------------------------------------------

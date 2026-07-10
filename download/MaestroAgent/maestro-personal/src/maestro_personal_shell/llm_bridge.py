@@ -23,7 +23,13 @@ The LLM is called for:
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import os
+import shutil
+import subprocess
+import tempfile
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -33,15 +39,110 @@ _router = None
 _router_checked = False
 
 
+# ---------------------------------------------------------------------------
+# ZAI Router — in-house LLM provider (z-ai-web-dev-sdk CLI)
+# ---------------------------------------------------------------------------
+
+class ZAIResponse:
+    """Response object compatible with maestro_llm's response interface."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class ZAIRouter:
+    """LLM router backed by the z-ai CLI (z-ai-web-dev-sdk).
+
+    This makes real LLM intelligence available in any environment where
+    the z-ai CLI is installed — no external API keys required.
+
+    The CLI is invoked via subprocess; calls run in a thread pool to
+    avoid blocking the async event loop.
+    """
+
+    def __init__(self) -> None:
+        self.default_provider = "zai-glm"
+
+    async def complete(
+        self,
+        system: str,
+        user: str,
+        temperature: float = 0.2,
+        max_tokens: int = 500,
+    ) -> ZAIResponse:
+        return await asyncio.to_thread(
+            self._complete_sync, system, user, temperature, max_tokens
+        )
+
+    def _complete_sync(
+        self,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> ZAIResponse:
+        fd, output_path = tempfile.mkstemp(suffix=".json", prefix="zai_llm_")
+        os.close(fd)
+
+        try:
+            cmd = [
+                "z-ai", "chat",
+                "-p", user,
+                "-s", system,
+                "-o", output_path,
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"z-ai CLI exited {result.returncode}: {result.stderr[:300]}"
+                )
+
+            with open(output_path) as f:
+                data = json.load(f)
+
+            text = (
+                data.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+            )
+            if not text:
+                raise RuntimeError("z-ai CLI returned empty content")
+
+            return ZAIResponse(text=text)
+        finally:
+            try:
+                os.unlink(output_path)
+            except OSError:
+                pass
+
+    def health_check(self) -> bool:
+        """Quick health check — verify the z-ai CLI is installed.
+
+        We do NOT make an API call here because:
+        1. It would add latency to every server startup
+        2. Rate limits (429) would cause false negatives
+        3. The actual LLM calls handle their own failures gracefully
+
+        Instead, we verify the CLI binary exists. If it exists, we
+        assume it works — individual calls will fall back to rules
+        if the API is unavailable or rate limited.
+        """
+        return shutil.which("z-ai") is not None
+
+
 def get_llm_router() -> Any:
     """Get or initialize the LLM router.
 
-    Uses maestro_llm.LLMRouter.from_env_sync() which reads:
-    - OPENAI_API_KEY → OpenAI provider
-    - ANTHROPIC_API_KEY → Anthropic provider
-    - OPENROUTER_API_KEY → OpenRouter provider
-    - XAI_API_KEY → Grok provider
-    - OLLAMA_BASE_URL → local Ollama (default: http://localhost:11434)
+    Provider priority:
+    1. maestro_llm cloud providers (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
+    2. Local Ollama (http://localhost:11434)
+    3. z-ai CLI (z-ai-web-dev-sdk) — in-house, no API key needed
 
     Returns None if no provider is available.
     """
@@ -50,40 +151,79 @@ def get_llm_router() -> Any:
         return _router
     _router_checked = True
 
+    # 1. Try maestro_llm cloud providers
     try:
         import sys
         sys.path.insert(0, "backend")
         from maestro_llm.router import LLMRouter
 
-        # Check if any cloud provider is available
         if LLMRouter.has_env_provider():
             _router = LLMRouter.from_env_sync()
-            logger.info("LLM router initialized with cloud provider: %s", _router.default_provider)
+            logger.info(
+                "LLM router initialized with cloud provider: %s",
+                _router.default_provider,
+            )
             return _router
+    except Exception as e:
+        logger.debug("maestro_llm cloud init skipped: %s", e)
 
-        # Try local Ollama
+    # 2. Try local Ollama
+    try:
         import urllib.request
+        urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2)
         try:
-            urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2)
+            import sys
+            sys.path.insert(0, "backend")
+            from maestro_llm.router import LLMRouter
             _router = LLMRouter.with_defaults()
             logger.info("LLM router initialized with local Ollama")
             return _router
         except Exception:
             pass
+    except Exception:
+        pass
 
-        # No LLM available — return None (fallback to rule-based)
-        logger.info("No LLM provider available — using rule-based fallback")
-        _router = None
-        return None
+    # 3. Try z-ai CLI (in-house, no API key needed)
+    try:
+        zai = ZAIRouter()
+        if zai.health_check():
+            _router = zai
+            logger.info("LLM router initialized with z-ai CLI provider (GLM)")
+            return _router
     except Exception as e:
-        logger.debug("LLM router init failed: %s", e)
-        _router = None
-        return None
+        logger.debug("z-ai CLI init failed: %s", e)
+
+    # No LLM available — return None (fallback to rule-based)
+    logger.warning("No LLM provider available — using rule-based fallback")
+    _router = None
+    return None
 
 
 def is_llm_available() -> bool:
     """Check if an LLM provider is available."""
     return get_llm_router() is not None
+
+
+def get_llm_provider_name() -> str:
+    """Return the active LLM provider name for transparency.
+
+    Returns the provider name (e.g. 'openai', 'zai-glm', 'ollama') if
+    an LLM is active, or 'none' if running in rule-based fallback mode.
+
+    This is exposed in API responses so the user knows whether they
+    are getting LLM-powered intelligence or rule-based heuristics.
+    """
+    router = get_llm_router()
+    if not router:
+        return "none"
+    return str(getattr(router, "default_provider", "unknown"))
+
+
+def reset_llm_router() -> None:
+    """Reset the cached router (for testing)."""
+    global _router, _router_checked
+    _router = None
+    _router_checked = False
 
 
 async def llm_complete(
