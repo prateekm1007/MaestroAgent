@@ -692,6 +692,13 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
 
     save_signal_to_db(signal_data, user_email=token)
 
+    # Directive 5: Audit log
+    try:
+        from maestro_personal_shell.audit_trust import log_data_access
+        log_data_access(token, "write", "/api/signals", signal_id, {"entity": canonical_entity})
+    except Exception:
+        pass
+
     # Directive 2: Auto-register prediction when a commitment is created.
     # The learning loop is now automatic — no manual /api/predictions needed.
     # Also add to personal knowledge graph.
@@ -3391,6 +3398,56 @@ async def ingest_transcript(req: TranscriptIngestRequest, token: str = Depends(v
         "requests_detected": len(result.get("requests", [])),
         "summary": result.get("summary", ""),
     }
+
+
+# ---------------------------------------------------------------------------
+# DIRECTIVE 5: Security, Trust & Defensibility
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/calibration/history")
+async def get_calibration_history_endpoint(
+    limit: int = 30,
+    token: str = Depends(verify_token),
+):
+    """Get calibration history — Brier score trends over time.
+
+    Directive 5: users can see how Maestro's accuracy has improved.
+    Shows snapshots of Brier scores, hit/miss counts, and confidence
+    calibration over time.
+    """
+    from maestro_personal_shell.audit_trust import get_calibration_history, log_data_access
+    log_data_access(token, "read", "/api/calibration/history")
+    return {"history": get_calibration_history(user_email=token, limit=limit)}
+
+
+@app.get("/api/privacy/mode")
+async def get_privacy_mode(token: str = Depends(verify_token)):
+    """Get the current processing mode for privacy transparency.
+
+    Directive 5: every user can see exactly where their data goes.
+    Returns whether processing is local (rules), local (LLM via Ollama),
+    or cloud (LLM via API provider).
+    """
+    from maestro_personal_shell.audit_trust import get_processing_mode, log_data_access
+    log_data_access(token, "read", "/api/privacy/mode")
+    return get_processing_mode()
+
+
+@app.get("/api/audit-log")
+async def get_audit_log_endpoint(
+    limit: int = 50,
+    action: str | None = None,
+    token: str = Depends(verify_token),
+):
+    """Get the audit log — every data access event.
+
+    Directive 5: users can review every time their data was read,
+    written, or deleted. Promotes trust through transparency.
+    """
+    from maestro_personal_shell.audit_trust import get_audit_log, log_data_access
+    log_data_access(token, "read", "/api/audit-log")
+    return {"events": get_audit_log(user_email=token, limit=limit, action=action)}
 
 
 # ---------------------------------------------------------------------------
