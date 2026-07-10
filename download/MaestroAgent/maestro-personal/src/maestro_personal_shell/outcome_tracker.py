@@ -196,11 +196,12 @@ def get_calibration_report(
 
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
+    # P0-4 fix: query ALL prediction types (not just 'recommendation')
+    # so auto-registered 'commitment_completion' predictions are included
     rows = conn.execute(
         """SELECT predicted_confidence, actual_outcome
            FROM predictions
-           WHERE prediction_type = ? AND resolved_at IS NOT NULL""",
-        (prediction_type,),
+           WHERE resolved_at IS NOT NULL""",
     ).fetchall()
     conn.close()
 
