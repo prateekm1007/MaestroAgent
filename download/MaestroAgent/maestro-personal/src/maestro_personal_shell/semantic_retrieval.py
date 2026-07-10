@@ -19,6 +19,7 @@ Benefits:
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import logging
 import os
@@ -27,6 +28,68 @@ from typing import Any
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Stopwords removed before passing a natural-language query to FTS5 MATCH.
+# Without this, a query like "What did Maria review?" is sent verbatim to
+# FTS5, which (a) raises a syntax error on the "?" and (b) would implicit-AND
+# all tokens so common words like "What" / "did" force a zero-row result.
+# This is the root cause the auditor's S4 probe surfaced: the ranker was
+# wired into /api/ask but never fired because FTS retrieval returned empty
+# for every natural-language question.
+_FTS_STOPWORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "do", "does", "did", "doing", "done", "have", "has", "had",
+    "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
+    "my", "your", "his", "its", "our", "their",
+    "this", "that", "these", "those", "there", "here",
+    "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
+    "will", "would", "shall", "should", "can", "could", "may", "might", "must",
+    "of", "in", "on", "at", "to", "for", "with", "from", "by", "about",
+    "and", "or", "but", "not", "if", "then", "else", "so", "than", "as",
+    "up", "out", "into", "over", "under", "again", "once",
+})
+
+# Characters that are meaningful to FTS5 query syntax and must be stripped
+# before passing user input to MATCH. Leaving any of these in lets a raw
+# natural-language question ("What did Maria review?") raise
+# `fts5: syntax error near "?"`, which the except block swallows as 0 rows.
+_FTS_SPECIAL_CHARS = re.compile(r'["\*\(\)\:\^\-\?\!\.,;:!?]')
+
+
+def _build_fts_query(query: str) -> str:
+    """Sanitize a natural-language query into a safe FTS5 MATCH expression.
+
+    FTS5 MATCH treats whitespace-separated tokens as an implicit AND and
+    treats several punctuation characters as query operators. A raw
+    question like ``"What did Maria review?"`` therefore either raises a
+    syntax error (the ``?``) or returns zero rows (``What`` AND ``did``
+    never co-occur in any signal). This function:
+
+    1. Strips FTS5 operator characters.
+    2. Lowercases and splits on whitespace.
+    3. Drops stopwords so the remaining terms are content-bearing.
+    4. Joins the survivors with ``OR`` so a single matching term is
+       enough to surface a candidate (the ask_ranker reranker then
+       applies the strict entity/topic/noise scoring).
+
+    Returns an empty string when no significant terms remain — callers
+    should treat that as "no FTS query possible" and fall through to the
+    LIKE fallback rather than passing an empty MATCH string (which FTS5
+    rejects with a syntax error).
+    """
+    if not query:
+        return ""
+    cleaned = _FTS_SPECIAL_CHARS.sub(" ", query)
+    tokens = [t.lower() for t in cleaned.split() if t]
+    significant = [t for t in tokens if t not in _FTS_STOPWORDS and len(t) > 1]
+    # Deduplicate while preserving order.
+    seen: set[str] = set()
+    unique: list[str] = []
+    for t in significant:
+        if t not in seen:
+            seen.add(t)
+            unique.append(t)
+    return " OR ".join(unique)
 
 
 def _get_db_path() -> str:
@@ -164,6 +227,16 @@ def semantic_search(
     """
     path = db_path or _get_db_path()
     init_fts_index(path)
+
+    # Sanitize the natural-language query into a safe FTS5 MATCH expression.
+    # Without this, raw questions like "What did Maria review?" raise
+    # `fts5: syntax error near "?"` (caught below as 0 rows), which silently
+    # starves the ask_ranker of candidates so it never fires.
+    fts_query = _build_fts_query(query)
+    if not fts_query:
+        # No content-bearing tokens — let the caller's LIKE fallback handle it.
+        return []
+
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     try:
@@ -179,7 +252,7 @@ def semantic_search(
                 ORDER BY relevance_score
                 LIMIT ?
                 """,
-                (query, user_email, limit),
+                (fts_query, user_email, limit),
             ).fetchall()
         else:
             fts_rows = conn.execute(
@@ -190,7 +263,7 @@ def semantic_search(
                 ORDER BY relevance_score
                 LIMIT ?
                 """,
-                (query, limit),
+                (fts_query, limit),
             ).fetchall()
 
         if not fts_rows:
@@ -301,28 +374,44 @@ def get_relevant_signals(
     if results:
         return results
 
-    # Fallback: entity-prefix matching (when FTS5 unavailable)
+    # Fallback: entity/text substring matching (when FTS5 unavailable or
+    # returned nothing). The previous implementation passed the FULL query
+    # string as a single LIKE pattern, which only matched signals that
+    # literally contained the entire question — effectively never. Split
+    # into significant terms and match on ANY of them, mirroring the OR
+    # semantics the FTS path now uses.
     path = db_path or _get_db_path()
+    fts_query = _build_fts_query(query_or_entity)
+    terms = [t for t in fts_query.split(" OR ") if t] if fts_query else []
+    if not terms:
+        # No content-bearing terms at all — nothing to match.
+        return []
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     try:
-        entity_lower = query_or_entity.lower()
+        # Build a WHERE clause that ORs each significant term across both
+        # entity and text columns. Each term is parameterized to avoid
+        # SQL injection.
+        or_clauses: list[str] = []
+        params: list[Any] = []
+        for term in terms:
+            pat = f"%{term}%"
+            or_clauses.append("LOWER(entity) LIKE ? OR LOWER(text) LIKE ?")
+            params.extend([pat, pat])
+        where_clause = " OR ".join(f"({c})" for c in or_clauses)
         if user_email:
-            rows = conn.execute(
-                """SELECT * FROM signals
-                   WHERE user_email = ? AND (
-                       LOWER(entity) LIKE ? OR LOWER(text) LIKE ?
-                   )
-                   ORDER BY timestamp DESC LIMIT ?""",
-                (user_email, f"%{entity_lower}%", f"%{entity_lower}%", limit),
-            ).fetchall()
+            sql = (
+                f"SELECT * FROM signals WHERE user_email = ? AND ({where_clause}) "
+                f"ORDER BY timestamp DESC LIMIT ?"
+            )
+            params = [user_email] + params + [limit]
         else:
-            rows = conn.execute(
-                """SELECT * FROM signals
-                   WHERE LOWER(entity) LIKE ? OR LOWER(text) LIKE ?
-                   ORDER BY timestamp DESC LIMIT ?""",
-                (f"%{entity_lower}%", f"%{entity_lower}%", limit),
-            ).fetchall()
+            sql = (
+                f"SELECT * FROM signals WHERE {where_clause} "
+                f"ORDER BY timestamp DESC LIMIT ?"
+            )
+            params = params + [limit]
+        rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
