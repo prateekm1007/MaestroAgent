@@ -354,18 +354,35 @@ def get_calibration_context_for_llm(db_path: str | None = None) -> str:
     avg_confidence = sum(c for c, _ in resolved) / len(resolved) if resolved else 0
     actual_rate = hits / len(resolved) if resolved else 0
 
+    # Longitudinal evolution: weight recent outcomes more heavily.
+    # The auditor found "modest, not transformative" evolution. Root cause:
+    # all historical outcomes were weighted equally, so Day 1 outcomes
+    # diluted Day 30 signals. Fix: compute a RECENT accuracy rate (last 5)
+    # alongside the overall rate, and weight the guidance toward recent.
+    recent_n = min(5, len(resolved))
+    recent = resolved[:recent_n]
+    recent_hits = sum(1 for _, a in recent if a == 1.0)
+    recent_rate = recent_hits / recent_n if recent_n > 0 else 0
+    recent_avg_conf = sum(c for c, _ in recent) / recent_n if recent_n > 0 else 0
+
+    # Use the RECENT rate for guidance (more responsive to change)
+    guidance_confidence = recent_avg_conf if recent_n >= 3 else avg_confidence
+    guidance_rate = recent_rate if recent_n >= 3 else actual_rate
+
     if brier is not None:
-        if avg_confidence > actual_rate + 0.15:
+        if guidance_confidence > guidance_rate + 0.15:
             calibration_guidance = (
-                f"OVERCONFIDENT: Your average predicted confidence was {avg_confidence:.0%} "
-                f"but only {actual_rate:.0%} of predictions were correct. "
-                f"LOWER your confidence on similar predictions."
+                f"RECENTLY OVERCONFIDENT: Your last {recent_n} predictions averaged "
+                f"{guidance_confidence:.0%} confidence but only {guidance_rate:.0%} were correct. "
+                f"LOWER your confidence on similar predictions. "
+                f"(Overall: {avg_confidence:.0%} conf, {actual_rate:.0%} accuracy)"
             )
-        elif avg_confidence < actual_rate - 0.15:
+        elif guidance_confidence < guidance_rate - 0.15:
             calibration_guidance = (
-                f"UNDERCONFIDENT: Your average predicted confidence was {avg_confidence:.0%} "
-                f"but {actual_rate:.0%} of predictions were correct. "
-                f"You can be MORE confident on similar predictions."
+                f"RECENTLY UNDERCONFIDENT: Your last {recent_n} predictions averaged "
+                f"{guidance_confidence:.0%} confidence but {guidance_rate:.0%} were correct. "
+                f"You can be MORE confident on similar predictions. "
+                f"(Overall: {avg_confidence:.0%} conf, {actual_rate:.0%} accuracy)"
             )
         else:
             calibration_guidance = (
