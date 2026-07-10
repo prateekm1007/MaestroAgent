@@ -156,7 +156,12 @@ def get_llm_router() -> Any:
     # 1. Try maestro_llm cloud providers
     try:
         import sys
-        sys.path.insert(0, "backend")
+        import pathlib
+        # The backend directory is a sibling of the maestro-personal package.
+        # Resolve it relative to THIS file so it works regardless of CWD.
+        _backend_dir = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+        if _backend_dir not in sys.path:
+            sys.path.insert(0, _backend_dir)
         from maestro_llm.router import LLMRouter
 
         if LLMRouter.has_env_provider():
@@ -175,7 +180,10 @@ def get_llm_router() -> Any:
         urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2)
         try:
             import sys
-            sys.path.insert(0, "backend")
+            import pathlib
+            _backend_dir = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+            if _backend_dir not in sys.path:
+                sys.path.insert(0, _backend_dir)
             from maestro_llm.router import LLMRouter
             _router = LLMRouter.with_defaults()
             logger.info("LLM router initialized with local Ollama")

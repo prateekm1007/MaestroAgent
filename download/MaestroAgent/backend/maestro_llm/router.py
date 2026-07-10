@@ -121,7 +121,15 @@ class LLMRouter:
             "grok" if "grok" in providers else
             "ollama"
         )
-        return cls(providers=providers, ledger=ledger, default_provider=default_provider)
+        router = cls(providers=providers, ledger=ledger, default_provider=default_provider)
+        # Allow overriding the OpenRouter model via env var. The default
+        # "openrouter/auto" routes to whatever OpenRouter picks, which may
+        # be expensive. Setting OPENROUTER_MODEL to a specific low-cost model
+        # (e.g. "openai/gpt-oss-120b" at $0.216/M tokens) keeps costs predictable.
+        openrouter_model = os.environ.get("OPENROUTER_MODEL")
+        if openrouter_model and "openrouter" in providers:
+            router.default_models["openrouter"] = openrouter_model
+        return router
 
     @classmethod
     def has_env_provider(cls) -> bool:
