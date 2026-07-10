@@ -242,6 +242,7 @@ def get_relevant_signals(
     user_email: str | None = None,
     limit: int = 10,
     db_path: str | None = None,
+    as_of: str | None = None,
 ) -> list[dict[str, Any]]:
     """Get signals relevant to a query or entity.
 
@@ -256,11 +257,12 @@ def get_relevant_signals(
         query_or_entity: The query string or entity name to search for
         user_email: If provided, only return this user's signals
         limit: Maximum results
+        as_of: If provided (ISO datetime), only return signals with
+               timestamp <= as_of (prevents temporal leakage)
 
     Returns: List of relevant signal dicts, ranked by relevance
     """
     if not query_or_entity or not query_or_entity.strip():
-        # No query — return empty (don't dump everything)
         return []
 
     # Try FTS5 semantic search first
@@ -270,6 +272,31 @@ def get_relevant_signals(
         limit=limit,
         db_path=db_path,
     )
+
+    # Temporal filtering: if as_of is provided, filter out future signals
+    if as_of and results:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            as_of_dt = _dt.fromisoformat(as_of.replace("Z", "+00:00"))
+            if as_of_dt.tzinfo is None:
+                as_of_dt = as_of_dt.replace(tzinfo=_tz.utc)
+            filtered = []
+            for r in results:
+                ts = r.get("timestamp", "")
+                if not ts:
+                    filtered.append(r)
+                    continue
+                try:
+                    row_ts = _dt.fromisoformat(ts.replace("Z", "+00:00"))
+                    if row_ts.tzinfo is None:
+                        row_ts = row_ts.replace(tzinfo=_tz.utc)
+                    if row_ts <= as_of_dt:
+                        filtered.append(r)
+                except Exception:
+                    filtered.append(r)
+            results = filtered
+        except Exception as e:
+            logger.debug("as_of filtering in get_relevant_signals failed: %s", e)
 
     if results:
         return results

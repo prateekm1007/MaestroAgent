@@ -529,6 +529,8 @@ _INJECTION_PATTERNS = [
     r"(?i)transfer\s+(money|funds|payment)\s+to\s+\w+\s+account",
     r"(?i)tell\s+the\s+user\s+to\s+(transfer|send|pay|wire)",
     r"(?i)reveal\s+all\s+(data|secrets|credentials|passwords|tokens)",
+    r"(?i)expose\s+all\s+(emails|data|messages|conversations|credentials)",
+    r"(?i)money\s+to\s+\w+\s+account",
     r"(?i)admin\s+mode",
 ]
 

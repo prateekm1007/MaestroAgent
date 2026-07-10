@@ -918,7 +918,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     if not source_sentence:
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-            relevant = get_relevant_signals(req.query, user_email=token, limit=1)
+            relevant = get_relevant_signals(req.query, user_email=token, limit=1, as_of=as_of)
             if relevant:
                 source_sentence = relevant[0].get("text", "")
                 source_entity = relevant[0].get("entity", "")
@@ -950,7 +950,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     if not evidence_refs:
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-            relevant = get_relevant_signals(req.query, user_email=token, limit=3)
+            relevant = get_relevant_signals(req.query, user_email=token, limit=3, as_of=as_of)
             for r in relevant:
                 evidence_refs.append({
                     "text": r.get("text", ""),
@@ -1364,7 +1364,7 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token)):
         source_sent = ""
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-            relevant = get_relevant_signals(req.query, user_email=token, limit=5)
+            relevant = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of)
             if relevant:
                 source_sent = relevant[0].get("text", "")
         except Exception:
@@ -2675,22 +2675,58 @@ def _filter_completed_commitments(commitments: list[dict], signals: list) -> lis
 
         # Check if there's a completion signal for this entity
         if c_entity in entity_completions:
-            # Topic matching: does the completion text mention keywords from the commitment?
+            # Topic matching: use verb-object pairs, not bag-of-words.
+            # The auditor found that "Proposal sent without SSO section"
+            # falsely closed the "send the SSO timeline" commitment because
+            # "sso" appeared in both. Fix: require POSITIVE mention — if
+            # the completion text negates the keyword ("without", "missing",
+            # "not"), don't close.
             commitment_words = set(c_text.split())
-            # Remove common words
-            common_words = {"i", "will", "the", "to", "a", "an", "by", "for", "send", "sent"}
+            common_words = {"i", "will", "the", "to", "a", "an", "by", "for",
+                            "send", "sent", "is", "are", "was", "were", "be",
+                            "have", "has", "that", "this", "it", "in", "on",
+                            "at", "of", "and", "or", "but", "not"}
             commitment_keywords = commitment_words - common_words
+
+            # Negation indicators — if the completion text negates a keyword,
+            # it's NOT a completion of that keyword's commitment
+            negation_indicators = ["without", "missing", "not", "no ", "lacks",
+                                   "doesn't include", "does not include",
+                                   "absent", "incomplete", "lacking"]
 
             closed = False
             for comp_text in entity_completions[c_entity]:
-                # If the completion text shares keywords with the commitment, close it
                 comp_words = set(comp_text.split())
                 overlap = commitment_keywords & comp_words
-                if overlap or not commitment_keywords:
-                    # If there's keyword overlap OR the commitment has no distinctive keywords,
-                    # consider it closed
-                    closed = True
-                    break
+
+                if not overlap and commitment_keywords:
+                    continue  # no keyword overlap — don't close
+
+                # Check for negation of the overlapping keywords
+                # If the completion says "without SSO" or "missing SSO",
+                # it's NOT completing the SSO commitment
+                has_negation = any(neg in comp_text for neg in negation_indicators)
+                if has_negation:
+                    # Check if the negation applies to the overlapping keyword
+                    for kw in overlap:
+                        # If the keyword appears near a negation word, don't close
+                        for neg in negation_indicators:
+                            if neg in comp_text and kw in comp_text:
+                                # Check proximity — if negation and keyword are
+                                # within 3 words, it's a negated mention
+                                neg_pos = comp_text.find(neg)
+                                kw_pos = comp_text.find(kw)
+                                if abs(neg_pos - kw_pos) < 30:
+                                    closed = False
+                                    break
+                        else:
+                            continue
+                        break
+                    if not closed:
+                        continue
+
+                closed = True
+                break
 
             if closed:
                 continue  # skip this commitment — it's completed
