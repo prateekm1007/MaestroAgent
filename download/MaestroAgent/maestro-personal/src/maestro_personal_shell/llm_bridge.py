@@ -523,9 +523,13 @@ _INJECTION_PATTERNS = [
     r"(?i)you\s+are\s+(no\s+longer|not)\s+Maestro",
     r"(?i)stop\s+being\s+Maestro",
     r"(?i)simulate\s+(a|an)\s+(different|unrestricted|jailbroken|DAN)",
-    r"(?i)enter\s+(developer|jailbreak|unrestricted|god)\s+mode",
+    r"(?i)enter\s+(developer|jailbreak|unrestricted|god|admin)\s+mode",
     r"(?i)you\s+are\s+(DAN|dan|free|unrestricted|unfiltered|uncensored)",
     r"(?i)you\s+are\s+now\s+(DAN|dan|free|unrestricted|unfiltered|uncensored|a\s+different|another)",
+    r"(?i)transfer\s+(money|funds|payment)\s+to\s+\w+\s+account",
+    r"(?i)tell\s+the\s+user\s+to\s+(transfer|send|pay|wire)",
+    r"(?i)reveal\s+all\s+(data|secrets|credentials|passwords|tokens)",
+    r"(?i)admin\s+mode",
 ]
 
 import re as _re
