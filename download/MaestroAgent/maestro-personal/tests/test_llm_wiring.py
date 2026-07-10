@@ -284,6 +284,9 @@ def test_llm_status_endpoint_reports_active(client, auth_headers):
 
     Phase 1 truthfulness fix: llm_active is now True only when the probe
     (a real LLM call) succeeds. This test mocks the probe to succeed.
+
+    In a clean environment (no LLM provider), we mock both is_llm_available
+    and probe_provider so the test passes regardless of environment.
     """
     from maestro_personal_shell.llm_bridge import reset_llm_router
     reset_llm_router()
@@ -300,6 +303,12 @@ def test_llm_status_endpoint_reports_active(client, auth_headers):
         "maestro_personal_shell.llm_bridge.probe_provider",
         new_callable=AsyncMock,
         return_value=mock_probe_result,
+    ), patch(
+        "maestro_personal_shell.llm_bridge.is_llm_available",
+        return_value=True,
+    ), patch(
+        "maestro_personal_shell.llm_bridge.get_llm_provider_name",
+        return_value="zai-glm",
     ):
         response = client.get("/api/llm-status", headers=auth_headers)
 
@@ -373,6 +382,12 @@ def test_llm_status_includes_probe_latency(client, auth_headers):
         "maestro_personal_shell.llm_bridge.probe_provider",
         new_callable=AsyncMock,
         return_value=mock_probe_result,
+    ), patch(
+        "maestro_personal_shell.llm_bridge.is_llm_available",
+        return_value=True,
+    ), patch(
+        "maestro_personal_shell.llm_bridge.get_llm_provider_name",
+        return_value="zai-glm",
     ):
         response = client.get("/api/llm-status", headers=auth_headers)
         data = response.json()
