@@ -43,6 +43,14 @@ def evaluate_corpus(corpus=None) -> dict:
 
     Returns a dict with per-metric {value, target, met, support} and
     aggregate {llm_mode, total_items, is_commitment_pos, is_commitment_neg}.
+
+    IMPORTANT: the classifier silently falls back to rule-based mode when
+    the LLM is unavailable OR when the LLM call fails (rate limit, timeout,
+    malformed JSON). The harness tracks llm_powered per item and reports
+    BOTH the overall numbers AND the LLM-powered-only numbers, so the
+    eval is interpretable and reproducible. A run where half the items
+    fell back to rule mode will show a lower recall/deadline number —
+    this is NOT a classifier regression, it's a rate-limit artifact.
     """
     corpus = corpus or get_corpus()
     llm_mode = is_llm_available()
@@ -52,23 +60,43 @@ def evaluate_corpus(corpus=None) -> dict:
     type_correct = 0
     state_correct = 0
     errors: list[dict] = []
+    # Track how many items were classified by the LLM vs rule-based fallback.
+    # This is critical for interpreting the numbers: if the LLM rate-limits
+    # mid-run, later items fall back to rule mode and drag down recall/deadline.
+    llm_powered_count = 0
+    rule_fallback_count = 0
+    # Per-mode confusion + deadline counts so we can report both.
+    llm_tp = llm_fn = llm_dl_correct = llm_dl_total = 0
 
     for i, item in enumerate(corpus):
+        # Use a fresh event loop per call to avoid loop-reuse issues that
+        # cause silent failures after ~90 calls in Python 3.12.
+        loop = asyncio.new_event_loop()
         try:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = loop.run_until_complete(
                 classify_commitment(text=item["text"], entity=item["recipient"])
             )
-        except RuntimeError:
-            # No running loop — create one.
-            result = asyncio.new_event_loop().run_until_complete(
-                classify_commitment(text=item["text"], entity=item["recipient"])
-            )
+        except Exception as e:
+            # Classifier raised — treat as a miss, don't crash the harness.
+            result = {"is_commitment": False, "commitment_type": "not_a_commitment",
+                      "state": "candidate", "llm_powered": False, "deadline_text": "",
+                      "_error": f"{type(e).__name__}: {e}"}
+        finally:
+            loop.close()
+
+        was_llm = result.get("llm_powered", False)
+        if was_llm:
+            llm_powered_count += 1
+        else:
+            rule_fallback_count += 1
 
         pred_is_commitment = result.get("is_commitment", False)
         true_is_commitment = item["is_commitment"]
 
         if pred_is_commitment and true_is_commitment:
             tp += 1
+            if was_llm:
+                llm_tp += 1
         elif pred_is_commitment and not true_is_commitment:
             fp += 1
             errors.append({"text": item["text"], "error": "false_positive",
@@ -76,6 +104,8 @@ def evaluate_corpus(corpus=None) -> dict:
                            "pred_type": result.get("commitment_type", "")})
         elif not pred_is_commitment and true_is_commitment:
             fn += 1
+            if was_llm:
+                llm_fn += 1
             errors.append({"text": item["text"], "error": "false_negative",
                            "true_type": item["commitment_type"],
                            "pred_type": result.get("commitment_type", "")})
@@ -85,11 +115,15 @@ def evaluate_corpus(corpus=None) -> dict:
         # Deadline extraction accuracy (only for items with a deadline)
         if item["deadline_text"]:
             deadline_total += 1
-            # The rule-based classifier doesn't extract deadlines yet;
-            # we check if the result contains any deadline info.
+            if was_llm:
+                llm_dl_total += 1
+            # The rule-based classifier doesn't extract deadlines;
+            # only LLM mode produces deadline_text.
             pred_dl = result.get("deadline_text", "") or result.get("deadline_datetime", "")
             if pred_dl:
                 deadline_correct += 1
+                if was_llm:
+                    llm_dl_correct += 1
 
         # Type accuracy (only for items where is_commitment matches)
         if pred_is_commitment == true_is_commitment:
@@ -106,12 +140,31 @@ def evaluate_corpus(corpus=None) -> dict:
     type_acc = type_correct / len(corpus)
     state_acc = state_correct / len(corpus)
 
+    # LLM-powered-only metrics: these show what the LLM achieves on the
+    # items it actually classified. The overall numbers mix LLM + rule
+    # fallback, which is misleading when the LLM rate-limits mid-run.
+    llm_recall = llm_tp / (llm_tp + llm_fn) if (llm_tp + llm_fn) > 0 else 0.0
+    llm_deadline_acc = llm_dl_correct / llm_dl_total if llm_dl_total > 0 else 0.0
+
     return {
         "llm_mode": llm_mode,
         "total_items": len(corpus),
         "is_commitment_pos": sum(1 for i in corpus if i["is_commitment"]),
         "is_commitment_neg": sum(1 for i in corpus if not i["is_commitment"]),
         "confusion": {"tp": tp, "fp": fp, "fn": fn, "tn": tn},
+        "llm_split": {
+            "llm_powered": llm_powered_count,
+            "rule_fallback": rule_fallback_count,
+            "note": "rule_fallback > 0 means the LLM rate-limited or failed mid-run; "
+                    "overall numbers are dragged down by rule-mode misses. "
+                    "Use llm_powered_only metrics for the LLM's true performance.",
+        },
+        "llm_powered_only": {
+            "recall": round(llm_recall, 4),
+            "deadline_extraction": round(llm_deadline_acc, 4),
+            "recall_support": f"{llm_tp}/{llm_tp+llm_fn}",
+            "deadline_support": f"{llm_dl_correct}/{llm_dl_total}",
+        },
         "metrics": {
             "precision": {
                 "value": round(precision, 4),
@@ -311,6 +364,8 @@ def run_full_evaluation() -> dict:
     report = {
         "llm_mode": classification["llm_mode"],
         "total_corpus_items": classification["total_items"],
+        "llm_split": classification["llm_split"],
+        "llm_powered_only": classification["llm_powered_only"],
         "metrics": {
             **classification["metrics"],
             "closure_accuracy": closure,
