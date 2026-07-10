@@ -400,13 +400,28 @@ class TestV3APIEndpoints:
         response = client.get("/api/signals", headers=auth_headers)
         assert len(response.json()) >= 1
 
-        # Delete account
+        # Delete account (this invalidates the token)
         response = client.delete("/api/account", headers=auth_headers)
         assert response.status_code == 200
 
-        # Verify signals are gone
-        response = client.get("/api/signals", headers=auth_headers)
-        assert response.json() == []
+        # Re-login with the same password to get a new token
+        # (the user_tokens were deleted, so we need a fresh login)
+        import os as _os
+        login_resp = client.post("/api/auth/login", json={
+            "password": _os.environ.get("MAESTRO_PERSONAL_TOKEN", "test"),
+        })
+        if login_resp.status_code == 200:
+            new_headers = {"Authorization": f"Bearer {login_resp.json()['token']}"}
+            response = client.get("/api/signals", headers=new_headers)
+            assert response.json() == []
+        else:
+            # If re-login fails (token was the env token and it was deleted),
+            # verify via direct DB check
+            import sqlite3
+            conn = sqlite3.connect(os.environ["MAESTRO_PERSONAL_DB"])
+            count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+            conn.close()
+            assert count == 0, f"Signals should be deleted, found {count}"
 
     def test_export_data(self, client, auth_headers):
         """GET /api/account/export returns all user data."""
