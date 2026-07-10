@@ -2636,6 +2636,52 @@ async def get_the_moment(token: str = Depends(verify_token)):
     if not best_commitment:
         return TheMomentResponse(has_moment=False)
 
+    # Phase 3.1: LLM-powered Trusted Silence (Materiality Gate)
+    # Instead of always surfacing the top-scored commitment, ask the LLM
+    # whether this genuinely deserves the user's attention right now.
+    # If the LLM says "no" (low materiality), Maestro stays silent.
+    # Falls back to rule-based when no LLM is available.
+    try:
+        from maestro_personal_shell.materiality_gate import evaluate_materiality
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+
+        # Build context for the materiality gate
+        mat_context = {
+            "days_stale": 0,
+            "has_deadline": bool(best_commitment.get("metadata", {}).get("deadline")),
+            "deadline": best_commitment.get("metadata", {}).get("deadline", ""),
+            "age_days": 0,
+        }
+        if best_commitment.get("signal_id") in stale_ids:
+            for s in stale:
+                sid = getattr(s.get("commitment", {}), "signal_id", "") or s.get("commitment", {}).get("signal_id", "")
+                if sid == best_commitment.get("signal_id"):
+                    mat_context["days_stale"] = s.get("days_stale", 0)
+                    break
+        ts = best_commitment.get("timestamp")
+        if ts:
+            try:
+                ct = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                mat_context["age_days"] = (now - ct).days
+            except Exception:
+                pass
+
+        materiality = await evaluate_materiality(best_commitment, mat_context)
+
+        # Trusted Silence: if the materiality gate says "don't speak", stay silent
+        if not materiality.get("should_speak", True):
+            return TheMomentResponse(
+                has_moment=False,
+                why_this_one=f"Trusted silence: {materiality.get('reasoning', 'low materiality')}",
+            )
+
+        # If the LLM spoke, use its reasoning as why_this_one
+        if materiality.get("llm_powered"):
+            best_why = materiality.get("reasoning", best_why)
+    except Exception as e:
+        logger.debug("Materiality gate failed, using rule-based: %s", e)
+
     # Find the situation this commitment belongs to (if any)
     situations = shell.detect_situations()
     related_situation = None
