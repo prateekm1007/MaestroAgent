@@ -38,7 +38,12 @@ def _get_db_path() -> str:
 
 
 def init_push_db(db_path: str | None = None) -> None:
-    """Initialize push-related tables in the SQLite DB."""
+    """Initialize push-related tables in the SQLite DB.
+
+    P0 fix (independent audit S1): add user_email to devices and push_log
+    for owner scoping. Without this, Alice's whispers are sent to Bob's
+    device because get_registered_devices() returns ALL devices.
+    """
     path = db_path or _get_db_path()
     conn = sqlite3.connect(path)
     conn.execute("""
@@ -48,9 +53,16 @@ def init_push_db(db_path: str | None = None) -> None:
             platform TEXT,
             user_timezone TEXT DEFAULT 'UTC',
             registered_at TEXT NOT NULL,
-            last_seen TEXT
+            last_seen TEXT,
+            user_email TEXT NOT NULL DEFAULT 'bootstrap'
         )
     """)
+    # Migration: add user_email to existing devices table
+    try:
+        conn.execute("SELECT user_email FROM devices LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE devices ADD COLUMN user_email TEXT NOT NULL DEFAULT 'bootstrap'")
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS push_log (
             log_id TEXT PRIMARY KEY,
@@ -60,9 +72,16 @@ def init_push_db(db_path: str | None = None) -> None:
             body TEXT,
             sent_at TEXT NOT NULL,
             suppressed INTEGER DEFAULT 0,
-            suppress_reason TEXT
+            suppress_reason TEXT,
+            user_email TEXT NOT NULL DEFAULT 'bootstrap'
         )
     """)
+    # Migration: add user_email to existing push_log table
+    try:
+        conn.execute("SELECT user_email FROM push_log LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE push_log ADD COLUMN user_email TEXT NOT NULL DEFAULT 'bootstrap'")
+
     conn.commit()
     conn.close()
 
@@ -72,18 +91,23 @@ def register_device(
     platform: str = "ios",
     user_timezone: str = "UTC",
     db_path: str | None = None,
+    user_email: str = "bootstrap",
 ) -> str:
     """Register a device for push notifications.
 
-    Called by POST /api/devices/register. Returns the device_id.
+    P0 fix (independent audit S1): accept and store user_email so devices
+    are scoped to their owner. Without this, Alice's whispers go to Bob's
+    device.
     """
     path = db_path or _get_db_path()
+    init_push_db(path)  # ensure table exists with user_email column
     device_id = str(uuid4())
     now = datetime.now(timezone.utc).isoformat()
     conn = sqlite3.connect(path)
-    # Upsert: if push_token exists, update; else insert
+    # Upsert: if push_token exists for this user, update; else insert
     existing = conn.execute(
-        "SELECT device_id FROM devices WHERE push_token = ?", (push_token,)
+        "SELECT device_id FROM devices WHERE push_token = ? AND user_email = ?",
+        (push_token, user_email),
     ).fetchone()
     if existing:
         device_id = existing[0]
@@ -93,21 +117,31 @@ def register_device(
         )
     else:
         conn.execute(
-            """INSERT INTO devices (device_id, push_token, platform, user_timezone, registered_at, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (device_id, push_token, platform, user_timezone, now, now),
+            """INSERT INTO devices (device_id, push_token, platform, user_timezone, registered_at, last_seen, user_email)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (device_id, push_token, platform, user_timezone, now, now, user_email),
         )
     conn.commit()
     conn.close()
     return device_id
 
 
-def get_registered_devices(db_path: str | None = None) -> list[dict[str, Any]]:
-    """Get all registered devices."""
+def get_registered_devices(db_path: str | None = None, user_email: str | None = None) -> list[dict[str, Any]]:
+    """Get registered devices.
+
+    P0 fix (independent audit S1): filter by user_email. Without this,
+    Alice's whispers are sent to ALL registered devices including Bob's.
+    """
     path = db_path or _get_db_path()
+    init_push_db(path)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute("SELECT * FROM devices").fetchall()
+    if user_email:
+        rows = conn.execute(
+            "SELECT * FROM devices WHERE user_email = ?", (user_email,)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM devices").fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -211,8 +245,12 @@ def deliver_whispers_as_push(
     whispers: list[dict[str, Any]],
     user_timezone: str = "UTC",
     db_path: str | None = None,
+    user_email: str = "bootstrap",
 ) -> list[dict[str, Any]]:
-    """Deliver whispers as push notifications to all registered devices.
+    """Deliver whispers as push notifications to the user's registered devices.
+
+    P0 fix (independent audit S1): only send to devices owned by user_email.
+    The previous version sent to ALL devices — Alice's whispers went to Bob.
 
     GATE: only HIGH-priority whispers are pushed immediately. Medium and
     low-priority whispers are batched (not pushed) — they appear in the
@@ -221,7 +259,9 @@ def deliver_whispers_as_push(
     Returns a log of push attempts (sent or suppressed).
     """
     path = db_path or _get_db_path()
-    devices = get_registered_devices(path)
+    init_push_db(path)
+    # P0 fix: only get THIS user's devices
+    devices = get_registered_devices(path, user_email=user_email)
     log_entries = []
 
     # Filter to high-priority only (restraint — don't push for medium/low)
@@ -250,8 +290,8 @@ def deliver_whispers_as_push(
             conn = sqlite3.connect(path)
             conn.execute(
                 """INSERT INTO push_log
-                   (log_id, device_id, whisper_type, title, body, sent_at, suppressed, suppress_reason)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (log_id, device_id, whisper_type, title, body, sent_at, suppressed, suppress_reason, user_email)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     log_id,
                     device["device_id"],
@@ -261,6 +301,7 @@ def deliver_whispers_as_push(
                     now,
                     1 if result["status"] == "suppressed" else 0,
                     result.get("reason", ""),
+                    user_email,
                 ),
             )
             conn.commit()

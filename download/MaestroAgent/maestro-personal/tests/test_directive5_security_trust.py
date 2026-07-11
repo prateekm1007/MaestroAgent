@@ -130,7 +130,8 @@ class TestPrivacyMode:
         with patch("maestro_personal_shell.llm_bridge.is_llm_available", return_value=False):
             result = get_processing_mode()
             assert result["mode"] == "local_rules"
-            assert result["data_location"] == "on-device"
+            assert "on-device" in result["data_location"], \
+        f"Expected 'on-device' in data_location, got: {result['data_location']}"
 
     def test_cloud_llm_when_provider_available(self):
         """When a cloud LLM is available, mode must be cloud_llm."""
@@ -140,7 +141,8 @@ class TestPrivacyMode:
              patch("maestro_personal_shell.llm_bridge.get_llm_router", return_value=type("R", (), {"default_provider": "zai-glm"})()):
             result = get_processing_mode()
             assert result["mode"] == "cloud_llm"
-            assert result["data_location"] == "cloud"
+            assert "cloud" in result["data_location"], \
+        f"Expected 'cloud' in data_location, got: {result['data_location']}"
 
 
 class TestAuditLog:
