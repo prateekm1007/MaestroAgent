@@ -792,8 +792,15 @@ async def trace_id_middleware(request: Request, call_next):
             if resolved:
                 request.state.user_email = resolved
                 set_user_email(resolved)
+            else:
+                # S3 fix: reset contextvar for invalid tokens so stale
+                # values from previous requests don't leak
+                set_user_email("")
         except Exception:
-            pass
+            set_user_email("")
+    else:
+        # S3 fix: no auth header — reset contextvar to avoid stale leakage
+        set_user_email("")
 
     # Initialize observability tables (idempotent)
     init_observability_tables()
@@ -1416,7 +1423,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
             situations = shell.detect_situations()
             matching_situation = None
             import re
-            words = re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
+            words = re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
             common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
             entities = [w for w in words if w not in common_words]
             for s in situations:
@@ -1498,7 +1505,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
 
     # Extract query entities for filtering
     import re as _re
-    _query_words = _re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
+    _query_words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
     _common = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
     _query_entities = {w.lower() for w in _query_words if w not in _common}
 
@@ -1549,7 +1556,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     # Find the situation state for the entity mentioned in the query
     # Extract entity from the query (simple: capitalized word that's not a common word)
     import re
-    words = re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
+    words = re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
     common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
     entities = [w for w in words if w not in common_words]
 
@@ -2167,7 +2174,7 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token)):
         situations = shell.detect_situations()
         matching_situation = None
         import re as _re
-        words = _re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
+        words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
         common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
         entities = [w for w in words if w not in common_words]
         for s in situations:
