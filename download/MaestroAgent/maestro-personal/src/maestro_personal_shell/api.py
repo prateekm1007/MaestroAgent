@@ -766,10 +766,34 @@ from maestro_personal_shell.observability import (
 
 @app.middleware("http")
 async def trace_id_middleware(request: Request, call_next):
-    """Phase 11: assign a trace ID to every request and log the interaction."""
+    """Phase 11: assign a trace ID to every request and log the interaction.
+
+    S3 fix: resolve user_email in the MIDDLEWARE (before call_next), not
+    after. The old code read get_user_email() AFTER call_next returned,
+    but verify_token sets the contextvar inside the endpoint's child
+    context — contextvars don't propagate child→parent, so the middleware
+    always saw "unknown". Fix: resolve the token here and store on
+    request.state, which DOES survive the context boundary.
+    """
     # Get or generate trace ID
     trace_id = request.headers.get("X-Request-ID") or generate_trace_id()
     set_trace_id(trace_id)
+
+    # S3 fix: resolve user_email BEFORE call_next so the middleware
+    # has it when logging the trace event after the response.
+    request.state.user_email = ""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        raw_token = auth_header.split(" ", 1)[1]
+        try:
+            # Resolve via the same token-verification path verify_token uses.
+            # _verify_user_token is defined above in this same module.
+            resolved = _verify_user_token(raw_token)
+            if resolved:
+                request.state.user_email = resolved
+                set_user_email(resolved)
+        except Exception:
+            pass
 
     # Initialize observability tables (idempotent)
     init_observability_tables()
@@ -784,16 +808,15 @@ async def trace_id_middleware(request: Request, call_next):
     # Log the request as a trace event
     latency_ms = (time.time() - start) * 1000
     try:
-        # Read user_email from context (set by verify_token during the request)
-        from maestro_personal_shell.observability import get_user_email as _get_ue
-        _ue = _get_ue()
+        # S3 fix: read from request.state (set above), not from contextvar
+        _ue = getattr(request.state, "user_email", "") or ""
         log_trace_event(
             event_type="http_request",
             surface=request.url.path,
             action=request.method,
             details={"status_code": response.status_code},
             latency_ms=latency_ms,
-            user_email=_ue if _ue else None,  # pass explicitly for middleware context
+            user_email=_ue if _ue else None,
         )
     except Exception:
         pass
