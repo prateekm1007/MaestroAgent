@@ -849,6 +849,13 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
         from maestro_personal_shell.learning_loop_v2 import auto_register_prediction
         from maestro_personal_shell.personal_graph import PersonalGraph
 
+        # P0 fix (auditor finding #4): always add entity to graph, not just
+        # for commitments. The auditor found graph entity exists=false after
+        # creating a commitment because the graph add was gated on
+        # is_commitment=True which may not be set by the rule-based classifier.
+        graph = PersonalGraph(user_email=token)
+        graph.add_entity(canonical_entity, entity_type="contact", user_email=token)
+
         if metadata.get("is_commitment") is True:
             auto_register_prediction(
                 signal_id=signal_id,
@@ -858,9 +865,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
                 user_email=token,
             )
 
-            # Add to personal graph
-            graph = PersonalGraph(user_email=token)
-            graph.add_entity(canonical_entity, entity_type="contact", user_email=token)
+            # Add commitment edge to graph
             graph.add_edge(
                 source_entity=canonical_entity,
                 edge_type="commitment",
@@ -4302,7 +4307,7 @@ def main():
     print(f"\n  Maestro Personal API")
     print(f"  Port: {API_PORT}")
     print(f"  DB: {DB_PATH}")
-    print(f"  Auth token: {AUTH_TOKEN}")
+    print(f"  Auth: configured (token not logged for security)")
     print(f"  Health: http://localhost:{API_PORT}/api/health")
     print(f"\n  Endpoints:")
     print(f"    POST /api/auth/login")
