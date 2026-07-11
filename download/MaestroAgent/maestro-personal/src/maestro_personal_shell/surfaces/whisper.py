@@ -98,11 +98,23 @@ class WhisperSurface:
             "board": ["board escalation", "emergency meeting", "investor wants",
                       "board members are upset", "emergency board"],
             "legal": ["lawsuit", "legal action", "compliance violation", "regulatory",
-                      "breach of contract", " attorneys", "counsel"],
+                      "breach of contract", " attorneys", "counsel",
+                      # P1-Audit-F3 fix: add regulatory body keywords
+                      "sec investigation", "sec complaint", "gdpr complaint",
+                      "gdpr violation", "investigation", "complaint filed",
+                      "fine", "penalty", "sanction", "subpoena"],
             "deadline": ["deadline missed", "overdue", "past due", "missed the deadline",
                         "didn't deliver", "failed to deliver"],
             "security": ["data breach", "security incident", "compromised",
-                        "unauthorized access", "leaked"],
+                        "unauthorized access", "leaked",
+                        # P1-Audit-F3 fix: add bare "breach" and incident keywords
+                        "breach", "incident", "vulnerability", "exploit",
+                        "attack", "ransomware"],
+            # P1-Audit-F3 fix: add production/incident category
+            "incident": ["production down", "service down", "site down", "system down",
+                        "outage", "offline", "unavailable", "degraded",
+                        "sla breach", "latency spike", "error rate",
+                        "pager", "oncall", "sev1", "sev2", "critical incident"],
         }
 
         for signal in self._shell.oem_state.signals:

@@ -1183,6 +1183,33 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
                 confidence=metadata.get("commitment_confidence", 0.5),
                 metadata={"signal_id": signal_id},
             )
+
+        # P1-Audit-F5 fix: the auditor found Heidi had 14 signals (7
+        # commitment_made) but graph reported total_interactions=1. Root
+        # cause: graph edges were only created when the classifier set
+        # is_commitment=True, but the rule-based classifier doesn't always
+        # fire. Fix: also add commitment edges when signal_type is
+        # "commitment_made" (the user's explicit declaration), and add a
+        # "signal" edge for ALL signals so the graph reflects total
+        # interactions, not just the classifier-passed subset.
+        elif req.signal_type == "commitment_made":
+            # User declared this as a commitment even if classifier didn't
+            graph.add_edge(
+                source_entity=canonical_entity,
+                edge_type="commitment",
+                topic=sanitized_text[:100],
+                confidence=0.5,
+                metadata={"signal_id": signal_id, "source": "signal_type"},
+            )
+
+        # Always add a "signal" edge so total_interactions reflects reality
+        graph.add_edge(
+            source_entity=canonical_entity,
+            edge_type="signal",
+            topic=sanitized_text[:100],
+            confidence=0.5,
+            metadata={"signal_id": signal_id, "signal_type": req.signal_type},
+        )
     except Exception as e:
         logger.debug("Learning loop v2 auto-register failed: %s", e)
 
@@ -3160,6 +3187,57 @@ async def per_agent_insights(agent_name: str, token: str = Depends(verify_token)
     }
 
 
+_NOISE_SIGNAL_TYPES = frozenset({
+    "newsletter", "fyi", "notification", "notification_digest",
+    "blog", "social", "marketing", "announcement",
+})
+_NOISE_NAME_PATTERNS = ("newsletter", "news corp", "digest", "fyi", "notification",
+                         "trending", "promo", "limited offer", "discount")
+
+
+def _is_noise_signal(sig) -> bool:
+    """Check if a signal is noise (newsletter, promo, trending, etc.)."""
+    sig_type = str(getattr(sig, "signal_type", "") or
+                  getattr(getattr(sig, "type", ""), "value", "")).lower()
+    if sig_type in _NOISE_SIGNAL_TYPES:
+        return True
+    text = str(getattr(sig, "text", "")).lower()
+    if any(pat in text for pat in _NOISE_NAME_PATTERNS):
+        return True
+    entity = str(getattr(sig, "entity", "")).lower()
+    if any(pat in entity for pat in _NOISE_NAME_PATTERNS):
+        return True
+    return False
+
+
+def _filter_noise_from_material_changes(changes: list, signals: list) -> list:
+    """P1-Audit-F3 fix: filter noise signals out of material_changes."""
+    if not changes:
+        return []
+    noise_texts = set()
+    for sig in signals:
+        if _is_noise_signal(sig):
+            noise_texts.add(str(getattr(sig, "text", "")).lower())
+    filtered = []
+    for change in changes:
+        change_text = ""
+        if isinstance(change, dict):
+            change_text = str(change.get("text", "") or change.get("description", "") or change.get("title", "")).lower()
+        elif isinstance(change, str):
+            change_text = change.lower()
+        is_noise = False
+        for noise_text in noise_texts:
+            if noise_text and (noise_text in change_text or change_text in noise_text):
+                is_noise = True
+                break
+        if not is_noise:
+            if any(pat in change_text for pat in _NOISE_NAME_PATTERNS):
+                is_noise = True
+        if not is_noise:
+            filtered.append(change)
+    return filtered
+
+
 @app.get("/api/briefing/evening")
 async def get_evening_briefing(token: str = Depends(verify_token)):
     """Evening briefing — what happened today, what's pending.
@@ -3215,7 +3293,10 @@ async def get_evening_briefing(token: str = Depends(verify_token)):
         return BriefingResponse(
             greeting=getattr(briefing, "greeting", ""),
             top_situation=top_situation,
-            material_changes=getattr(briefing, "material_changes", []) or [],
+            material_changes=_filter_noise_from_material_changes(
+                getattr(briefing, "material_changes", []) or [],
+                shell.oem_state.signals,
+            ),
             unknowns=getattr(briefing, "unknowns", []) or [],
             disputes=getattr(briefing, "disputes", []) or [],
             can_decide_now=getattr(briefing, "can_decide_now", []) or [],
@@ -3426,41 +3507,61 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
 
                     # If the fuser says whisper, send a proactive whisper
                     if fused.get("should_whisper"):
-                        whisper_data = {
-                            "type": "whisper",
-                            "whisper": fused.get("whisper_reason", ""),
-                            "agent_whispers": fused.get("agent_whispers", []),
-                            "suggestions": fused.get("suggestions", []),
-                            "contradictions": fused.get("contradictions", []),
-                            "talk_ratio": fused.get("talk_ratio", {}),
-                            "negotiation_anchors": fused.get("negotiation_anchors", []),
-                            "fused_at": fused.get("fused_at", ""),
-                        }
-                        # Merge with existing suggestion if any
-                        if result.get("transitions") or result.get("commitments_detected"):
-                            await websocket.send_json({
-                                "type": "suggestion",
-                                **result,
-                                **whisper_data,
-                            })
-                        else:
+                        whisper_text = fused.get("whisper_reason", "")
+                        agent_whispers = fused.get("agent_whispers", [])
+                        suggestions = fused.get("suggestions", [])
+                        # P1-Audit-F2 fix: only send a whisper if there's
+                        # actual CONTENT — not just a state transition. The
+                        # auditor found 17/20 chunks produced identical
+                        # "Meeting in progress" template whispers. Fix:
+                        # require at least one of: whisper_reason text,
+                        # agent_whispers, suggestions, or contradictions.
+                        has_content = (
+                            (whisper_text and len(whisper_text) > 20)
+                            or agent_whispers
+                            or suggestions
+                            or fused.get("contradictions", [])
+                        )
+                        if has_content:
+                            whisper_data = {
+                                "type": "whisper",
+                                "whisper": whisper_text,
+                                "agent_whispers": agent_whispers,
+                                "suggestions": suggestions,
+                                "contradictions": fused.get("contradictions", []),
+                                "talk_ratio": fused.get("talk_ratio", {}),
+                                "negotiation_anchors": fused.get("negotiation_anchors", []),
+                                "fused_at": fused.get("fused_at", ""),
+                            }
+                            # Only include commitments if actually detected
+                            if result.get("commitments_detected"):
+                                whisper_data["commitments_detected"] = result["commitments_detected"]
                             await websocket.send_json(whisper_data)
+                        else:
+                            # Fuser said whisper but no content — quiet ack
+                            await websocket.send_json({"type": "ack"})
                     else:
-                        # Send suggestion if something detected (old path)
-                        if result.get("transitions") or result.get("commitments_detected"):
+                        # P1-Audit-F2 fix: fuser said don't whisper.
+                        # Only send a suggestion if commitments were
+                        # DETECTED (not just state transitions). State
+                        # transitions are operational noise, not value.
+                        if result.get("commitments_detected"):
                             await websocket.send_json({
                                 "type": "suggestion",
-                                **result,
+                                "commitments_detected": result["commitments_detected"],
                             })
                         else:
+                            # Quiet ack — don't spam the user with
+                            # state-transition notifications
                             await websocket.send_json({"type": "ack"})
                 except Exception as e:
                     logger.debug("Context fuser failed, falling back: %s", e)
-                    # Fallback to old behavior
-                    if result.get("transitions") or result.get("commitments_detected"):
+                    # P1-Audit-F2 fix: fallback is also quiet — only
+                    # surface if commitments were actually detected
+                    if result.get("commitments_detected"):
                         await websocket.send_json({
                             "type": "suggestion",
-                            **result,
+                            "commitments_detected": result["commitments_detected"],
                         })
                     else:
                         await websocket.send_json({"type": "ack"})
