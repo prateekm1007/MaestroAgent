@@ -167,14 +167,19 @@ def log_whisper_decision(
     transition_type: str = "",
     threshold: float = 0.0,
     reasoning: str = "",
+    evidence_available: list[dict] | None = None,
+    candidate_output: str = "",
     db_path: str | None = None,
 ) -> None:
     """Log a whisper decision — WHY did the system whisper or stay silent?
 
-    This is the key observability event for Trusted Silence. When a user
-    asks 'why didn't Maestro alert me about X?', this log answers the
-    question: the materiality score was below threshold, or the transition
-    type was routine_activity, or the entity was suppressed.
+    Per auditor deep analysis (AUDIT-CORE-DEEP-ANALYSIS):
+    - evidence_available: what signals were available at decision time
+      (without this, can't distinguish 'no evidence' from 'gate suppressed')
+    - candidate_output: what the system WOULD have said if it whispered
+      (the counterfactual — essential for 'why didn't Maestro alert me?')
+
+    This is the key observability event for Trusted Silence.
     """
     log_trace_event(
         event_type="whisper_decision",
@@ -187,6 +192,8 @@ def log_whisper_decision(
             "transition_type": transition_type,
             "threshold": threshold,
             "reasoning": reasoning,
+            "evidence_available": evidence_available or [],
+            "candidate_output": candidate_output,
         },
         db_path=db_path,
     )
@@ -289,3 +296,62 @@ def get_whisper_decisions(user_email: str, limit: int = 50, db_path: str | None 
         return result
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Selection-reason lookup table + over-suppression detection
+# (per auditor: Core's reasoning_trace.py has a 14-entry lookup table)
+# ---------------------------------------------------------------------------
+
+SELECTION_REASON_LOOKUP: dict[tuple[str, str], str] = {
+    ("active", "whisper"): "Active commitment + in meeting — whisper the commitment",
+    ("active", "silence"): "Active commitment but not in meeting — no whisper needed",
+    ("at_risk", "whisper"): "At-risk commitment + context — whisper urgently",
+    ("at_risk", "silence"): "At-risk commitment but low materiality — suppressed",
+    ("completed", "silence"): "Completed commitment — correctly suppressed",
+    ("completed", "whisper"): "Completed commitment surfaced — possible stale filter",
+    ("cancelled", "silence"): "Cancelled commitment — correctly suppressed",
+    ("cancelled", "whisper"): "Cancelled commitment surfaced — possible filter bypass",
+    ("disputed", "whisper"): "Disputed commitment — whisper the dispute",
+    ("disputed", "silence"): "Disputed commitment suppressed — possible over-suppression",
+    ("stale", "whisper"): "Stale commitment + context — whisper to follow up",
+    ("stale", "silence"): "Stale commitment but not in meeting — deferred to summary",
+    ("routine", "silence"): "Routine activity — correctly silenced",
+    ("routine", "whisper"): "Routine activity surfaced — possible threshold too low",
+}
+
+
+def get_selection_reason(situation_state: str, action: str) -> str:
+    """Get a human-readable explanation for a whisper/silence decision."""
+    return SELECTION_REASON_LOOKUP.get(
+        (situation_state, action),
+        f"State={situation_state}, action={action} — no specific rule matched",
+    )
+
+
+def detect_over_suppression(
+    situation_state: str,
+    should_whisper: bool,
+    has_evidence: bool,
+    in_meeting_context: bool = False,
+) -> str | None:
+    """Detect over-suppression: silence when evidence + context warrant a whisper.
+
+    Per auditor: the Core detects 'auto-disagreement collapse'. The Personal
+    equivalent is 'materiality gate over-suppression'.
+    """
+    if should_whisper:
+        return None
+    if not has_evidence:
+        return None
+    if situation_state in ("stale", "at_risk", "disputed") and in_meeting_context:
+        return (
+            f"OVER-SUPPRESSION WARNING: {situation_state} commitment with evidence "
+            "available and in-meeting context, but materiality gate suppressed the whisper."
+        )
+    if situation_state == "disputed" and has_evidence:
+        return (
+            "OVER-SUPPRESSION WARNING: disputed commitment with evidence available, "
+            "but materiality gate suppressed the whisper. Disputes should generally be surfaced."
+        )
+    return None

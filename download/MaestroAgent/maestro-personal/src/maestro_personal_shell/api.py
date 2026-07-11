@@ -4191,6 +4191,14 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
         # Phase 11: log the whisper decision for observability
         try:
             from maestro_personal_shell.observability import log_whisper_decision
+            # Per auditor: capture evidence available at decision time + candidate output
+            evidence_avail = [
+                {"entity": getattr(sig, "entity", ""), "text": getattr(sig, "text", "")[:80],
+                 "signal_id": getattr(sig, "signal_id", "")}
+                for sig in shell.oem_state.signals
+                if str(getattr(sig, "entity", "")).lower() == str(best_commitment.get("entity", "")).lower()
+            ][:5]
+            candidate = f"Would surface: {best_commitment.get('entity', '')} — {best_commitment.get('text', '')[:60]}" if materiality.get("should_speak", True) else ""
             log_whisper_decision(
                 surface="the_moment",
                 entity=str(best_commitment.get("entity", "")),
@@ -4199,6 +4207,8 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
                 transition_type="stale_commitment" if mat_context.get("days_stale", 0) > 2 else "active",
                 threshold=0.0,
                 reasoning=materiality.get("reasoning", ""),
+                evidence_available=evidence_avail,
+                candidate_output=candidate,
             )
         except Exception:
             pass

@@ -298,7 +298,7 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
                 system="You are a health check. Reply with exactly: OK",
                 user="Health check.",
                 temperature=0.0,
-                max_tokens=5,
+                max_tokens=200,  # Reasoning models need more tokens (gpt-oss uses ~160 for reasoning)
             ),
             timeout=10.0,
         )
