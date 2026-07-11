@@ -133,13 +133,14 @@ def auto_resolve_prediction(
         init_outcome_db(path)
 
         conn = sqlite3.connect(path)
-        # Find the auto-registered prediction for this signal
+        # Find the auto-registered prediction for this signal (P20 fix: scope by user_email)
         rows = conn.execute(
             """SELECT prediction_id, metadata FROM predictions
                WHERE prediction_type = 'commitment_completion'
                AND resolved_at IS NULL
+               AND user_email = ?
                AND metadata LIKE ?""",
-            (f'%{signal_id}%',),
+            (user_email, f'%{signal_id}%'),
         ).fetchall()
 
         if not rows:
@@ -166,6 +167,7 @@ def auto_resolve_prediction(
                     "resolved_at": datetime.now(timezone.utc).isoformat(),
                 },
                 db_path=path,
+                user_email=user_email,  # P20 fix: scope resolution by user
             )
             logger.debug("Auto-resolved prediction %s as %s", pred_id, outcome)
 

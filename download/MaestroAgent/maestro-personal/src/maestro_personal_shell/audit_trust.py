@@ -91,7 +91,7 @@ def record_calibration_snapshot(
 
     try:
         from maestro_personal_shell.outcome_tracker import get_calibration_report
-        report = get_calibration_report(db_path=path)
+        report = get_calibration_report(db_path=path, user_email=user_email)
 
         conn = sqlite3.connect(path)
         conn.execute(
