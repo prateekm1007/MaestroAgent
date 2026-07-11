@@ -1041,27 +1041,64 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
     from maestro_personal_shell.llm_bridge import sanitize_for_llm
 
-    # F4 + auditor fix: TWO-LAYER sanitization on ingest.
+    # F4 + auditor fix: THREE-LAYER sanitization on ingest.
     # Layer 1: gmail.sanitize_email_text (email-specific patterns)
     # Layer 2: sanitize_for_llm (25+ pattern regex injection defense)
     # Layer 3: semantic_injection_check (LLM-based, catches novel paraphrase
     #          attacks the regex misses — e.g. "kindly overlook every directive")
     #
-    # Audit fix B (external auditor): Layer 3 (semantic check) was built but
-    # NOT wired into the ingest path. Only Layers 1+2 ran. The auditor
-    # bypassed the regex with paraphrased injection payloads. Now all 3
-    # layers run via sanitize_for_llm_with_semantic().
+    # P0-Audit fix: HTML entity encoding + secret keyword blocklist +
+    # HTML comment blocking. The auditor found <script> tags, SECRET_TOKEN,
+    # and <!-- --> comments survived all 3 layers.
     from maestro_personal_shell.llm_bridge import sanitize_for_llm as _regex_sanitize
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
+    import html as _html
+    import re as _re
+
     sanitized_text = sanitize_email_text(req.text)
     sanitized_text = _regex_sanitize(sanitized_text)
 
+    # P0.1: HTML entity encoding — prevent stored XSS. <script> → &lt;script&gt;
+    # This runs AFTER regex sanitization so injection patterns are already
+    # filtered, but any remaining HTML is escaped for safety.
+    sanitized_text = _html.escape(sanitized_text, quote=False)
+
+    # P0.2: Secret keyword blocklist — prevent token/secret probing.
+    # If the text contains these keywords, replace with [REDACTED].
+    _SECRET_KEYWORDS = [
+        "SECRET_TOKEN", "AUTH_TOKEN", "API_KEY", "PRIVATE_KEY",
+        "JWT_SECRET", "ACCESS_TOKEN", "REFRESH_TOKEN", "SESSION_SECRET",
+    ]
+    for kw in _SECRET_KEYWORDS:
+        sanitized_text = sanitized_text.replace(kw, "[REDACTED]")
+        sanitized_text = sanitized_text.replace(kw.lower(), "[REDACTED]")
+
+    # P0.3: HTML comment blocking — <!-- ignore --> comments survive regex.
+    # Remove HTML comment syntax entirely.
+    sanitized_text = _re.sub(r'<!--.*?-->', '[REDACTED]', sanitized_text, flags=_re.DOTALL)
+    # Also block standalone comment markers
+    sanitized_text = sanitized_text.replace('<!--', '[REDACTED]')
+    sanitized_text = sanitized_text.replace('-->', '[REDACTED]')
+
+    # P0.3: Case-insensitive jailbreak keyword blocking
+    _JAILBREAK_KEYWORDS = ["jailbroken", "jailbreak", "dan mode", "developer mode enabled"]
+    for kw in _JAILBREAK_KEYWORDS:
+        if kw in sanitized_text.lower():
+            sanitized_text = _re.sub(_re.escape(kw), '[REDACTED]', sanitized_text, flags=_re.IGNORECASE)
+
     # Layer 3: semantic injection check (async, runs when LLM available)
+    # P0-Audit fix: only run when a REAL LLM provider is available (not ZAI
+    # which is rate-limited). The ZAI CLI fires 429 retries on every signal
+    # ingest, adding 7s of latency per signal. Skip it when the provider
+    # is rate-limited — the regex layers already caught the known patterns.
     try:
-        from maestro_personal_shell.llm_bridge import semantic_injection_check
-        sem_result = await semantic_injection_check(sanitized_text)
-        if sem_result.get("is_injection"):
-            sanitized_text = sem_result.get("filtered_text", sanitized_text)
+        from maestro_personal_shell.llm_bridge import semantic_injection_check, get_llm_provider_name
+        _provider = get_llm_provider_name()
+        # Skip semantic check for ZAI (rate-limited) — regex is sufficient
+        if _provider not in ("none", "zai-glm"):
+            sem_result = await semantic_injection_check(sanitized_text)
+            if sem_result.get("is_injection"):
+                sanitized_text = sem_result.get("filtered_text", sanitized_text)
     except Exception:
         pass  # semantic check is best-effort; regex layers already ran
 

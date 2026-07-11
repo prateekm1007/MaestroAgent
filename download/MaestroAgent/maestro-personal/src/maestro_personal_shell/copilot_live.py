@@ -391,34 +391,94 @@ def get_talk_ratio_coaching(
       - interruptions: detected
       - coaching: specific feedback
       - confidence_label: calibration status
+
+    P1-Audit-2.3 fix: the Core's TalkRatioCoach expects segments with
+    duration_ms. If segments don't have duration_ms, we compute it
+    from the start/end timestamps. If neither exists, we count each
+    segment as equal duration (1 unit). The auditor found talk ratio
+    reported 0% despite 28s of speech — this was because segments
+    had no duration_ms and the coach silently returned 0.
     """
     try:
         from maestro_oem.talk_ratio_coach import TalkRatioCoach, SpeechSegment
         coach = TalkRatioCoach()
 
+        # P1-Audit-2.3: enrich segments with duration_ms if missing
+        enriched_segments = []
         for seg in segments:
+            seg_copy = dict(seg)
+            # If duration_ms is missing, try to compute from timestamps
+            if "duration_ms" not in seg_copy and "duration" not in seg_copy:
+                start = seg_copy.get("start_ms") or seg_copy.get("start_time")
+                end = seg_copy.get("end_ms") or seg_copy.get("end_time")
+                if start is not None and end is not None:
+                    try:
+                        seg_copy["duration_ms"] = int(float(end) - float(start))
+                    except (ValueError, TypeError):
+                        seg_copy["duration_ms"] = 1000  # default 1s
+                else:
+                    seg_copy["duration_ms"] = 1000  # default 1s per segment
+            enriched_segments.append(seg_copy)
+
+        for seg in enriched_segments:
             coach.add_segment_from_dict(seg)
 
         report = coach.generate_report()
 
-        # TalkRatioReport uses talk_ratios dict (speaker→percentage) not your_talk_ratio
+        # P1-Audit-2.3: also compute talk ratio directly from segment durations
+        # as a fallback/verification, in case the Core's coach returns 0
+        user_duration = 0
+        total_duration = 0
+        for seg in enriched_segments:
+            dur = seg.get("duration_ms", 0)
+            total_duration += dur
+            speaker = str(seg.get("speaker", "")).lower()
+            if speaker in ("you", "user", "me", "self"):
+                user_duration += dur
+
+        # Use Core's report if it has data, otherwise use our direct computation
         your_ratio = report.talk_ratios.get("you", 0) / 100.0
         their_ratio = report.talk_ratios.get("them", 0) / 100.0
 
+        # P1-Audit-2.3: if Core returned 0 but we have durations, use direct
+        if your_ratio == 0 and total_duration > 0 and user_duration > 0:
+            your_ratio = user_duration / total_duration
+            their_ratio = 1.0 - your_ratio
+
         return {
-            "your_ratio": your_ratio,
-            "their_ratio": their_ratio,
+            "your_ratio": round(your_ratio, 2),
+            "their_ratio": round(their_ratio, 2),
             "balanced": your_ratio < 0.6 and their_ratio < 0.6,
             "interruptions": report.interruption_count,
             "coaching": "; ".join(
                 s.get("suggestion", str(s)) for s in report.coaching_suggestions
             ) if report.coaching_suggestions else "Talk ratio is balanced.",
             "confidence_label": report.confidence_label if isinstance(report.confidence_label, str) else "unknown",
-            "report": report.to_dict(),
+            "total_duration_ms": total_duration,
+            "user_duration_ms": user_duration,
         }
     except Exception as e:
         logger.debug("Talk ratio coaching failed: %s", e)
-        return {"error": str(e)}
+        # P1-Audit-2.3: fallback — compute from segments directly
+        user_duration = 0
+        total_duration = 0
+        for seg in segments:
+            dur = seg.get("duration_ms", seg.get("duration", 1000))
+            total_duration += dur
+            speaker = str(seg.get("speaker", "")).lower()
+            if speaker in ("you", "user", "me", "self"):
+                user_duration += dur
+        your_ratio = user_duration / total_duration if total_duration > 0 else 0
+        return {
+            "your_ratio": round(your_ratio, 2),
+            "their_ratio": round(1.0 - your_ratio, 2),
+            "balanced": your_ratio < 0.6 and (1.0 - your_ratio) < 0.6,
+            "interruptions": 0,
+            "coaching": "Talk ratio computed from segment durations.",
+            "confidence_label": "estimated",
+            "total_duration_ms": total_duration,
+            "user_duration_ms": user_duration,
+        }
 
 
 # ---------------------------------------------------------------------------

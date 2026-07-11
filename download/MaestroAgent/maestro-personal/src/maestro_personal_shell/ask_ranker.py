@@ -140,15 +140,27 @@ def rerank_signals(
         sig_text = str(sig.get("text", "")).lower()
         sig_type = str(sig.get("signal_type", "")).lower()
 
-        # Exact entity match
+        # P1-Audit-1.5 fix: HARD CONSTRAINT — if the query mentions a
+        # specific entity, signals from OTHER entities get a -200 penalty.
+        # The auditor found "What did I promise Entity5?" returned Entity0.
+        # This was because Entity0 had a higher topic-match score. Fix:
+        # when the query has entity mentions, non-matching entities are
+        # penalized so hard they can never outrank a matching entity.
+        _entity_match = False
         for qe in query_entities:
             qe_lower = qe.lower()
             if qe_lower == sig_entity:
                 score += 100
+                _entity_match = True
             elif qe_lower in sig_entity or sig_entity in qe_lower:
                 score += 50
+                _entity_match = True
             elif qe_lower in sig_text:
                 score += 30
+
+        # P1-Audit-1.5: hard penalty for non-matching entities
+        if query_entities and not _entity_match:
+            score -= 200  # ensures matching entities always outrank
 
         # Topic match
         for topic in query_topics:
