@@ -2060,15 +2060,35 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     # situation's template regardless of what entity was asked about.
     if not llm_answer_used and entities:
         # Check if ANY of the queried entities exist in the user's signals.
-        # Use substring matching so "Maria" matches "Maria Garcia".
-        existing_entities = {
-            str(getattr(sig, "entity", "")).lower()
-            for sig in shell.oem_state.signals
-        }
-        queried_exists = any(
-            any(qe.lower() in ee or ee in qe.lower() for ee in existing_entities)
-            for qe in entities
-        )
+        # P1-BreakingPoint fix: query the DB directly instead of using
+        # shell.oem_state.signals (which is limited to signal_limit=500).
+        # When there are 5000+ noise signals, the 500 most recent might
+        # all be noise — excluding older real commitments from the shell.
+        # DB query is O(1) via index and always returns the correct answer.
+        try:
+            import sqlite3 as _sqlite3
+            _db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+            _conn = get_db_conn(_db)
+            existing_entities = set()
+            for qe in entities:
+                rows = _conn.execute(
+                    "SELECT DISTINCT entity FROM signals WHERE user_email = ? AND lower(entity) LIKE ?",
+                    (token, f"%{qe.lower()}%"),
+                ).fetchall()
+                for row in rows:
+                    existing_entities.add(row[0].lower())
+            _conn.close()
+            queried_exists = len(existing_entities) > 0
+        except Exception:
+            # Fallback: use shell signals (original behavior)
+            existing_entities = {
+                str(getattr(sig, "entity", "")).lower()
+                for sig in shell.oem_state.signals
+            }
+            queried_exists = any(
+                any(qe.lower() in ee or ee in qe.lower() for ee in existing_entities)
+                for qe in entities
+            )
         if not queried_exists:
             # None of the queried entities exist — abstain
             answer = (
@@ -2706,7 +2726,10 @@ async def get_whispers(token: str = Depends(verify_token)):
 
     Empty list = trusted silence (break-test dimension 7: Restraint).
     """
-    shell = build_shell(user_email=token)
+    # P1-BreakingPoint: limit to 500 most recent signals to prevent
+    # O(n) latency at 1000+ entities. Whisper only needs recent signals
+    # for stale commitment detection and critical event surfacing.
+    shell = build_shell(user_email=token, signal_limit=500)
     core = shell.core
 
     from maestro_personal_shell.surfaces.whisper import WhisperSurface

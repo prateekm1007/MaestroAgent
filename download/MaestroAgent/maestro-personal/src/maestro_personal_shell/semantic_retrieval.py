@@ -244,6 +244,10 @@ def semantic_search(
     conn.row_factory = sqlite3.Row
     try:
         # BM25-ranked search via FTS5.
+        # P1-BreakingPoint: increase limit 10x so the ranker has enough
+        # real signals to find after filtering out noise. At 5000+ noise
+        # signals, the default limit of 10 might return ALL noise.
+        effective_limit = limit * 10
         # Returns signal_id + relevance score from FTS, then looks up
         # full signal data from the main signals table (source of truth).
         if user_email:
@@ -255,7 +259,7 @@ def semantic_search(
                 ORDER BY relevance_score
                 LIMIT ?
                 """,
-                (fts_query, user_email, limit),
+                (fts_query, user_email, effective_limit),
             ).fetchall()
         else:
             fts_rows = conn.execute(
@@ -266,7 +270,7 @@ def semantic_search(
                 ORDER BY relevance_score
                 LIMIT ?
                 """,
-                (fts_query, limit),
+                (fts_query, effective_limit),
             ).fetchall()
 
         if not fts_rows:

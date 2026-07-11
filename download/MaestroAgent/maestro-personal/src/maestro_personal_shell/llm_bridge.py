@@ -160,6 +160,10 @@ class ZAIRouter:
         self.default_provider = "zai-glm"
         self._max_retries = 3
         self._base_delay = 1.0  # seconds
+        # P1-BreakingPoint: fast-fail cooldown after 429.
+        # After the first 429, skip ALL ZAI calls for 60 seconds.
+        # This prevents 7s-per-call overhead when rate-limited.
+        self._rate_limited_until = 0.0  # epoch timestamp; 0 = not limited
 
     async def complete(
         self,
@@ -168,6 +172,11 @@ class ZAIRouter:
         temperature: float = 0.2,
         max_tokens: int = 500,
     ) -> ZAIResponse:
+        # P1-BreakingPoint: fast-fail if in cooldown
+        import time as _time
+        if self._rate_limited_until > 0 and _time.time() < self._rate_limited_until:
+            # In cooldown — skip immediately (don't waste 7s on retries)
+            raise RuntimeError("ZAI in rate-limit cooldown — skipping call")
         return await asyncio.to_thread(
             self._complete_sync, system, user, temperature, max_tokens
         )
@@ -214,15 +223,17 @@ class ZAIRouter:
                     raise RuntimeError("z-ai CLI returned empty content")
 
                 stderr = result.stderr or ""
-                # Check for rate limit (429) — retry with backoff
-                if "429" in stderr and attempt < self._max_retries:
-                    delay = self._base_delay * (2 ** attempt)  # 1s, 2s, 4s
-                    logger.warning(
-                        "z-ai rate limited (429), retrying in %ds (attempt %d/%d)",
-                        delay, attempt + 1, self._max_retries,
-                    )
-                    _time.sleep(delay)
-                    last_error = stderr
+                # Check for rate limit (429) — set cooldown + fast-fail
+                if "429" in stderr:
+                    # P1-BreakingPoint: set 60s cooldown so subsequent calls
+                    # skip immediately instead of retrying for 7s each
+                    self._rate_limited_until = _time.time() + 60.0
+                    logger.warning("z-ai rate limited (429) — cooldown 60s")
+                    if attempt < self._max_retries:
+                        delay = self._base_delay * (2 ** attempt)
+                        _time.sleep(delay)
+                        last_error = stderr
+                        continue
                     continue
 
                 # Non-429 error or exhausted retries — raise

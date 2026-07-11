@@ -169,17 +169,27 @@ def rerank_signals(
 
         # Intent match
         if intent == "commitment" and "commitment" in sig_type:
-            score += 20
+            score += 50  # P1-BreakingPoint: increased from 20 to cut through noise
         if intent == "contradiction" and "reported_statement" in sig_type:
-            score += 15
+            score += 30
         if intent == "silence" and "newsletter" in sig_type:
             score += 20
         if intent == "risk" and "commitment" in sig_type:
-            score += 15
+            score += 30
 
-        # Noise penalty
+        # Noise penalty — P1-BreakingPoint: increased from -100 to -10000
+        # to handle 5000+ noise signals drowning out real commitments.
+        # At -100, 5000 noise signals could accumulate enough topic-match
+        # points to outrank real commitments. At -10000, noise is always
+        # at the bottom regardless of count.
         if sig_type in ("newsletter", "fyi", "notification", "blog", "social", "marketing"):
-            score -= 100
+            score -= 10000
+
+        # P1-BreakingPoint: signal_type boost — commitment_made and
+        # reported_statement are always more relevant than noise types.
+        if sig_type in ("commitment_made", "reported_statement", "follow_up.required",
+                        "alert", "legal_update", "board_escalation"):
+            score += 200
 
         # Recency bonus
         timestamp = sig.get("timestamp", "")
