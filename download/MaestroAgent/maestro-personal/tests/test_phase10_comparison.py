@@ -96,8 +96,7 @@ class TestPhase10Comparison:
         assert "category_results" in report
 
     def test_comparison_scores_on_5_dimensions(self, isolated_api, client, auth_headers):
-        """Each answer must be scored on correctness, provenance, restraint,
-        actionability, evidence_grounding."""
+        """Each answer must be scored on 5 structural dimensions (per auditor)."""
         from comparison_eval import _score_answer
         q = {
             "reference_answer": "Alex committed to sending the proposal",
@@ -106,11 +105,12 @@ class TestPhase10Comparison:
         }
         score = _score_answer("Alex will send the proposal by Friday",
                               [{"text": "I will send the proposal", "entity": "Alex"}], q)
-        assert "correctness" in score
-        assert "provenance" in score
-        assert "restraint" in score
-        assert "actionability" in score
-        assert "evidence_grounding" in score
+        # Structural dimensions (not keyword matching)
+        assert "factual_accuracy" in score
+        assert "evidence_traceability" in score
+        assert "uncertainty_honesty" in score
+        assert "intervention_restraint" in score
+        assert "lifecycle_awareness" in score
         assert score["total"] <= 5
 
     def test_silence_questions_reward_restraint(self):
@@ -119,18 +119,19 @@ class TestPhase10Comparison:
         q = {"reference_answer": "unknown", "reference_entity": "", "category": "silence"}
         restrained = _score_answer("I don't have enough information to answer.", [], q)
         guessing = _score_answer("The board will decide to invest in Q3.", [], q)
-        assert restrained["restraint"] >= guessing["restraint"]
+        # uncertainty_honesty replaces restraint
+        assert restrained["uncertainty_honesty"] >= guessing["uncertainty_honesty"]
 
-    def test_maestro_wins_on_provenance(self, isolated_api, client, auth_headers):
-        """Maestro should win on provenance (cites the right entity) more often
-        than the frontier LLM (which doesn't cite)."""
+    def test_maestro_only_mode_when_no_llm(self, isolated_api, client, auth_headers):
+        """When no real LLM is available, the eval should run in honest
+        maestro-only mode — not simulate a fake LLM comparison."""
         from comparison_eval import evaluate_comparison
         report = evaluate_comparison(isolated_api, client, auth_headers,
-                                     os.environ["MAESTRO_PERSONAL_DB"], "test-p10", limit=20)
-        win_tie = report["metrics"]["maestro_vs_llm_win_tie"]
-        # Maestro should win/tie at least 50% (it has provenance advantage)
-        assert win_tie["value"] >= 0.50, \
-            f"Maestro win/tie {win_tie['value']} below 0.50 ({win_tie['support']})"
+                                     os.environ["MAESTRO_PERSONAL_DB"], "test-p10", limit=10)
+        assert report["mode"] == "maestro_only"
+        assert "disclaimer" in report
+        # Win/tie should be 0 (no opponent)
+        assert report["metrics"]["maestro_vs_llm_win_tie"]["value"] == 0.0
 
 
 class TestPhase10HumanComparison:
