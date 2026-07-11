@@ -208,7 +208,8 @@ def rank_deltas(deltas: list[dict[str, Any]], user_email: str = "bootstrap",
     if db_path:
         try:
             import sqlite3, json
-            conn = sqlite3.connect(db_path)
+            from maestro_personal_shell.db_util import get_db_conn
+            conn = get_db_conn(db_path)
             for row in conn.execute(
                 "SELECT signal_id, metadata FROM signals WHERE user_email = ?", (user_email,)
             ).fetchall():

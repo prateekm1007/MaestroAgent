@@ -27,6 +27,9 @@ from datetime import datetime, timezone
 from typing import Any
 from pathlib import Path
 
+# P1-3 fix: shared DB connection helper with busy_timeout + WAL mode
+from maestro_personal_shell.db_util import get_db_conn
+
 logger = logging.getLogger(__name__)
 
 # Stopwords removed before passing a natural-language query to FTS5 MATCH.
@@ -106,7 +109,7 @@ def init_fts_index(db_path: str | None = None) -> None:
     BM25-ranked full-text search over entity + text + signal_type.
     """
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     try:
         # FTS5 virtual table — stores a search index alongside the main signals table
         conn.execute("""
@@ -135,7 +138,7 @@ def index_signal(signal: dict[str, Any], db_path: str | None = None) -> None:
     Call this whenever a signal is saved to the main signals table.
     """
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     try:
         # Remove existing entry for this signal_id (if re-indexing)
         conn.execute("DELETE FROM signals_fts WHERE signal_id = ?", (signal["signal_id"],))
@@ -164,7 +167,7 @@ def rebuild_fts_index(db_path: str | None = None, user_email: str | None = None)
     """
     path = db_path or _get_db_path()
     init_fts_index(path)
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     try:
         # Clear existing index
@@ -237,7 +240,7 @@ def semantic_search(
         # No content-bearing tokens — let the caller's LIKE fallback handle it.
         return []
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     try:
         # BM25-ranked search via FTS5.
@@ -418,7 +421,7 @@ def get_relevant_signals(
     if not terms:
         # No content-bearing terms at all — nothing to match.
         return []
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     try:
         # Build a WHERE clause that ORs each significant term across both
@@ -452,7 +455,7 @@ def get_relevant_signals(
 def delete_signal_from_fts(signal_id: str, db_path: str | None = None) -> None:
     """Remove a signal from the FTS index (when a signal is deleted)."""
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     try:
         conn.execute("DELETE FROM signals_fts WHERE signal_id = ?", (signal_id,))
         conn.commit()

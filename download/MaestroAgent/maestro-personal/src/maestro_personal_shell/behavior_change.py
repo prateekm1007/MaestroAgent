@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import json
 from typing import Any
 from pathlib import Path
@@ -50,7 +51,7 @@ def get_entity_track_record(entity: str, user_email: str, db_path: str | None = 
     }
     """
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     try:
         # Get predictions for this entity that are resolved
         rows = conn.execute(
@@ -102,7 +103,7 @@ def get_behavior_adjustments(user_email: str, db_path: str | None = None) -> dic
       - suppression_patterns: repeatedly dismissed patterns to suppress
     """
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
 
     # 1. Ranking: entity reliability scores

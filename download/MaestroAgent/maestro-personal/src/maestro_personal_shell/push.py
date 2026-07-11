@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import json
 from datetime import datetime, timezone, timedelta
 from typing import Any
@@ -45,7 +46,7 @@ def init_push_db(db_path: str | None = None) -> None:
     device because get_registered_devices() returns ALL devices.
     """
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS devices (
             device_id TEXT PRIMARY KEY,
@@ -103,7 +104,7 @@ def register_device(
     init_push_db(path)  # ensure table exists with user_email column
     device_id = str(uuid4())
     now = datetime.now(timezone.utc).isoformat()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     # Upsert: if push_token exists for this user, update; else insert
     existing = conn.execute(
         "SELECT device_id FROM devices WHERE push_token = ? AND user_email = ?",
@@ -134,7 +135,7 @@ def get_registered_devices(db_path: str | None = None, user_email: str | None = 
     """
     path = db_path or _get_db_path()
     init_push_db(path)
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     if user_email:
         rows = conn.execute(
@@ -287,7 +288,7 @@ def deliver_whispers_as_push(
             # Log the push attempt
             log_id = str(uuid4())
             now = datetime.now(timezone.utc).isoformat()
-            conn = sqlite3.connect(path)
+            conn = get_db_conn(path)
             conn.execute(
                 """INSERT INTO push_log
                    (log_id, device_id, whisper_type, title, body, sent_at, suppressed, suppress_reason, user_email)
@@ -320,7 +321,7 @@ def deliver_whispers_as_push(
 def get_push_log(db_path: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
     """Get recent push log entries (for debugging/auditing)."""
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT * FROM push_log ORDER BY sent_at DESC LIMIT ?", (limit,)

@@ -16,6 +16,7 @@ report shows real Brier scores instead of 'Insufficient calibration history.'
 from __future__ import annotations
 
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import json
 import logging
 from datetime import datetime, timezone
@@ -42,7 +43,7 @@ def init_outcome_db(db_path: str | None = None) -> None:
     migration for existing DBs.
     """
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS predictions (
             prediction_id TEXT PRIMARY KEY,
@@ -104,7 +105,7 @@ def register_prediction(
     if not 0.0 <= predicted_confidence <= 1.0:
         raise ValueError("predicted_confidence must be 0.0-1.0")
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.execute(
         """INSERT INTO predictions
            (prediction_id, prediction_type, predicted_confidence, expected_outcome,
@@ -152,7 +153,7 @@ def resolve_outcome(
     init_outcome_db(path)
     now = datetime.now(timezone.utc).isoformat()
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
 
     # Check prediction exists AND belongs to this user (P0 fix)
     if user_email:
@@ -221,7 +222,7 @@ def get_calibration_report(
     path = db_path or _get_db_path()
     init_outcome_db(path)
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     # P0 fix: filter by user_email for tenant isolation
     if user_email:
@@ -340,7 +341,7 @@ def get_prediction_count(db_path: str | None = None, user_email: str | None = No
     """
     path = db_path or _get_db_path()
     init_outcome_db(path)
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     if user_email:
         total = conn.execute(
             "SELECT COUNT(*) FROM predictions WHERE user_email = ?", (user_email,)
@@ -379,7 +380,7 @@ def get_calibration_context_for_llm(db_path: str | None = None, user_email: str 
     path = db_path or _get_db_path()
     init_outcome_db(path)
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
 
     # P20 fix: scope by user_email
@@ -509,7 +510,7 @@ def get_corrections_context_for_llm(db_path: str | None = None, user_email: str 
     path = db_path or _get_db_path()
     init_outcome_db(path)
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
 
     # Ensure the signals table exists (it's created by api.init_db, but

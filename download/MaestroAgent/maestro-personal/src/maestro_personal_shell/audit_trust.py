@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import json
 import os
 from typing import Any
@@ -48,7 +49,7 @@ def _get_db_path() -> str:
 def init_audit_tables(db_path: str | None = None) -> None:
     """Initialize audit log + calibration history tables."""
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +94,7 @@ def record_calibration_snapshot(
         from maestro_personal_shell.outcome_tracker import get_calibration_report
         report = get_calibration_report(db_path=path, user_email=user_email)
 
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         conn.execute(
             """INSERT INTO calibration_history
                (user_email, brier_score, resolved_count, hit_count, miss_count,
@@ -129,7 +130,7 @@ def get_calibration_history(
     path = db_path or _get_db_path()
     init_audit_tables(path)
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         """SELECT * FROM calibration_history
@@ -257,7 +258,7 @@ def log_data_access(
     init_audit_tables(path)
 
     try:
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         conn.execute(
             """INSERT INTO audit_log
                (user_email, action, endpoint, resource_id, details, timestamp)
@@ -291,7 +292,7 @@ def get_audit_log(
     path = db_path or _get_db_path()
     init_audit_tables(path)
 
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
 
     if action:

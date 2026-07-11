@@ -43,6 +43,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 from datetime import datetime, timezone
 from typing import Any
 
@@ -125,7 +126,7 @@ def is_legal_transition(from_state: str, to_state: str) -> bool:
 
 def init_ledger_table(db_path: str) -> None:
     """Create the commitments_ledger table + indexes if they don't exist."""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     try:
         conn.execute(LEDGER_SCHEMA)
         for idx in LEDGER_INDEXES:
@@ -178,7 +179,7 @@ def upsert_ledger_entry(
     if target_state not in LEGAL_TRANSITIONS:
         target_state = "candidate"
 
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     conn.row_factory = sqlite3.Row
     try:
         existing = conn.execute(
@@ -322,7 +323,7 @@ def transition_ledger_state(
     Every attempt (legal or rejected) is audit-logged.
     """
     init_ledger_table(db_path)
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     conn.row_factory = sqlite3.Row
     try:
         row = conn.execute(
@@ -347,7 +348,7 @@ def get_ledger_entries(
 ) -> list[dict[str, Any]]:
     """Read ledger entries for a user, optionally filtered by state/entity."""
     init_ledger_table(db_path)
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     conn.row_factory = sqlite3.Row
     try:
         sql = "SELECT * FROM commitments_ledger WHERE user_email = ?"
@@ -493,7 +494,7 @@ def propagate_correction(
     Returns a dict of what was propagated, for the caller to log/return.
     """
     init_ledger_table(db_path)
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     conn.row_factory = sqlite3.Row
     propagated: dict[str, Any] = {
         "signal_id": signal_id,
@@ -568,7 +569,7 @@ def backfill_ledger_from_signals(
     Returns the number of entries created.
     """
     init_ledger_table(db_path)
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     conn.row_factory = sqlite3.Row
     count = 0
     try:

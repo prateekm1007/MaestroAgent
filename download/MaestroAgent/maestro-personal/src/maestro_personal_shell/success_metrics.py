@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import os
 from typing import Any
 from datetime import datetime, timezone
@@ -85,7 +86,7 @@ def get_success_metrics(user_email: str = "bootstrap") -> dict[str, Any]:
 def _compute_commitment_metrics(path: str, user_email: str) -> dict[str, Any]:
     """Compute commitment completion rate."""
     try:
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         conn.row_factory = sqlite3.Row
 
         # Count signals by type
@@ -209,7 +210,7 @@ def _compute_calibration_trend(path: str, user_email: str) -> dict[str, Any]:
 def _compute_engagement(path: str, user_email: str) -> dict[str, Any]:
     """Compute engagement metrics."""
     try:
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
 
         signals_ingested = conn.execute(
             "SELECT COUNT(*) FROM signals WHERE user_email = ?",

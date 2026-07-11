@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import uuid
 import time
 from typing import Any
@@ -54,7 +55,7 @@ def _get_db_path() -> str:
 def init_observability_tables(db_path: str | None = None) -> None:
     """Create observability tables if they don't exist."""
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     try:
         # Trace events — every surface interaction + whisper decision
         conn.execute("""
@@ -138,7 +139,7 @@ def log_trace_event(
     ue = user_email or get_user_email() or "unknown"
 
     try:
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         conn.execute(
             """INSERT INTO trace_events
                (trace_id, user_email, event_type, surface, entity, action, details, latency_ms, timestamp)
@@ -239,7 +240,7 @@ def get_trace(trace_id: str, db_path: str | None = None, user_email: str | None 
     import json
     path = db_path or _get_db_path()
     init_observability_tables(path)
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     try:
         if user_email:
@@ -267,7 +268,7 @@ def get_user_traces(user_email: str, limit: int = 50, db_path: str | None = None
     import json
     path = db_path or _get_db_path()
     init_observability_tables(path)
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
@@ -291,7 +292,7 @@ def get_whisper_decisions(user_email: str, limit: int = 50, db_path: str | None 
     import json
     path = db_path or _get_db_path()
     init_observability_tables(path)
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(

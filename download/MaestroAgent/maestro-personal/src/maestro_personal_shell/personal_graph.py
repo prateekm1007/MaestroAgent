@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import json
 import os
 from typing import Any
@@ -59,7 +60,7 @@ class PersonalGraph:
 
     def _init_schema(self) -> None:
         """Initialize graph tables."""
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS graph_entities (
                 entity_id TEXT NOT NULL,
@@ -124,7 +125,7 @@ class PersonalGraph:
         entity_id = entity_name.lower().strip()
         now = datetime.now(timezone.utc).isoformat()
 
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
         conn.execute(
             """INSERT OR REPLACE INTO graph_entities
                (entity_id, entity_name, entity_type, user_email, first_seen, last_seen, metadata)
@@ -161,7 +162,7 @@ class PersonalGraph:
 
         self.add_entity(source_entity, user_email=ue)
 
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
         conn.execute(
             """INSERT INTO graph_edges
                (edge_id, source_entity, target_entity, edge_type, topic,
@@ -195,7 +196,7 @@ class PersonalGraph:
     ) -> bool:
         """Update the outcome of an edge (user-scoped)."""
         ue = user_email or self._user_email
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
         now = datetime.now(timezone.utc).isoformat()
         entity_id = entity_name.lower().strip()
 
@@ -229,7 +230,7 @@ class PersonalGraph:
         """Get the historical completion rate for an entity (user-scoped)."""
         ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
 
         rows = conn.execute(
             """SELECT outcome FROM graph_edges
@@ -248,7 +249,7 @@ class PersonalGraph:
         """Get a summary of an entity's history (user-scoped)."""
         ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
         conn.row_factory = sqlite3.Row
 
         entity = conn.execute(
@@ -321,7 +322,7 @@ class PersonalGraph:
         entity_id = entity_name.lower().strip()
 
         # P0 fix: check entity exists for this user before returning risk data
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
         conn.row_factory = sqlite3.Row
         entity_row = conn.execute(
             "SELECT * FROM graph_entities WHERE entity_id = ? AND user_email = ?",
@@ -388,7 +389,7 @@ class PersonalGraph:
         ue = user_email or self._user_email
         now = datetime.now(timezone.utc).isoformat()
 
-        conn = sqlite3.connect(self._db_path)
+        conn = get_db_conn(self._db_path)
 
         existing = conn.execute(
             """SELECT pattern_id, occurrence_count FROM graph_patterns

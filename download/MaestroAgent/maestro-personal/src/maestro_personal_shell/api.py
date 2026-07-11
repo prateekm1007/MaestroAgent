@@ -45,6 +45,9 @@ DB_PATH = os.environ.get(
 # a single shared token from env or auto-generated on first run.
 AUTH_TOKEN = os.environ.get("MAESTRO_PERSONAL_TOKEN") or secrets.token_urlsafe(32)
 
+# P1-3 fix: shared DB connection helper with busy_timeout + WAL mode
+from maestro_personal_shell.db_util import get_db_conn, is_database_locked_error
+
 
 # Production mode: when MAESTRO_PERSONAL_ENV=production, the shared bootstrap
 # token is DISABLED. Only per-user tokens (from /api/auth/login) are accepted.
@@ -65,7 +68,7 @@ def _get_db():
 
 def _init_auth_db():
     """Initialize auth table for per-user tokens."""
-    conn = sqlite3.connect(_get_db())
+    conn = get_db_conn(_get_db())
     conn.execute("""
         CREATE TABLE IF NOT EXISTS user_tokens (
             token TEXT PRIMARY KEY,
@@ -82,7 +85,7 @@ def _create_user_token(user_email: str) -> str:
     _init_auth_db()
     token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc).isoformat()
-    conn = sqlite3.connect(_get_db())
+    conn = get_db_conn(_get_db())
     conn.execute(
         "INSERT OR REPLACE INTO user_tokens (token, user_email, created_at) VALUES (?, ?, ?)",
         (token, user_email, now),
@@ -95,7 +98,7 @@ def _create_user_token(user_email: str) -> str:
 def _verify_user_token(token: str) -> str | None:
     """Check if token is a valid per-user token. Returns user_email or None."""
     _init_auth_db()
-    conn = sqlite3.connect(_get_db())
+    conn = get_db_conn(_get_db())
     row = conn.execute(
         "SELECT user_email FROM user_tokens WHERE token = ?", (token,)
     ).fetchone()
@@ -118,7 +121,7 @@ async def verify_token(authorization: str = Header(None)) -> str:
     # Check per-user tokens (SQLite-persisted) — inlined to avoid reload closure issues
     db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
     try:
-        conn = sqlite3.connect(db)
+        conn = get_db_conn(db)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_tokens (
                 token TEXT PRIMARY KEY,
@@ -177,7 +180,7 @@ async def verify_token(authorization: str = Header(None)) -> str:
 
 def init_db(db_path: str = DB_PATH) -> None:
     """Initialize the SQLite database for signal persistence."""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS signals (
             signal_id TEXT PRIMARY KEY,
@@ -220,7 +223,9 @@ def load_signals_from_db(db_path: str = DB_PATH, user_email: str | None = None,
     because build_shell loads ALL signals. Callers can now pass limit to
     cap the number loaded (most recent first for recency-biased retrieval).
     """
-    conn = sqlite3.connect(db_path)
+    # P1-3 fix: use get_db_conn for busy_timeout + WAL mode
+    from maestro_personal_shell.db_util import get_db_conn
+    conn = get_db_conn(db_path)
     conn.row_factory = sqlite3.Row
     if user_email:
         if limit:
@@ -264,7 +269,7 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email
         f"{signal.get('entity','')}|{signal.get('text','')}|{user_email}".encode()
     ).hexdigest()
 
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     # Check for existing duplicate within the last hour
     one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     existing = conn.execute(
@@ -318,7 +323,7 @@ def clear_signals_db(db_path: str = DB_PATH, user_email: str | None = None) -> N
     authenticated user calling DELETE /api/account would destroy EVERY
     user's data. This is now scoped to the caller.
     """
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
     if user_email:
         conn.execute("DELETE FROM signals WHERE user_email = ?", (user_email,))
     else:
@@ -719,6 +724,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# P1-3 fix: 503 Retry-After handler for database-locked errors.
+# When SQLite raises "database is locked" (after the 5s busy_timeout
+# expires), return 503 Service Unavailable with a Retry-After header
+# instead of a generic 500. This lets clients retry gracefully.
+@app.exception_handler(sqlite3.OperationalError)
+async def database_locked_handler(request: Request, exc: sqlite3.OperationalError):
+    if is_database_locked_error(exc):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "Database is temporarily locked. Please retry.",
+                "error_type": "database_locked",
+            },
+            headers={"Retry-After": "2"},
+        )
+    # Non-lock OperationalErrors — re-raise as 500
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "error_type": "database_error"},
+    )
+
 
 # 1. POST /api/auth/login — bearer token auth
 
@@ -2494,7 +2523,7 @@ async def delete_account(token: str = Depends(verify_token)):
 
     # Phase 9: delete from ALL stores (roadmap requirement)
     deleted_stores: list[str] = []
-    conn = sqlite3.connect(db)
+    conn = get_db_conn(db)
     try:
         # 1. Signals
         conn.execute("DELETE FROM signals WHERE user_email = ?", (token,))
@@ -2592,7 +2621,7 @@ async def export_data(token: str = Depends(verify_token)):
       - graph entities, edges, patterns
     """
     db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
-    conn = sqlite3.connect(db)
+    conn = get_db_conn(db)
     conn.row_factory = sqlite3.Row
 
     export: dict[str, Any] = {
@@ -3064,7 +3093,7 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
     user_email = None
     try:
         db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
-        conn = sqlite3.connect(db)
+        conn = get_db_conn(db)
         row = conn.execute("SELECT user_email FROM user_tokens WHERE token = ?", (raw_token,)).fetchone()
         conn.close()
         if row:
@@ -3611,7 +3640,7 @@ async def correct_signal(
     import sqlite3, json as _json
 
     db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
-    conn = sqlite3.connect(db_path)
+    conn = get_db_conn(db_path)
 
     # Check signal exists AND belongs to the authenticated user (cross-user protection)
     row = conn.execute(
