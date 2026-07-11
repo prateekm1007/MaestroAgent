@@ -310,13 +310,36 @@ class PersonalGraph:
         }
 
     def predict_risk(self, entity_name: str, topic: str = "", user_email: str | None = None) -> dict[str, Any]:
-        """Predict the risk of a new commitment (user-scoped)."""
+        """Predict the risk of a new commitment (user-scoped).
+
+        P0 fix (auditor finding A): if the entity doesn't exist for this user,
+        return exists=false instead of a generic 'medium' risk. This prevents
+        side-channel information leakage (an attacker can probe entity names
+        and get generic risk data for entities they shouldn't know about).
+        """
         ue = user_email or self._user_email
-        completion_rate = self.get_completion_rate(entity_name, ue)
         entity_id = entity_name.lower().strip()
 
+        # P0 fix: check entity exists for this user before returning risk data
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row
+        entity_row = conn.execute(
+            "SELECT * FROM graph_entities WHERE entity_id = ? AND user_email = ?",
+            (entity_id, ue),
+        ).fetchone()
+
+        if entity_row is None:
+            conn.close()
+            return {
+                "entity": entity_name,
+                "exists": False,
+                "risk_level": "unknown",
+                "completion_rate": 0.0,
+                "risk_factors": [],
+                "recommendation": "Entity not found — no risk data available.",
+            }
+
+        completion_rate = self.get_completion_rate(entity_name, ue)
         patterns = conn.execute(
             "SELECT * FROM graph_patterns WHERE entity_id = ? AND user_email = ?",
             (entity_id, ue),
@@ -340,6 +363,7 @@ class PersonalGraph:
 
         return {
             "entity": entity_name,
+            "exists": True,
             "risk_level": risk_level,
             "completion_rate": completion_rate,
             "risk_factors": risk_factors,

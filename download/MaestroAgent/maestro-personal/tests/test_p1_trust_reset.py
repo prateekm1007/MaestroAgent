@@ -193,11 +193,11 @@ class TestP1GraphIsolation:
                 "signal_type": "commitment_made",
             }, headers=alice_h)
 
-            # Bob queries risk — should get neutral 0.5 (no data)
+            # Bob queries risk — should get exists=false (no data for this entity)
             resp = client.get("/api/graph/risk/RiskCorp", headers=bob_h)
             data = resp.json()
-            assert data.get("completion_rate") == 0.5, \
-                "P1-4: Bob should get neutral completion rate (no data for this entity)"
+            assert data.get("exists") is False, \
+                "P1-4: Bob should get exists=false (no data for this entity)"
 
 
 class TestP1AuditLogIsolation:

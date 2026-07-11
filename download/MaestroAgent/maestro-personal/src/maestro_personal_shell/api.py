@@ -649,16 +649,17 @@ async def login(req: LoginRequest):
     )
 
 
-def _get_real_calibration() -> str:
+def _get_real_calibration(user_email: str = "") -> str:
     """Get the REAL calibration note from the outcome tracker.
 
+    P0 fix: filter by user_email for tenant isolation.
     Replaces the hardcoded 'Insufficient calibration history' string
     with a real Brier score when outcomes have been tracked.
     """
     try:
         from maestro_personal_shell.outcome_tracker import get_calibration_report, init_outcome_db
         init_outcome_db()
-        report = get_calibration_report()
+        report = get_calibration_report(user_email=user_email or None)
         return report.get("message", "Insufficient calibration history — keep tracking outcomes.")
     except Exception:
         return "Insufficient calibration history — keep tracking outcomes."
@@ -1503,12 +1504,12 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
             # Try to call brier_score with empty data to test
             brier = core.calibration_primitives.brier_score([])
             if brier is None:
-                calibration_note = _get_real_calibration()
+                calibration_note = _get_real_calibration(user_email=token)
             else:
                 calibration_note = f"Brier score: {brier:.4f} (lower is better)"
         except Exception:
             # If brier_score fails on empty, it means we have no predictions
-            calibration_note = _get_real_calibration()
+            calibration_note = _get_real_calibration(user_email=token)
 
     # ── S3 FIX: EpistemicBarrier — filter evidence ───────────────────
     # Remove model outputs and shadow signals from the evidence chain.
@@ -1746,11 +1747,11 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
         try:
             brier = core.calibration_primitives.brier_score([])
             if brier is None:
-                cal_note = _get_real_calibration()
+                cal_note = _get_real_calibration(user_email=token)
             else:
                 cal_note = f"Brier score: {brier:.4f} (lower is better)"
         except Exception:
-            cal_note = _get_real_calibration()
+            cal_note = _get_real_calibration(user_email=token)
 
     result = []
     for c in commitments:
@@ -2688,14 +2689,17 @@ async def get_evening_briefing(token: str = Depends(verify_token)):
         )
 
         # P1-2 fix: filter noise from top_situation
-        # The auditor found that newsletter/noise entities were ranked as
-        # top_situation by volume. Filter them out.
+        # P0 fix (auditor finding D): also check entity NAME for noise patterns,
+        # not just signal_type. The auditor found Newsletter still appears as
+        # top_situation because the entity name contains "newsletter" but the
+        # signal_type may be "reported_statement".
         top_situation = getattr(briefing, "top_situation", None)
         if top_situation:
             top_entity = str(getattr(top_situation, "entity", "") or
                            (top_situation.get("entity", "") if isinstance(top_situation, dict) else "")).lower()
-            # Check if this entity is noise (newsletter, FYI, notification)
+            # Check if this entity is noise
             is_noise = False
+            # 1. Check signal_type
             for sig in shell.oem_state.signals:
                 sig_entity = str(getattr(sig, "entity", "")).lower()
                 sig_type = str(getattr(sig, "signal_type", "") or
@@ -2706,6 +2710,11 @@ async def get_evening_briefing(token: str = Depends(verify_token)):
                 ):
                     is_noise = True
                     break
+            # 2. Check entity name for noise patterns (auditor finding D)
+            if not is_noise:
+                noise_name_patterns = ("newsletter", "news corp", "digest", "fyi", "notification")
+                if any(pat in top_entity for pat in noise_name_patterns):
+                    is_noise = True
             if is_noise:
                 top_situation = None  # suppress noise from top_situation
 
@@ -3567,7 +3576,8 @@ async def get_calibration(token: str = Depends(verify_token)):
     """
     from maestro_personal_shell.outcome_tracker import get_calibration_report, get_prediction_count, init_outcome_db
     init_outcome_db()
-    report = get_calibration_report()
+    # P0 fix: filter calibration by user_email for tenant isolation
+    report = get_calibration_report(user_email=token)
     counts = get_prediction_count()
     return {**report, "counts": counts}
 

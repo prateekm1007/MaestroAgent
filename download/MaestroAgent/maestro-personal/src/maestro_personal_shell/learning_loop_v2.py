@@ -98,6 +98,7 @@ def auto_register_prediction(
                 "entity": entity,
             },
             db_path=path,
+            user_email=user_email,  # P0 fix: tenant isolation
         )
 
         logger.debug(
