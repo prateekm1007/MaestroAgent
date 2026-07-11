@@ -19,6 +19,7 @@ import sqlite3
 import secrets
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -128,6 +129,12 @@ async def verify_token(authorization: str = Header(None)) -> str:
         row = conn.execute("SELECT user_email FROM user_tokens WHERE token = ?", (token,)).fetchone()
         conn.close()
         if row:
+            # Phase 11: set user email in request context for trace logging
+            try:
+                from maestro_personal_shell.observability import set_user_email as _set_ue
+                _set_ue(row[0])
+            except Exception:
+                pass
             return row[0]
     except Exception:
         pass
@@ -537,6 +544,52 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Phase 11: Trace ID middleware — every request gets a trace ID.
+# The trace ID is propagated to all surfaces and audit log entries.
+from maestro_personal_shell.observability import (
+    init_observability_tables,
+    generate_trace_id,
+    set_trace_id,
+    set_user_email,
+    log_surface_read,
+    log_trace_event,
+    get_trace,
+    get_user_traces,
+    get_whisper_decisions,
+)
+
+@app.middleware("http")
+async def trace_id_middleware(request: Request, call_next):
+    """Phase 11: assign a trace ID to every request and log the interaction."""
+    # Get or generate trace ID
+    trace_id = request.headers.get("X-Request-ID") or generate_trace_id()
+    set_trace_id(trace_id)
+
+    # Initialize observability tables (idempotent)
+    init_observability_tables()
+
+    start = time.time()
+    response = await call_next(request)
+
+    # Add trace ID to response headers
+    response.headers["X-Request-ID"] = trace_id
+    response.headers["X-Trace-ID"] = trace_id
+
+    # Log the request as a trace event
+    latency_ms = (time.time() - start) * 1000
+    try:
+        log_trace_event(
+            event_type="http_request",
+            surface=request.url.path,
+            action=request.method,
+            details={"status_code": response.status_code},
+            latency_ms=latency_ms,
+        )
+    except Exception:
+        pass
+
+    return response
 
 # CORS — allow the mobile app (Expo Metro bundler runs on :8081/:19000) to call
 app.add_middleware(
@@ -3842,6 +3895,40 @@ async def get_audit_log_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# Phase 11: Observability — trace IDs, whisper decisions, surface reads
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/observability/trace/{trace_id}")
+async def get_trace_endpoint(trace_id: str, token: str = Depends(verify_token)):
+    """Get all events for a trace ID.
+
+    Returns the full timeline of a single request: surface reads, whisper
+    decisions, mutations, LLM calls — all linked by the trace ID.
+    """
+    events = get_trace(trace_id)
+    return {"trace_id": trace_id, "event_count": len(events), "events": events}
+
+
+@app.get("/api/observability/traces")
+async def get_traces_endpoint(limit: int = 50, token: str = Depends(verify_token)):
+    """Get recent traces for the authenticated user."""
+    traces = get_user_traces(token, limit=limit)
+    return {"traces": traces, "count": len(traces)}
+
+
+@app.get("/api/observability/whisper-decisions")
+async def get_whisper_decisions_endpoint(limit: int = 50, token: str = Depends(verify_token)):
+    """Get recent whisper decisions for the authenticated user.
+
+    This is the 'why didn't Maestro alert me about X?' log. Shows every
+    whisper decision with materiality score, transition type, and reasoning.
+    """
+    decisions = get_whisper_decisions(token, limit=limit)
+    return {"decisions": decisions, "count": len(decisions)}
+
+
+# ---------------------------------------------------------------------------
 # DIRECTIVE 6: Success metrics
 # ---------------------------------------------------------------------------
 
@@ -4100,6 +4187,21 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
 
         # P11 fix: use materiality_gate_v2 (learns from user dismissals)
         materiality = await materiality_gate_v2(best_commitment, mat_context, user_email=token)
+
+        # Phase 11: log the whisper decision for observability
+        try:
+            from maestro_personal_shell.observability import log_whisper_decision
+            log_whisper_decision(
+                surface="the_moment",
+                entity=str(best_commitment.get("entity", "")),
+                should_whisper=materiality.get("should_speak", True),
+                materiality_score=materiality.get("materiality_score", 0.0),
+                transition_type="stale_commitment" if mat_context.get("days_stale", 0) > 2 else "active",
+                threshold=0.0,
+                reasoning=materiality.get("reasoning", ""),
+            )
+        except Exception:
+            pass
 
         # Trusted Silence: if the materiality gate says "don't speak", stay silent
         if not materiality.get("should_speak", True):
