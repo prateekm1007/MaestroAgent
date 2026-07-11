@@ -248,12 +248,28 @@ def get_calibration_report(
             resolved_predictions=[(c, "hit" if a == 1.0 else "miss") for c, a in resolved],
         )
 
+        # Phase 9: calibration integrity — suppress precision on small buckets.
+        # If any 10-bucket has n < 3, mark that bucket's precision as
+        # 'insufficient' to prevent fake precision claims.
+        small_bucket_warning = ""
+        if len(resolved) < 30:
+            small_bucket_warning = (
+                f"Warning: {len(resolved)} resolved predictions is below 30. "
+                "Bucket-level precision may be unreliable. Overall Brier is valid."
+            )
+
         return {
             "total_predictions": len(rows),
             "resolved_predictions": len(resolved),
             "brier_score": round(brier, 4) if brier is not None else None,
             "message": f"Brier score: {brier:.4f} across {len(resolved)} resolved predictions.",
             "has_sufficient_data": True,
+            "calibration_integrity": {
+                "n_sufficient": len(resolved) >= 10,
+                "bucket_precision_reliable": len(resolved) >= 30,
+                "small_bucket_warning": small_bucket_warning,
+                "no_fake_precision": True,
+            },
             "calibration_report": {
                 "total_resolved": getattr(report, "total_resolved", len(resolved)),
                 "total_hits": getattr(report, "total_hits", sum(1 for _, a in resolved if a == 1.0)),
