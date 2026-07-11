@@ -339,27 +339,39 @@ class NerveWiring:
         # Select relevant specialists based on signal types
         specialists = self._select_specialists(entity_signals)
 
-        perspectives = []
-        for specialist in specialists[:3]:  # max 3 LLM perspectives
+        # P1-Audit-parallelize: generate all perspectives in PARALLEL
+        # instead of sequentially. This reduces latency from N×LLM_delay
+        # to 1×LLM_delay (3 calls × 2s = 6s → 2s).
+        import asyncio as _asyncio
+
+        async def _safe_perspective(specialist):
             try:
-                result = await llm_generate_perspective(specialist, matching, entity_signals)
-                if result and isinstance(result, dict):
-                    perspectives.append({
-                        "name": specialist,
-                        "view": f"{result.get('observation', '')}. {result.get('implication', '')}"[:300],
-                        "observation": result.get("observation", ""),
-                        "implication": result.get("implication", ""),
-                        "evidence": [
-                            {"text": str(getattr(s, "text", ""))[:200]}
-                            for s in entity_signals[:3]
-                        ],
-                        "recommended_next_step": result.get("recommended_next_step", ""),
-                        "urgency": result.get("urgency", "normal"),
-                        "confidence": float(result.get("confidence", 0.5)),
-                        "llm_powered": True,
-                    })
-            except Exception as e:
-                logger.debug("LLM perspective for %s failed: %s", specialist, e)
+                return await llm_generate_perspective(specialist, matching, entity_signals)
+            except Exception:
+                return None
+
+        tasks = [_safe_perspective(s) for s in specialists[:3]]
+        results = await _asyncio.gather(*tasks, return_exceptions=True)
+
+        perspectives = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception) or not result or not isinstance(result, dict):
+                continue
+            specialist = specialists[i]
+            perspectives.append({
+                "name": specialist,
+                "view": f"{result.get('observation', '')}. {result.get('implication', '')}"[:300],
+                "observation": result.get("observation", ""),
+                "implication": result.get("implication", ""),
+                "evidence": [
+                    {"text": str(getattr(s, "text", ""))[:200]}
+                    for s in entity_signals[:3]
+                ],
+                "recommended_next_step": result.get("recommended_next_step", ""),
+                "urgency": result.get("urgency", "normal"),
+                "confidence": float(result.get("confidence", 0.5)),
+                "llm_powered": True,
+            })
 
         return perspectives
 
