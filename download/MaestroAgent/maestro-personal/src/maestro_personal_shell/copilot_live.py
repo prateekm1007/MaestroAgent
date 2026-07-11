@@ -56,14 +56,15 @@ def process_transcript_chunk(
     text_lower = text.lower()
 
     # Future-tense commitment patterns
+    # P1-Audit: tightened to avoid false positives like "nice weather" or "great meeting"
     commitment_patterns = [
-        r'(?:i\'ll|i will|we\'ll|we will)\s+(.{5,80}?)(?:\.|$|by\s)',
-        r'(?:i need to|we need to)\s+(.{5,80}?)(?:\.|$|by\s)',
-        r'(?:i have to|we have to)\s+(.{5,80}?)(?:\.|$|by\s)',
-        r'(?:going to|gonna)\s+(.{5,80}?)(?:\.|$|by\s)',
-        r'(?:i promise|we promise)\s+(.{5,80}?)(?:\.|$|by\s)',
-        r'(?:i commit|we commit)\s+(.{5,80}?)(?:\.|$|by\s)',
-        r'(?:let\'s|let us)\s+(.{5,80}?)(?:\.|$|by\s)',
+        r"(?:i\'ll|i will|we\'ll|we will)\s+(?:send|deliver|review|share|provide|submit|complete|finish|schedule|prepare|draft|update|create|build|implement|fix|contact|follow up|get back|circle back|send over|put together|wrap up)\s+(.{5,80}?)(?:\.|$|by\s)",
+        r"(?:i need to|we need to)\s+(?:send|deliver|review|share|provide|submit|complete|finish|schedule|prepare|draft|update|create|build|implement|fix|contact|follow up|get back|circle back|send over|put together|wrap up)\s+(.{5,80}?)(?:\.|$|by\s)",
+        r"(?:i have to|we have to)\s+(?:send|deliver|review|share|provide|submit|complete|finish|schedule|prepare|draft|update|create|build|implement|fix|contact|follow up|get back|circle back|send over|put together|wrap up)\s+(.{5,80}?)(?:\.|$|by\s)",
+        r"(?:going to|gonna)\s+(?:send|deliver|review|share|provide|submit|complete|finish|schedule|prepare|draft|update|create|build|implement|fix|contact|follow up|get back|circle back|send over|put together|wrap up)\s+(.{5,80}?)(?:\.|$|by\s)",
+        r"(?:i promise|we promise)\s+(.{5,80}?)(?:\.|$|by\s)",
+        r"(?:i commit|we commit)\s+(.{5,80}?)(?:\.|$|by\s)",
+        r"(?:let\'s|let us)\s+(?:send|deliver|review|share|provide|submit|complete|finish|schedule|prepare|draft|update|create|build|implement|fix|contact|follow up|get back|circle back|send over|put together|wrap up)\s+(.{5,80}?)(?:\.|$|by\s)",
     ]
 
     for pattern in commitment_patterns:
@@ -71,12 +72,19 @@ def process_transcript_chunk(
         for match in matches:
             commitment_text = match.strip().rstrip('.,;')
             if len(commitment_text) > 3:
-                # Try to extract deadline
+                # Try to extract deadline — expanded patterns
                 deadline = ""
                 deadline_match = _re.search(
-                    r'by\s+((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|'
-                    r'end of (?:day|week|month|quarter)|next week|tomorrow|today|'
-                    r'\w+ \d+|\d+/\d+))',
+                    r'by\s+('
+                    r'monday|tuesday|wednesday|thursday|friday|saturday|sunday|'
+                    r'end of (?:day|week|month|quarter)|'
+                    r'next (?:week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month)|'
+                    r'eod|cob|asap|tomorrow|today|yesterday|'
+                    r'this (?:week|month|friday|monday)|'
+                    r'\w+ \d{1,2}(?:st|nd|rd|th)?|'
+                    r'\d{1,2}/\d{1,2}(?:/\d{2,4})?|'
+                    r'\d{4}-\d{2}-\d{2}'
+                    r')',
                     text, _re.IGNORECASE
                 )
                 if deadline_match:
