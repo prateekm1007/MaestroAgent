@@ -255,13 +255,54 @@ class TestMutationInjectionUnsanitized:
 
 
 class TestMutationScoreReport:
-    """Report the mutation kill rate."""
+    """Report the mutation kill rate.
+
+    Audit fix A (external auditor): the previous version hardcoded killed=7
+    instead of deriving it from the actual test results. This meant the
+    score report would print '100%' even when a mutation test failed.
+
+    The fix: run the 7 mutation test classes as subprocesses, count
+    actual pass/fail, and derive the kill rate from real results. This
+    is slower (spawns subprocesses) but honest.
+    """
 
     def test_mutation_kill_rate_meets_target(self):
-        """At least 85% of mutations must be caught by the test suite."""
-        # All 7 mutations are caught by tests (verified above)
-        total_mutations = 7
-        killed = 7  # all caught
+        """At least 85% of mutations must be caught by the test suite.
+
+        This test runs each mutation test class individually and counts
+        actual pass/fail — the kill rate is derived from execution, not
+        hardcoded.
+        """
+        import subprocess
+
+        mutation_tests = [
+            "TestMutationAllDeltasMeaningful",
+            "TestMutationCompletedNeverClose",
+            "TestMutationFutureEvidenceAllowed",
+            "TestMutationCrossEntityContamination",
+            "TestMutationBootstrapInProduction",
+            "TestMutationCitationsUseSignalIDs",
+            "TestMutationInjectionUnsanitized",
+        ]
+
+        total_mutations = len(mutation_tests)
+        killed = 0
+
+        for test_class in mutation_tests:
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-m", "pytest",
+                     f"{__file__}::{test_class}::test_mutation_caught",
+                     "--tb=no", "-q", "--no-header"],
+                    capture_output=True, text=True, timeout=30,
+                    cwd=str(Path(__file__).resolve().parent.parent),
+                )
+                # If the test passes, the mutation was caught (killed)
+                if result.returncode == 0:
+                    killed += 1
+            except Exception:
+                pass  # subprocess failed — count as not killed
+
         kill_rate = killed / total_mutations
 
         assert kill_rate >= 0.85, \
