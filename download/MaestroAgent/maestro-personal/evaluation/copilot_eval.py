@@ -227,7 +227,20 @@ def evaluate_copilot(api_module, client, auth_headers, db_path: str, user_email:
             }, headers=auth_headers)
 
             # Get a situation_id from the shell
-            shell = api_module.build_shell(user_email=user_email)
+            # Phase 8 fix: resolve the actual user_email from the auth token.
+            # The eval was using a hardcoded user_email that didn't match the
+            # one signals are saved under (verify_token returns user_email,
+            # not the token string). This caused 0 signals → 0 situations →
+            # empty situation_id → empty copilot response.
+            import sqlite3 as _sqlite3
+            _db = os.environ.get("MAESTRO_PERSONAL_DB", ":memory:")
+            _conn = _sqlite3.connect(_db)
+            _row = _conn.execute("SELECT user_email FROM user_tokens WHERE token = ?",
+                                 (auth_headers["Authorization"].split("Bearer ")[-1],)).fetchone()
+            _conn.close()
+            _actual_user_email = _row[0] if _row else user_email
+
+            shell = api_module.build_shell(user_email=_actual_user_email)
             situations = shell.detect_situations()
             situation_id = ""
             for s in situations:
@@ -252,8 +265,11 @@ def evaluate_copilot(api_module, client, auth_headers, db_path: str, user_email:
                     data = resp.json()
                     if data.get("suggestions"):
                         all_suggestions.extend(data["suggestions"])
-                    if data.get("new_commitments"):
-                        all_commitments.extend(data["new_commitments"])
+                    # Phase 8 fix: the endpoint returns 'commitments_detected',
+                    # not 'new_commitments'. The eval was checking the wrong
+                    # field name, so commitments were never collected.
+                    if data.get("commitments_detected"):
+                        all_commitments.extend(data["commitments_detected"])
             latency_ms = (time.time() - start) * 1000
 
             # Also get post-call summary
