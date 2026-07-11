@@ -248,7 +248,7 @@ def _compute_learning_loop_health(path: str, user_email: str) -> dict[str, Any]:
     """Compute learning loop health metrics."""
     try:
         from maestro_personal_shell.outcome_tracker import get_prediction_count
-        counts = get_prediction_count(db_path=path)
+        counts = get_prediction_count(db_path=path, user_email=user_email)
 
         return {
             "predictions_registered": counts.get("total", 0),

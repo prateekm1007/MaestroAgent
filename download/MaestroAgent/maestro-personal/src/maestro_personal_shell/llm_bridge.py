@@ -417,7 +417,7 @@ def extract_json(text: str, expect: str = "object") -> Any | None:
     return None
 
 
-def _get_calibration_context() -> str:
+def _get_calibration_context(user_email: str | None = None) -> str:
     """Get calibration context for LLM prompts.
 
     S0 fix: feeds Brier scores + past outcomes into the LLM system
@@ -436,7 +436,7 @@ def _get_calibration_context() -> str:
     parts = []
     try:
         from maestro_personal_shell.outcome_tracker import get_calibration_context_for_llm
-        calib = get_calibration_context_for_llm()
+        calib = get_calibration_context_for_llm(user_email=user_email)
         if calib:
             parts.append(calib)
     except Exception as e:
@@ -444,7 +444,7 @@ def _get_calibration_context() -> str:
 
     try:
         from maestro_personal_shell.outcome_tracker import get_corrections_context_for_llm
-        corrections = get_corrections_context_for_llm()
+        corrections = get_corrections_context_for_llm(user_email=user_email)
         if corrections:
             parts.append(corrections)
     except Exception as e:
@@ -934,7 +934,7 @@ async def llm_generate_answer(
                 evidence_text += f"- {sanitize_for_llm(str(ref), max_length=500)}\n"
 
     # S0: Inject calibration history so the LLM can learn from past outcomes
-    calibration_context = _get_calibration_context()
+    calibration_context = _get_calibration_context(user_email=getattr(situation, "_user_email", None) or os.environ.get("MAESTRO_PERSONAL_USER", None))
 
     system_prompt = """You are Maestro, a personal intelligence companion. You answer questions about the user's commitments, meetings, and professional relationships based on verified evidence.
 
@@ -990,7 +990,7 @@ async def llm_synthesize_judgment(
         persp_text += f"- {specialist}: {observation}\n"
 
     # S0: Inject calibration history so the LLM calibrates confidence from past outcomes
-    calibration_context = _get_calibration_context()
+    calibration_context = _get_calibration_context(user_email=getattr(situation, "_user_email", None) or os.environ.get("MAESTRO_PERSONAL_USER", None))
 
     system_prompt = """You are the Maestro Cognitive Council's Judgment Synthesizer. Your job is to take multiple specialist perspectives on a situation and produce a single synthesized judgment.
 
@@ -1064,7 +1064,7 @@ async def llm_generate_perspective(
         signals_text += f"- [{sig_type}] {sig_text}\n"
 
     # S0: Inject calibration history so the LLM calibrates confidence from past outcomes
-    calibration_context = _get_calibration_context()
+    calibration_context = _get_calibration_context(user_email=getattr(situation, "_user_email", None) or os.environ.get("MAESTRO_PERSONAL_USER", None))
 
     system_prompt = f"""You are the {specialist} specialist in the Maestro Cognitive Council. Analyze the situation from your professional perspective and provide an insight.
 
@@ -1216,7 +1216,7 @@ async def llm_holistic_analysis(
         signals_text += f"- [{sig_type}] {sig_text}\n"
 
     # S0: Inject calibration history
-    calibration_context = _get_calibration_context()
+    calibration_context = _get_calibration_context(user_email=getattr(situation, "_user_email", None) or os.environ.get("MAESTRO_PERSONAL_USER", None))
 
     system_prompt = """You are the Maestro Cognitive Council — a holistic intelligence system that analyzes professional situations from multiple specialist perspectives and synthesizes a judgment.
 

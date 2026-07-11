@@ -357,12 +357,12 @@ def get_prediction_count(db_path: str | None = None, user_email: str | None = No
     return {"total": total, "resolved": resolved, "pending": pending}
 
 
-def get_calibration_context_for_llm(db_path: str | None = None) -> str:
+def get_calibration_context_for_llm(db_path: str | None = None, user_email: str | None = None) -> str:
     """Build a calibration context string for injection into LLM system prompts.
 
-    This is the fix for the S0 finding: 'the Brier score is never fed
-    back into the LLM prompts. The LLM operates completely amnesiac to
-    its past predictive failures.'
+    P20 fix: add user_email parameter for tenant isolation. Without this,
+    Bob's LLM prompts include Alice's Brier score — global calibration
+    context leaks across users.
 
     This function queries the outcome database and returns a concise
     summary of:
@@ -382,15 +382,26 @@ def get_calibration_context_for_llm(db_path: str | None = None) -> str:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
 
-    # Get resolved predictions
-    rows = conn.execute(
-        """SELECT predicted_confidence, actual_outcome, expected_outcome,
-                  entity_id, predicted_at, resolved_at
-           FROM predictions
-           WHERE resolved_at IS NOT NULL
-           ORDER BY resolved_at DESC
-           LIMIT 20""",
-    ).fetchall()
+    # P20 fix: scope by user_email
+    if user_email:
+        rows = conn.execute(
+            """SELECT predicted_confidence, actual_outcome, expected_outcome,
+                      entity_id, predicted_at, resolved_at
+               FROM predictions
+               WHERE resolved_at IS NOT NULL AND user_email = ?
+               ORDER BY resolved_at DESC
+               LIMIT 20""",
+            (user_email,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT predicted_confidence, actual_outcome, expected_outcome,
+                      entity_id, predicted_at, resolved_at
+               FROM predictions
+               WHERE resolved_at IS NOT NULL
+               ORDER BY resolved_at DESC
+               LIMIT 20""",
+        ).fetchall()
     conn.close()
 
     if not rows:

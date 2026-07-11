@@ -1781,7 +1781,7 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token)):
         title_safe = _sanitize(str(getattr(matching_situation, "title", "")), max_length=200)
         entity_safe = _sanitize(str(getattr(matching_situation, "entity", "")), max_length=100)
         evidence_safe = _sanitize(source_sent) if source_sent else "No specific evidence found."
-        calibration_context = _get_calibration_context()
+        calibration_context = _get_calibration_context(user_email=token)
 
         system_prompt = """You are Maestro, a personal intelligence companion. You answer questions about the user's commitments, meetings, and professional relationships based on verified evidence.
 
