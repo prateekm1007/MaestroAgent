@@ -2326,9 +2326,16 @@ async def process_transcript(req: TranscriptChunkRequest, token: str = Depends(v
     Phase 4: Cluely-class real-time intelligence. Calls Core's
     CopilotSituationBridge.on_transcript_chunk(). Updates the Situation's
     operational state in real-time, detects new commitments, resolves unknowns.
+
+    Phase 8 fix: call detect_situations() before passing situation_id to
+    the copilot bridge. Without this, the situation engine is empty and
+    get_situation() returns None — the bridge silently returns empty results
+    even when the situation_id is valid. This was misdiagnosed as 'needs LLM'
+    when the real issue was a missing detect_situations() call.
     """
     from maestro_personal_shell.copilot_live import process_transcript_chunk
     shell = build_shell(user_email=token)
+    shell.detect_situations()  # Phase 8 fix: materialize situations so the bridge can find them
     return process_transcript_chunk(
         shell=shell,
         situation_id=req.situation_id,
