@@ -450,6 +450,8 @@ class SignalResponse(BaseModel):
     text: str
     signal_type: str
     timestamp: str
+    # P1-Audit-F4: surface audit-log write failures to the caller
+    audit_log_error: str | None = None
 
 
 class AskRequest(BaseModel):
@@ -489,6 +491,10 @@ class AskResponse(BaseModel):
     # TRANSPARENCY — the user knows whether they're getting AI or rules
     llm_active: bool = False           # True if LLM powered this response
     llm_provider: str = "none"         # "zai-glm", "openai", "anthropic", or "none"
+    # P1-Audit-F2 fix: top-level intelligence source label so the user
+    # knows whether the answer came from LLM, rules, or ranker-only.
+    # Propagates /api/llm-status honesty to every response.
+    intelligence_source: str = "rules"  # "llm" | "rules" | "ranker"
 
 
 class CommitmentResponse(BaseModel):
@@ -1099,12 +1105,14 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
 
     save_signal_to_db(signal_data, user_email=token)
 
-    # Directive 5: Audit log
+    # Directive 5: Audit log (P1-Audit-F4: surface failures, don't swallow)
+    audit_log_error = None
     try:
         from maestro_personal_shell.audit_trust import log_data_access
         log_data_access(token, "write", "/api/signals", signal_id, {"entity": canonical_entity})
-    except Exception:
-        pass
+    except Exception as e:
+        audit_log_error = str(e)
+        logger.error("Audit log write failed for /api/signals: %s", e)
 
     # Phase 3: Persist the commitment classification into the normalized
     # ledger. The ledger is the source of truth for commitment lifecycle
@@ -1223,6 +1231,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
         text=sanitized_text,  # F6 FIX: echo sanitized text, not raw (consistency with GET)
         signal_type=req.signal_type,
         timestamp=now.isoformat(),
+        audit_log_error=audit_log_error,  # P1-Audit-F4: None if OK, error string if log failed
     )
 
 
@@ -1758,18 +1767,13 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                 except Exception:
                     pass
         elif matching_situation:
-            for specialist_name in (specialists[:3] if specialists else []):
-                try:
-                    p = Perspective(
-                        situation_id=str(getattr(matching_situation, "situation_id", "")),
-                        specialist=specialist_name,
-                        observation="No agent insight available for this specialist",
-                        implication="The agent did not produce an insight from the available signals",
-                        recommended_next_step="Add more signals to enable agent analysis",
-                    )
-                    persp_objects.append(p)
-                except Exception:
-                    pass
+            # P1-Audit-F2 fix: do NOT create fake "No agent insight available"
+            # perspective entries. The auditor found these look like real
+            # specialist output but contain no actual insight. When no LLM
+            # is available, return an empty perspectives array instead of
+            # populating it with placeholder "no insight" entries.
+            # The top-level intelligence_source field tells the user why.
+            pass  # no perspectives when no LLM and no nerve insights
 
         # 3. JudgmentSynthesizer (fallback)
         if not llm_judgment_used and is_llm_available() and matching_situation and persp_objects:
@@ -1994,6 +1998,8 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
         consequence_paths=consequence_paths,
         llm_active=llm_active,
         llm_provider=get_llm_provider_name() if llm_active else "none",
+        # P1-Audit-F2: propagate intelligence source to every response
+        intelligence_source=("llm" if llm_active else "rules"),
     )
 
 
@@ -4009,12 +4015,14 @@ async def correct_signal(
     metadata["corrected_at"] = datetime.now(timezone.utc).isoformat()
     metadata["corrected_by"] = token  # user_email from verify_token
 
-    # P11 fix: audit-log the correction
+    # P11 fix: audit-log the correction (P1-Audit-F4: surface failures)
+    correction_audit_error = None
     try:
         from maestro_personal_shell.audit_trust import log_data_access
         log_data_access(token, "correct", f"/api/signals/{signal_id}/correct", signal_id, {"action": action})
-    except Exception:
-        pass
+    except Exception as e:
+        correction_audit_error = str(e)
+        logger.error("Audit log write failed for /api/signals/{id}/correct: %s", e)
 
     if action == "dismiss":
         metadata["status"] = "dismissed"
