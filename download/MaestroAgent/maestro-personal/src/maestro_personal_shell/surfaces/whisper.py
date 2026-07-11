@@ -43,7 +43,7 @@ class WhisperSurface:
 
         Returns a list of whisper dicts. Empty list = trusted silence.
         Each whisper has:
-          - type: "stale_commitment" | "meeting_prep" | "deadline_approaching"
+          - type: "stale_commitment" | "meeting_prep" | "deadline_approaching" | "critical_signal"
           - entity: who the whisper is about
           - title: short push notification title
           - body: push notification body
@@ -51,6 +51,10 @@ class WhisperSurface:
           - action_url: deep link into the app (optional)
         """
         whispers = []
+
+        # 0. Critical signals (P0 fix — auditor finding #1: 0% critical recall)
+        # Detect escalation/churn/legal/board signals that need immediate attention.
+        whispers.extend(self._detect_critical_signal_whispers())
 
         # 1. Stale commitments (absence detection)
         whispers.extend(self._detect_stale_commitment_whispers())
@@ -64,6 +68,72 @@ class WhisperSurface:
         # Sort by priority: high > medium > low
         priority_order = {"high": 0, "medium": 1, "low": 2}
         whispers.sort(key=lambda w: priority_order.get(w.get("priority", "low"), 2))
+
+        return whispers
+
+    def _detect_critical_signal_whispers(self) -> list[dict[str, Any]]:
+        """Detect whispers for critical signals — escalations, churn, legal, board.
+
+        P0 fix (auditor finding #1): Whisper critical recall was 0% because
+        the WhisperSurface only detected stale commitments, meeting prep, and
+        deadline approaches. It did NOT detect critical signals like
+        "customer threatening to churn" or "board escalation". This method
+        scans recent signals for critical keywords and generates high-priority
+        whispers.
+
+        Critical keywords (from the Phase 6 silence_benchmark_100):
+          - churn/escalation/threatening/cancel account
+          - board escalation/emergency
+          - legal/lawsuit/compliance/regulatory
+          - deadline missed/overdue/past due
+          - breach/security incident
+        """
+        whispers = []
+        now = datetime.now(timezone.utc)
+        recent_window = now - timedelta(hours=48)  # only whisper about recent critical signals
+
+        critical_keywords = {
+            "churn": ["churn", "cancel account", "leaving us", "threatening to leave",
+                      "pulling out", "moving to competitor"],
+            "board": ["board escalation", "emergency meeting", "investor wants",
+                      "board members are upset", "emergency board"],
+            "legal": ["lawsuit", "legal action", "compliance violation", "regulatory",
+                      "breach of contract", " attorneys", "counsel"],
+            "deadline": ["deadline missed", "overdue", "past due", "missed the deadline",
+                        "didn't deliver", "failed to deliver"],
+            "security": ["data breach", "security incident", "compromised",
+                        "unauthorized access", "leaked"],
+        }
+
+        for signal in self._shell.oem_state.signals:
+            text = str(getattr(signal, "text", "")).lower()
+            sig_type = str(getattr(signal, "signal_type", "") or
+                          getattr(getattr(signal, "type", ""), "value", "")).lower()
+
+            # Skip noise signal types
+            if sig_type in ("newsletter", "fyi", "notification", "social", "blog", "marketing"):
+                continue
+
+            # Check for critical keywords
+            matched_category = None
+            for category, keywords in critical_keywords.items():
+                if any(kw in text for kw in keywords):
+                    matched_category = category
+                    break
+
+            if matched_category:
+                entity = getattr(signal, "entity", "unknown")
+                display_entity = entity.capitalize() if entity else "Alert"
+                sig_text = getattr(signal, "text", "")
+
+                whispers.append({
+                    "type": "critical_signal",
+                    "entity": display_entity,
+                    "title": f"CRITICAL ({matched_category}): {display_entity}",
+                    "body": sig_text[:120],
+                    "priority": "high",
+                    "action_url": f"maestropersonal://ask?query={display_entity}",
+                })
 
         return whispers
 
