@@ -132,8 +132,12 @@ def resolve_outcome(
     actual_outcome: str,
     metadata: dict | None = None,
     db_path: str | None = None,
+    user_email: str | None = None,
 ) -> dict[str, Any]:
     """Resolve a prediction with the actual outcome.
+
+    P0 fix (independent audit S2): scope by user_email. Without this,
+    Bob can resolve Alice's prediction by ID — poisoning her calibration.
 
     This CLOSES the learning loop. The prediction had a confidence;
     the outcome is now known. The Brier score can be computed from
@@ -150,10 +154,16 @@ def resolve_outcome(
 
     conn = sqlite3.connect(path)
 
-    # Check prediction exists
-    row = conn.execute(
-        "SELECT * FROM predictions WHERE prediction_id = ?", (prediction_id,)
-    ).fetchone()
+    # Check prediction exists AND belongs to this user (P0 fix)
+    if user_email:
+        row = conn.execute(
+            "SELECT * FROM predictions WHERE prediction_id = ? AND user_email = ?",
+            (prediction_id, user_email),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT * FROM predictions WHERE prediction_id = ?", (prediction_id,)
+        ).fetchone()
     if not row:
         conn.close()
         return {"error": "Prediction not found", "prediction_id": prediction_id}

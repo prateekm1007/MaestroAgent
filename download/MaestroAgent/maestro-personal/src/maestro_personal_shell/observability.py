@@ -119,6 +119,7 @@ def log_trace_event(
     details: dict[str, Any] | None = None,
     latency_ms: float = 0,
     db_path: str | None = None,
+    user_email: str | None = None,
 ) -> None:
     """Log a trace event for the current request.
 
@@ -129,11 +130,12 @@ def log_trace_event(
         action: what was done (e.g., 'query', 'create', 'delete', 'whisper', 'silence')
         details: additional structured data
         latency_ms: time taken for this operation
+        user_email: override the context user_email (for middleware use)
     """
     import json
     path = db_path or _get_db_path()
     trace_id = get_trace_id()
-    user_email = get_user_email() or "unknown"
+    ue = user_email or get_user_email() or "unknown"
 
     try:
         conn = sqlite3.connect(path)
@@ -143,7 +145,7 @@ def log_trace_event(
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 trace_id,
-                user_email,
+                ue,
                 event_type,
                 surface,
                 entity,
@@ -223,8 +225,12 @@ def log_surface_read(
     )
 
 
-def get_trace(trace_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
+def get_trace(trace_id: str, db_path: str | None = None, user_email: str | None = None) -> list[dict[str, Any]]:
     """Get all events for a trace ID.
+
+    P0 fix (independent audit S3): scope by user_email. Without this,
+    Bob can retrieve Alice's trace by guessing/knowing her trace ID —
+    including her email, entity, signal text, and candidate output.
 
     Returns a timeline of everything that happened in a single request:
     surface reads, whisper decisions, mutations, LLM calls — all linked
@@ -236,10 +242,16 @@ def get_trace(trace_id: str, db_path: str | None = None) -> list[dict[str, Any]]
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(
-            """SELECT * FROM trace_events WHERE trace_id = ? ORDER BY id ASC""",
-            (trace_id,),
-        ).fetchall()
+        if user_email:
+            rows = conn.execute(
+                """SELECT * FROM trace_events WHERE trace_id = ? AND user_email = ? ORDER BY id ASC""",
+                (trace_id, user_email),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM trace_events WHERE trace_id = ? ORDER BY id ASC""",
+                (trace_id,),
+            ).fetchall()
         result = []
         for row in rows:
             d = dict(row)

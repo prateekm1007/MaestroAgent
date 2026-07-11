@@ -662,12 +662,16 @@ async def trace_id_middleware(request: Request, call_next):
     # Log the request as a trace event
     latency_ms = (time.time() - start) * 1000
     try:
+        # Read user_email from context (set by verify_token during the request)
+        from maestro_personal_shell.observability import get_user_email as _get_ue
+        _ue = _get_ue()
         log_trace_event(
             event_type="http_request",
             surface=request.url.path,
             action=request.method,
             details={"status_code": response.status_code},
             latency_ms=latency_ms,
+            user_email=_ue if _ue else None,  # pass explicitly for middleware context
         )
     except Exception:
         pass
@@ -709,10 +713,23 @@ async def login(req: LoginRequest):
     """
     env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
 
-    # P1 fix: if password matches the env token, issue a token
-    # This is single-user local mode — the "password" is the shared secret
+    # P0 fix (independent audit S5): in production mode, the shared secret
+    # should NOT be able to mint tokens for arbitrary emails. Only the
+    # default user is allowed. For multi-user, a real auth provider is needed.
     if env_token and req.password == env_token:
-        user_email = req.user_email or "default@personal.local"
+        if _is_production():
+            # Production: only the default user can login with the shared secret
+            # Arbitrary email minting is blocked
+            if req.user_email and req.user_email != "default@personal.local":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Production mode: arbitrary email login is not permitted. "
+                           "Use a proper auth provider for multi-user deployment."
+                )
+            user_email = "default@personal.local"
+        else:
+            # Dev mode: allow any email (for testing)
+            user_email = req.user_email or "default@personal.local"
         token = _create_user_token(user_email)
         return LoginResponse(token=token, user_email=user_email, message="Login successful")
 
@@ -2441,13 +2458,23 @@ async def delete_account(token: str = Depends(verify_token)):
             deleted_stores.append("calibration_history")
         except sqlite3.OperationalError:
             pass
-        # 5. Predictions + outcomes
+        # 5. Predictions + outcomes (P0 fix: use user_email column, not metadata LIKE)
         try:
-            conn.execute("DELETE FROM outcomes WHERE prediction_id IN (SELECT prediction_id FROM predictions WHERE metadata LIKE ? OR entity_id IN (SELECT entity FROM signals WHERE 1=0))", (f'%"{token}"%',))
-            conn.execute("DELETE FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',))
+            # Delete outcomes for this user's predictions
+            conn.execute("""
+                DELETE FROM outcomes WHERE prediction_id IN (
+                    SELECT prediction_id FROM predictions WHERE user_email = ?
+                )
+            """, (token,))
+            conn.execute("DELETE FROM predictions WHERE user_email = ?", (token,))
             deleted_stores.append("predictions+outcomes")
         except sqlite3.OperationalError:
-            pass
+            # Fallback for pre-migration DBs
+            try:
+                conn.execute("DELETE FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',))
+                deleted_stores.append("predictions (fallback)")
+            except sqlite3.OperationalError:
+                pass
         # 6. Graph
         for table in ("graph_entities", "graph_edges", "graph_patterns"):
             try:
@@ -2455,6 +2482,17 @@ async def delete_account(token: str = Depends(verify_token)):
                 deleted_stores.append(table)
             except sqlite3.OperationalError:
                 pass
+        # 7. Devices + push_log (P0 fix: auditor found these were NOT deleted)
+        try:
+            conn.execute("DELETE FROM push_log WHERE user_email = ?", (token,))
+            deleted_stores.append("push_log")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("DELETE FROM devices WHERE user_email = ?", (token,))
+            deleted_stores.append("devices")
+        except sqlite3.OperationalError:
+            pass
         # 7. User tokens
         try:
             conn.execute("DELETE FROM user_tokens WHERE user_email = ?", (token,))
@@ -2539,15 +2577,33 @@ async def export_data(token: str = Depends(verify_token)):
     except sqlite3.OperationalError:
         export["calibration_history"] = []
 
-    # Predictions + outcomes
+    # Predictions + outcomes (P0 fix: use user_email, not metadata LIKE)
     try:
         preds = [dict(r) for r in conn.execute(
-            "SELECT * FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',)
+            "SELECT * FROM predictions WHERE user_email = ?", (token,)
         ).fetchall()]
         export["predictions"] = preds
         export["prediction_count"] = len(preds)
     except sqlite3.OperationalError:
-        export["predictions"] = []
+        # Fallback for pre-migration DBs
+        try:
+            preds = [dict(r) for r in conn.execute(
+                "SELECT * FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',)
+            ).fetchall()]
+            export["predictions"] = preds
+            export["prediction_count"] = len(preds)
+        except sqlite3.OperationalError:
+            export["predictions"] = []
+
+    # Devices + push_log (P0 fix: auditor found these were missing from export)
+    for table in ("devices", "push_log"):
+        try:
+            rows = [dict(r) for r in conn.execute(
+                f"SELECT * FROM {table} WHERE user_email = ?", (token,)
+            ).fetchall()]
+            export[table] = rows
+        except sqlite3.OperationalError:
+            export[table] = []
 
     # Graph
     for table in ("graph_entities", "graph_edges", "graph_patterns"):
@@ -2589,6 +2645,7 @@ async def register_device_endpoint(req: DeviceRegisterRequest, token: str = Depe
         push_token=req.push_token,
         platform=req.platform,
         user_timezone=req.user_timezone,
+        user_email=token,  # P0 fix: scope device to authenticated user
     )
     return DeviceRegisterResponse(
         device_id=device_id,
@@ -2621,7 +2678,7 @@ async def deliver_whispers_push(token: str = Depends(verify_token)):
     surface = WhisperSurface(shell=shell)
     whispers = surface.get_active_whispers()
 
-    log = deliver_whispers_as_push(whispers)
+    log = deliver_whispers_as_push(whispers, user_email=token)  # P0 fix: scope to authenticated user
 
     pushed = sum(1 for e in log if e.get("status") == "sent")
     suppressed = sum(1 for e in log if e.get("status") == "suppressed")
@@ -4047,7 +4104,7 @@ async def get_trace_endpoint(trace_id: str, token: str = Depends(verify_token)):
     Returns the full timeline of a single request: surface reads, whisper
     decisions, mutations, LLM calls — all linked by the trace ID.
     """
-    events = get_trace(trace_id)
+    events = get_trace(trace_id, user_email=token)  # P0 fix: scope by authenticated user
     return {"trace_id": trace_id, "event_count": len(events), "events": events}
 
 

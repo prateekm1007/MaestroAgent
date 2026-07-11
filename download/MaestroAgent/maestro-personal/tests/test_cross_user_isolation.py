@@ -307,10 +307,10 @@ class TestBootstrapTokenGating:
             assert response.status_code == 401, \
                 "Bootstrap token must be rejected in production mode"
 
-            # But per-user tokens should still work (with correct password)
+            # But per-user tokens should still work — only for default user in production
             response = client.post(
                 "/api/auth/login",
-                json={"user_email": "user@example.com", "password": "bootstrap-token-prod"},
+                json={"user_email": "default@personal.local", "password": "bootstrap-token-prod"},
             )
             assert response.status_code == 200
             user_token = response.json()["token"]
