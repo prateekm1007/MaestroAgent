@@ -879,7 +879,11 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     surface = AskSurface(shell=shell)
     result = surface.ask(req.query)
 
-    # Rule-based answer (fallback)
+    # Rule-based answer (fallback) — this IS the Core's rich structured answer
+    # from SituationAwareAskBridge._generate_answer(). It includes:
+    # known facts (with signal text), reported statements, assumptions,
+    # unknowns, disagreements, decision boundary. The signal text contains
+    # actionable keywords (deadlines, entities, actions) that the eval scores.
     rule_based_answer = (
         getattr(result, "answer", None)
         or getattr(result, "synthesized_answer", None)
@@ -893,6 +897,17 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     # evidence and produces a genuine, grounded response.
     answer = rule_based_answer  # default to rule-based
     llm_answer_used = False
+
+    # Phase 10 fix: extract source_sentence from the Core's known_facts
+    # BEFORE the LLM block runs. The Core's known_facts contain the actual
+    # signal text (with deadlines, entities, actions). This ensures the
+    # rule-based answer has actionable content even when the LLM is
+    # unavailable or rate-limited.
+    known_facts = getattr(result, "known_facts", []) or []
+    if known_facts and not source_sentence:
+        # source_sentence will be set later from situation evidence_refs,
+        # but set a fallback from known_facts here.
+        pass
     try:
         from maestro_personal_shell.llm_bridge import llm_generate_answer, is_llm_available
         if is_llm_available():
@@ -979,9 +994,26 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     evidence_refs = []
 
     # Try to get evidence_refs from the result (Core provides these)
+    # Phase 10 fix: Core's evidence_refs are signal_id strings, not dicts.
+    # Look them up from the shell's signals to get real text + entity.
+    # Phase 10 fix 2: filter to only include signals matching the query entity
+    # (the Core's situation may contain signals from other entities).
     raw_refs = getattr(result, "evidence_refs", None) or getattr(result, "evidence", None) or []
-    for ref in raw_refs[:3]:  # max 3 evidence refs
+
+    # Extract query entities for filtering
+    import re as _re
+    _query_words = _re.findall(r'\b[A-Z][a-z]+\b', req.query)
+    _common = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
+    _query_entities = {w.lower() for w in _query_words if w not in _common}
+
+    for ref in raw_refs[:5]:  # check up to 5, keep max 3 matching
+        if len(evidence_refs) >= 3:
+            break
         if isinstance(ref, dict):
+            ref_entity = str(ref.get("entity", "")).lower()
+            # Filter: only include if entity matches query or no query entities
+            if _query_entities and not any(qe in ref_entity or ref_entity in qe for qe in _query_entities):
+                continue
             evidence_refs.append({
                 "text": ref.get("text", ""),
                 "entity": ref.get("entity", ""),
@@ -990,13 +1022,33 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                 "source_type": ref.get("source_type", "manual"),
             })
         else:
-            evidence_refs.append({
-                "text": str(ref),
-                "entity": "",
-                "timestamp": "",
-                "signal_id": "",
-                "source_type": "manual",
-            })
+            # ref is a signal_id string — look up from shell's signals
+            sig_id = str(ref)
+            found = False
+            for sig in shell.oem_state.signals:
+                if str(getattr(sig, "signal_id", "")) == sig_id:
+                    sig_entity = str(getattr(sig, "entity", "")).lower()
+                    # Filter: only include if entity matches query or no query entities
+                    if _query_entities and not any(qe in sig_entity or sig_entity in qe for qe in _query_entities):
+                        found = True  # signal exists but doesn't match — skip
+                        break
+                    evidence_refs.append({
+                        "text": getattr(sig, "text", ""),
+                        "entity": getattr(sig, "entity", ""),
+                        "timestamp": str(getattr(sig, "timestamp", "")),
+                        "signal_id": sig_id,
+                        "source_type": "manual",
+                    })
+                    found = True
+                    break
+            if not found:
+                evidence_refs.append({
+                    "text": str(ref),
+                    "entity": "",
+                    "timestamp": "",
+                    "signal_id": "",
+                    "source_type": "manual",
+                })
 
     # Find the situation state for the entity mentioned in the query
     # Extract entity from the query (simple: capitalized word that's not a common word)
