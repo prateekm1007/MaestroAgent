@@ -316,6 +316,7 @@ def get_relevant_signals(
     limit: int = 10,
     db_path: str | None = None,
     as_of: str | None = None,
+    from_date: str | None = None,
 ) -> list[dict[str, Any]]:
     """Get signals relevant to a query or entity.
 
@@ -332,6 +333,10 @@ def get_relevant_signals(
         limit: Maximum results
         as_of: If provided (ISO datetime), only return signals with
                timestamp <= as_of (prevents temporal leakage)
+        from_date: If provided (ISO datetime), only return signals with
+                   timestamp >= from_date (P1-1 fix: temporal lower bound).
+                   "What did I commit to last quarter?" uses from_date to
+                   exclude signals from before the quarter start.
 
     Returns: List of relevant signal dicts, ranked by relevance
     """
@@ -370,6 +375,33 @@ def get_relevant_signals(
             results = filtered
         except Exception as e:
             logger.debug("as_of filtering in get_relevant_signals failed: %s", e)
+
+    # P1-1 fix: Temporal LOWER bound — if from_date is provided, filter out
+    # signals BEFORE from_date. "What did I commit to last quarter?" must
+    # not return commitments from 6 months ago.
+    if from_date and results:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            from_dt = _dt.fromisoformat(from_date.replace("Z", "+00:00"))
+            if from_dt.tzinfo is None:
+                from_dt = from_dt.replace(tzinfo=_tz.utc)
+            filtered = []
+            for r in results:
+                ts = r.get("timestamp", "")
+                if not ts:
+                    filtered.append(r)
+                    continue
+                try:
+                    row_ts = _dt.fromisoformat(ts.replace("Z", "+00:00"))
+                    if row_ts.tzinfo is None:
+                        row_ts = row_ts.replace(tzinfo=_tz.utc)
+                    if row_ts >= from_dt:
+                        filtered.append(r)
+                except Exception:
+                    filtered.append(r)
+            results = filtered
+        except Exception as e:
+            logger.debug("from_date filtering in get_relevant_signals failed: %s", e)
 
     if results:
         return results
