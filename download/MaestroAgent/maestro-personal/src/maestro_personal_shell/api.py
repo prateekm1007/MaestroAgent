@@ -3631,6 +3631,28 @@ async def correct_signal(
             user_email=token,
         )
 
+        # P0-1 FIX (Finding 8 — learning doesn't alter future behavior):
+        # When the user DISMISSES a signal, also record a "dismiss_suggestion"
+        # behavior event. The learning loop's dismissal_rate counter
+        # (learning_loop_v2.py:272) ONLY increments on behavior_type ==
+        # "dismiss_suggestion". Without this second record, every dismissal
+        # is recorded solely as "correct_commitment" → total_dismissals stays
+        # 0 → dismissal_rate stays 0.0 → materiality_gate_v2 never suppresses
+        # → the entire 8-phase learning loop is dead. The "agent" field maps
+        # to the commitment_type so the gate can learn "user dismisses 80%
+        # of 'tentative' commitments" (dismissal_rate_by_agent).
+        if action == "dismiss":
+            record_user_behavior(
+                behavior_type="dismiss_suggestion",
+                details={
+                    "signal_id": signal_id,
+                    "agent": metadata.get("commitment_type", "unknown"),
+                    "entity": row[1] if row else "",
+                    "commitment_type": metadata.get("commitment_type", "unknown"),
+                },
+                user_email=token,
+            )
+
         # Update personal graph
         if action == "complete":
             graph = PersonalGraph(user_email=token)
