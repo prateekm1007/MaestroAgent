@@ -1074,17 +1074,24 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
         sanitized_text = sanitized_text.replace(kw.lower(), "[REDACTED]")
 
     # P0.3: HTML comment blocking — <!-- ignore --> comments survive regex.
-    # Remove HTML comment syntax entirely.
+    # After html.escape(), <!-- becomes &lt;!-- so we must check BOTH forms.
     sanitized_text = _re.sub(r'<!--.*?-->', '[REDACTED]', sanitized_text, flags=_re.DOTALL)
-    # Also block standalone comment markers
-    sanitized_text = sanitized_text.replace('<!--', '[REDACTED]')
-    sanitized_text = sanitized_text.replace('-->', '[REDACTED]')
+    sanitized_text = _re.sub(r'&lt;!--.*?--&gt;', '[REDACTED]', sanitized_text, flags=_re.DOTALL)
+    # Also block standalone comment markers (both raw and escaped)
+    for marker in ('<!--', '-->', '&lt;!--', '--&gt;'):
+        sanitized_text = sanitized_text.replace(marker, '[REDACTED]')
 
     # P0.3: Case-insensitive jailbreak keyword blocking
-    _JAILBREAK_KEYWORDS = ["jailbroken", "jailbreak", "dan mode", "developer mode enabled"]
+    # S4 fix: auditor found "JAILBROKEN" survived because the regex only
+    # matched "jailbreak" (a substring of "jailbroken"). Now we explicitly
+    # include "jailbroken" as a separate keyword.
+    _JAILBREAK_KEYWORDS = [
+        "jailbroken", "jailbreak", "jail breaker", "jail breaking",
+        "dan mode", "developer mode enabled", "admin mode enabled",
+        "god mode", "root mode", "unrestricted mode",
+    ]
     for kw in _JAILBREAK_KEYWORDS:
-        if kw in sanitized_text.lower():
-            sanitized_text = _re.sub(_re.escape(kw), '[REDACTED]', sanitized_text, flags=_re.IGNORECASE)
+        sanitized_text = _re.sub(_re.escape(kw), '[REDACTED]', sanitized_text, flags=_re.IGNORECASE)
 
     # Layer 3: semantic injection check (async, runs when LLM available)
     # P0-Audit fix: only run when a REAL LLM provider is available (not ZAI
