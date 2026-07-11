@@ -491,21 +491,24 @@ class PrepareResponse(BaseModel):
 
 
 async def build_shell_async(user_email: str | None = None, as_of: str | None = None,
-                             signal_limit: int | None = None):
+                             signal_limit: int | None = None, from_date: str | None = None):
     """Async wrapper for build_shell — runs blocking DB I/O in a thread.
 
     Audit fix #3: sqlite3 is synchronous. Calling it directly in async
     endpoints blocks the event loop. This wrapper offloads to a thread
     via asyncio.to_thread(), allowing concurrent requests to proceed.
+
+    P1-1 fix: from_date parameter added for temporal lower bound filtering.
     """
     import asyncio
     return await asyncio.to_thread(
-        build_shell, user_email=user_email, as_of=as_of, signal_limit=signal_limit
+        build_shell, user_email=user_email, as_of=as_of, signal_limit=signal_limit,
+        from_date=from_date,
     )
 
 
 def build_shell(user_email: str | None = None, as_of: str | None = None,
-                signal_limit: int | None = None):
+                signal_limit: int | None = None, from_date: str | None = None):
     """Build a PersonalShell with signals loaded from SQLite.
 
     Phase 1 fix: when user_email is provided, only load that user's signals.
@@ -514,6 +517,12 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
     Temporal fix: when as_of is provided (ISO datetime string), only load
     signals with timestamp <= as_of. This prevents future evidence from
     appearing in past output (temporal leakage = 0).
+
+    P1-1 fix: when from_date is provided (ISO datetime string), only load
+    signals with timestamp >= from_date. This is the temporal LOWER bound
+    that was missing — queries like "What did I commit to last quarter?"
+    set as_of to the quarter end but never filtered out signals from
+    before the quarter start. Now both bounds are enforced.
 
     Audit fix #5: signal_limit caps the number of signals loaded (most
     recent first). This prevents O(n) latency growth at scale. Default
@@ -563,6 +572,30 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
             db_signals = filtered
         except Exception as e:
             logger.debug("as_of filtering failed: %s", e)
+
+    # P1-1 fix: Temporal LOWER bound — if from_date is provided, filter out
+    # signals BEFORE from_date. This was the missing half of temporal
+    # filtering: "What did I commit to last quarter?" set as_of to the
+    # quarter END but never excluded signals from before the quarter START.
+    if from_date:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            from_dt = _dt.fromisoformat(from_date.replace("Z", "+00:00"))
+            if from_dt.tzinfo is None:
+                from_dt = from_dt.replace(tzinfo=_tz.utc)
+            filtered = []
+            for row in db_signals:
+                try:
+                    row_ts = _dt.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                    if row_ts.tzinfo is None:
+                        row_ts = row_ts.replace(tzinfo=_tz.utc)
+                    if row_ts >= from_dt:
+                        filtered.append(row)
+                except Exception:
+                    filtered.append(row)  # keep if can't parse timestamp
+            db_signals = filtered
+        except Exception as e:
+            logger.debug("from_date filtering failed: %s", e)
 
     # Convert DB rows to PersonalSignal objects
     personal_signals = []
@@ -1040,14 +1073,21 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     # Directive 3: Parse temporal references in the query
     from maestro_personal_shell.temporal_query import parse_temporal_query
     temporal = parse_temporal_query(req.query)
+    from_date = None
     if temporal.get("has_temporal_ref"):
         # Use the temporal range for filtering
         as_of = temporal.get("to_date", as_of)
+        # P1-1 fix: capture the LOWER bound too. Previously only to_date
+        # (as_of) was passed, so "What did I commit to last quarter?"
+        # filtered out FUTURE signals but NOT signals from before the
+        # quarter start — old commitments leaked into the answer.
+        from_date = temporal.get("from_date")
         logger.debug("Temporal query detected: %s (from=%s, to=%s)",
                       temporal.get("time_range_description"),
-                      temporal.get("from_date"), as_of)
+                      from_date, as_of)
 
-    shell = await build_shell_async(user_email=token, as_of=as_of, signal_limit=500)
+    shell = await build_shell_async(user_email=token, as_of=as_of, signal_limit=500,
+                                    from_date=from_date)
 
     from maestro_personal_shell.surfaces.ask import AskSurface
     surface = AskSurface(shell=shell)
@@ -1116,6 +1156,8 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                         req.query,
                         user_email=token,
                         limit=10,
+                        as_of=as_of,
+                        from_date=from_date,
                     )
                     if raw_relevant:
                         # Rerank using the ask_ranker pipeline
@@ -1291,7 +1333,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
             from maestro_personal_shell.ask_ranker import rank_for_ask
-            raw = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of)
+            raw = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of, from_date=from_date)
             if raw:
                 ranked = rank_for_ask(req.query, raw)
                 if ranked["top_evidence"]:
@@ -1327,7 +1369,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
         try:
             from maestro_personal_shell.semantic_retrieval import get_relevant_signals
             from maestro_personal_shell.ask_ranker import rank_for_ask
-            raw = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of)
+            raw = get_relevant_signals(req.query, user_email=token, limit=5, as_of=as_of, from_date=from_date)
             if raw:
                 ranked = rank_for_ask(req.query, raw)
                 for r in ranked["top_evidence"]:
@@ -1665,6 +1707,22 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     unknowns = compute_unknowns(str(answer), evidence_refs, req.query)
     # Use the verified answer (unsupported claims removed).
     verified_answer = verification["verified_answer"]
+
+    # P1-1 fix: Answer abstention. When no evidence was found (no source
+    # sentence, no evidence refs), the honest answer is "I don't have
+    # enough information." The auditor found the rule-based answer would
+    # return a generic template even when zero matching signals existed —
+    # giving the false impression that the system searched and found
+    # nothing relevant, rather than honestly admitting it has no data.
+    # This is the epistemic honesty requirement: never fabricate an answer
+    # when the evidence base is empty.
+    if not source_sentence and not evidence_refs:
+        verified_answer = (
+            "I don't have enough information to answer that question. "
+            "No matching signals were found in your stored data."
+        )
+        # Set confidence to 0 — we have no evidence to support any claim
+        verification["confidence"] = 0.0
 
     return AskResponse(
         answer=str(verified_answer),

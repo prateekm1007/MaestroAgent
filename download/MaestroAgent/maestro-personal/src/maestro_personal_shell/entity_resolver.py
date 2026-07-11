@@ -88,16 +88,38 @@ def _levenshtein(a: str, b: str) -> int:
 
 
 def _fuzzy_match(a: str, b: str, threshold: float = 0.85) -> bool:
-    """Check if two strings are similar enough to be the same entity."""
+    """Check if two strings are similar enough to be the same entity.
+
+    P1-1 fix: the substring check was too aggressive. "Alex" was matching
+    "Alexa" because "alex" is a substring of "alexa" — two DIFFERENT names
+    that share a prefix were being collapsed into one entity. The fix:
+    only treat a substring match as a match when the remainder (the part
+    of the longer string after the shorter one ends) is a known corporate
+    suffix (corp, inc, ltd, etc.) or empty. This allows "Acme" → "AcmeCorp"
+    (remainder = "corp") while rejecting "Alex" → "Alexa" (remainder = "a").
+    """
     if not a or not b:
         return False
     norm_a = _normalize(a)
     norm_b = _normalize(b)
     if norm_a == norm_b:
         return True
-    # Check if one contains the other (e.g. "acme" in "acme corporation")
-    if norm_a in norm_b or norm_b in norm_a:
-        return True
+    # P1-1 fix: substring check with corporate-suffix guard.
+    # Corporate suffixes that legitimately extend an entity name without
+    # changing its identity. Only these remainders are treated as "same entity."
+    _CORPORATE_SUFFIXES = {
+        "corp", "corporation", "inc", "incorp", "llc", "ltd", "co",
+        "group", "holdings", "partners", "solutions", "systems",
+        "technologies", "tech", "labs", "industries", "global",
+    }
+    if norm_a in norm_b:
+        remainder = norm_b[len(norm_a):].strip()
+        if not remainder or remainder in _CORPORATE_SUFFIXES:
+            return True
+    if norm_b in norm_a:
+        remainder = norm_a[len(norm_b):].strip()
+        if not remainder or remainder in _CORPORATE_SUFFIXES:
+            return True
     # Levenshtein-based similarity
     max_len = max(len(norm_a), len(norm_b))
     if max_len == 0:
