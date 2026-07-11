@@ -112,14 +112,43 @@ def _score_copilot_response(
     hallucination_points = 0.0 if hallucination else 1.0
 
     # 3. Commitments extracted (1.0 point)
-    commitments_extracted = len(expected_commitments)  # simplified — assumes the pipeline extracts them
+    # Check the ACTUAL response, not just the expected count. The auditor
+    # found the eval was giving credit based on the benchmark's ground truth
+    # without checking whether the endpoint actually detected commitments.
+    # This made "100% extraction" vacuously true when the endpoint returned
+    # empty results.
+    actual_commitments = response.get("commitments", response.get("commitments_detected", []))
+    actual_commitment_texts = []
+    for c in actual_commitments:
+        if isinstance(c, dict):
+            actual_commitment_texts.append(str(c.get("text", "")))
+        else:
+            actual_commitment_texts.append(str(c))
+    actual_commitment_text = " ".join(actual_commitment_texts).lower()
+
     commitments_expected = len(expected_commitments)
-    commitment_points = 1.0 if commitments_expected == 0 else (1.0 * commitments_extracted / commitments_expected)
+    if commitments_expected > 0:
+        # Check if expected commitment keywords appear in the actual detected commitments
+        found = sum(1 for ec in expected_commitments
+                     if any(kw in actual_commitment_text
+                           for kw in str(ec.get("text", "")).lower().split()[:3]))
+        commitments_extracted = found
+        commitment_points = 1.0 * found / commitments_expected
+    else:
+        commitments_extracted = 0
+        commitment_points = 1.0  # no commitments expected = full credit
 
     # 4. Revocations handled (0.5 points)
-    revocations_detected = len(expected_revocations)
+    # Check the actual response for revocation signals (cancelled, revoked, off, etc.)
+    revocation_keywords = ["cancel", "revoked", "off", "backed out", "can't", "won't"]
+    actual_revocations = sum(1 for kw in revocation_keywords if kw in full_text)
     revocations_expected = len(expected_revocations)
-    revocation_points = 0.5 if revocations_expected == 0 else (0.5 * revocations_detected / revocations_expected)
+    if revocations_expected > 0:
+        revocations_detected = min(actual_revocations, revocations_expected)
+        revocation_points = 0.5 * revocations_detected / revocations_expected
+    else:
+        revocations_detected = 0
+        revocation_points = 0.5  # no revocations expected = full credit
 
     # 5. Latency (0.5 points)
     latency_ok = latency_ms < 3000
