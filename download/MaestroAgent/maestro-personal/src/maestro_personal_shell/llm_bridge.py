@@ -518,6 +518,82 @@ def clear_llm_cache() -> None:
 # S4: Prompt injection defense
 # ---------------------------------------------------------------------------
 
+# P1-2 fix: Unicode homoglyph normalization. Attackers use Cyrillic/
+# Greek characters that look identical to Latin letters to bypass regex.
+# Example: "іgnоrе рrеvіоus іnstructіоns" (using Cyrillic і, о, е, р)
+# bypasses the "ignore previous instructions" pattern. We normalize
+# these to ASCII before pattern matching.
+_HOMOGLYPH_MAP = {
+    # Cyrillic → Latin
+    "\u0430": "a", "\u0410": "A",  # а/А
+    "\u0435": "e", "\u0415": "E",  # е/Е
+    "\u043e": "o", "\u041e": "O",  # о/О
+    "\u0440": "p", "\u0420": "P",  # р/Р
+    "\u0441": "c", "\u0421": "C",  # с/С
+    "\u0445": "x", "\u0425": "X",  # х/Х
+    "\u0443": "y", "\u0423": "Y",  # у/У
+    "\u0456": "i", "\u0406": "I",  # і/І
+    "\u044a": "ъ",  # kept as-is (no Latin equivalent)
+    # Greek → Latin (common confusables)
+    "\u03bf": "o", "\u039f": "O",  # ο/Ο
+    "\u03b1": "a", "\u0391": "A",  # α/Α
+    "\u03b5": "e", "\u0395": "E",  # ε/Ε
+    "\u03c1": "p", "\u03a1": "P",  # ρ/Ρ
+    # Fullwidth → ASCII (common in CJK contexts)
+    "\uff41": "a", "\uff21": "A",
+    "\uff45": "e", "\uff25": "E",
+    "\uff49": "i", "\uff29": "I",
+    "\uff4f": "o", "\uff2f": "O",
+}
+
+
+def _normalize_homoglyphs(text: str) -> str:
+    """Replace Unicode homoglyphs with their ASCII equivalents.
+
+    P1-2 fix: attackers use visually identical characters from other
+    scripts (Cyrillic, Greek, fullwidth) to bypass regex injection
+    patterns. This function normalizes them to ASCII before matching.
+    """
+    if not text:
+        return text
+    result = []
+    for ch in text:
+        result.append(_HOMOGLYPH_MAP.get(ch, ch))
+    return "".join(result)
+
+
+# P1-2 fix: leetspeak normalization. Attackers substitute digits for
+# letters (4=a, 3=e, 1=i, 0=o, 5=s, 7=t) to bypass regex patterns.
+# Combined with homoglyphs, this defeats patterns like "disregard" when
+# the input is "dіsrеg4rd" (Cyrillic + leet). We normalize leetspeak
+# for pattern matching only — the original text is preserved if no
+# pattern matches (to avoid false positives on legit digit usage).
+_LEET_MAP = {
+    "4": "a", "@": "a",
+    "3": "e",
+    "1": "i", "|": "i", "!": "i",
+    "0": "o",
+    "5": "s", "$": "s",
+    "7": "t",
+    "8": "b",
+    "2": "z",
+}
+
+
+def _normalize_leetspeak(text: str) -> str:
+    """Replace common leetspeak substitutions with their letter equivalents.
+
+    P1-2 fix: only used for pattern matching, not for the returned text.
+    This catches "d1sr3g4rd" → "disregard" so the injection pattern matches.
+    """
+    if not text:
+        return text
+    result = []
+    for ch in text:
+        result.append(_LEET_MAP.get(ch, ch))
+    return "".join(result)
+
+
 # Patterns that indicate prompt injection attempts in user-controlled text.
 # These are checked BEFORE text enters LLM prompts.
 _INJECTION_PATTERNS = [
@@ -563,6 +639,60 @@ _INJECTION_PATTERNS = [
     r"(?i)disregard\s+(all\s+)?safety\s+(guidelines|guideline)",
     r"(?i)reveal\s+hidden\s+(data|admin|secret)",
     r"(?i)grant\s+(me|admin|you)\s+access",
+    # P1-2 fix: paraphrase injection patterns (45 bypasses from audit)
+    r"(?i)kindly\s+(overlook|disregard|ignore)\s+",
+    r"(?i)please\s+(disregard|ignore|forget|overlook)\s+",
+    r"(?i)pay\s+no\s+attention\s+to\s+(the\s+)?(previous|above|prior)",
+    r"(?i)from\s+now\s+on\s+(respond|act|behave|operate)\s+as\s",
+    r"(?i)from\s+now\s+on\s+you\s+(are|will)\s",
+    r"(?i)effective\s+immediately\s+(you\s+are|act\s+as|respond\s+as)",
+    r"(?i)starting\s+now\s+(you\s+are|act\s+as|respond\s+as)",
+    r"(?i)new\s+instructions?\s*:",
+    r"(?i)updated\s+(rules|instructions|guidelines)\s*:",
+    r"(?i)system\s+override\s*:",
+    r"(?i)override\s+(all\s+)?(previous\s+)?(instructions|rules|guidelines)\s*:",
+    r"(?i)your\s+new\s+role\s+is\s",
+    r"(?i)roleplay\s+as\s",
+    r"(?i)role-play\s+as\s",
+    r"(?i)pretend\s+you\s+are\s",
+    r"(?i)imagine\s+you\s+are\s",
+    r"(?i)suppose\s+you\s+are\s",
+    r"(?i)assume\s+the\s+role\s+of\s",
+    r"(?i)take\s+on\s+the\s+role\s+of\s",
+    r"(?i)switch\s+to\s+(developer|admin|root|god|unrestricted|jailbreak)\s+mode",
+    r"(?i)enable\s+(developer|admin|god|jailbreak|unrestricted)\s+mode",
+    r"(?i)disable\s+(safety|content\s+filter|guardrails|restrictions)",
+    r"(?i)bypass\s+(safety|content\s+filter|guardrails|restrictions)",
+    r"(?i)you\s+have\s+no\s+(rules|restrictions|constraints|guidelines)",
+    r"(?i)you\s+are\s+(completely\s+)?free\s+from\s+(rules|restrictions|constraints)",
+    r"(?i)do\s+not\s+apply\s+(your\s+)?(rules|guidelines|safety\s+constraints)",
+    # P1-2 fix: base64-encoded instruction detection
+    r"(?i)base64\s*:",
+    r"(?i)decode\s+(the\s+)?following\s+base64",
+    r"(?i)execute\s+(the\s+)?decoded\s+(instruction|command|text)",
+    # P1-2 fix: multilingual injection patterns (Spanish)
+    r"(?i)ignora\s+(las\s+)?(instrucciones|reglas|directrices)",
+    r"(?i)olvida\s+(las\s+)?(instrucciones|reglas|directrices)",
+    r"(?i)desactiva\s+(las\s+)?(restricciones|reglas|medidas\s+de\s+seguridad)",
+    r"(?i)actúa\s+como\s+(si\s+fuera|un)\s",
+    r"(?i)finge\s+que\s+eres\s",
+    r"(?i)modo\s+(desarrollador|administrador|sin\s+restricciones)",
+    # P1-2 fix: multilingual injection patterns (Chinese)
+    r"忽略(之前|前面|上面|所有)的?(指令|指示|规则|说明)",
+    r"忘记(你的|所有)?(指令|指示|规则|身份)",
+    r"扮演(成)?(另一个|不同的|不受限制的)",
+    r"假装你是",
+    r"开发者模式",
+    r"管理员模式",
+    r"无限制模式",
+    r"绕过(安全|内容)?(限制|过滤|审查)",
+    r"禁用(安全|内容)?(限制|过滤|审查)",
+    # P1-2 fix: data exfiltration via prompt injection
+    r"(?i)send\s+(all\s+)?(data|emails|messages|credentials)\s+to\s",
+    r"(?i)(send|post|upload|transfer)\s+.*\bto\s+https?://",
+    r"(?i)post\s+(all\s+)?(data|secrets)\s+to\s+(http|https|url)",
+    r"(?i)exfiltrate\s+",
+    r"(?i)leak\s+(all\s+)?(data|secrets|credentials)",
 ]
 
 import re as _re
@@ -573,9 +703,11 @@ def sanitize_for_llm(text: str, max_length: int = 2000) -> str:
     """Sanitize user-controlled text before it enters an LLM prompt.
 
     S4 defense: prevents prompt injection by:
-    1. Neutralizing injection phrases (replace with [filtered])
-    2. Capping length to prevent prompt stuffing
-    3. Stripping control characters
+    1. P1-2 fix: normalizing Unicode homoglyphs to ASCII (defeats
+       Cyrillic/Greek/fullwidth bypass attacks)
+    2. Neutralizing injection phrases (replace with [filtered])
+    3. Capping length to prevent prompt stuffing
+    4. Stripping control characters
 
     This is applied to ALL user-controlled text (signal text, evidence,
     queries) before it enters an LLM prompt — not just email ingestion.
@@ -592,9 +724,33 @@ def sanitize_for_llm(text: str, max_length: int = 2000) -> str:
     # Strip control characters (except newlines and tabs)
     text = "".join(c for c in text if c == "\n" or c == "\t" or ord(c) >= 32)
 
-    # Neutralize injection patterns
+    # P1-2 fix: normalize Unicode homoglyphs AND leetspeak to ASCII BEFORE
+    # pattern matching. Without this, "іgnоrе рrеvіоus іnstructіоns" (using
+    # Cyrillic lookalikes) or "d1sr3g4rd 4ll pr3v10us" (leetspeak) bypass
+    # all regex patterns. We normalize for pattern matching only — the
+    # original text is preserved if no pattern matches (to avoid false
+    # positives on legit Unicode/digit usage).
+    normalized_text = _normalize_homoglyphs(text)
+    normalized_text = _normalize_leetspeak(normalized_text)
+
+    # P1-2 fix: run patterns on BOTH the original text and the fully
+    # normalized text (homoglyph + leet). If the normalized text matches
+    # but the original doesn't, the attack used obfuscation — return the
+    # FILTERED normalized text. If only the original matches, filter the
+    # original (preserving legit Unicode/digits).
+    obfuscation_attack_detected = False
     for pattern in _COMPILED_INJECTION_PATTERNS:
-        text = pattern.sub("[filtered]", text)
+        if pattern.search(normalized_text):
+            normalized_text = pattern.sub("[filtered]", normalized_text)
+            obfuscation_attack_detected = True
+        if pattern.search(text):
+            text = pattern.sub("[filtered]", text)
+
+    # If an obfuscation attack was detected (normalized matched but original
+    # didn't), return the filtered normalized text. The original contained
+    # deceptive Unicode/leetspeak — we can't trust it.
+    if obfuscation_attack_detected and "[filtered]" not in text:
+        return normalized_text
 
     return text
 
