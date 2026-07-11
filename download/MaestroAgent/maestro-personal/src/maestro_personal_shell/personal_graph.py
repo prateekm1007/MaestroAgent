@@ -226,8 +226,14 @@ class PersonalGraph:
 
         return True
 
-    def get_completion_rate(self, entity_name: str, user_email: str | None = None) -> float:
-        """Get the historical completion rate for an entity (user-scoped)."""
+    def get_completion_rate(self, entity_name: str, user_email: str | None = None) -> float | None:
+        """Get the historical completion rate for an entity (user-scoped).
+
+        P1-Audit-F5 fix: returns None when there are 0 resolved edges, NOT 0.5.
+        The auditor found that a 0.5 default with zero resolutions produces
+        fake "moderate risk" advice. None signals "insufficient data" so
+        callers can display "unknown" instead of a fabricated percentage.
+        """
         ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
         conn = get_db_conn(self._db_path)
@@ -240,7 +246,7 @@ class PersonalGraph:
         conn.close()
 
         if not rows:
-            return 0.5
+            return None  # P1-Audit-F5: was 0.5 — fake confidence
 
         hits = sum(1 for r in rows if r[0] == "hit")
         return hits / len(rows)
@@ -288,8 +294,8 @@ class PersonalGraph:
             "total_interactions": total_edges,
             "active_commitments": len(active),
             "resolved_commitments": len(resolved),
-            "completion_rate": hits / len(resolved) if resolved else 0.5,
-            "miss_rate": misses / len(resolved) if resolved else 0.0,
+            "completion_rate": hits / len(resolved) if resolved else None,  # P1-Audit-F5: was 0.5
+            "miss_rate": misses / len(resolved) if resolved else None,
             "patterns": [
                 {
                     "type": p["pattern_type"],
@@ -335,7 +341,7 @@ class PersonalGraph:
                 "entity": entity_name,
                 "exists": False,
                 "risk_level": "unknown",
-                "completion_rate": 0.0,
+                "completion_rate": None,  # P1-Audit-F5: was 0.0 — use None for "no data"
                 "risk_factors": [],
                 "recommendation": "Entity not found — no risk data available.",
             }
@@ -350,7 +356,13 @@ class PersonalGraph:
         risk_level = "low"
         risk_factors = []
 
-        if completion_rate < 0.5:
+        # P1-Audit-F5 fix: when completion_rate is None (insufficient data),
+        # do NOT fabricate a risk level from a fake 0.5. Report "unknown"
+        # and recommend gathering more history.
+        if completion_rate is None:
+            risk_level = "unknown"
+            risk_factors.append("Insufficient history — no resolved commitments for this entity")
+        elif completion_rate < 0.5:
             risk_level = "high"
             risk_factors.append(f"Low completion rate ({completion_rate:.0%})")
         elif completion_rate < 0.7:
@@ -362,19 +374,23 @@ class PersonalGraph:
                 risk_level = "high"
                 risk_factors.append(f"Pattern: {p['pattern_description']}")
 
+        recommendation = (
+            "Insufficient data — track more commitments for this entity before assessing risk."
+            if risk_level == "unknown"
+            else "Set an earlier internal deadline and follow up proactively."
+            if risk_level == "high"
+            else "Monitor progress and send a reminder closer to deadline."
+            if risk_level == "medium"
+            else "Standard tracking is sufficient."
+        )
+
         return {
             "entity": entity_name,
             "exists": True,
             "risk_level": risk_level,
             "completion_rate": completion_rate,
             "risk_factors": risk_factors,
-            "recommendation": (
-                "Set an earlier internal deadline and follow up proactively."
-                if risk_level == "high"
-                else "Monitor progress and send a reminder closer to deadline."
-                if risk_level == "medium"
-                else "Standard tracking is sufficient."
-            ),
+            "recommendation": recommendation,
         }
 
     def _record_pattern(

@@ -106,7 +106,7 @@ class TestSuccessMetrics:
         data = response.json()
         assert data["commitment_completion_rate"] == 0.0
         assert data["commitments_total"] == 0
-        assert data["silence_accuracy"] == 0.5  # neutral
+        assert data["silence_accuracy"] is None  # P1-Audit-F6: honest None, not fake 0.5
         assert data["calibration_trend"] == "insufficient"
 
     def test_metrics_after_commitments(self, client, auth_headers):

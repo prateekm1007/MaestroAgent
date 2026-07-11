@@ -39,7 +39,16 @@ AGENT_RELEVANCE: dict[str, list[str]] = {
                 "forecast", "pricing", "margin", "p&l", "billing"],
     "engineering": ["deploy", "code", "api", "bug", "feature", "infra",
                     "migration", "architecture", "technical", "sprint",
-                    "release", "build", "test"],
+                    "release", "build", "test",
+                    # P1-Audit-F7 fix: add incident/oncall/SLA lexicon so
+                    # "SLA breach latency incident" routes to engineering,
+                    # not sales. The auditor found this mis-routed to
+                    # ['sales', 'chief_of_staff'] because "breach" matched
+                    # nothing and "incident" wasn't in any keyword list.
+                    "sla", "latency", "incident", "oncall", "outage",
+                    "breach", "downtime", "error", "crash", "failure",
+                    "performance", "throughput", "p99", "p95", "uptime",
+                    "sev1", "sev2", "pager", "alert", "monitor"],
     "product": ["roadmap", "feature", "requirement", "spec", "user story",
                 "priority", "backlog", "design", "ux", "release"],
     "strategy": ["strategy", "vision", "roadmap", "priority", "goal",
