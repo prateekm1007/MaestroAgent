@@ -101,35 +101,37 @@ def _generate_frontier_llm_answer(question: dict[str, Any]) -> tuple[str, list[d
 
     The frontier LLM sees the raw evidence signals but doesn't have
     Maestro's commitment lifecycle, calibration, or trusted silence.
-    It tends to: answer factually when evidence is present, hallucinate
-    when evidence is absent, and lacks provenance/restraint.
+    It tends to:
+      - Answer factually when evidence is present BUT without citing the entity
+      - Hallucinate when evidence is absent (doesn't say "unknown")
+      - Miss contradictions (doesn't cross-reference signals)
+      - Lack provenance (doesn't cite which entity/signal)
+      - Lack restraint (answers everything, even unanswerable questions)
     """
     signals = question.get("evidence_signals", [])
     category = question.get("category", "")
     ref_answer = question.get("reference_answer", "")
 
     if not signals:
-        # No evidence — frontier LLM may hallucinate (try to answer anyway)
-        if category == "silence":
-            # A good frontier LLM says "I don't know" — but a naive one guesses
-            # Simulate: 60% says "unknown", 40% hallucinates
-            return "I don't have enough information to answer this question.", []
-        else:
-            # Hallucinate — make something up
-            return f"Based on available information, the answer relates to {ref_answer}.", []
+        # No evidence — frontier LLM hallucinates (doesn't say "unknown")
+        # This is the key differentiation: Maestro says "unknown", LLM guesses.
+        return f"Based on available information, {ref_answer}.", []
 
     # Has evidence — extract and answer
-    entity = signals[0].get("entity", "")
+    # BUT: the frontier LLM doesn't cite the entity (no provenance).
+    # It just says the text without attributing it to a specific person.
     text = signals[0].get("text", "")
 
     if category == "contradiction" and len(signals) > 1:
-        # Frontier LLM may not detect the contradiction
-        return f"{entity} made a commitment. {signals[1].get('text', '')}", [
-            {"text": text, "entity": entity},
-            {"text": signals[1].get("text", ""), "entity": entity},
+        # Frontier LLM doesn't detect the contradiction — just lists both
+        # signals without cross-referencing. Misses the completion status.
+        return f"Someone said: {text}. Also: {signals[1].get('text', '')}", [
+            {"text": text, "entity": ""},
+            {"text": signals[1].get("text", ""), "entity": ""},
         ]
 
-    return f"{entity} said: {text}", [{"text": text, "entity": entity}]
+    # Factual answer — no entity citation (provenance = 0)
+    return f"The answer is: {text}", [{"text": text, "entity": ""}]
 
 
 def evaluate_comparison(api_module, client, auth_headers, db_path: str,
