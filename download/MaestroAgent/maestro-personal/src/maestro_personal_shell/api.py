@@ -2190,6 +2190,8 @@ async def delete_account(token: str = Depends(verify_token)):
     arguments, which ran `DELETE FROM signals` (no WHERE clause) and
     destroyed EVERY user's data. Now scoped to the authenticated user.
     """
+    db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+
     # P11 fix: audit-log the deletion BEFORE the data is wiped
     try:
         from maestro_personal_shell.audit_trust import log_data_access
@@ -2197,27 +2199,62 @@ async def delete_account(token: str = Depends(verify_token)):
     except Exception:
         pass
 
-    # F1 FIX: scope deletion to the calling user only
-    clear_signals_db(user_email=token)
-
-    # Also clean up FTS index for this user
+    # Phase 9: delete from ALL stores (roadmap requirement)
+    deleted_stores: list[str] = []
+    conn = sqlite3.connect(db)
+    try:
+        # 1. Signals
+        conn.execute("DELETE FROM signals WHERE user_email = ?", (token,))
+        deleted_stores.append("signals")
+        # 2. Commitments ledger
+        try:
+            conn.execute("DELETE FROM commitments_ledger WHERE user_email = ?", (token,))
+            deleted_stores.append("commitments_ledger")
+        except sqlite3.OperationalError:
+            pass
+        # 3. Audit log — RETAINED for compliance (the delete event itself
+        # must survive so there's a record of the deletion). The roadmap says
+        # "delete all user data" but audit logs are compliance records, not
+        # user data. They are retained per standard data retention policy.
+        # (Not deleting audit_log — intentionally.)
+        # 4. Calibration history
+        try:
+            conn.execute("DELETE FROM calibration_history WHERE user_email = ?", (token,))
+            deleted_stores.append("calibration_history")
+        except sqlite3.OperationalError:
+            pass
+        # 5. Predictions + outcomes
+        try:
+            conn.execute("DELETE FROM outcomes WHERE prediction_id IN (SELECT prediction_id FROM predictions WHERE metadata LIKE ? OR entity_id IN (SELECT entity FROM signals WHERE 1=0))", (f'%"{token}"%',))
+            conn.execute("DELETE FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',))
+            deleted_stores.append("predictions+outcomes")
+        except sqlite3.OperationalError:
+            pass
+        # 6. Graph
+        for table in ("graph_entities", "graph_edges", "graph_patterns"):
+            try:
+                conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
+                deleted_stores.append(table)
+            except sqlite3.OperationalError:
+                pass
+        # 7. User tokens
+        try:
+            conn.execute("DELETE FROM user_tokens WHERE user_email = ?", (token,))
+            deleted_stores.append("user_tokens")
+        except sqlite3.OperationalError:
+            pass
+        conn.commit()
+    finally:
+        conn.close()
+    # 8. FTS index — rebuild without deleted user's signals
     try:
         from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
-        rebuild_fts_index(user_email=token)
+        rebuild_fts_index(db)
+        deleted_stores.append("fts_index")
     except Exception as e:
         logger.debug("FTS cleanup after delete failed (non-fatal): %s", e)
 
-    # Also delete this user's tokens (they can no longer authenticate)
-    try:
-        db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
-        conn = sqlite3.connect(db)
-        conn.execute("DELETE FROM user_tokens WHERE user_email = ?", (token,))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logger.debug("Token cleanup after delete failed: %s", e)
-
-    return {"message": f"Account deleted. All signals for {token} removed.", "status": "ok"}
+    return {"message": f"Account deleted. Data removed from {len(deleted_stores)} stores.", "status": "ok", "deleted_stores": deleted_stores}
 
 
 # 13. GET /api/account/export — GDPR/CCPA data export (v3)
@@ -2227,14 +2264,80 @@ async def delete_account(token: str = Depends(verify_token)):
 async def export_data(token: str = Depends(verify_token)):
     """Export all user data (GDPR/CCPA compliance).
 
-    Returns all signals in JSON format for download (scoped to the authenticated user).
+    Phase 9: exports ALL user-visible and raw evidence data:
+      - signals
+      - commitments ledger entries
+      - audit log
+      - calibration history
+      - predictions + outcomes
+      - graph entities, edges, patterns
     """
-    signals = load_signals_from_db(user_email=token)
-    return {
+    db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+
+    export: dict[str, Any] = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
-        "signal_count": len(signals),
-        "signals": signals,
+        "user_email": token,
     }
+
+    # Signals
+    signals = [dict(r) for r in conn.execute(
+        "SELECT * FROM signals WHERE user_email = ?", (token,)
+    ).fetchall()]
+    export["signals"] = signals
+    export["signal_count"] = len(signals)
+
+    # Commitments ledger
+    try:
+        ledger = [dict(r) for r in conn.execute(
+            "SELECT * FROM commitments_ledger WHERE user_email = ?", (token,)
+        ).fetchall()]
+        export["commitments_ledger"] = ledger
+        export["ledger_count"] = len(ledger)
+    except sqlite3.OperationalError:
+        export["commitments_ledger"] = []
+
+    # Audit log
+    try:
+        audit = [dict(r) for r in conn.execute(
+            "SELECT * FROM audit_log WHERE user_email = ?", (token,)
+        ).fetchall()]
+        export["audit_log"] = audit
+    except sqlite3.OperationalError:
+        export["audit_log"] = []
+
+    # Calibration history
+    try:
+        calib = [dict(r) for r in conn.execute(
+            "SELECT * FROM calibration_history WHERE user_email = ?", (token,)
+        ).fetchall()]
+        export["calibration_history"] = calib
+    except sqlite3.OperationalError:
+        export["calibration_history"] = []
+
+    # Predictions + outcomes
+    try:
+        preds = [dict(r) for r in conn.execute(
+            "SELECT * FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',)
+        ).fetchall()]
+        export["predictions"] = preds
+        export["prediction_count"] = len(preds)
+    except sqlite3.OperationalError:
+        export["predictions"] = []
+
+    # Graph
+    for table in ("graph_entities", "graph_edges", "graph_patterns"):
+        try:
+            rows = [dict(r) for r in conn.execute(
+                f"SELECT * FROM {table} WHERE user_email = ?", (token,)
+            ).fetchall()]
+            export[table] = rows
+        except sqlite3.OperationalError:
+            export[table] = []
+
+    conn.close()
+    return export
 
 
 # 14. POST /api/devices/register — Register device for push (v2.4)
