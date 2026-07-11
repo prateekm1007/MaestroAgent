@@ -58,10 +58,17 @@ class ZAIRouter:
 
     The CLI is invoked via subprocess; calls run in a thread pool to
     avoid blocking the async event loop.
+
+    P1-Audit-F1 fix: the ZAI API enforces aggressive rate limits (429).
+    This router now retries with exponential backoff (1s, 2s, 4s) before
+    giving up. This handles transient rate limits gracefully — the LLM
+    path stays available even under heavy load.
     """
 
     def __init__(self) -> None:
         self.default_provider = "zai-glm"
+        self._max_retries = 3
+        self._base_delay = 1.0  # seconds
 
     async def complete(
         self,
@@ -91,30 +98,51 @@ class ZAIRouter:
                 "-s", system,
                 "-o", output_path,
             ]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
 
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"z-ai CLI exited {result.returncode}: {result.stderr[:300]}"
+            # P1-Audit-F1 fix: retry with exponential backoff on 429
+            import time as _time
+            last_error = None
+            for attempt in range(self._max_retries + 1):
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
 
-            with open(output_path) as f:
-                data = json.load(f)
+                if result.returncode == 0:
+                    with open(output_path) as f:
+                        data = json.load(f)
+                    text = (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    )
+                    if text:
+                        return ZAIResponse(text=text)
+                    raise RuntimeError("z-ai CLI returned empty content")
 
-            text = (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
+                stderr = result.stderr or ""
+                # Check for rate limit (429) — retry with backoff
+                if "429" in stderr and attempt < self._max_retries:
+                    delay = self._base_delay * (2 ** attempt)  # 1s, 2s, 4s
+                    logger.warning(
+                        "z-ai rate limited (429), retrying in %ds (attempt %d/%d)",
+                        delay, attempt + 1, self._max_retries,
+                    )
+                    _time.sleep(delay)
+                    last_error = stderr
+                    continue
+
+                # Non-429 error or exhausted retries — raise
+                raise RuntimeError(
+                    f"z-ai CLI exited {result.returncode}: {stderr[:300]}"
+                )
+
+            # Should not reach here, but defensive
+            raise RuntimeError(
+                f"z-ai CLI failed after {self._max_retries} retries: {last_error[:300]}"
             )
-            if not text:
-                raise RuntimeError("z-ai CLI returned empty content")
-
-            return ZAIResponse(text=text)
         finally:
             try:
                 os.unlink(output_path)
