@@ -119,9 +119,9 @@ class TestP0GraphIsolation:
 
             resp = client.get("/api/graph/risk/SecretRiskCorp", headers=alice_h)
             data = resp.json()
-            # Alice should get neutral (0.5) because she has no data for this entity
-            assert data.get("completion_rate") == 0.5, \
-                "P0-1 LEAK: Alice can read Bob's risk prediction"
+            # P0 fix: Alice should get exists=false (no data for this entity)
+            assert data.get("exists") is False, \
+                "P0-1 LEAK: Alice should get exists=false for Bob's entity"
 
 
 class TestP0TimestampPreservation:

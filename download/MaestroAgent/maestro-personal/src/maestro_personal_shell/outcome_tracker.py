@@ -34,7 +34,13 @@ def _get_db_path() -> str:
 
 
 def init_outcome_db(db_path: str | None = None) -> None:
-    """Initialize prediction + outcome tables."""
+    """Initialize prediction + outcome tables.
+
+    P0 fix (auditor finding B): add user_email column to predictions for
+    tenant isolation. Without this, Alice's resolved predictions affect
+    Bob's calibration (Brier score). The column is added with ALTER TABLE
+    migration for existing DBs.
+    """
     path = db_path or _get_db_path()
     conn = sqlite3.connect(path)
     conn.execute("""
@@ -47,9 +53,17 @@ def init_outcome_db(db_path: str | None = None) -> None:
             predicted_at TEXT NOT NULL,
             resolved_at TEXT,
             actual_outcome TEXT,
-            metadata TEXT DEFAULT '{}'
+            metadata TEXT DEFAULT '{}',
+            user_email TEXT DEFAULT 'bootstrap'
         )
     """)
+    # Migration: add user_email to existing predictions table
+    try:
+        conn.execute("SELECT user_email FROM predictions LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE predictions ADD COLUMN user_email TEXT DEFAULT 'bootstrap'")
+        logger.info("Migrated predictions table: added user_email column")
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS outcomes (
             outcome_id TEXT PRIMARY KEY,
@@ -71,6 +85,7 @@ def register_prediction(
     entity_id: str = "",
     metadata: dict | None = None,
     db_path: str | None = None,
+    user_email: str = "bootstrap",
 ) -> dict[str, Any]:
     """Register a prediction with a confidence level.
 
@@ -93,10 +108,10 @@ def register_prediction(
     conn.execute(
         """INSERT INTO predictions
            (prediction_id, prediction_type, predicted_confidence, expected_outcome,
-            entity_id, predicted_at, metadata)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            entity_id, predicted_at, metadata, user_email)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (prediction_id, prediction_type, predicted_confidence, expected_outcome,
-         entity_id, now, json.dumps(metadata or {})),
+         entity_id, now, json.dumps(metadata or {}), user_email),
     )
     conn.commit()
     conn.close()
@@ -181,28 +196,37 @@ def resolve_outcome(
 def get_calibration_report(
     prediction_type: str = "recommendation",
     db_path: str | None = None,
+    user_email: str | None = None,
 ) -> dict[str, Any]:
     """Get the Brier score + calibration report.
+
+    P0 fix (auditor finding B): filter by user_email so Alice's resolved
+    predictions don't affect Bob's Brier score. When user_email is None,
+    falls back to all predictions (backward compat / admin mode).
 
     When there are >= 10 resolved predictions, returns a real Brier score
     and 10-bucket calibration. When < 10, returns 'Insufficient calibration
     history' (honest P25).
-
-    This is what the Commitments and Ask endpoints SHOULD show instead
-    of the hardcoded 'Insufficient calibration history' string.
     """
     path = db_path or _get_db_path()
     init_outcome_db(path)
 
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
-    # P0-4 fix: query ALL prediction types (not just 'recommendation')
-    # so auto-registered 'commitment_completion' predictions are included
-    rows = conn.execute(
-        """SELECT predicted_confidence, actual_outcome
-           FROM predictions
-           WHERE resolved_at IS NOT NULL""",
-    ).fetchall()
+    # P0 fix: filter by user_email for tenant isolation
+    if user_email:
+        rows = conn.execute(
+            """SELECT predicted_confidence, actual_outcome
+               FROM predictions
+               WHERE resolved_at IS NOT NULL AND user_email = ?""",
+            (user_email,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT predicted_confidence, actual_outcome
+               FROM predictions
+               WHERE resolved_at IS NOT NULL""",
+        ).fetchall()
     conn.close()
 
     if not rows:
