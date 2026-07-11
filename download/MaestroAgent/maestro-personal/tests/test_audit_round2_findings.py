@@ -72,7 +72,8 @@ class TestCopilotQuietAcks:
                    new_callable=AsyncMock, return_value=None), \
              patch("maestro_personal_shell.llm_bridge.is_llm_available",
                    return_value=False):
-            with client.websocket_connect(f"/ws/copilot?token={headers['Authorization'].split('Bearer ')[1]}") as ws:
+            token = headers['Authorization'].split('Bearer ')[1]
+            with client.websocket_connect("/ws/copilot", subprotocols=[f"bearer:{token}"]) as ws:
                 ws.send_text('{"type":"start","entity":"TestEntity"}')
                 ws.receive_json()  # started
 

@@ -110,16 +110,18 @@ class TestWebSocketRouteRegistered:
     """Prove the WebSocket route is registered at /ws/copilot and accepts
     connections. The auditor's 403 was from testing wrong paths."""
 
-    def test_ws_copilot_accepts_valid_token_query_param(self, client):
-        """Connecting to /ws/copilot?token=<valid> must succeed (not 403).
-
-        On the WRONG paths (/ws, /api/copilot), Starlette returns 403.
-        This test proves the CORRECT path works."""
+    def test_ws_copilot_accepts_valid_token_subprotocol(self, client):
+        """Connecting to /ws/copilot with subprotocol bearer:<token> must
+        succeed (not 403). This is the ONLY supported auth method after
+        the P1-Audit-F7 fix (query-param auth was removed for security)."""
         token = _login(client)
 
         with _mock_llm()[0], _mock_llm()[1]:
             try:
-                with client.websocket_connect(f"/ws/copilot?token={token}") as ws:
+                with client.websocket_connect(
+                    "/ws/copilot",
+                    subprotocols=[f"bearer:{token}"],
+                ) as ws:
                     # Connection accepted — send start
                     ws.send_text(json.dumps({
                         "type": "start",
@@ -168,7 +170,7 @@ class TestWebSocketRouteRegistered:
         and close — NOT 403 at the handshake level. The handler accepts
         first, then checks auth inside the handler."""
         try:
-            with client.websocket_connect("/ws/copilot?token=invalid-token-xyz") as ws:
+            with client.websocket_connect("/ws/copilot", subprotocols=["bearer:invalid-token-xyz"]) as ws:
                 msg = ws.receive_json()
                 assert msg["type"] == "error", (
                     f"Expected error message for invalid token, got: {msg}"
@@ -203,7 +205,7 @@ class TestWrongPathsReturn403:
         token = _login(client)
         from starlette.websockets import WebSocketDisconnect
         with pytest.raises((WebSocketDisconnect, Exception)) as exc_info:
-            with client.websocket_connect(f"{wrong_path}?token={token}") as ws:
+            with client.websocket_connect(wrong_path, subprotocols=[f"bearer:{token}"]) as ws:
                 # If we get here, the connection was accepted — that's a BUG
                 # (wrong path should not have a WS handler). Try to receive;
                 # should disconnect immediately.
@@ -227,7 +229,7 @@ class TestWebSocketTranscriptEndToEnd:
         token = _login(client)
 
         with _mock_llm()[0], _mock_llm()[1]:
-            with client.websocket_connect(f"/ws/copilot?token={token}") as ws:
+            with client.websocket_connect("/ws/copilot", subprotocols=[f"bearer:{token}"]) as ws:
                 # Start the session
                 ws.send_text(json.dumps({
                     "type": "start",
@@ -265,7 +267,7 @@ class TestWebSocketTranscriptEndToEnd:
         token = _login(client)
 
         with _mock_llm()[0], _mock_llm()[1]:
-            with client.websocket_connect(f"/ws/copilot?token={token}") as ws:
+            with client.websocket_connect("/ws/copilot", subprotocols=[f"bearer:{token}"]) as ws:
                 ws.send_text(json.dumps({
                     "type": "start",
                     "entity": "StopCorp",
