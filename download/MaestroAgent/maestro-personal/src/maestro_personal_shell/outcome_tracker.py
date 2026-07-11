@@ -332,13 +332,26 @@ def get_calibration_report(
         }
 
 
-def get_prediction_count(db_path: str | None = None) -> dict[str, int]:
-    """Get prediction counts for status display."""
+def get_prediction_count(db_path: str | None = None, user_email: str | None = None) -> dict[str, int]:
+    """Get prediction counts for status display.
+
+    P0 fix (independent audit S2): scope by user_email. Without this,
+    Bob sees Alice's prediction counts — global state leaks.
+    """
     path = db_path or _get_db_path()
     init_outcome_db(path)
     conn = sqlite3.connect(path)
-    total = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
-    resolved = conn.execute("SELECT COUNT(*) FROM predictions WHERE resolved_at IS NOT NULL").fetchone()[0]
+    if user_email:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM predictions WHERE user_email = ?", (user_email,)
+        ).fetchone()[0]
+        resolved = conn.execute(
+            "SELECT COUNT(*) FROM predictions WHERE user_email = ? AND resolved_at IS NOT NULL",
+            (user_email,),
+        ).fetchone()[0]
+    else:
+        total = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
+        resolved = conn.execute("SELECT COUNT(*) FROM predictions WHERE resolved_at IS NOT NULL").fetchone()[0]
     pending = total - resolved
     conn.close()
     return {"total": total, "resolved": resolved, "pending": pending}
