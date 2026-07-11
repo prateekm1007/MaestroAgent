@@ -260,6 +260,7 @@ def get_behavior_patterns(
         dismissals_by_agent = Counter()
         dismissals_by_type = Counter()
         total_dismissals = 0
+        total_interactions = 0  # correct_commitment rows = unique correction events
         total_overrides = 0
 
         for row in rows:
@@ -273,14 +274,37 @@ def get_behavior_patterns(
                 total_dismissals += 1
                 agent = details.get("agent", "unknown")
                 dismissals_by_agent[agent] += 1
+                # P0-1 fix: dismiss_suggestion now carries commitment_type
+                # (added in correct_signal). Populate dismissals_by_type
+                # from the dismissal record, not from correct_commitment
+                # (which includes ALL corrections — dismiss/complete/cancel).
+                ctype = details.get("commitment_type")
+                if ctype:
+                    dismissals_by_type[ctype] += 1
             elif btype == "correct_commitment":
-                ctype = details.get("commitment_type", "unknown")
-                dismissals_by_type[ctype] += 1
+                # Every correction (dismiss/complete/cancel) records exactly
+                # one correct_commitment row. This is the denominator for
+                # dismissal_rate — it represents unique suggestion interactions.
+                total_interactions += 1
             elif btype == "override_confidence":
                 total_overrides += 1
 
         total = len(rows)
-        dismissal_rate = total_dismissals / total if total > 0 else 0
+        # P0-1 FIX (Finding 8 — learning doesn't alter future behavior):
+        # The OLD formula was total_dismissals / total (all behavior rows).
+        # After the P0-1 fix in api.py, each dismiss records BOTH
+        # correct_commitment AND dismiss_suggestion. With the old formula,
+        # 6 dismisses = 12 rows, 6 dismissals → rate = 6/12 = 0.5 — capped
+        # at 0.5, so materiality_gate_v2's threshold of > 0.6 is NEVER met.
+        # The gate is still dead even after the api.py fix.
+        #
+        # The correct denominator is total_interactions (correct_commitment
+        # rows = unique correction events), NOT total (all behavior rows).
+        # max(total_interactions, total_dismissals) handles pre-P0-1 test
+        # data where dismiss_suggestion was recorded without a paired
+        # correct_commitment row.
+        denominator = max(total_interactions, total_dismissals)
+        dismissal_rate = total_dismissals / denominator if denominator > 0 else 0
 
         return {
             "total_behaviors": total,
