@@ -270,6 +270,11 @@ def evaluate_copilot(api_module, client, auth_headers, db_path: str, user_email:
                     # field name, so commitments were never collected.
                     if data.get("commitments_detected"):
                         all_commitments.extend(data["commitments_detected"])
+                    # Phase 8 fix: collect revocations_detected (added to Core's
+                    # copilot bridge — the bridge had commitment + resolution
+                    # keywords but no revocation keywords).
+                    if data.get("revocations_detected"):
+                        all_suggestions.extend([r.get("text", "") for r in data["revocations_detected"]])
             latency_ms = (time.time() - start) * 1000
 
             # Also get post-call summary

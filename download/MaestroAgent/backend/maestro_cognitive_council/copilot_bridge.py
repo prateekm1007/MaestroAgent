@@ -354,6 +354,26 @@ class CopilotSituationBridge:
                     })
                 break
 
+        # 2b. Detect revocations in the transcript (Phase 8 fix)
+        # The bridge had commitment keywords + resolution keywords but NO
+        # revocation keywords. When someone says "the report is cancelled"
+        # or "I backed out," the bridge didn't detect it. This was a real
+        # gap (not an LLM dependency) — revocation is rule-based.
+        revocation_keywords = ["cancelled", "cancel", "revoked", "revoke",
+                               "backed out", "back out", "off", "can't do",
+                               "won't be able", "called off", "pulled out",
+                               "backed out", "no longer", "not anymore"]
+        for kw in revocation_keywords:
+            if kw in text_lower:
+                revoke_ref = f"transcript-revocation-{uuid4().hex[:8]}"
+                result.setdefault("revocations_detected", []).append({
+                    "ref": revoke_ref,
+                    "text": text[:100],
+                    "speaker": speaker,
+                    "keyword": kw,
+                })
+                break
+
         # 3. Check for unknown resolution
         resolution_keywords = ["approved", "resolved", "cleared", "confirmed", "done", "complete"]
         for unknown in situation.unknowns:
