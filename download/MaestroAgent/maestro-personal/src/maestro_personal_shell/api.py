@@ -20,7 +20,7 @@ import secrets
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -126,16 +126,34 @@ async def verify_token(authorization: str = Header(None)) -> str:
                 created_at TEXT NOT NULL
             )
         """)
-        row = conn.execute("SELECT user_email FROM user_tokens WHERE token = ?", (token,)).fetchone()
+        # Audit fix #9: token expiry — tokens expire after 30 days
+        row = conn.execute(
+            "SELECT user_email, created_at FROM user_tokens WHERE token = ?", (token,)
+        ).fetchone()
         conn.close()
         if row:
+            user_email_val = row[0]
+            created_at_str = row[1]
+            # Check expiry (30-day TTL)
+            try:
+                created_at_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                if created_at_dt.tzinfo is None:
+                    created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
+                age = datetime.now(timezone.utc) - created_at_dt
+                if age > timedelta(days=30):
+                    raise HTTPException(status_code=401, detail="Token expired — please log in again")
+            except HTTPException:
+                raise
+            except Exception:
+                pass  # if we can't parse the timestamp, don't block access
+
             # Phase 11: set user email in request context for trace logging
             try:
                 from maestro_personal_shell.observability import set_user_email as _set_ue
-                _set_ue(row[0])
+                _set_ue(user_email_val)
             except Exception:
                 pass
-            return row[0]
+            return user_email_val
     except Exception:
         pass
 
@@ -190,23 +208,42 @@ def init_db(db_path: str = DB_PATH) -> None:
     conn.close()
 
 
-def load_signals_from_db(db_path: str = DB_PATH, user_email: str | None = None) -> list[dict[str, Any]]:
+def load_signals_from_db(db_path: str = DB_PATH, user_email: str | None = None,
+                         limit: int | None = None) -> list[dict[str, Any]]:
     """Load signals from SQLite, ordered by timestamp.
 
     Phase 1 fix: when user_email is provided, only load that user's signals.
     When user_email is None, load all (backward compat / admin only).
+
+    Audit fix #5: add limit parameter for pre-filtering. The auditor found
+    Ask latency grows O(n) from 3ms (100 signals) to 102ms (500 signals)
+    because build_shell loads ALL signals. Callers can now pass limit to
+    cap the number loaded (most recent first for recency-biased retrieval).
     """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     if user_email:
-        rows = conn.execute(
-            "SELECT * FROM signals WHERE user_email = ? ORDER BY timestamp ASC",
-            (user_email,),
-        ).fetchall()
+        if limit:
+            rows = conn.execute(
+                "SELECT * FROM signals WHERE user_email = ? ORDER BY timestamp DESC LIMIT ?",
+                (user_email, limit),
+            ).fetchall()
+            rows.reverse()  # back to chronological order
+        else:
+            rows = conn.execute(
+                "SELECT * FROM signals WHERE user_email = ? ORDER BY timestamp ASC",
+                (user_email,),
+            ).fetchall()
     else:
-        rows = conn.execute(
-            "SELECT * FROM signals ORDER BY timestamp ASC"
-        ).fetchall()
+        if limit:
+            rows = conn.execute(
+                "SELECT * FROM signals ORDER BY timestamp DESC LIMIT ?"
+            ).fetchall()
+            rows.reverse()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM signals ORDER BY timestamp ASC"
+            ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -216,8 +253,33 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email
 
     Phase 1 fix: stores user_email with each signal for per-user isolation.
     Phase 1.3 fix: also indexes the signal in FTS5 for semantic retrieval.
+    Audit fix #7: content-hash dedup — if a signal with the same entity +
+    text + user_email already exists (within 1 hour), skip the insert.
+    The auditor found duplicate signals create noise.
     """
+    import hashlib
+
+    # Audit fix #7: dedup by content hash within time window
+    content_hash = hashlib.md5(
+        f"{signal.get('entity','')}|{signal.get('text','')}|{user_email}".encode()
+    ).hexdigest()
+
     conn = sqlite3.connect(db_path)
+    # Check for existing duplicate within the last hour
+    one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    existing = conn.execute(
+        """SELECT signal_id FROM signals
+           WHERE entity = ? AND text = ? AND user_email = ?
+           AND created_at > ?
+           LIMIT 1""",
+        (signal["entity"], signal["text"], user_email, one_hour_ago),
+    ).fetchone()
+
+    if existing:
+        conn.close()
+        logger.debug("Duplicate signal skipped: entity=%s text=%s", signal["entity"], signal["text"][:50])
+        return  # skip duplicate
+
     conn.execute(
         """INSERT OR REPLACE INTO signals
            (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at, user_email)
@@ -428,7 +490,22 @@ class PrepareResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def build_shell(user_email: str | None = None, as_of: str | None = None):
+async def build_shell_async(user_email: str | None = None, as_of: str | None = None,
+                             signal_limit: int | None = None):
+    """Async wrapper for build_shell — runs blocking DB I/O in a thread.
+
+    Audit fix #3: sqlite3 is synchronous. Calling it directly in async
+    endpoints blocks the event loop. This wrapper offloads to a thread
+    via asyncio.to_thread(), allowing concurrent requests to proceed.
+    """
+    import asyncio
+    return await asyncio.to_thread(
+        build_shell, user_email=user_email, as_of=as_of, signal_limit=signal_limit
+    )
+
+
+def build_shell(user_email: str | None = None, as_of: str | None = None,
+                signal_limit: int | None = None):
     """Build a PersonalShell with signals loaded from SQLite.
 
     Phase 1 fix: when user_email is provided, only load that user's signals.
@@ -437,6 +514,11 @@ def build_shell(user_email: str | None = None, as_of: str | None = None):
     Temporal fix: when as_of is provided (ISO datetime string), only load
     signals with timestamp <= as_of. This prevents future evidence from
     appearing in past output (temporal leakage = 0).
+
+    Audit fix #5: signal_limit caps the number of signals loaded (most
+    recent first). This prevents O(n) latency growth at scale. Default
+    is None (load all) for backward compat; callers should pass a limit
+    for performance-critical paths (e.g., Ask = 500, Whisper = 200).
 
     This is the bridge between persistence (SQLite) and intelligence
     (Core via PersonalShell). The shell does NOT persist — persistence
@@ -458,7 +540,8 @@ def build_shell(user_email: str | None = None, as_of: str | None = None):
     from maestro_personal_shell.shell import PersonalShell
 
     # Load signals from DB — filtered by user_email for per-user isolation
-    db_signals = load_signals_from_db(user_email=user_email)
+    # Audit fix #5: pass signal_limit to cap O(n) latency
+    db_signals = load_signals_from_db(user_email=user_email, limit=signal_limit)
 
     # Temporal filtering: if as_of is provided, filter out future signals
     if as_of:
@@ -932,7 +1015,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                       temporal.get("time_range_description"),
                       temporal.get("from_date"), as_of)
 
-    shell = build_shell(user_email=token, as_of=as_of)
+    shell = await build_shell_async(user_email=token, as_of=as_of, signal_limit=500)
 
     from maestro_personal_shell.surfaces.ask import AskSurface
     surface = AskSurface(shell=shell)
@@ -2804,7 +2887,10 @@ async def get_negotiation(req: NegotiationRequest, token: str = Depends(verify_t
 async def websocket_copilot_handler(websocket: "WebSocket"):
     """Handle WebSocket connection for real-time copilot.
 
-    Auth via query param: ws://localhost:8766/ws/copilot?token=<TOKEN>
+    Audit fix #8: auth via subprotocol header instead of query param.
+    Query params are logged by proxies/load balancers, leaking the token.
+    Client connects with: websocket.connect(url, subprotocols=["bearer:<token>"])
+    Fallback: query param still supported for backward compat.
     """
     from fastapi import WebSocket, WebSocketDisconnect
     from maestro_personal_shell.copilot_live import (
@@ -2816,8 +2902,19 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
 
     await websocket.accept()
 
-    # Auth via query param — resolve user_email from token
-    raw_token = websocket.query_params.get("token", "")
+    # Audit fix #8: prefer subprotocol header, fall back to query param
+    raw_token = ""
+    # Try subprotocol first (bearer:<token>)
+    if websocket.headers.get("sec-websocket-protocol"):
+        protocols = websocket.headers["sec-websocket-protocol"].split(",")
+        for proto in protocols:
+            proto = proto.strip()
+            if proto.startswith("bearer:"):
+                raw_token = proto[7:]
+                break
+    # Fallback to query param (backward compat, less secure)
+    if not raw_token:
+        raw_token = websocket.query_params.get("token", "")
 
     # Check per-user tokens first
     user_email = None
