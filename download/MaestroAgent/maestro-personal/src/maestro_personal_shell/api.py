@@ -3725,6 +3725,7 @@ async def register_prediction_endpoint(req: PredictionRequest, token: str = Depe
         expected_outcome=req.expected_outcome,
         prediction_type=req.prediction_type,
         entity_id=req.entity_id,
+        user_email=token,  # P0 fix: scope prediction to authenticated user
     )
     return result
 
@@ -3747,6 +3748,7 @@ async def resolve_outcome_endpoint(req: OutcomeRequest, token: str = Depends(ver
     result = resolve_outcome(
         prediction_id=req.prediction_id,
         actual_outcome=req.actual_outcome,
+        user_email=token,  # P0 fix: scope resolution to authenticated user
     )
     return result
 
@@ -3766,7 +3768,7 @@ async def get_calibration(token: str = Depends(verify_token)):
     init_outcome_db()
     # P0 fix: filter calibration by user_email for tenant isolation
     report = get_calibration_report(user_email=token)
-    counts = get_prediction_count()
+    counts = get_prediction_count(user_email=token)  # P0 fix: scope counts by user
     return {**report, "counts": counts}
 
 
