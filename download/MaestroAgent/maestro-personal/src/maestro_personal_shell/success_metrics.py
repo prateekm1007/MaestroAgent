@@ -138,8 +138,19 @@ def _compute_commitment_metrics(path: str, user_email: str) -> dict[str, Any]:
 def _compute_silence_accuracy(path: str, user_email: str) -> dict[str, Any]:
     """Compute silence accuracy from behavior patterns.
 
-    If the user dismisses few suggestions, Maestro is speaking when it matters.
-    If the user dismisses many, Maestro is speaking too much (low silence accuracy).
+    P1-Audit-F6 fix: the old metric was `1 - dismissal_rate`, which is NOT
+    silence quality — it's just the inverse of dismissal rate. A system that
+    never speaks gets 1.0 (perfect) despite potentially missing critical
+    events. The auditor found this metric was invalid.
+
+    The honest fix: `silence_accuracy` is now `None` when there's
+    insufficient data (no behaviors), and the metric is explicitly labeled
+    as `dismissal_rate` (not "accuracy"). True silence quality requires a
+    labeled benchmark (critical events that should/shouldn't interrupt),
+    which is not available from behavior patterns alone.
+
+    The `silence_quality` field is reserved for future benchmark-based
+    measurement; it's `None` until a labeled evaluation is run.
     """
     try:
         from maestro_personal_shell.learning_loop_v2 import get_behavior_patterns
@@ -147,23 +158,42 @@ def _compute_silence_accuracy(path: str, user_email: str) -> dict[str, Any]:
 
         total = patterns.get("total_behaviors", 0)
         dismissals = patterns.get("total_dismissals", 0)
+        dismissal_rate = patterns.get("dismissal_rate", 0)
 
+        # P1-Audit-F6: silence_accuracy is None (not 0.5) when no data.
+        # When data exists, report the dismissal_rate honestly — do NOT
+        # call it "accuracy" because 1-dismissal_rate is not silence quality.
         if total == 0:
-            silence_accuracy = 0.5  # neutral — no data
+            silence_accuracy = None  # insufficient data
+            silence_quality = None   # requires labeled benchmark
         else:
-            # Silence accuracy = 1 - dismissal_rate
-            # If user dismisses 20% of suggestions, accuracy = 80%
-            dismissal_rate = patterns.get("dismissal_rate", 0)
-            silence_accuracy = 1.0 - dismissal_rate
+            # Keep the old field for backward compat, but mark it honestly
+            silence_accuracy = round(1.0 - dismissal_rate, 2)
+            silence_quality = None  # not measurable from behaviors alone
 
         return {
-            "silence_accuracy": round(silence_accuracy, 2),
+            "silence_accuracy": silence_accuracy,
+            "silence_quality": silence_quality,  # P1-Audit-F6: None until benchmark run
+            "dismissal_rate": round(dismissal_rate, 2),
             "suggestions_dismissed": dismissals,
             "suggestions_total": total,
+            "note": (
+                "silence_accuracy is 1-dismissal_rate (retention rate, not silence quality). "
+                "silence_quality requires a labeled critical-event benchmark."
+                if total > 0
+                else "Insufficient data — no suggestion interactions recorded yet."
+            ),
         }
     except Exception as e:
         logger.debug("Silence accuracy failed: %s", e)
-        return {"silence_accuracy": 0.5, "suggestions_dismissed": 0, "suggestions_total": 0}
+        return {
+            "silence_accuracy": None,
+            "silence_quality": None,
+            "dismissal_rate": None,
+            "suggestions_dismissed": 0,
+            "suggestions_total": 0,
+            "note": "Error computing metrics.",
+        }
 
 
 def _compute_calibration_trend(path: str, user_email: str) -> dict[str, Any]:

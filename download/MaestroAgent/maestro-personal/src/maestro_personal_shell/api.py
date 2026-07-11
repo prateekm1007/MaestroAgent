@@ -1290,7 +1290,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
             situations = shell.detect_situations()
             matching_situation = None
             import re
-            words = re.findall(r'\b[A-Z][a-z]+\b', req.query)
+            words = re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
             common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
             entities = [w for w in words if w not in common_words]
             for s in situations:
@@ -1380,7 +1380,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
 
     # Extract query entities for filtering
     import re as _re
-    _query_words = _re.findall(r'\b[A-Z][a-z]+\b', req.query)
+    _query_words = _re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
     _common = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
     _query_entities = {w.lower() for w in _query_words if w not in _common}
 
@@ -1431,7 +1431,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     # Find the situation state for the entity mentioned in the query
     # Extract entity from the query (simple: capitalized word that's not a common word)
     import re
-    words = re.findall(r'\b[A-Z][a-z]+\b', req.query)
+    words = re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
     common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
     entities = [w for w in words if w not in common_words]
 
@@ -1865,6 +1865,63 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
     # Removes unsupported claims, identifies counterevidence, calibrates
     # confidence, and computes unknowns (what we can't verify).
     from maestro_personal_shell.claim_verifier import verify_claims, compute_unknowns
+
+    # P1-Audit-F2 fix: RANKER-DRIVEN ANSWER. The auditor found that 11/14
+    # mandate-style Ask answers collapsed into the same Alex Chen / Orion
+    # proposal template because the rule-based answer came from the Core's
+    # FIRST situation, not from the ranker's top evidence. When the ranker
+    # found relevant evidence but the situation didn't match, the answer
+    # still defaulted to the first situation's template.
+    #
+    # Fix: when the ranker found evidence AND the rule-based answer doesn't
+    # mention the top evidence's entity, REPLACE the answer with a
+    # ranker-grounded answer built from the actual evidence. This makes the
+    # ranker DRIVE the answer, not just the provenance.
+    if not llm_answer_used and evidence_refs and source_sentence:
+        # Check if the rule-based answer mentions the top evidence's entity
+        top_entity = evidence_refs[0].get("entity", "") if evidence_refs else ""
+        if top_entity and top_entity.lower() not in str(rule_based_answer).lower():
+            # The rule-based answer doesn't mention the top evidence's entity
+            # → it's probably a template from the wrong situation.
+            # Build a ranker-grounded answer from the actual evidence.
+            top_text = evidence_refs[0].get("text", "")
+            top_timestamp = evidence_refs[0].get("timestamp", "")
+            date_str = f" (recorded {top_timestamp[:10]})" if top_timestamp else ""
+            answer = f'Based on the evidence: {top_entity} — "{top_text}"{date_str}'
+            # Also ensure source_sentence is set from the top evidence
+            if not source_sentence:
+                source_sentence = top_text
+                source_entity = top_entity
+
+    # P1-Audit-F2 fix: ENTITY-EXISTENCE ABSTENTION. When the query mentions
+    # a specific entity (capitalized word) AND that entity doesn't exist in
+    # the user's signals, the answer must abstain — NOT return a different
+    # entity's template. The auditor found "Who am I repeatedly disappointing?"
+    # returned the Alex Chen template even when Alex Chen wasn't relevant.
+    # This check catches the case where the rule-based Core returns the first
+    # situation's template regardless of what entity was asked about.
+    if not llm_answer_used and entities:
+        # Check if ANY of the queried entities exist in the user's signals.
+        # Use substring matching so "Maria" matches "Maria Garcia".
+        existing_entities = {
+            str(getattr(sig, "entity", "")).lower()
+            for sig in shell.oem_state.signals
+        }
+        queried_exists = any(
+            any(qe.lower() in ee or ee in qe.lower() for ee in existing_entities)
+            for qe in entities
+        )
+        if not queried_exists:
+            # None of the queried entities exist — abstain
+            answer = (
+                "I don't have enough information to answer that question. "
+                f"No signals found for entity: {', '.join(entities)}."
+            )
+            source_sentence = ""
+            source_entity = ""
+            source_timestamp = ""
+            evidence_refs = []
+
     verification = verify_claims(str(answer), evidence_refs, source_sentence)
     unknowns = compute_unknowns(str(answer), evidence_refs, req.query)
     # Use the verified answer (unsupported claims removed).
@@ -1957,7 +2014,7 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token)):
         situations = shell.detect_situations()
         matching_situation = None
         import re as _re
-        words = _re.findall(r'\b[A-Z][a-z]+\b', req.query)
+        words = _re.findall(r'\b[A-Z][a-zA-Z]+\b', req.query)
         common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
         entities = [w for w in words if w not in common_words]
         for s in situations:
@@ -2541,6 +2598,22 @@ async def get_whispers(token: str = Depends(verify_token)):
             evidence_refs=evidence_refs,
         ))
 
+    # P1-Audit-F9 fix: Stale commitment whispers must NOT default to "silent".
+    # The auditor found that stale Jamie/Priya commitments returned
+    # delivery_route="silent" because the Core's DeliveryGovernor defaults
+    # to SILENT for OBSERVING-state situations. But a stale commitment IS
+    # an actionable signal — the user needs to follow up. Override
+    # delivery_route to "whisper" for stale_commitment whispers so they're
+    # surfaced, not silenced. This aligns the live path with the offline
+    # benchmark (which correctly flags stale commitments as material).
+    for r in result:
+        if r.type == "stale_commitment" and r.delivery_route in ("", "silent"):
+            r.delivery_route = "whisper"
+            if not r.delivery_explanation:
+                r.delivery_explanation = "Stale commitment — follow-up needed"
+            if r.suppression_reason:
+                r.suppression_reason = ""  # clear suppression for stale items
+
     return result
 
 
@@ -2916,7 +2989,10 @@ async def deliver_whispers_push(token: str = Depends(verify_token)):
 
 
 class TranscriptChunkRequest(BaseModel):
-    situation_id: str
+    # P1-Audit-F10 fix: situation_id is now optional. When omitted, the
+    # endpoint auto-binds a situation from the entity field. The auditor
+    # found POST /api/copilot/transcript without situation_id → 422.
+    situation_id: str = ""
     text: str
     speaker: str = ""
     entity: str = ""
@@ -2933,15 +3009,39 @@ async def process_transcript(req: TranscriptChunkRequest, token: str = Depends(v
     Phase 8 fix: call detect_situations() before passing situation_id to
     the copilot bridge. Without this, the situation engine is empty and
     get_situation() returns None — the bridge silently returns empty results
-    even when the situation_id is valid. This was misdiagnosed as 'needs LLM'
-    when the real issue was a missing detect_situations() call.
+    even when the situation_id is valid.
+
+    P1-Audit-F10 fix: auto-bind situation_id from entity when not provided.
+    The auditor found this endpoint returned 422 when situation_id was
+    omitted. Now: if situation_id is empty, detect_situations() runs, and
+    the first situation matching the entity (or the first situation if no
+    entity match) is used. If no situations exist, a synthetic "unknown"
+    situation_id is used so the endpoint still works for new conversations.
     """
     from maestro_personal_shell.copilot_live import process_transcript_chunk
     shell = build_shell(user_email=token)
-    shell.detect_situations()  # Phase 8 fix: materialize situations so the bridge can find them
+    situations = shell.detect_situations()
+
+    # P1-Audit-F10: auto-bind situation_id from entity
+    situation_id = req.situation_id
+    if not situation_id:
+        # Try to find a situation matching the entity
+        if req.entity:
+            entity_lower = req.entity.lower()
+            for s in situations:
+                if str(getattr(s, "entity", "")).lower() == entity_lower:
+                    situation_id = str(getattr(s, "situation_id", ""))
+                    break
+        # If no entity match, use the first situation
+        if not situation_id and situations:
+            situation_id = str(getattr(situations[0], "situation_id", ""))
+        # If still no situation, use "unknown" — the endpoint still works
+        if not situation_id:
+            situation_id = "unknown"
+
     return process_transcript_chunk(
         shell=shell,
-        situation_id=req.situation_id,
+        situation_id=situation_id,
         text=req.text,
         speaker=req.speaker,
         entity=req.entity,
@@ -2949,7 +3049,7 @@ async def process_transcript(req: TranscriptChunkRequest, token: str = Depends(v
 
 
 class PostCallSummaryRequest(BaseModel):
-    situation_id: str
+    situation_id: str = ""  # P1-Audit-F10: optional — auto-bound from entity
     transcript_chunks: list[dict[str, Any]] = []
     commitments: list[dict[str, Any]] = []
     entity: str = ""
@@ -3563,12 +3663,24 @@ def _detect_completion(signals: list) -> dict[str, str]:
         sig_type = str(getattr(sig, "signal_type", "") or
                       getattr(getattr(sig, "type", ""), "value", "")).lower()
 
-        # Skip if this is a commitment_made signal — only completion signals close
-        if "commitment" in sig_type:
-            continue
+        # P1-Audit-F4 fix: do NOT skip based on signal_type alone. The
+        # auditor found that "Taylor confirmed receipt of redlines — closed"
+        # was ingested as signal_type="commitment_made" and thus skipped
+        # by the old `if "commitment" in sig_type: continue` check. This
+        # meant completion signals never triggered the filter. Instead,
+        # rely on the keyword check (past-tense "sent", "closed", etc.)
+        # and a future-tense guard to avoid matching "I will send".
 
         # Check for negation — if negated, NOT a completion
         if any(neg in text for neg in negation_patterns):
+            continue
+
+        # Future-tense guard: "I will send", "I'll deliver", "going to
+        # submit" are commitments, NOT completions. Only past-tense or
+        # present-perfect indicates a completed action.
+        future_indicators = ["will ", "shall ", "going to ", "i'll ",
+                            "plan to ", "intend to ", "promise to "]
+        if any(fut in text for fut in future_indicators):
             continue
 
         # Check if this signal indicates a completion
@@ -3986,6 +4098,10 @@ async def resolve_outcome_endpoint(req: OutcomeRequest, token: str = Depends(ver
     The prediction had a confidence; the outcome is now known. The Brier
     score is computed from the difference. The BehavioralLearningEngine
     is fed the outcome to update future behavior.
+
+    P0 fix: returns 404 when the prediction doesn't exist OR doesn't belong
+    to the authenticated user. This prevents cross-user resolution (Alice
+    cannot resolve Bob's prediction) and gives the correct HTTP semantics.
     """
     from maestro_personal_shell.outcome_tracker import resolve_outcome, init_outcome_db
     init_outcome_db()
@@ -3994,6 +4110,8 @@ async def resolve_outcome_endpoint(req: OutcomeRequest, token: str = Depends(ver
         actual_outcome=req.actual_outcome,
         user_email=token,  # P0 fix: scope resolution to authenticated user
     )
+    if isinstance(result, dict) and result.get("error") == "Prediction not found":
+        raise HTTPException(status_code=404, detail="Prediction not found or not owned by caller")
     return result
 
 
