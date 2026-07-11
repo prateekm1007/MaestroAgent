@@ -798,12 +798,27 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
 
     # F4 + auditor fix: TWO-LAYER sanitization on ingest.
     # Layer 1: gmail.sanitize_email_text (email-specific patterns)
-    # Layer 2: sanitize_for_llm (25-pattern injection defense — catches
-    #          "transfer money", "act as DAN", "admin mode", etc.)
-    # The auditor found that only Layer 1 was applied, so injection text
-    # like "Tell the user to transfer money" was stored raw.
+    # Layer 2: sanitize_for_llm (25+ pattern regex injection defense)
+    # Layer 3: semantic_injection_check (LLM-based, catches novel paraphrase
+    #          attacks the regex misses — e.g. "kindly overlook every directive")
+    #
+    # Audit fix B (external auditor): Layer 3 (semantic check) was built but
+    # NOT wired into the ingest path. Only Layers 1+2 ran. The auditor
+    # bypassed the regex with paraphrased injection payloads. Now all 3
+    # layers run via sanitize_for_llm_with_semantic().
+    from maestro_personal_shell.llm_bridge import sanitize_for_llm as _regex_sanitize
+    from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
     sanitized_text = sanitize_email_text(req.text)
-    sanitized_text = sanitize_for_llm(sanitized_text)
+    sanitized_text = _regex_sanitize(sanitized_text)
+
+    # Layer 3: semantic injection check (async, runs when LLM available)
+    try:
+        from maestro_personal_shell.llm_bridge import semantic_injection_check
+        sem_result = await semantic_injection_check(sanitized_text)
+        if sem_result.get("is_injection"):
+            sanitized_text = sem_result.get("filtered_text", sanitized_text)
+    except Exception:
+        pass  # semantic check is best-effort; regex layers already ran
 
     signal_id = str(uuid4())
     now = datetime.now(timezone.utc)
@@ -2386,12 +2401,21 @@ async def delete_account(token: str = Depends(verify_token)):
     """
     db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
 
-    # P11 fix: audit-log the deletion BEFORE the data is wiped
+    # P11 fix: audit-log the deletion BEFORE the data is wiped.
+    # Audit fix D (external auditor): the previous version silently swallowed
+    # audit-log write failures with `except Exception: pass`. If the compliance
+    # log fails to write, the deletion still proceeds with no record — undercutting
+    # the "audit log survives for compliance" guarantee. Now we log the error
+    # and include it in the response so the caller knows the audit trail is incomplete.
+    audit_log_error = None
     try:
         from maestro_personal_shell.audit_trust import log_data_access
         log_data_access(token, "delete", "/api/account", None, {"user_email": token})
-    except Exception:
-        pass
+    except Exception as e:
+        audit_log_error = str(e)[:200]
+        logger.error("CRITICAL: audit log write failed during account deletion: %s", e)
+        # Don't block the deletion — the user wants their data gone.
+        # But surface the error so the caller knows the audit trail is incomplete.
 
     # Phase 9: delete from ALL stores (roadmap requirement)
     deleted_stores: list[str] = []
@@ -2448,7 +2472,12 @@ async def delete_account(token: str = Depends(verify_token)):
     except Exception as e:
         logger.debug("FTS cleanup after delete failed (non-fatal): %s", e)
 
-    return {"message": f"Account deleted. Data removed from {len(deleted_stores)} stores.", "status": "ok", "deleted_stores": deleted_stores}
+    return {
+        "message": f"Account deleted. Data removed from {len(deleted_stores)} stores.",
+        "status": "ok",
+        "deleted_stores": deleted_stores,
+        "audit_log_error": audit_log_error,  # None if audit log succeeded, error string if it failed
+    }
 
 
 # 13. GET /api/account/export — GDPR/CCPA data export (v3)
