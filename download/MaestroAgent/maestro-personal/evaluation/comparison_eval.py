@@ -97,41 +97,54 @@ def _score_answer(
 
 
 def _generate_frontier_llm_answer(question: dict[str, Any]) -> tuple[str, list[dict]]:
-    """Simulate a frontier LLM answer (no personal context).
+    """Simulate a frontier LLM answer (no personal context, but realistic).
 
-    The frontier LLM sees the raw evidence signals but doesn't have
-    Maestro's commitment lifecycle, calibration, or trusted silence.
-    It tends to:
-      - Answer factually when evidence is present BUT without citing the entity
-      - Hallucinate when evidence is absent (doesn't say "unknown")
-      - Miss contradictions (doesn't cross-reference signals)
-      - Lack provenance (doesn't cite which entity/signal)
-      - Lack restraint (answers everything, even unanswerable questions)
+    A real frontier LLM (GPT-4, Claude) when given structured evidence:
+      - Cites the entity when the evidence includes it (provenance works)
+      - Says "I don't know" ~50% of the time when no evidence exists
+        (real LLMs are cautious but not perfect — sometimes they guess)
+      - Quotes the signal text faithfully
+      - Does NOT detect commitment lifecycle states (no lifecycle awareness)
+      - Does NOT cross-reference signals for contradictions (lists both, doesn't synthesize)
+      - Does NOT apply trusted silence consistently (sometimes answers when it shouldn't)
+
+    The differentiation is NOT that the LLM is dumb — it's that the LLM lacks:
+      1. Commitment lifecycle (doesn't know if a commitment is completed/disputed/cancelled)
+      2. Cross-signal contradiction detection (doesn't synthesize across signals)
+      3. Trusted silence (inconsistent — sometimes guesses on unanswerable questions)
+      4. Calibration (doesn't know its own accuracy on this entity)
+      5. Personal context (doesn't know the user's dismissal history, stale thresholds)
     """
+    import random
     signals = question.get("evidence_signals", [])
     category = question.get("category", "")
     ref_answer = question.get("reference_answer", "")
 
     if not signals:
-        # No evidence — frontier LLM hallucinates (doesn't say "unknown")
-        # This is the key differentiation: Maestro says "unknown", LLM guesses.
-        return f"Based on available information, {ref_answer}.", []
+        # No evidence — frontier LLM is cautious ~50% of the time, guesses ~50%.
+        # Real LLMs (GPT-4, Claude) often say "I don't know" when they lack context,
+        # but sometimes they try to answer based on general knowledge.
+        rng = random.Random(hash(question.get("question_id", "")))
+        if rng.random() < 0.5:
+            return "I don't have enough information to answer this question.", []
+        else:
+            return f"Based on available information, {ref_answer}.", []
 
-    # Has evidence — extract and answer
-    # BUT: the frontier LLM doesn't cite the entity (no provenance).
-    # It just says the text without attributing it to a specific person.
+    # Has evidence — the LLM cites the entity (real LLMs do this when data includes it)
+    entity = signals[0].get("entity", "")
     text = signals[0].get("text", "")
 
     if category == "contradiction" and len(signals) > 1:
-        # Frontier LLM doesn't detect the contradiction — just lists both
-        # signals without cross-referencing. Misses the completion status.
-        return f"Someone said: {text}. Also: {signals[1].get('text', '')}", [
-            {"text": text, "entity": ""},
-            {"text": signals[1].get("text", ""), "entity": ""},
+        # Frontier LLM cites both signals but doesn't DETECT the contradiction.
+        # It lists them as separate facts without synthesizing the lifecycle
+        # (doesn't say "the commitment is completed" — just quotes both texts).
+        return f"{entity} said: {text}. Also reported: {signals[1].get('text', '')}", [
+            {"text": text, "entity": entity},
+            {"text": signals[1].get("text", ""), "entity": entity},
         ]
 
-    # Factual answer — no entity citation (provenance = 0)
-    return f"The answer is: {text}", [{"text": text, "entity": ""}]
+    # Factual answer — cites entity (real LLMs do this when data includes it)
+    return f"{entity} said: {text}", [{"text": text, "entity": entity}]
 
 
 def evaluate_comparison(api_module, client, auth_headers, db_path: str,
