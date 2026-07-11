@@ -40,11 +40,62 @@ def process_transcript_chunk(
       - Commitment keywords detected: add to commitment_refs
       - Unknown resolution: resolve unknowns
 
+    P1-Audit-2.1 fix: also detect commitments in the transcript text
+    using rule-based future-tense verb detection. The auditor found
+    commitments_detected was always empty. Fix: scan for "will", "I'll",
+    "need to", "have to", "going to", "promise", "commit" patterns and
+    extract the commitment text + deadline.
+
     Returns: dict with state_transitions, new_commitments, suggestions.
     """
+    import re as _re
     core = shell.core
+
+    # P1-Audit-2.1: rule-based commitment detection from transcript text
+    commitments_detected = []
+    text_lower = text.lower()
+
+    # Future-tense commitment patterns
+    commitment_patterns = [
+        r'(?:i\'ll|i will|we\'ll|we will)\s+(.{5,80}?)(?:\.|$|by\s)',
+        r'(?:i need to|we need to)\s+(.{5,80}?)(?:\.|$|by\s)',
+        r'(?:i have to|we have to)\s+(.{5,80}?)(?:\.|$|by\s)',
+        r'(?:going to|gonna)\s+(.{5,80}?)(?:\.|$|by\s)',
+        r'(?:i promise|we promise)\s+(.{5,80}?)(?:\.|$|by\s)',
+        r'(?:i commit|we commit)\s+(.{5,80}?)(?:\.|$|by\s)',
+        r'(?:let\'s|let us)\s+(.{5,80}?)(?:\.|$|by\s)',
+    ]
+
+    for pattern in commitment_patterns:
+        matches = _re.findall(pattern, text, _re.IGNORECASE)
+        for match in matches:
+            commitment_text = match.strip().rstrip('.,;')
+            if len(commitment_text) > 3:
+                # Try to extract deadline
+                deadline = ""
+                deadline_match = _re.search(
+                    r'by\s+((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|'
+                    r'end of (?:day|week|month|quarter)|next week|tomorrow|today|'
+                    r'\w+ \d+|\d+/\d+))',
+                    text, _re.IGNORECASE
+                )
+                if deadline_match:
+                    deadline = deadline_match.group(1)
+
+                commitments_detected.append({
+                    "text": commitment_text,
+                    "deadline": deadline,
+                    "speaker": speaker,
+                    "entity": entity,
+                })
+
     if not core.copilot_bridge:
-        return {"error": "Copilot bridge unavailable"}
+        # Return commitment detection results even without the Core bridge
+        return {
+            "commitments_detected": commitments_detected,
+            "transitions": [],
+            "error": "Copilot bridge unavailable",
+        }
 
     try:
         result = core.copilot_bridge.on_transcript_chunk(
@@ -53,10 +104,16 @@ def process_transcript_chunk(
             speaker=speaker,
             entity=entity,
         )
-        return result if isinstance(result, dict) else {"result": str(result)}
+        if isinstance(result, dict):
+            # P1-Audit-2.1: merge our commitment detection with the Core's
+            if commitments_detected:
+                existing = result.get("commitments_detected", [])
+                result["commitments_detected"] = existing + commitments_detected
+            return result
+        return {"result": str(result), "commitments_detected": commitments_detected}
     except Exception as e:
         logger.debug("on_transcript_chunk failed: %s", e)
-        return {"error": str(e)}
+        return {"error": str(e), "commitments_detected": commitments_detected}
 
 
 def generate_post_call_summary(

@@ -29,11 +29,15 @@ class WhatChangedSurface:
         NOT an inbox summary — it's a Situation-centric view of what
         materially changed.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime, timezone, timedelta
 
         if since_timestamp is None:
-            # Default: last 24 hours
-            since_timestamp = datetime.now(timezone.utc)
+            # P1-Audit-3.1 fix: default to last 24 hours, NOT now.
+            # The old code defaulted to datetime.now(), which filtered out
+            # ALL signals (nothing is after "now"). This caused What Changed
+            # to always return 0 changes. Fix: subtract 24h so recent
+            # signals are included.
+            since_timestamp = datetime.now(timezone.utc) - timedelta(hours=24)
 
         deltas = []
 
