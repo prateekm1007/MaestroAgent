@@ -50,6 +50,79 @@ class ZAIResponse:
         self.text = text
 
 
+class _OllamaDirectRouter:
+    """Lightweight Ollama router that calls the Ollama API directly.
+
+    Used when maestro_llm's LLMRouter fails to initialize but Ollama
+    is running. This avoids the dependency on maestro_llm's provider
+    chain while still providing LLM capabilities.
+    """
+
+    def __init__(self) -> None:
+        self.default_provider = "ollama"
+        self._model = "qwen2.5:0.5b"  # default small model
+        self._base_url = "http://127.0.0.1:11434"
+
+    async def complete(
+        self,
+        system: str,
+        user: str,
+        temperature: float = 0.2,
+        max_tokens: int = 500,
+    ) -> ZAIResponse:
+        return await asyncio.to_thread(
+            self._complete_sync, system, user, temperature, max_tokens
+        )
+
+    def _complete_sync(
+        self,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> ZAIResponse:
+        import urllib.request
+        payload = json.dumps({
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }).encode()
+
+        req = urllib.request.Request(
+            f"{self._base_url}/api/chat",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        resp = urllib.request.urlopen(req, timeout=60)
+        data = json.loads(resp.read())
+        text = data.get("message", {}).get("content", "")
+        if not text:
+            raise RuntimeError("Ollama returned empty content")
+        return ZAIResponse(text=text)
+
+    def health_check(self) -> bool:
+        """Verify Ollama is running and has at least one model."""
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{self._base_url}/api/tags")
+            resp = urllib.request.urlopen(req, timeout=3)
+            data = json.loads(resp.read())
+            models = data.get("models", [])
+            if models:
+                self._model = models[0]["name"]
+                return True
+            return False
+        except Exception:
+            return False
+
+
 class ZAIRouter:
     """LLM router backed by the z-ai CLI (z-ai-web-dev-sdk).
 
@@ -202,10 +275,24 @@ def get_llm_router() -> Any:
     except Exception as e:
         logger.debug("maestro_llm cloud init skipped: %s", e)
 
-    # 2. Try local Ollama
+    # 2. Try local Ollama (DIRECT — bypasses maestro_llm model/config issues)
+    # P1-Audit fix: use the direct _OllamaDirectRouter instead of maestro_llm's
+    # LLMRouter because: (a) maestro_llm uses "localhost" which fails on IPv6,
+    # (b) maestro_llm defaults to "llama3.1:8b" which may not be pulled.
+    # The direct router auto-detects the model from /api/tags.
+    try:
+        _ollama = _OllamaDirectRouter()
+        if _ollama.health_check():
+            _router = _ollama
+            logger.info("LLM router initialized with local Ollama (direct, model=%s)", _ollama._model)
+            return _router
+    except Exception as e:
+        logger.debug("Ollama direct init failed: %s", e)
+
+    # 2b. Try maestro_llm's Ollama (fallback if direct router fails)
     try:
         import urllib.request
-        urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2)
+        urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=2)
         try:
             import sys
             import pathlib
@@ -214,14 +301,15 @@ def get_llm_router() -> Any:
                 sys.path.insert(0, _backend_dir)
             from maestro_llm.router import LLMRouter
             _router = LLMRouter.with_defaults()
-            logger.info("LLM router initialized with local Ollama")
+            logger.info("LLM router initialized with local Ollama (maestro_llm)")
             return _router
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("maestro_llm Ollama init failed: %s", e)
     except Exception:
         pass
 
-    # 3. Try z-ai CLI (in-house, no API key needed)
+    # 3. Try z-ai CLI (in-house, no API key needed) — LAST priority
+    # because it's rate-limited (429) in most environments
     try:
         zai = ZAIRouter()
         if zai.health_check():
