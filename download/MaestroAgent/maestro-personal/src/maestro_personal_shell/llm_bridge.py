@@ -56,12 +56,23 @@ class _OllamaDirectRouter:
     Used when maestro_llm's LLMRouter fails to initialize but Ollama
     is running. This avoids the dependency on maestro_llm's provider
     chain while still providing LLM capabilities.
+
+    Supports BOTH local Ollama (127.0.0.1:11434) and REMOTE Ollama
+    (e.g., Google Colab GPU via ngrok). Set OLLAMA_HOST env var to
+    the remote URL:
+        export OLLAMA_HOST=https://abc123.ngrok.io
+        export OLLAMA_MODEL=llama3:8b
     """
 
     def __init__(self) -> None:
         self.default_provider = "ollama"
-        self._model = "qwen2.5:0.5b"  # default small model
-        self._base_url = "http://127.0.0.1:11434"
+        # P1-GPU fix: support remote Ollama via env vars.
+        # OLLAMA_HOST can be http://127.0.0.1:11434 (local) or
+        # https://abc.ngrok.io (remote Colab GPU).
+        self._base_url = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+        # OLLAMA_MODEL can be set to use a specific model
+        # (e.g., llama3:8b on Colab GPU, qwen2.5:1.5b on local CPU)
+        self._model = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
 
     async def complete(
         self,
@@ -100,7 +111,7 @@ class _OllamaDirectRouter:
             data=payload,
             headers={"Content-Type": "application/json"},
         )
-        resp = urllib.request.urlopen(req, timeout=60)
+        resp = urllib.request.urlopen(req, timeout=120)  # 120s for remote GPU
         data = json.loads(resp.read())
         text = data.get("message", {}).get("content", "")
         if not text:
@@ -108,15 +119,22 @@ class _OllamaDirectRouter:
         return ZAIResponse(text=text)
 
     def health_check(self) -> bool:
-        """Verify Ollama is running and has at least one model."""
+        """Verify Ollama is running and has at least one model.
+
+        P1-GPU: supports remote Ollama (Colab GPU via ngrok).
+        When OLLAMA_MODEL is set, uses that model instead of
+        auto-detecting from /api/tags.
+        """
         try:
             import urllib.request
             req = urllib.request.Request(f"{self._base_url}/api/tags")
-            resp = urllib.request.urlopen(req, timeout=3)
+            resp = urllib.request.urlopen(req, timeout=5)
             data = json.loads(resp.read())
             models = data.get("models", [])
             if models:
-                self._model = models[0]["name"]
+                # If OLLAMA_MODEL is set, keep it; otherwise auto-detect
+                if not os.environ.get("OLLAMA_MODEL"):
+                    self._model = models[0]["name"]
                 return True
             return False
         except Exception:
