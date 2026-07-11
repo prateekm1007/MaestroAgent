@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import os
 import re
 from typing import Any
@@ -38,7 +39,7 @@ def _get_db_path() -> str:
 def init_entity_aliases(db_path: str | None = None) -> None:
     """Initialize the entity_aliases table."""
     path = db_path or _get_db_path()
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS entity_aliases (
             alias TEXT PRIMARY KEY,
@@ -139,7 +140,7 @@ def add_alias(
     """Manually add an entity alias mapping."""
     path = db_path or _get_db_path()
     init_entity_aliases(path)
-    conn = sqlite3.connect(path)
+    conn = get_db_conn(path)
     conn.execute(
         "INSERT OR REPLACE INTO entity_aliases (alias, canonical_entity, user_email, created_at, confidence) VALUES (?, ?, ?, ?, ?)",
         (alias.lower().strip(), canonical_entity, user_email, datetime.now(timezone.utc).isoformat(), confidence),
@@ -182,7 +183,7 @@ def resolve_entity(
     # 1. Check user-configured alias table
     try:
         init_entity_aliases(path)
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         row = conn.execute(
             "SELECT canonical_entity FROM entity_aliases WHERE alias = ? AND user_email = ?",
             (entity.lower().strip(), user_email),

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from maestro_personal_shell.db_util import get_db_conn
 import json
 import os
 from typing import Any
@@ -132,7 +133,7 @@ def auto_resolve_prediction(
         from maestro_personal_shell.outcome_tracker import init_outcome_db
         init_outcome_db(path)
 
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         # Find the auto-registered prediction for this signal (P20 fix: scope by user_email)
         rows = conn.execute(
             """SELECT prediction_id, metadata FROM predictions
@@ -201,7 +202,7 @@ def record_user_behavior(
     """
     path = db_path or _get_db_path()
     try:
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_behaviors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -245,7 +246,7 @@ def get_behavior_patterns(
     """
     path = db_path or _get_db_path()
     try:
-        conn = sqlite3.connect(path)
+        conn = get_db_conn(path)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT behavior_type, details FROM user_behaviors WHERE user_email = ? ORDER BY recorded_at DESC LIMIT ?",
