@@ -243,11 +243,16 @@ def evaluate_copilot(api_module, client, auth_headers, db_path: str, user_email:
             # one signals are saved under (verify_token returns user_email,
             # not the token string). This caused 0 signals → 0 situations →
             # empty situation_id → empty copilot response.
+            # P1-4 fix: tokens are now stored as SHA-256 hashes (token_hash
+            # column, not token column). Hash the incoming token before lookup.
             import sqlite3 as _sqlite3
+            import hashlib as _hashlib
             _db = os.environ.get("MAESTRO_PERSONAL_DB", ":memory:")
             _conn = _sqlite3.connect(_db)
-            _row = _conn.execute("SELECT user_email FROM user_tokens WHERE token = ?",
-                                 (auth_headers["Authorization"].split("Bearer ")[-1],)).fetchone()
+            _raw_token = auth_headers["Authorization"].split("Bearer ")[-1]
+            _token_hash = _hashlib.sha256(_raw_token.encode("utf-8")).hexdigest()
+            _row = _conn.execute("SELECT user_email FROM user_tokens WHERE token_hash = ?",
+                                 (_token_hash,)).fetchone()
             _conn.close()
             _actual_user_email = _row[0] if _row else user_email
 

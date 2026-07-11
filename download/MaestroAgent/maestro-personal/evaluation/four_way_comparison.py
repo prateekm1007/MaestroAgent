@@ -131,9 +131,12 @@ def main():
     headers = {"Authorization": f"Bearer {token}"}
 
     # Resolve user_email
+    # P1-4 fix: tokens are now stored as SHA-256 hashes (token_hash column)
     import sqlite3
+    import hashlib
     con = sqlite3.connect(db_path)
-    row = con.execute("SELECT user_email FROM user_tokens WHERE token = ?", (token,)).fetchone()
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    row = con.execute("SELECT user_email FROM user_tokens WHERE token_hash = ?", (token_hash,)).fetchone()
     user_email = row[0] if row else "bootstrap"
     con.close()
 
