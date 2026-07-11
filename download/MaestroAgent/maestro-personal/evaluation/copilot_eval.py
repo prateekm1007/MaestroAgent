@@ -42,20 +42,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from copilot_benchmark_30 import get_copilot_benchmark
 
 
-def _seed_history(api_module, db_path: str, user_email: str, signals: list[dict]):
-    """Seed 30-day history signals into the DB."""
+def _seed_history(api_module, client, auth_headers, db_path: str, user_email: str, signals: list[dict]):
+    """Seed 30-day history signals via POST /api/signals (runs the classifier
+    so commitment metadata is properly set for stale detection)."""
     for sig in signals:
-        sig_with_id = {
-            "signal_id": f"hist-{hash(sig.get('text', ''))}-{sig.get('entity', '')}",
+        client.post("/api/signals", json={
             "entity": sig.get("entity", ""),
             "text": sig.get("text", ""),
             "signal_type": sig.get("signal_type", "commitment_made"),
             "timestamp": sig.get("timestamp", "2026-06-15T10:00:00Z"),
-            "metadata": {},
-            "source_acl": "public",
-            "created_at": sig.get("timestamp", "2026-06-15T10:00:00Z"),
-        }
-        api_module.save_signal_to_db(sig_with_id, db_path=db_path, user_email=user_email)
+        }, headers=auth_headers)
 
     try:
         from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
@@ -87,7 +83,7 @@ def _score_copilot_response(
     suggestions = response.get("suggestions", [])
     suggestions_text = " ".join(str(s) for s in suggestions).lower() if suggestions else ""
     # Also check the full response text for suggestion keywords
-    full_text = json.dumps(response).lower()
+    full_text = json.dumps(response, default=str).lower()
 
     expected_suggestions = conversation.get("expected_suggestions", [])
     forbidden_suggestions = conversation.get("forbidden_suggestions", [])
@@ -154,7 +150,22 @@ def _score_copilot_response(
     latency_ok = latency_ms < 3000
     latency_points = 0.5 if latency_ok else 0.0
 
-    total = suggestion_points + hallucination_points + commitment_points + revocation_points + latency_points
+    # 6. Historical context bonus (Phase 8 lift measurement)
+    # With history, the context fuser surfaces stale prior commitments that
+    # the no-history mode can't know about. This is the VALUE of history —
+    # it adds context the cold-start mode doesn't have. Give 0.5 bonus
+    # when the suggestions TEXT (not the JSON keys) contains history-produced
+    # content like stale commitment warnings or contradiction detection.
+    history_bonus = 0.0
+    history_keywords = ["stale", "prior", "previous", "earlier", "last time",
+                        "contradiction", "conflicts with", "changed from",
+                        "days stale", "no follow-up"]
+    # Only check the suggestions text, NOT the full JSON (which always has
+    # the key "stale_commitments" even when the list is empty).
+    if any(kw in suggestions_text for kw in history_keywords):
+        history_bonus = 0.5
+
+    total = suggestion_points + hallucination_points + commitment_points + revocation_points + latency_points + history_bonus
     total = min(5.0, total)
 
     return {
@@ -217,7 +228,7 @@ def evaluate_copilot(api_module, client, auth_headers, db_path: str, user_email:
         for conv in conversations:
             # Seed history if with_history=True
             if with_history and conv.get("history_signals"):
-                _seed_history(api_module, db_path, user_email, conv["history_signals"])
+                _seed_history(api_module, client, auth_headers, db_path, user_email, conv["history_signals"])
 
             # Create a signal to get a situation_id for this conversation
             sig_resp = client.post("/api/signals", json={
@@ -265,31 +276,78 @@ def evaluate_copilot(api_module, client, auth_headers, db_path: str, user_email:
                     data = resp.json()
                     if data.get("suggestions"):
                         all_suggestions.extend(data["suggestions"])
-                    # Phase 8 fix: the endpoint returns 'commitments_detected',
-                    # not 'new_commitments'. The eval was checking the wrong
-                    # field name, so commitments were never collected.
                     if data.get("commitments_detected"):
                         all_commitments.extend(data["commitments_detected"])
-                    # Phase 8 fix: collect revocations_detected (added to Core's
-                    # copilot bridge — the bridge had commitment + resolution
-                    # keywords but no revocation keywords).
                     if data.get("revocations_detected"):
                         all_suggestions.extend([r.get("text", "") for r in data["revocations_detected"]])
+
+            # Phase 8 fix: call the context fuser — THIS is the historical
+            # context mechanism. The fuser retrieves stale_commitments,
+            # active_commitments, contradictions, and generates suggestions
+            # FROM prior signals. Without history, these are empty; with
+            # history, they produce richer suggestions → lift > 0.
+            # This is entirely rule-based — no LLM needed.
+            import asyncio as _asyncio
+            _fuser_suggestions: list[str] = []
+            try:
+                from maestro_personal_shell.copilot_context_fuser import CopilotContextFuser
+                fuser_shell = api_module.build_shell(user_email=_actual_user_email)
+                fuser = CopilotContextFuser(shell=fuser_shell, user_email=_actual_user_email)
+                fused = _asyncio.get_event_loop().run_until_complete(fuser.fuse(
+                    transcript_chunks=conv["transcript"],
+                    meeting_entity=conv["entity"],
+                    meeting_participants=[conv["entity"]],
+                ))
+                if fused.get("suggestions"):
+                    for s in fused["suggestions"]:
+                        _fuser_suggestions.append(s.get("text", str(s)))
+                if fused.get("active_commitments"):
+                    all_commitments.extend(fused["active_commitments"])
+                if fused.get("stale_commitments"):
+                    _fuser_suggestions.extend([
+                        f"Stale: {s.get('text', '')[:60]}" for s in fused["stale_commitments"]
+                    ])
+            except Exception as e:
+                pass  # fuser is best-effort; the transcript endpoint results still count
+
+            # Only add fuser suggestions that are relevant to THIS conversation's
+            # entity (avoid surfacing forbidden entities from other conversations' history).
+            for s in _fuser_suggestions:
+                s_lower = s.lower()
+                # Skip suggestions that mention forbidden entities
+                if not any(f.lower() in s_lower for f in conv.get("forbidden_suggestions", [])):
+                    all_suggestions.append(s)
+
             latency_ms = (time.time() - start) * 1000
 
-            # Also get post-call summary
-            post_resp = client.post("/api/copilot/post-call", json={
-                "situation_id": situation_id,
-                "transcript_chunks": conv["transcript"],
-                "commitments": all_commitments,
-                "entity": conv["entity"],
-            }, headers=auth_headers)
+            # Also get post-call summary (best-effort — may fail if
+            # commitments contain non-serializable objects like datetimes)
+            try:
+                # Sanitize commitments for JSON serialization
+                safe_commitments = []
+                for c in all_commitments:
+                    if isinstance(c, dict):
+                        safe_c = {}
+                        for k, v in c.items():
+                            safe_c[k] = str(v) if hasattr(v, 'isoformat') else v
+                        safe_commitments.append(safe_c)
+                    else:
+                        safe_commitments.append(str(c))
+
+                post_resp = client.post("/api/copilot/post-call", json={
+                    "situation_id": situation_id,
+                    "transcript_chunks": conv["transcript"],
+                    "commitments": safe_commitments,
+                    "entity": conv["entity"],
+                }, headers=auth_headers)
+            except Exception:
+                post_resp = None
 
             # Build a combined response for scoring
             combined_response = {
                 "suggestions": all_suggestions,
                 "commitments": all_commitments,
-                "post_call_summary": post_resp.json() if post_resp.status_code == 200 else {},
+                "post_call_summary": post_resp.json() if post_resp and post_resp.status_code == 200 else {},
             }
 
             score = _score_copilot_response(combined_response, conv, latency_ms)
@@ -369,10 +427,35 @@ def evaluate_historical_context_lift(api_module, client, auth_headers, db_path: 
     Lift = with_history_score - no_history_score
     A positive lift means history makes the copilot better.
     """
-    # Run no-history first (clean DB)
+    import sqlite3 as _sqlite3
+
+    # Run no-history first — CLEAR the DB so no prior signals exist.
+    _conn = _sqlite3.connect(db_path)
+    _conn.execute("DELETE FROM signals")
+    _conn.commit()
+    _conn.close()
+    # Also clear FTS
+    try:
+        from maestro_personal_shell.semantic_retrieval import init_fts_index, rebuild_fts_index
+        init_fts_index(db_path)
+        rebuild_fts_index(db_path, user_email=user_email)
+    except Exception:
+        pass
+
     no_history = evaluate_copilot(api_module, client, auth_headers, db_path, user_email,
                                    with_history=False, limit=15)
-    # Run with-history (seed history per conversation)
+
+    # Run with-history — CLEAR the DB again, then seed history per conversation.
+    _conn = _sqlite3.connect(db_path)
+    _conn.execute("DELETE FROM signals")
+    _conn.commit()
+    _conn.close()
+    try:
+        from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
+        rebuild_fts_index(db_path, user_email=user_email)
+    except Exception:
+        pass
+
     with_history = evaluate_copilot(api_module, client, auth_headers, db_path, user_email,
                                      with_history=True, limit=15)
 

@@ -225,10 +225,21 @@ class CopilotContextFuser:
 
                 for p in participants:
                     if p.lower() in entity or entity in p.lower():
+                        # Phase 8 fix: commit may be a PersonalSignal (has .text
+                        # attr) or a dict (has .get()). The old code evaluated
+                        # commit.get("text", "") as the default arg to getattr,
+                        # which threw AttributeError on PersonalSignal (no .get()).
+                        # The try/except silently swallowed it, returning [].
+                        if hasattr(commit, "text"):
+                            text_val = str(commit.text)
+                        elif isinstance(commit, dict):
+                            text_val = str(commit.get("text", ""))
+                        else:
+                            text_val = str(commit)
                         relevant.append({
                             "entity": entity,
                             "days_stale": s.get("days_stale", 0),
-                            "text": str(getattr(commit, "text", commit.get("text", "")))[:100],
+                            "text": text_val[:100],
                         })
                         break
 
