@@ -1580,7 +1580,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
 
             try:
                 from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-                from maestro_personal_shell.ask_ranker import rank_for_ask
+                from maestro_personal_shell.ask_ranker import rank_for_ask, understand_query
                 raw_relevant = get_relevant_signals(
                     req.query,
                     user_email=token,
@@ -1588,6 +1588,29 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                     as_of=as_of,
                     from_date=from_date,
                 )
+
+                # F1 fix (intent classifier): when the intent is broken,
+                # overdue, or relational, FTS keyword matching alone won't
+                # find the right signals (e.g., "What did I fail to deliver?"
+                # doesn't FTS-match "Never sent the security questionnaire").
+                # Augment FTS results with ALL signals that match the intent's
+                # signal_match keywords. The ranker will then boost them
+                # above the FTS-only results.
+                query_understanding = understand_query(req.query)
+                intent = query_understanding.get("intent", "general")
+                intent_keywords = query_understanding.get("intent_keywords", [])
+                if intent_keywords and intent in ("broken", "overdue", "relational", "risk", "recurring"):
+                    # Load ALL signals for this user and add ones that match
+                    # intent keywords — these bypass FTS entirely
+                    all_signals = load_signals_from_db(user_email=token, limit=500)
+                    fts_ids = {r.get("signal_id") for r in raw_relevant}
+                    for sig in all_signals:
+                        if sig.get("signal_id") in fts_ids:
+                            continue  # already in FTS results
+                        sig_text = str(sig.get("text", "")).lower()
+                        if any(kw in sig_text for kw in intent_keywords):
+                            raw_relevant.append(sig)
+
                 if raw_relevant:
                     ranked = rank_for_ask(req.query, raw_relevant)
                     relevant = ranked["top_evidence"]

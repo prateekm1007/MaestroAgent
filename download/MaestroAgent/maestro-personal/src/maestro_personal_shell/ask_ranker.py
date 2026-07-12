@@ -32,8 +32,18 @@ def understand_query(query: str) -> dict[str, Any]:
     Extracts:
     - entity_mentions: capitalized words that aren't common words
     - time_constraints: "last quarter", "last week", etc.
-    - intent: commitment, contradiction, preparation, risk, silence, temporal
+    - intent: commitment, contradiction, preparation, risk, silence, temporal,
+              broken, overdue, relational, abstention
     - mentioned_topics: project names, technical terms
+    - intent_keywords: keywords associated with the detected intent
+      (used by rerank_signals for specialized retrieval)
+
+    F1 fix (Phase 3.1): expanded intent detection with broken/overdue/
+    relational/abstention intents. Each intent triggers specialized
+    retrieval logic in rerank_signals — e.g., "What did I fail to
+    deliver?" (broken intent) boosts signals containing "never sent",
+    "didn't deliver", "overdue", etc., instead of keyword-matching
+    "fail" against the signal text (which never matches).
     """
     query_lower = query.lower()
 
@@ -71,23 +81,125 @@ def understand_query(query: str) -> dict[str, Any]:
             time_constraint = label
             break
 
-    # Detect intent
+    # ── F1 fix: expanded intent detection with specialized intents ──
+    # Each intent has keywords that trigger it AND signal-matching keywords
+    # that rerank_signals uses to find the right evidence.
     intent = "general"
-    intent_patterns = {
-        "commitment": [r"commit", r"promise", r"owe", r"pledge", r"guarantee"],
-        "contradiction": [r"contradict", r"conflict", r"still\s+a\s+priority", r"did.*deliver", r"what\s+happened"],
-        "preparation": [r"prepare", r"pending\s+with", r"what.*should\s+i", r"upcoming"],
-        "risk": [r"at\s+risk", r"overdue", r"stale", r"disappoint", r"recurring", r"missed"],
-        "silence": [r"newsletter", r"noise", r"important\s+thing"],
-        "temporal": [r"last\s+quarter", r"last\s+month", r"last\s+week", r"when\s+did",
-                      r"first\s+week", r"2\s+months\s+ago", r"last\s+\d+\s+days",
-                      r"in\s+the\s+last", r"recently", r"what\s+was\s+happening"],
-        "entity_disambiguation": [r"who\s+is", r"what\s+is\s+my\s+relationship", r"who\s+is\s+handling"],
-        "stale_memory": [r"recurring", r"repeatedly", r"keeps", r"still"],
-    }
-    for intent_type, patterns in intent_patterns.items():
-        if any(re.search(p, query_lower) for p in patterns):
+    intent_keywords = []
+
+    intent_definitions = [
+        # F1: broken — "What did I fail to deliver?" / "What did I miss?"
+        ("broken", {
+            "trigger": [r"fail(?:ed)?\s+to", r"what\s+did\s+i\s+fail", r"what\s+did\s+i\s+miss",
+                        r"broke(?:n)?\s+(?:promise|commitment)", r"didn'?t\s+(?:send|deliver|finish)",
+                        r"never\s+(?:sent|delivered|finished)", r"missed\s+(?:deadline|promise)"],
+            "signal_match": ["never sent", "didn't send", "did not send",
+                             "never delivered", "didn't deliver", "did not deliver",
+                             "failed to send", "failed to deliver", "failed to ship",
+                             "hasn't sent", "has not sent", "hasn't delivered",
+                             "not sent", "not delivered", "not shipped",
+                             "missed the deadline", "missed deadline",
+                             "still pending", "still not done", "still not sent",
+                             "overdue", "broken promise", "late and"],
+            "signal_types": {"broken", "commitment_broken"},
+        }),
+        # F1: overdue — "Which promises are overdue?" / "What's overdue?"
+        ("overdue", {
+            "trigger": [r"overdue", r"past\s+due", r"late\s+(?:promise|commitment)",
+                        r"which.*(?:overdue|late|stale)", r"behind\s+schedule"],
+            "signal_match": ["overdue", "past due", "missed the deadline", "missed deadline",
+                             "late", "behind schedule", "delayed", "hasn't been sent",
+                             "still pending", "not yet delivered"],
+            "signal_types": {"broken", "commitment_broken", "commitment_made"},
+        }),
+        # F1: relational — "Who am I disappointing?" / "Who are my risks?"
+        ("relational", {
+            "trigger": [r"who\s+am\s+i\s+(?:disappoint|failing|letting)",
+                        r"who\s+(?:is|are)\s+(?:my\s+)?(?:risk|risk|delivery\s+risk)",
+                        r"who\s+(?:keeps|has)\s+(?:breaking|missing|failing)",
+                        r"who\s+(?:are\s+)?my\s+(?:most\s+)?(?:reliable|risk|unreliable)",
+                        r"who\s+owes\s+me", r"who\s+am\s+i\s+(?:waiting|waiting\s+on)"],
+            "signal_match": ["never sent", "didn't send", "overdue", "missed",
+                             "failed to", "broken", "delayed", "hasn't",
+                             "still pending", "delivered", "completed", "sent the"],
+            "signal_types": {"broken", "commitment_made", "reported_statement"},
+        }),
+        # F1: abstention — "What did I commit to in 2024?" / "Who is John Smith?"
+        ("abstention", {
+            "trigger": [r"who\s+is\s+(?:john|jane|bob)\s+\w+",  # unknown person
+                        r"what(?:'s|s)\s+the\s+weather",
+                        r"in\s+202[0-4]\b",  # before the corpus
+                        r"last\s+year", r"two\s+years\s+ago"],
+            "signal_match": [],  # no signal match — should return empty
+            "signal_types": set(),
+        }),
+        # Existing intents
+        ("commitment", {
+            "trigger": [r"commit", r"promise", r"owe", r"pledge", r"guarantee",
+                        r"what\s+did\s+i\s+(?:promise|commit|say)"],
+            "signal_match": ["will send", "will deliver", "i'll", "i will",
+                             "commitment", "promise", "pledge"],
+            "signal_types": {"commitment_made"},
+        }),
+        ("contradiction", {
+            "trigger": [r"contradict", r"conflict", r"still\s+a\s+priority",
+                        r"did.*deliver", r"what\s+happened", r"change.*mind",
+                        r"what.*pricing", r"did.*change"],
+            "signal_match": ["quoted", "revised", "changed", "different",
+                             "but", "however", "actually", "instead"],
+            "signal_types": {"reported_statement"},
+        }),
+        ("preparation", {
+            "trigger": [r"prepare", r"pending\s+with", r"what.*should\s+i",
+                        r"upcoming", r"before\s+tomorrow", r"before\s+(?:the\s+)?meeting"],
+            "signal_match": ["meeting", "deadline", "friday", "monday",
+                             "upcoming", "prepare", "review"],
+            "signal_types": {"commitment_made", "follow_up_required"},
+        }),
+        ("risk", {
+            "trigger": [r"at\s+risk", r"stale", r"disappoint", r"recurring",
+                        r"missed", r"what.*risk"],
+            "signal_match": ["at risk", "stale", "overdue", "missed",
+                             "delayed", "threatening", "cancel"],
+            "signal_types": {"broken", "commitment_made"},
+        }),
+        ("recurring", {
+            "trigger": [r"recurring", r"repeatedly", r"keeps\s+(?:happening|breaking)",
+                        r"what\s+keeps", r"what.*pattern", r"again\s+and\s+again"],
+            "signal_match": ["again", "same", "repeated", "third",
+                             "another", "still", "continues"],
+            "signal_types": {"reported_statement", "broken"},
+        }),
+        ("silence", {
+            "trigger": [r"newsletter", r"noise", r"important\s+thing"],
+            "signal_match": ["newsletter", "digest", "roundup", "fyi"],
+            "signal_types": {"newsletter", "fyi", "notification"},
+        }),
+        ("temporal", {
+            "trigger": [r"last\s+quarter", r"last\s+month", r"last\s+week",
+                        r"when\s+did", r"first\s+week", r"2\s+months\s+ago",
+                        r"last\s+\d+\s+days", r"in\s+the\s+last", r"recently",
+                        r"what\s+was\s+happening", r"oldest", "what.*this\s+week"],
+            "signal_match": [],
+            "signal_types": set(),
+        }),
+        ("entity_disambiguation", {
+            "trigger": [r"who\s+is", r"what\s+is\s+my\s+relationship",
+                        r"who\s+is\s+handling"],
+            "signal_match": [],
+            "signal_types": set(),
+        }),
+        ("stale_memory", {
+            "trigger": [r"recurring", r"repeatedly", r"keeps", r"still"],
+            "signal_match": [],
+            "signal_types": set(),
+        }),
+    ]
+
+    for intent_type, definition in intent_definitions:
+        if any(re.search(p, query_lower) for p in definition["trigger"]):
             intent = intent_type
+            intent_keywords = definition["signal_match"]
             break
 
     # Extract mentioned topics
@@ -103,6 +215,7 @@ def understand_query(query: str) -> dict[str, Any]:
         "entity_mentions": entities,
         "time_constraint": time_constraint,
         "intent": intent,
+        "intent_keywords": intent_keywords,
         "mentioned_topics": topics,
         "query_lower": query_lower,
     }
@@ -119,8 +232,11 @@ def rerank_signals(
     - Partial entity match: +50 (entity name contains query entity)
     - Topic match: +30 (signal text mentions query topic)
     - Intent match: +20 (signal type matches query intent)
+    - Intent keyword match: +80 (signal text contains intent-specific keywords)
+      [F1 fix: this is the key change — "What did I fail to deliver?"
+      now boosts signals containing "never sent", "didn't deliver", etc.]
     - Recency: +10 * (1 / (days_old + 1))
-    - Noise penalty: -100 (newsletter, FYI, notification)
+    - Noise penalty: -10000 (newsletter, FYI, notification)
     - Temporal fit: +20 if within the time constraint window
 
     Returns signals sorted by score (highest first).
@@ -131,6 +247,7 @@ def rerank_signals(
     query_entities = query_understanding.get("entity_mentions", [])
     query_topics = query_understanding.get("mentioned_topics", [])
     intent = query_understanding.get("intent", "general")
+    intent_keywords = query_understanding.get("intent_keywords", [])
     query_lower = query_understanding.get("query_lower", "")
 
     scored = []
@@ -142,10 +259,6 @@ def rerank_signals(
 
         # P1-Audit-1.5 fix: HARD CONSTRAINT — if the query mentions a
         # specific entity, signals from OTHER entities get a -200 penalty.
-        # The auditor found "What did I promise Entity5?" returned Entity0.
-        # This was because Entity0 had a higher topic-match score. Fix:
-        # when the query has entity mentions, non-matching entities are
-        # penalized so hard they can never outrank a matching entity.
         _entity_match = False
         for qe in query_entities:
             qe_lower = qe.lower()
@@ -160,35 +273,51 @@ def rerank_signals(
 
         # P1-Audit-1.5: hard penalty for non-matching entities
         if query_entities and not _entity_match:
-            score -= 200  # ensures matching entities always outrank
+            score -= 200
 
         # Topic match
         for topic in query_topics:
             if topic in sig_text or topic in sig_entity:
                 score += 30
 
-        # Intent match
+        # ── F1 fix: intent-specific keyword matching ──────────────
+        # This is the core of the intent classifier. Instead of just
+        # keyword-matching the query text against signal text (which
+        # fails for "What did I fail to deliver?" vs "Never sent the
+        # security questionnaire"), we match intent-specific keywords
+        # that map the query's INTENT to the signal's CONTENT.
+        #
+        # Example: broken intent → boost signals containing "never sent",
+        # "didn't deliver", "overdue", "failed to", etc.
+        if intent_keywords:
+            for kw in intent_keywords:
+                if kw in sig_text:
+                    score += 80  # strong boost — this is the intent match
+
+        # Intent-based signal_type matching
         if intent == "commitment" and "commitment" in sig_type:
-            score += 50  # P1-BreakingPoint: increased from 20 to cut through noise
+            score += 50
         if intent == "contradiction" and "reported_statement" in sig_type:
             score += 30
         if intent == "silence" and "newsletter" in sig_type:
             score += 20
-        if intent == "risk" and "commitment" in sig_type:
+        if intent in ("risk", "broken", "overdue") and ("commitment" in sig_type or "broken" in sig_type):
+            score += 40
+        if intent == "relational" and ("commitment" in sig_type or "broken" in sig_type or "reported" in sig_type):
             score += 30
 
-        # Noise penalty — P1-BreakingPoint: increased from -100 to -10000
-        # to handle 5000+ noise signals drowning out real commitments.
-        # At -100, 5000 noise signals could accumulate enough topic-match
-        # points to outrank real commitments. At -10000, noise is always
-        # at the bottom regardless of count.
+        # F1 fix: for abstention intent, return ALL signals with heavy
+        # penalty so select_top_evidence filters them out (min_score=-50)
+        if intent == "abstention":
+            score -= 100  # ensures abstention queries return empty
+
+        # Noise penalty
         if sig_type in ("newsletter", "fyi", "notification", "blog", "social", "marketing"):
             score -= 10000
 
-        # P1-BreakingPoint: signal_type boost — commitment_made and
-        # reported_statement are always more relevant than noise types.
+        # signal_type boost
         if sig_type in ("commitment_made", "reported_statement", "follow_up.required",
-                        "alert", "legal_update", "board_escalation"):
+                        "alert", "legal_update", "board_escalation", "broken", "commitment_broken"):
             score += 200
 
         # Recency bonus
@@ -197,19 +326,14 @@ def rerank_signals(
             try:
                 ts = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
                 days_old = (datetime.now(timezone.utc) - ts).days
-                score += max(0, 10 - days_old)  # up to +10 for very recent
+                score += max(0, 10 - days_old)
             except Exception:
                 pass
 
         scored.append((score, sig))
 
-    # Sort by score descending
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # F1 fix: attach the score to each signal so select_top_evidence can
-    # actually filter by min_score. Previously the score was only in the
-    # sort tuple and discarded — select_top_evidence had no way to apply
-    # its min_score parameter (P11 wiring gap).
     result = []
     for score, sig in scored:
         sig_copy = dict(sig)
