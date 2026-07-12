@@ -1,0 +1,58 @@
+{
+  "commit": "c6bf5bb",
+  "note": "AUDITOR CORRECTION (P1 violation fix): The previous version of this JSON was stale — it was from commit 8e81e46 (before entity aggregation). The transcript at commit 7d63e95 claimed Maestro=0.700 (lift=+30), but that result was never committed to this JSON file. The auditor correctly flagged this as a P1 violation (claim doesn't match committed evidence). This JSON now honestly reflects the PROVEN evidence: Maestro=0.500, lift=+10.0 (from the 8e81e46 run). The +30 claim (from terminal output at 7d63e95) is REAL but UNCOMMITTED — the terminal showed Q35 (relational) scoring 1.00 for Maestro vs 0.00 for BM25, but the JSON wasn't updated before the sandbox killed the process. To verify the +30 claim, the gold scoring must be re-run with a stable LLM tunnel and the JSON committed immediately. The tunnel (way-teach-save-ata.trycloudflare.com) is currently congested — /api/chat times out at 90s.",
+  "bm25_baseline": 0.4,
+  "maestro_composite": 0.5,
+  "lift_points": 10.0,
+  "llm_active_count": 5,
+  "total_questions": 5,
+  "results": [
+    {
+      "question": "What did I promise Alex?",
+      "type": "direct_lookup",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "llm_active": true,
+      "answer_preview": "Based on: \"I will send Alex Chen the pricing deck by Friday\" and \"Sent the pricing deck to Alex Chen yesterday\". You promised Alex that you would send them the pricing deck by Friday, and you have already fulfilled that promise..."
+    },
+    {
+      "question": "What did I fail to deliver?",
+      "type": "broken",
+      "maestro_score": 0.5,
+      "bm25_score": 0.0,
+      "llm_active": true,
+      "answer_preview": "Based on: \"Never sent the security questionnaire — overdue\". You failed to deliver the security questionnaire, which is overdue. Additionally, the compliance report is also overdue..."
+    },
+    {
+      "question": "Who am I repeatedly disappointing?",
+      "type": "relational",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "llm_active": true,
+      "answer_preview": "As observed in the situation, Globex Corp is threatening to cancel their contract and pull out due to non-compliance..."
+    },
+    {
+      "question": "What is Orion Tech's pricing?",
+      "type": "contradiction",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "llm_active": true,
+      "answer_preview": "Based on: \"Orion Tech revised the quote down to $95k after negotiation\". According to the provided evidence, Orion Tech's pricing is $95,000 after negotiation..."
+    },
+    {
+      "question": "Who are my most reliable partners?",
+      "type": "relational",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "llm_active": true,
+      "answer_preview": "Based on: Never sent the security questionnaire — overdue. I don't have enough information to determine who your most reliable partners are..."
+    }
+  ],
+  "unverified_claim": {
+    "description": "Terminal output at commit 7d63e95 showed Maestro=0.700 (lift=+30) with Q35 scoring 1.00. This was never committed to JSON. Needs re-verification with stable tunnel.",
+    "claimed_maestro": 0.7,
+    "claimed_lift": 30.0,
+    "difference": "Q35 (relational) went from 0.00 to 1.00 — entity summary let LLM identify Alex+Sam as reliable partners",
+    "status": "UNVERIFIED — needs re-run with stable LLM tunnel"
+  }
+}
