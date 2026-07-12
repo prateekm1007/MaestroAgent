@@ -1598,6 +1598,32 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                 # above the FTS-only results.
                 query_understanding = understand_query(req.query)
                 intent = query_understanding.get("intent", "general")
+
+                # Phase 1.2 fix (ledger-first routing): for overdue/broken/
+                # commitment/relational/risk intents, query the commitment
+                # ledger FIRST. The ledger is the AUTHORITATIVE source for
+                # commitment state (at_risk = overdue, disputed = broken,
+                # active = in progress). FTS may provide evidence text, but
+                # the ledger determines WHICH commitments are overdue — not
+                # keyword matching. Per roadmap §1.2: 'Route overdue questions
+                # to structured ledger state before semantic retrieval.'
+                ledger_evidence = []
+                try:
+                    from maestro_personal_shell.ledger_routing import route_to_ledger, ledger_entries_to_evidence
+                    _db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+                    ledger_entries = route_to_ledger(intent, token, _db)
+                    if ledger_entries:
+                        ledger_evidence = ledger_entries_to_evidence(ledger_entries)
+                        logger.info(
+                            "Phase 1.2 ledger-first: intent=%s, %d ledger entries found",
+                            intent, len(ledger_entries),
+                        )
+                        # Ledger evidence goes FIRST — it's the authoritative state
+                        evidence_refs_for_llm = ledger_evidence + evidence_refs_for_llm
+                        if not source_sent and ledger_evidence:
+                            source_sent = ledger_evidence[0]["text"]
+                except Exception as e:
+                    logger.debug("Ledger routing failed (non-fatal): %s", e)
                 intent_keywords = query_understanding.get("intent_keywords", [])
                 if intent_keywords and intent in ("broken", "overdue", "relational", "risk", "recurring"):
                     # Load ALL signals for this user and add ones that match
