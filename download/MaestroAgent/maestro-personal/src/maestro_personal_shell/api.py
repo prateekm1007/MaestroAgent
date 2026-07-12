@@ -1614,14 +1614,47 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                 if raw_relevant:
                     ranked = rank_for_ask(req.query, raw_relevant)
                     relevant = ranked["top_evidence"]
+                    # F1 fix (Phase 3.2): entity-level aggregation for
+                    # relational/who questions. "Who am I disappointing?"
+                    # needs to see Riley (broken), Avery (stale), Priya
+                    # (overdue) as distinct entities, not 5 random signals.
+                    entity_summary = ranked.get("entity_summary", [])
+                    if entity_summary:
+                        # For relational/who questions, make the entity summary
+                        # the SOURCE SENTENCE so the LLM sees it first and
+                        # synthesizes across entities instead of fixating on
+                        # one signal.
+                        summary_lines = []
+                        for ent in entity_summary[:5]:
+                            summary_lines.append(
+                                f"  - {ent['entity']}: {ent['broken_count']} broken, "
+                                f"{ent['completed_count']} completed, "
+                                f"{ent['stale_count']} stale commitments"
+                            )
+                        entity_context = (
+                            "Entity summary (grouped by person/project):\n"
+                            + "\n".join(summary_lines)
+                        )
+                        # Put entity summary as the source sentence for relational intents
+                        if query_understanding.get("intent") in ("relational", "broken", "overdue"):
+                            source_sent = entity_context
+                        # Also add as evidence
+                        evidence_refs_for_llm.append({
+                            "text": entity_context,
+                            "entity": "entity_summary",
+                        })
                 else:
                     relevant = []
                 if relevant:
-                    source_sent = relevant[0].get("text", "")
-                    evidence_refs_for_llm = [
-                        {"text": r.get("text", ""), "entity": r.get("entity", "")}
-                        for r in relevant[:5]
-                    ]
+                    # F1 fix: don't overwrite source_sent if it was set
+                    # by the entity summary for relational intents
+                    if not source_sent:
+                        source_sent = relevant[0].get("text", "")
+                    if not evidence_refs_for_llm:
+                        evidence_refs_for_llm = [
+                            {"text": r.get("text", ""), "entity": r.get("entity", "")}
+                            for r in relevant[:5]
+                        ]
             except Exception as e:
                 logger.debug("Semantic retrieval failed, falling back to linear: %s", e)
                 for sig in shell.oem_state.signals:

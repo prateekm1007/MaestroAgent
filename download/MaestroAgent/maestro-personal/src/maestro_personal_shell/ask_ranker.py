@@ -362,6 +362,108 @@ def select_top_evidence(
     return filtered[:max_count]
 
 
+def aggregate_by_entity(
+    signals: list[dict[str, Any]],
+    intent: str = "general",
+) -> list[dict[str, Any]]:
+    """Group signals by entity and compute per-entity summary.
+
+    F1 fix (Phase 3.2): for relational/overdue/broken intents, the LLM
+    needs entity-level context — not just top-5 signals. "Who am I
+    disappointing?" requires seeing Riley (1 broken), Avery (1 stale),
+    Priya (1 overdue) as distinct entities, not 5 random signals.
+
+    Returns entities sorted by the metric relevant to the intent:
+      - broken/overdue/relational/risk → broken_count DESC, then stale
+      - commitment → commitment_count DESC
+      - general → total_signals DESC
+
+    Each entity dict contains:
+      - entity: name
+      - total_signals: count
+      - commitment_count: commitments made
+      - broken_count: signals with broken keywords
+      - completed_count: signals with completion keywords
+      - stale_count: commitments with no follow-up (approximated)
+      - top_signals: top 2 signals for this entity (for LLM context)
+      - risk_score: broken_count * 3 + stale_count * 2 + commitment_count
+    """
+    if not signals:
+        return []
+
+    broken_keywords = [
+        "never sent", "didn't send", "did not send", "overdue", "missed",
+        "failed to", "broken", "delayed", "hasn't", "still pending",
+        "not sent", "not delivered", "behind schedule", "late",
+    ]
+    completed_keywords = [
+        "sent the", "delivered", "completed", "finished", "shipped",
+        "done with", "resolved", "paid", "submitted",
+    ]
+
+    entity_map: dict[str, dict[str, Any]] = {}
+    for sig in signals:
+        entity = str(sig.get("entity", "unknown"))
+        sig_text = str(sig.get("text", "")).lower()
+        sig_type = str(sig.get("signal_type", "")).lower()
+
+        if entity not in entity_map:
+            entity_map[entity] = {
+                "entity": entity,
+                "total_signals": 0,
+                "commitment_count": 0,
+                "broken_count": 0,
+                "completed_count": 0,
+                "stale_count": 0,
+                "top_signals": [],
+                "risk_score": 0,
+            }
+
+        e = entity_map[entity]
+        e["total_signals"] += 1
+
+        if "commitment" in sig_type:
+            e["commitment_count"] += 1
+
+        if any(kw in sig_text for kw in broken_keywords):
+            e["broken_count"] += 1
+        elif any(kw in sig_text for kw in completed_keywords):
+            e["completed_count"] += 1
+
+        # Approximate stale: commitment_made signals that don't have
+        # a corresponding completion signal for the same entity
+        # (simplified: count commitment_made as potential stale)
+        if "commitment" in sig_type and not any(kw in sig_text for kw in completed_keywords):
+            e["stale_count"] += 1
+
+        # Keep top 2 signals per entity (by rank score if available)
+        e["top_signals"].append(sig)
+        if len(e["top_signals"]) > 2:
+            # Sort by _rank_score desc, keep top 2
+            e["top_signals"].sort(key=lambda s: s.get("_rank_score", 0), reverse=True)
+            e["top_signals"] = e["top_signals"][:2]
+
+    # Compute risk scores
+    for e in entity_map.values():
+        e["risk_score"] = (
+            e["broken_count"] * 3 +
+            e["stale_count"] * 2 +
+            e["commitment_count"]
+        )
+
+    # Sort by intent-relevant metric
+    entities = list(entity_map.values())
+    if intent in ("broken", "overdue", "relational", "risk"):
+        # Sort by broken_count DESC, then risk_score DESC
+        entities.sort(key=lambda e: (e["broken_count"], e["risk_score"]), reverse=True)
+    elif intent == "commitment":
+        entities.sort(key=lambda e: e["commitment_count"], reverse=True)
+    else:
+        entities.sort(key=lambda e: e["total_signals"], reverse=True)
+
+    return entities
+
+
 def rank_for_ask(
     query: str,
     signals: list[dict[str, Any]],
@@ -373,14 +475,21 @@ def rank_for_ask(
         "understanding": query understanding dict,
         "ranked_signals": signals sorted by relevance,
         "top_evidence": top 5 signals for answer synthesis,
+        "entity_summary": per-entity aggregation (for relational/who questions),
     }
     """
     understanding = understand_query(query)
     ranked = rerank_signals(signals, understanding)
     top = select_top_evidence(ranked)
 
+    # F1 fix: entity-level aggregation for relational/who questions
+    entity_summary = []
+    if understanding.get("intent") in ("relational", "broken", "overdue", "risk"):
+        entity_summary = aggregate_by_entity(ranked, understanding["intent"])
+
     return {
         "understanding": understanding,
         "ranked_signals": ranked,
         "top_evidence": top,
+        "entity_summary": entity_summary,
     }
