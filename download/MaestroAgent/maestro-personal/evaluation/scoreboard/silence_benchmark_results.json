@@ -1,0 +1,15 @@
+{
+  "total_moments": 103,
+  "critical_count": 20,
+  "moderate_count": 31,
+  "irrelevant_count": 52,
+  "whispers_generated": 25,
+  "critical_caught": 20,
+  "irrelevant_whispered": 0,
+  "critical_recall": 1.0,
+  "false_silence": 0.0,
+  "low_value_suppression": 1.0,
+  "whisper_types": {
+    "critical_signal": 25
+  }
+}
