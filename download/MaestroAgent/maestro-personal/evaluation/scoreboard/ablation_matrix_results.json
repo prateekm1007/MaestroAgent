@@ -1,0 +1,196 @@
+{
+  "A_bm25": 0.55,
+  "B_full_maestro": 0.5,
+  "C_rule_based": 0.45,
+  "lift_B_vs_A": -5.0,
+  "lift_B_vs_C": 5.0,
+  "lift_C_vs_A": -10.0,
+  "llm_active": 0,
+  "total_questions": 10,
+  "results_A": [
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "I will deliver the API integration by March 15"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+    },
+    {
+      "type": "recurring",
+      "score": 0.5,
+      "answer": "Production down \u2014 sev1 incident on auth service Board escalation: investor wants to see Q3 numbers b"
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Avery Stone the quarterly report"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+    }
+  ],
+  "results_B": [
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Based on the evidence: Alex Chen \u2014 \"I will send Alex Chen the pricing deck by Friday\" (recorded 2026",
+      "llm": false,
+      "conf": 0.5,
+      "elapsed": 1.2
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding: What did I fail to deliver?**\n\n**Orion Tech situation**\nState: observing | Epistemic: r",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.2
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who am I repeatedly disappointing?**\n\n**Orion Tech situation**\nState: observing | Epist",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.2
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: What is Orion Tech's pricing?**\n\n**Orion Tech situation**\nState: observing | Epistemic:",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.2
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "**Regarding: What pattern do I see in production incidents?**\n\n**EngOncall situation**\nState: needs_",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.2
+    },
+    {
+      "type": "conditional",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: Who is Avery Stone?**\n\n**Avery Stone: I will send Avery Stone the quarterly report**\nSt",
+      "llm": false,
+      "conf": 0.45,
+      "elapsed": 0.2
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who are my most reliable partners?**\n\n**Orion Tech situation**\nState: observing | Epist",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.2
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "**Regarding: What keeps breaking?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.2
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Based on the evidence: Carlos Ruiz \u2014 \"Carlos dijo que enviar\u00e1 el contrato el lunes que viene\" (recor",
+      "llm": false,
+      "conf": 0.5,
+      "elapsed": 0.2
+    }
+  ],
+  "results_C": [
+    {
+      "type": "direct_lookup",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding: What did I fail to deliver?**\n\n**Orion Tech situation**\nState: observing | Epistemic: r"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who am I repeatedly disappointing?**\n\n**Orion Tech situation**\nState: observing | Epist"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: What is Orion Tech's pricing?**\n\n**Orion Tech situation**\nState: observing | Epistemic:"
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "**Regarding: What pattern do I see in production incidents?**\n\n**EngOncall situation**\nState: needs_"
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "**Regarding: Is SSO ready?**\n\n**Jamie Park: If legal signs off, I'll have SSO ready by Q4**\nState: o"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: Who is Avery Stone?**\n\n**Avery Stone: I will send Avery Stone the quarterly report**\nSt"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who are my most reliable partners?**\n\n**Orion Tech situation**\nState: observing | Epist"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "**Regarding: What keeps breaking?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported"
+    },
+    {
+      "type": "multilingual",
+      "score": 0.5,
+      "answer": "**Regarding: \u00bfQu\u00e9 dijo Carlos?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n*"
+    }
+  ]
+}
