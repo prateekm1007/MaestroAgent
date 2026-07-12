@@ -48,13 +48,13 @@ print(f"[score] Seeded {len(get_corpus())} signals")
 # Start API
 print("\n[score] Starting API with LLM active...")
 import uvicorn
-config = uvicorn.Config(personal_api.app, host="127.0.0.1", port=8795, log_level="error")
+config = uvicorn.Config(personal_api.app, host="127.0.0.1", port=8800, log_level="error")
 server = uvicorn.Server(config)
 t = threading.Thread(target=server.run, daemon=True)
 t.start()
 for i in range(40):
     try:
-        urllib.request.urlopen("http://127.0.0.1:8795/api/health", timeout=2)
+        urllib.request.urlopen("http://127.0.0.1:8800/api/health", timeout=2)
         print(f"[score] API ready after {i}s")
         break
     except Exception:
@@ -70,7 +70,7 @@ assert probe.get("verified") is True
 
 # Fire 5 questions SEQUENTIALLY (P100 can't handle parallel)
 TOKEN = "gold-v4-token"
-BASE = "http://127.0.0.1:8795"
+BASE = "http://127.0.0.1:8800"
 H = {"Content-Type": "application/json", "Authorization": f"Bearer {TOKEN}"}
 
 ALL_Q = get_questions()
