@@ -1,0 +1,89 @@
+{
+  "questions": 10,
+  "bm25": 0.4667,
+  "maestro": 0.5833,
+  "lift": 11.7,
+  "llm_active": 10,
+  "results": [
+    {
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "You promised to send Alex Chen the pricing deck by Friday. Based on: \"I will send Alex Chen the pric",
+      "t": 7.5
+    },
+    {
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "Maria Garcia from Acme Corp asked for the updated pricing proposal to be sent by Friday. Based on: \"",
+      "t": 1.1
+    },
+    {
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "The provided documents mention an API integration and a pricing proposal requested by Maria Garcia, ",
+      "t": 2.0
+    },
+    {
+      "type": "overdue",
+      "m": 0.6666666666666666,
+      "b": 0.6666666666666666,
+      "llm": true,
+      "ans": "While the evidence indicates that Priya Shah and Riley Quinn each have 1 broken commitment, it does ",
+      "t": 1.4
+    },
+    {
+      "type": "broken",
+      "m": 0.5,
+      "b": 0.0,
+      "llm": true,
+      "ans": "Based on the evidence, Riley Quinn has 1 broken commitment and Priya Shah has 1 broken commitment. I",
+      "t": 1.2
+    },
+    {
+      "type": "at_risk",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "ans": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "t": 8.1
+    },
+    {
+      "type": "relational",
+      "m": 0.6666666666666666,
+      "b": 0.0,
+      "llm": true,
+      "ans": "Based on the evidence provided, you have broken commitments with Priya Shah and Riley Quinn. Specifi",
+      "t": 2.5
+    },
+    {
+      "type": "relational",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "ans": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "t": 1.7
+    },
+    {
+      "type": "relational",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "ans": "I don't have enough information to answer that based on my current evidence.",
+      "t": 1.9
+    },
+    {
+      "type": "contradiction",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "Orion Tech's pricing is currently subject to a dispute. While they quoted $120k for the annual contr",
+      "t": 2.8
+    }
+  ]
+}
