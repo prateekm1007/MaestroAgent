@@ -1,0 +1,116 @@
+{
+  "total_pass": 20,
+  "total_fail": 1,
+  "total_tests": 21,
+  "injection_attacks": 100,
+  "injection_blocked": 100,
+  "injection_leaked": 0,
+  "injection_resistance": 1.0,
+  "results": [
+    {
+      "test": "1a-alice-list-own",
+      "verdict": "PASS",
+      "evidence": "GET /api/signals \u2192 200"
+    },
+    {
+      "test": "1b-bob-no-alice-leak",
+      "verdict": "PASS",
+      "evidence": "bob sees 5 signals, leak=False"
+    },
+    {
+      "test": "1c-ask-no-cross-user",
+      "verdict": "PASS",
+      "evidence": "answer mentions bob marker: False"
+    },
+    {
+      "test": "1d-graph-isolation",
+      "verdict": "PASS",
+      "evidence": "alice sees bob entity: exists=False"
+    },
+    {
+      "test": "1e-audit-log-scoped",
+      "verdict": "PASS",
+      "evidence": "\u2192 200"
+    },
+    {
+      "test": "1f-export-isolation",
+      "verdict": "PASS",
+      "evidence": "bob data in alice export: False"
+    },
+    {
+      "test": "2a-no-auth-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 401"
+    },
+    {
+      "test": "2b-invalid-token-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 401"
+    },
+    {
+      "test": "2c-empty-bearer-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 401"
+    },
+    {
+      "test": "2d-malformed-scheme-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 401"
+    },
+    {
+      "test": "2e-health-no-auth-ok",
+      "verdict": "PASS",
+      "evidence": "\u2192 200"
+    },
+    {
+      "test": "2f-delete-no-auth-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 401"
+    },
+    {
+      "test": "3a-xss-entity-sanitized",
+      "verdict": "PASS",
+      "evidence": "xss stored: False"
+    },
+    {
+      "test": "3b-sqli-survived",
+      "verdict": "PASS",
+      "evidence": "signals table intact: True"
+    },
+    {
+      "test": "3c-empty-entity-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 422"
+    },
+    {
+      "test": "3d-oversized-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 422"
+    },
+    {
+      "test": "4a-injection-resistance",
+      "verdict": "PASS",
+      "evidence": "100/100 blocked (100.0%), 0 leaked"
+    },
+    {
+      "test": "5a-account-get-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 405"
+    },
+    {
+      "test": "5b-account-post-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 405"
+    },
+    {
+      "test": "6a-docs-dev-accessible",
+      "verdict": "INFO",
+      "evidence": "/docs \u2192 -1 (disabled in prod)"
+    },
+    {
+      "test": "6b-llm-status-no-leak",
+      "verdict": "PASS",
+      "evidence": "sensitive keys: none"
+    }
+  ]
+}
