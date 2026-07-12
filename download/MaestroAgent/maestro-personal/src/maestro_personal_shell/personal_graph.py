@@ -226,6 +226,73 @@ class PersonalGraph:
 
         return True
 
+    def resolve_completion_signal(
+        self,
+        entity_name: str,
+        completion_text: str,
+        outcome: str,
+        user_email: str | None = None,
+    ) -> int:
+        """Resolve the most recent active commitment edge for an entity.
+
+        Called from create_signal when a completion/break signal is ingested.
+        This closes the P11 wiring gap: update_outcome existed but was only
+        called from the manual /api/signals/{id}/correct path, never from
+        the ingest path. Result: completion_rate stayed None forever even
+        after explicit "Item 0 has been delivered" signals.
+
+        Returns the number of edges resolved (0 if no match).
+        """
+        if outcome not in ("hit", "miss"):
+            return 0
+        ue = user_email or self._user_email
+        conn = get_db_conn(self._db_path)
+        now = datetime.now(timezone.utc).isoformat()
+        entity_id = entity_name.lower().strip()
+
+        # Find the most recent active commitment edge for this entity
+        rows = conn.execute(
+            """SELECT edge_id, topic FROM graph_edges
+               WHERE source_entity = ? AND edge_type = 'commitment'
+               AND status = 'active' AND user_email = ?
+               ORDER BY created_at DESC""",
+            (entity_id, ue),
+        ).fetchall()
+
+        if not rows:
+            conn.close()
+            return 0
+
+        # Match by topic overlap with the completion text.
+        # completion_text e.g. "Item 0 has been delivered" should match
+        # topic "I will deliver item 0" via shared significant tokens.
+        text_lower = completion_text.lower()
+        resolved = 0
+        for edge_id, topic in rows:
+            topic_lower = (topic or "").lower()
+            # Cheap heuristic: any 3+ char token from topic appears in text
+            topic_tokens = [t for t in topic_lower.split() if len(t) >= 3]
+            if not topic_tokens:
+                continue
+            matches = sum(1 for tok in topic_tokens if tok in text_lower)
+            if matches >= max(1, len(topic_tokens) // 3):
+                conn.execute(
+                    """UPDATE graph_edges
+                       SET status = 'resolved', resolved_at = ?, outcome = ?
+                       WHERE edge_id = ?""",
+                    (now, outcome, edge_id),
+                )
+                resolved += 1
+                if outcome == "miss":
+                    self._record_pattern(
+                        entity_id, "missed_commitment",
+                        f"Missed commitment on '{topic}'", ue,
+                    )
+
+        conn.commit()
+        conn.close()
+        return resolved
+
     def get_completion_rate(self, entity_name: str, user_email: str | None = None) -> float | None:
         """Get the historical completion rate for an entity (user-scoped).
 

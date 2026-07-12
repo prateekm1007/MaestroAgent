@@ -27,7 +27,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
@@ -438,8 +438,13 @@ class LoginResponse(BaseModel):
 
 
 class SignalCreate(BaseModel):
-    entity: str
-    text: str
+    # MEDIUM-2 fix (independent audit): cap input sizes to prevent DoS.
+    # 200 chars is generous for an entity name; 10K chars is generous for
+    # signal text (~1500 words). The previous code had no length cap, so a
+    # 1MB signal was accepted, stored, FTS-indexed, and materialized by
+    # build_shell — OOM risk on the 3.9GB server.
+    entity: str = Field(..., max_length=200)
+    text: str = Field(..., max_length=10_000)
     signal_type: str = "reported_statement"
     timestamp: str | None = None  # P0-3 fix: accept client timestamp to preserve history
 
@@ -743,11 +748,19 @@ async def lifespan(app: FastAPI):
     # Shutdown (if needed)
 
 
+# MEDIUM-3 fix (independent audit): disable /docs, /openapi.json, /redoc in
+# production mode. The previous code exposed the full API schema to
+# unauthenticated callers — reconnaissance gift. Now docs are only
+# available in dev mode.
+_prod = _is_production()
 app = FastAPI(
     title="Maestro Personal API",
     description="HTTP API for Maestro Personal v1 — wraps the PersonalShell (Core via Python)",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None if _prod else "/docs",
+    redoc_url=None if _prod else "/redoc",
+    openapi_url=None if _prod else "/openapi.json",
 )
 
 # Phase 11: Trace ID middleware — every request gets a trace ID.
@@ -889,34 +902,56 @@ async def login(req: LoginRequest):
     """
     env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
 
-    # P0 fix (independent audit S5): in production mode, the shared secret
-    # should NOT be able to mint tokens for arbitrary emails. Only the
-    # default user is allowed. For multi-user, a real auth provider is needed.
+    # F8/S1 fix (independent audit): dev mode must NOT mint tokens for
+    # arbitrary emails. The previous code allowed `password=$TOKEN` +
+    # `user_email=attacker@evil.com` → minted a valid bearer token for
+    # attacker@evil.com in dev mode. Anyone with the bootstrap secret
+    # became any user. This is fail-open: a developer who deploys without
+    # setting MAESTRO_PERSONAL_ENV=production gets full user impersonation.
+    #
+    # Fix: default to fail-closed. Allow arbitrary email minting ONLY when
+    # MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL=1 is explicitly set (a conscious
+    # opt-in for test environments). Otherwise, the shared secret mints only
+    # the default user.
+    allow_arbitrary_email = os.environ.get(
+        "MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL", ""
+    ).lower() in ("1", "true", "yes")
+
     if env_token and req.password == env_token:
-        if _is_production():
-            # Production: only the default user can login with the shared secret
-            # Arbitrary email minting is blocked
+        if _is_production() or not allow_arbitrary_email:
+            # Production OR dev-without-opt-in: only the default user can
+            # login with the shared secret. Arbitrary email minting is blocked.
             if req.user_email and req.user_email != "default@personal.local":
                 raise HTTPException(
                     status_code=403,
-                    detail="Production mode: arbitrary email login is not permitted. "
-                           "Use a proper auth provider for multi-user deployment."
+                    detail=(
+                        "Arbitrary email login is not permitted. "
+                        "Set MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL=1 for test environments, "
+                        "or use a proper auth provider for multi-user deployment."
+                    ),
                 )
             user_email = "default@personal.local"
         else:
-            # Dev mode: allow any email (for testing)
+            # Explicit opt-in test mode: allow any email
             user_email = req.user_email or "default@personal.local"
         token = _create_user_token(user_email)
         return LoginResponse(token=token, user_email=user_email, message="Login successful")
 
     # Dev mode: allow bootstrap token as password (for tests)
+    # F8 fix: same fail-closed gate applies to the AUTH_TOKEN fallback path
     if not _is_production() and req.password == AUTH_TOKEN:
-        user_email = req.user_email or "default@personal.local"
-        if req.user_email:
-            token = _create_user_token(user_email)
+        if allow_arbitrary_email:
+            user_email = req.user_email or "default@personal.local"
+            if req.user_email:
+                token = _create_user_token(user_email)
+            else:
+                token = AUTH_TOKEN
+            return LoginResponse(token=token, user_email=user_email, message="Login successful (dev mode)")
         else:
+            # Fail-closed: bootstrap token only mints the default user
+            user_email = "default@personal.local"
             token = AUTH_TOKEN
-        return LoginResponse(token=token, user_email=user_email, message="Login successful (dev mode)")
+            return LoginResponse(token=token, user_email=user_email, message="Login successful (default user only)")
 
     # P1 fix: REJECT passwordless email login
     raise HTTPException(
@@ -1148,15 +1183,31 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
 
     # F3: Resolve entity to canonical form to prevent fragmentation.
     # "Acme Corp", "client", "AcmeCorp" → single canonical entity.
-    canonical_entity = req.entity
-    original_entity = req.entity
+    #
+    # HIGH-1 fix (independent audit): apply the SAME sanitization stack to
+    # the entity field that `text` receives. The previous code passed
+    # req.entity straight through to save_signal_to_db, so
+    # `<script>alert(1)</script>` survived a round-trip and was returned
+    # verbatim by GET /api/signals — stored XSS surface.
+    sanitized_entity = _regex_sanitize(req.entity)
+    sanitized_entity = _html.escape(sanitized_entity, quote=False)
+    # Strip angle brackets entirely — entities are names, not HTML
+    sanitized_entity = _re.sub(r'[<>]', '', sanitized_entity).strip()
+    # Reject empty entity after sanitization (S4 from audit)
+    if not sanitized_entity:
+        raise HTTPException(
+            status_code=422,
+            detail="Entity must contain at least one non-whitespace character."
+        )
+    canonical_entity = sanitized_entity
+    original_entity = sanitized_entity
     try:
         from maestro_personal_shell.entity_resolver import resolve_entity_with_signals
         # Load existing signals to build the known-entity pool
         existing_signals = load_signals_from_db(user_email=token)
         known_entities = list({s.get("entity", "") for s in existing_signals if s.get("entity")})
         canonical_entity = resolve_entity_with_signals(
-            req.entity,
+            sanitized_entity,
             existing_signals,
             user_email=token,
         )
@@ -1296,6 +1347,50 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token)):
             confidence=0.5,
             metadata={"signal_id": signal_id, "signal_type": req.signal_type},
         )
+
+        # F3 fix (auditor finding): wire completion/break signals to
+        # graph.update_outcome. Previously update_outcome was only called
+        # from the manual /api/signals/{id}/correct path, so completion_rate
+        # stayed None forever even after explicit "Item delivered" signals.
+        # This is a P11 (wiring) fix — capability existed, wasn't wired into
+        # the production ingest path.
+        completion_signal_types = {
+            "commitment_completed", "commitment_broken",
+            "commitment_disputed", "completion",
+        }
+        break_signal_types = {"commitment_broken", "commitment_disputed"}
+        if req.signal_type in completion_signal_types or (
+            req.signal_type == "reported_statement"
+            and any(kw in sanitized_text.lower() for kw in (
+                "delivered", "completed", "sent the", "shipped",
+                "finished", "done with", "resolved",
+            ))
+        ):
+            outcome = "miss" if (
+                req.signal_type in break_signal_types
+                or any(kw in sanitized_text.lower() for kw in (
+                    "never sent", "overdue", "missed", "delayed",
+                    "broke", "broken", "failed to",
+                ))
+            ) else "hit"
+            try:
+                resolved_count = graph.resolve_completion_signal(
+                    entity_name=canonical_entity,
+                    completion_text=sanitized_text,
+                    outcome=outcome,
+                    user_email=token,
+                )
+                if resolved_count > 0:
+                    logger.info(
+                        "F3 graph resolve: %d edge(s) for entity=%s outcome=%s",
+                        resolved_count, canonical_entity, outcome,
+                    )
+            except Exception as e:
+                # P6: log loudly, don't silently swallow
+                logger.warning(
+                    "F3 graph resolve failed (entity=%s, outcome=%s): %s",
+                    canonical_entity, outcome, e,
+                )
     except Exception as e:
         logger.debug("Learning loop v2 auto-register failed: %s", e)
 
@@ -2121,6 +2216,34 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
         # Set confidence to 0 — we have no evidence to support any claim
         verification["confidence"] = 0.0
 
+    # F1 + F2 + P25 fix (independent audit): cap confidence when evidence
+    # is weak or intelligence is rule-based. The auditor found:
+    #   - "Confidence often 0.85–1.0 on wrong paths" (F1)
+    #   - "Don't claim LLM intelligence when rules-only" (F2)
+    #   - "Cap confidence when evidence is weak / sample size low" (P25)
+    # Three caps applied:
+    #   1. Rules-only mode: max 0.6 (honest about keyword-based reasoning)
+    #   2. Fewer than 3 evidence items: max 0.5 (single-source is weak)
+    #   3. Top evidence is a noise type (newsletter/fyi/notification):
+    #      max 0.3 (don't attach high confidence to noise-backed answers)
+    if evidence_refs:
+        evidence_types = []
+        for ref in evidence_refs:
+            if isinstance(ref, dict):
+                evidence_types.append(str(ref.get("signal_type", "")).lower())
+            elif isinstance(ref, str):
+                evidence_types.append("")
+        noise_types = {"newsletter", "fyi", "notification", "blog", "social", "marketing"}
+        has_noise_evidence = any(et in noise_types for et in evidence_types)
+        if has_noise_evidence:
+            verification["confidence"] = min(verification["confidence"], 0.3)
+        elif len(evidence_refs) < 3:
+            verification["confidence"] = min(verification["confidence"], 0.5)
+
+    if not llm_active:
+        # F2: rules-only mode — cap at 0.6, never claim high confidence
+        verification["confidence"] = min(verification["confidence"], 0.6)
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,
@@ -2308,6 +2431,10 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
     commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)  # S4: filter tentative/proposal/request
 
     # Get stale commitments for at-risk flagging
+    # F4 fix (independent audit): use days_threshold=2 to match /the-one.
+    # The previous code used the default (5), so /api/commitments showed
+    # days_stale=0 for 2-4 day old commitments while /the-one flagged them
+    # as stale — temporal inconsistency across surfaces.
     stale = shell.detect_stale_commitments(days_threshold=2)
     stale_map = {}
     for s in stale:

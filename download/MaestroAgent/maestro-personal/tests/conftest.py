@@ -1,7 +1,13 @@
 """conftest.py — set up sys.path so maestro_personal_shell + maestro_cognitive_council + no_dilution_guard are importable."""
 
+import os
 import sys
 import pathlib
+
+# F8 fix: tests legitimately need to mint tokens for arbitrary emails
+# (e.g. cross-user isolation tests need user A and user B). The production
+# default is fail-closed; tests opt in via this env var.
+os.environ.setdefault("MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL", "1")
 
 # Add maestro-personal/src to path (the Personal shell package)
 personal_src = pathlib.Path(__file__).resolve().parents[1] / "src"

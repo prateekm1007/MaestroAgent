@@ -343,12 +343,20 @@ class PersonalShell:
                                  getattr(situation, "situation_id", "?"), e)
         return deltas[0] if deltas else None
 
-    def detect_stale_commitments(self, days_threshold: int = 5) -> list[Any]:
+    def detect_stale_commitments(self, days_threshold: int = 2) -> list[Any]:
         """Detect commitments with no follow-up signal for N days.
 
         This is the absence-detection mechanism the auditor identified
         as missing from Core (Day 12 "no action" checkpoint). The shell
         builds it without modifying Core.
+
+        F4 fix (independent audit): a follow-up signal only resets staleness
+        if it's a CLOSURE signal (completion/cancellation/dismissal). The
+        previous code treated ANY follow-up signal — including unrelated
+        "team standup notes" or "monthly newsletter" — as closing the
+        commitment, so a 90-day-old promise showed days_stale=0 just because
+        someone mentioned the entity in passing. Now only explicit closure
+        signals reset the clock.
         """
         from datetime import datetime, timezone, timedelta
 
@@ -362,18 +370,36 @@ class PersonalShell:
             or "commitment" in str(getattr(s, "type", "")).lower()
         ]
 
+        # F4 fix: closure signal types that legitimately reset staleness.
+        # A "team standup notes" follow-up does NOT close a commitment.
+        closure_signal_types = {
+            "commitment_completed", "commitment_broken", "commitment_disputed",
+            "completion", "commitment_cancelled",
+        }
+        closure_text_keywords = (
+            "delivered", "completed", "shipped", "finished",
+            "sent the", "done with", "resolved",
+            "never sent", "missed", "delayed", "broke", "broken",
+            "failed to", "cancelled", "canceled",
+        )
+
         for commitment in commitment_signals:
             entity = getattr(commitment, "entity", "").lower()
             commitment_time = getattr(commitment, "timestamp", now)
             if hasattr(commitment_time, "tzinfo") and commitment_time.tzinfo is None:
                 commitment_time = commitment_time.replace(tzinfo=timezone.utc)
 
-            # Find follow-up signals for the same entity AFTER the commitment
+            # F4 fix: only CLOSURE signals reset staleness — not any follow-up
             followups = [
                 s for s in self._oem_state.signals
                 if getattr(s, "entity", "").lower() == entity
                 and getattr(s, "signal_id", "") != getattr(commitment, "signal_id", "")
                 and getattr(s, "timestamp", now) > commitment_time
+                and (
+                    str(getattr(s, "signal_type", "")).lower() in closure_signal_types
+                    or any(kw in str(getattr(s, "text", "")).lower()
+                           for kw in closure_text_keywords)
+                )
             ]
 
             if not followups:

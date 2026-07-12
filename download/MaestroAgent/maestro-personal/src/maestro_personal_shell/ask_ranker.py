@@ -206,7 +206,16 @@ def rerank_signals(
     # Sort by score descending
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    return [sig for _, sig in scored]
+    # F1 fix: attach the score to each signal so select_top_evidence can
+    # actually filter by min_score. Previously the score was only in the
+    # sort tuple and discarded — select_top_evidence had no way to apply
+    # its min_score parameter (P11 wiring gap).
+    result = []
+    for score, sig in scored:
+        sig_copy = dict(sig)
+        sig_copy["_rank_score"] = score
+        result.append(sig_copy)
+    return result
 
 
 def select_top_evidence(
@@ -217,8 +226,16 @@ def select_top_evidence(
     """Stage 4: Select the top N evidence items, filtering out noise.
 
     Only returns signals with score >= min_score (filters out pure noise).
+
+    F1 fix (independent audit): the previous version documented min_score
+    filtering but never applied it — it just sliced [:max_count]. That's a
+    P11 (wiring) violation: the filter existed in the signature but wasn't
+    wired into the return path. Result: noise signals with very negative
+    scores still appeared in top_evidence when there weren't enough real
+    matches, and the Ask answer would synthesize from newsletter noise.
     """
-    return [sig for sig in ranked_signals[:max_count]]
+    filtered = [sig for sig in ranked_signals if sig.get("_rank_score", 0) >= min_score]
+    return filtered[:max_count]
 
 
 def rank_for_ask(

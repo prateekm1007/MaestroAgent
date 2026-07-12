@@ -102,7 +102,12 @@ class WhisperSurface:
                       # P1-Audit-F3 fix: add regulatory body keywords
                       "sec investigation", "sec complaint", "gdpr complaint",
                       "gdpr violation", "investigation", "complaint filed",
-                      "fine", "penalty", "sanction", "subpoena"],
+                      # F6 fix (independent audit): remove bare "fine" — it
+                      # matched "velocity is fine" → false CRITICAL (legal).
+                      # Replace with specific legal-penalty phrases.
+                      "regulatory fine", "antitrust fine", "penalty fine",
+                      "imposed a fine", "fined $", "civil penalty",
+                      "criminal penalty", "sanction", "subpoena"],
             "deadline": ["deadline missed", "overdue", "past due", "missed the deadline",
                         "didn't deliver", "failed to deliver"],
             "security": ["data breach", "security incident", "compromised",
