@@ -45,6 +45,7 @@ COMMITMENT_TYPES = [
     "cancelled",
     "superseded",
     "aspiration",
+    "broken",  # F4/Riley fix: commitment made but NOT kept
     "not_a_commitment",
 ]
 
@@ -107,11 +108,13 @@ Commitment types:
 - cancelled: "Never mind, we don't need this" (withdrawn)
 - superseded: "Actually, let's do Tuesday instead" (replaced)
 - aspiration: "I hope to get it done" (no commitment)
+- broken: "Never sent the questionnaire — overdue" / "Didn't deliver" / "Failed to send" / "overdue" / "still pending" (a commitment that was made but NOT kept — classify as is_commitment=true, state=at_risk)
 - not_a_commitment: none of the above
 
 Lifecycle states:
 - candidate: just detected
 - active: confirmed commitment
+- at_risk: broken or overdue or stale (commitment made but not kept)
 - completed_claimed: someone said it's done
 - completed_verified: confirmed done
 - disputed: completion challenged
@@ -173,11 +176,16 @@ Classify this text. Output ONLY valid JSON."""
     # questions, hedges, hopes, refusals, or irrelevant).
     is_commitment = parsed.get("is_commitment", ctype in (
         "explicit", "implicit", "conditional", "third_party_report",
-        "completed", "cancelled", "disputed", "superseded",
+        "completed", "cancelled", "disputed", "superseded", "broken",
     ))
     if ctype in ("proposal", "request", "tentative", "aspiration",
                  "negation", "not_a_commitment"):
         is_commitment = False
+
+    # F4/Riley fix: force broken → at_risk state (never completed_claimed)
+    if ctype == "broken":
+        state = "at_risk"
+        is_commitment = True
 
     return {
         "commitment_type": ctype,
@@ -229,6 +237,34 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "owner": "user",
             "deadline_text": "",
             "reasoning": "rule-based: negation keyword detected",
+            "llm_powered": False,
+        }
+
+    # F4/Riley fix (independent audit): detect BROKEN commitments BEFORE
+    # completion keywords. The audit found "Never sent the security
+    # questionnaire — overdue" classified as completed_claimed because
+    # "sent" matched the completion keyword. Root cause: no negation-context
+    # check. "Never sent", "didn't send", "failed to deliver" are BREAKS,
+    # not completions.
+    broken_keywords = [
+        "never sent", "didn't send", "did not send",
+        "never delivered", "didn't deliver", "did not deliver",
+        "failed to send", "failed to deliver", "failed to ship",
+        "hasn't sent", "has not sent", "hasn't delivered",
+        "not sent", "not delivered", "not shipped",
+        "missed the deadline", "missed deadline",
+        "still pending", "still not done", "still not sent",
+        "overdue", "late and", "broken promise",
+    ]
+    if any(kw in text_lower for kw in broken_keywords):
+        return {
+            "commitment_type": "broken",
+            "is_commitment": True,  # a broken commitment is still a commitment
+            "confidence": 0.85,
+            "state": "at_risk",  # broken → at_risk, NOT completed_claimed
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": "rule-based: broken-commitment keyword detected (F4/Riley fix)",
             "llm_powered": False,
         }
 

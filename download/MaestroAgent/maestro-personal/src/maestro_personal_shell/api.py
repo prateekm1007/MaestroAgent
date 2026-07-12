@@ -692,6 +692,11 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
             logger.debug("from_date filtering failed: %s", e)
 
     # Convert DB rows to PersonalSignal objects
+    # F9 fix (independent audit, extended): filter dismissed/cancelled/completed
+    # signals at the SHELL level so EVERY surface that uses build_shell
+    # automatically gets the correction. Previously each surface had to
+    # remember to call _filter_corrected_signals — and Prepare, Briefing,
+    # and others forgot. This is the systematic fix for the F9 pattern.
     personal_signals = []
     for row in db_signals:
         ts = row["timestamp"]
@@ -701,13 +706,20 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
         except Exception:
             timestamp = datetime.now(timezone.utc)
 
+        meta = json.loads(row["metadata"]) if row["metadata"] else {}
+
+        # F9 fix: skip dismissed/cancelled/completed signals at load time
+        status = meta.get("status") or meta.get("correction")
+        if status in ("dismissed", "cancelled", "completed"):
+            continue
+
         sig = PersonalSignal(
             entity=row["entity"],
             text=row["text"],
             signal_type=row["signal_type"],
             signal_id=row["signal_id"],
             timestamp=timestamp,
-            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+            metadata=meta,
             source_acl=row["source_acl"],
         )
         personal_signals.append(sig)
@@ -2899,6 +2911,53 @@ async def get_whispers(token: str = Depends(verify_token)):
                     evidence_refs = [str(r) for r in (getattr(whisper_result, "evidence_refs", []) or [])[:3]]
             except Exception as e:
                 logger.debug("WhisperSituationBridge call failed: %s", e)
+
+        # F5 fix (independent audit): wire materiality_gate_v2 into the
+        # /api/whisper path. The gate learns from user dismissals and
+        # suppresses low-materiality whispers. Previously the gate was
+        # only called from /api/the-moment — /api/whisper returned
+        # everything WhisperSurface generated, so the learning loop
+        # didn't actually change whisper delivery. This is the P11
+        # wiring fix that closes F5.
+        #
+        # F6 guard: NEVER apply the gate to critical_signal-type whispers
+        # (lawsuit, churn, breach, security incident). These must always
+        # surface — the gate is for suppressing low-value noise, not for
+        # silencing genuine emergencies. Stale commitments and deadline
+        # whispers still go through the gate so the learning loop can
+        # adapt their delivery. This prevents the F5 wiring from
+        # regressing F6's critical-event recall.
+        should_whisper = True
+        materiality_score = 0.5
+        if w.get("type") != "critical_signal":
+            try:
+                from maestro_personal_shell.dynamic_agents import materiality_gate_v2
+                from datetime import datetime, timezone
+                mat_context = {
+                    "days_stale": 0,
+                    "has_deadline": False,
+                    "deadline": "",
+                    "age_days": 0,
+                    "transition_type": w.get("type", "routine"),
+                }
+                # Build a pseudo-commitment dict from the whisper
+                pseudo_commit = {
+                    "entity": w.get("entity", ""),
+                    "text": w.get("body", ""),
+                    "signal_type": w.get("type", ""),
+                }
+                mat_result = await materiality_gate_v2(pseudo_commit, mat_context, user_email=token)
+                should_whisper = mat_result.get("should_speak", True)
+                materiality_score = mat_result.get("materiality_score", 0.5)
+                if not should_whisper:
+                    suppression_reason = mat_result.get("reason", "suppressed by materiality_gate_v2 (learned from your dismissals)")
+            except Exception as e:
+                # P6: log loudly, don't silently swallow
+                logger.warning("materiality_gate_v2 failed on /api/whisper (non-fatal, whisper still emitted): %s", e)
+
+        # F5 fix: skip whispers the gate suppressed
+        if not should_whisper:
+            continue
 
         result.append(WhisperResponse(
             type=w["type"],
