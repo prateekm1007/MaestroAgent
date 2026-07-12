@@ -17,13 +17,13 @@
       "bundleIdentifier": "com.maestroagent.personal"
     },
     "android": {
-      "package": "com.maestroagent.personal",
+      "package": "com.maestro.personal",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFC629"
       },
-      "permissions": ["INTERNET", "VIBRATE", "RECORD_AUDIO"]
+      "permissions": ["INTERNET", "VIBRATE", "RECORD_AUDIO", "WRITE_EXTERNAL_STORAGE"]
     },
     "web": {
       "bundler": "metro",
