@@ -1625,7 +1625,7 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
                 except Exception as e:
                     logger.debug("Ledger routing failed (non-fatal): %s", e)
                 intent_keywords = query_understanding.get("intent_keywords", [])
-                if intent_keywords and intent in ("broken", "overdue", "relational", "risk", "recurring"):
+                if intent_keywords and intent in ("broken", "overdue", "relational", "risk", "recurring", "conditional", "cross_entity", "critical", "noise_lookup"):
                     # Load ALL signals for this user and add ones that match
                     # intent keywords — these bypass FTS entirely
                     all_signals = load_signals_from_db(user_email=token, limit=500)

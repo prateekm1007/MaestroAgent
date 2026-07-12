@@ -126,12 +126,70 @@ def understand_query(query: str) -> dict[str, Any]:
         }),
         # F1: abstention — "What did I commit to in 2024?" / "Who is John Smith?"
         ("abstention", {
-            "trigger": [r"who\s+is\s+(?:john|jane|bob)\s+\w+",  # unknown person
+            "trigger": [r"who\s+is\s+(?:john|jane|bob)\s+\w+",
                         r"what(?:'s|s)\s+the\s+weather",
-                        r"in\s+202[0-4]\b",  # before the corpus
+                        r"in\s+202[0-4]\b",
                         r"last\s+year", r"two\s+years\s+ago"],
-            "signal_match": [],  # no signal match — should return empty
+            "signal_match": [],
             "signal_types": set(),
+        }),
+        # F1 fix: conditional — "Is SSO ready?" / "What depends on legal?"
+        ("conditional", {
+            "trigger": [r"is\s+\w+\s+ready", r"what\s+depends\s+on",
+                        r"depends\s+on\s+(?:legal|finance|engineering)",
+                        r"if\s+\w+\s+(?:signs|approves|agrees)",
+                        r"pending\s+\w+\s+(?:review|approval|signoff)",
+                        r"conditional\s+commitment"],
+            "signal_match": ["if legal", "if legal signs", "pending legal",
+                             "pending review", "pending approval", "pending signoff",
+                             "conditional", "depends on", "if approved",
+                             "if signed", "if agreed", "if cleared",
+                             "sso", "ready by q4", "pending"],
+            "signal_types": {"commitment_made", "reported_statement"},
+        }),
+        # F1 fix: cross_entity — "Which clients have pricing issues?"
+        ("cross_entity", {
+            "trigger": [r"which\s+(?:clients?|customers?|people|projects?|entities?)",
+                        r"who\s+(?:has|have)\s+(?:pricing|issues?|problems?)",
+                        r"what\s+(?:clients?|customers?)\s+have",
+                        r"list\s+(?:all\s+)?(?:clients?|people|projects?)",
+                        r"who\s+owes\s+me"],
+            "signal_match": ["pricing", "proposal", "contract", "quote",
+                             "overdue", "broken", "cancelled", "threatening",
+                             "delivered", "completed", "sent", "will send",
+                             "pricing issue", "pricing dispute"],
+            "signal_types": {"commitment_made", "reported_statement"},
+        }),
+        # F1 fix: critical — "Are there any legal issues?"
+        ("critical", {
+            "trigger": [r"legal\s+(?:issues?|matters?|problems?)",
+                        r"any\s+(?:legal|lawsuit|regulatory|compliance)\s+",
+                        r"churn|cancel(?:ling|ation)?\s+account",
+                        r"at\s+risk\s+of\s+(?:churn|leaving|cancelling)",
+                        r"board\s+escalation", r"emergency\s+meeting",
+                        r"breach\s+(?:of\s+contract|security)",
+                        r"what.*urgent", r"most\s+urgent"],
+            "signal_match": ["lawsuit", "legal action", "compliance violation",
+                             "regulatory fine", "gdpr", "breach",
+                             "churn", "cancel account", "threatening to leave",
+                             "pulling out", "moving to competitor",
+                             "board escalation", "emergency", "investor",
+                             "regulatory", "subpoena", "penalty",
+                             "data breach", "security incident",
+                             "production down", "outage", "sev1"],
+            "signal_types": {"reported_statement", "commitment_made"},
+        }),
+        # F1 fix: noise_lookup — "What newsletters did I get?"
+        ("noise_lookup", {
+            "trigger": [r"newsletter", r"what\s+news(?:letters?)?\s+did",
+                        r"industry\s+news", r"latest\s+news",
+                        r"how\s+is\s+(?:engineering\s+)?velocity",
+                        r"standup\s+notes", r"team\s+standup",
+                        r"what\s+noise\s+did"],
+            "signal_match": ["newsletter", "digest", "roundup", "weekly",
+                             "monthly", "fyi", "velocity", "standup",
+                             "sprint", "on track"],
+            "signal_types": {"newsletter", "fyi", "notification", "reported_statement"},
         }),
         # Existing intents
         ("commitment", {
@@ -305,15 +363,26 @@ def rerank_signals(
             score += 40
         if intent == "relational" and ("commitment" in sig_type or "broken" in sig_type or "reported" in sig_type):
             score += 30
+        # F1 fix: new intent type boosts
+        if intent == "conditional" and ("commitment" in sig_type or "reported" in sig_type):
+            score += 40
+        if intent == "cross_entity" and ("commitment" in sig_type or "reported" in sig_type):
+            score += 40
+        if intent == "critical" and "reported" in sig_type:
+            score += 40
+        if intent == "noise_lookup":
+            # DON'T penalize newsletters for noise_lookup intent
+            pass
 
         # F1 fix: for abstention intent, return ALL signals with heavy
         # penalty so select_top_evidence filters them out (min_score=-50)
         if intent == "abstention":
             score -= 100  # ensures abstention queries return empty
 
-        # Noise penalty
-        if sig_type in ("newsletter", "fyi", "notification", "blog", "social", "marketing"):
-            score -= 10000
+        # Noise penalty — EXCEPT for noise_lookup intent
+        if intent != "noise_lookup":
+            if sig_type in ("newsletter", "fyi", "notification", "blog", "social", "marketing"):
+                score -= 10000
 
         # signal_type boost
         if sig_type in ("commitment_made", "reported_statement", "follow_up.required",
