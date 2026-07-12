@@ -613,7 +613,16 @@ def _get_calibration_context(user_email: str | None = None) -> str:
 
 # LLM latency budget. If the LLM doesn't respond within this many seconds,
 # we fall back to rule-based logic. The UI must never hang waiting for LLM.
-LLM_LATENCY_BUDGET_SECONDS = 8.0
+# P11 fix: when using a REMOTE Ollama (e.g., Kaggle P100 via Cloudflare
+# tunnel), the latency is much higher than local — 15-30s per call vs
+# <1s locally. The 8s budget was too short and killed every remote call,
+# making llm_active=False despite the LLM being available and verified.
+# Fix: use 60s for remote Ollama, keep 8s for local.
+import os as _os
+if _os.environ.get("OLLAMA_HOST", "").startswith("http") and "localhost" not in _os.environ.get("OLLAMA_HOST", "") and "127.0.0.1" not in _os.environ.get("OLLAMA_HOST", ""):
+    LLM_LATENCY_BUDGET_SECONDS = 60.0  # remote Ollama (Kaggle/Colab tunnel)
+else:
+    LLM_LATENCY_BUDGET_SECONDS = 8.0   # local Ollama or cloud provider
 
 # Simple in-memory cache for LLM responses. Keyed by (system, user, temperature).
 # This avoids re-calling the LLM for identical queries (e.g. repeated asks).

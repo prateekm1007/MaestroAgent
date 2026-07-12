@@ -1445,6 +1445,22 @@ async def get_signals(token: str = Depends(verify_token)):
 # 5. POST /api/ask — Ask surface
 
 
+class _PseudoSituation:
+    """Minimal situation object for LLM answer generation.
+
+    P11 fix: when detect_situations() returns nothing (e.g., bulk-seeded
+    signals without classifier metadata), we create a pseudo-situation
+    from the ranker's top evidence so the LLM is still called. Without
+    this, the LLM path is gated on matching_situation being non-None,
+    and llm_active=0 even when /api/llm-status reports active=True.
+    """
+    def __init__(self, entity: str, title: str, state: str = "observing"):
+        self.entity = entity
+        self.title = title
+        self.state = state
+        self.operational_state = state
+
+
 @app.post("/api/ask", response_model=AskResponse)
 async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token)):
     """Ask a question — get the truth, sourced.
@@ -1548,41 +1564,60 @@ async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(ve
             if not matching_situation and situations:
                 matching_situation = situations[0]
 
+            # P11 fix (gold scoring): even when situation detection returns
+            # nothing, we MUST still call the LLM if it's available. The
+            # previous code gated the LLM call on matching_situation being
+            # non-None — which meant bulk-seeded signals (without classifier
+            # metadata) never triggered the LLM. Result: llm_active=0/5 in
+            # gold scoring despite /api/llm-status reporting active=True.
+            #
+            # Fix: use semantic retrieval + ranker to get evidence regardless
+            # of situation detection. If no situation exists, build a minimal
+            # pseudo-situation from the top-ranked evidence so the LLM has
+            # context to work with.
+            source_sent = ""
+            evidence_refs_for_llm = []
+
+            try:
+                from maestro_personal_shell.semantic_retrieval import get_relevant_signals
+                from maestro_personal_shell.ask_ranker import rank_for_ask
+                raw_relevant = get_relevant_signals(
+                    req.query,
+                    user_email=token,
+                    limit=10,
+                    as_of=as_of,
+                    from_date=from_date,
+                )
+                if raw_relevant:
+                    ranked = rank_for_ask(req.query, raw_relevant)
+                    relevant = ranked["top_evidence"]
+                else:
+                    relevant = []
+                if relevant:
+                    source_sent = relevant[0].get("text", "")
+                    evidence_refs_for_llm = [
+                        {"text": r.get("text", ""), "entity": r.get("entity", "")}
+                        for r in relevant[:5]
+                    ]
+            except Exception as e:
+                logger.debug("Semantic retrieval failed, falling back to linear: %s", e)
+                for sig in shell.oem_state.signals:
+                    sig_entity = str(getattr(sig, "entity", "")).lower()
+                    if matching_situation and sig_entity == str(getattr(matching_situation, "entity", "")).lower():
+                        source_sent = getattr(sig, "text", "")
+                        break
+
+            # P11 fix: if no matching_situation, create a pseudo-situation
+            # from the ranker evidence so the LLM is still called
+            if not matching_situation and evidence_refs_for_llm:
+                matching_situation = _PseudoSituation(
+                    entity=evidence_refs_for_llm[0].get("entity", "unknown"),
+                    title=f"Query about {evidence_refs_for_llm[0].get('entity', 'unknown')}",
+                    state="observing",
+                )
+                logger.info("P11 fix: created pseudo-situation for LLM (entity=%s)", matching_situation.entity)
+
             if matching_situation:
-                # Phase 1.3: Use semantic retrieval to find the most relevant
-                # evidence for this query, instead of iterating all signals.
-                source_sent = ""
-                evidence_refs_for_llm = []
-
-                try:
-                    from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-                    from maestro_personal_shell.ask_ranker import rank_for_ask
-                    raw_relevant = get_relevant_signals(
-                        req.query,
-                        user_email=token,
-                        limit=10,
-                        as_of=as_of,
-                        from_date=from_date,
-                    )
-                    if raw_relevant:
-                        ranked = rank_for_ask(req.query, raw_relevant)
-                        relevant = ranked["top_evidence"]
-                    else:
-                        relevant = []
-                    if relevant:
-                        source_sent = relevant[0].get("text", "")
-                        evidence_refs_for_llm = [
-                            {"text": r.get("text", ""), "entity": r.get("entity", "")}
-                            for r in relevant[:5]
-                        ]
-                except Exception as e:
-                    logger.debug("Semantic retrieval failed, falling back to linear: %s", e)
-                    for sig in shell.oem_state.signals:
-                        sig_entity = str(getattr(sig, "entity", "")).lower()
-                        if matching_situation and sig_entity == str(getattr(matching_situation, "entity", "")).lower():
-                            source_sent = getattr(sig, "text", "")
-                            break
-
                 state_val = str(getattr(matching_situation, "state", getattr(matching_situation, "operational_state", "unknown")))
                 if hasattr(state_val, "value"):
                     state_str = state_val.value
