@@ -20,6 +20,7 @@ import secrets
 import json
 import logging
 import time
+import asyncio  # Phase 1.1: needed for WS auth timeout
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
@@ -3727,10 +3728,20 @@ async def get_negotiation(req: NegotiationRequest, token: str = Depends(verify_t
 async def websocket_copilot_handler(websocket: "WebSocket"):
     """Handle WebSocket connection for real-time copilot.
 
-    Audit fix #8: auth via subprotocol header instead of query param.
-    Query params are logged by proxies/load balancers, leaking the token.
-    Client connects with: websocket.connect(url, subprotocols=["bearer:<token>"])
-    Fallback: query param still supported for backward compat.
+    Phase 1.1 fix (auditor P0): the previous auth used
+    `subprotocols=["bearer:<token>"]` but `:` (0x3A) is INVALID in a
+    WebSocket subprotocol token per RFC 6455 §4.1. Real browsers reject
+    the connection before it starts.
+
+    Fixed auth (two valid options):
+      Option A (preferred): subprotocol + first-message auth
+        Client: websocket.connect(url, subprotocols=["maestro-auth"])
+        Then first message: {"type": "auth", "token": "<bearer>"}
+      Option B (backward compat): subprotocol with dot separator
+        Client: websocket.connect(url, subprotocols=["bearer.<token>"])
+
+    Both are accepted. The `:` form is rejected (it never worked in
+    browsers anyway — the previous "audit fix #8" was theater).
     """
     from fastapi import WebSocket, WebSocketDisconnect
     from maestro_personal_shell.copilot_live import (
@@ -3740,21 +3751,52 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
     )
     import json
 
-    await websocket.accept()
+    # Phase 1.1 fix: accept the connection first, then auth via either
+    # subprotocol (dot form) or first message.
+    await websocket.accept(subprotocol="maestro-auth" if "maestro-auth" in
+                           [p.strip() for p in websocket.headers.get("sec-websocket-protocol", "").split(",")]
+                           else None)
 
-    # Audit fix #8: prefer subprotocol header, fall back to query param
     raw_token = ""
-    # P1-Audit-F7 fix: subprotocol is the ONLY token method. The auditor
-    # found query-param tokens leak via server logs/proxies. Query param
-    # fallback was removed. Clients MUST connect with:
-    #   websocket.connect(url, subprotocols=["bearer:<token>"])
+
+    # Option B: subprotocol with dot separator (bearer.<token>)
     if websocket.headers.get("sec-websocket-protocol"):
         protocols = websocket.headers["sec-websocket-protocol"].split(",")
         for proto in protocols:
             proto = proto.strip()
-            if proto.startswith("bearer:"):
+            # Phase 1.1 fix: accept "bearer.<token>" (dot is valid in subprotocol)
+            if proto.startswith("bearer."):
                 raw_token = proto[7:]
                 break
+            # Reject the old "bearer:<token>" form — it was never valid
+            # but we log it so the client knows to upgrade
+            if proto.startswith("bearer:"):
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Invalid subprotocol: ':' is not allowed. Use 'bearer.<token>' or send {\"type\":\"auth\",\"token\":\"<token>\"} as first message."
+                })
+                await websocket.close()
+                return
+
+    # Option A: if no token from subprotocol, require first-message auth
+    if not raw_token:
+        try:
+            first_msg = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+            msg = json.loads(first_msg)
+            if msg.get("type") == "auth" and msg.get("token"):
+                raw_token = msg["token"]
+            else:
+                await websocket.send_json({"type": "error", "message": "First message must be {\"type\":\"auth\",\"token\":\"<token>\"}"})
+                await websocket.close()
+                return
+        except asyncio.TimeoutError:
+            await websocket.send_json({"type": "error", "message": "Auth timeout — send {\"type\":\"auth\",\"token\":\"<token>\"} within 10s"})
+            await websocket.close()
+            return
+        except Exception as e:
+            await websocket.send_json({"type": "error", "message": f"Auth failed: {e}"})
+            await websocket.close()
+            return
 
     # Check per-user tokens first
     user_email = None
