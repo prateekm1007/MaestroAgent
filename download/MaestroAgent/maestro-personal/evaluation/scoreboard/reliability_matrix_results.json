@@ -1,0 +1,87 @@
+{
+  "total_pass": 16,
+  "total_fail": 0,
+  "total_tests": 16,
+  "results": [
+    {
+      "test": "1-health-ok",
+      "verdict": "PASS",
+      "evidence": "\u2192 200"
+    },
+    {
+      "test": "2-invalid-json-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 422"
+    },
+    {
+      "test": "3-missing-fields-rejected",
+      "verdict": "PASS",
+      "evidence": "\u2192 422"
+    },
+    {
+      "test": "4-concurrent-writes",
+      "verdict": "PASS",
+      "evidence": "20/20 succeeded, 0 errors"
+    },
+    {
+      "test": "5-empty-ask",
+      "verdict": "PASS",
+      "evidence": "\u2192 200, answer=**Regarding: **\n\n**ConcurrentEntity1 situation**\nState: obse"
+    },
+    {
+      "test": "6-huge-ask",
+      "verdict": "PASS",
+      "evidence": "\u2192 200"
+    },
+    {
+      "test": "7-unknown-graph-honest",
+      "verdict": "PASS",
+      "evidence": "exists=False"
+    },
+    {
+      "test": "8-invalid-token-401",
+      "verdict": "PASS",
+      "evidence": "\u2192 401"
+    },
+    {
+      "test": "9-duplicate-handled",
+      "verdict": "PASS",
+      "evidence": "first=200, second=200"
+    },
+    {
+      "test": "10-missing-copilot-body",
+      "verdict": "PASS",
+      "evidence": "\u2192 422"
+    },
+    {
+      "test": "11-future-timestamp-accepted",
+      "verdict": "PASS",
+      "evidence": "\u2192 200"
+    },
+    {
+      "test": "12-concurrent-ask",
+      "verdict": "PASS",
+      "evidence": "5/5 succeeded, avg=0.2s"
+    },
+    {
+      "test": "13-persistence-after-restart",
+      "verdict": "PASS",
+      "evidence": "before=27, after=27"
+    },
+    {
+      "test": "14-special-chars",
+      "verdict": "PASS",
+      "evidence": "\u2192 200"
+    },
+    {
+      "test": "15-account-delete",
+      "verdict": "PASS",
+      "evidence": "\u2192 200"
+    },
+    {
+      "test": "15b-data-gone-after-delete",
+      "verdict": "PASS",
+      "evidence": "\u2192 401"
+    }
+  ]
+}
