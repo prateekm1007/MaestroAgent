@@ -1,0 +1,485 @@
+{
+  "commit": "bd24964",
+  "provider": "ollama (llama3:8b on Kaggle P100)",
+  "tunnel": "https://bargain-tennessee-uniform-jerry.trycloudflare.com",
+  "bm25_baseline": 0.5142,
+  "maestro_composite": 0.6738,
+  "lift_points": 16.0,
+  "llm_active_count": 47,
+  "total_questions": 47,
+  "per_type": {
+    "abstention": {
+      "maestro": 0.75,
+      "bm25": 0.0,
+      "n": 4
+    },
+    "at_risk": {
+      "maestro": 1.0,
+      "bm25": 0.0,
+      "n": 1
+    },
+    "broken": {
+      "maestro": 0.5,
+      "bm25": 0.0,
+      "n": 1
+    },
+    "conditional": {
+      "maestro": 0.75,
+      "bm25": 1.0,
+      "n": 2
+    },
+    "contradiction": {
+      "maestro": 1.0,
+      "bm25": 0.6667,
+      "n": 3
+    },
+    "critical": {
+      "maestro": 0.625,
+      "bm25": 0.625,
+      "n": 4
+    },
+    "cross_entity": {
+      "maestro": 0.75,
+      "bm25": 0.75,
+      "n": 2
+    },
+    "direct_lookup": {
+      "maestro": 1.0,
+      "bm25": 1.0,
+      "n": 7
+    },
+    "disputed": {
+      "maestro": 0.5,
+      "bm25": 0.5,
+      "n": 2
+    },
+    "multilingual": {
+      "maestro": 1.0,
+      "bm25": 1.0,
+      "n": 2
+    },
+    "noise_lookup": {
+      "maestro": 0.5,
+      "bm25": 0.5,
+      "n": 3
+    },
+    "overdue": {
+      "maestro": 0.6667,
+      "bm25": 0.6667,
+      "n": 1
+    },
+    "prepare": {
+      "maestro": 0.5,
+      "bm25": 0.5,
+      "n": 1
+    },
+    "priority": {
+      "maestro": 0.5,
+      "bm25": 0.5,
+      "n": 2
+    },
+    "recurring": {
+      "maestro": 1.0,
+      "bm25": 0.5,
+      "n": 3
+    },
+    "relational": {
+      "maestro": 0.2,
+      "bm25": 0.0,
+      "n": 5
+    },
+    "temporal": {
+      "maestro": 0.25,
+      "bm25": 0.25,
+      "n": 4
+    }
+  },
+  "results": [
+    {
+      "idx": 0,
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "Based on: \"I will send Alex Chen the pricing deck by Friday\" and \"Sent the pricing deck to Alex Chen",
+      "t": 25.6
+    },
+    {
+      "idx": 1,
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "Based on: Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing pro",
+      "t": 3.8
+    },
+    {
+      "idx": 2,
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "Based on: \"Delivered the API integration on time\"\n\nI don't have enough information to determine what",
+      "t": 3.6
+    },
+    {
+      "idx": 3,
+      "type": "overdue",
+      "m": 0.6666666666666666,
+      "b": 0.6666666666666666,
+      "llm": true,
+      "ans": "Based on the provided evidence, I can see that both Priya Shah and Riley Quinn have one broken commi",
+      "t": 3.9
+    },
+    {
+      "idx": 4,
+      "type": "broken",
+      "m": 0.5,
+      "b": 0.0,
+      "llm": true,
+      "ans": "Based on the provided evidence, it appears that Riley Quinn and Priya Shah both failed to deliver, a",
+      "t": 3.1
+    },
+    {
+      "idx": 5,
+      "type": "at_risk",
+      "m": 1.0,
+      "b": 0.0,
+      "llm": true,
+      "ans": "Based on: \"I will send Avery Stone the quarterly report\"\n\nIt appears that the commitment at risk is ",
+      "t": 3.3
+    },
+    {
+      "idx": 6,
+      "type": "relational",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "ans": "The evidence only provides a summary of commitments for each member of the Engineering Team and Glob",
+      "t": 4.3
+    },
+    {
+      "idx": 7,
+      "type": "relational",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "ans": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "t": 3.2
+    },
+    {
+      "idx": 8,
+      "type": "relational",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "ans": "I don't have enough information to answer that based on my current evidence.",
+      "t": 1.9
+    },
+    {
+      "idx": 9,
+      "type": "contradiction",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "ans": "Based on: \"Orion Tech revised the quote down to $95k after negotiation\"\n\nAccording to the provided e",
+      "t": 4.5
+    },
+    {
+      "idx": 10,
+      "type": "contradiction",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 27.2
+    },
+    {
+      "idx": 11,
+      "type": "recurring",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 5.6
+    },
+    {
+      "idx": 12,
+      "type": "recurring",
+      "m": 1.0,
+      "b": 0.5,
+      "llm": true,
+      "t": 6.5
+    },
+    {
+      "idx": 13,
+      "type": "prepare",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 6.8
+    },
+    {
+      "idx": 14,
+      "type": "temporal",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 29.7
+    },
+    {
+      "idx": 15,
+      "type": "temporal",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 3.7
+    },
+    {
+      "idx": 16,
+      "type": "noise_lookup",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 2.2
+    },
+    {
+      "idx": 17,
+      "type": "noise_lookup",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 3.7
+    },
+    {
+      "idx": 18,
+      "type": "critical",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 4.8
+    },
+    {
+      "idx": 19,
+      "type": "critical",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 7.8
+    },
+    {
+      "idx": 20,
+      "type": "critical",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 25.5
+    },
+    {
+      "idx": 21,
+      "type": "priority",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 3.6
+    },
+    {
+      "idx": 22,
+      "type": "priority",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 3.5
+    },
+    {
+      "idx": 23,
+      "type": "multilingual",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 2.8
+    },
+    {
+      "idx": 24,
+      "type": "disputed",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 3.3
+    },
+    {
+      "idx": 25,
+      "type": "conditional",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 6.0
+    },
+    {
+      "idx": 26,
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 3.7
+    },
+    {
+      "idx": 27,
+      "type": "noise_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 3.6
+    },
+    {
+      "idx": 28,
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 2.0
+    },
+    {
+      "idx": 29,
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 2.9
+    },
+    {
+      "idx": 30,
+      "type": "direct_lookup",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 25.3
+    },
+    {
+      "idx": 31,
+      "type": "cross_entity",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 5.3
+    },
+    {
+      "idx": 32,
+      "type": "cross_entity",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 5.1
+    },
+    {
+      "idx": 33,
+      "type": "abstention",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 4.3
+    },
+    {
+      "idx": 34,
+      "type": "abstention",
+      "m": 1.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 1.9
+    },
+    {
+      "idx": 35,
+      "type": "relational",
+      "m": 1.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 5.5
+    },
+    {
+      "idx": 36,
+      "type": "relational",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 3.4
+    },
+    {
+      "idx": 37,
+      "type": "temporal",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 3.4
+    },
+    {
+      "idx": 38,
+      "type": "temporal",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 4.4
+    },
+    {
+      "idx": 39,
+      "type": "contradiction",
+      "m": 1.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 1.9
+    },
+    {
+      "idx": 40,
+      "type": "recurring",
+      "m": 1.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 24.8
+    },
+    {
+      "idx": 41,
+      "type": "critical",
+      "m": 0.5,
+      "b": 0.5,
+      "llm": true,
+      "t": 5.0
+    },
+    {
+      "idx": 42,
+      "type": "disputed",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 4.8
+    },
+    {
+      "idx": 43,
+      "type": "conditional",
+      "m": 0.5,
+      "b": 1.0,
+      "llm": true,
+      "t": 3.8
+    },
+    {
+      "idx": 44,
+      "type": "multilingual",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "t": 2.8
+    },
+    {
+      "idx": 45,
+      "type": "abstention",
+      "m": 1.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 2.7
+    },
+    {
+      "idx": 46,
+      "type": "abstention",
+      "m": 1.0,
+      "b": 0.0,
+      "llm": true,
+      "t": 1.9
+    }
+  ]
+}
