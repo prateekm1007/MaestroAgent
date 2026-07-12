@@ -775,6 +775,12 @@ app = FastAPI(
     openapi_url=None if _prod else "/openapi.json",
 )
 
+# Phase 8: api.py split — first extract. Mount the admin router
+# (health endpoint). The old inline /api/health handler is removed
+# below; it now lives in routers/admin.py.
+from maestro_personal_shell.routers import admin as _admin_router
+app.include_router(_admin_router.router)
+
 # Phase 11: Trace ID middleware — every request gets a trace ID.
 # The trace ID is propagated to all surfaces and audit log entries.
 from maestro_personal_shell.observability import (
@@ -5353,15 +5359,13 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
 # ---------------------------------------------------------------------------
 
 
-@app.get("/api/health")
-async def health():
-    """Health check — no auth required."""
-    return {"status": "ok", "service": "maestro-personal", "version": "1.0.0"}
-
-
 # ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
+
+# Phase 8: /api/health has been extracted to routers/admin.py.
+# The inline handler is removed; the router is mounted above via
+# app.include_router(_admin_router.router).
 
 
 def main():
