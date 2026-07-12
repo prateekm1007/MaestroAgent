@@ -1,0 +1,473 @@
+{
+  "commit": "3307fec",
+  "provider": "openrouter (google/gemma-4-26b-a4b-it:free)",
+  "bm25_baseline": 0.5142,
+  "maestro_composite": 0.3156,
+  "lift_points": -19.9,
+  "total_questions": 47,
+  "per_type": {
+    "abstention": {
+      "maestro": 0.0,
+      "bm25": 0.0,
+      "n": 4
+    },
+    "at_risk": {
+      "maestro": 0.0,
+      "bm25": 0.0,
+      "n": 1
+    },
+    "broken": {
+      "maestro": 0.0,
+      "bm25": 0.0,
+      "n": 1
+    },
+    "conditional": {
+      "maestro": 0.5,
+      "bm25": 1.0,
+      "n": 2
+    },
+    "contradiction": {
+      "maestro": 1.0,
+      "bm25": 0.6667,
+      "n": 3
+    },
+    "critical": {
+      "maestro": 0.25,
+      "bm25": 0.625,
+      "n": 4
+    },
+    "cross_entity": {
+      "maestro": 0.25,
+      "bm25": 0.75,
+      "n": 2
+    },
+    "direct_lookup": {
+      "maestro": 0.4524,
+      "bm25": 1.0,
+      "n": 7
+    },
+    "disputed": {
+      "maestro": 0.3333,
+      "bm25": 0.5,
+      "n": 2
+    },
+    "multilingual": {
+      "maestro": 0.5,
+      "bm25": 1.0,
+      "n": 2
+    },
+    "noise_lookup": {
+      "maestro": 0.3333,
+      "bm25": 0.5,
+      "n": 3
+    },
+    "overdue": {
+      "maestro": 0.0,
+      "bm25": 0.6667,
+      "n": 1
+    },
+    "prepare": {
+      "maestro": 0.5,
+      "bm25": 0.5,
+      "n": 1
+    },
+    "priority": {
+      "maestro": 0.5,
+      "bm25": 0.5,
+      "n": 2
+    },
+    "recurring": {
+      "maestro": 0.3333,
+      "bm25": 0.5,
+      "n": 3
+    },
+    "relational": {
+      "maestro": 0.0,
+      "bm25": 0.0,
+      "n": 5
+    },
+    "temporal": {
+      "maestro": 0.25,
+      "bm25": 0.25,
+      "n": 4
+    }
+  },
+  "results": [
+    {
+      "question": "What did I promise Alex?",
+      "type": "direct_lookup",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.2
+    },
+    {
+      "question": "What did Maria ask for?",
+      "type": "direct_lookup",
+      "maestro_score": 0.3333333333333333,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: What did Maria ask for?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been r",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What did I send Sam?",
+      "type": "direct_lookup",
+      "maestro_score": 0.5,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: What did I send Sam?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been repo",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Which promises are now overdue?",
+      "type": "overdue",
+      "maestro_score": 0.0,
+      "bm25_score": 0.6666666666666666,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What did I fail to deliver?",
+      "type": "broken",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: What did I fail to deliver?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's be",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Which commitments are at risk?",
+      "type": "at_risk",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who am I repeatedly disappointing?",
+      "type": "relational",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Who am I repeatedly disappointing?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**Wh",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Which person has become a delivery risk?",
+      "type": "relational",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Which person has become a delivery risk?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who keeps their promises?",
+      "type": "relational",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What is Orion Tech's pricing?",
+      "type": "contradiction",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: What is Orion Tech's pricing?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's ",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Did Orion Tech change their price?",
+      "type": "contradiction",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: Did Orion Tech change their price?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**Wh",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Which issue keeps recurring across meetings?",
+      "type": "recurring",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: Which issue keeps recurring across meetings?**\n\n**Orion Tech situation**\nState: observing | Epistemic: repo",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What pattern do I see in production incidents?",
+      "type": "recurring",
+      "maestro_score": 1.0,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding: What pattern do I see in production incidents?**\n\n**EngOncall situation**\nState: needs_preparation | Episte",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What should I prepare before tomorrow's meeting?",
+      "type": "prepare",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding your decision on Orion Tech (query: 'What should I prepare before tomorrow's meeting?'):**\n  The situation i",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What did I commit to last quarter?",
+      "type": "temporal",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's been pending for over a month?",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: What's been pending for over a month?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n*",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What newsletters did I get?",
+      "type": "noise_lookup",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Recent changes for Orion Tech:**\n  \u2022 Orion Tech quoted us $120k for the annual contract (2026-06-12T00:00:00+00:00)\n  ",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's the latest industry news?",
+      "type": "noise_lookup",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Recent changes for Orion Tech:**\n  \u2022 Orion Tech quoted us $120k for the annual contract (2026-06-12T00:00:00+00:00)\n  ",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Are there any legal issues?",
+      "type": "critical",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: Are there any legal issues?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's be",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Is any customer at risk of churning?",
+      "type": "critical",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Is any customer at risk of churning?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Are there any board escalations?",
+      "type": "critical",
+      "maestro_score": 0.5,
+      "bm25_score": 1.0,
+      "answer_preview": "No active situation found for Board.",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's my most important commitment?",
+      "type": "priority",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What needs my attention today?",
+      "type": "priority",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding: What needs my attention today?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What did Carlos say?",
+      "type": "multilingual",
+      "maestro_score": 0.5,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: What did Carlos say?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been repo",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Did Morgan complete the Nova presentation?",
+      "type": "disputed",
+      "maestro_score": 0.6666666666666666,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: Did Morgan complete the Nova presentation?**\n\n**Orion Tech situation**\nState: observing | Epistemic: report",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Is SSO ready?",
+      "type": "conditional",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: Is SSO ready?**\n\n**Jamie Park: If legal signs off, I'll have SSO ready by Q4**\nState: observing | Epistemic",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's the status of the hiring committee?",
+      "type": "direct_lookup",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding your question about promises to Hiring Committee:**\n  \u2022 Hiring Committee will make an offer to the senior en",
+      "elapsed": 0.0
+    },
+    {
+      "question": "How is engineering velocity?",
+      "type": "noise_lookup",
+      "maestro_score": 0.5,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: How is engineering velocity?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's b",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who is Avery Stone?",
+      "type": "direct_lookup",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: Who is Avery Stone?**\n\n**Avery Stone: I will send Avery Stone the quarterly report**\nState: observing | Epi",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What did I promise Priya?",
+      "type": "direct_lookup",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's the Globex situation?",
+      "type": "direct_lookup",
+      "maestro_score": 0.3333333333333333,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: What's the Globex situation?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's b",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Which clients have pricing issues?",
+      "type": "cross_entity",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: Which clients have pricing issues?**\n\n**Alex Chen: I will send Alex Chen the pricing deck by Friday**\nState",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who owes me something?",
+      "type": "cross_entity",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding: Who owes me something?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been re",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What did I commit to in 2024?",
+      "type": "abstention",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who is John Smith?",
+      "type": "abstention",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Who is John Smith?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been report",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who are my most reliable partners?",
+      "type": "relational",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Who are my most reliable partners?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**Wh",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who are my biggest risks?",
+      "type": "relational",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Who are my biggest risks?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's the oldest unfulfilled commitment?",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitment is: Orion Tech sit",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What did I do this week?",
+      "type": "temporal",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding: What did I do this week?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been ",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Did anyone change their mind?",
+      "type": "contradiction",
+      "maestro_score": 1.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Did anyone change their mind?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's ",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What keeps breaking?",
+      "type": "recurring",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: What keeps breaking?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been repo",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's the most urgent thing right now?",
+      "type": "critical",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "answer_preview": "**Regarding: What's the most urgent thing right now?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Were any completions challenged?",
+      "type": "disputed",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Were any completions challenged?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What depends on legal?",
+      "type": "conditional",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: What depends on legal?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been re",
+      "elapsed": 0.0
+    },
+    {
+      "question": "\u00bfQu\u00e9 dijo Carlos?",
+      "type": "multilingual",
+      "maestro_score": 0.5,
+      "bm25_score": 1.0,
+      "answer_preview": "**Regarding: \u00bfQu\u00e9 dijo Carlos?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been reporte",
+      "elapsed": 0.0
+    },
+    {
+      "question": "What's the weather?",
+      "type": "abstention",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: What's the weather?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's been repor",
+      "elapsed": 0.0
+    },
+    {
+      "question": "Who is the CEO of Microsoft?",
+      "type": "abstention",
+      "maestro_score": 0.0,
+      "bm25_score": 0.0,
+      "answer_preview": "**Regarding: Who is the CEO of Microsoft?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**What's b",
+      "elapsed": 0.0
+    }
+  ]
+}
