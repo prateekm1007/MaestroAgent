@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.maestroagent.personal"
+      "bundleIdentifier": "com.maestro.personal",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Maestro uses the microphone for live meeting copilot intelligence."
+      }
     },
     "android": {
       "package": "com.maestro.personal",
@@ -25,6 +28,7 @@
       },
       "permissions": ["INTERNET", "VIBRATE", "RECORD_AUDIO", "WRITE_EXTERNAL_STORAGE"]
     },
+    "plugins": ["expo-haptics", "expo-av", "expo-secure-store"],
     "web": {
       "bundler": "metro",
       "output": "static",
