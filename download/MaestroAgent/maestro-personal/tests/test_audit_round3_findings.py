@@ -110,34 +110,52 @@ class TestLLMProviderWiring:
 
     def test_llm_complete_works_when_api_responds(self):
         """When the ZAI API responds successfully, llm_complete should
-        return the response text."""
-        from maestro_personal_shell.llm_bridge import llm_complete, reset_llm_router
-        reset_llm_router()
+        return the response text.
 
-        # Mock subprocess to simulate a successful API response
-        with patch("subprocess.run") as mock_run:
-            mock_result = MagicMock()
-            mock_result.returncode = 0
-            mock_result.stderr = ""
-            mock_result.stdout = ""
+        Test isolation fix: OLLAMA_HOST must be unset so the router falls
+        through to the z-ai CLI path (which is what this test mocks). With
+        OLLAMA_HOST set, the router picks Ollama first and the mock never
+        fires — producing a false negative.
+        """
+        import os as _os
+        _saved_ollama_host = _os.environ.pop("OLLAMA_HOST", None)
+        _saved_ollama_model = _os.environ.pop("OLLAMA_MODEL", None)
+        try:
+            from maestro_personal_shell.llm_bridge import llm_complete, reset_llm_router
+            reset_llm_router()
 
-            # Mock the output file
-            import json as _json
-            def mock_open_fn(path, *args, **kwargs):
-                from io import StringIO
-                return StringIO(_json.dumps({
-                    "choices": [{"message": {"content": "LLM response works"}}]
-                }))
-            mock_run.return_value = mock_result
+            # Mock subprocess to simulate a successful API response
+            with patch("subprocess.run") as mock_run:
+                mock_result = MagicMock()
+                mock_result.returncode = 0
+                mock_result.stderr = ""
+                mock_result.stdout = ""
 
-            with patch("builtins.open", side_effect=mock_open_fn):
-                import asyncio
-                result = asyncio.run(llm_complete(
-                    system="You are a test.",
-                    user="Say hello.",
-                ))
-                assert result is not None, "Should return response when API works"
-                assert "LLM response works" in str(result)
+                # Mock the output file
+                import json as _json
+                def mock_open_fn(path, *args, **kwargs):
+                    from io import StringIO
+                    return StringIO(_json.dumps({
+                        "choices": [{"message": {"content": "LLM response works"}}]
+                    }))
+                mock_run.return_value = mock_result
+
+                with patch("builtins.open", side_effect=mock_open_fn):
+                    import asyncio
+                    result = asyncio.run(llm_complete(
+                        system="You are a test.",
+                        user="Say hello.",
+                    ))
+                    assert result is not None, "Should return response when API works"
+                    assert "LLM response works" in str(result)
+        finally:
+            # Restore env vars so other tests can use Ollama
+            if _saved_ollama_host is not None:
+                _os.environ["OLLAMA_HOST"] = _saved_ollama_host
+            if _saved_ollama_model is not None:
+                _os.environ["OLLAMA_MODEL"] = _saved_ollama_model
+            from maestro_personal_shell.llm_bridge import reset_llm_router as _reset
+            _reset()
 
 
 # F6: Depth endpoint separates wired vs producing-value
