@@ -1,9 +1,9 @@
 {
   "commit": "c6bf5bb",
-  "note": "AUDITOR CORRECTION (P1 violation fix): The previous version of this JSON was stale — it was from commit 8e81e46 (before entity aggregation). The transcript at commit 7d63e95 claimed Maestro=0.700 (lift=+30), but that result was never committed to this JSON file. The auditor correctly flagged this as a P1 violation (claim doesn't match committed evidence). This JSON now honestly reflects the PROVEN evidence: Maestro=0.500, lift=+10.0 (from the 8e81e46 run). The +30 claim (from terminal output at 7d63e95) is REAL but UNCOMMITTED — the terminal showed Q35 (relational) scoring 1.00 for Maestro vs 0.00 for BM25, but the JSON wasn't updated before the sandbox killed the process. To verify the +30 claim, the gold scoring must be re-run with a stable LLM tunnel and the JSON committed immediately. The tunnel (way-teach-save-ata.trycloudflare.com) is currently congested — /api/chat times out at 90s.",
+  "provider": "openrouter (google/gemma-4-26b-a4b-it:free)",
   "bm25_baseline": 0.4,
-  "maestro_composite": 0.5,
-  "lift_points": 10.0,
+  "maestro_composite": 0.8333333333333334,
+  "lift_points": 43.333333333333336,
   "llm_active_count": 5,
   "total_questions": 5,
   "results": [
@@ -13,7 +13,10 @@
       "maestro_score": 1.0,
       "bm25_score": 1.0,
       "llm_active": true,
-      "answer_preview": "Based on: \"I will send Alex Chen the pricing deck by Friday\" and \"Sent the pricing deck to Alex Chen yesterday\". You promised Alex that you would send them the pricing deck by Friday, and you have already fulfilled that promise..."
+      "llm_provider": "openrouter",
+      "confidence": 0.5,
+      "answer_preview": "Based on the evidence: Alex Chen \u2014 \"I will send Alex Chen the pricing deck by Friday\" (recorded 2026-05-28)",
+      "elapsed": 16.923272848129272
     },
     {
       "question": "What did I fail to deliver?",
@@ -21,15 +24,21 @@
       "maestro_score": 0.5,
       "bm25_score": 0.0,
       "llm_active": true,
-      "answer_preview": "Based on: \"Never sent the security questionnaire — overdue\". You failed to deliver the security questionnaire, which is overdue. Additionally, the compliance report is also overdue..."
+      "llm_provider": "openrouter",
+      "confidence": 0.6,
+      "answer_preview": "Based on the evidence, Riley Quinn has 1 broken commitment and Priya Shah has 1 broken commitment. I don't have enough information to identify the specific items or tasks that were failed.",
+      "elapsed": 8.073072910308838
     },
     {
       "question": "Who am I repeatedly disappointing?",
       "type": "relational",
-      "maestro_score": 0.0,
+      "maestro_score": 0.6666666666666666,
       "bm25_score": 0.0,
       "llm_active": true,
-      "answer_preview": "As observed in the situation, Globex Corp is threatening to cancel their contract and pull out due to non-compliance..."
+      "llm_provider": "openrouter",
+      "confidence": 0.6,
+      "answer_preview": "Based on the evidence provided, you have broken commitments with Priya Shah and Riley Quinn. Specifically, the entity summary shows \"Priya Shah: 1 broken\" and \"Riley Quinn: 1 broken.\"",
+      "elapsed": 8.101051807403564
     },
     {
       "question": "What is Orion Tech's pricing?",
@@ -37,22 +46,21 @@
       "maestro_score": 1.0,
       "bm25_score": 1.0,
       "llm_active": true,
-      "answer_preview": "Based on: \"Orion Tech revised the quote down to $95k after negotiation\". According to the provided evidence, Orion Tech's pricing is $95,000 after negotiation..."
+      "llm_provider": "openrouter",
+      "confidence": 1.0,
+      "answer_preview": "Orion Tech's pricing is currently subject to a dispute. While they quoted $120k for the annual contract and revised a quote down to $95k after negotiation, they have sent a final invoice for $150k. Ba",
+      "elapsed": 8.083528280258179
     },
     {
       "question": "Who are my most reliable partners?",
       "type": "relational",
-      "maestro_score": 0.0,
+      "maestro_score": 1.0,
       "bm25_score": 0.0,
       "llm_active": true,
-      "answer_preview": "Based on: Never sent the security questionnaire — overdue. I don't have enough information to determine who your most reliable partners are..."
+      "llm_provider": "openrouter",
+      "confidence": 0.8,
+      "answer_preview": "Based on the evidence, Orion Tech, Alex Chen, and Sam Patel appear to be your most reliable partners as they have 0 broken commitments and 1 completed commitment each. Based on: \"- Orion Tech: 0 broke",
+      "elapsed": 8.062472105026245
     }
-  ],
-  "unverified_claim": {
-    "description": "Terminal output at commit 7d63e95 showed Maestro=0.700 (lift=+30) with Q35 scoring 1.00. This was never committed to JSON. Needs re-verification with stable tunnel.",
-    "claimed_maestro": 0.7,
-    "claimed_lift": 30.0,
-    "difference": "Q35 (relational) went from 0.00 to 1.00 — entity summary let LLM identify Alex+Sam as reliable partners",
-    "status": "UNVERIFIED — needs re-run with stable LLM tunnel"
-  }
+  ]
 }
