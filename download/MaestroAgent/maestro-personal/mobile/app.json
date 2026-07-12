@@ -6,21 +6,24 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "maestropersonal",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#1b1a18"
+      "backgroundColor": "#1A1A1A"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.maestroagent.personal"
     },
     "android": {
+      "package": "com.maestroagent.personal",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#1b1a18"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFC629"
       },
-      "package": "com.maestroagent.personal"
+      "permissions": ["INTERNET", "VIBRATE", "RECORD_AUDIO"]
     },
     "web": {
       "bundler": "metro",

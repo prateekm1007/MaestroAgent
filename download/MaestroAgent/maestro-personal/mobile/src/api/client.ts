@@ -1,20 +1,67 @@
 /**
- * API client for Maestro Personal.
- *
- * Calls the FastAPI layer on port 8766. All requests require a bearer
- * token (obtained from login). The token is stored in AsyncStorage.
- *
- * This is a thin HTTP client — NO intelligence here. The API calls the
- * shell, the shell calls Core. The mobile app is a view layer.
+ * API client for Maestro Personal mobile app.
+ * Production-grade with auth, error handling, and all endpoints.
  */
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL as string) || 'http://localhost:8766';
 
-export interface Situation {
-  situation_id: string;
+// ── Types ────────────────────────────────────────────────────────
+
+export interface LoginResult {
+  token: string;
+  user_email: string;
+  message: string;
+}
+
+export interface TheMoment {
+  has_moment: boolean;
+  commitment: {
+    entity: string;
+    text: string;
+    claim_type: string;
+    signal_id: string;
+    timestamp: string;
+    metadata?: Record<string, any>;
+  } | null;
+  why_this_one: string;
+  source_evidence: Array<{ text: string; entity: string; timestamp: string }>;
+}
+
+export interface AskResult {
+  answer: string;
+  query: string;
+  source_sentence: string;
+  source_entity: string;
+  source_timestamp: string;
+  evidence_refs: any[];
+  confidence: number;
+  intelligence_source: string;
+  llm_active: boolean;
+  llm_provider: string;
+  counterevidence: any[];
+  unknowns: any[];
+  as_of: string;
+  decision_boundary: string;
+  reasoning_chain: any[];
+}
+
+export interface Commitment {
   entity: string;
-  state: string;
-  evidence_count: number;
+  text: string;
+  claim_type: string;
+  signal_id: string;
+  is_commitment: boolean;
+  is_at_risk: boolean;
+  days_stale: number;
+  deadline: string;
+  calibration_note: string;
+  confidence: number;
+}
+
+export interface TheOneResult {
+  primary: Commitment | null;
+  why_primary: string;
+  secondary: Commitment[];
 }
 
 export interface Signal {
@@ -25,200 +72,215 @@ export interface Signal {
   timestamp: string;
 }
 
-export interface Commitment {
+export interface WhatChangedShift {
   entity: string;
-  text: string;
-  claim_type: string;
-  signal_id: string;
-  is_commitment: boolean;
+  description: string;
+  timestamp: string;
+  transition_type: string;
 }
 
-export interface AskResult {
-  answer: string;
-  query: string;
+export interface Briefing {
+  greeting: string;
+  top_situation: any;
+  watching_quietly: any[];
+  ask_prompt: string;
 }
 
-export interface WhatChangedItem {
-  entity: string;
-  text: string;
-  type: string;
-  is_meaningful: boolean;
+export interface LLMStatus {
+  configured: boolean;
+  verified: boolean;
+  active: boolean;
+  provider: string;
+  mode: string;
+  probe_latency_ms: number;
 }
 
-export interface PrepareItem {
-  situation_id: string;
-  is_stale: boolean;
-  prep_points: string[];
+export interface PrivacyMode {
+  mode: string;
+  description: string;
+  egress_paths: string[];
 }
 
-export interface LoginResult {
-  token: string;
+export interface Calibration {
+  brier_score: number | null;
+  total_predictions: number;
+  resolved: number;
   message: string;
 }
 
-async function apiFetch(path: string, options: RequestInit = {}, token?: string): Promise<Response> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`API error ${response.status}: ${error}`);
-  }
-  return response;
+export interface AuditLogEntry {
+  timestamp: string;
+  action: string;
+  endpoint: string;
+  resource_id: string;
+  details: string;
 }
 
+export interface Metrics {
+  commitment_completion_rate: number | null;
+  silence_accuracy: number | null;
+  engagement_signals: number;
+}
+
+export interface EntityGraph {
+  exists: boolean;
+  entity_name: string;
+  total_interactions: number;
+  active_commitments: number;
+  completion_rate: number | null;
+}
+
+// ── Core fetch ───────────────────────────────────────────────────
+
+async function apiFetch<T>(
+  path: string,
+  token: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+    ...options.headers,
+  };
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+async function publicFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+// ── Auth ─────────────────────────────────────────────────────────
+
 export async function login(password: string): Promise<LoginResult> {
-  const response = await apiFetch('/api/auth/login', {
+  return publicFetch<LoginResult>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ password }),
   });
-  return response.json();
 }
 
-export async function getHealth(): Promise<{ status: string; service: string }> {
-  const response = await apiFetch('/api/health');
-  return response.json();
+export async function getHealth(): Promise<{ status: string }> {
+  return publicFetch<{ status: string }>('/api/health');
 }
 
-export async function getSituations(token: string): Promise<Situation[]> {
-  const response = await apiFetch('/api/situations', {}, token);
-  return response.json();
+export async function getLLMStatus(token: string): Promise<LLMStatus> {
+  return apiFetch<LLMStatus>('/api/llm-status', token);
+}
+
+// ── Dashboard ────────────────────────────────────────────────────
+
+export async function getTheMoment(token: string): Promise<TheMoment> {
+  return apiFetch<TheMoment>('/api/the-moment', token);
+}
+
+export async function getBriefing(token: string): Promise<Briefing> {
+  return apiFetch<Briefing>('/api/briefing', token);
+}
+
+export async function getWhatChangedShifts(token: string): Promise<{ primary: WhatChangedShift | null; secondary: WhatChangedShift[] }> {
+  return apiFetch('/api/what-changed/the-shifts', token);
+}
+
+// ── Ask ──────────────────────────────────────────────────────────
+
+export async function ask(token: string, query: string): Promise<AskResult> {
+  return apiFetch<AskResult>('/api/ask', token, {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  });
+}
+
+// ── Commitments ──────────────────────────────────────────────────
+
+export async function getCommitments(token: string): Promise<Commitment[]> {
+  return apiFetch<Commitment[]>('/api/commitments', token);
+}
+
+export async function getTheOne(token: string): Promise<TheOneResult> {
+  return apiFetch<TheOneResult>('/api/commitments/the-one', token);
+}
+
+export async function correctSignal(
+  token: string,
+  signalId: string,
+  action: 'complete' | 'dismiss' | 'cancel'
+): Promise<{ status: string; message: string }> {
+  return apiFetch(`/api/signals/${signalId}/correct?action=${action}`, token, {
+    method: 'POST',
+  });
+}
+
+// ── Signals ──────────────────────────────────────────────────────
+
+export async function getSignals(token: string): Promise<Signal[]> {
+  return apiFetch<Signal[]>('/api/signals', token);
 }
 
 export async function createSignal(
   token: string,
   entity: string,
   text: string,
-  signal_type: string
+  signalType: string = 'reported_statement',
+  timestamp?: string
 ): Promise<Signal> {
-  const response = await apiFetch('/api/signals', {
+  return apiFetch<Signal>('/api/signals', token, {
     method: 'POST',
-    body: JSON.stringify({ entity, text, signal_type }),
-  }, token);
-  return response.json();
+    body: JSON.stringify({ entity, text, signal_type: signalType, ...(timestamp ? { timestamp } : {}) }),
+  });
 }
 
-export async function getSignals(token: string): Promise<Signal[]> {
-  const response = await apiFetch('/api/signals', {}, token);
-  return response.json();
-}
+// ── Copilot ──────────────────────────────────────────────────────
 
-export async function ask(token: string, query: string): Promise<AskResult> {
-  const response = await apiFetch('/api/ask', {
-    method: 'POST',
-    body: JSON.stringify({ query }),
-  }, token);
-  return response.json();
-}
-
-export async function getCommitments(token: string): Promise<Commitment[]> {
-  const response = await apiFetch('/api/commitments', {}, token);
-  return response.json();
-}
-
-export async function getWhatChanged(token: string): Promise<WhatChangedItem[]> {
-  const response = await apiFetch('/api/what-changed', {}, token);
-  return response.json();
-}
-
-export async function getPrepare(token: string): Promise<PrepareItem[]> {
-  const response = await apiFetch('/api/prepare', {}, token);
-  return response.json();
-}
-
-// v2: Whisper surface
-export interface WhisperItem {
-  type: string;
-  entity: string;
-  title: string;
-  body: string;
-  priority: string;
-  action_url: string;
-}
-
-export async function getWhispers(token: string): Promise<WhisperItem[]> {
-  const response = await apiFetch('/api/whisper', {}, token);
-  return response.json();
-}
-
-// THE MASTERPIECE — the single most important thing Maestro knows right now
-export interface TheMoment {
-  has_moment: boolean;
-  commitment: {
-    entity: string;
-    text: string;
-    claim_type: string;
-    signal_id: string;
-    timestamp: string;
-  } | null;
-  situation: {
-    situation_id: string;
-    entity: string;
-    state: string;
-    evidence_count: number;
-  } | null;
-  why_this_one: string;
-  source_evidence: Array<{
-    text: string;
-    entity: string;
-    timestamp: string;
-    source: string;
-  }>;
-}
-
-export async function getTheMoment(token: string): Promise<TheMoment> {
-  const response = await apiFetch('/api/the-moment', {}, token);
-  return response.json();
-}
-
-// v2: Gmail sync
-export interface GmailSyncResult {
-  signals_created: number;
-  message: string;
-}
-
-export async function syncGmail(
+export async function sendTranscriptChunk(
   token: string,
-  messages: Record<string, any>[],
-  userEmail: string = 'me'
-): Promise<GmailSyncResult> {
-  const response = await apiFetch('/api/sync/gmail', {
+  text: string,
+  speaker: string,
+  entity: string
+): Promise<any> {
+  return apiFetch('/api/copilot/transcript', token, {
     method: 'POST',
-    body: JSON.stringify({ messages, user_email: userEmail }),
-  }, token);
-  return response.json();
+    body: JSON.stringify({ text, speaker, entity }),
+  });
 }
 
-// v2: Calendar sync
-export async function syncCalendar(
-  token: string,
-  events: Record<string, any>[],
-  userEmail: string = 'me'
-): Promise<GmailSyncResult> {
-  const response = await apiFetch('/api/sync/calendar', {
-    method: 'POST',
-    body: JSON.stringify({ events, user_email: userEmail }),
-  }, token);
-  return response.json();
+// ── Settings ─────────────────────────────────────────────────────
+
+export async function getPrivacyMode(token: string): Promise<PrivacyMode> {
+  return apiFetch<PrivacyMode>('/api/privacy/mode', token);
 }
 
-// Account deletion (privacy, not SaaS)
-export async function deleteAccount(token: string): Promise<{ message: string; status: string }> {
-  const response = await apiFetch('/api/account', { method: 'DELETE' }, token);
-  return response.json();
+export async function getCalibration(token: string): Promise<Calibration> {
+  return apiFetch<Calibration>('/api/calibration', token);
 }
 
-// Data export (privacy, not SaaS)
-export async function exportData(token: string): Promise<{
-  exported_at: string;
-  signal_count: number;
-  signals: Record<string, any>[];
-}> {
-  const response = await apiFetch('/api/account/export', {}, token);
-  return response.json();
+export async function getAuditLog(token: string, limit: number = 50): Promise<{ events: AuditLogEntry[] }> {
+  return apiFetch<{ events: AuditLogEntry[] }>(`/api/audit-log?limit=${limit}`, token);
+}
+
+export async function getMetrics(token: string): Promise<Metrics> {
+  return apiFetch<Metrics>('/api/metrics', token);
+}
+
+export async function getEntityGraph(token: string, entityName: string): Promise<EntityGraph> {
+  return apiFetch<EntityGraph>(`/api/graph/entity/${encodeURIComponent(entityName)}`, token);
+}
+
+export async function exportData(token: string): Promise<any> {
+  return apiFetch('/api/account/export', token);
+}
+
+export async function deleteAccount(token: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/api/account', token, { method: 'DELETE' });
 }
