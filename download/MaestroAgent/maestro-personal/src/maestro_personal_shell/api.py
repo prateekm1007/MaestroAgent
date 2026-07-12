@@ -2734,10 +2734,15 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
             is_stale = False
 
         # Get all signals for this entity to find the 3 things
-        entity_signals = [
+        # F9 fix (independent audit): filter out dismissed/cancelled/completed
+        # signals. The previous code listed corrected false commitments
+        # (e.g., 'Alice will pay $1M to VendorZ') even after the user
+        # dismissed them. Honor corrections across Prepare.
+        raw_entity_signals = [
             sig for sig in shell.oem_state.signals
             if str(getattr(sig, "entity", "")).lower() == entity.lower()
         ]
+        entity_signals = _filter_corrected_signals(raw_entity_signals)
 
         # THE FORGOTTEN: the oldest commitment_made signal with no follow-up
         the_forgotten = ""
