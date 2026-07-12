@@ -1,0 +1,53 @@
+{
+  "bm25": 0.4,
+  "maestro": 0.5,
+  "lift": 9.999999999999998,
+  "llm_active": 5,
+  "results": [
+    {
+      "type": "direct_lookup",
+      "q": "What did I promise Alex?",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "elapsed": 25.0,
+      "ans": "Based on: \"I will send Alex Chen the pricing deck by Friday\"..."
+    },
+    {
+      "type": "broken",
+      "q": "What did I fail to deliver?",
+      "m": 0.5,
+      "b": 0.0,
+      "llm": true,
+      "elapsed": 22.1,
+      "ans": "You failed to deliver the security questionnaire, which is overdue. Additionally, the compliance report..."
+    },
+    {
+      "type": "relational",
+      "q": "Who am I repeatedly disappointing?",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "elapsed": 26.1,
+      "ans": "Pattern of missed deadlines and unmet expectations with Globex Corp... (missed Riley/Avery/Priya by name)"
+    },
+    {
+      "type": "contradiction",
+      "q": "What is Orion Tech pricing?",
+      "m": 1.0,
+      "b": 1.0,
+      "llm": true,
+      "elapsed": 24.0,
+      "ans": "Orion Tech pricing is $95,000 after negotiation (found revised quote)"
+    },
+    {
+      "type": "relational",
+      "q": "Who are my most reliable partners?",
+      "m": 0.0,
+      "b": 0.0,
+      "llm": true,
+      "elapsed": 25.7,
+      "ans": "I dont have enough information to determine who your most reliable partners are... (missed Alex/Sam)"
+    }
+  ]
+}
