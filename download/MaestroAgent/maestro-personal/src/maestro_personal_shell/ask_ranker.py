@@ -179,7 +179,7 @@ def understand_query(query: str) -> dict[str, Any]:
             "trigger": [r"last\s+quarter", r"last\s+month", r"last\s+week",
                         r"when\s+did", r"first\s+week", r"2\s+months\s+ago",
                         r"last\s+\d+\s+days", r"in\s+the\s+last", r"recently",
-                        r"what\s+was\s+happening", r"oldest", "what.*this\s+week"],
+                        r"what\s+was\s+happening", r"oldest", r"what.*this\s+week"],
             "signal_match": [],
             "signal_types": set(),
         }),

@@ -349,19 +349,36 @@ class PersonalGraph:
         conn.close()
 
         total_edges = len(edges)
-        resolved = [e for e in edges if e["status"] == "resolved"]
+        # Phase 1.3 fix (roadmap): separate edge types. The audit found
+        # 'Newsletter: 20 active commitments' because signal_observed edges
+        # were counted as active commitments. Only edge_type='commitment'
+        # counts as a commitment; edge_type='signal' is just an interaction.
+        commitment_edges = [e for e in edges if e["edge_type"] == "commitment"]
+        signal_edges = [e for e in edges if e["edge_type"] == "signal"]
+
+        resolved = [e for e in commitment_edges if e["status"] == "resolved"]
         hits = sum(1 for e in resolved if e["outcome"] == "hit")
         misses = sum(1 for e in resolved if e["outcome"] == "miss")
-        active = [e for e in edges if e["status"] == "active"]
+        active = [e for e in commitment_edges if e["status"] == "active"]
+
+        # Phase 1.3: three completion-rate denominators per roadmap
+        resolved_completion_rate = hits / len(resolved) if resolved else None
+        all_cohort_completion_rate = hits / len(commitment_edges) if commitment_edges else None
+        # overdue active rate: active commitments with no resolution
+        overdue_active = len(active)  # simplified: all active are overdue-pending
+        overdue_active_rate = overdue_active / len(commitment_edges) if commitment_edges else None
 
         return {
             "exists": True,
             "entity_name": entity["entity_name"],
             "entity_type": entity["entity_type"],
             "total_interactions": total_edges,
-            "active_commitments": len(active),
+            "active_commitments": len(active),  # Phase 1.3: only commitment edges
             "resolved_commitments": len(resolved),
-            "completion_rate": hits / len(resolved) if resolved else None,  # P1-Audit-F5: was 0.5
+            "completion_rate": resolved_completion_rate,  # resolved-only (backward compat)
+            "resolved_completion_rate": resolved_completion_rate,  # Phase 1.3: explicit
+            "all_cohort_completion_rate": all_cohort_completion_rate,  # Phase 1.3: all commitments
+            "overdue_active_rate": overdue_active_rate,  # Phase 1.3: active / all
             "miss_rate": misses / len(resolved) if resolved else None,
             "patterns": [
                 {
