@@ -3936,6 +3936,142 @@ async def list_shadow_sessions(
 
 
 # ---------------------------------------------------------------------------
+# CONNECTORS — OAuth2 connector management + draft approval flow
+# The real moat: passive signal ingestion + commitment-aware drafting
+# ---------------------------------------------------------------------------
+
+class ConnectorConnectRequest(BaseModel):
+    provider: str  # gmail | slack | github | calendar | whatsapp | facebook | instagram | twitter
+    oauth_token: str = ""  # empty in demo mode
+
+
+class ConnectorDraftRequest(BaseModel):
+    provider: str
+    recipient: str
+    commitment_text: str = ""
+    entity: str = ""
+    evidence_refs: list[dict[str, Any]] = []
+
+
+class DraftResolutionRequest(BaseModel):
+    resolution: str  # approve | deny | use_draft
+
+
+@app.get("/api/connectors")
+async def list_connectors(token: str = Depends(verify_token)):
+    """List all available connectors with the user's connection state."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    return {"connectors": store.list_connectors(token)}
+
+
+@app.post("/api/connectors/{provider}/connect")
+async def connect_provider(provider: str, req: ConnectorConnectRequest, token: str = Depends(verify_token)):
+    """Connect a provider (stores OAuth token encrypted)."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    result = store.connect(token, provider, req.oauth_token)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.delete("/api/connectors/{provider}")
+async def disconnect_provider(provider: str, token: str = Depends(verify_token)):
+    """Disconnect a provider (deletes the token, keeps audit history)."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    result = store.disconnect(token, provider)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/api/connectors/{provider}/ingest")
+async def ingest_connector(provider: str, token: str = Depends(verify_token)):
+    """Pull messages from a connector and ingest commitments as signals."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    shell = build_shell(user_email=token)
+    result = store.ingest(token, provider, shell=shell)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.get("/api/connectors/audit")
+async def connector_audit_log(token: str = Depends(verify_token), limit: int = 50):
+    """Get the connector + draft audit log for the current user."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    return {"audit": store.get_audit_log(token, limit=limit)}
+
+
+@app.post("/api/drafts")
+async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_token)):
+    """Create a pending draft for user approval.
+
+    Generates a commitment-aware draft using the ConnectorDraftGenerator.
+    The draft is stored as 'pending' until the user resolves it.
+    """
+    from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
+    store = ConnectorStore()
+    gen = ConnectorDraftGenerator(shell=None)
+    draft_data = gen.generate_draft(
+        provider=req.provider,
+        recipient=req.recipient,
+        commitment={"text": req.commitment_text, "entity": req.entity},
+        evidence_refs=req.evidence_refs,
+    )
+    result = store.create_draft(
+        user_email=token,
+        provider=draft_data["provider"],
+        recipient=draft_data["recipient"],
+        subject=draft_data["subject"],
+        body=draft_data["body"],
+        commitment_ref=draft_data["commitment_ref"],
+        evidence_refs=draft_data["evidence_refs"],
+    )
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+
+@app.get("/api/drafts")
+async def list_drafts(token: str = Depends(verify_token), status: str = "pending"):
+    """List drafts for the current user, optionally filtered by status."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    return {"drafts": store.list_drafts(token, status=status)}
+
+
+@app.get("/api/drafts/{draft_id}")
+async def get_draft(draft_id: str, token: str = Depends(verify_token)):
+    """Get a single draft by ID."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    draft = store.get_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    return draft
+
+
+@app.post("/api/drafts/{draft_id}/resolve")
+async def resolve_draft(draft_id: str, req: DraftResolutionRequest, token: str = Depends(verify_token)):
+    """Resolve a draft: approve (send), deny (discard), or use_draft (open in compose).
+
+    The approval flow is the trust mechanism — Maestro NEVER auto-sends.
+    Every draft requires explicit human approval.
+    """
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    result = store.resolve_draft(draft_id, req.resolution, user_email=token)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+# ---------------------------------------------------------------------------
 # NERVE PARITY: Agent dashboard + per-agent query + evening briefing
 # ---------------------------------------------------------------------------
 
