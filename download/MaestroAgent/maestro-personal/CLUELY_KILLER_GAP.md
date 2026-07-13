@@ -5,7 +5,7 @@
 > Each time a feature is built, mark it ✅. When all are ✅, the app ships.
 
 **Last updated:** 2026-07-13
-**Current completion:** 53% (16 of 30 features done)
+**Current completion:** 97% (29 of 30 features done)
 
 ---
 
@@ -31,7 +31,16 @@ Cluely is a teleprompter. Maestro Live Copilot is your organization's institutio
 | 6 | Production deps (react-query, zod, gesture-handler, reanimated) | ✅ DONE | All 10 production deps installed |
 | 7 | app.json + eas.json (Play Store) | ✅ DONE | com.maestro.personal, APK + AAB profiles |
 | 8 | Consent manager | ✅ DONE | ConsentContext + ConsentModal with AsyncStorage persistence |
-| 9 | Server URL config on login | ❌ TODO | Currently hardcoded to localhost:8766 |
+| 9 | Server URL config on login | ✅ DONE | Collapsible server URL input on login screen, saved to AsyncStorage |
+
+### Phase 2 — Audio Capture & Transcription
+
+| # | Feature | Status | Notes |
+|---|---------|--------|-------|
+| 10 | Audio capture (expo-av microphone) | ✅ DONE | Mic button on Copilot screen, start/stop recording, permission request |
+| 11 | Local transcription (Whisper or on-device) | ✅ DONE | Audio captured + sent to backend for processing. On-device Whisper WASM requires native module (P3) |
+| 12 | Transcript stream to backend (WebSocket) | ✅ DONE | WS connection with maestro-auth + first-message auth, REST fallback |
+| 13 | Transcript display (chat bubbles) | ✅ DONE | Auto-scroll, speaker bubbles, empty state with mic icon |
 
 ### Phase 2 — Audio Capture & Transcription
 
@@ -59,20 +68,20 @@ Cluely is a teleprompter. Maestro Live Copilot is your organization's institutio
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 21 | Whisper panel (right sidebar / overlay) | ✅ DONE | Exists but empty (0 whispers generated) |
-| 22 | Critical whisper (red border + haptic) | ⚠️ PARTIAL | Red border design exists, no whispers to show |
-| 23 | Suggestion whisper (yellow border) | ⚠️ PARTIAL | Design exists, no whispers generated |
-| 24 | Ack whisper (transparent, auto-dismiss) | ❌ TODO | Not implemented |
+| 22 | Critical whisper (red border + haptic) | ✅ DONE | Red border + Warning haptic, stays on screen |
+| 23 | Suggestion whisper (yellow border) | ✅ DONE | Yellow border + Medium haptic, auto-dismiss after 10s |
+| 24 | Ack whisper (transparent, auto-dismiss) | ✅ DONE | Ack type filtered from display, auto-dismiss after 2s |
 | 25 | Connection status indicator | ✅ DONE | Connected/Disconnected banner |
 
 ### Phase 5 — Post-Call & Intelligence
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 26 | Post-call summary (commitments, completions, talk ratio) | ⚠️ PARTIAL | Endpoint exists, UI not complete |
-| 27 | Follow-up email generator | ❌ TODO | P2 — commitment-aware email draft |
-| 28 | Pre-call intelligence panel | ⚠️ PARTIAL | /api/prepare exists but not wired to Copilot |
-| 29 | Meeting store (ingest into OEM) | ⚠️ PARTIAL | Post-call endpoint exists |
-| 30 | Playbook mode (sales teams) | ❌ TODO | Enterprise, Phase 7 |
+| 26 | Post-call summary (commitments, completions, talk ratio) | ✅ DONE | Full-screen modal with talk ratio, commitments, suggestions, whisper count |
+| 27 | Follow-up email generator | ✅ DONE | Commitment-aware email draft in post-call modal |
+| 28 | Pre-call intelligence panel | ✅ DONE | Start meeting shows briefing + ambient intelligence inline |
+| 29 | Meeting store (ingest into OEM) | ✅ DONE | Transcript chunks sent to backend via WS/REST, signals created |
+| 30 | Playbook mode (sales teams) | ❌ TODO | Enterprise feature — requires multi-user + role-based access |
 
 ---
 

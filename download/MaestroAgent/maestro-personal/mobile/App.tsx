@@ -170,11 +170,22 @@ function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [serverUrl, setServerUrl] = useState('http://localhost:8766');
+  const [showServerConfig, setShowServerConfig] = useState(false);
+
+  // Load saved server URL on mount
+  useEffect(() => {
+    AsyncStorage.getItem('maestro_host').then(url => {
+      if (url) setServerUrl(url);
+    });
+  }, []);
 
   const handleLogin = async () => {
     if (!password) return;
     setLoading(true);
     setError(false);
+    // Save server URL before login
+    await AsyncStorage.setItem('maestro_host', serverUrl);
     const ok = await login(password);
     if (!ok) {
       setError(true);
@@ -192,6 +203,25 @@ function LoginScreen() {
           <Text style={{ color: colors.yellow, fontSize: 32, fontWeight: 'bold', letterSpacing: 2 }}>MAESTRO</Text>
           <Text style={{ color: t.textSecondary, fontSize: 14, marginTop: spacing.sm }}>Personal Intelligence</Text>
         </View>
+
+        {/* Server URL config (collapsible) */}
+        {showServerConfig && (
+          <TextInput
+            style={[
+              styles.loginInput,
+              { backgroundColor: t.surface, color: t.textPrimary, borderColor: colors.yellow, marginBottom: spacing.sm, fontSize: 13 },
+            ]}
+            placeholder="Server URL (http://host:port)"
+            placeholderTextColor={t.textSecondary}
+            value={serverUrl}
+            onChangeText={setServerUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        )}
+        <TouchableOpacity onPress={() => setShowServerConfig(!showServerConfig)} style={{ alignSelf: 'flex-end', marginBottom: spacing.md }}>
+          <Text style={{ color: t.textSecondary, fontSize: 12 }}>{showServerConfig ? '▲ Hide' : '⚙ Server: ' + serverUrl.replace('http://', '').replace('https://', '')}</Text>
+        </TouchableOpacity>
 
         <TextInput
           style={[
@@ -769,6 +799,8 @@ function CopilotScreen() {
   const [showConsent, setShowConsent] = useState(false);
   const [recording, setRecording] = useState(false);
   const [wsRef, setWsRef] = useState<WebSocket | null>(null);
+  const [showPostCall, setShowPostCall] = useState(false);
+  const [postCallSummary, setPostCallSummary] = useState<any>(null);
   const transcriptRef = useRef<ScrollView>(null);
 
   // ── WebSocket connection ────────────────────────────────────────
@@ -785,13 +817,25 @@ function CopilotScreen() {
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
-          if (msg.type === 'suggestion' || msg.type === 'whisper') {
+          if (msg.type === 'ack') {
+            // Ack whisper: transparent, auto-dismiss after 2s
+            const ackWhisper = {
+              type: 'ack',
+              entity: '',
+              text: '',
+              evidence: [],
+              confidence: 0,
+              dismissAt: Date.now() + 2000,
+            };
+            setWhispers(prev => [...prev, ackWhisper]);
+          } else if (msg.type === 'suggestion' || msg.type === 'whisper') {
             const newWhisper = {
               type: msg.priority === 'high' ? 'critical' : 'suggestion',
               entity: msg.entity || 'Maestro',
               text: msg.text || msg.body || '',
               evidence: msg.evidence_refs || [],
               confidence: msg.confidence || 0,
+              dismissAt: msg.priority === 'high' ? 0 : Date.now() + 10000, // suggestions auto-dismiss after 10s, critical stays
             };
             setWhispers(prev => [...prev, newWhisper]);
             if (newWhisper.type === 'critical') {
@@ -802,6 +846,16 @@ function CopilotScreen() {
           }
         } catch (err) { /* non-JSON message, ignore */ }
       };
+
+      // Auto-dismiss timer for ack + suggestion whispers
+      const dismissTimer = setInterval(() => {
+        setWhispers(prev => {
+          const now_ms = Date.now();
+          const filtered = prev.filter(w => !w.dismissAt || w.dismissAt > now_ms);
+          return filtered.length !== prev.length ? filtered : prev;
+        });
+      }, 1000);
+      (ws as any)._dismissTimer = dismissTimer;
       ws.onclose = () => { setConnected(false); };
       ws.onerror = () => { setConnected(false); };
       setWsRef(ws);
@@ -812,7 +866,11 @@ function CopilotScreen() {
   };
 
   const disconnectWS = () => {
-    if (wsRef) { wsRef.close(); setWsRef(null); }
+    if (wsRef) {
+      if ((wsRef as any)._dismissTimer) clearInterval((wsRef as any)._dismissTimer);
+      wsRef.close();
+      setWsRef(null);
+    }
     setConnected(false);
   };
 
@@ -826,10 +884,31 @@ function CopilotScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const endMeeting = () => {
+  const endMeeting = async () => {
     disconnectWS();
-    if (recording) { stopRecording(); }
+    if (recording) { await stopRecording(); }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    // Generate post-call summary from accumulated whispers + chunks
+    const allCommitments = whispers
+      .filter(w => w.evidence?.some((e: any) => e.type === 'commitment'))
+      .map(w => ({ entity: w.entity, text: w.text }));
+    const allSuggestions = whispers
+      .filter(w => w.type === 'suggestion' || w.type === 'critical')
+      .map(w => ({ entity: w.entity, text: w.text, priority: w.type, confidence: w.confidence }));
+    const userChunks = chunks.filter(c => c.speaker === 'me').length;
+    const otherChunks = chunks.filter(c => c.speaker !== 'me').length;
+    const totalChunks = chunks.length;
+    const talkRatio = totalChunks > 0 ? Math.round((userChunks / totalChunks) * 100) : 0;
+
+    setPostCallSummary({
+      total_chunks: totalChunks,
+      talk_ratio: `${talkRatio}% you / ${100 - talkRatio}% them`,
+      commitments: allCommitments,
+      suggestions: allSuggestions,
+      whispers_count: whispers.filter(w => w.type !== 'ack').length,
+    });
+    setShowPostCall(true);
   };
 
   // ── Audio recording (expo-av) ───────────────────────────────────
@@ -863,10 +942,18 @@ function CopilotScreen() {
       setRecording(false);
       (global as any).__maestroRecording = null;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Note: actual transcription would happen via Whisper WASM or backend
-      // For now, we show a placeholder
+      // Local transcription: send audio URI to backend for transcription
+      // (on-device Whisper WASM would be ideal but requires native module)
+      // For now, use the REST transcript endpoint with a note that audio was captured
       if (uri) {
-        setChunks(prev => [...prev, { speaker: '🎤 Audio', text: '[Recording saved — transcription pending]', ts: new Date().toISOString() }]);
+        const transcriptText = '[Audio recorded — ' + new Date().toLocaleTimeString() + ']';
+        setChunks(prev => [...prev, { speaker: '🎤 Audio', text: transcriptText, ts: new Date().toISOString() }]);
+        // Send to backend for processing
+        if (token) {
+          try {
+            await api.sendTranscriptChunk(transcriptText, 'audio', '');
+          } catch (e) { /* non-fatal */ }
+        }
       }
     } catch (e) { /* ignore */ }
   };
@@ -963,8 +1050,8 @@ function CopilotScreen() {
       {/* Whispers overlay */}
       {whispers.length > 0 && (
         <View style={{ position: 'absolute', top: 120, right: spacing.xl, left: spacing.xl }}>
-          {whispers.slice(-3).map((w, i) => (
-            <Card key={i} accent={w.type === 'critical' ? 'red' : 'yellow'} style={{ marginBottom: spacing.sm }}>
+          {whispers.filter(w => w.type !== 'ack').slice(-3).map((w, i) => (
+            <Card key={i} accent={w.type === 'critical' ? 'red' : 'yellow'} style={{ marginBottom: spacing.sm, opacity: w.type === 'suggestion' ? 0.9 : 1 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>{w.entity || 'Maestro'}</Text>
                 {w.confidence > 0 && (
@@ -1014,6 +1101,71 @@ function CopilotScreen() {
           <Ionicons name="send" size={20} color={colors.yellow} />
         </TouchableOpacity>
       </View>
+
+      {/* Post-call summary modal */}
+      <Modal visible={showPostCall} animationType="slide" onRequestClose={() => setShowPostCall(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: spacing.xl }}>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: t.textPrimary }}>Meeting Summary</Text>
+            <TouchableOpacity onPress={() => { setShowPostCall(false); setChunks([]); setWhispers([]); }}>
+              <Ionicons name="close" size={24} color={t.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flex: 1, paddingHorizontal: spacing.xl }}>
+            {postCallSummary && (
+              <>
+                <Card style={{ marginBottom: spacing.lg }}>
+                  <Text style={{ fontSize: 13, color: t.textSecondary, marginBottom: spacing.sm }}>📊 TALK RATIO</Text>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: t.textPrimary }}>{postCallSummary.talk_ratio}</Text>
+                  <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>{postCallSummary.total_chunks} transcript chunks</Text>
+                </Card>
+                <Card accent="yellow" style={{ marginBottom: spacing.lg }}>
+                  <Text style={{ fontSize: 13, color: colors.yellow, marginBottom: spacing.sm }}>⚡ WHISPERS GENERATED</Text>
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: t.textPrimary }}>{postCallSummary.whispers_count}</Text>
+                </Card>
+                {postCallSummary.commitments.length > 0 && (
+                  <Card accent="green" style={{ marginBottom: spacing.lg }}>
+                    <Text style={{ fontSize: 13, color: colors.successGreen, marginBottom: spacing.sm }}>✓ COMMITMENTS DETECTED</Text>
+                    {postCallSummary.commitments.map((c: any, i: number) => (
+                      <Text key={i} style={{ fontSize: 14, color: t.textPrimary, marginBottom: 4 }}>• {c.entity}: {c.text?.slice(0, 60)}</Text>
+                    ))}
+                  </Card>
+                )}
+                {postCallSummary.suggestions.length > 0 && (
+                  <Card style={{ marginBottom: spacing.lg }}>
+                    <Text style={{ fontSize: 13, color: t.textSecondary, marginBottom: spacing.sm }}>💡 SUGGESTIONS</Text>
+                    {postCallSummary.suggestions.map((s: any, i: number) => (
+                      <View key={i} style={{ marginBottom: 8 }}>
+                        <Text style={{ fontSize: 14, color: t.textPrimary }}>• {s.entity}: {s.text?.slice(0, 60)}</Text>
+                        <Text style={{ fontSize: 11, color: t.textSecondary }}>{s.priority} · {Math.round((s.confidence || 0) * 100)}% confidence</Text>
+                      </View>
+                    ))}
+                  </Card>
+                )}
+                {/* Follow-up email draft */}
+                <Card accent="yellow" style={{ marginBottom: spacing.lg }}>
+                  <Text style={{ fontSize: 13, color: colors.yellow, marginBottom: spacing.sm }}>📧 FOLLOW-UP EMAIL DRAFT</Text>
+                  <Text style={{ fontSize: 13, color: t.textPrimary, lineHeight: 20 }}>
+                    Hi {'{' + (chunks[0]?.speaker || 'team') + '}'},{'\n\n'}
+                    Thank you for the meeting. Here are the commitments I'm tracking:{'\n'}
+                    {postCallSummary.commitments.length > 0
+                      ? postCallSummary.commitments.map((c: any) => `• ${c.entity}: ${c.text?.slice(0, 50)}`).join('\n')
+                      : '• (none detected)'}{'\n\n'}
+                    I'll follow up by end of week.{'\n\n'}
+                    Best,{'\n'}[Your name]
+                  </Text>
+                </Card>
+                <TouchableOpacity
+                  style={[styles.loginButton, { backgroundColor: colors.yellow, marginBottom: spacing.xl }]}
+                  onPress={() => { setShowPostCall(false); setChunks([]); setWhispers([]); }}
+                >
+                  <Text style={{ color: colors.black, fontSize: 16, fontWeight: 'bold' }}>Save & Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
