@@ -595,7 +595,38 @@ class ConnectorStore:
                 logger.warning(f"Gmail ingestion failed, falling back to mock: {e}")
                 return MOCK_INGESTION_DATA.get("gmail", [])
 
-        # Other providers — still mocked (Phase C-F)
+        # Phase C: real Slack ingestion
+        if provider == "slack":
+            try:
+                from maestro_personal_shell.slack_connector import (
+                    is_slack_configured,
+                    fetch_real_slack_messages,
+                    SlackOAuthClient,
+                )
+                if not is_slack_configured():
+                    return MOCK_INGESTION_DATA.get("slack", [])
+
+                stored_token = self.get_stored_token(user_email, "slack")
+                if not stored_token:
+                    return MOCK_INGESTION_DATA.get("slack", [])
+
+                oauth_client = SlackOAuthClient()
+                signals, updated_token = fetch_real_slack_messages(
+                    stored_token, oauth_client, days_back=30,
+                )
+
+                if updated_token != stored_token:
+                    self.update_stored_token(user_email, "slack", updated_token)
+
+                return signals
+            except ImportError:
+                logger.warning("slack_connector module not available, using mock data")
+                return MOCK_INGESTION_DATA.get("slack", [])
+            except Exception as e:
+                logger.warning(f"Slack ingestion failed, falling back to mock: {e}")
+                return MOCK_INGESTION_DATA.get("slack", [])
+
+        # Other providers — still mocked (Phase D-F)
         return MOCK_INGESTION_DATA.get(provider, [])
 
     # --- Draft management ---------------------------------------------------
@@ -745,13 +776,17 @@ class ConnectorStore:
         sent_message_id = ""
         send_error = ""
         if resolution == "approve":
-            # Phase B: actually send via the provider's API
+            # Phase B/C: actually send via the provider's API
             if draft["provider"] == "gmail":
                 sent_message_id, send_error = self._send_via_gmail(
                     user_email or draft["user_email"], draft,
                 )
+            elif draft["provider"] == "slack":
+                sent_message_id, send_error = self._send_via_slack(
+                    user_email or draft["user_email"], draft,
+                )
             else:
-                # Other providers — simulate send (Phase C-F)
+                # Other providers — simulate send (Phase D-F)
                 sent_message_id = f"msg-{secrets.token_urlsafe(8)}"
 
             if send_error:
@@ -837,6 +872,47 @@ class ConnectorStore:
         if "error" in result:
             return "", result["error"]
         return result.get("id", f"msg-{secrets.token_urlsafe(8)}"), ""
+
+    def _send_via_slack(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
+        """Send a draft via the real Slack API (Phase C).
+
+        Returns: (sent_message_id, error_message)
+          - On success: (slack_ts, "")
+          - On failure: ("", error_description)
+          - If OAuth not configured: falls back to simulated send (msg-xxx, "")
+        """
+        try:
+            from maestro_personal_shell.slack_connector import (
+                is_slack_configured,
+                send_real_slack_message,
+                SlackOAuthClient,
+            )
+        except ImportError:
+            return f"msg-{secrets.token_urlsafe(8)}", ""
+
+        if not is_slack_configured():
+            return f"msg-{secrets.token_urlsafe(8)}", ""
+
+        stored_token = self.get_stored_token(user_email, "slack")
+        if not stored_token:
+            return "", "Slack not connected (no stored token)"
+
+        oauth_client = SlackOAuthClient()
+        # The recipient is the channel ID or DM channel ID
+        result, updated_token = send_real_slack_message(
+            stored_token,
+            oauth_client,
+            channel=draft["recipient"],
+            text=draft["body"],
+        )
+
+        if updated_token != stored_token:
+            self.update_stored_token(user_email, "slack", updated_token)
+
+        if "error" in result:
+            return "", result["error"]
+        # Slack returns a timestamp (ts) as the message ID
+        return result.get("ts", f"msg-{secrets.token_urlsafe(8)}"), ""
 
     # --- Audit log ----------------------------------------------------------
 

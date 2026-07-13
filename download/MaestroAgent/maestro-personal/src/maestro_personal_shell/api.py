@@ -3995,6 +3995,18 @@ async def connect_provider(provider: str, req: ConnectorConnectRequest, token: s
         except ImportError:
             pass  # fall through to demo mode
 
+    # Phase C: Slack OAuth2 flow
+    if provider == "slack" and not req.oauth_token:
+        try:
+            from maestro_personal_shell.slack_connector import is_slack_configured, SlackOAuthClient
+            if is_slack_configured():
+                oauth_client = SlackOAuthClient()
+                state = f"user={token}"
+                auth_url = oauth_client.get_authorization_url(state=state)
+                return {"oauth_required": True, "authorization_url": auth_url}
+        except ImportError:
+            pass  # fall through to demo mode
+
     store = ConnectorStore()
     result = store.connect(token, provider, req.oauth_token)
     if "error" in result:
@@ -4050,6 +4062,52 @@ async def gmail_oauth_callback(
         "provider": "gmail",
         "user_email": user_email,
         "message": "Gmail connected successfully. You can now ingest messages and send drafts.",
+    }
+
+
+@app.get("/api/connectors/slack/oauth/callback")
+async def slack_oauth_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+):
+    """Slack OAuth2 callback — exchanges authorization code for tokens.
+
+    Slack redirects here after the user grants access. The code is
+    exchanged for an access token, which is stored encrypted.
+    """
+    if error:
+        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    from maestro_personal_shell.connectors import ConnectorStore
+    from maestro_personal_shell.slack_connector import SlackOAuthClient, is_slack_configured
+
+    if not is_slack_configured():
+        raise HTTPException(status_code=400, detail="Slack OAuth not configured")
+
+    user_email = ""
+    if "user=" in state:
+        user_email = state.split("user=", 1)[1]
+
+    oauth_client = SlackOAuthClient()
+    token_data = oauth_client.exchange_code_for_tokens(code)
+
+    if "error" in token_data:
+        raise HTTPException(status_code=400, detail=f"Token exchange failed: {token_data['error']}")
+
+    token_json = json.dumps(token_data)
+    store = ConnectorStore()
+    result = store.connect(user_email, "slack", token_json)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return {
+        "connected": True,
+        "provider": "slack",
+        "user_email": user_email,
+        "message": "Slack connected successfully. You can now ingest DMs and send messages.",
     }
 
 

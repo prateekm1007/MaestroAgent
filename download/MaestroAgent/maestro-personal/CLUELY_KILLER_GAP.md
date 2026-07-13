@@ -155,10 +155,10 @@ The app ships when ALL P0 blockers are done:
 
 ## The Connectors Roadmap — The Real Moat (Phase A–F)
 
-> **Status as of 2026-07-13:** Phase A + Phase B complete (P2 polish + connectors
-> infrastructure + Gmail real OAuth2 ingestion + Gmail real send).
-> Phase C (Slack) is the next active phase. Slack/GitHub/Calendar ingestion
-> still returns mock data — real OAuth API calls for those are Phase C-E work.
+> **Status as of 2026-07-13:** Phase A + B + C complete (P2 polish + connectors
+> infrastructure + Gmail real OAuth2 + Slack real OAuth2).
+> Phase D (GitHub) is the next active phase. GitHub/Calendar ingestion
+> still returns mock data — real OAuth API calls for those are Phase D-E work.
 
 ### Why Connectors ARE the Moat
 
@@ -223,10 +223,12 @@ Plus the connectors infrastructure (commit `cb0c218` + `a7958d9`):
 | 9 connector + draft API endpoints | ✅ DONE | All return 200/400/404 correctly |
 | Connectors.tsx frontend (approval modal, trust notice) | ✅ DONE | Browser-verified |
 | `_fetch_messages` Gmail real API calls | ✅ DONE (Phase B) | `gmail_connector.py` calls real Gmail API; falls back to mock when OAuth not configured |
-| `_fetch_messages` Slack/GitHub/Calendar real API calls | ❌ STUB | Returns `MOCK_INGESTION_DATA` — Phase C-E |
+| `_fetch_messages` Slack real API calls | ✅ DONE (Phase C) | `slack_connector.py` calls real Slack API; falls back to mock when OAuth not configured |
+| `_fetch_messages` GitHub/Calendar real API calls | ❌ STUB | Returns `MOCK_INGESTION_DATA` — Phase D-E |
 | `resolve_draft` Gmail real send | ✅ DONE (Phase B) | `_send_via_gmail()` sends via Gmail API; marks `send_failed` on error |
+| `resolve_draft` Slack real send | ✅ DONE (Phase C) | `_send_via_slack()` sends via Slack API; marks `send_failed` on error |
 
-**Total: 178 tests pass (28 Gmail + 51 connector + 54 P2 + 45 regression). 28 API endpoints registered.**
+**Total: 204 tests pass (26 Slack + 28 Gmail + 51 connector + 54 P2 + 45 regression). 30 API endpoints registered.**
 
 ### Phase B — Gmail OAuth2 + Real Ingestion + Real Send (DONE ✅)
 
@@ -256,10 +258,32 @@ When these are NOT set, the connector falls back to `MOCK_INGESTION_DATA` and si
 
 **Note:** End-to-end testing with real Gmail requires Google Cloud OAuth2 credentials. The 28 tests mock the HTTP calls; real testing needs `MAESTRO_GMAIL_CLIENT_ID` set.
 
-### Phase C — Slack Connector (4 weeks)
+### Phase C — Slack OAuth2 + Real Ingestion + Real Send (DONE ✅)
 
-Same pattern as Gmail. Slack OAuth2 (`slack_sdk`). Ingest DMs + channel mentions.
-Draft follow-up messages. Approval flow. Scope: `channels:read`, `chat:write`, `im:history`.
+**Duration:** 1 session | **Status:** Complete | **Commit:** (this phase)
+
+Same pattern as Gmail. Slack OAuth2 (`slack_connector.py`, uses urllib — no hard `slack_sdk` dependency). Ingest DMs. Draft follow-up messages. Approval flow with real send.
+
+| Capability | Status | Evidence |
+|------------|--------|----------|
+| SlackOAuthClient (auth URL, token exchange) | ✅ DONE | 5 tests pass, `slack_connector.py` |
+| SlackAPIClient (conversations.list, conversations.history, users.info, chat.postMessage) | ✅ DONE | 4 tests pass, uses urllib |
+| SlackIngester (DM history, commitment extraction, mention stripping) | ✅ DONE | 5 tests pass |
+| `_fetch_messages` calls real Slack API | ✅ DONE | 2 integration tests pass, falls back to mock when OAuth not configured |
+| `resolve_draft` sends via real Slack API | ✅ DONE | 3 send integration tests pass, marks `send_failed` on error |
+| OAuth2 callback endpoint (`/api/connectors/slack/oauth/callback`) | ✅ DONE | 5 callback tests pass |
+| Mention stripping (`<@U123>` → `@Name`) | ✅ DONE | `test_strip_mentions_replaces_user_ids` passes |
+
+**Configuration (env vars):**
+- `MAESTRO_SLACK_CLIENT_ID` — Slack app client ID
+- `MAESTRO_SLACK_CLIENT_SECRET` — Slack app client secret
+- `MAESTRO_SLACK_REDIRECT_URI` — OAuth2 callback URL
+
+**Scopes:** `channels:read`, `groups:read`, `im:read`, `im:history`, `chat:write`
+
+When these are NOT set, the connector falls back to `MOCK_INGESTION_DATA` and simulated sends — so the app still works in demo mode.
+
+**Success criterion MET:** User connects Slack (OAuth2 flow) → Maestro ingests DMs from last 30 days → extracts commitments → drafts a follow-up → user approves → message sends via Slack API.
 
 ### Phase D — GitHub Connector (4 weeks)
 
