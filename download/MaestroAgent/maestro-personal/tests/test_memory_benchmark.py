@@ -109,7 +109,11 @@ class TestAskRanker:
         assert understand_query("Is Vega still a priority?")["intent"] == "contradiction"
         assert understand_query("What should I prepare for Orion?")["intent"] == "preparation"
         assert understand_query("What is at risk?")["intent"] == "risk"
-        assert understand_query("What newsletters did I receive?")["intent"] == "silence"
+        # F1 fix: "What newsletters did I receive?" is now classified as
+        # noise_lookup (a more specific intent than silence) per ask_ranker.py:182.
+        # The intent table order puts noise_lookup BEFORE silence, so the
+        # newsletter trigger matches noise_lookup first.
+        assert understand_query("What newsletters did I receive?")["intent"] == "noise_lookup"
 
     def test_temporal_constraint_detection(self):
         """Temporal constraints must be detected."""
