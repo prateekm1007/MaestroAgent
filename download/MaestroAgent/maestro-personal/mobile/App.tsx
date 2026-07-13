@@ -17,6 +17,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import * as api from './src/api/client';
 import { colors, getTheme, spacing, radius, typography, ThemeMode } from './src/theme/colors';
@@ -29,7 +30,7 @@ const ThemeCtx = createContext({ mode: 'dark' as ThemeMode, toggle: () => {} });
 const useTheme = () => useContext(ThemeCtx);
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>('dark');
+  const [mode, setMode] = useState<ThemeMode>('light');
   const toggle = () => setMode(m => m === 'dark' ? 'light' : 'dark');
   return <ThemeCtx.Provider value={{ mode, toggle }}>{children}</ThemeCtx.Provider>;
 }
@@ -176,6 +177,7 @@ function LoginScreen() {
     const ok = await login(password);
     if (!ok) {
       setError(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setTimeout(() => setError(false), 600);
     }
     setLoading(false);
@@ -260,6 +262,12 @@ function DashboardScreen() {
 
   const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss') => {
     if (!token || !signalId) return;
+    // Haptic feedback
+    if (action === 'complete') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     try {
       await api.correctSignal(token, signalId, action);
       const m = await api.getTheMoment(token);

@@ -57,9 +57,9 @@ describe('Mobile app — PRODUCTION structure', () => {
     test('has SignalsScreen', () => expect(source).toMatch(/function SignalsScreen/));
     test('has CopilotScreen', () => expect(source).toMatch(/function CopilotScreen/));
     test('has SettingsScreen', () => expect(source).toMatch(/function SettingsScreen/));
-    test('has ThemeProvider with dark mode default', () => {
+    test('has ThemeProvider with light mode default (Bumble-inspired)', () => {
       expect(source).toMatch(/function ThemeProvider/);
-      expect(source).toMatch(/'dark'/);
+      expect(source).toMatch(/'light'/);
     });
     test('has AuthProvider', () => expect(source).toMatch(/function AuthProvider/));
     test('has bottom tab navigator', () => expect(source).toMatch(/createBottomTabNavigator/));
@@ -105,7 +105,7 @@ describe('Mobile app — PRODUCTION structure', () => {
     test('has Bumble Black #1A1A1A', () => expect(source).toMatch(/#1A1A1A/i));
     test('has Alert Red #FF3B3B', () => expect(source).toMatch(/#FF3B3B/i));
     test('has Success Green #00C853', () => expect(source).toMatch(/#00C853/i));
-    test('dark mode default', () => expect(source).toMatch(/dark/));
+    test('light mode default (Bumble-inspired, not dark brooding)', () => expect(source).toMatch(/light/));
     test('exports getTheme', () => expect(source).toMatch(/export function getTheme/));
   });
 
