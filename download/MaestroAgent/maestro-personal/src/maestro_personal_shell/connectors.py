@@ -1158,7 +1158,11 @@ class ConnectorDraftGenerator:
         best_signal_id = ""
 
         try:
-            signals = getattr(shell, "signals", None) or getattr(getattr(shell, "core", None), "signals", []) or []
+            # P14 fix: signals live in shell.oem_state.signals (not shell.signals or shell.core.signals)
+            if hasattr(shell, "oem_state") and shell.oem_state:
+                signals = shell.oem_state.signals
+            else:
+                signals = getattr(shell, "signals", None) or getattr(getattr(shell, "core", None), "signals", []) or []
         except Exception:
             signals = []
 
