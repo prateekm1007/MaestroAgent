@@ -4019,6 +4019,18 @@ async def connect_provider(provider: str, req: ConnectorConnectRequest, token: s
         except ImportError:
             pass  # fall through to demo mode
 
+    # Phase D: GitHub OAuth2 flow
+    if provider == "github" and not req.oauth_token:
+        try:
+            from maestro_personal_shell.github_connector import is_github_configured, GitHubOAuthClient
+            if is_github_configured():
+                oauth_client = GitHubOAuthClient()
+                state = f"user={token}"
+                auth_url = oauth_client.get_authorization_url(state=state)
+                return {"oauth_required": True, "authorization_url": auth_url}
+        except ImportError:
+            pass  # fall through to demo mode
+
     store = ConnectorStore()
     result = store.connect(token, provider, req.oauth_token)
     if "error" in result:
@@ -4165,6 +4177,52 @@ async def calendar_oauth_callback(
         "provider": "calendar",
         "user_email": user_email,
         "message": "Calendar connected successfully. Maestro will surface upcoming meetings in the pre-call intelligence panel.",
+    }
+
+
+@app.get("/api/connectors/github/oauth/callback")
+async def github_oauth_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+):
+    """GitHub OAuth2 callback — exchanges authorization code for tokens.
+
+    GitHub redirects here after the user grants access. The code is
+    exchanged for an access token, which is stored encrypted.
+    """
+    if error:
+        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    from maestro_personal_shell.connectors import ConnectorStore
+    from maestro_personal_shell.github_connector import GitHubOAuthClient, is_github_configured
+
+    if not is_github_configured():
+        raise HTTPException(status_code=400, detail="GitHub OAuth not configured")
+
+    user_email = ""
+    if "user=" in state:
+        user_email = state.split("user=", 1)[1]
+
+    oauth_client = GitHubOAuthClient()
+    token_data = oauth_client.exchange_code_for_tokens(code)
+
+    if "error" in token_data:
+        raise HTTPException(status_code=400, detail=f"Token exchange failed: {token_data['error']}")
+
+    token_json = json.dumps(token_data)
+    store = ConnectorStore()
+    result = store.connect(user_email, "github", token_json)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return {
+        "connected": True,
+        "provider": "github",
+        "user_email": user_email,
+        "message": "GitHub connected successfully. Maestro will ingest assigned issues and can post comments on your behalf (with approval).",
     }
 
 

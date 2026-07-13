@@ -657,7 +657,38 @@ class ConnectorStore:
                 logger.warning(f"Calendar ingestion failed, falling back to mock: {e}")
                 return MOCK_INGESTION_DATA.get("calendar", [])
 
-        # Other providers — still mocked (Phase D, F)
+        # Phase D: real GitHub ingestion
+        if provider == "github":
+            try:
+                from maestro_personal_shell.github_connector import (
+                    is_github_configured,
+                    fetch_real_github_messages,
+                    GitHubOAuthClient,
+                )
+                if not is_github_configured():
+                    return MOCK_INGESTION_DATA.get("github", [])
+
+                stored_token = self.get_stored_token(user_email, "github")
+                if not stored_token:
+                    return MOCK_INGESTION_DATA.get("github", [])
+
+                oauth_client = GitHubOAuthClient()
+                signals, updated_token = fetch_real_github_messages(
+                    stored_token, oauth_client, max_issues=50,
+                )
+
+                if updated_token != stored_token:
+                    self.update_stored_token(user_email, "github", updated_token)
+
+                return signals
+            except ImportError:
+                logger.warning("github_connector module not available, using mock data")
+                return MOCK_INGESTION_DATA.get("github", [])
+            except Exception as e:
+                logger.warning(f"GitHub ingestion failed, falling back to mock: {e}")
+                return MOCK_INGESTION_DATA.get("github", [])
+
+        # Other providers — still mocked (Phase F)
         return MOCK_INGESTION_DATA.get(provider, [])
 
     # --- Draft management ---------------------------------------------------
@@ -807,7 +838,7 @@ class ConnectorStore:
         sent_message_id = ""
         send_error = ""
         if resolution == "approve":
-            # Phase B/C: actually send via the provider's API
+            # Phase B/C/D: actually send via the provider's API
             if draft["provider"] == "gmail":
                 sent_message_id, send_error = self._send_via_gmail(
                     user_email or draft["user_email"], draft,
@@ -816,8 +847,12 @@ class ConnectorStore:
                 sent_message_id, send_error = self._send_via_slack(
                     user_email or draft["user_email"], draft,
                 )
+            elif draft["provider"] == "github":
+                sent_message_id, send_error = self._send_via_github(
+                    user_email or draft["user_email"], draft,
+                )
             else:
-                # Other providers — simulate send (Phase D-F)
+                # Other providers — simulate send (Phase F)
                 sent_message_id = f"msg-{secrets.token_urlsafe(8)}"
 
             if send_error:
@@ -944,6 +979,57 @@ class ConnectorStore:
             return "", result["error"]
         # Slack returns a timestamp (ts) as the message ID
         return result.get("ts", f"msg-{secrets.token_urlsafe(8)}"), ""
+
+    def _send_via_github(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
+        """Send a draft via the real GitHub API (Phase D).
+
+        Posts a comment on the issue/PR specified by the draft recipient.
+        The recipient format is "owner/repo#123" or "owner/repo/issues/123".
+
+        Returns: (sent_message_id, error_message)
+          - On success: (github_comment_id, "")
+          - On failure: ("", error_description)
+          - If OAuth not configured: falls back to simulated send (msg-xxx, "")
+        """
+        try:
+            from maestro_personal_shell.github_connector import (
+                is_github_configured,
+                send_real_github_comment,
+                GitHubOAuthClient,
+                parse_github_recipient,
+            )
+        except ImportError:
+            return f"msg-{secrets.token_urlsafe(8)}", ""
+
+        if not is_github_configured():
+            return f"msg-{secrets.token_urlsafe(8)}", ""
+
+        stored_token = self.get_stored_token(user_email, "github")
+        if not stored_token:
+            return "", "GitHub not connected (no stored token)"
+
+        # Parse the recipient: "owner/repo#123"
+        owner, repo, issue_number = parse_github_recipient(draft["recipient"])
+        if not owner or not repo or not issue_number:
+            return "", f"Invalid GitHub recipient format: '{draft['recipient']}'. Expected 'owner/repo#123'."
+
+        oauth_client = GitHubOAuthClient()
+        result, updated_token = send_real_github_comment(
+            stored_token,
+            oauth_client,
+            owner=owner,
+            repo=repo,
+            issue_number=issue_number,
+            body=draft["body"],
+        )
+
+        if updated_token != stored_token:
+            self.update_stored_token(user_email, "github", updated_token)
+
+        if "error" in result:
+            return "", result["error"]
+        # GitHub returns a comment ID
+        return str(result.get("id", f"msg-{secrets.token_urlsafe(8)}")), ""
 
     # --- Audit log ----------------------------------------------------------
 

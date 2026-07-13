@@ -155,12 +155,11 @@ The app ships when ALL P0 blockers are done:
 
 ## The Connectors Roadmap — The Real Moat (Phase A–F)
 
-> **Status as of 2026-07-13:** Phase A + B + C + E complete (P2 polish +
-> connectors infrastructure + Gmail real OAuth2 + Slack real OAuth2 +
-> Calendar real OAuth2 read-only). The meeting intelligence loop is now
-> complete: Calendar (BEFORE) → Copilot (DURING) → Gmail/Slack (AFTER).
-> Phase D (GitHub) is the next active phase. GitHub ingestion still
-> returns mock data — real OAuth API calls are Phase D work.
+> **Status as 2026-07-13:** Phase A + B + C + D + E complete (P2 polish +
+> connectors infrastructure + Gmail + Slack + GitHub + Calendar — ALL real OAuth2).
+> All 4 work-tool connectors are REAL. The meeting intelligence loop is complete
+> and the developer wedge is open. Phase F (social platforms) is the only
+> remaining phase — explicitly deferred as lower-value/higher-risk.
 
 ### Why Connectors ARE the Moat
 
@@ -227,11 +226,12 @@ Plus the connectors infrastructure (commit `cb0c218` + `a7958d9`):
 | `_fetch_messages` Gmail real API calls | ✅ DONE (Phase B) | `gmail_connector.py` calls real Gmail API; falls back to mock when OAuth not configured |
 | `_fetch_messages` Slack real API calls | ✅ DONE (Phase C) | `slack_connector.py` calls real Slack API; falls back to mock when OAuth not configured |
 | `_fetch_messages` Calendar real API calls | ✅ DONE (Phase E) | `calendar_connector.py` calls real Calendar API (read-only); falls back to mock when OAuth not configured |
-| `_fetch_messages` GitHub real API calls | ❌ STUB | Returns `MOCK_INGESTION_DATA` — Phase D |
+| `_fetch_messages` GitHub real API calls | ✅ DONE (Phase D) | `github_connector.py` calls real GitHub API (assigned issues); falls back to mock when OAuth not configured |
 | `resolve_draft` Gmail real send | ✅ DONE (Phase B) | `_send_via_gmail()` sends via Gmail API; marks `send_failed` on error |
 | `resolve_draft` Slack real send | ✅ DONE (Phase C) | `_send_via_slack()` sends via Slack API; marks `send_failed` on error |
+| `resolve_draft` GitHub real send | ✅ DONE (Phase D) | `_send_via_github()` posts issue comments via GitHub API; marks `send_failed` on error |
 
-**Total: 228 tests pass (24 Calendar + 26 Slack + 28 Gmail + 51 connector + 54 P2 + 45 regression). 31 API endpoints registered.**
+**Total: 258 tests pass (30 GitHub + 24 Calendar + 26 Slack + 28 Gmail + 51 connector + 54 P2 + 45 regression). 32 API endpoints registered.**
 
 ### Phase B — Gmail OAuth2 + Real Ingestion + Real Send (DONE ✅)
 
@@ -288,10 +288,39 @@ When these are NOT set, the connector falls back to `MOCK_INGESTION_DATA` and si
 
 **Success criterion MET:** User connects Slack (OAuth2 flow) → Maestro ingests DMs from last 30 days → extracts commitments → drafts a follow-up → user approves → message sends via Slack API.
 
-### Phase D — GitHub Connector (4 weeks)
+### Phase D — GitHub OAuth2 + Real Ingestion + Real Send (DONE ✅)
 
-Same pattern. GitHub OAuth2. Ingest assigned issues/PRs. Extract action items. Draft
-issue comments. Approval flow. Scope: `repo`, `user`.
+**Duration:** 1 session | **Status:** Complete | **Commit:** (this phase)
+
+Same pattern as Gmail/Slack. GitHub OAuth2 (`github_connector.py`, uses urllib — no hard PyGithub dependency). Ingest assigned issues. Extract action items + commitments. Draft issue comments. Approval flow with real send (posts comment via GitHub API).
+
+| Capability | Status | Evidence |
+|------------|--------|----------|
+| GitHubOAuthClient (auth URL, token exchange) | ✅ DONE | 5 tests pass, `github_connector.py` |
+| GitHubAPIClient (list_assigned_issues, post_issue_comment — real REST calls) | ✅ DONE | 3 tests pass, uses urllib |
+| GitHubIngester (action item + commitment extraction) | ✅ DONE | 5 tests pass |
+| `_fetch_messages` calls real GitHub API | ✅ DONE | 2 integration tests pass, falls back to mock when OAuth not configured |
+| `resolve_draft` posts comment via real GitHub API | ✅ DONE | 4 send integration tests pass, marks `send_failed` on error |
+| OAuth2 callback endpoint (`/api/connectors/github/oauth/callback`) | ✅ DONE | 5 callback tests pass |
+| Recipient parsing (`owner/repo#123` format) | ✅ DONE | 4 parsing tests pass |
+| PR skipping (PRs show up in issues endpoint but are skipped) | ✅ DONE | `test_list_assigned_issues_skips_prs` passes |
+| Metadata in signals (repo, issue_number, url) | ✅ DONE | `test_metadata_included_in_signals` passes |
+
+**Configuration (env vars):**
+- `MAESTRO_GITHUB_CLIENT_ID` — GitHub OAuth app client ID
+- `MAESTRO_GITHUB_CLIENT_SECRET` — GitHub OAuth app client secret
+- `MAESTRO_GITHUB_REDIRECT_URI` — OAuth2 callback URL
+
+**Scopes:** `repo` (read issues/PRs + post comments), `user` (read profile)
+
+**Action item detection patterns:**
+- Commitments: `I will`, `I'll`, `I need to`, `I'm going to` → `commitment_made`
+- Action items: `needs to`, `should`, `must`, `TODO:`, `action item:`, `follow up:` → `reported_statement`
+- Fallback: if no patterns match but title is substantive, capture the title
+
+When env vars are NOT set, the connector falls back to `MOCK_INGESTION_DATA` and simulated sends — demo mode.
+
+**Success criterion MET:** User connects GitHub → Maestro ingests assigned issues → extracts action items + commitments → drafts a comment on the issue → user approves → comment posts via GitHub API.
 
 ### Phase E — Google Calendar OAuth2 + Real Ingestion (DONE ✅)
 
