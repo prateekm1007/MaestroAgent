@@ -4,6 +4,40 @@ A FastAPI HTTP service that wraps the Cognitive Council Core (`maestro_cognitive
 to provide a personal intelligence API on port 8766. SQLite persistence, FTS5 semantic
 retrieval, bearer token auth, WebSocket live copilot, and 50+ REST endpoints across 6 surfaces.
 
+## Monorepo Structure
+
+This is a monorepo containing the backend, mobile app, and web app:
+
+```
+maestro-personal/
+├── src/                   ← Backend (FastAPI, Python 3.12)
+├── tests/                 ← Backend tests (258+ tests, all passing)
+├── evaluation/            ← Benchmarks + scoring scripts
+├── mobile/                ← Expo React Native app (7 screens, Bumble theme)
+├── web/                   ← Next.js web app (Bumble theme, Copilot, Connectors)
+└── docs/                  ← Documentation
+```
+
+### Quick Start
+
+```bash
+# Clone
+git clone https://github.com/prateekm1007/MaestroAgent.git
+cd MaestroAgent/maestro-personal
+
+# Backend tests
+PYTHONPATH=src python -m pytest tests/
+
+# Start backend API (port 8766)
+PYTHONPATH=src python -m maestro_personal_shell.api
+
+# Mobile app (Expo)
+cd mobile && npm install && npx expo start
+
+# Web app (Next.js, port 3000)
+cd web && npm install && npm run dev
+```
+
 ## What this is
 
 The 6 surfaces of Maestro Personal:
