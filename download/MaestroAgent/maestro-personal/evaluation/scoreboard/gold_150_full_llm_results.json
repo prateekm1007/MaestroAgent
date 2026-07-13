@@ -1,0 +1,1244 @@
+{
+  "test": "gold_150_full_llm",
+  "provider": "ollama (llama3:8b via Kaggle P100)",
+  "questions": 150,
+  "maestro_composite": 0.3067,
+  "bm25_baseline": 0.7,
+  "lift": -0.3933,
+  "lift_percentage": -39.3,
+  "abstention_precision": 1.0,
+  "hallucination_count": 0,
+  "gate_pass": false,
+  "llm_calls_made": 120,
+  "elapsed_seconds": 26.7,
+  "timestamp": "2026-07-14T00:00:00Z",
+  "per_type": {
+    "commitment": {
+      "count": 30,
+      "maestro_avg": 0.5333,
+      "bm25_avg": 0.5
+    },
+    "contradiction": {
+      "count": 30,
+      "maestro_avg": 0.0,
+      "bm25_avg": 0.5
+    },
+    "temporal": {
+      "count": 30,
+      "maestro_avg": 0.0,
+      "bm25_avg": 0.5
+    },
+    "abstention": {
+      "count": 30,
+      "maestro_avg": 1.0,
+      "bm25_avg": 1.0
+    },
+    "multilingual": {
+      "count": 30,
+      "maestro_avg": 0.0,
+      "bm25_avg": 1.0
+    }
+  },
+  "results": [
+    {
+      "id": "commit-001",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-002",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-003",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-004",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-005",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-006",
+      "type": "commitment",
+      "maestro_score": 1.0,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 2/2 expected keywords"
+    },
+    {
+      "id": "commit-007",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-008",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-009",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-010",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-011",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-012",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-013",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-014",
+      "type": "commitment",
+      "maestro_score": 1.0,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 2/2 expected keywords"
+    },
+    {
+      "id": "commit-015",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-016",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-017",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-018",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-019",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-020",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-021",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-022",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-023",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-024",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-025",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-026",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-027",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-028",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-029",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "commit-030",
+      "type": "commitment",
+      "maestro_score": 0.5,
+      "bm25_score": 0.5,
+      "maestro_correct": true,
+      "details": "Found 1/2 expected keywords"
+    },
+    {
+      "id": "contradict-001",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-002",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-003",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-004",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-005",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-006",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-007",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-008",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-009",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-010",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-011",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-012",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-013",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-014",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-015",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-016",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-017",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-018",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-019",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-020",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-021",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-022",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-023",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-024",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-025",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-026",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-027",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-028",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-029",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "contradict-030",
+      "type": "contradiction",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-001",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-002",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-003",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-004",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-005",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-006",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-007",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-008",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-009",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-010",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-011",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-012",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-013",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-014",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-015",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-016",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-017",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-018",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-019",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-020",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-021",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-022",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-023",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-024",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-025",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-026",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-027",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-028",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-029",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "temporal-030",
+      "type": "temporal",
+      "maestro_score": 0.0,
+      "bm25_score": 0.5,
+      "maestro_correct": false,
+      "details": "Found 0/2 expected keywords"
+    },
+    {
+      "id": "abstain-001",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-002",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-003",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-004",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-005",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-006",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-007",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-008",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-009",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-010",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-011",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-012",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-013",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-014",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-015",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-016",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-017",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-018",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-019",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-020",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-021",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-022",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-023",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-024",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-025",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-026",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-027",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-028",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-029",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "abstain-030",
+      "type": "abstention",
+      "maestro_score": 1.0,
+      "bm25_score": 1.0,
+      "maestro_correct": true,
+      "details": "Correctly abstained (no evidence)"
+    },
+    {
+      "id": "multi-001",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-002",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-003",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-004",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-005",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-006",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-007",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-008",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-009",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-010",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-011",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-012",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-013",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-014",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-015",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-016",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-017",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-018",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-019",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-020",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-021",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-022",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-023",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-024",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-025",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-026",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-027",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-028",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-029",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    },
+    {
+      "id": "multi-030",
+      "type": "multilingual",
+      "maestro_score": 0.0,
+      "bm25_score": 1.0,
+      "maestro_correct": false,
+      "details": "Found 0/1 expected keywords"
+    }
+  ]
+}

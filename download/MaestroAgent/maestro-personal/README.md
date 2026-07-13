@@ -25,18 +25,72 @@ maestro-personal/
 git clone https://github.com/prateekm1007/MaestroAgent.git
 cd MaestroAgent/maestro-personal
 
-# Backend tests
-PYTHONPATH=src python -m pytest tests/
+# Backend setup
+pip install -e .          # installs package + CLI (no PYTHONPATH needed)
+python -m pytest tests/   # run tests
 
 # Start backend API (port 8766)
-PYTHONPATH=src python -m maestro_personal_shell.api
+python -m maestro_personal_shell.api
 
 # Mobile app (Expo)
-cd mobile && npm install && npx expo start
+cd mobile && npm install --legacy-peer-deps && npx expo start
 
 # Web app (Next.js, port 3000)
 cd web && npm install && npm run dev
 ```
+
+### Environment Variables
+
+The backend works out-of-the-box in **demo mode** (rule-based AI, mock connectors,
+no transcription). To activate real intelligence, set these env vars:
+
+```bash
+# ── LLM (for AI-powered Ask answers) ──
+# Option A: Local Ollama (free, needs GPU)
+export MAESTRO_WHISPER_MODEL=base          # or: tiny, small, medium, large
+# Option B: Remote Ollama (free, cloud GPU like Kaggle P100)
+export OLLAMA_HOST=https://your-tunnel.trycloudflare.com
+
+# ── Speech-to-Text (for Copilot transcription) ──
+# Option A: Wit.ai (RECOMMENDED — free, scalable, cloud-based)
+#   Get token at https://wit.ai → create app → Settings → Server Access Token
+export MAESTRO_WITAI_TOKEN=your-witai-token
+# Option B: Local Whisper (free, not scalable — needs pip install openai-whisper)
+export MAESTRO_WHISPER_MODEL=base
+# Option C: OpenAI Whisper API (paid)
+export MAESTRO_OPENAI_API_KEY=sk-...
+
+# ── OAuth Connectors (for Gmail/Calendar/Slack/GitHub ingestion) ──
+# Gmail + Calendar share the same Google Cloud OAuth client
+export MAESTRO_GMAIL_CLIENT_ID=your-client-id.apps.googleusercontent.com
+export MAESTRO_GMAIL_CLIENT_SECRET=GOCSPX-...
+export MAESTRO_CALENDAR_CLIENT_ID=same-as-gmail
+export MAESTRO_CALENDAR_CLIENT_SECRET=same-as-gmail
+# Slack (https://api.slack.com/apps → create app → OAuth & Permissions)
+export MAESTRO_SLACK_CLIENT_ID=your-slack-id
+export MAESTRO_SLACK_CLIENT_SECRET=your-slack-secret
+# GitHub (https://github.com/settings/developers → New OAuth App)
+export MAESTRO_GITHUB_CLIENT_ID=your-github-id
+export MAESTRO_GITHUB_CLIENT_SECRET=your-github-secret
+
+# ── Security ──
+# Auth token (if not set, auto-generated on first run)
+export MAESTRO_PERSONAL_TOKEN=your-secret-token
+# Production mode (disables bootstrap token, requires real auth)
+export MAESTRO_PERSONAL_ENV=production
+# Rate limiting (pip install slowapi)
+# Rate limiting is auto-enabled when slowapi is installed
+
+# ── Encryption (for OAuth token storage) ──
+# If not set, falls back to dev-mode (plaintext prefix)
+export MAESTRO_ENCRYPTION_KEY=your-fernet-key
+```
+
+**Without any env vars:** the app runs in demo mode — rule-based AI, mock
+connector data, no transcription. All endpoints work, just with sample data.
+
+**With LLM + Wit.ai + OAuth:** the full moat is real — LLM-powered answers,
+real Gmail/Calendar ingestion, real speech-to-text, real draft generation.
 
 ## What this is
 

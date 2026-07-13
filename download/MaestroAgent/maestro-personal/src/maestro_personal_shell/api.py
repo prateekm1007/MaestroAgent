@@ -1007,6 +1007,18 @@ class _PseudoSituation:
 # ---------------------------------------------------------------------------
 
 
+# Phase 6 fix: noise filter constants (moved from routers/surfaces.py during split)
+_NOISE_SIGNAL_TYPES = frozenset({
+    "newsletter", "news_digest", "promotion", "promo",
+    "trending", "system_notification", "digest",
+    "social", "marketing", "social_media", "ad",
+})
+_NOISE_NAME_PATTERNS = ("newsletter", "news corp", "digest", "fyi", "notification",
+                        "washington post", "new york times", "athletic",
+                        "samsung", "spacex", "unsubscribe",
+                        "trending topic", "limited offer", "50% off", "premium plan")
+
+
 def _is_noise_signal(sig) -> bool:
     """Check if a signal is noise (newsletter, promo, trending, etc.)."""
     sig_type = str(getattr(sig, "signal_type", "") or
