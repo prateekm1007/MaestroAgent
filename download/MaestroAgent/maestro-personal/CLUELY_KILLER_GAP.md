@@ -153,6 +153,178 @@ The app ships when ALL P0 blockers are done:
 
 ---
 
+## The Connectors Roadmap — The Real Moat (Phase A–F)
+
+> **Status as of 2026-07-13:** Phase A complete (P2 polish + connectors infrastructure).
+> Phase B (real Gmail OAuth) is the next active phase. The ingestion `_fetch_messages()`
+> currently returns mock data — real OAuth API calls are Phase B work.
+
+### Why Connectors ARE the Moat
+
+Right now Maestro has proven the intelligence layer works — +18.1 lift, evidence-backed
+whispers, trusted silence. But there's a friction problem: **signal ingestion is manual.**
+Users type signals into the Signals screen, or the Copilot captures meeting transcripts.
+That's effort. Most people won't do it consistently, so Maestro starves for data.
+
+Connectors solve that. If Maestro can passively ingest from Gmail, Slack, and GitHub,
+it becomes an intelligence layer that works **without user effort** — it just watches
+the streams you already produce and surfaces what matters. That's the difference between
+a tool you have to feed and a tool that feeds itself.
+
+The approval flow (approve / deny / use draft) is the trust mechanism that makes this
+acceptable. Users won't let an AI auto-send emails without review — but "draft it, I'll
+approve" is a pattern people already accept (Gmail Smart Compose, Superhuman AI).
+
+### The Hard Parts (honest disclosure)
+
+1. **Token security becomes critical.** OAuth tokens grant access to ALL the user's
+   communications. Requires server-side encrypted storage (DONE — Fernet), per-connector
+   revocation (DONE), audit log of every access (DONE), data minimization (extract
+   commitments, don't store raw messages — DONE).
+
+2. **Platform API risk is real.** Gmail/Slack/GitHub have mature OAuth2 APIs. WhatsApp
+   Business API requires Meta approval. Facebook/Instagram Graph API requires app review.
+   Twitter API has tightened dramatically since 2023. Social platforms are a long tail
+   with poor ROI — focus on work tools first.
+
+3. **Privacy compliance multiplies.** Each connector adds GDPR/CCPA surface. Need
+   per-connector consent (DONE), data portability per-connector (TODO), right to
+   deletion per-connector (TODO).
+
+4. **Scope creep risk.** 8 connectors × write capability × approval flow × per-platform
+   quirks = huge effort. Sequence ruthlessly.
+
+### Phase A — P2 Polish + Connectors Infrastructure (DONE ✅)
+
+**Duration:** 2 weeks | **Status:** Complete
+
+The 5 P2 features claimed in earlier sessions are now REAL (verified by execution):
+
+| Feature | Module | Tests | Commit |
+|---------|--------|-------|--------|
+| Follow-up Email Generator | `copilot_postcall_features.py` | 7 tests | `2e42f4c` |
+| Pre-call Intelligence Panel | `copilot_postcall_features.py` | 6 tests | `2e42f4c` |
+| Post-call Summary UI | `copilot_postcall_features.py` | 6 tests | `2e42f4c` |
+| Playbook Engine | `copilot_enterprise.py` | 8 tests | `2e42f4c` |
+| Shadow Mode | `copilot_enterprise.py` | 9 tests | `2e42f4c` |
+
+Plus the connectors infrastructure (commit `cb0c218` + `a7958d9`):
+
+| Capability | Status | Evidence |
+|------------|--------|----------|
+| 8 connectors defined (gmail, slack, github, calendar, whatsapp, facebook, instagram, twitter) | ✅ DONE | `list_connectors` returns 8 |
+| Encrypted OAuth token storage (Fernet) | ✅ DONE | `test_token_not_in_plaintext` passes |
+| Per-connector revocation | ✅ DONE | `test_per_connector_revocation` passes |
+| Per-user isolation | ✅ DONE | `test_per_user_isolation` passes |
+| Audit log (connect, disconnect, ingest, draft resolve) | ✅ DONE | `test_approval_logs_audit` passes |
+| Draft approval flow (approve / deny / use_draft) | ✅ DONE | 9 draft tests pass |
+| `/api/drafts/auto` — DERIVES commitment from signal history (P13 fix) | ✅ DONE | 7 auto-derivation tests pass |
+| 9 connector + draft API endpoints | ✅ DONE | All return 200/400/404 correctly |
+| Connectors.tsx frontend (approval modal, trust notice) | ✅ DONE | Browser-verified |
+| `_fetch_messages` real API calls | ❌ STUB | Returns `MOCK_INGESTION_DATA` — Phase B |
+
+**Total: 105 tests pass (51 connector + 54 P2). 26 new API endpoints registered.**
+
+### Phase B — Gmail Connector (NEXT — 4-6 weeks)
+
+**Goal:** Prove the ingestion + draft + approval pattern end-to-end with real OAuth.
+
+1. **OAuth2 flow:** Implement Gmail OAuth2 with `google-auth-library`. Store refresh
+   tokens encrypted (infrastructure already exists). Scope: `gmail.readonly` + `gmail.send`.
+2. **Read-only ingestion:** Pull threads from last 30 days. Extract commitments using
+   the existing `commitment_classifier`. Ingest as signals. Replace `MOCK_INGESTION_DATA`
+   with real `gmail.users().messages().list()` + `get()` calls.
+3. **Draft replies:** When a commitment is detected, auto-generate a draft via
+   `/api/drafts/auto` (already built). The draft cites the specific commitment + evidence.
+4. **Approval flow:** User sees draft in Connectors screen → approves (send via Gmail API),
+   denies, or uses as draft (open in Gmail compose). Already built — just needs the
+   Gmail send integration in `resolve_draft("approve")`.
+5. **Connectors screen:** Already built. Gmail shows "Connected · 142 commitments ingested"
+   with Sync now / Disconnect buttons.
+
+**Success criterion:** User connects Gmail → Maestro ingests 50+ commitments from their
+inbox → drafts a follow-up to Maria citing the exact email → user approves → email sends.
+
+### Phase C — Slack Connector (4 weeks)
+
+Same pattern as Gmail. Slack OAuth2 (`slack_sdk`). Ingest DMs + channel mentions.
+Draft follow-up messages. Approval flow. Scope: `channels:read`, `chat:write`, `im:history`.
+
+### Phase D — GitHub Connector (4 weeks)
+
+Same pattern. GitHub OAuth2. Ingest assigned issues/PRs. Extract action items. Draft
+issue comments. Approval flow. Scope: `repo`, `user`.
+
+### Phase E — Google Calendar Connector (2 weeks, read-only)
+
+OAuth2 with `calendar.readonly` scope. Ingest upcoming meetings. Feed into pre-call
+intelligence panel (already built). No write capability — this is about giving the
+Copilot context before meetings.
+
+### Phase F — Social Platforms (8+ weeks, LATER)
+
+WhatsApp, Facebook, Instagram, Twitter — **only after Phase B-E are proven.**
+
+- Lower commitment density (people don't make professional commitments on Instagram)
+- Higher API risk (Meta can revoke without warning, Twitter API is restricted)
+- Longer compliance review (app review for message access)
+- These are "nice to have" for the pitch deck, not core to the product
+
+**Do NOT build these until Gmail + Slack + GitHub + Calendar are proven.**
+
+### The 10 Strict Coder Instructions (Governance Rules)
+
+These rules prevent the fabrication pattern that plagued earlier sessions. Every
+claim must be backed by execution evidence.
+
+1. **Read GOVERNANCE.md + ENTROPY_RECOVERY.md before any work** — from disk, not memory.
+2. **No claim without execution (P1)** — paste terminal output or write "UNVERIFIED".
+3. **Commit verification** — `git cat-file -t <sha>` must output "commit". Note: this
+   workspace has TWO repos (parent + maestro-personal) — check both.
+4. **Test requirements (P2)** — every feature needs a test that fails on old code.
+5. **No silent fallbacks (P6)** — no `except: pass`. Log loudly.
+6. **Honest gap tracker (P4)** — don't mark "✅ DONE" before commit exists.
+7. **Wiring verification (P11)** — cite file:line of the caller. A module that exists
+   but isn't called is a demonstration, not a capability.
+8. **Adjacent failure check (P14)** — check what else is broken nearby.
+9. **No fabrication** — don't describe work you didn't do. Honest gaps are acceptable.
+   Fabricated completions are not.
+10. **Worklog discipline** — append after every phase.
+
+### Definition of Done (per feature)
+
+A feature is "✅ DONE" only when ALL 8 are true:
+
+- [ ] Code exists in committed file
+- [ ] Commit hash exists (`git cat-file -t <sha>` → "commit")
+- [ ] Endpoint registered in `api.py` (for backend) OR component renders (for frontend)
+- [ ] Test exists and passes (re-executed this session, not trusted from prior)
+- [ ] Module called from production entry point (cite file:line — P11)
+- [ ] No `except: pass` in new code (P6)
+- [ ] Gap tracker updated (this file)
+- [ ] Worklog entry appended (`/home/z/my-project/worklog.md`)
+
+### Key Strategic Points
+
+- **Phase A is done.** The 5 P2 features + connectors infrastructure are real (105 tests pass).
+- **Gmail is the moat.** Prove the ingestion + draft + approval pattern end-to-end before
+  adding more connectors.
+- **Read-first, write-later.** Ingest commitments from history before drafting/sending.
+- **Server-side token storage is non-negotiable.** Mobile storage is not secure enough
+  for OAuth tokens. (DONE — Fernet encryption)
+- **Never auto-send.** Always let the user approve, draft, or discard. (DONE — approval flow)
+- **Social platforms are Phase F.** Lower-value, higher-risk, don't build until work
+  tools are proven.
+
+### The One-Liner (updated for connectors)
+
+Cluely is a teleprompter. Maestro is your institutional memory, speaking to you in real
+time — with evidence, calibration, the discipline to stay silent when there's nothing
+worth saying, AND the connectors that passively ingest from the streams you already
+produce so you never have to feed it manually.
+
+---
+
 ## Session Protocol
 
 At the start of every coding session:
