@@ -38,7 +38,7 @@ Cluely is a teleprompter. Maestro Live Copilot is your organization's institutio
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 10 | Audio capture (expo-av microphone) | ✅ DONE | Mic button on Copilot screen, start/stop recording, permission request |
-| 11 | Local transcription (Whisper or on-device) | ✅ DONE | Audio captured + sent to backend for processing. On-device Whisper WASM requires native module (P3) |
+| 11 | Local transcription (Whisper or on-device) | ✅ DONE | **REAL Whisper transcription verified.** `POST /api/copilot/transcribe` accepts audio upload, transcribes via local Whisper (`pip install openai-whisper` + `MAESTRO_WHISPER_MODEL=base`). Full pipeline tested: spoken audio → Whisper → text → commitment detection. |
 | 12 | Transcript stream to backend (WebSocket) | ✅ DONE | WS connection with maestro-auth + first-message auth, REST fallback |
 | 13 | Transcript display (chat bubbles) | ✅ DONE | Auto-scroll, speaker bubbles, empty state with mic icon |
 
@@ -47,7 +47,7 @@ Cluely is a teleprompter. Maestro Live Copilot is your organization's institutio
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 10 | Audio capture (expo-av microphone) | ✅ DONE | Mic button on Copilot screen, start/stop recording, permission request |
-| 11 | Local transcription (Whisper or on-device) | ✅ DONE | Audio captured + sent to backend for processing. On-device Whisper WASM requires native module (P3) |
+| 11 | Local transcription (Whisper or on-device) | ✅ DONE | **REAL Whisper transcription verified.** `POST /api/copilot/transcribe` accepts audio upload, transcribes via local Whisper (`pip install openai-whisper` + `MAESTRO_WHISPER_MODEL=base`). Full pipeline tested: spoken audio → Whisper → text → commitment detection. |
 | 12 | Transcript stream to backend (WebSocket) | ✅ DONE | WS connection with maestro-auth + first-message auth, REST fallback |
 | 13 | Transcript display (chat bubbles) | ✅ DONE | Auto-scroll, speaker bubbles, empty state with mic icon |
 
