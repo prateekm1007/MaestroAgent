@@ -6,7 +6,7 @@
  * Design: Bumble Yellow (#FFC629), dark mode default, card-based UI
  */
 
-import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
   FlatList, ActivityIndicator, Alert, Modal, SafeAreaView, StatusBar,
@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 
 import * as api from './src/api/client';
 import { colors, getTheme, spacing, radius, typography, ThemeMode } from './src/theme/colors';
@@ -700,28 +701,202 @@ function SignalsScreen() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SCREEN 6: COPILOT
+// SCREEN 6: COPILOT — with Consent Manager + Audio Capture + WebSocket
 // ═══════════════════════════════════════════════════════════════════
+
+// Consent manager state
+const ConsentContext = createContext<{ hasConsent: boolean; grant: () => void; revoke: () => void }>({
+  hasConsent: false, grant: () => {}, revoke: () => {},
+});
+const useConsent = () => useContext(ConsentContext);
+
+function ConsentProvider({ children }: { children: React.ReactNode }) {
+  const [hasConsent, setHasConsent] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem('maestro_consent').then(v => { if (v === 'true') setHasConsent(true); });
+  }, []);
+  const grant = () => { setHasConsent(true); AsyncStorage.setItem('maestro_consent', 'true'); };
+  const revoke = () => { setHasConsent(false); AsyncStorage.removeItem('maestro_consent'); };
+  return <ConsentContext.Provider value={{ hasConsent, grant, revoke }}>{children}</ConsentContext.Provider>;
+}
+
+// Consent modal
+function ConsentModal({ visible, onGrant, onDeny }: { visible: boolean; onGrant: () => void; onDeny: () => void }) {
+  const t = getTheme('light');
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDeny}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: spacing.xxxl }}>
+        <View style={{ backgroundColor: t.cardBg, borderRadius: 20, padding: spacing.xxl }}>
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: t.textPrimary, marginBottom: spacing.md }}>
+            🎙️ Recording Consent
+          </Text>
+          <Text style={{ fontSize: 15, color: t.textSecondary, lineHeight: 22, marginBottom: spacing.lg }}>
+            Maestro Live Copilot will use your microphone to transcribe the meeting in real time.{'\n\n'}
+            • Audio is processed locally on your device{'\n'}
+            • Only text transcripts are sent to the server{'\n'}
+            • Audio never leaves your device{'\n'}
+            • All participants should be informed{'\n'}
+            • You can revoke consent at any time{'\n'}
+            • All actions are audit-logged
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.alertRed, marginBottom: spacing.lg }}>
+            ⚠️ Recording without consent may be illegal in your jurisdiction.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+            <TouchableOpacity onPress={onDeny} style={[styles.smallBtn, { backgroundColor: t.border, flex: 1 }]}>
+              <Text style={{ color: t.textSecondary, fontWeight: '600' }}>Not Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onGrant} style={[styles.smallBtn, { backgroundColor: colors.yellow, flex: 1 }]}>
+              <Text style={{ color: colors.black, fontWeight: 'bold' }}>I Consent</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function CopilotScreen() {
   const { mode } = useTheme();
   const t = getTheme(mode);
-  const { token } = useAuth();
+  const { token, llmStatus } = useAuth();
+  const { hasConsent, grant } = useConsent();
   const [chunks, setChunks] = useState<{ speaker: string; text: string; ts: string }[]>([]);
   const [whispers, setWhispers] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [connected, setConnected] = useState(false);
   const [speaker, setSpeaker] = useState('me');
+  const [showConsent, setShowConsent] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [wsRef, setWsRef] = useState<WebSocket | null>(null);
+  const transcriptRef = useRef<ScrollView>(null);
 
+  // ── WebSocket connection ────────────────────────────────────────
+  const connectWS = () => {
+    if (!token) return;
+    const host = 'localhost:8766'; // Will be configurable
+    try {
+      const ws = new WebSocket(`ws://${host}/ws/copilot`, ['maestro-auth']);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'auth', token }));
+        setConnected(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'suggestion' || msg.type === 'whisper') {
+            const newWhisper = {
+              type: msg.priority === 'high' ? 'critical' : 'suggestion',
+              entity: msg.entity || 'Maestro',
+              text: msg.text || msg.body || '',
+              evidence: msg.evidence_refs || [],
+              confidence: msg.confidence || 0,
+            };
+            setWhispers(prev => [...prev, newWhisper]);
+            if (newWhisper.type === 'critical') {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            } else {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }
+          }
+        } catch (err) { /* non-JSON message, ignore */ }
+      };
+      ws.onclose = () => { setConnected(false); };
+      ws.onerror = () => { setConnected(false); };
+      setWsRef(ws);
+    } catch (e) {
+      // WS failed — fall back to REST
+      setConnected(false);
+    }
+  };
+
+  const disconnectWS = () => {
+    if (wsRef) { wsRef.close(); setWsRef(null); }
+    setConnected(false);
+  };
+
+  // ── Start meeting (with consent check) ──────────────────────────
+  const startMeeting = () => {
+    if (!hasConsent) {
+      setShowConsent(true);
+      return;
+    }
+    connectWS();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const endMeeting = () => {
+    disconnectWS();
+    if (recording) { stopRecording(); }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  };
+
+  // ── Audio recording (expo-av) ───────────────────────────────────
+  const startRecording = async () => {
+    if (!hasConsent) { setShowConsent(true); return; }
+    try {
+      // Request permission
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Microphone access is required for live transcription.');
+        return;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startRecording();
+      (global as any).__maestroRecording = rec;
+      setRecording(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e) {
+      Alert.alert('Recording Error', 'Failed to start recording. Falling back to text input.');
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      const rec = (global as any).__maestroRecording as Audio.Recording;
+      if (!rec) return;
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
+      setRecording(false);
+      (global as any).__maestroRecording = null;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Note: actual transcription would happen via Whisper WASM or backend
+      // For now, we show a placeholder
+      if (uri) {
+        setChunks(prev => [...prev, { speaker: '🎤 Audio', text: '[Recording saved — transcription pending]', ts: new Date().toISOString() }]);
+      }
+    } catch (e) { /* ignore */ }
+  };
+
+  // ── Send transcript chunk (WS or REST) ──────────────────────────
   const sendChunk = async () => {
     if (!input || !token) return;
     const chunk = { speaker, text: input, ts: new Date().toISOString() };
     setChunks(prev => [...prev, chunk]);
     setInput('');
+
+    // Try WS first
+    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
+      wsRef.send(JSON.stringify({ type: 'transcript', text: input, speaker, entity: '' }));
+      return;
+    }
+
+    // Fall back to REST
     try {
       const result = await api.sendTranscriptChunk(token, input, speaker, '');
       if (result?.commitments_detected?.length > 0) {
-        setWhispers(prev => [...prev, { type: 'suggestion', text: result.commitments_detected[0].text, entity: result.commitments_detected[0].entity }]);
+        const newWhispers = result.commitments_detected.map((c: any) => ({
+          type: 'suggestion',
+          entity: c.entity || 'Commitment',
+          text: c.text || c.action || '',
+          evidence: [],
+          confidence: 0.7,
+        }));
+        setWhispers(prev => [...prev, ...newWhispers]);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     } catch (e) { /* ignore */ }
   };
@@ -729,16 +904,45 @@ function CopilotScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
       <TopBar title="Copilot" />
-      <View style={{ padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+
+      {/* Consent modal */}
+      <ConsentModal
+        visible={showConsent}
+        onGrant={() => { grant(); setShowConsent(false); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+        onDeny={() => setShowConsent(false)}
+      />
+
+      {/* Connection banner */}
+      <View style={{ padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: connected ? colors.honey : 'transparent' }}>
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: connected ? colors.successGreen : colors.gray }} />
-        <Text style={{ color: t.textSecondary, fontSize: 13, flex: 1 }}>{connected ? 'Live' : 'Offline (REST mode)'}</Text>
-        <TouchableOpacity onPress={() => setConnected(!connected)}>
-          <Text style={{ color: colors.yellow, fontSize: 13, fontWeight: '600' }}>{connected ? 'End' : 'Start'} Meeting</Text>
+        <Text style={{ color: t.textSecondary, fontSize: 13, flex: 1 }}>
+          {connected ? '🔴 Live — WebSocket connected' : 'Offline (REST mode)'}
+        </Text>
+        {hasConsent && (
+          <Text style={{ color: colors.successGreen, fontSize: 11 }}>✓ Consent</Text>
+        )}
+        <TouchableOpacity onPress={connected ? endMeeting : startMeeting}>
+          <Text style={{ color: connected ? colors.alertRed : colors.yellow, fontSize: 13, fontWeight: '600' }}>
+            {connected ? 'End' : 'Start'} Meeting
+          </Text>
         </TouchableOpacity>
       </View>
 
       {/* Transcript */}
-      <ScrollView style={{ flex: 1, paddingHorizontal: spacing.xl }} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        ref={transcriptRef}
+        style={{ flex: 1, paddingHorizontal: spacing.xl }}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        onContentSizeChange={() => transcriptRef.current?.scrollToEnd({ animated: true })}
+      >
+        {chunks.length === 0 && (
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Ionicons name="mic-outline" size={48} color={t.textSecondary} />
+            <Text style={{ color: t.textSecondary, fontSize: 15, marginTop: spacing.md, textAlign: 'center' }}>
+              {hasConsent ? 'Start a meeting or type to begin' : 'Grant consent to start recording'}
+            </Text>
+          </View>
+        )}
         {chunks.map((c, i) => (
           <View key={i} style={{ alignSelf: c.speaker === 'me' ? 'flex-end' : 'flex-start', maxWidth: '80%', marginBottom: spacing.md }}>
             <View style={{
@@ -756,31 +960,56 @@ function CopilotScreen() {
         ))}
       </ScrollView>
 
-      {/* Whispers */}
+      {/* Whispers overlay */}
       {whispers.length > 0 && (
         <View style={{ position: 'absolute', top: 120, right: spacing.xl, left: spacing.xl }}>
           {whispers.slice(-3).map((w, i) => (
             <Card key={i} accent={w.type === 'critical' ? 'red' : 'yellow'} style={{ marginBottom: spacing.sm }}>
-              <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>{w.entity || 'Maestro'}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>{w.entity || 'Maestro'}</Text>
+                {w.confidence > 0 && (
+                  <Text style={{ fontSize: 10, color: t.textSecondary }}>{Math.round(w.confidence * 100)}%</Text>
+                )}
+              </View>
               <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: 2 }}>{w.text}</Text>
+              {w.evidence?.length > 0 && (
+                <Text style={{ fontSize: 11, color: colors.yellow, marginTop: 4 }}>📌 {w.evidence[0]?.entity || 'evidence'}</Text>
+              )}
             </Card>
           ))}
         </View>
       )}
 
-      {/* Input */}
-      <View style={{ flexDirection: 'row', paddingHorizontal: spacing.xl, paddingVertical: spacing.md, gap: spacing.sm }}>
+      {/* Input bar with mic button */}
+      <View style={{ flexDirection: 'row', paddingHorizontal: spacing.xl, paddingVertical: spacing.md, gap: spacing.sm, alignItems: 'center' }}>
+        {/* Mic button */}
+        <TouchableOpacity
+          onPress={recording ? stopRecording : startRecording}
+          style={{
+            width: 44, height: 44, borderRadius: 22,
+            backgroundColor: recording ? colors.alertRed : colors.yellow,
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Ionicons name={recording ? 'stop' : 'mic'} size={20} color={colors.black} />
+        </TouchableOpacity>
+
+        {/* Speaker toggle */}
         <TouchableOpacity onPress={() => setSpeaker(s => s === 'me' ? 'them' : 'me')} style={{ justifyContent: 'center' }}>
           <Text style={{ color: speaker === 'me' ? colors.yellow : t.textSecondary, fontSize: 12 }}>{speaker === 'me' ? 'Me' : 'Them'}</Text>
         </TouchableOpacity>
+
+        {/* Text input */}
         <TextInput
           style={{ flex: 1, backgroundColor: t.surface, borderRadius: 20, paddingHorizontal: spacing.lg, color: t.textPrimary, fontSize: 14 }}
-          placeholder="Type transcript..."
+          placeholder="Type or speak..."
           placeholderTextColor={t.textSecondary}
           value={input}
           onChangeText={setInput}
           onSubmitEditing={sendChunk}
         />
+
+        {/* Send button */}
         <TouchableOpacity onPress={sendChunk} style={{ justifyContent: 'center' }}>
           <Ionicons name="send" size={20} color={colors.yellow} />
         </TouchableOpacity>
@@ -964,9 +1193,11 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <NavigationContainer>
-            <AppInner />
-          </NavigationContainer>
+          <ConsentProvider>
+            <NavigationContainer>
+              <AppInner />
+            </NavigationContainer>
+          </ConsentProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

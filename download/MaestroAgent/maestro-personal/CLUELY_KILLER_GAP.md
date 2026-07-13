@@ -5,7 +5,7 @@
 > Each time a feature is built, mark it ✅. When all are ✅, the app ships.
 
 **Last updated:** 2026-07-13
-**Current completion:** 30% (9 of 30 features done)
+**Current completion:** 43% (13 of 30 features done)
 
 ---
 
@@ -30,24 +30,24 @@ Cluely is a teleprompter. Maestro Live Copilot is your organization's institutio
 | 5 | Haptics (expo-haptics) | ✅ DONE | Success/Impact/Error feedback on actions |
 | 6 | Production deps (react-query, zod, gesture-handler, reanimated) | ✅ DONE | All 10 production deps installed |
 | 7 | app.json + eas.json (Play Store) | ✅ DONE | com.maestro.personal, APK + AAB profiles |
-| 8 | Consent manager | ❌ TODO | Legal requirement — no recording without consent |
+| 8 | Consent manager | ✅ DONE | ConsentContext + ConsentModal with AsyncStorage persistence |
 | 9 | Server URL config on login | ❌ TODO | Currently hardcoded to localhost:8766 |
 
 ### Phase 2 — Audio Capture & Transcription
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 10 | Audio capture (expo-av microphone) | ❌ TODO | P0 — without this, Copilot is just text chat |
-| 11 | Local transcription (Whisper or on-device) | ❌ TODO | P0 — audio must not leave device |
-| 12 | Transcript stream to backend (WebSocket) | ❌ TODO | P0 — REST is too slow for live meetings |
-| 13 | Transcript display (chat bubbles) | ✅ DONE | Copilot screen has speaker bubbles, auto-scroll |
+| 10 | Audio capture (expo-av microphone) | ✅ DONE | Mic button on Copilot screen, start/stop recording, permission request |
+| 11 | Local transcription (Whisper or on-device) | ❌ TODO | Recording saved but not transcribed yet (placeholder text) |
+| 12 | Transcript stream to backend (WebSocket) | ✅ DONE | WS connection with maestro-auth + first-message auth, REST fallback |
+| 13 | Transcript display (chat bubbles) | ✅ DONE | Auto-scroll, speaker bubbles, empty state with mic icon |
 
 ### Phase 3 — Real-Time Intelligence
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 14 | WebSocket connection (ws:// + auth) | ⚠️ PARTIAL | WS auth fixed (Phase 1.1), but Copilot screen uses REST only |
-| 15 | Real-time whisper delivery via WS | ❌ TODO | P0 — whispers should slide in during the call |
+| 14 | WebSocket connection (ws:// + auth) | ✅ DONE | Phase 1.1 WS auth fix + Copilot screen WS with maestro-auth |
+| 15 | Real-time whisper delivery via WS | ✅ DONE | WS onmessage handler parses whispers, adds to panel with haptics |
 | 16 | Evidence-backed suggestions | ❌ TODO | P1 — every whisper must cite evidence (the moat vs Cluely) |
 | 17 | Confidence values on suggestions | ❌ TODO | P1 — Bayesian calibration, not made-up numbers |
 | 18 | Objection handler (battlecards) | ❌ TODO | P1 — Cluely's core feature, Maestro's differentiator |
@@ -78,10 +78,10 @@ Cluely is a teleprompter. Maestro Live Copilot is your organization's institutio
 
 ## P0 Blockers (must build before ship)
 
-1. **Audio capture** — expo-av microphone recording
-2. **WebSocket real-time** — ws:// connection with auth, transcript streaming
-3. **Consent manager** — transparent recording consent
-4. **Real-time whisper delivery** — suggestions flow during the call
+1. ~~Audio capture~~ — ✅ DONE (expo-av mic button on Copilot screen)
+2. ~~WebSocket real-time~~ — ✅ DONE (ws:// with maestro-auth + first-message auth)
+3. ~~Consent manager~~ — ✅ DONE (ConsentContext + ConsentModal + AsyncStorage)
+4. ~~Real-time whisper delivery~~ — ✅ DONE (WS onmessage → whisper panel with haptics)
 5. **Evidence-backed suggestions** — every whisper cites organizational evidence
 
 ## P1 Differentiators (the moat vs Cluely)
