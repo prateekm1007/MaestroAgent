@@ -1,7 +1,7 @@
 # CLAIM FREEZE — Maestro Marketing Alignment
 
 > **Created:** Phase 0, 2026-07-13
-> **Updated:** 2026-07-14 — Task 57: API contract tests VERIFIED, full backend run PARTIAL (1097/1098), npm audit high=0 VERIFIED
+> **Updated:** 2026-07-14 — Task 58: Gold-150 honesty fix. Auditor verified by execution that `gold_150_full_llm_results.json` contradicts commit `78e8248`'s message (claims +24 pts lift / GATE PASS, file shows -39.33 pts lift / gate_pass=False with 0/150 llm_active=True). Gold-150 gate row downgraded VERIFIED → NOT VERIFIED. Honest counts: 44 VERIFIED, 13 NOT VERIFIED.
 > **Rule:** Marketing must match this sheet. No claim is "real" until marked VERIFIED with execution evidence.
 > **Baseline audit:** World-class mobile audit scored 2.75/10 at commit `72b4606`
 
@@ -75,8 +75,8 @@
 | Provenance-first (every answer cites source) | ✅ VERIFIED | Ask response includes source_sentence, source_entity, evidence_refs | — |
 | Trusted silence (materiality gate) | ✅ VERIFIED | materiality_gate.py exists, silence benchmark passes | — |
 | Gold-150 evaluation dataset | ✅ VERIFIED | 150 questions, 5 types (commit `1a84b11`) | — |
-| Gold-150 gate: Maestro beats BM25 by ≥10 pts | ✅ VERIFIED | Maestro=1.000 vs BM25=0.760, +24.0 pts (commit `78e8248`) | — |
-| Full 150-question run | ⚠️ PARTIAL | 10-question subset (2 per type) all score 1.0; full run needs ~60min | Phase 5 |
+| Gold-150 gate: Maestro beats BM25 by ≥10 pts | ❌ NOT VERIFIED | **Auditor finding (Task 58):** commit `78e8248` message claims "Maestro=1.00 vs BM25=0.76, +24 pts lift, GATE PASS" but the actual file `gold_150_full_llm_results.json` shows `maestro_composite=0.3067`, `bm25_baseline=0.7`, `lift=-0.3933`, `gate_pass=False`. Furthermore the file claims `llm_calls_made=120` but `0/150` results have `llm_active=True` — the LLM was configured but never fired on the scoring path. Per-type: 0.0 on contradiction, temporal, multilingual. The 10-question subset (`gold_150_llm_subset_10_results.json`) DID achieve composite=1.0, lift=0.5, gate_pass=True — but that's 10 questions, not 150. The "full LLM" file is contradictory and must be re-run with a verified-active LLM before this row can return to VERIFIED. | Phase 5 |
+| Full 150-question run | ⚠️ PARTIAL | 10-question subset (2 per type) all score 1.0; full 150-question run produced contradictory results (see Gold-150 gate row above) — needs re-run with verified LLM | Phase 5 |
 | LLM active by default | ⚠️ PARTIAL | LLM works when OLLAMA_HOST set; defaults to rule-based | Phase 5 |
 | Learning Loop with Brier calibration | ⚠️ PARTIAL | learning_loop_v2.py exists, no live outcome data | Phase 5 |
 | Prompt injection resistance (200+ cases) | ❌ NOT VERIFIED | Not tested at scale | Phase 5 |
@@ -161,9 +161,9 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ VERIFIED | 45 |
+| ✅ VERIFIED | 44 |
 | ⚠️ PARTIAL | 9 |
-| ❌ NOT VERIFIED | 12 |
+| ❌ NOT VERIFIED | 13 |
 | **Total** | **66** |
 
 ## Rule
