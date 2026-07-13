@@ -3553,13 +3553,68 @@ async def process_transcript(req: TranscriptChunkRequest, token: str = Depends(v
         if not situation_id:
             situation_id = "unknown"
 
-    return process_transcript_chunk(
+    result = process_transcript_chunk(
         shell=shell,
         situation_id=situation_id,
         text=req.text,
         speaker=req.speaker,
         entity=req.entity,
     )
+
+    # P0 fix (auditor finding): wire CopilotContextFuser into the REST path
+    # so REST also generates evidence-backed whispers (not just WS).
+    # Previously the fuser was only called from the WS handler, so the
+    # REST benchmark showed 0 whispers. Now both paths generate whispers.
+    try:
+        from maestro_personal_shell.copilot_context_fuser import CopilotContextFuser
+        fuser = CopilotContextFuser(shell=shell, user_email=token)
+        fused = await fuser.fuse(
+            transcript_chunks=[{"speaker": req.speaker, "text": req.text}],
+            meeting_entity=req.entity,
+        )
+        if fused.get("should_whisper"):
+            # Build evidence_refs from fused data
+            evidence_refs = []
+            for sig in fused.get("relevant_signals", [])[:3]:
+                evidence_refs.append({
+                    "text": sig.get("text", "")[:100],
+                    "entity": sig.get("entity", ""),
+                    "timestamp": sig.get("timestamp", ""),
+                })
+            for c in fused.get("active_commitments", [])[:2]:
+                evidence_refs.append({
+                    "text": c.get("text", "")[:100],
+                    "entity": c.get("entity", ""),
+                    "type": "commitment",
+                })
+
+            # Confidence based on evidence count + contradiction severity
+            conf = 0.5
+            if evidence_refs:
+                conf = min(0.9, 0.4 + len(evidence_refs) * 0.1)
+            if any(c.get("severity") == "high" for c in fused.get("contradictions", [])):
+                conf = min(0.95, conf + 0.15)
+
+            has_high = any(c.get("severity") == "high" for c in fused.get("contradictions", []))
+            has_stale = any(s.get("days_stale", 0) > 5 for s in fused.get("stale_commitments", []))
+            priority = "high" if (has_high or has_stale) else "medium"
+
+            result["whisper"] = {
+                "type": "whisper",
+                "entity": req.entity or (evidence_refs[0]["entity"] if evidence_refs else "Maestro"),
+                "text": fused.get("whisper_reason", ""),
+                "priority": priority,
+                "confidence": round(conf, 2),
+                "evidence_refs": evidence_refs,
+                "suggestions": fused.get("suggestions", []),
+                "contradictions": fused.get("contradictions", []),
+                "stale_commitments": fused.get("stale_commitments", []),
+                "negotiation_anchors": fused.get("negotiation_anchors", []),
+            }
+    except Exception as e:
+        logger.debug("REST copilot fuser failed (non-fatal): %s", e)
+
+    return result
 
 
 class PostCallSummaryRequest(BaseModel):

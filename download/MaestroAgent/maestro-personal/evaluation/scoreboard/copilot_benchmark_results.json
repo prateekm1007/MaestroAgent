@@ -1,11 +1,11 @@
 {
   "total_calls": 30,
-  "latency_p50_ms": 27.2,
-  "latency_p95_ms": 62.0,
-  "latency_p99_ms": 145.9,
+  "latency_p50_ms": 1551.0,
+  "latency_p95_ms": 5810.9,
+  "latency_p99_ms": 7280.7,
   "commitments_detected": 16,
-  "useful_whispers": 0,
-  "useful_rate_pct": 0.0,
+  "useful_whispers": 3,
+  "useful_rate_pct": 10.0,
   "results": [
     {
       "scenario": "sales_negotiation",
@@ -32,7 +32,7 @@
       "scenario": "hiring",
       "entity": "Hiring",
       "commitments_detected": 2,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
