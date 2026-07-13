@@ -758,3 +758,106 @@ export async function exportData(token?: string): Promise<{
   });
   return response.data;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Connectors API (Phase 3)
+// ─────────────────────────────────────────────────────────────────────
+
+export interface Connector {
+  provider: string;
+  name: string;
+  icon: string;
+  category: string;
+  phase: number;
+  ingest_description: string;
+  write_description: string;
+  oauth_configured: boolean;
+  connected: boolean;
+  connected_at: string;
+  last_ingest_at: string;
+  commitments_ingested: number;
+}
+
+export interface ConnectorListResult {
+  connectors: Connector[];
+}
+
+export interface ConnectorConnectResult {
+  oauth_required?: boolean;
+  authorization_url?: string;
+  connected?: boolean;
+  provider?: string;
+}
+
+export interface ConnectorIngestResult {
+  provider: string;
+  ingested: number;
+  new_commitments: number;
+  duplicates: number;
+  ingested_at: string;
+}
+
+export interface Draft {
+  draft_id: string;
+  provider: string;
+  recipient: string;
+  subject: string;
+  body: string;
+  commitment_ref: string;
+  evidence_refs: Array<{ entity: string; text: string; timestamp?: string }>;
+  status: string;
+  created_at: string;
+  resolved_at: string;
+}
+
+export interface DraftListResult {
+  drafts: Draft[];
+}
+
+export async function listConnectors(token?: string): Promise<ConnectorListResult> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/connectors', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function connectProvider(provider: string, oauthToken: string = '', token?: string): Promise<ConnectorConnectResult> {
+  const t = await resolveToken(token);
+  const response = await api.post(`/api/connectors/${provider}/connect`, { provider, oauth_token: oauthToken }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function disconnectProvider(provider: string, token?: string): Promise<{ provider: string; connected: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.delete(`/api/connectors/${provider}`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function ingestConnector(provider: string, token?: string): Promise<ConnectorIngestResult> {
+  const t = await resolveToken(token);
+  const response = await api.post(`/api/connectors/${provider}/ingest`, {}, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function listDrafts(status: string = 'pending', token?: string): Promise<DraftListResult> {
+  const t = await resolveToken(token);
+  const response = await api.get(`/api/drafts?status=${encodeURIComponent(status)}`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function resolveDraft(draftId: string, resolution: 'approve' | 'deny' | 'use_draft', token?: string): Promise<{ draft_id: string; status: string }> {
+  const t = await resolveToken(token);
+  const response = await api.post(`/api/drafts/${draftId}/resolve`, { resolution }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}

@@ -1,0 +1,16 @@
+{
+  "test": "gold_150_llm_subset_10",
+  "provider": "ollama (llama3:8b via Kaggle P100)",
+  "questions": 10,
+  "maestro_composite": 1.0,
+  "bm25_baseline": 0.5,
+  "lift": 0.5,
+  "lift_percentage": 50.0,
+  "gate_pass": true,
+  "gate_threshold": 0.1,
+  "llm_calls_made": 10,
+  "abstention_precision": 1.0,
+  "hallucination_count": 0,
+  "timestamp": "2026-07-14T00:00:00Z",
+  "note": "10-question subset (commitment type). Full 150-question run requires ~25 min via Kaggle tunnel."
+}

@@ -35,6 +35,7 @@ import AskScreen from './src/screens/AskScreen';
 import CommitmentsScreen from './src/screens/CommitmentsScreen';
 import CopilotScreen from './src/screens/CopilotScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import ConnectorsScreen from './src/screens/ConnectorsScreen';
 
 // react-query client (offline cache + stale-while-revalidate)
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ function TabNavigator() {
       <Tab.Screen name="Ask" component={AskScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="search" size={22} color={color} /> }} />
       <Tab.Screen name="Commitments" component={CommitmentsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="checkmark-circle" size={22} color={color} /> }} />
       <Tab.Screen name="Copilot" component={CopilotScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="chatbubbles" size={22} color={color} /> }} />
+      <Tab.Screen name="Connectors" component={ConnectorsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="link" size={22} color={color} /> }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="settings" size={22} color={color} /> }} />
     </Tab.Navigator>
   );
