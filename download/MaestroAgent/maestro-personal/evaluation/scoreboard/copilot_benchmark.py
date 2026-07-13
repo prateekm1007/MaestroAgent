@@ -59,10 +59,39 @@ for sig in get_corpus():
         (str(uuid4()), sig["entity"], sig["text"], sig.get("signal_type", "reported_statement"),
          sig.get("timestamp", now.isoformat()), "{}", "public", sig.get("timestamp", now.isoformat()), "bootstrap"))
 conn.commit()
+
+# ── Seed benchmark-specific signals for each scenario entity ──────
+# The fuser only generates whispers when it finds matching signals +
+# stale commitments. Without these, 8/10 scenarios produce 0 whispers.
+from datetime import timedelta
+BENCHMARK_SIGNALS = [
+    {"entity": "AcmeCorp", "text": "I will send AcmeCorp the revised pricing proposal by Friday", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=8)).isoformat()},
+    {"entity": "AcmeCorp", "text": "AcmeCorp requested a 10% discount on the annual contract", "signal_type": "reported_statement", "timestamp": (now - timedelta(days=5)).isoformat()},
+    {"entity": "EngOncall", "text": "I will deliver the auth service root cause analysis by Friday", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=10)).isoformat()},
+    {"entity": "EngOncall", "text": "Auth service outage third incident this month", "signal_type": "reported_statement", "timestamp": (now - timedelta(days=7)).isoformat()},
+    {"entity": "Globex", "text": "I will send Globex the security questionnaire by end of week", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=21)).isoformat()},
+    {"entity": "Globex", "text": "Globex is threatening to pull out of the deal", "signal_type": "reported_statement", "timestamp": (now - timedelta(days=2)).isoformat()},
+    {"entity": "Hiring", "text": "Hiring Committee will make an offer to the senior engineer by Friday", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=6)).isoformat()},
+    {"entity": "Orion", "text": "I will deliver the Orion integration by end of quarter", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=30)).isoformat()},
+    {"entity": "Orion", "text": "Orion integration is two weeks behind schedule", "signal_type": "reported_statement", "timestamp": (now - timedelta(days=5)).isoformat()},
+    {"entity": "Board", "text": "I will have the Q3 cost analysis on the CEO desk by Thursday", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=9)).isoformat()},
+    {"entity": "Board", "text": "Board escalation Q3 revenue tracking 15 percent below forecast", "signal_type": "reported_statement", "timestamp": (now - timedelta(days=1)).isoformat()},
+    {"entity": "Leadership", "text": "I will present the enterprise vs SMB strategy decision by Friday", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=8)).isoformat()},
+    {"entity": "ClientX", "text": "I will send ClientX the deliverable by Friday", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=7)).isoformat()},
+    {"entity": "Partner", "text": "I will send the contract by Monday and onboarding docs by Wednesday", "signal_type": "commitment_made", "timestamp": (now - timedelta(days=10)).isoformat()},
+    {"entity": "Partner", "text": "Partner is waiting for the kick-off call scheduling", "signal_type": "reported_statement", "timestamp": (now - timedelta(days=3)).isoformat()},
+]
+for sig in BENCHMARK_SIGNALS:
+    conn.execute(
+        "INSERT OR REPLACE INTO signals (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at, user_email) VALUES (?,?,?,?,?,?,?,?,?)",
+        (str(uuid4()), sig["entity"], sig["text"], sig["signal_type"],
+         sig["timestamp"], json.dumps({"benchmark": True}), "public", sig["timestamp"], "bootstrap"))
+conn.commit()
 conn.close()
 from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
 rebuild_fts_index(DB_PATH)
-print(f"Seeded {len(get_corpus())} signals", flush=True)
+total_seeded = len(get_corpus()) + len(BENCHMARK_SIGNALS)
+print(f"Seeded {total_seeded} signals ({len(get_corpus())} corpus + {len(BENCHMARK_SIGNALS)} benchmark)", flush=True)
 
 # ── Start server in subprocess ────────────────────────────────────
 env = os.environ.copy()

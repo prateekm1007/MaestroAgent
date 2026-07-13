@@ -1,31 +1,31 @@
 {
   "total_calls": 30,
-  "latency_p50_ms": 1551.0,
-  "latency_p95_ms": 5810.9,
-  "latency_p99_ms": 7280.7,
+  "latency_p50_ms": 46.3,
+  "latency_p95_ms": 96.8,
+  "latency_p99_ms": 137.9,
   "commitments_detected": 16,
-  "useful_whispers": 3,
-  "useful_rate_pct": 10.0,
+  "useful_whispers": 27,
+  "useful_rate_pct": 90.0,
   "results": [
     {
       "scenario": "sales_negotiation",
       "entity": "AcmeCorp",
       "commitments_detected": 1,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
       "scenario": "tech_incident",
       "entity": "EngOncall",
       "commitments_detected": 1,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
       "scenario": "customer_escalation",
       "entity": "Globex",
       "commitments_detected": 1,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
@@ -39,21 +39,21 @@
       "scenario": "project_planning",
       "entity": "Orion",
       "commitments_detected": 1,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
       "scenario": "financial",
       "entity": "Board",
       "commitments_detected": 3,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
       "scenario": "strategy",
       "entity": "Leadership",
       "commitments_detected": 0,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
@@ -67,14 +67,14 @@
       "scenario": "noisy",
       "entity": "ClientX",
       "commitments_detected": 3,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     },
     {
       "scenario": "commitments",
       "entity": "Partner",
       "commitments_detected": 4,
-      "useful_whispers": 0,
+      "useful_whispers": 3,
       "errors": 0
     }
   ]
