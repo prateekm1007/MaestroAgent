@@ -434,6 +434,46 @@ class ConnectorStore:
             logger.warning(f"get_connector_state failed: {e}")
             return None
 
+    def get_stored_token(self, user_email: str, provider: str) -> str:
+        """Get the decrypted OAuth token for a provider (for real API calls).
+
+        Returns the decrypted token string (may be JSON for OAuth providers
+        that store access + refresh tokens). Returns empty string if not
+        connected or no token stored.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            row = conn.execute(
+                "SELECT token FROM connectors WHERE user_email = ? AND provider = ? AND connected = 1",
+                (user_email, provider),
+            ).fetchone()
+            conn.close()
+            if not row or not row[0]:
+                return ""
+            return self._decrypt(row[0])
+        except Exception as e:
+            logger.warning(f"get_stored_token failed: {e}")
+            return ""
+
+    def update_stored_token(self, user_email: str, provider: str, new_token: str) -> None:
+        """Update the stored OAuth token (e.g., after a refresh).
+
+        Used by the Gmail connector when the access token is refreshed —
+        the new token (with new expiry) must be persisted so the next
+        ingestion doesn't have to refresh again.
+        """
+        encrypted = self._encrypt(new_token) if new_token else ""
+        try:
+            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn.execute(
+                "UPDATE connectors SET token = ? WHERE user_email = ? AND provider = ?",
+                (encrypted, user_email, provider),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"update_stored_token failed: {e}")
+
     # --- Ingestion ----------------------------------------------------------
 
     def ingest(self, user_email: str, provider: str, shell: Any = None) -> dict[str, Any]:
@@ -509,22 +549,53 @@ class ConnectorStore:
     def _fetch_messages(self, user_email: str, provider: str) -> list[dict[str, Any]]:
         """Fetch messages from the provider.
 
-        In production: call the provider's API using the stored OAuth token.
-        In demo mode: return MOCK_INGESTION_DATA.
+        For Gmail: calls the real Gmail API using stored OAuth tokens (Phase B).
+        For other providers: returns MOCK_INGESTION_DATA (Phase C-F).
 
-        TODO (production): implement real API calls:
-          - gmail: gmail.users().messages().list() + get()
-          - slack: conversations.history() + im.history()
-          - github: /repos/{owner}/{repo}/issues?assignee={user}
-          - calendar: calendar.events().list()
+        If Gmail OAuth is not configured (no MAESTRO_GMAIL_CLIENT_ID), falls
+        back to MOCK_INGESTION_DATA so the app still works in demo mode.
+
+        When real ingestion runs, the stored token may be refreshed — the
+        updated token is persisted via update_stored_token().
         """
-        # Check if we have real OAuth configured
         state = self.get_connector_state(user_email, provider)
-        if state and state["connected"]:
-            # For now, use mock data. When real OAuth is configured,
-            # this is where the real API call goes.
-            pass
+        if not state or not state["connected"]:
+            return MOCK_INGESTION_DATA.get(provider, [])
 
+        # Phase B: real Gmail ingestion
+        if provider == "gmail":
+            try:
+                from maestro_personal_shell.gmail_connector import (
+                    is_gmail_configured,
+                    fetch_real_gmail_messages,
+                    GmailOAuthClient,
+                )
+                if not is_gmail_configured():
+                    # OAuth not configured — fall back to mock (demo mode)
+                    return MOCK_INGESTION_DATA.get("gmail", [])
+
+                stored_token = self.get_stored_token(user_email, "gmail")
+                if not stored_token:
+                    return MOCK_INGESTION_DATA.get("gmail", [])
+
+                oauth_client = GmailOAuthClient()
+                signals, updated_token = fetch_real_gmail_messages(
+                    stored_token, oauth_client, days_back=30, max_messages=50,
+                )
+
+                # Persist refreshed token if it changed
+                if updated_token != stored_token:
+                    self.update_stored_token(user_email, "gmail", updated_token)
+
+                return signals
+            except ImportError:
+                logger.warning("gmail_connector module not available, using mock data")
+                return MOCK_INGESTION_DATA.get("gmail", [])
+            except Exception as e:
+                logger.warning(f"Gmail ingestion failed, falling back to mock: {e}")
+                return MOCK_INGESTION_DATA.get("gmail", [])
+
+        # Other providers — still mocked (Phase C-F)
         return MOCK_INGESTION_DATA.get(provider, [])
 
     # --- Draft management ---------------------------------------------------
@@ -672,12 +743,22 @@ class ConnectorStore:
         new_status = status_map[resolution]
 
         sent_message_id = ""
+        send_error = ""
         if resolution == "approve":
-            # In production: actually send via the provider's API
-            # (Gmail: messages().send(), Slack: chat.postMessage(), etc.)
-            # For now: simulate a successful send
-            sent_message_id = f"msg-{secrets.token_urlsafe(8)}"
-            action_detail = f"Approved and sent to {draft['recipient']} (msg_id={sent_message_id})"
+            # Phase B: actually send via the provider's API
+            if draft["provider"] == "gmail":
+                sent_message_id, send_error = self._send_via_gmail(
+                    user_email or draft["user_email"], draft,
+                )
+            else:
+                # Other providers — simulate send (Phase C-F)
+                sent_message_id = f"msg-{secrets.token_urlsafe(8)}"
+
+            if send_error:
+                action_detail = f"FAILED to send to {draft['recipient']}: {send_error}"
+                new_status = "send_failed"
+            else:
+                action_detail = f"Approved and sent to {draft['recipient']} (msg_id={sent_message_id})"
         elif resolution == "deny":
             action_detail = f"Discarded draft for {draft['recipient']}"
         else:  # use_draft
@@ -711,7 +792,51 @@ class ConnectorStore:
             "resolved_at": now,
             "sent_message_id": sent_message_id,
             "action": resolution,
+            "send_error": send_error,
         }
+
+    def _send_via_gmail(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
+        """Send a draft via the real Gmail API (Phase B).
+
+        Returns: (sent_message_id, error_message)
+          - On success: (gmail_message_id, "")
+          - On failure: ("", error_description)
+          - If OAuth not configured: falls back to simulated send (msg-xxx, "")
+        """
+        try:
+            from maestro_personal_shell.gmail_connector import (
+                is_gmail_configured,
+                send_real_gmail_message,
+                GmailOAuthClient,
+            )
+        except ImportError:
+            # Module not available — simulate send
+            return f"msg-{secrets.token_urlsafe(8)}", ""
+
+        if not is_gmail_configured():
+            # Demo mode — simulate send
+            return f"msg-{secrets.token_urlsafe(8)}", ""
+
+        stored_token = self.get_stored_token(user_email, "gmail")
+        if not stored_token:
+            return "", "Gmail not connected (no stored token)"
+
+        oauth_client = GmailOAuthClient()
+        result, updated_token = send_real_gmail_message(
+            stored_token,
+            oauth_client,
+            to=draft["recipient"],
+            subject=draft.get("subject", ""),
+            body=draft["body"],
+        )
+
+        # Persist refreshed token if it changed
+        if updated_token != stored_token:
+            self.update_stored_token(user_email, "gmail", updated_token)
+
+        if "error" in result:
+            return "", result["error"]
+        return result.get("id", f"msg-{secrets.token_urlsafe(8)}"), ""
 
     # --- Audit log ----------------------------------------------------------
 

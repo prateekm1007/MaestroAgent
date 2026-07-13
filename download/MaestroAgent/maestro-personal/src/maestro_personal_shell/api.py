@@ -3973,13 +3973,84 @@ async def list_connectors(token: str = Depends(verify_token)):
 
 @app.post("/api/connectors/{provider}/connect")
 async def connect_provider(provider: str, req: ConnectorConnectRequest, token: str = Depends(verify_token)):
-    """Connect a provider (stores OAuth token encrypted)."""
+    """Connect a provider (stores OAuth token encrypted).
+
+    For Gmail: if OAuth is configured (MAESTRO_GMAIL_CLIENT_ID set), this
+    endpoint returns the authorization URL — the user visits it, grants
+    access, and Google redirects to /api/connectors/gmail/oauth/callback
+    which completes the connection. If OAuth is NOT configured, stores
+    the provided oauth_token directly (demo mode).
+    """
     from maestro_personal_shell.connectors import ConnectorStore
+
+    # Phase B: Gmail OAuth2 flow
+    if provider == "gmail" and not req.oauth_token:
+        try:
+            from maestro_personal_shell.gmail_connector import is_gmail_configured, GmailOAuthClient
+            if is_gmail_configured():
+                oauth_client = GmailOAuthClient()
+                state = f"user={token}"  # carry user identity through the OAuth flow
+                auth_url = oauth_client.get_authorization_url(state=state)
+                return {"oauth_required": True, "authorization_url": auth_url}
+        except ImportError:
+            pass  # fall through to demo mode
+
     store = ConnectorStore()
     result = store.connect(token, provider, req.oauth_token)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+@app.get("/api/connectors/gmail/oauth/callback")
+async def gmail_oauth_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+):
+    """Gmail OAuth2 callback — exchanges authorization code for tokens.
+
+    Google redirects here after the user grants access. The code is
+    exchanged for access + refresh tokens, which are stored encrypted.
+
+    The 'state' parameter carries the user_email (set in connect_provider)
+    so we know which user to associate the tokens with.
+    """
+    if error:
+        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    from maestro_personal_shell.connectors import ConnectorStore
+    from maestro_personal_shell.gmail_connector import GmailOAuthClient, is_gmail_configured
+
+    if not is_gmail_configured():
+        raise HTTPException(status_code=400, detail="Gmail OAuth not configured")
+
+    # Extract user_email from state
+    user_email = ""
+    if "user=" in state:
+        user_email = state.split("user=", 1)[1]
+
+    oauth_client = GmailOAuthClient()
+    token_data = oauth_client.exchange_code_for_tokens(code)
+
+    if "error" in token_data:
+        raise HTTPException(status_code=400, detail=f"Token exchange failed: {token_data['error']}")
+
+    # Store the tokens (encrypted) as JSON
+    token_json = json.dumps(token_data)
+    store = ConnectorStore()
+    result = store.connect(user_email, "gmail", token_json)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return {
+        "connected": True,
+        "provider": "gmail",
+        "user_email": user_email,
+        "message": "Gmail connected successfully. You can now ingest messages and send drafts.",
+    }
 
 
 @app.delete("/api/connectors/{provider}")
