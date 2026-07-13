@@ -1,126 +1,123 @@
 /**
- * CommitmentsScreen — ONE at risk, rest secondary.
+ * CommitmentsScreen — extracted from the original App.tsx, unchanged in logic.
  *
- * Bumble-inspired: warm, honey accent for at-risk, clean list for rest.
+ * Renders THE ONE (top commitment) followed by the active commitments list.
+ * Each row offers Complete / Dismiss actions, which hit the signal-correction
+ * endpoint after a confirm prompt.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAuth } from '../api/auth';
-import { getCommitments, Commitment } from '../api/client';
-import { theme } from '../theme';
+import {
+  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert, SafeAreaView,
+} from 'react-native';
 
-export default function CommitmentsScreen({ navigation }: { navigation: any }) {
+import * as api from '../api/client';
+import { colors, getTheme, spacing, typography } from '../theme/colors';
+import { useAuth, useTheme } from '../contexts';
+import { Card, Badge, TopBar } from '../components';
+import { styles } from '../styles';
+
+export default function CommitmentsScreen() {
+  const { mode } = useTheme();
+  const t = getTheme(mode);
   const { token } = useAuth();
-  const [commitments, setCommitments] = useState<Commitment[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [theOne, setTheOne] = useState<api.TheOneResult | null>(null);
+  const [commitments, setCommitments] = useState<api.Commitment[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!token) return;
-    setRefreshing(true);
-    setError(null);
     try {
-      const data = await getCommitments(token);
-      // Sort: at-risk first, then by entity
-      data.sort((a, b) => {
-        if (a.is_at_risk !== b.is_at_risk) return a.is_at_risk ? -1 : 1;
-        return a.entity.localeCompare(b.entity);
-      });
-      setCommitments(data);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setRefreshing(false);
-    }
+      const [one, list] = await Promise.all([
+        api.getTheOne().catch(() => null),
+        api.getCommitments().catch(() => []),
+      ]);
+      setTheOne(one);
+      setCommitments(list);
+    } catch (e) { /* ignore */ }
+    setLoading(false);
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss' | 'cancel') => {
+    if (!token || !signalId) return;
+    Alert.alert(
+      `${action.charAt(0).toUpperCase() + action.slice(1)} this commitment?`,
+      undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            await api.correctSignal(signalId, action);
+            loadData();
+          },
+        },
+      ]
+    );
+  };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Commitments</Text>
-      <FlatList
-        data={commitments}
-        keyExtractor={(item) => item.signal_id}
-        renderItem={({ item, index }) => (
-          <TouchableOpacity
-            style={[styles.card, item.is_at_risk && styles.cardAtRisk]}
-            onPress={() => navigation.navigate('Ask', { query: `What's the situation with ${item.entity}?` })}
-          >
-            {item.is_at_risk && (
-              <View style={styles.riskBadge}>
-                <Text style={styles.riskBadgeText}>AT RISK · {item.days_stale}d stale</Text>
-              </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
+      <TopBar title="Commitments" />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.xl }}>
+        {loading ? (
+          <ActivityIndicator color={colors.yellow} size="large" style={{ marginVertical: 40 }} />
+        ) : (
+          <>
+            {/* THE ONE */}
+            {theOne?.primary && (
+              <>
+                <Text style={[typography.label, { color: colors.yellow, marginBottom: spacing.md }]}>⭐ THE ONE</Text>
+                <Card accent="yellow" style={{ marginBottom: spacing.xl }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}>{theOne.primary.entity}</Text>
+                  <Text style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}>
+                    "{theOne.primary.text}"
+                  </Text>
+                  {theOne.primary.deadline ? <Badge text={`📅 ${theOne.primary.deadline}`} color="yellow" /> : null}
+                  {theOne.primary.is_at_risk ? <Badge text="🔥 At Risk" color="red" /> : null}
+                  {(theOne.primary.days_stale ?? 0) > 0 ? <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>{theOne.primary.days_stale}d stale</Text> : null}
+                  {theOne.why_primary ? <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.sm }}>{theOne.why_primary}</Text> : null}
+                  <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg }}>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.successGreen }]} onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'complete')}>
+                      <Text style={{ color: colors.white, fontSize: 13, fontWeight: '600' }}>✓ Complete</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: t.border }]} onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'dismiss')}>
+                      <Text style={{ color: t.textSecondary, fontSize: 13, fontWeight: '600' }}>✕ Dismiss</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Card>
+              </>
             )}
-            <Text style={styles.entity}>{item.entity}</Text>
-            <Text style={styles.text}>{item.text}</Text>
-            <View style={styles.metaRow}>
-              <Text style={styles.claimType}>{item.claim_type}</Text>
-              {item.deadline ? (
-                <Text style={styles.deadline}>→ {item.deadline}</Text>
-              ) : null}
-            </View>
-          </TouchableOpacity>
+
+            {/* ACTIVE LIST */}
+            <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}>ACTIVE COMMITMENTS</Text>
+            {commitments.length === 0 ? (
+              <Text style={{ color: t.textSecondary, fontSize: 14, textAlign: 'center', marginVertical: 20 }}>No active commitments</Text>
+            ) : (
+              commitments.map((c, i) => (
+                <Card key={i} style={{ marginBottom: spacing.md }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.is_at_risk ? colors.alertRed : (c.days_stale ?? 0) > 2 ? colors.yellow : colors.successGreen, marginRight: spacing.md }} />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: t.textPrimary, flex: 1 }}>{c.entity}</Text>
+                    {c.deadline ? <Badge text={c.deadline} color="yellow" /> : null}
+                  </View>
+                  <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }} numberOfLines={2}>"{c.text}"</Text>
+                  <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm }}>
+                    <TouchableOpacity onPress={() => handleCorrect(c.signal_id, 'complete')}>
+                      <Text style={{ color: colors.successGreen, fontSize: 12, fontWeight: '600' }}>✓ Complete</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleCorrect(c.signal_id, 'dismiss')}>
+                      <Text style={{ color: t.textSecondary, fontSize: 12, fontWeight: '600' }}>✕ Dismiss</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Card>
+              ))
+            )}
+          </>
         )}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor={theme.honey} />}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No active commitments.</Text>
-            <Text style={styles.emptyBody}>Add a signal with "I will..." to create one.</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => navigation.navigate('AddSignal')}>
-              <Text style={styles.emptyBtnText}>Add a signal</Text>
-            </TouchableOpacity>
-          </View>
-        }
-      />
-      {error && <Text style={styles.error}>{error}</Text>}
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: theme.bg },
-  title: { ...theme.font.title, marginBottom: 20 },
-  card: {
-    backgroundColor: theme.cardBg,
-    borderRadius: theme.radius.lg,
-    padding: 20,
-    marginBottom: 10,
-    ...theme.shadow.card,
-  },
-  cardAtRisk: {
-    borderWidth: 2,
-    borderColor: theme.honey,
-  },
-  riskBadge: {
-    backgroundColor: theme.honey,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  riskBadgeText: { fontSize: 10, fontWeight: '700', color: theme.textOnHoney, letterSpacing: 1 },
-  entity: { fontSize: 16, fontWeight: '700', color: theme.textPrimary, marginBottom: 4 },
-  text: { fontSize: 15, color: theme.textPrimary, lineHeight: 22, marginBottom: 10 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  claimType: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: theme.textSecondary,
-    backgroundColor: theme.bgSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: theme.radius.sm,
-    overflow: 'hidden',
-    textTransform: 'capitalize',
-  },
-  deadline: { fontSize: 12, fontWeight: '600', color: theme.warning },
-  emptyContainer: { alignItems: 'center', padding: 40, marginTop: 60 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: theme.textPrimary, marginBottom: 8 },
-  emptyBody: { fontSize: 15, color: theme.textSecondary, textAlign: 'center', marginBottom: 24 },
-  emptyBtn: { backgroundColor: theme.honey, borderRadius: theme.radius.pill, paddingHorizontal: 24, paddingVertical: 12 },
-  emptyBtnText: { color: theme.textOnHoney, fontWeight: '700', fontSize: 15 },
-  error: { color: theme.error, padding: 16 },
-});

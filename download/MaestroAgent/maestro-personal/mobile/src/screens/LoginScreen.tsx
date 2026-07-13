@@ -1,125 +1,118 @@
 /**
- * LoginScreen — warm, inviting, Bumble-style.
+ * LoginScreen — extracted from the original App.tsx, unchanged in logic.
  *
- * Honey accent, cream background, bold title. Feels human, not corporate.
+ * Honey-accented access-code entry. Shows the LLM provider dot at the
+ * bottom and a collapsible server URL override (saved to AsyncStorage).
  */
 
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from 'react-native';
-import { useAuth } from '../api/auth';
-import { theme } from '../theme';
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  SafeAreaView, StatusBar, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { colors, getTheme, spacing } from '../theme/colors';
+import { useAuth, useTheme } from '../contexts';
+import { LLMDot } from '../components';
+import { styles } from '../styles';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { mode } = useTheme();
+  const t = getTheme(mode);
+  const { login, llmStatus } = useAuth();
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [serverUrl, setServerUrl] = useState('http://localhost:8766');
+  const [showServerConfig, setShowServerConfig] = useState(false);
+
+  // Load saved server URL on mount
+  useEffect(() => {
+    AsyncStorage.getItem('maestro_host').then(url => {
+      if (url) setServerUrl(url);
+    });
+  }, []);
 
   const handleLogin = async () => {
-    if (!password.trim()) {
-      Alert.alert('Password Required', 'Enter your Maestro access token to continue.');
-      return;
-    }
+    if (!password) return;
     setLoading(true);
-    try {
-      await login(password);
-    } catch (error) {
-      Alert.alert('Login Failed', String(error));
-    } finally {
-      setLoading(false);
+    setError(false);
+    // Save server URL before login
+    await AsyncStorage.setItem('maestro_host', serverUrl);
+    const ok = await login(password);
+    if (!ok) {
+      setError(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setTimeout(() => setError(false), 600);
     }
+    setLoading(false);
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>M</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xxxl }}>
+        <View style={{ alignItems: 'center', marginBottom: 48 }}>
+          <Text style={{ color: colors.yellow, fontSize: 32, fontWeight: 'bold', letterSpacing: 2 }}>MAESTRO</Text>
+          <Text style={{ color: t.textSecondary, fontSize: 14, marginTop: spacing.sm }}>Personal Intelligence</Text>
         </View>
-        <Text style={styles.title}>Maestro</Text>
-        <Text style={styles.subtitle}>Make me effective today</Text>
 
-        <View style={styles.formContainer}>
+        {/* Server URL config (collapsible) */}
+        {showServerConfig && (
           <TextInput
-            style={styles.input}
-            placeholder="Access token"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
+            style={[
+              styles.loginInput,
+              { backgroundColor: t.surface, color: t.textPrimary, borderColor: colors.yellow, marginBottom: spacing.sm, fontSize: 13 },
+            ]}
+            placeholder="Server URL (http://host:port)"
+            placeholderTextColor={t.textSecondary}
+            value={serverUrl}
+            onChangeText={setServerUrl}
             autoCapitalize="none"
-            placeholderTextColor={theme.textSecondary}
+            autoCorrect={false}
           />
-          <TouchableOpacity
-            style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            <Text style={styles.loginBtnText}>{loading ? 'Logging in...' : 'Get Started'}</Text>
-          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={() => setShowServerConfig(!showServerConfig)} style={{ alignSelf: 'flex-end', marginBottom: spacing.md }}>
+          <Text style={{ color: t.textSecondary, fontSize: 12 }}>{showServerConfig ? '▲ Hide' : '⚙ Server: ' + serverUrl.replace('http://', '').replace('https://', '')}</Text>
+        </TouchableOpacity>
+
+        <TextInput
+          style={[
+            styles.loginInput,
+            { backgroundColor: t.surface, color: t.textPrimary, borderColor: error ? colors.alertRed : password ? colors.yellow : 'transparent' },
+          ]}
+          placeholder="Enter access code"
+          placeholderTextColor={t.textSecondary}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          onSubmitEditing={handleLogin}
+          autoCapitalize="none"
+        />
+
+        <TouchableOpacity
+          style={[styles.loginButton, { backgroundColor: colors.yellow, opacity: loading || !password ? 0.5 : 1 }]}
+          onPress={handleLogin}
+          disabled={loading || !password}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.black} />
+          ) : (
+            <Text style={{ color: colors.black, fontSize: 16, fontWeight: 'bold' }}>ENTER →</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <LLMDot />
+            <Text style={{ color: t.textSecondary, fontSize: 12 }}>
+              {llmStatus?.active ? `${llmStatus.provider} · ${llmStatus.probe_latency_ms}ms` : 'rule-based mode'}
+            </Text>
+          </View>
         </View>
-      </View>
-    </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.bg,
-    justifyContent: 'center',
-  },
-  content: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.honey,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    ...theme.shadow.card,
-  },
-  logoText: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: theme.textOnHoney,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: theme.textPrimary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 17,
-    color: theme.textSecondary,
-    marginBottom: 48,
-  },
-  formContainer: {
-    width: '100%',
-  },
-  input: {
-    backgroundColor: theme.cardBg,
-    borderWidth: 1,
-    borderColor: theme.border,
-    borderRadius: theme.radius.lg,
-    padding: 16,
-    fontSize: 16,
-    color: theme.textPrimary,
-    marginBottom: 16,
-  },
-  loginBtn: {
-    backgroundColor: theme.honey,
-    borderRadius: theme.radius.lg,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  loginBtnDisabled: { opacity: 0.6 },
-  loginBtnText: {
-    color: theme.textOnHoney,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-});

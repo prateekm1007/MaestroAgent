@@ -46,26 +46,30 @@ describe('Mobile app — PRODUCTION structure', () => {
     });
   });
 
-  // ── App.tsx screens ────────────────────────────────────────────
-  describe('App.tsx — 7 screens', () => {
-    const source = fs.readFileSync(path.join(ROOT, 'App.tsx'), 'utf-8');
+  // ── Modular screens (one UI tree, screens live in src/screens) ──
+  describe('Modular screens — 7 screens + shared providers/components', () => {
+    const appSource = fs.readFileSync(path.join(ROOT, 'App.tsx'), 'utf-8');
+    const contextsSource = fs.readFileSync(path.join(ROOT, 'src', 'contexts.tsx'), 'utf-8');
+    const componentsSource = fs.readFileSync(path.join(ROOT, 'src', 'components.tsx'), 'utf-8');
+    const readScreen = (name) =>
+      fs.readFileSync(path.join(ROOT, 'src', 'screens', `${name}.tsx`), 'utf-8');
 
-    test('has LoginScreen', () => expect(source).toMatch(/function LoginScreen/));
-    test('has DashboardScreen', () => expect(source).toMatch(/function DashboardScreen/));
-    test('has AskScreen', () => expect(source).toMatch(/function AskScreen/));
-    test('has CommitmentsScreen', () => expect(source).toMatch(/function CommitmentsScreen/));
-    test('has SignalsScreen', () => expect(source).toMatch(/function SignalsScreen/));
-    test('has CopilotScreen', () => expect(source).toMatch(/function CopilotScreen/));
-    test('has SettingsScreen', () => expect(source).toMatch(/function SettingsScreen/));
+    test('has LoginScreen', () => expect(readScreen('LoginScreen')).toMatch(/function LoginScreen/));
+    test('has DashboardScreen', () => expect(readScreen('DashboardScreen')).toMatch(/function DashboardScreen/));
+    test('has AskScreen', () => expect(readScreen('AskScreen')).toMatch(/function AskScreen/));
+    test('has CommitmentsScreen', () => expect(readScreen('CommitmentsScreen')).toMatch(/function CommitmentsScreen/));
+    test('has SignalsScreen', () => expect(readScreen('SignalsScreen')).toMatch(/function SignalsScreen/));
+    test('has CopilotScreen', () => expect(readScreen('CopilotScreen')).toMatch(/function CopilotScreen/));
+    test('has SettingsScreen', () => expect(readScreen('SettingsScreen')).toMatch(/function SettingsScreen/));
     test('has ThemeProvider with light mode default (Bumble-inspired)', () => {
-      expect(source).toMatch(/function ThemeProvider/);
-      expect(source).toMatch(/'light'/);
+      expect(contextsSource).toMatch(/function ThemeProvider/);
+      expect(contextsSource).toMatch(/'light'/);
     });
-    test('has AuthProvider', () => expect(source).toMatch(/function AuthProvider/));
-    test('has bottom tab navigator', () => expect(source).toMatch(/createBottomTabNavigator/));
-    test('has ConfidenceBar component', () => expect(source).toMatch(/function ConfidenceBar/));
-    test('has Card component', () => expect(source).toMatch(/function Card/));
-    test('has LLMDot component', () => expect(source).toMatch(/function LLMDot/));
+    test('has AuthProvider', () => expect(contextsSource).toMatch(/function AuthProvider/));
+    test('has bottom tab navigator', () => expect(appSource).toMatch(/createBottomTabNavigator/));
+    test('has ConfidenceBar component', () => expect(componentsSource).toMatch(/function ConfidenceBar/));
+    test('has Card component', () => expect(componentsSource).toMatch(/function Card/));
+    test('has LLMDot component', () => expect(componentsSource).toMatch(/function LLMDot/));
   });
 
   // ── API client — production grade ──────────────────────────────

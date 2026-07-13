@@ -27,6 +27,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const DEFAULT_API_URL =
   (process.env.EXPO_PUBLIC_API_URL as string) || 'http://localhost:8766';
 
+// Phase 1: HTTPS enforcement — in production, reject http:// (except localhost)
+const IS_DEV = __DEV__;
+function _validateHost(url: string): void {
+  if (IS_DEV) return; // Dev mode allows http:// for local testing
+  if (url.startsWith('http://') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+    throw new Error(
+      'Insecure API URL rejected: production builds require https://. ' +
+      'Set a secure URL or run in dev mode.'
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Host configuration — get/set the API base URL at runtime
 // ─────────────────────────────────────────────────────────────────────
@@ -45,8 +57,11 @@ export function getHost(): string {
  * Switches the API base URL at runtime (e.g. to point at a different
  * Maestro backend). Updates the axios instance's `baseURL` and
  * persists the choice to SecureStore so it survives app restarts.
+ *
+ * Phase 1: In production builds, rejects http:// URLs (except localhost).
  */
 export function setHost(url: string): void {
+  _validateHost(url);
   hostUrl = url;
   api.defaults.baseURL = url;
   // Persist the choice securely. Fire-and-forget — a failure here

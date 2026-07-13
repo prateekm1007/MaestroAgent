@@ -1,144 +1,145 @@
 /**
- * AskScreen — the truth, sourced.
+ * AskScreen — extracted from the original App.tsx, unchanged in logic.
  *
- * Bumble-inspired: warm cream, honey accent, clean card.
- * Ask returns the exact sentence + source + situation state.
+ * Free-text question against the Maestro knowledge graph. Renders the
+ * answer, provenance sentence, confidence bar, counterevidence, and
+ * unknowns. Recent queries are persisted in AsyncStorage.
  */
 
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useAuth } from '../api/auth';
-import { ask, AskResult } from '../api/client';
-import { theme } from '../theme';
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, SafeAreaView,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import * as api from '../api/client';
+import { colors, getTheme, spacing, typography } from '../theme/colors';
+import { useAuth, useTheme } from '../contexts';
+import { Card, ConfidenceBar, TopBar } from '../components';
+import { styles } from '../styles';
 
 export default function AskScreen() {
+  const { mode } = useTheme();
+  const t = getTheme(mode);
   const { token } = useAuth();
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<AskResult | null>(null);
+  const [result, setResult] = useState<api.AskResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
 
-  const handleAsk = async () => {
-    if (!query.trim() || !token) return;
+  useEffect(() => {
+    AsyncStorage.getItem('maestro_ask_history').then(h => {
+      if (h) setHistory(JSON.parse(h).slice(0, 10));
+    });
+  }, []);
+
+  const handleAsk = async (q?: string) => {
+    const queryText = q || query;
+    if (!queryText || !token) return;
     setLoading(true);
-    setError(null);
+    setResult(null);
     try {
-      const r = await ask(token, query);
+      const r = await api.ask(queryText);
       setResult(r);
+      const newHistory = [queryText, ...history.filter(h => h !== queryText)].slice(0, 10);
+      setHistory(newHistory);
+      AsyncStorage.setItem('maestro_ask_history', JSON.stringify(newHistory));
     } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'Failed to get answer. Is the API running?');
     }
+    setLoading(false);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Ask</Text>
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="What did I promise Alex?"
-          value={query}
-          onChangeText={setQuery}
-          multiline
-          placeholderTextColor={theme.textSecondary}
-        />
-        <TouchableOpacity
-          style={[styles.askBtn, (!query.trim() || loading) && styles.askBtnDisabled]}
-          onPress={handleAsk}
-          disabled={loading || !query.trim()}
-        >
-          <Text style={styles.askBtnText}>{loading ? '...' : 'Ask'}</Text>
-        </TouchableOpacity>
+    <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
+      <TopBar title="Ask" />
+      <View style={{ padding: spacing.xl }}>
+        {/* Search bar */}
+        <View style={[styles.searchBar, { backgroundColor: t.surface }]}>
+          <Ionicons name="search" size={20} color={t.textSecondary} style={{ marginLeft: spacing.md }} />
+          <TextInput
+            style={{ flex: 1, color: t.textPrimary, fontSize: 15, paddingHorizontal: spacing.md }}
+            placeholder="Ask anything about your commitments..."
+            placeholderTextColor={t.textSecondary}
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={() => handleAsk()}
+            returnKeyType="search"
+          />
+          <TouchableOpacity onPress={() => handleAsk()} style={{ paddingRight: spacing.md }}>
+            {loading ? <ActivityIndicator color={colors.yellow} size="small" /> : <Ionicons name="arrow-forward" size={20} color={colors.yellow} />}
+          </TouchableOpacity>
+        </View>
+
+        {/* Recent */}
+        {history.length > 0 && !result && !loading && (
+          <>
+            <Text style={[typography.label, { color: t.textSecondary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>RECENT</Text>
+            {history.map((h, i) => (
+              <TouchableOpacity key={i} onPress={() => { setQuery(h); handleAsk(h); }} style={{ paddingVertical: spacing.md }}>
+                <Text style={{ color: t.textPrimary, fontSize: 14 }}>{h}</Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </View>
 
-      {loading && <ActivityIndicator style={{ marginTop: 24 }} color={theme.honey} size="large" />}
-      {error && <Text style={styles.error}>{error}</Text>}
+      {/* Loading */}
+      {loading && (
+        <View style={{ padding: spacing.xxl, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.yellow} size="large" />
+          <Text style={{ color: t.textSecondary, fontSize: 14, marginTop: spacing.md }}>Maestro is thinking...</Text>
+        </View>
+      )}
 
-      {result && !loading && (
-        <ScrollView style={styles.resultContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.answerCard}>
-            <Text style={styles.kicker}>ANSWER</Text>
-            <Text style={styles.answerText}>{result.answer}</Text>
-          </View>
+      {/* Result */}
+      {result && (
+        <ScrollView style={{ flex: 1, paddingHorizontal: spacing.xl }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+          <Card style={{ marginTop: spacing.md }}>
+            <Text style={{ color: t.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 1, marginBottom: spacing.sm }}>ANSWER</Text>
+            <Text style={{ fontSize: 16, color: t.textPrimary, lineHeight: 24 }}>{result.answer}</Text>
 
-          {result.source_sentence ? (
-            <View style={styles.sourceCard}>
-              <Text style={styles.kicker}>SOURCE — THE EXACT SENTENCE</Text>
-              <Text style={styles.sourceText}>"{result.source_sentence}"</Text>
-              <View style={styles.sourceMeta}>
-                {result.source_entity ? (
-                  <Text style={styles.sourceMetaItem}>→ {result.source_entity}</Text>
-                ) : null}
-                {result.situation_state ? (
-                  <View style={styles.statePill}>
-                    <Text style={styles.stateText}>{result.situation_state}</Text>
-                  </View>
-                ) : null}
+            {/* Provenance */}
+            {result.source_sentence ? (
+              <View style={{ marginTop: spacing.xl, borderTopWidth: 1, borderTopColor: t.border, paddingTop: spacing.md }}>
+                <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}>PROVENANCE</Text>
+                <Text style={{ fontSize: 14, color: t.textPrimary, fontStyle: 'italic' }}>"{result.source_sentence}"</Text>
+                <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>
+                  📌 {result.source_entity} · 🕐 {result.source_timestamp?.slice(0, 16)}
+                </Text>
               </View>
-            </View>
-          ) : null}
+            ) : null}
+
+            {/* Confidence */}
+            <ConfidenceBar value={result.confidence ?? 0} label={result.intelligence_source === 'llm' ? 'LLM-powered' : 'rules-based'} />
+
+            {/* Counterevidence */}
+            {(result.counterevidence?.length ?? 0) > 0 && (
+              <View style={{ marginTop: spacing.xl }}>
+                <Text style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}>COUNTEREVIDENCE</Text>
+                {result.counterevidence?.map((c, i) => (
+                  <Card key={i} accent="red" style={{ marginBottom: spacing.sm }}>
+                    <Text style={{ fontSize: 14, color: t.textPrimary }}>⚠ {typeof c === 'string' ? c : c.claim || JSON.stringify(c)}</Text>
+                  </Card>
+                ))}
+              </View>
+            )}
+
+            {/* Unknowns */}
+            {(result.unknowns?.length ?? 0) > 0 && (
+              <View style={{ marginTop: spacing.xl }}>
+                <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}>UNKNOWNS</Text>
+                {result.unknowns?.map((u, i) => (
+                  <Text key={i} style={{ fontSize: 14, color: t.textSecondary, marginBottom: spacing.xs }}>
+                    • {typeof u === 'string' ? u : u.description || JSON.stringify(u)}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </Card>
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: theme.bg },
-  title: { ...theme.font.title, marginBottom: 20 },
-  inputContainer: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  input: {
-    flex: 1,
-    backgroundColor: theme.cardBg,
-    borderRadius: theme.radius.lg,
-    padding: 16,
-    fontSize: 16,
-    color: theme.textPrimary,
-    minHeight: 56,
-    ...theme.shadow.card,
-  },
-  askBtn: {
-    backgroundColor: theme.honey,
-    borderRadius: theme.radius.lg,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-  },
-  askBtnDisabled: { opacity: 0.5 },
-  askBtnText: { color: theme.textOnHoney, fontSize: 16, fontWeight: '700' },
-  resultContainer: { flex: 1 },
-  answerCard: {
-    backgroundColor: theme.cardBg,
-    borderRadius: theme.radius.xl,
-    padding: 24,
-    marginBottom: 12,
-    ...theme.shadow.card,
-  },
-  kicker: { ...theme.font.kicker, marginBottom: 12 },
-  answerText: { fontSize: 17, color: theme.textPrimary, lineHeight: 26 },
-  sourceCard: {
-    backgroundColor: theme.purpleLight,
-    borderRadius: theme.radius.xl,
-    padding: 24,
-    marginBottom: 12,
-  },
-  sourceText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.purple,
-    lineHeight: 26,
-    marginBottom: 16,
-  },
-  sourceMeta: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  sourceMetaItem: { fontSize: 14, fontWeight: '600', color: theme.textSecondary },
-  statePill: {
-    backgroundColor: theme.honey,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginLeft: 'auto',
-  },
-  stateText: { fontSize: 12, fontWeight: '700', color: theme.textOnHoney, textTransform: 'capitalize' },
-  error: { color: theme.error, marginTop: 16, fontSize: 14 },
-});
