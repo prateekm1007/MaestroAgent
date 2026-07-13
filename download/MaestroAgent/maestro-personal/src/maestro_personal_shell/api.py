@@ -776,6 +776,24 @@ app = FastAPI(
     openapi_url=None if _prod else "/openapi.json",
 )
 
+# ---------------------------------------------------------------------------
+# Phase 1: Rate limiting (security P0)
+# ---------------------------------------------------------------------------
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+
+    _limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+    app.state.limiter = _limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+    _rate_limiting_enabled = True
+except ImportError:
+    _rate_limiting_enabled = False
+    logger.warning("slowapi not installed — rate limiting disabled (pip install slowapi)")
+
 # Phase 8: api.py split — first extract. Mount the admin router
 # (health endpoint). The old inline /api/health handler is removed
 # below; it now lives in routers/admin.py.
@@ -898,8 +916,12 @@ async def database_locked_handler(request: Request, exc: sqlite3.OperationalErro
 # 1. POST /api/auth/login — bearer token auth
 
 
+# Phase 1: stricter rate limit on login (brute force protection)
+_login_decorator = _limiter.limit("10/minute") if _rate_limiting_enabled else (lambda f: f)
+
 @app.post("/api/auth/login", response_model=LoginResponse)
-async def login(req: LoginRequest):
+@_login_decorator
+async def login(request: Request, req: LoginRequest):
     """Login — returns a bearer token.
 
     P1 fix: passwordless email login removed. The login now requires

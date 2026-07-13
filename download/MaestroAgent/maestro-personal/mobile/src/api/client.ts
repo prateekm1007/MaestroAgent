@@ -2,20 +2,22 @@
  * API client for Maestro Personal.
  *
  * Calls the FastAPI layer on port 8766. All requests require a bearer
- * token (obtained from login). The token is stored in AsyncStorage.
+ * token (obtained from login). The token is stored in SecureStore
+ * (expo-secure-store) — NOT AsyncStorage. This is a Phase 1 security fix:
+ * SecureStore uses the iOS Keychain / Android Keystore (encrypted at rest).
  *
  * This is a thin HTTP client — NO intelligence here. The API calls the
  * shell, the shell calls Core. The mobile app is a view layer.
  *
  * Token handling: every method accepts an optional `token` argument.
- * When omitted, the token is read from AsyncStorage ('maestro_token').
+ * When omitted, the token is read from SecureStore ('maestro_token').
  * This matches the call sites in App.tsx which never pass the token
- * explicitly — the AuthProvider stores it in AsyncStorage on login.
+ * explicitly — the AuthProvider stores it in SecureStore on login.
  *
  * HTTP transport: axios. A request interceptor auto-attaches the Bearer
- * token via resolveToken() (reads from AsyncStorage when not passed
+ * token via resolveToken() (reads from SecureStore when not passed
  * explicitly), and a response interceptor auto-logs-out on 401 by
- * clearing 'maestro_token' from AsyncStorage.
+ * clearing 'maestro_token' from SecureStore.
  */
 
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
@@ -55,13 +57,15 @@ export function setHost(url: string): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Auth token helpers — read from AsyncStorage when not passed explicitly
+// Auth token helpers — read from SecureStore when not passed explicitly
+// Phase 1 security fix: token stored in SecureStore (Keychain/Keystore),
+// NOT AsyncStorage (which is plaintext JSON on disk).
 // ─────────────────────────────────────────────────────────────────────
 
 async function resolveToken(provided?: string): Promise<string | undefined> {
   if (provided) return provided;
   try {
-    const t = await AsyncStorage.getItem('maestro_token');
+    const t = await SecureStore.getItemAsync('maestro_token');
     return t || undefined;
   } catch {
     return undefined;
@@ -367,7 +371,7 @@ const api = axios.create({
   },
 });
 
-// Request interceptor — auto-attach the Bearer token from AsyncStorage
+// Request interceptor — auto-attach the Bearer token from SecureStore
 // (via resolveToken) for every outbound request that does not already
 // carry an Authorization header. Methods that accept an explicit `token`
 // arg still set it themselves before the interceptor runs; this is the
@@ -383,7 +387,7 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
 });
 
 // Response interceptor — auto-logout on 401 by clearing the token from
-// AsyncStorage, and normalize the rejected error to match the prior
+// SecureStore, and normalize the rejected error to match the prior
 // apiFetch behavior (`API error <status>: <body>`).
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
@@ -391,7 +395,7 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     if (status === 401) {
       try {
-        await AsyncStorage.removeItem('maestro_token');
+        await SecureStore.deleteItemAsync('maestro_token');
       } catch {
         /* ignore storage errors — logout is best-effort */
       }
