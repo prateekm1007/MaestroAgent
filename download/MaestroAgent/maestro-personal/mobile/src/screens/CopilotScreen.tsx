@@ -33,9 +33,10 @@ function ConsentModal({ visible, onGrant, onDeny }: { visible: boolean; onGrant:
           </Text>
           <Text style={{ fontSize: 15, color: t.textSecondary, lineHeight: 22, marginBottom: spacing.lg }}>
             Maestro Live Copilot will use your microphone to transcribe the meeting in real time.{'\n\n'}
-            • Audio is processed locally on your device{'\n'}
-            • Only text transcripts are sent to the server{'\n'}
-            • Audio never leaves your device{'\n'}
+            • Audio is recorded in 5-second segments{'\n'}
+            • Each segment is uploaded to the Maestro server for transcription{'\n'}
+            • Transcription is performed by the configured STT provider (Wit.ai/Whisper){'\n'}
+            • Audio files are NOT stored — only the transcribed text is kept{'\n'}
             • All participants should be informed{'\n'}
             • You can revoke consent at any time{'\n'}
             • All actions are audit-logged
