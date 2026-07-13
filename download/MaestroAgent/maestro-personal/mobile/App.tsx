@@ -943,17 +943,51 @@ function CopilotScreen() {
       setRecording(false);
       (global as any).__maestroRecording = null;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Local transcription: send audio URI to backend for transcription
-      // (on-device Whisper WASM would be ideal but requires native module)
-      // For now, use the REST transcript endpoint with a note that audio was captured
-      if (uri) {
-        const transcriptText = '[Audio recorded — ' + new Date().toLocaleTimeString() + ']';
-        setChunks(prev => [...prev, { speaker: '🎤 Audio', text: transcriptText, ts: new Date().toISOString() }]);
-        // Send to backend for processing
-        if (token) {
-          try {
-            await api.sendTranscriptChunk(transcriptText, 'audio', '');
-          } catch (e) { /* non-fatal */ }
+      // Upload audio to backend for transcription
+      if (uri && token) {
+        setChunks(prev => [...prev, { speaker: '🎤 Audio', text: '[Transcribing…]', ts: new Date().toISOString() }]);
+        try {
+          const formData = new FormData();
+          formData.append('file', {
+            uri,
+            type: 'audio/m4a',
+            name: 'recording.m4a',
+          } as any);
+          const response = await fetch(`${api.getHost()}/api/copilot/transcribe`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+          });
+          const result = await response.json();
+          if (result.text && result.text.trim()) {
+            // Transcription succeeded — replace the placeholder + send through transcript pipeline
+            const transcriptText = result.text.trim();
+            setChunks(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1] = { speaker: '🎤 Audio', text: transcriptText, ts: new Date().toISOString() };
+              return updated;
+            });
+            try {
+              await api.sendTranscriptChunk(transcriptText, 'audio', '');
+            } catch (e) { /* non-fatal */ }
+          } else if (!result.configured) {
+            // No transcription provider configured — show the honest message
+            setChunks(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                speaker: '🎤 Audio',
+                text: '[Audio captured — no transcription provider configured. Set MAESTRO_WHISPER_MODEL or MAESTRO_OPENAI_API_KEY on the backend.]',
+                ts: new Date().toISOString(),
+              };
+              return updated;
+            });
+          }
+        } catch (e) {
+          setChunks(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { speaker: '🎤 Audio', text: '[Audio captured — upload failed]', ts: new Date().toISOString() };
+            return updated;
+          });
         }
       }
     } catch (e) { /* ignore */ }

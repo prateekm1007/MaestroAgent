@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
@@ -3622,6 +3622,43 @@ class PostCallSummaryRequest(BaseModel):
     transcript_chunks: list[dict[str, Any]] = []
     commitments: list[dict[str, Any]] = []
     entity: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Audio transcription — POST /api/copilot/transcribe
+# Accepts an audio file upload, transcribes it, returns text.
+# The mobile app uploads recorded audio here, gets text back, then sends
+# that text through the existing /api/copilot/transcript pipeline.
+# ---------------------------------------------------------------------------
+
+@app.post("/api/copilot/transcribe")
+async def transcribe_audio_endpoint(
+    file: UploadFile = File(...),
+    token: str = Depends(verify_token),
+):
+    """Transcribe an audio file using the configured STT provider.
+
+    Accepts multipart/form-data with an audio file (m4a, wav, mp3).
+    Returns the transcribed text, which the client then sends through
+    /api/copilot/transcript for real-time intelligence.
+
+    Providers (configured via env vars):
+    - MAESTRO_WHISPER_MODEL: local Whisper (pip install openai-whisper)
+    - MAESTRO_OPENAI_API_KEY: OpenAI Whisper API (cloud)
+    - MAESTRO_GOOGLE_STT_KEY: Google Speech-to-Text
+
+    If no provider is configured, returns 200 with configured=False
+    and a clear error message — the mobile app shows this rather than
+    silently failing.
+    """
+    from maestro_personal_shell.audio_transcription import transcribe_audio
+
+    audio_data = await file.read()
+    if not audio_data:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+    result = transcribe_audio(audio_data, file.filename or "audio.m4a")
+    return result
 
 
 @app.post("/api/copilot/post-call")

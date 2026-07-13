@@ -15,9 +15,13 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    if (!password.trim()) {
+      Alert.alert('Password Required', 'Enter your Maestro access token to continue.');
+      return;
+    }
     setLoading(true);
     try {
-      await login(password || 'any');
+      await login(password);
     } catch (error) {
       Alert.alert('Login Failed', String(error));
     } finally {
@@ -37,7 +41,7 @@ export default function LoginScreen() {
         <View style={styles.formContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Password (any for now)"
+            placeholder="Access token"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
