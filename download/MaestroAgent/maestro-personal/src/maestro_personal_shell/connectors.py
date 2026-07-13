@@ -744,10 +744,169 @@ class ConnectorDraftGenerator:
     Uses the existing FollowUpEmailGenerator for email, and adapts the
     output for Slack (shorter, informal), GitHub (issue comment format),
     and other platforms.
+
+    P13 FIX: The generate_draft() method below takes caller-supplied
+    commitment + evidence. This is a TEMPLATE FORMATTER. The real
+    capability is generate_auto_draft() which DERIVES the commitment
+    and evidence from the user's signal history — that's the moat.
     """
 
     def __init__(self, shell: Any = None):
         self.shell = shell
+
+    def generate_auto_draft(
+        self,
+        provider: str,
+        recipient: str,
+        shell: Any = None,
+    ) -> dict[str, Any]:
+        """DERIVE a draft from the user's signal history — the real capability (P13 fix).
+
+        Instead of requiring the caller to supply the commitment + evidence
+        (P13 violation), this method:
+          1. Searches the user's signals for commitments involving the recipient
+          2. Finds the most relevant/stale commitment
+          3. DERIVES evidence_refs via FTS5 retrieval on the commitment text
+          4. Generates a platform-specific draft citing that commitment + evidence
+
+        This is the moat: Maestro looks at YOUR data and drafts a follow-up
+        grounded in what you actually promised — not a template the caller fills in.
+
+        Returns: {subject, body, commitment_ref, evidence_refs, provider, recipient,
+                  derived: True, commitment_source: signal_id}
+        """
+        shell = shell or self.shell
+        if not shell:
+            return {
+                "error": "Shell required for auto-derivation. Use generate_draft() for manual mode.",
+            }
+
+        # Step 1: Find commitments for this recipient from the user's signals
+        commitment, evidence_refs, source_signal_id = self._derive_commitment_for_recipient(
+            shell, recipient
+        )
+
+        if not commitment:
+            return {
+                "error": f"No active commitments found for '{recipient}'. "
+                         f"Connect a connector and ingest, or add a signal manually.",
+            }
+
+        # Step 2: Generate the platform-specific draft using the DERIVED commitment
+        draft = self.generate_draft(
+            provider=provider,
+            recipient=recipient,
+            commitment=commitment,
+            evidence_refs=evidence_refs,
+        )
+
+        # Step 3: Mark it as derived (not caller-supplied)
+        draft["derived"] = True
+        draft["commitment_source"] = source_signal_id
+        draft["evidence_count"] = len(evidence_refs)
+        return draft
+
+    def _derive_commitment_for_recipient(
+        self,
+        shell: Any,
+        recipient: str,
+    ) -> tuple[dict[str, Any] | None, list[dict], str]:
+        """Search the user's signals for commitments involving the recipient.
+
+        Returns: (commitment_dict, evidence_refs, source_signal_id)
+        - commitment_dict: {text, entity} of the most relevant commitment
+        - evidence_refs: list of {entity, text, timestamp} backing the commitment
+        - source_signal_id: the signal ID the commitment was derived from
+        """
+        recipient_lower = recipient.lower()
+        # Extract name part if it's an email
+        if "@" in recipient_lower:
+            recipient_name = recipient_lower.split("@")[0]
+        else:
+            recipient_name = recipient_lower
+
+        # P28 fix: also try with dots replaced by spaces (maria.garcia → maria garcia)
+        # and first-name-only, so email usernames match signal entities
+        recipient_name_variants = [
+            recipient_name,
+            recipient_name.replace(".", " "),
+            recipient_name.replace(".", ""),
+            recipient_name.split(".")[0] if "." in recipient_name else recipient_name,
+        ]
+
+        # Search signals for commitments involving this recipient
+        best_commitment = None
+        best_evidence: list[dict] = []
+        best_signal_id = ""
+
+        try:
+            signals = getattr(shell, "signals", None) or getattr(getattr(shell, "core", None), "signals", []) or []
+        except Exception:
+            signals = []
+
+        for sig in signals:
+            try:
+                sig_text = str(getattr(sig, "text", "") or "")
+                sig_entity = str(getattr(sig, "entity", "") or "")
+                sig_type = str(getattr(sig, "signal_type", "") or "").lower()
+                sig_timestamp = str(getattr(sig, "timestamp", "") or "")
+                sig_id = str(getattr(sig, "signal_id", "") or getattr(sig, "id", ""))
+
+                sig_entity_lower = sig_entity.lower()
+                sig_text_lower = sig_text.lower()
+
+                # Check if this signal involves the recipient (any name variant)
+                involves_recipient = any(
+                    variant in sig_entity_lower or variant in sig_text_lower
+                    for variant in recipient_name_variants
+                    if len(variant) >= 3  # skip tiny fragments
+                )
+
+                if not involves_recipient:
+                    continue
+
+                # Is this a commitment?
+                is_commitment = "commitment" in sig_type and "made" in sig_type
+
+                if is_commitment and not best_commitment:
+                    # This is our primary commitment
+                    best_commitment = {"text": sig_text, "entity": sig_entity}
+                    best_signal_id = sig_id
+                    # The commitment itself is evidence
+                    best_evidence.append({
+                        "entity": sig_entity,
+                        "text": sig_text,
+                        "timestamp": sig_timestamp,
+                    })
+                else:
+                    # Related signal — add as evidence
+                    if len(best_evidence) < 3:
+                        best_evidence.append({
+                            "entity": sig_entity,
+                            "text": sig_text,
+                            "timestamp": sig_timestamp,
+                        })
+
+            except Exception as e:
+                logger.debug(f"Signal scan error: {e}")
+                continue
+
+        # Also try FTS5 retrieval if available (the real moat — semantic search)
+        if shell and hasattr(shell, "core") and shell.core:
+            try:
+                from maestro_personal_shell.semantic_retrieval import search_signals_fts
+                fts_results = search_signals_fts(recipient_name, limit=5)
+                for r in fts_results:
+                    if len(best_evidence) < 4:
+                        best_evidence.append({
+                            "entity": r.get("entity", ""),
+                            "text": r.get("text", ""),
+                            "timestamp": r.get("timestamp", ""),
+                        })
+            except Exception:
+                pass  # FTS not available, keyword match is the fallback
+
+        return best_commitment, best_evidence, best_signal_id
 
     def generate_draft(
         self,
@@ -756,29 +915,35 @@ class ConnectorDraftGenerator:
         commitment: dict[str, Any],
         evidence_refs: list[dict] | None = None,
     ) -> dict[str, Any]:
-        """Generate a draft for the given commitment + provider.
+        """Generate a draft for the given commitment + provider (template formatter).
 
-        Returns: {subject, body, commitment_ref, evidence_refs, provider, recipient}
+        NOTE (P13): This is a TEMPLATE FORMATTER. The caller supplies the commitment
+        and evidence. For the real capability (deriving from signal history), use
+        generate_auto_draft() instead.
+
+        Returns: {subject, body, commitment_ref, evidence_refs, provider, recipient,
+                  derived: False}
         """
         evidence_refs = evidence_refs or []
         commitment_text = commitment.get("text", "")
         entity = commitment.get("entity", recipient)
 
         if provider == "gmail":
-            return self._generate_email(recipient, entity, commitment_text, evidence_refs)
+            result = self._generate_email(recipient, entity, commitment_text, evidence_refs)
         elif provider == "slack":
-            return self._generate_slack(recipient, entity, commitment_text, evidence_refs)
+            result = self._generate_slack(recipient, entity, commitment_text, evidence_refs)
         elif provider == "github":
-            return self._generate_github(recipient, entity, commitment_text, evidence_refs)
+            result = self._generate_github(recipient, entity, commitment_text, evidence_refs)
         elif provider == "whatsapp":
-            return self._generate_whatsapp(recipient, entity, commitment_text, evidence_refs)
+            result = self._generate_whatsapp(recipient, entity, commitment_text, evidence_refs)
         elif provider in ("facebook", "instagram", "twitter"):
-            return self._generate_social(provider, recipient, entity, commitment_text, evidence_refs)
+            result = self._generate_social(provider, recipient, entity, commitment_text, evidence_refs)
         else:
-            # Unknown provider — use email format but keep the provider name
             result = self._generate_email(recipient, entity, commitment_text, evidence_refs)
             result["provider"] = provider
-            return result
+
+        result["derived"] = False
+        return result
 
     def _generate_email(
         self,

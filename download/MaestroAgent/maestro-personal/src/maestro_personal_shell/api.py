@@ -3953,6 +3953,12 @@ class ConnectorDraftRequest(BaseModel):
     evidence_refs: list[dict[str, Any]] = []
 
 
+class ConnectorAutoDraftRequest(BaseModel):
+    """P13 fix: only provider + recipient — commitment + evidence are DERIVED."""
+    provider: str
+    recipient: str
+
+
 class DraftResolutionRequest(BaseModel):
     resolution: str  # approve | deny | use_draft
 
@@ -4009,10 +4015,11 @@ async def connector_audit_log(token: str = Depends(verify_token), limit: int = 5
 
 @app.post("/api/drafts")
 async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_token)):
-    """Create a pending draft for user approval.
+    """Create a pending draft for user approval (template formatter — P13 disclosure).
 
-    Generates a commitment-aware draft using the ConnectorDraftGenerator.
-    The draft is stored as 'pending' until the user resolves it.
+    NOTE (P13): This endpoint takes caller-supplied commitment_text + evidence_refs.
+    It is a TEMPLATE FORMATTER, not the real capability. For the real capability
+    (deriving commitment + evidence from signal history), use POST /api/drafts/auto.
     """
     from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
     store = ConnectorStore()
@@ -4034,6 +4041,49 @@ async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_t
     )
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+
+@app.post("/api/drafts/auto")
+async def create_auto_draft(req: ConnectorAutoDraftRequest, token: str = Depends(verify_token)):
+    """DERIVE a draft from the user's signal history — the real capability (P13 fix).
+
+    Only takes provider + recipient. Maestro DERIVES:
+      1. The commitment (by searching the user's signals for commitments to this recipient)
+      2. The evidence_refs (via keyword match + FTS5 retrieval on the recipient name)
+
+    This is the moat: Maestro looks at YOUR data and drafts a follow-up grounded
+    in what you actually promised — not a template the caller fills in.
+
+    If no commitments are found for the recipient, returns 404 with guidance.
+    """
+    from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
+    store = ConnectorStore()
+    shell = build_shell(user_email=token)
+    gen = ConnectorDraftGenerator(shell=shell)
+    draft_data = gen.generate_auto_draft(
+        provider=req.provider,
+        recipient=req.recipient,
+        shell=shell,
+    )
+    if "error" in draft_data:
+        raise HTTPException(status_code=404, detail=draft_data["error"])
+
+    result = store.create_draft(
+        user_email=token,
+        provider=draft_data["provider"],
+        recipient=draft_data["recipient"],
+        subject=draft_data["subject"],
+        body=draft_data["body"],
+        commitment_ref=draft_data["commitment_ref"],
+        evidence_refs=draft_data["evidence_refs"],
+    )
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    # Attach derivation metadata so the UI can show "derived from your signals"
+    result["derived"] = draft_data.get("derived", False)
+    result["commitment_source"] = draft_data.get("commitment_source", "")
+    result["evidence_count"] = draft_data.get("evidence_count", 0)
     return result
 
 

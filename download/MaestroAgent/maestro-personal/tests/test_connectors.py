@@ -544,3 +544,134 @@ class TestSecurity:
         store.disconnect("userA@test.com", "gmail")
         gmail_b_after = [c for c in store.list_connectors("userB@test.com") if c["provider"] == "gmail"][0]
         assert gmail_b_after["connected"] is True
+
+
+# ---------------------------------------------------------------------------
+# 7. P13 FIX — Auto-derivation tests (the real capability)
+# ---------------------------------------------------------------------------
+
+class TestAutoDraftDerivation:
+    """P13 fix: /api/drafts/auto DERIVES the commitment from signal history.
+
+    Unlike /api/drafts (which takes caller-supplied commitment_text), the
+    auto endpoint takes only provider + recipient and DERIVES:
+      1. The commitment (from the user's signals)
+      2. The evidence_refs (from related signals + FTS5)
+    """
+
+    def test_auto_draft_derives_commitment_from_signals(self):
+        """The auto endpoint finds a commitment for the recipient in signal history."""
+        from unittest.mock import MagicMock
+        from maestro_personal_shell.connectors import ConnectorDraftGenerator
+
+        # Mock shell with signals including a commitment to Maria
+        shell = MagicMock()
+        sig1 = MagicMock()
+        sig1.text = "I will send Maria the pricing proposal by Friday"
+        sig1.entity = "Maria"
+        sig1.signal_type = "commitment_made"
+        sig1.timestamp = "2026-07-10T10:00:00Z"
+        sig1.signal_id = "sig-001"
+
+        sig2 = MagicMock()
+        sig2.text = "Maria followed up asking for the proposal"
+        sig2.entity = "Maria"
+        sig2.signal_type = "follow_up_required"
+        sig2.timestamp = "2026-07-12T09:00:00Z"
+        sig2.signal_id = "sig-002"
+
+        shell.signals = [sig1, sig2]
+        shell.core = None  # skip FTS
+
+        gen = ConnectorDraftGenerator(shell=shell)
+        result = gen.generate_auto_draft(
+            provider="gmail",
+            recipient="maria@example.com",
+            shell=shell,
+        )
+
+        assert "error" not in result, f"Should derive, got: {result}"
+        assert result["derived"] is True, "Must be marked as derived"
+        assert "pricing proposal" in result["body"], "Draft must cite the derived commitment"
+        assert result["commitment_source"] == "sig-001"
+        assert result["evidence_count"] >= 1, "Must have at least 1 evidence ref"
+        assert len(result["evidence_refs"]) >= 1
+
+    def test_auto_draft_returns_error_when_no_commitments_found(self):
+        """If no commitments exist for the recipient, return a clear error."""
+        from unittest.mock import MagicMock
+        from maestro_personal_shell.connectors import ConnectorDraftGenerator
+
+        shell = MagicMock()
+        shell.signals = []  # no signals at all
+        shell.core = None
+
+        gen = ConnectorDraftGenerator(shell=shell)
+        result = gen.generate_auto_draft(
+            provider="gmail",
+            recipient="nobody@example.com",
+            shell=shell,
+        )
+
+        assert "error" in result
+        assert "No active commitments" in result["error"]
+
+    def test_auto_draft_requires_shell(self):
+        """Without a shell, auto-derivation can't work — must error clearly."""
+        from maestro_personal_shell.connectors import ConnectorDraftGenerator
+        gen = ConnectorDraftGenerator(shell=None)
+        result = gen.generate_auto_draft("gmail", "maria@example.com")
+        assert "error" in result
+        assert "Shell required" in result["error"]
+
+    def test_auto_draft_finds_commitment_by_name_not_email(self):
+        """Should match 'maria' in signal entity even when recipient is 'maria@example.com'."""
+        from unittest.mock import MagicMock
+        from maestro_personal_shell.connectors import ConnectorDraftGenerator
+
+        shell = MagicMock()
+        sig = MagicMock()
+        sig.text = "I will send Maria the security questionnaire"
+        sig.entity = "Maria Garcia"
+        sig.signal_type = "commitment_made"
+        sig.timestamp = "2026-07-09T10:00:00Z"
+        sig.signal_id = "sig-maria"
+        shell.signals = [sig]
+        shell.core = None
+
+        gen = ConnectorDraftGenerator(shell=shell)
+        result = gen.generate_auto_draft("gmail", "maria.garcia@example.com", shell=shell)
+        assert "error" not in result
+        assert "security questionnaire" in result["body"]
+
+    def test_manual_draft_marked_not_derived(self):
+        """The manual generate_draft() must be marked derived=False (P13 disclosure)."""
+        from maestro_personal_shell.connectors import ConnectorDraftGenerator
+        gen = ConnectorDraftGenerator(shell=None)
+        result = gen.generate_draft(
+            provider="gmail",
+            recipient="maria@example.com",
+            commitment={"text": "test commitment", "entity": "Maria"},
+            evidence_refs=[],
+        )
+        assert result["derived"] is False, "Manual drafts must be marked derived=False"
+
+    def test_auto_draft_api_endpoint(self, client, auth_headers):
+        """The /api/drafts/auto endpoint must return 200 or 404 (not 500)."""
+        response = client.post(
+            "/api/drafts/auto",
+            headers=auth_headers,
+            json={"provider": "gmail", "recipient": "maria@example.com"},
+        )
+        # 200 if signals exist for maria, 404 if not — both are correct behavior
+        assert response.status_code in (200, 404), f"Got {response.status_code}: {response.text}"
+
+    def test_auto_draft_only_takes_provider_and_recipient(self):
+        """P13: the ConnectorAutoDraftRequest must NOT accept commitment_text."""
+        # This is a schema check — the request model should only have provider + recipient
+        from maestro_personal_shell.api import ConnectorAutoDraftRequest
+        fields = ConnectorAutoDraftRequest.model_fields
+        assert "provider" in fields
+        assert "recipient" in fields
+        assert "commitment_text" not in fields, "P13 violation: auto endpoint must not take commitment_text"
+        assert "evidence_refs" not in fields, "P13 violation: auto endpoint must not take evidence_refs"
