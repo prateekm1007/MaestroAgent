@@ -90,9 +90,14 @@ export default function CopilotScreen() {
   // ── WebSocket connection ────────────────────────────────────────
   const connectWS = () => {
     if (!token) return;
-    const host = 'localhost:8766'; // Will be configurable
+    // Phase 4: WS URL derived from configured API host (not hardcoded)
+    const apiHost = api.getHost();
+    // Convert http://host → ws://host, https://host → wss://host
+    const wsUrl = apiHost
+      .replace(/^https:\/\//, 'wss://')
+      .replace(/^http:\/\//, 'ws://') + '/ws/copilot';
     try {
-      const ws = new WebSocket(`ws://${host}/ws/copilot`, ['maestro-auth']);
+      const ws = new WebSocket(wsUrl, ['maestro-auth']);
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: 'auth', token }));
         setConnected(true);
@@ -195,22 +200,32 @@ export default function CopilotScreen() {
     setShowPostCall(true);
   };
 
-  // ── Audio recording (expo-av) ───────────────────────────────────
+  // ── Audio recording with streaming STT ───────────────────────────
+  // Phase 4: Instead of recording → stop → upload → get text (batch),
+  // we record in 5-second intervals, upload each chunk immediately,
+  // and show partial transcriptions in real time.
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chunkCounterRef = useRef(0);
+
   const startRecording = async () => {
     if (!hasConsent) { setShowConsent(true); return; }
     try {
-      // Request permission
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Microphone access is required for live transcription.');
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      // expo-av 15 removed `startRecording()` — the new API is `startAsync()`.
-      await rec.startAsync();
-      (global as any).__maestroRecording = rec;
+
+      // Start first recording segment
+      await startRecordingSegment();
+
+      // Phase 4: Stream — every 5 seconds, stop current segment, upload for
+      // transcription, start a new segment. This gives near-real-time STT.
+      recordingIntervalRef.current = setInterval(async () => {
+        await uploadAndRestartSegment();
+      }, 5000);
+
       setRecording(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (e) {
@@ -218,62 +233,133 @@ export default function CopilotScreen() {
     }
   };
 
-  const stopRecording = async () => {
+  const startRecordingSegment = async () => {
     try {
-      const rec = (global as any).__maestroRecording as Audio.Recording;
-      if (!rec) return;
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+      (global as any).__maestroRecording = rec;
+    } catch (e) {
+      console.warn('Segment start failed:', e);
+    }
+  };
+
+  const uploadAndRestartSegment = async () => {
+    const rec = (global as any).__maestroRecording as Audio.Recording;
+    if (!rec) return;
+
+    try {
+      // Stop current segment
       await rec.stopAndUnloadAsync();
       const uri = rec.getURI();
-      setRecording(false);
       (global as any).__maestroRecording = null;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Upload audio to backend for transcription
+
+      // Upload for transcription (non-blocking — don't wait for response
+      // before starting next segment, to minimize gap)
       if (uri && token) {
-        setChunks(prev => [...prev, { speaker: '🎤 Audio', text: '[Transcribing…]', ts: new Date().toISOString() }]);
-        try {
-          const formData = new FormData();
-          formData.append('file', {
-            uri,
-            type: 'audio/m4a',
-            name: 'recording.m4a',
-          } as any);
-          const response = await fetch(`${api.getHost()}/api/copilot/transcribe`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
-          });
-          const result = await response.json();
-          if (result.text && result.text.trim()) {
-            // Transcription succeeded — replace the placeholder + send through transcript pipeline
-            const transcriptText = result.text.trim();
-            setChunks(prev => {
-              const updated = [...prev];
-              updated[updated.length - 1] = { speaker: '🎤 Audio', text: transcriptText, ts: new Date().toISOString() };
-              return updated;
-            });
-            try {
-              await api.sendTranscriptChunk(transcriptText, 'audio', '');
-            } catch (e) { /* non-fatal */ }
-          } else if (!result.configured) {
-            // No transcription provider configured — show the honest message
-            setChunks(prev => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                speaker: '🎤 Audio',
-                text: '[Audio captured — no transcription provider configured. Set MAESTRO_WHISPER_MODEL or MAESTRO_OPENAI_API_KEY on the backend.]',
-                ts: new Date().toISOString(),
-              };
-              return updated;
-            });
+        chunkCounterRef.current += 1;
+        const chunkNum = chunkCounterRef.current;
+        const placeholderTs = new Date().toISOString();
+
+        // Add placeholder immediately
+        setChunks(prev => [...prev, { speaker: '🎤 Audio', text: `[Transcribing chunk ${chunkNum}…]`, ts: placeholderTs }]);
+
+        // Upload in background
+        transcribeSegment(uri, chunkNum, placeholderTs);
+
+        // Start next segment immediately
+        await startRecordingSegment();
+      }
+    } catch (e) {
+      // Non-fatal — restart segment
+      console.warn('Segment upload failed:', e);
+      await startRecordingSegment();
+    }
+  };
+
+  const transcribeSegment = async (uri: string, chunkNum: number, placeholderTs: string) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', { uri, type: 'audio/m4a', name: `chunk-${chunkNum}.m4a` } as any);
+      const response = await fetch(`${api.getHost()}/api/copilot/transcribe`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (result.text && result.text.trim()) {
+        const transcriptText = result.text.trim();
+        // Replace the placeholder with actual transcription
+        setChunks(prev => {
+          const updated = [...prev];
+          const idx = updated.findIndex(c => c.ts === placeholderTs);
+          if (idx >= 0) {
+            updated[idx] = { speaker: '🎤 Audio', text: transcriptText, ts: new Date().toISOString() };
           }
-        } catch (e) {
-          setChunks(prev => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { speaker: '🎤 Audio', text: '[Audio captured — upload failed]', ts: new Date().toISOString() };
-            return updated;
-          });
+          return updated;
+        });
+        // Send through transcript pipeline for commitment detection
+        try {
+          const transcriptResult = await api.sendTranscriptChunk(transcriptText, 'audio', '');
+          // If commitments detected, they'll arrive via WS as whispers
+        } catch (e) { /* non-fatal */ }
+      } else if (!result.configured) {
+        setChunks(prev => {
+          const updated = [...prev];
+          const idx = updated.findIndex(c => c.ts === placeholderTs);
+          if (idx >= 0) {
+            updated[idx] = {
+              speaker: '🎤 Audio',
+              text: '[No transcription provider configured]',
+              ts: new Date().toISOString(),
+            };
+          }
+          return updated;
+        });
+      } else {
+        // Remove placeholder if no text
+        setChunks(prev => prev.filter(c => c.ts !== placeholderTs));
+      }
+    } catch (e) {
+      setChunks(prev => {
+        const updated = [...prev];
+        const idx = updated.findIndex(c => c.ts === placeholderTs);
+        if (idx >= 0) {
+          updated[idx] = { speaker: '🎤 Audio', text: '[Upload failed]', ts: new Date().toISOString() };
+        }
+        return updated;
+      });
+    }
+  };
+
+  const stopRecording = async () => {
+    // Clear the streaming interval
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+
+    try {
+      // Upload the final segment
+      const rec = (global as any).__maestroRecording as Audio.Recording;
+      if (rec) {
+        await rec.stopAndUnloadAsync();
+        const uri = rec.getURI();
+        (global as any).__maestroRecording = null;
+
+        if (uri && token) {
+          chunkCounterRef.current += 1;
+          const chunkNum = chunkCounterRef.current;
+          const placeholderTs = new Date().toISOString();
+          setChunks(prev => [...prev, { speaker: '🎤 Audio', text: `[Transcribing chunk ${chunkNum}…]`, ts: placeholderTs }]);
+          await transcribeSegment(uri, chunkNum, placeholderTs);
         }
       }
+
+      setRecording(false);
+      chunkCounterRef.current = 0;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) { /* ignore */ }
   };
 
