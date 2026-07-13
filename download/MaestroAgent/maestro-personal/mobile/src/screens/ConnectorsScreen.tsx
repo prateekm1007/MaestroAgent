@@ -324,6 +324,8 @@ function ConnectorCard({
         {/* Status badge */}
         {connected ? (
           <Badge text="Connected" color="green" />
+        ) : connector.demo_mode ? (
+          <Badge text="Demo" color="gray" />
         ) : (
           <Badge text="Not connected" color="gray" />
         )}

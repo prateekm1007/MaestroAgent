@@ -339,6 +339,7 @@ class ConnectorStore:
                 "last_ingest_at": "",
                 "commitments_ingested": 0,
             })
+            oauth_configured = self._is_oauth_configured(provider_id)
             result.append({
                 "provider": provider_id,
                 "name": meta["name"],
@@ -347,7 +348,9 @@ class ConnectorStore:
                 "phase": meta["phase"],
                 "ingest_description": meta["ingest_description"],
                 "write_description": meta["write_description"],
-                "oauth_configured": self._is_oauth_configured(provider_id),
+                "oauth_configured": oauth_configured,
+                "demo_mode": not oauth_configured,  # K1: clearly label demo vs production
+                "demo_label": "Demo" if not oauth_configured else None,
                 **state,
             })
         return result
