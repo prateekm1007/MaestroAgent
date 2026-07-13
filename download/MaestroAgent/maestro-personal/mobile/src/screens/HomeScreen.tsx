@@ -81,7 +81,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
             <TouchableOpacity
               style={styles.askButton}
               onPress={() => navigation.navigate('Ask', {
-                query: `What's the full situation with ${moment.commitment.entity}?`
+                query: `What's the full situation with ${moment.commitment?.entity ?? 'this'}?`
               })}
             >
               <Text style={styles.askButtonText}>Ask about this</Text>

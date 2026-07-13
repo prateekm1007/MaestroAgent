@@ -493,13 +493,13 @@ function AskScreen() {
             ) : null}
 
             {/* Confidence */}
-            <ConfidenceBar value={result.confidence} label={result.intelligence_source === 'llm' ? 'LLM-powered' : 'rules-based'} />
+            <ConfidenceBar value={result.confidence ?? 0} label={result.intelligence_source === 'llm' ? 'LLM-powered' : 'rules-based'} />
 
             {/* Counterevidence */}
-            {result.counterevidence?.length > 0 && (
+            {(result.counterevidence?.length ?? 0) > 0 && (
               <View style={{ marginTop: spacing.xl }}>
                 <Text style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}>COUNTEREVIDENCE</Text>
-                {result.counterevidence.map((c, i) => (
+                {result.counterevidence?.map((c, i) => (
                   <Card key={i} accent="red" style={{ marginBottom: spacing.sm }}>
                     <Text style={{ fontSize: 14, color: t.textPrimary }}>⚠ {typeof c === 'string' ? c : c.claim || JSON.stringify(c)}</Text>
                   </Card>
@@ -508,10 +508,10 @@ function AskScreen() {
             )}
 
             {/* Unknowns */}
-            {result.unknowns?.length > 0 && (
+            {(result.unknowns?.length ?? 0) > 0 && (
               <View style={{ marginTop: spacing.xl }}>
                 <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}>UNKNOWNS</Text>
-                {result.unknowns.map((u, i) => (
+                {result.unknowns?.map((u, i) => (
                   <Text key={i} style={{ fontSize: 14, color: t.textSecondary, marginBottom: spacing.xs }}>
                     • {typeof u === 'string' ? u : u.description || JSON.stringify(u)}
                   </Text>
@@ -589,13 +589,13 @@ function CommitmentsScreen() {
                   </Text>
                   {theOne.primary.deadline ? <Badge text={`📅 ${theOne.primary.deadline}`} color="yellow" /> : null}
                   {theOne.primary.is_at_risk ? <Badge text="🔥 At Risk" color="red" /> : null}
-                  {theOne.primary.days_stale > 0 ? <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>{theOne.primary.days_stale}d stale</Text> : null}
+                  {(theOne.primary.days_stale ?? 0) > 0 ? <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>{theOne.primary.days_stale}d stale</Text> : null}
                   {theOne.why_primary ? <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.sm }}>{theOne.why_primary}</Text> : null}
                   <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg }}>
-                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.successGreen }]} onPress={() => handleCorrect(theOne.primary.signal_id, 'complete')}>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.successGreen }]} onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'complete')}>
                       <Text style={{ color: colors.white, fontSize: 13, fontWeight: '600' }}>✓ Complete</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: t.border }]} onPress={() => handleCorrect(theOne.primary.signal_id, 'dismiss')}>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: t.border }]} onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'dismiss')}>
                       <Text style={{ color: t.textSecondary, fontSize: 13, fontWeight: '600' }}>✕ Dismiss</Text>
                     </TouchableOpacity>
                   </View>
@@ -611,7 +611,7 @@ function CommitmentsScreen() {
               commitments.map((c, i) => (
                 <Card key={i} style={{ marginBottom: spacing.md }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.is_at_risk ? colors.alertRed : c.days_stale > 2 ? colors.yellow : colors.successGreen, marginRight: spacing.md }} />
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.is_at_risk ? colors.alertRed : (c.days_stale ?? 0) > 2 ? colors.yellow : colors.successGreen, marginRight: spacing.md }} />
                     <Text style={{ fontSize: 15, fontWeight: 'bold', color: t.textPrimary, flex: 1 }}>{c.entity}</Text>
                     {c.deadline ? <Badge text={c.deadline} color="yellow" /> : null}
                   </View>
@@ -924,7 +924,8 @@ function CopilotScreen() {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const rec = new Audio.Recording();
       await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await rec.startRecording();
+      // expo-av 15 removed `startRecording()` — the new API is `startAsync()`.
+      await rec.startAsync();
       (global as any).__maestroRecording = rec;
       setRecording(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -974,8 +975,9 @@ function CopilotScreen() {
     // Fall back to REST
     try {
       const result = await api.sendTranscriptChunk(input, speaker, '');
-      if (result?.commitments_detected?.length > 0) {
-        const newWhispers = result.commitments_detected.map((c: any) => ({
+      const detected = result?.commitments_detected;
+      if ((detected?.length ?? 0) > 0 && detected) {
+        const newWhispers = detected.map((c: any) => ({
           type: 'suggestion',
           entity: c.entity || 'Commitment',
           text: c.text || c.action || '',

@@ -8,7 +8,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, Picker, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView } from 'react-native';
 import { useAuth } from '../api/auth';
 import { createSignal } from '../api/client';
 
