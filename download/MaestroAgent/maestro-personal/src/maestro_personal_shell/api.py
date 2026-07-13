@@ -3644,6 +3644,298 @@ async def post_call_summary(req: PostCallSummaryRequest, token: str = Depends(ve
 
 
 # ---------------------------------------------------------------------------
+# PHASE 5 P2 — Post-call polish + enterprise features (gap 22/30 → 30/30)
+# ---------------------------------------------------------------------------
+
+# --- Follow-up Email Generator --------------------------------------------
+
+class FollowUpEmailRequest(BaseModel):
+    meeting_title: str = ""
+    participants: list[str] = []
+    commitments: list[dict[str, Any]] = []
+    objections: list[dict[str, Any]] = []
+    entity: str = ""
+    transcript_chunks: list[dict[str, Any]] = []
+    tone: str = ""  # professional | warm | direct (auto-inferred if empty)
+
+
+@app.post("/api/copilot/follow-up-email")
+async def generate_follow_up_email(req: FollowUpEmailRequest, token: str = Depends(verify_token)):
+    """Generate a commitment-aware follow-up email draft.
+
+    Phase 5 P2: cites specific commitments + org laws. Adapts tone to
+    the conversation (formal / warm / direct based on entity history
+    and commitment staleness).
+    """
+    from maestro_personal_shell.copilot_postcall_features import FollowUpEmailGenerator
+    shell = build_shell(user_email=token)
+    gen = FollowUpEmailGenerator(shell)
+    return gen.generate(
+        meeting_title=req.meeting_title,
+        participants=req.participants,
+        commitments=req.commitments,
+        objections=req.objections,
+        entity=req.entity,
+        transcript_chunks=req.transcript_chunks,
+        tone=req.tone,
+    )
+
+
+# --- Pre-call Intelligence Panel ------------------------------------------
+
+class PreCallIntelRequest(BaseModel):
+    entity: str = ""
+    meeting_title: str = ""
+
+
+@app.post("/api/copilot/pre-call-intel")
+async def get_pre_call_intel(req: PreCallIntelRequest, token: str = Depends(verify_token)):
+    """Get pre-call intelligence panel: 3 things that matter for THIS meeting.
+
+    Phase 5 P2: surfaces THE FORGOTTEN (oldest open commitment),
+    THE OPEN QUESTION (unanswered follow-up), THE CONTRADICTION
+    (conflicting signals), and TALK TRACKS (derived from org laws).
+    """
+    from maestro_personal_shell.copilot_postcall_features import PreCallIntelPanel
+    shell = build_shell(user_email=token)
+    panel = PreCallIntelPanel(shell)
+    return panel.build(entity=req.entity, meeting_title=req.meeting_title)
+
+
+# --- Post-call Summary UI payload -----------------------------------------
+
+class PostCallSummaryUIRequest(BaseModel):
+    meeting_title: str = ""
+    duration_seconds: int = 0
+    participants: list[str] = []
+    transcript_chunks: list[dict[str, Any]] = []
+    suggestion_cards: list[dict[str, Any]] = []
+    entity: str = ""
+    talk_ratio_pct: float = 0.0
+
+
+@app.post("/api/copilot/post-call-ui")
+async def get_post_call_ui(req: PostCallSummaryUIRequest, token: str = Depends(verify_token)):
+    """Build the full post-call summary UI payload.
+
+    Phase 5 P2: hero card + key stats grid + commitments tracked +
+    objections raised + draft follow-up email + what Maestro learned.
+    """
+    from maestro_personal_shell.copilot_postcall_features import PostCallSummaryUI
+    shell = build_shell(user_email=token)
+    builder = PostCallSummaryUI(shell)
+    return builder.build(
+        meeting_title=req.meeting_title,
+        duration_seconds=req.duration_seconds,
+        participants=req.participants,
+        transcript_chunks=req.transcript_chunks,
+        suggestion_cards=req.suggestion_cards,
+        entity=req.entity,
+        talk_ratio_pct=req.talk_ratio_pct,
+    )
+
+
+# --- Playbook Engine ------------------------------------------------------
+
+class PlaybookUpsertRequest(BaseModel):
+    id: str = ""
+    name: str = ""
+    triggers: list[str] = []
+    talk_tracks: list[dict[str, Any]] = []
+    objection_responses: dict[str, str] = {}
+
+
+class PlaybookMatchRequest(BaseModel):
+    transcript_text: str = ""
+
+
+class PlaybookOutcomeRequest(BaseModel):
+    playbook_id: str
+    talk_track_idx: int
+    outcome: str  # positive | negative | neutral
+    context: str = ""
+
+
+@app.get("/api/copilot/playbooks")
+async def list_playbooks(token: str = Depends(verify_token)):
+    """List all playbooks (summary form)."""
+    from maestro_personal_shell.copilot_enterprise import PlaybookEngine
+    engine = PlaybookEngine()
+    return {"playbooks": engine.list_playbooks()}
+
+
+@app.get("/api/copilot/playbooks/{playbook_id}")
+async def get_playbook(playbook_id: str, token: str = Depends(verify_token)):
+    """Get a specific playbook by ID."""
+    from maestro_personal_shell.copilot_enterprise import PlaybookEngine
+    engine = PlaybookEngine()
+    pb = engine.get_playbook(playbook_id)
+    if not pb:
+        raise HTTPException(status_code=404, detail=f"Playbook {playbook_id} not found")
+    return pb
+
+
+@app.post("/api/copilot/playbooks")
+async def upsert_playbook(req: PlaybookUpsertRequest, token: str = Depends(verify_token)):
+    """Create or update a playbook."""
+    from maestro_personal_shell.copilot_enterprise import PlaybookEngine
+    engine = PlaybookEngine()
+    return engine.upsert(req.model_dump())
+
+
+@app.delete("/api/copilot/playbooks/{playbook_id}")
+async def delete_playbook(playbook_id: str, token: str = Depends(verify_token)):
+    """Delete a playbook by ID."""
+    from maestro_personal_shell.copilot_enterprise import PlaybookEngine
+    engine = PlaybookEngine()
+    deleted = engine.delete(playbook_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Playbook {playbook_id} not found")
+    return {"deleted": True, "playbook_id": playbook_id}
+
+
+@app.post("/api/copilot/playbooks/match")
+async def match_playbook(req: PlaybookMatchRequest, token: str = Depends(verify_token)):
+    """Find the active playbook for the current transcript text."""
+    from maestro_personal_shell.copilot_enterprise import PlaybookEngine
+    engine = PlaybookEngine()
+    match = engine.match_transcript(req.transcript_text)
+    return {"match": match}
+
+
+@app.post("/api/copilot/playbooks/outcome")
+async def record_playbook_outcome(req: PlaybookOutcomeRequest, token: str = Depends(verify_token)):
+    """Record the outcome of using a talk track (feeds the learning loop)."""
+    from maestro_personal_shell.copilot_enterprise import PlaybookEngine
+    engine = PlaybookEngine()
+    return engine.record_outcome(
+        playbook_id=req.playbook_id,
+        talk_track_idx=req.talk_track_idx,
+        outcome=req.outcome,
+        context=req.context,
+    )
+
+
+# --- Shadow Mode ----------------------------------------------------------
+
+class ShadowStartRequest(BaseModel):
+    rep_email: str
+    meeting_title: str = ""
+    entity: str = ""
+
+
+class ShadowNoteRequest(BaseModel):
+    note_text: str
+    transcript_chunk: str = ""
+    note_type: str = "coaching"  # coaching | praise | warning
+
+
+class ShadowFeedbackRequest(BaseModel):
+    overall_rating: int  # 1-5
+    strengths: str = ""
+    improvements: str = ""
+    next_steps: str = ""
+
+
+@app.post("/api/copilot/shadow/start")
+async def start_shadow_session(req: ShadowStartRequest, token: str = Depends(verify_token)):
+    """Start a shadow session — manager observes a rep's live call.
+
+    The rep sees no suggestions during a shadowed call. The manager
+    sees the transcript + can add private coaching notes.
+    """
+    from maestro_personal_shell.copilot_enterprise import ShadowMode
+    shadow = ShadowMode()
+    return shadow.start_session(
+        manager_email=token,  # the manager is the authenticated user
+        rep_email=req.rep_email,
+        meeting_title=req.meeting_title,
+        entity=req.entity,
+    )
+
+
+@app.post("/api/copilot/shadow/{session_id}/end")
+async def end_shadow_session(session_id: str, token: str = Depends(verify_token)):
+    """End a shadow session."""
+    from maestro_personal_shell.copilot_enterprise import ShadowMode
+    shadow = ShadowMode()
+    return shadow.end_session(session_id)
+
+
+@app.post("/api/copilot/shadow/{session_id}/notes")
+async def add_shadow_note(
+    session_id: str,
+    req: ShadowNoteRequest,
+    token: str = Depends(verify_token),
+):
+    """Add a coaching note to a shadow session."""
+    from maestro_personal_shell.copilot_enterprise import ShadowMode
+    shadow = ShadowMode()
+    return shadow.add_note(
+        session_id=session_id,
+        note_text=req.note_text,
+        transcript_chunk=req.transcript_chunk,
+        note_type=req.note_type,
+    )
+
+
+@app.get("/api/copilot/shadow/{session_id}/notes")
+async def list_shadow_notes(session_id: str, token: str = Depends(verify_token)):
+    """List all coaching notes for a shadow session."""
+    from maestro_personal_shell.copilot_enterprise import ShadowMode
+    shadow = ShadowMode()
+    return {"notes": shadow.list_notes(session_id)}
+
+
+@app.post("/api/copilot/shadow/{session_id}/feedback")
+async def leave_shadow_feedback(
+    session_id: str,
+    req: ShadowFeedbackRequest,
+    token: str = Depends(verify_token),
+):
+    """Leave structured post-call feedback for a shadow session."""
+    from maestro_personal_shell.copilot_enterprise import ShadowMode
+    shadow = ShadowMode()
+    return shadow.leave_feedback(
+        session_id=session_id,
+        overall_rating=req.overall_rating,
+        strengths=req.strengths,
+        improvements=req.improvements,
+        next_steps=req.next_steps,
+    )
+
+
+@app.get("/api/copilot/shadow/{session_id}")
+async def get_shadow_session(session_id: str, token: str = Depends(verify_token)):
+    """Get a shadow session by ID (includes notes + feedback)."""
+    from maestro_personal_shell.copilot_enterprise import ShadowMode
+    shadow = ShadowMode()
+    session = shadow.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Shadow session {session_id} not found")
+    session["notes"] = shadow.list_notes(session_id)
+    session["feedback"] = shadow.get_feedback(session_id)
+    return session
+
+
+@app.get("/api/copilot/shadow")
+async def list_shadow_sessions(
+    token: str = Depends(verify_token),
+    rep_email: str = "",
+    status: str = "",
+):
+    """List shadow sessions (filtered by manager = current user)."""
+    from maestro_personal_shell.copilot_enterprise import ShadowMode
+    shadow = ShadowMode()
+    sessions = shadow.list_sessions(
+        manager_email=token,
+        rep_email=rep_email,
+        status=status,
+    )
+    return {"sessions": sessions, "count": len(sessions)}
+
+
+# ---------------------------------------------------------------------------
 # NERVE PARITY: Agent dashboard + per-agent query + evening briefing
 # ---------------------------------------------------------------------------
 
