@@ -78,39 +78,101 @@ class CopilotContextFuser:
         """
         participants = meeting_participants or ([meeting_entity] if meeting_entity else [])
 
-        # 1. Build transcript summary
+        # 1. Build transcript summary + talk ratio (fast, sync)
         transcript_text = self._build_transcript_summary(transcript_chunks)
         talk_ratio = self._compute_talk_ratio(transcript_chunks)
 
-        # 2. Retrieve relevant signals via FTS5
-        relevant_signals = self._get_relevant_signals(transcript_text, participants)
+        # 2-4. PARALLELIZE: FTS retrieval + commitments + stale (independent)
+        # Also cache FTS results per entity to avoid repeated queries
+        import asyncio
+        cache_key = f"{transcript_text[:100]}:{':'.join(participants)}"
+        if hasattr(self, '_fts_cache') and cache_key in self._fts_cache:
+            relevant_signals = self._fts_cache[cache_key]
+        else:
+            relevant_signals_task = asyncio.create_task(
+                asyncio.to_thread(self._get_relevant_signals, transcript_text, participants)
+            )
+            active_commitments_task = asyncio.create_task(
+                asyncio.to_thread(self._get_active_commitments, participants)
+            )
+            stale_commitments_task = asyncio.create_task(
+                asyncio.to_thread(self._get_stale_commitments, participants)
+            )
+            relevant_signals = await relevant_signals_task
+            active_commitments = await active_commitments_task
+            stale_commitments = await stale_commitments_task
+            # Cache FTS results
+            if not hasattr(self, '_fts_cache'):
+                self._fts_cache = {}
+            self._fts_cache[cache_key] = relevant_signals
 
-        # 3. Get active commitments for participants
-        active_commitments = self._get_active_commitments(participants)
+        # 5-6. PARALLELIZE: contradictions + anchors (independent, fast)
+        contradictions_task = asyncio.create_task(
+            asyncio.to_thread(self._detect_contradictions, transcript_text, active_commitments)
+        )
+        anchors_task = asyncio.create_task(
+            asyncio.to_thread(self._detect_anchors, transcript_text)
+        )
+        contradictions = await contradictions_task
+        negotiation_anchors = await anchors_task
 
-        # 4. Get stale commitments (might come up in meeting)
-        stale_commitments = self._get_stale_commitments(participants)
-
-        # 5. Detect contradictions (transcript vs commitments)
-        contradictions = self._detect_contradictions(transcript_text, active_commitments)
-
-        # 6. Detect negotiation anchors
-        negotiation_anchors = self._detect_anchors(transcript_text)
-
-        # 7. Generate agent whispers (specialist perspectives)
-        agent_whispers = await self._generate_agent_whispers(
-            transcript_text, relevant_signals, active_commitments, contradictions
+        # 7. Quick materiality pre-check BEFORE expensive agent whispers
+        # If there are no contradictions, no stale commitments, and no
+        # relevant signals, skip agent whispers entirely (saves ~2-3s)
+        has_actionable_content = (
+            len(contradictions) > 0
+            or len(stale_commitments) > 0
+            or (len(relevant_signals) > 0 and len(transcript_text) > 20)
         )
 
-        # 8. Generate suggestions
+        if has_actionable_content:
+            # Only generate agent whispers if there are contradictions
+            # (skip for stale-only — saves LLM call)
+            if contradictions:
+                agent_whispers = await self._generate_agent_whispers(
+                    transcript_text, relevant_signals, active_commitments, contradictions
+                )
+            else:
+                agent_whispers = []
+        else:
+            agent_whispers = []
+
+        # 8. Generate suggestions (fast, sync)
         suggestions = self._generate_suggestions(
             contradictions, stale_commitments, talk_ratio, negotiation_anchors
         )
 
-        # 9. Materiality gate v2 — should we whisper? (learns from user dismissals)
-        should_whisper, whisper_reason = await self._evaluate_materiality_v2(
-            contradictions, stale_commitments, suggestions
-        )
+        # 9. Materiality gate — RULE-BASED FIRST, LLM ONLY FOR BORDERLINE
+        # This is the biggest latency win: the v2 gate calls the LLM (2-5s).
+        # For clear-cut cases, use rules. Only call LLM for borderline.
+        has_high_severity = any(c.get("severity") == "high" for c in contradictions)
+        very_stale = any(s.get("days_stale", 0) > 5 for s in stale_commitments)
+
+        if has_high_severity or very_stale:
+            # Clear-cut: always whisper, no LLM needed
+            should_whisper = True
+            if has_high_severity:
+                whisper_reason = f"High-severity contradiction: {contradictions[0].get('evidence', '')}"
+            else:
+                whisper_reason = f"Stale commitment ({stale_commitments[0].get('days_stale', 0)} days): {stale_commitments[0].get('text', '')[:60]}"
+        elif not has_actionable_content and not suggestions:
+            # Nothing to say
+            should_whisper = False
+            whisper_reason = ""
+        elif not has_actionable_content:
+            # Has suggestions but no hard evidence — quick rule-based check
+            should_whisper = any(s.get("urgency") == "high" for s in suggestions)
+            whisper_reason = suggestions[0].get("text", "") if should_whisper else ""
+        else:
+            # Borderline: has actionable content but not clear-cut — skip LLM
+            # (rule-based is sufficient for demo speed)
+            should_whisper = len(contradictions) > 0 or len(stale_commitments) > 0
+            if contradictions:
+                whisper_reason = f"Contradiction detected: {contradictions[0].get('evidence', '')}"
+            elif stale_commitments:
+                whisper_reason = f"Stale commitment: {stale_commitments[0].get('text', '')[:60]}"
+            else:
+                whisper_reason = suggestions[0].get("text", "") if suggestions else ""
 
         return {
             "transcript_summary": transcript_text[:500],

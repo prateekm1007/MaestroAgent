@@ -59,7 +59,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (token) {
-      api.getLLMStatus(token).then(setLLMStatus).catch(() => {});
+      api.getLLMStatus().then(setLLMStatus).catch(() => {});
     }
   }, [token]);
 
@@ -250,9 +250,9 @@ function DashboardScreen() {
   useEffect(() => {
     if (!token) return;
     Promise.all([
-      api.getTheMoment(token).catch(() => null),
-      api.getWhatChangedShifts(token).catch(() => null),
-      api.getBriefing(token).catch(() => null),
+      api.getTheMoment().catch(() => null),
+      api.getWhatChangedShifts().catch(() => null),
+      api.getBriefing().catch(() => null),
     ]).then(([m, s, b]) => {
       setMoment(m);
       setShifts(s?.secondary || []);
@@ -270,8 +270,8 @@ function DashboardScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     try {
-      await api.correctSignal(token, signalId, action);
-      const m = await api.getTheMoment(token);
+      await api.correctSignal(signalId, action);
+      const m = await api.getTheMoment();
       setMoment(m);
     } catch (e) { /* ignore */ }
   };
@@ -391,7 +391,7 @@ function AskScreen() {
     setLoading(true);
     setResult(null);
     try {
-      const r = await api.ask(token, queryText);
+      const r = await api.ask(queryText);
       setResult(r);
       const newHistory = [queryText, ...history.filter(h => h !== queryText)].slice(0, 10);
       setHistory(newHistory);
@@ -511,8 +511,8 @@ function CommitmentsScreen() {
     if (!token) return;
     try {
       const [one, list] = await Promise.all([
-        api.getTheOne(token).catch(() => null),
-        api.getCommitments(token).catch(() => []),
+        api.getTheOne().catch(() => null),
+        api.getCommitments().catch(() => []),
       ]);
       setTheOne(one);
       setCommitments(list);
@@ -532,7 +532,7 @@ function CommitmentsScreen() {
         {
           text: 'Confirm',
           onPress: async () => {
-            await api.correctSignal(token, signalId, action);
+            await api.correctSignal(signalId, action);
             loadData();
           },
         },
@@ -621,7 +621,7 @@ function SignalsScreen() {
 
   const load = useCallback(async () => {
     if (!token) return;
-    try { setSignals(await api.getSignals(token)); } catch (e) { /* ignore */ }
+    try { setSignals(await api.getSignals()); } catch (e) { /* ignore */ }
     setLoading(false);
   }, [token]);
 
@@ -630,7 +630,7 @@ function SignalsScreen() {
   const handleAdd = async () => {
     if (!entity || !text || !token) return;
     try {
-      await api.createSignal(token, entity, text, type);
+      await api.createSignal(entity, text, type);
       setEntity(''); setText(''); setType('reported_statement');
       setShowAdd(false);
       load();
@@ -886,7 +886,7 @@ function CopilotScreen() {
 
     // Fall back to REST
     try {
-      const result = await api.sendTranscriptChunk(token, input, speaker, '');
+      const result = await api.sendTranscriptChunk(input, speaker, '');
       if (result?.commitments_detected?.length > 0) {
         const newWhispers = result.commitments_detected.map((c: any) => ({
           type: 'suggestion',
@@ -1034,10 +1034,10 @@ function SettingsScreen() {
   useEffect(() => {
     if (!token) return;
     Promise.all([
-      api.getPrivacyMode(token).catch(() => null),
-      api.getCalibration(token).catch(() => null),
-      api.getAuditLog(token).catch(() => null),
-      api.getMetrics(token).catch(() => null),
+      api.getPrivacyMode().catch(() => null),
+      api.getCalibration().catch(() => null),
+      api.getAuditLog().catch(() => null),
+      api.getMetrics().catch(() => null),
     ]).then(([p, c, a, m]) => {
       setPrivacy(p); setCalibration(c); setAudit(a?.events || []); setMetrics(m);
     });
@@ -1046,7 +1046,7 @@ function SettingsScreen() {
   const handleExport = async () => {
     if (!token) return;
     try {
-      const data = await api.exportData(token);
+      const data = await api.exportData();
       await Share.share({ message: JSON.stringify(data, null, 2) });
     } catch (e) { Alert.alert('Error', 'Export failed'); }
   };
@@ -1056,7 +1056,7 @@ function SettingsScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'DELETE', style: 'destructive', onPress: async () => {
         if (!token) return;
-        await api.deleteAccount(token);
+        await api.deleteAccount();
         logout();
       }},
     ]);
