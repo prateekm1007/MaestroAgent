@@ -4,6 +4,8 @@ import os
 import sys
 import pathlib
 
+import pytest
+
 # F8 fix: tests legitimately need to mint tokens for arbitrary emails
 # (e.g. cross-user isolation tests need user A and user B). The production
 # default is fail-closed; tests opt in via this env var.
@@ -24,3 +26,28 @@ if str(tests_dir) not in sys.path:
 backend_dir = pathlib.Path(__file__).resolve().parents[2] / "backend"
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
+
+
+# ---------------------------------------------------------------------------
+# P20/P22 fix: reset LLM router + probe cache between every test.
+#
+# Without this, tests that mock or probe the LLM leave cached state in
+# llm_bridge._router / _probe_cache that leaks into subsequent tests.
+# This caused 9 LLM-related tests to fail when run in the full suite
+# (they passed in isolation). The autouse fixture below ensures every
+# test starts with a clean LLM state.
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _reset_llm_state_between_tests():
+    """Reset LLM router + probe cache before each test (P20/P22 isolation)."""
+    try:
+        from maestro_personal_shell.llm_bridge import reset_llm_router
+        reset_llm_router()
+    except ImportError:
+        pass  # llm_bridge not yet importable (early collection)
+    yield
+    try:
+        from maestro_personal_shell.llm_bridge import reset_llm_router
+        reset_llm_router()
+    except ImportError:
+        pass

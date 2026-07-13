@@ -278,26 +278,39 @@ class TestMutationResistance:
         """If _detect_completion is broken (returns empty), the coherence test must fail.
 
         This test verifies the test suite would catch a mutation that breaks
-        completion detection.
+        completion detection. We use a clear commitment text ("I will deliver
+        the final report") rather than "I will send the proposal" because the
+        S4 _filter_non_commitments_by_classification filter classifies
+        "proposal" as commitment_type="proposal" and filters it out — which
+        would mask the mutation we're trying to prove is caught.
+
+        P20 fix: patch the CORRECT namespace. The production code in
+        routers/commitments.py:171 calls _detect_completion by its local
+        name, not via the api.py re-export. Patching
+        maestro_personal_shell.api._detect_completion had no effect on
+        the production code path — the real _detect_completion still ran,
+        correctly detected the completion, filtered the commitment out,
+        and the test failed. Now we patch the actual module that calls it.
         """
         m1, m2, m3 = _mock_llm()
         with m1, m2, m3, patch(
-            "maestro_personal_shell.api._detect_completion",
+            "maestro_personal_shell.routers.commitments._detect_completion",
             return_value={},  # BROKEN: returns empty (mutation)
         ):
             client.post(
                 "/api/signals",
-                json={"entity": "MutCorp", "text": "I will send the proposal", "signal_type": "commitment_made"},
+                json={"entity": "MutCorp", "text": "I will deliver the final report", "signal_type": "commitment_made"},
                 headers=auth_headers,
             )
             client.post(
                 "/api/signals",
-                json={"entity": "MutCorp", "text": "The proposal has been sent", "signal_type": "reported_statement"},
+                json={"entity": "MutCorp", "text": "The final report has been delivered", "signal_type": "reported_statement"},
                 headers=auth_headers,
             )
 
             # With broken _detect_completion, the commitment should STILL appear
-            # (because the mutation broke the filter)
+            # (because the mutation broke the completion filter, so the
+            # completed commitment isn't filtered out)
             resp = client.get("/api/commitments", headers=auth_headers)
             entities = [c.get("entity", "") for c in resp.json()]
             assert "MutCorp" in entities, \
