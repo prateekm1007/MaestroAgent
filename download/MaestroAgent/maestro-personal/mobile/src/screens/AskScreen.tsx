@@ -1,22 +1,27 @@
 /**
- * AskScreen — extracted from the original App.tsx, unchanged in logic.
+ * AskScreen — extracted from the original App.tsx.
  *
- * Free-text question against the Maestro knowledge graph. Renders the
- * answer, provenance sentence, confidence bar, counterevidence, and
- * unknowns. Recent queries are persisted in AsyncStorage.
+ * Phase 2: the ask() call is now wrapped in the `useAsk` react-query
+ * mutation hook instead of a manual try/catch + loading state. The
+ * recent-queries history stays in AsyncStorage (local UI state, not
+ * server data). Loading/error states use the shared components from
+ * src/components/ErrorState.tsx.
+ *
+ * UI/logic is otherwise unchanged.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, SafeAreaView,
+  View, Text, TextInput, TouchableOpacity, ScrollView, Alert, SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import * as api from '../api/client';
+import { useAsk } from '../api/hooks';
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, ConfidenceBar, TopBar } from '../components';
+import { ErrorState, LoadingState } from '../components/ErrorState';
 import { styles } from '../styles';
 
 export default function AskScreen() {
@@ -24,31 +29,33 @@ export default function AskScreen() {
   const t = getTheme(mode);
   const { token } = useAuth();
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<api.AskResult | null>(null);
-  const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
 
+  // ── react-query mutation (replaces manual try/catch + loading) ─────
+  const askMutation = useAsk();
+  const result = askMutation.data ?? null;
+  const loading = askMutation.isPending;
+
+  // Recent-queries history stays in AsyncStorage (local UI state).
   useEffect(() => {
     AsyncStorage.getItem('maestro_ask_history').then(h => {
       if (h) setHistory(JSON.parse(h).slice(0, 10));
     });
   }, []);
 
-  const handleAsk = async (q?: string) => {
+  const handleAsk = (q?: string) => {
     const queryText = q || query;
     if (!queryText || !token) return;
-    setLoading(true);
-    setResult(null);
-    try {
-      const r = await api.ask(queryText);
-      setResult(r);
-      const newHistory = [queryText, ...history.filter(h => h !== queryText)].slice(0, 10);
-      setHistory(newHistory);
-      AsyncStorage.setItem('maestro_ask_history', JSON.stringify(newHistory));
-    } catch (e) {
-      Alert.alert('Error', 'Failed to get answer. Is the API running?');
-    }
-    setLoading(false);
+    askMutation.mutate(queryText, {
+      onSuccess: () => {
+        const newHistory = [queryText, ...history.filter(h => h !== queryText)].slice(0, 10);
+        setHistory(newHistory);
+        AsyncStorage.setItem('maestro_ask_history', JSON.stringify(newHistory));
+      },
+      onError: () => {
+        Alert.alert('Error', 'Failed to get answer. Is the API running?');
+      },
+    });
   };
 
   return (
@@ -68,7 +75,11 @@ export default function AskScreen() {
             returnKeyType="search"
           />
           <TouchableOpacity onPress={() => handleAsk()} style={{ paddingRight: spacing.md }}>
-            {loading ? <ActivityIndicator color={colors.yellow} size="small" /> : <Ionicons name="arrow-forward" size={20} color={colors.yellow} />}
+            {loading ? (
+              <Text style={{ color: colors.yellow, fontSize: 13 }}>…</Text>
+            ) : (
+              <Ionicons name="arrow-forward" size={20} color={colors.yellow} />
+            )}
           </TouchableOpacity>
         </View>
 
@@ -87,14 +98,19 @@ export default function AskScreen() {
 
       {/* Loading */}
       {loading && (
-        <View style={{ padding: spacing.xxl, alignItems: 'center' }}>
-          <ActivityIndicator color={colors.yellow} size="large" />
-          <Text style={{ color: t.textSecondary, fontSize: 14, marginTop: spacing.md }}>Maestro is thinking...</Text>
-        </View>
+        <LoadingState label="Maestro is thinking…" />
+      )}
+
+      {/* Error */}
+      {!loading && askMutation.isError && (
+        <ErrorState
+          message="Couldn't get an answer. Tap to try again."
+          onRetry={() => query && handleAsk(query)}
+        />
       )}
 
       {/* Result */}
-      {result && (
+      {result && !loading && (
         <ScrollView style={{ flex: 1, paddingHorizontal: spacing.xl }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
           <Card style={{ marginTop: spacing.md }}>
             <Text style={{ color: t.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 1, marginBottom: spacing.sm }}>ANSWER</Text>

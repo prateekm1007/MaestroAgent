@@ -1,22 +1,36 @@
 /**
- * DashboardScreen — extracted from the original App.tsx, unchanged in logic.
+ * DashboardScreen — extracted from the original App.tsx.
  *
- * Shows THE MOMENT (single most important commitment), WHAT CHANGED strip,
- * the daily briefing, and a quick-ask shortcut that navigates to Ask tab.
+ * Phase 2: data fetching now goes through react-query hooks
+ * (useTheMoment / useShifts / useBriefing) instead of manual
+ * useEffect+useState. Loading/error/empty states use the shared
+ * components from src/components/ErrorState.tsx. The Moment card
+ * animates in on mount (subtle fade + scale) via react-native-reanimated.
+ *
+ * UI/logic is otherwise unchanged.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, SafeAreaView,
+  View, Text, ScrollView, TouchableOpacity, SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { useQueryClient } from '@tanstack/react-query';
 
 import * as api from '../api/client';
+import { useTheMoment, useShifts, useBriefing } from '../api/hooks';
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, Badge, TopBar } from '../components';
+import { ErrorState, LoadingState, EmptyState } from '../components/ErrorState';
 import { styles } from '../styles';
 
 export default function DashboardScreen() {
@@ -24,25 +38,30 @@ export default function DashboardScreen() {
   const t = getTheme(mode);
   const { token } = useAuth();
   const nav = useNavigation<any>();
-  const [moment, setMoment] = useState<api.TheMoment | null>(null);
-  const [shifts, setShifts] = useState<api.WhatChangedShift[]>([]);
-  const [briefing, setBriefing] = useState<api.Briefing | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [askQuery, setAskQuery] = useState('');
+  const qc = useQueryClient();
+  const [askQuery] = useState('');
 
+  // ── react-query hooks (replace manual useEffect + useState) ────────
+  const momentQ = useTheMoment();
+  const shiftsQ = useShifts();
+  const briefingQ = useBriefing();
+
+  const moment = momentQ.data ?? null;
+  const shifts: api.WhatChangedShift[] = shiftsQ.data?.secondary ?? [];
+  const briefing = briefingQ.data ?? null;
+
+  // ── Reanimated mount animation for the Moment card ─────────────────
+  // Subtle fade-in + spring scale-up. Premium feel — not flashy.
+  const cardOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.96);
   useEffect(() => {
-    if (!token) return;
-    Promise.all([
-      api.getTheMoment().catch(() => null),
-      api.getWhatChangedShifts().catch(() => null),
-      api.getBriefing().catch(() => null),
-    ]).then(([m, s, b]) => {
-      setMoment(m);
-      setShifts(s?.secondary || []);
-      setBriefing(b);
-      setLoading(false);
-    });
-  }, [token]);
+    cardOpacity.value = withTiming(1, { duration: 400 });
+    cardScale.value = withSpring(1, { damping: 18, stiffness: 160 });
+  }, [cardOpacity, cardScale]);
+  const cardAnimStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ scale: cardScale.value }],
+  }));
 
   const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss') => {
     if (!token || !signalId) return;
@@ -54,10 +73,13 @@ export default function DashboardScreen() {
     }
     try {
       await api.correctSignal(signalId, action);
-      const m = await api.getTheMoment();
-      setMoment(m);
+      // Invalidate the moment query so react-query refetches.
+      qc.invalidateQueries({ queryKey: ['moment'] });
     } catch (e) { /* ignore */ }
   };
+
+  // Silence unused-var lint while preserving the original quick-ask field shape.
+  void askQuery;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
@@ -65,51 +87,53 @@ export default function DashboardScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.xl }}>
         {/* THE MOMENT */}
         <Text style={[typography.label, { color: colors.yellow, marginBottom: spacing.md }]}>⚡ THE MOMENT</Text>
-        {loading ? (
-          <ActivityIndicator color={colors.yellow} size="large" style={{ marginVertical: 40 }} />
+        {momentQ.isLoading ? (
+          <LoadingState label="Loading the moment…" />
+        ) : momentQ.error ? (
+          <ErrorState message="Couldn't load the moment." onRetry={() => momentQ.refetch()} />
         ) : moment?.has_moment && moment.commitment ? (
-          <Card accent="yellow" style={{ marginBottom: spacing.xl }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}>{moment.commitment.entity}</Text>
-            <Text style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}>
-              "{moment.commitment.text}"
-            </Text>
-            {moment.why_this_one ? (
-              <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.md }}>{moment.why_this_one}</Text>
-            ) : null}
-            <View style={{ flexDirection: 'row', marginTop: spacing.md, gap: spacing.sm }}>
-              {moment.commitment.metadata?.deadline ? <Badge text={`📅 ${moment.commitment.metadata.deadline}`} color="yellow" /> : null}
-              {moment.why_this_one?.includes('stale') ? <Badge text="🔥 At Risk" color="red" /> : null}
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.xl }}>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.successGreen }]}
-                onPress={() => handleCorrect(moment.commitment!.signal_id, 'complete')}
-              >
-                <Ionicons name="checkmark" size={24} color={colors.white} />
-                <Text style={styles.actionLabel}>Done</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: t.border }]}
-                onPress={() => handleCorrect(moment.commitment!.signal_id, 'dismiss')}
-              >
-                <Ionicons name="close" size={24} color={t.textSecondary} />
-                <Text style={[styles.actionLabel, { color: t.textSecondary }]}>Skip</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
+          <Animated.View style={[cardAnimStyle, { marginBottom: spacing.xl }]}>
+            <Card accent="yellow">
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}>{moment.commitment.entity}</Text>
+              <Text style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}>
+                "{moment.commitment.text}"
+              </Text>
+              {moment.why_this_one ? (
+                <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.md }}>{moment.why_this_one}</Text>
+              ) : null}
+              <View style={{ flexDirection: 'row', marginTop: spacing.md, gap: spacing.sm }}>
+                {moment.commitment.metadata?.deadline ? <Badge text={`📅 ${moment.commitment.metadata.deadline}`} color="yellow" /> : null}
+                {moment.why_this_one?.includes('stale') ? <Badge text="🔥 At Risk" color="red" /> : null}
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.xl }}>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.successGreen }]}
+                  onPress={() => handleCorrect(moment.commitment!.signal_id, 'complete')}
+                >
+                  <Ionicons name="checkmark" size={24} color={colors.white} />
+                  <Text style={styles.actionLabel}>Done</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: t.border }]}
+                  onPress={() => handleCorrect(moment.commitment!.signal_id, 'dismiss')}
+                >
+                  <Ionicons name="close" size={24} color={t.textSecondary} />
+                  <Text style={[styles.actionLabel, { color: t.textSecondary }]}>Skip</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          </Animated.View>
         ) : (
-          <Card style={{ marginBottom: spacing.xl, padding: spacing.xxxl, alignItems: 'center' }}>
-            <Text style={{ fontSize: 48 }}>🌙</Text>
-            <Text style={{ fontSize: 18, color: t.textSecondary, marginTop: spacing.md, textAlign: 'center' }}>
-              Nothing needs your attention right now.
-            </Text>
-            <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.xs, textAlign: 'center' }}>
-              Maestro is watching quietly.
-            </Text>
-          </Card>
+          <View style={{ marginBottom: spacing.xl }}>
+            <EmptyState
+              title="Nothing needs your attention right now."
+              subtitle="Maestro is watching quietly."
+              icon="moon"
+            />
+          </View>
         )}
 
-        {/* WHAT CHANGED */}
+        {/* WHAT CHANGED — secondary, errors are silent (matches original .catch(() => null)) */}
         {shifts.length > 0 && (
           <>
             <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}>WHAT CHANGED</Text>
@@ -125,7 +149,7 @@ export default function DashboardScreen() {
           </>
         )}
 
-        {/* BRIEFING */}
+        {/* BRIEFING — secondary, errors are silent */}
         {briefing && (
           <Card style={{ marginBottom: spacing.xl }}>
             <Text style={{ fontSize: 16, color: t.textPrimary }}>{briefing.greeting}</Text>

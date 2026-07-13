@@ -1,56 +1,69 @@
 /**
- * SignalsScreen — extracted from the original App.tsx, unchanged in logic.
+ * SignalsScreen — extracted from the original App.tsx.
  *
- * FlatList of all signals with a floating + button. The + opens a modal
- * sheet that posts a new signal via POST /api/signals.
+ * Phase 2: data fetching now goes through react-query hooks
+ * (useSignals / useCreateSignal) instead of manual useEffect+useState.
+ * Loading/error/empty states use the shared components from
+ * src/components/ErrorState.tsx. The `useCreateSignal` mutation
+ * invalidates the `signals` query (per src/api/hooks.ts) so the list
+ * auto-refreshes after a successful add.
+ *
+ * UI/logic is otherwise unchanged.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Alert, Modal, SafeAreaView,
+  View, Text, TextInput, TouchableOpacity, FlatList, Modal, SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import * as api from '../api/client';
+import { useSignals, useCreateSignal } from '../api/hooks';
 import { colors, getTheme, spacing, radius } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, Badge, TopBar } from '../components';
+import { ErrorState, LoadingState, EmptyState } from '../components/ErrorState';
 import { styles } from '../styles';
 
 export default function SignalsScreen() {
   const { mode } = useTheme();
   const t = getTheme(mode);
   const { token } = useAuth();
-  const [signals, setSignals] = useState<api.Signal[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [entity, setEntity] = useState('');
   const [text, setText] = useState('');
   const [type, setType] = useState('reported_statement');
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    try { setSignals(await api.getSignals()); } catch (e) { /* ignore */ }
-    setLoading(false);
-  }, [token]);
+  // ── react-query hooks (replace manual useEffect + useState) ────────
+  const signalsQ = useSignals();
+  const createSignalMut = useCreateSignal();
 
-  useEffect(() => { load(); }, [load]);
+  const signals: api.Signal[] = signalsQ.data ?? [];
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!entity || !text || !token) return;
-    try {
-      await api.createSignal(entity, text, type);
-      setEntity(''); setText(''); setType('reported_statement');
-      setShowAdd(false);
-      load();
-    } catch (e) { Alert.alert('Error', 'Failed to create signal'); }
+    createSignalMut.mutate(
+      { entity, text, signal_type: type },
+      {
+        onSuccess: () => {
+          setEntity(''); setText(''); setType('reported_statement');
+          setShowAdd(false);
+        },
+        onError: () => {
+          // Surface error in the modal — keep the user's draft.
+          // (Falls back to non-fatal: list still shows cached data.)
+        },
+      }
+    );
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
       <TopBar title="Signals" />
-      {loading ? (
-        <ActivityIndicator color={colors.yellow} size="large" style={{ marginVertical: 40 }} />
+      {signalsQ.isLoading ? (
+        <LoadingState label="Loading signals…" />
+      ) : signalsQ.error ? (
+        <ErrorState message="Couldn't load signals." onRetry={() => signalsQ.refetch()} />
       ) : (
         <FlatList
           data={signals}
@@ -68,7 +81,13 @@ export default function SignalsScreen() {
               </View>
             </Card>
           )}
-          ListEmptyComponent={<Text style={{ color: t.textSecondary, textAlign: 'center', marginTop: 40 }}>No signals yet. Tap + to add one.</Text>}
+          ListEmptyComponent={
+            <EmptyState
+              title="No signals yet"
+              subtitle="Tap + to add one."
+              icon="radar-outline"
+            />
+          }
         />
       )}
 
@@ -94,12 +113,19 @@ export default function SignalsScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {createSignalMut.isError ? (
+              <Text style={{ color: colors.alertRed, fontSize: 13, marginBottom: spacing.md }}>Failed to create signal. Please try again.</Text>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
               <TouchableOpacity style={[styles.loginButton, { flex: 1, backgroundColor: t.border }]} onPress={() => setShowAdd(false)}>
                 <Text style={{ color: t.textSecondary, fontWeight: 'bold' }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.loginButton, { flex: 1, backgroundColor: colors.yellow, opacity: !entity || !text ? 0.5 : 1 }]} onPress={handleAdd} disabled={!entity || !text}>
-                <Text style={{ color: colors.black, fontWeight: 'bold' }}>Add</Text>
+              <TouchableOpacity
+                style={[styles.loginButton, { flex: 1, backgroundColor: colors.yellow, opacity: !entity || !text || createSignalMut.isPending ? 0.5 : 1 }]}
+                onPress={handleAdd}
+                disabled={!entity || !text || createSignalMut.isPending}
+              >
+                <Text style={{ color: colors.black, fontWeight: 'bold' }}>{createSignalMut.isPending ? 'Adding…' : 'Add'}</Text>
               </TouchableOpacity>
             </View>
           </View>

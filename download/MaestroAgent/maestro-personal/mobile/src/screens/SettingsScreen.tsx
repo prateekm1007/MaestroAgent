@@ -1,18 +1,28 @@
 /**
- * SettingsScreen — extracted from the original App.tsx, unchanged in logic.
+ * SettingsScreen — extracted from the original App.tsx.
  *
- * Theme toggle, LLM status card, privacy mode, calibration (Brier score),
- * engagement metrics, audit log tail, and Export / Delete-account actions.
- * Delete requires typing DELETE exactly (Phase 1 hardening).
+ * Phase 2: data fetching now goes through react-query hooks
+ * (usePrivacyMode / useCalibration / useAuditLog / useMetrics) instead
+ * of a manual useEffect+useState + Promise.all. The Export and
+ * Delete-account actions use the `useExportData` / `useDeleteAccount`
+ * mutation hooks. Each section renders independently — failures are
+ * silent (the original swallowed errors via `.catch(() => null)` and
+ * just hid the section).
+ *
+ * UI/logic is otherwise unchanged.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Alert, Share, SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import * as api from '../api/client';
+import {
+  usePrivacyMode, useCalibration, useAuditLog, useMetrics,
+  useExportData, useDeleteAccount,
+} from '../api/hooks';
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, LLMDot, TopBar } from '../components';
@@ -22,29 +32,33 @@ export default function SettingsScreen() {
   const { mode, toggle } = useTheme();
   const t = getTheme(mode);
   const { token, llmStatus, logout } = useAuth();
-  const [privacy, setPrivacy] = useState<api.PrivacyMode | null>(null);
-  const [calibration, setCalibration] = useState<api.Calibration | null>(null);
-  const [audit, setAudit] = useState<api.AuditLogEntry[]>([]);
-  const [metrics, setMetrics] = useState<api.Metrics | null>(null);
+  const [confirmText, setConfirmText] = useState('');
 
-  useEffect(() => {
-    if (!token) return;
-    Promise.all([
-      api.getPrivacyMode().catch(() => null),
-      api.getCalibration().catch(() => null),
-      api.getAuditLog().catch(() => null),
-      api.getMetrics().catch(() => null),
-    ]).then(([p, c, a, m]) => {
-      setPrivacy(p); setCalibration(c); setAudit(a?.events || []); setMetrics(m);
-    });
-  }, [token]);
+  // ── react-query hooks (replace manual useEffect + Promise.all) ─────
+  const privacyQ = usePrivacyMode();
+  const calibrationQ = useCalibration();
+  const auditQ = useAuditLog();
+  const metricsQ = useMetrics();
+
+  const privacy = privacyQ.data ?? null;
+  const calibration = calibrationQ.data ?? null;
+  const audit: api.AuditLogEntry[] = auditQ.data?.events ?? [];
+  const metrics = metricsQ.data ?? null;
+
+  // ── Mutations (Export / Delete) ────────────────────────────────────
+  const exportMut = useExportData();
+  const deleteMut = useDeleteAccount();
 
   const handleExport = async () => {
     if (!token) return;
-    try {
-      const data = await api.exportData();
-      await Share.share({ message: JSON.stringify(data, null, 2) });
-    } catch (e) { Alert.alert('Error', 'Export failed'); }
+    exportMut.mutate(undefined, {
+      onSuccess: async (data) => {
+        try {
+          await Share.share({ message: JSON.stringify(data, null, 2) });
+        } catch (e) { /* share cancelled — non-fatal */ }
+      },
+      onError: () => Alert.alert('Error', 'Export failed'),
+    });
   };
 
   const handleDelete = () => {
@@ -54,16 +68,19 @@ export default function SettingsScreen() {
       'This will permanently delete ALL your data (signals, commitments, audit log). This cannot be undone.\n\nType DELETE to confirm:',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete Forever', style: 'destructive', onPress: async (text) => {
+        { text: 'Delete Forever', style: 'destructive', onPress: (text) => {
           if (text !== 'DELETE') {
             Alert.alert('Cancelled', 'You must type DELETE exactly to confirm.');
             return;
           }
           if (!token) return;
-          try {
-            await api.deleteAccount();
-          } catch (e) { /* non-fatal — still clear local */ }
-          logout();
+          deleteMut.mutate(undefined, {
+            onSettled: () => {
+              // `useDeleteAccount` clears the query cache on success.
+              // Always logout afterwards (matches original behavior).
+              logout();
+            },
+          });
         }},
       ],
       'plain-text',
@@ -71,6 +88,10 @@ export default function SettingsScreen() {
       'default'
     );
   };
+
+  // Silence unused — kept for parity with the original confirm field.
+  void confirmText;
+  void setConfirmText;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
@@ -84,7 +105,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* LLM Status */}
+        {/* LLM Status (sourced from AuthContext, unchanged) */}
         <Card style={{ marginBottom: spacing.md }}>
           <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}>LLM STATUS</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -94,7 +115,7 @@ export default function SettingsScreen() {
           <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: spacing.xs }}>{llmStatus?.mode || 'Rule-based'}</Text>
         </Card>
 
-        {/* Privacy */}
+        {/* Privacy — silent on error (matches original) */}
         {privacy && (
           <Card style={{ marginBottom: spacing.md }}>
             <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}>PRIVACY MODE</Text>
@@ -141,13 +162,21 @@ export default function SettingsScreen() {
           </View>
         ))}
 
-        {/* Data */}
+        {/* Data actions */}
         <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-          <TouchableOpacity style={[styles.loginButton, { backgroundColor: t.border }]} onPress={handleExport}>
-            <Text style={{ color: t.textSecondary, fontWeight: 'bold' }}>Export All Data</Text>
+          <TouchableOpacity
+            style={[styles.loginButton, { backgroundColor: t.border, opacity: exportMut.isPending ? 0.5 : 1 }]}
+            onPress={handleExport}
+            disabled={exportMut.isPending}
+          >
+            <Text style={{ color: t.textSecondary, fontWeight: 'bold' }}>{exportMut.isPending ? 'Exporting…' : 'Export All Data'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.loginButton, { backgroundColor: colors.alertRed + '22' }]} onPress={handleDelete}>
-            <Text style={{ color: colors.alertRed, fontWeight: 'bold' }}>Delete Account</Text>
+          <TouchableOpacity
+            style={[styles.loginButton, { backgroundColor: colors.alertRed + '22', opacity: deleteMut.isPending ? 0.5 : 1 }]}
+            onPress={handleDelete}
+            disabled={deleteMut.isPending}
+          >
+            <Text style={{ color: colors.alertRed, fontWeight: 'bold' }}>{deleteMut.isPending ? 'Deleting…' : 'Delete Account'}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

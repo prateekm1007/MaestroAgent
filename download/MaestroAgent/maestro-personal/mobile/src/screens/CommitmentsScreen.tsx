@@ -1,44 +1,203 @@
 /**
- * CommitmentsScreen — extracted from the original App.tsx, unchanged in logic.
+ * CommitmentsScreen — extracted from the original App.tsx.
  *
- * Renders THE ONE (top commitment) followed by the active commitments list.
- * Each row offers Complete / Dismiss actions, which hit the signal-correction
- * endpoint after a confirm prompt.
+ * Phase 2: data fetching now goes through react-query hooks
+ * (useTheOne / useCommitments) instead of manual useEffect+useState.
+ * Loading/error/empty states use the shared components from
+ * src/components/ErrorState.tsx. Active-list cards now support
+ * swipe-to-complete (right) and swipe-to-dismiss (left) with haptic
+ * feedback, implemented via PanResponder (no gesture-handler provider
+ * required).
+ *
+ * UI/logic is otherwise unchanged.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useRef } from 'react';
 import {
-  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert, SafeAreaView,
+  View, Text, ScrollView, TouchableOpacity, Alert, SafeAreaView,
+  Animated, PanResponder, StyleSheet, LayoutAnimation, UIManager, Platform,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 import * as api from '../api/client';
+import { useTheOne, useCommitments } from '../api/hooks';
+import { useQueryClient } from '@tanstack/react-query';
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, Badge, TopBar } from '../components';
+import { ErrorState, LoadingState, EmptyState } from '../components/ErrorState';
 import { styles } from '../styles';
+
+// Android LayoutAnimation enable (for swipe-off removal animation).
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const SWIPE_THRESHOLD = 80; // px — past this, the action commits
+const OFFSCREEN = 400;      // px — how far the card flies before removal
+
+// ── SwipeableCommitmentCard ───────────────────────────────────────────
+// Wraps a commitment card with a horizontal pan. Right-swipe = complete
+// (green), left-swipe = dismiss (gray). Haptic on commit.
+
+interface SwipeableCommitmentCardProps {
+  commitment: api.Commitment;
+  onComplete: (signalId: string) => void;
+  onDismiss: (signalId: string) => void;
+  children: React.ReactNode;
+}
+
+function SwipeableCommitmentCard({
+  commitment, onComplete, onDismiss, children,
+}: SwipeableCommitmentCardProps) {
+  const { mode } = useTheme();
+  const t = getTheme(mode);
+  const pan = useRef(new Animated.Value(0)).current;
+
+  // Background opacity tracks pan position so the green/gray wash
+  // fades in as the card slides away.
+  const bgOpacity = useRef(new Animated.Value(0)).current;
+  const isRightSwipe = useRef(true);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8,
+      onPanResponderGrant: () => {
+        // Freeze current value so dx-relative pan starts cleanly.
+        pan.extractOffset();
+      },
+      onPanResponderMove: (_e, g) => {
+        isRightSwipe.current = g.dx > 0;
+        bgOpacity.setValue(Math.min(Math.abs(g.dx) / SWIPE_THRESHOLD, 1));
+        pan.setValue(g.dx);
+      },
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx > SWIPE_THRESHOLD) {
+          // Commit complete — fly off right.
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Animated.timing(pan, {
+            toValue: OFFSCREEN,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onComplete(commitment.signal_id);
+            // Reset for the next render cycle.
+            pan.setValue(0);
+            pan.setOffset(0);
+            bgOpacity.setValue(0);
+          });
+        } else if (g.dx < -SWIPE_THRESHOLD) {
+          // Commit dismiss — fly off left.
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          Animated.timing(pan, {
+            toValue: -OFFSCREEN,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onDismiss(commitment.signal_id);
+            pan.setValue(0);
+            pan.setOffset(0);
+            bgOpacity.setValue(0);
+          });
+        } else {
+          // Snap back.
+          Animated.parallel([
+            Animated.spring(pan, { toValue: 0, useNativeDriver: true }),
+            Animated.spring(bgOpacity, { toValue: 0, useNativeDriver: true }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <View style={{ marginBottom: spacing.md }}>
+      {/* Swipe action background — green (complete) or gray (dismiss) */}
+      <View style={[swipeStyles.bgLayer, { backgroundColor: t.cardBg }]}>
+        <Animated.View
+          style={[
+            swipeStyles.bgFill,
+            {
+              backgroundColor: isRightSwipe.current ? colors.successGreen : t.border,
+              opacity: bgOpacity,
+            },
+          ]}
+        />
+        <View style={swipeStyles.bgLabelRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={swipeStyles.bgIconRight}>✓</Text>
+            <Text style={[swipeStyles.bgLabel, { color: colors.white, opacity: bgOpacity }]}>
+              Complete
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[swipeStyles.bgLabel, { color: t.textSecondary, opacity: bgOpacity }]}>
+              Dismiss
+            </Text>
+            <Text style={swipeStyles.bgIconLeft}>✕</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* The actual card on top, panning horizontally */}
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={{
+          transform: [{ translateX: pan }],
+          backgroundColor: t.cardBg,
+          borderRadius: 16,
+          borderLeftWidth: 4,
+          borderLeftColor: commitment.is_at_risk
+            ? colors.alertRed
+            : (commitment.days_stale ?? 0) > 2
+              ? colors.yellow
+              : colors.successGreen,
+        }}
+      >
+        <View style={{ padding: 20 }}>
+          {children}
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+const swipeStyles = StyleSheet.create({
+  bgLayer: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  bgFill: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  bgLabelRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+  },
+  bgIconRight: { color: colors.white, fontSize: 22, fontWeight: '700' },
+  bgIconLeft: { color: colors.gray, fontSize: 22, fontWeight: '700' },
+  bgLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+});
+
+// ── CommitmentsScreen ────────────────────────────────────────────────
 
 export default function CommitmentsScreen() {
   const { mode } = useTheme();
   const t = getTheme(mode);
   const { token } = useAuth();
-  const [theOne, setTheOne] = useState<api.TheOneResult | null>(null);
-  const [commitments, setCommitments] = useState<api.Commitment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
 
-  const loadData = useCallback(async () => {
-    if (!token) return;
-    try {
-      const [one, list] = await Promise.all([
-        api.getTheOne().catch(() => null),
-        api.getCommitments().catch(() => []),
-      ]);
-      setTheOne(one);
-      setCommitments(list);
-    } catch (e) { /* ignore */ }
-    setLoading(false);
-  }, [token]);
+  // ── react-query hooks (replace manual useEffect + useState) ────────
+  const theOneQ = useTheOne();
+  const commitmentsQ = useCommitments();
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const theOne = theOneQ.data ?? null;
+  const commitments: api.Commitment[] = commitmentsQ.data ?? [];
 
   const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss' | 'cancel') => {
     if (!token || !signalId) return;
@@ -51,19 +210,47 @@ export default function CommitmentsScreen() {
           text: 'Confirm',
           onPress: async () => {
             await api.correctSignal(signalId, action);
-            loadData();
+            // Refetch via react-query invalidation.
+            qc.invalidateQueries({ queryKey: ['theOne'] });
+            qc.invalidateQueries({ queryKey: ['commitments'] });
           },
         },
       ]
     );
   };
 
+  // Swipe handlers — bypass the Alert confirm for speed. Haptic is fired
+  // in the card itself; the actual API call happens here.
+  const handleSwipeComplete = async (signalId: string) => {
+    if (!token || !signalId) return;
+    try {
+      await api.correctSignal(signalId, 'complete');
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      qc.invalidateQueries({ queryKey: ['theOne'] });
+      qc.invalidateQueries({ queryKey: ['commitments'] });
+    } catch (e) { /* ignore — react-query will surface via stale data */ }
+  };
+
+  const handleSwipeDismiss = async (signalId: string) => {
+    if (!token || !signalId) return;
+    try {
+      await api.correctSignal(signalId, 'dismiss');
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      qc.invalidateQueries({ queryKey: ['theOne'] });
+      qc.invalidateQueries({ queryKey: ['commitments'] });
+    } catch (e) { /* ignore */ }
+  };
+
+  const isLoading = theOneQ.isLoading && commitmentsQ.isLoading;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
       <TopBar title="Commitments" />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.xl }}>
-        {loading ? (
-          <ActivityIndicator color={colors.yellow} size="large" style={{ marginVertical: 40 }} />
+        {isLoading ? (
+          <LoadingState label="Loading commitments…" />
+        ) : theOneQ.error && commitmentsQ.error ? (
+          <ErrorState message="Couldn't load commitments." onRetry={() => { theOneQ.refetch(); commitmentsQ.refetch(); }} />
         ) : (
           <>
             {/* THE ONE */}
@@ -94,10 +281,19 @@ export default function CommitmentsScreen() {
             {/* ACTIVE LIST */}
             <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}>ACTIVE COMMITMENTS</Text>
             {commitments.length === 0 ? (
-              <Text style={{ color: t.textSecondary, fontSize: 14, textAlign: 'center', marginVertical: 20 }}>No active commitments</Text>
+              <EmptyState
+                title="No active commitments"
+                subtitle="Swipe right to complete · left to dismiss."
+                icon="checkmark-done-outline"
+              />
             ) : (
-              commitments.map((c, i) => (
-                <Card key={i} style={{ marginBottom: spacing.md }}>
+              commitments.map((c) => (
+                <SwipeableCommitmentCard
+                  key={c.signal_id}
+                  commitment={c}
+                  onComplete={handleSwipeComplete}
+                  onDismiss={handleSwipeDismiss}
+                >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.is_at_risk ? colors.alertRed : (c.days_stale ?? 0) > 2 ? colors.yellow : colors.successGreen, marginRight: spacing.md }} />
                     <Text style={{ fontSize: 15, fontWeight: 'bold', color: t.textPrimary, flex: 1 }}>{c.entity}</Text>
@@ -112,7 +308,7 @@ export default function CommitmentsScreen() {
                       <Text style={{ color: t.textSecondary, fontSize: 12, fontWeight: '600' }}>✕ Dismiss</Text>
                     </TouchableOpacity>
                   </View>
-                </Card>
+                </SwipeableCommitmentCard>
               ))
             )}
           </>
