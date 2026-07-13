@@ -1,7 +1,7 @@
 # CLAIM FREEZE — Maestro Marketing Alignment
 
 > **Created:** Phase 0, 2026-07-13
-> **Updated:** 2026-07-14 — added mobile web screenshot verification (Task 56); cloud-emulator limitation documented
+> **Updated:** 2026-07-14 — Task 57: API contract tests VERIFIED, full backend run PARTIAL (1097/1098), npm audit high=0 VERIFIED
 > **Rule:** Marketing must match this sheet. No claim is "real" until marked VERIFIED with execution evidence.
 > **Baseline audit:** World-class mobile audit scored 2.75/10 at commit `72b4606`
 
@@ -62,8 +62,8 @@
 | No raw sqlite3.connect() | ✅ VERIFIED | 0 raw calls, 32 get_db_conn() calls | — |
 | Rate limiting active | ✅ VERIFIED | slowapi installed + wired | — |
 | LLM output guardrail wired | ✅ VERIFIED | apply_output_guardrail() in llm_generate_answer() | — |
-| All backend tests pass | ⚠️ PARTIAL | Most pass, full 1091-test run not confirmed (timeout) | Phase 3 |
-| API contract tests (OpenAPI) | ❌ NOT VERIFIED | No shared schema between mobile + backend | Phase 3 |
+| All backend tests pass | ⚠️ PARTIAL | Full 1098-test run completed in 314.6s: 1097 pass, 1 fail (pre-existing mutation-test design issue), 7 skipped. Failure documented in worklog Task 57-b. | Phase 3 |
+| API contract tests (OpenAPI) | ✅ VERIFIED | tests/test_api_contract.py: 7 tests PASS — committed schema matches live FastAPI app (drift detection), OpenAPI 3.1.0 valid, all $ref resolve, mobile+web client endpoints are subset of schema, 13 critical endpoints exist. Schema: 81 paths, 47 schemas. | — |
 | Postgres support | ❌ NOT VERIFIED | SQLite only | Phase 8 |
 
 ### AI Intelligence
@@ -132,7 +132,7 @@
 | Rate limiting | ✅ VERIFIED | slowapi: login 10/min, default 200/min | — |
 | HTTPS enforcement | ✅ VERIFIED | setHost() rejects http:// in production | — |
 | Pre-commit credential hygiene hook | ✅ VERIFIED | .githooks/commit-msg blocks ya29./1//0/ghp_/GOCSPX- | — |
-| npm audit high = 0 | ❌ NOT VERIFIED | 2 high (Expo SDK 53 build-time deps), SDK 57 upgrade breaks tests | Phase 7 |
+| npm audit high = 0 | ✅ VERIFIED | Web: 0 high/0 critical/9 moderate. Mobile: 0 high/0 critical/12 moderate. Fix: mobile/package.json `overrides` forces @xmldom/xmldom to >=0.8.13 (was 2 high via @expo/plist → @expo/cli → expo SDK 53). All 78 mobile tests pass with override. | — |
 | External pentest | ❌ NOT VERIFIED | Not performed | Phase 7 |
 
 ### Privacy
@@ -161,9 +161,9 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ VERIFIED | 43 |
+| ✅ VERIFIED | 45 |
 | ⚠️ PARTIAL | 9 |
-| ❌ NOT VERIFIED | 14 |
+| ❌ NOT VERIFIED | 12 |
 | **Total** | **66** |
 
 ## Rule
