@@ -580,7 +580,7 @@ class TestAutoDraftDerivation:
         sig2.timestamp = "2026-07-12T09:00:00Z"
         sig2.signal_id = "sig-002"
 
-        shell.signals = [sig1, sig2]
+        shell.oem_state = None; shell.signals = [sig1, sig2]
         shell.core = None  # skip FTS
 
         gen = ConnectorDraftGenerator(shell=shell)
@@ -603,7 +603,7 @@ class TestAutoDraftDerivation:
         from maestro_personal_shell.connectors import ConnectorDraftGenerator
 
         shell = MagicMock()
-        shell.signals = []  # no signals at all
+        shell.oem_state = None; shell.signals = []  # no signals at all
         shell.core = None
 
         gen = ConnectorDraftGenerator(shell=shell)
@@ -636,7 +636,7 @@ class TestAutoDraftDerivation:
         sig.signal_type = "commitment_made"
         sig.timestamp = "2026-07-09T10:00:00Z"
         sig.signal_id = "sig-maria"
-        shell.signals = [sig]
+        shell.oem_state = None; shell.signals = [sig]
         shell.core = None
 
         gen = ConnectorDraftGenerator(shell=shell)

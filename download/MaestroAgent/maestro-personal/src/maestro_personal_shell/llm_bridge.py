@@ -1269,7 +1269,29 @@ Evidence:
 
 Answer the user's question based ONLY on the evidence above. If you cannot answer from this evidence, say so honestly."""
 
-    return await llm_complete(system_prompt, user_prompt, temperature=0.1, max_tokens=300)
+    result = await llm_complete(system_prompt, user_prompt, temperature=0.1, max_tokens=300)
+    if not result:
+        return None
+
+    # Phase 5: Apply output guardrail — check for prompt leakage, cross-user
+    # data, and factual grounding before returning the answer to the user.
+    try:
+        from maestro_personal_shell.llm_output_guardrail import apply_output_guardrail
+        guardrail_result = apply_output_guardrail(
+            text=result,
+            evidence_refs=evidence_refs or [],
+            current_user_email=getattr(situation, "_user_email", "") or os.environ.get("MAESTRO_PERSONAL_USER", ""),
+        )
+        if not guardrail_result.get("passed", True):
+            logger.warning("LLM output guardrail blocked response: %s", guardrail_result.get("violations", []))
+            # Return a safe fallback instead of the blocked content
+            return "I don't have enough reliable evidence to answer this question."
+    except ImportError:
+        pass  # Guardrail module not available — answer passes through
+    except Exception as e:
+        logger.warning("Output guardrail check failed (non-blocking): %s", e)
+
+    return result
 
 
 async def llm_synthesize_judgment(

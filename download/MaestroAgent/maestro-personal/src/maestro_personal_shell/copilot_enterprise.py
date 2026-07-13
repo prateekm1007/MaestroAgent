@@ -41,11 +41,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sqlite3
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from maestro_personal_shell.db_util import get_db_conn
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +159,7 @@ class PlaybookEngine:
     def _init_db(self) -> None:
         """Create the copilot_enterprise table if it doesn't exist."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS copilot_playbooks (
                     id TEXT PRIMARY KEY,
@@ -191,7 +192,7 @@ class PlaybookEngine:
     def load(self) -> list[dict[str, Any]]:
         """Load playbooks from DB; seed defaults if empty."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             rows = conn.execute(
                 "SELECT id, name, triggers, talk_tracks, objection_responses, "
                 "learned_responses FROM copilot_playbooks"
@@ -222,7 +223,7 @@ class PlaybookEngine:
     def _save_defaults(self) -> None:
         """Save the default playbooks to DB."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             now = datetime.now(timezone.utc).isoformat()
             for pb in self.playbooks:
                 conn.execute(
@@ -259,7 +260,7 @@ class PlaybookEngine:
 
         # Persist
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             now = datetime.now(timezone.utc).isoformat()
             conn.execute(
                 "INSERT OR REPLACE INTO copilot_playbooks "
@@ -290,7 +291,7 @@ class PlaybookEngine:
         before = len(self.playbooks)
         self.playbooks = [p for p in self.playbooks if p["id"] != playbook_id]
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute("DELETE FROM copilot_playbooks WHERE id = ?", (playbook_id,))
             conn.commit()
             conn.close()
@@ -375,7 +376,7 @@ class PlaybookEngine:
 
         # Record in DB
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "INSERT INTO copilot_playbook_outcomes "
                 "(playbook_id, talk_track_idx, outcome, context, recorded_at) "
@@ -406,7 +407,7 @@ class PlaybookEngine:
 
     def _count_positive_outcomes(self, playbook_id: str, talk_track_idx: int) -> int:
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             row = conn.execute(
                 "SELECT COUNT(*) FROM copilot_playbook_outcomes "
                 "WHERE playbook_id = ? AND talk_track_idx = ? AND outcome = 'positive'",
@@ -435,7 +436,7 @@ class PlaybookEngine:
                         })
                         # Persist
                         try:
-                            conn = sqlite3.connect(self.db_path, timeout=5.0)
+                            conn = get_db_conn(self.db_path)
                             conn.execute(
                                 "UPDATE copilot_playbooks SET learned_responses = ?, updated_at = ? "
                                 "WHERE id = ?",
@@ -484,7 +485,7 @@ class ShadowMode:
 
     def _init_db(self) -> None:
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS copilot_shadow_sessions (
                     session_id TEXT PRIMARY KEY,
@@ -539,7 +540,7 @@ class ShadowMode:
         session_id = f"shadow-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{rep_email.split('@')[0]}"
 
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "INSERT INTO copilot_shadow_sessions "
                 "(session_id, manager_email, rep_email, meeting_title, entity, started_at, status) "
@@ -567,7 +568,7 @@ class ShadowMode:
         """End a shadow session."""
         self._ensure_init()
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "UPDATE copilot_shadow_sessions SET ended_at = ?, status = 'ended' "
                 "WHERE session_id = ?",
@@ -599,7 +600,7 @@ class ShadowMode:
             note_type = "coaching"
 
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             cur = conn.execute(
                 "INSERT INTO copilot_shadow_notes "
                 "(session_id, timestamp, transcript_chunk, note_text, note_type) "
@@ -626,7 +627,7 @@ class ShadowMode:
         """List all coaching notes for a session."""
         self._ensure_init()
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             rows = conn.execute(
                 "SELECT note_id, timestamp, transcript_chunk, note_text, note_type "
                 "FROM copilot_shadow_notes WHERE session_id = ? ORDER BY timestamp",
@@ -665,7 +666,7 @@ class ShadowMode:
         overall_rating = max(1, min(5, int(overall_rating)))
 
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             cur = conn.execute(
                 "INSERT INTO copilot_shadow_feedback "
                 "(session_id, overall_rating, strengths, improvements, next_steps, recorded_at) "
@@ -699,7 +700,7 @@ class ShadowMode:
         """Get the feedback for a session (if any)."""
         self._ensure_init()
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             row = conn.execute(
                 "SELECT feedback_id, overall_rating, strengths, improvements, next_steps, recorded_at "
                 "FROM copilot_shadow_feedback WHERE session_id = ?",
@@ -726,7 +727,7 @@ class ShadowMode:
         """Get a shadow session by ID."""
         self._ensure_init()
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             row = conn.execute(
                 "SELECT session_id, manager_email, rep_email, meeting_title, entity, "
                 "started_at, ended_at, status "
@@ -759,7 +760,7 @@ class ShadowMode:
         """List shadow sessions, optionally filtered."""
         self._ensure_init()
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             query = ("SELECT session_id, manager_email, rep_email, meeting_title, entity, "
                      "started_at, ended_at, status FROM copilot_shadow_sessions WHERE 1=1")
             params: list = []

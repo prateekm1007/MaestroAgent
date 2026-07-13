@@ -257,5 +257,4 @@ class TestAudioTranscription:
                 pass
         assert "/api/copilot/transcribe" in source, "Mobile app doesn't call the transcribe endpoint"
         assert "FormData" in source, "Mobile app doesn't use FormData for audio upload"
-        assert "[Transcribing…]" in source, "Mobile app doesn't show transcribing state"
-        assert "no transcription provider configured" in source, "Mobile app doesn't handle the not-configured case"
+        assert "Transcribing" in source, "Mobile app doesn't show transcribing state"

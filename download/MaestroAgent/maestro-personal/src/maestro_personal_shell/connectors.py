@@ -42,11 +42,12 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from maestro_personal_shell.db_util import get_db_conn
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +262,7 @@ class ConnectorStore:
 
     def _init_db(self) -> None:
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS connectors (
                     user_email TEXT NOT NULL,
@@ -310,7 +311,7 @@ class ConnectorStore:
     def list_connectors(self, user_email: str) -> list[dict[str, Any]]:
         """List all available connectors with the user's connection state."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             rows = conn.execute(
                 "SELECT provider, connected, connected_at, last_ingest_at, commitments_ingested "
                 "FROM connectors WHERE user_email = ?",
@@ -365,7 +366,7 @@ class ConnectorStore:
         now = datetime.now(timezone.utc).isoformat()
 
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "INSERT OR REPLACE INTO connectors "
                 "(user_email, provider, connected, token, connected_at, last_ingest_at, commitments_ingested) "
@@ -394,7 +395,7 @@ class ConnectorStore:
         """Disconnect a provider (deletes the token, keeps audit history)."""
         now = datetime.now(timezone.utc).isoformat()
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "UPDATE connectors SET connected = 0, token = '' WHERE user_email = ? AND provider = ?",
                 (user_email, provider),
@@ -415,7 +416,7 @@ class ConnectorStore:
     def get_connector_state(self, user_email: str, provider: str) -> dict[str, Any] | None:
         """Get the connection state for a specific provider."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             row = conn.execute(
                 "SELECT connected, connected_at, last_ingest_at, commitments_ingested "
                 "FROM connectors WHERE user_email = ? AND provider = ?",
@@ -442,7 +443,7 @@ class ConnectorStore:
         connected or no token stored.
         """
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             row = conn.execute(
                 "SELECT token FROM connectors WHERE user_email = ? AND provider = ? AND connected = 1",
                 (user_email, provider),
@@ -464,7 +465,7 @@ class ConnectorStore:
         """
         encrypted = self._encrypt(new_token) if new_token else ""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "UPDATE connectors SET token = ? WHERE user_email = ? AND provider = ?",
                 (encrypted, user_email, provider),
@@ -519,7 +520,7 @@ class ConnectorStore:
 
         # Update last_ingest_at + commitments_ingested
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "UPDATE connectors SET last_ingest_at = ?, "
                 "commitments_ingested = commitments_ingested + ? "
@@ -709,7 +710,7 @@ class ConnectorStore:
         evidence_json = json.dumps(evidence_refs or [])
 
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "INSERT INTO drafts "
                 "(draft_id, user_email, provider, recipient, subject, body, "
@@ -744,7 +745,7 @@ class ConnectorStore:
     def list_drafts(self, user_email: str, status: str = "pending") -> list[dict[str, Any]]:
         """List drafts for a user, optionally filtered by status."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             if status:
                 rows = conn.execute(
                     "SELECT draft_id, provider, recipient, subject, body, "
@@ -784,7 +785,7 @@ class ConnectorStore:
     def get_draft(self, draft_id: str) -> dict[str, Any] | None:
         """Get a single draft by ID."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             row = conn.execute(
                 "SELECT draft_id, user_email, provider, recipient, subject, body, "
                 "commitment_ref, evidence_refs, status, created_at, resolved_at "
@@ -866,7 +867,7 @@ class ConnectorStore:
             action_detail = f"Marked as draft for {draft['recipient']} — user will edit and send manually"
 
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             conn.execute(
                 "UPDATE drafts SET status = ?, resolved_at = ?, sent_message_id = ? "
                 "WHERE draft_id = ?",
@@ -1036,7 +1037,7 @@ class ConnectorStore:
     def get_audit_log(self, user_email: str, limit: int = 50) -> list[dict[str, Any]]:
         """Get the connector + draft audit log for a user."""
         try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            conn = get_db_conn(self.db_path)
             rows = conn.execute(
                 "SELECT action, provider, detail, timestamp FROM connector_audit "
                 "WHERE user_email = ? ORDER BY timestamp DESC LIMIT ?",
@@ -1158,11 +1159,16 @@ class ConnectorDraftGenerator:
         best_signal_id = ""
 
         try:
-            # P14 fix: signals live in shell.oem_state.signals (not shell.signals or shell.core.signals)
-            if hasattr(shell, "oem_state") and shell.oem_state:
+            # P14 fix: signals live in shell.oem_state.signals (PersonalShell)
+            # or shell.signals / shell.core.signals (generic/mock shells)
+            if hasattr(shell, "oem_state") and shell.oem_state and hasattr(shell.oem_state, "signals"):
                 signals = shell.oem_state.signals
+            elif hasattr(shell, "signals") and shell.signals:
+                signals = shell.signals
+            elif hasattr(shell, "core") and shell.core and hasattr(shell.core, "signals"):
+                signals = shell.core.signals
             else:
-                signals = getattr(shell, "signals", None) or getattr(getattr(shell, "core", None), "signals", []) or []
+                signals = []
         except Exception:
             signals = []
 
