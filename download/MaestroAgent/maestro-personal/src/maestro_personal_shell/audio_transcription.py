@@ -155,43 +155,67 @@ def _transcribe_witai(audio_data: bytes, filename: str) -> dict[str, Any]:
                 "error": f"Wit.ai API error {e.code}: {error_body[:200]}",
             }
 
-        # Wit.ai returns newline-delimited JSON or a single JSON object
-        # Parse the response — may be {"text": "..."} or {"_text": "..."}
+        # Wit.ai returns newline-delimited JSON (streaming partial results)
+        # Each object is pretty-printed (multi-line). We parse by counting braces.
+        # type can be PARTIAL_TRANSCRIPTION, FINAL_TRANSCRIPTION, or PARTIAL_UNDERSTANDING
+        # We want the FINAL_TRANSCRIPTION, or if none, the last PARTIAL_TRANSCRIPTION
         import json
-        try:
-            # Try parsing as JSON
-            result = json.loads(response_data)
-            text = result.get("text") or result.get("_text") or ""
+
+        # Split response into individual JSON objects by counting braces
+        objects = []
+        depth = 0
+        current_obj = ""
+        for char in response_data:
+            current_obj += char
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    objects.append(current_obj.strip())
+                    current_obj = ""
+
+        final_text = ""
+        last_partial_text = ""
+
+        for obj_str in objects:
+            try:
+                obj = json.loads(obj_str)
+            except json.JSONDecodeError:
+                continue
+
+            text = obj.get("text") or ""
             if isinstance(text, list):
-                # Some responses return [{"text": "..."}, ...]
                 text = " ".join(t if isinstance(t, str) else t.get("text", "") for t in text)
+
+            obj_type = obj.get("type", "")
+            if obj_type == "FINAL_TRANSCRIPTION":
+                final_text = text.strip()
+                break  # Final result — use it
+            elif obj_type == "PARTIAL_TRANSCRIPTION" and text:
+                last_partial_text = text.strip()  # Keep updating — last is most complete
+
+        # If we got a final result, use it; otherwise use last partial
+        if final_text:
             return {
-                "text": text.strip(),
+                "text": final_text,
                 "provider": "witai",
                 "configured": True,
                 "error": "",
             }
-        except json.JSONDecodeError:
-            # Wit.ai sometimes returns newline-delimited JSON
-            # Try the last non-empty line
-            lines = [l.strip() for l in response_data.split("\n") if l.strip()]
-            if lines:
-                try:
-                    last = json.loads(lines[-1])
-                    text = last.get("text") or last.get("_text") or ""
-                    return {
-                        "text": text.strip(),
-                        "provider": "witai",
-                        "configured": True,
-                        "error": "",
-                    }
-                except json.JSONDecodeError:
-                    pass
+        elif last_partial_text:
+            return {
+                "text": last_partial_text,
+                "provider": "witai",
+                "configured": True,
+                "error": "",
+            }
+        else:
             return {
                 "text": "",
                 "provider": "witai",
                 "configured": True,
-                "error": f"Could not parse Wit.ai response: {response_data[:200]}",
+                "error": f"Wit.ai returned no transcription. Response: {response_data[:200]}",
             }
     except Exception as e:
         logger.error(f"Wit.ai transcription failed: {e}")
