@@ -154,6 +154,9 @@ function SwipeableCommitmentCard({
               ? colors.yellow
               : colors.successGreen,
         }}
+        accessibilityRole="summary"
+        accessibilityLabel={`Commitment from ${commitment.entity}. Swipe right to complete, left to dismiss.`}
+        accessibilityHint="Swipe right to complete, left to dismiss"
       >
         <View style={{ padding: 20 }}>
           {children}
@@ -256,21 +259,53 @@ export default function CommitmentsScreen() {
             {/* THE ONE */}
             {theOne?.primary && (
               <>
-                <Text style={[typography.label, { color: colors.yellow, marginBottom: spacing.md }]}>⭐ THE ONE</Text>
+                <Text
+                  style={[typography.label, { color: colors.yellow, marginBottom: spacing.md }]}
+                  accessibilityRole="header"
+                  accessibilityLabel="The One section"
+                >⭐ THE ONE</Text>
                 <Card accent="yellow" style={{ marginBottom: spacing.xl }}>
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}>{theOne.primary.entity}</Text>
-                  <Text style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}>
+                  <Text
+                    style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}
+                    accessibilityRole="header"
+                    accessibilityLabel={`Primary commitment: ${theOne.primary.entity}`}
+                  >{theOne.primary.entity}</Text>
+                  <Text
+                    style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Commitment: ${theOne.primary.text}`}
+                  >
                     "{theOne.primary.text}"
                   </Text>
                   {theOne.primary.deadline ? <Badge text={`📅 ${theOne.primary.deadline}`} color="yellow" /> : null}
                   {theOne.primary.is_at_risk ? <Badge text="🔥 At Risk" color="red" /> : null}
-                  {(theOne.primary.days_stale ?? 0) > 0 ? <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>{theOne.primary.days_stale}d stale</Text> : null}
-                  {theOne.why_primary ? <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.sm }}>{theOne.why_primary}</Text> : null}
+                  {(theOne.primary.days_stale ?? 0) > 0 ? <Text
+                    style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`${theOne.primary.days_stale} days stale`}
+                  >{theOne.primary.days_stale}d stale</Text> : null}
+                  {theOne.why_primary ? <Text
+                    style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.sm }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Why this is primary: ${theOne.why_primary}`}
+                  >{theOne.why_primary}</Text> : null}
                   <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg }}>
-                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.successGreen }]} onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'complete')}>
+                    <TouchableOpacity
+                      style={[styles.smallBtn, { backgroundColor: colors.successGreen }]}
+                      onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'complete')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Complete primary commitment"
+                      accessibilityHint="Completes this commitment"
+                    >
                       <Text style={{ color: colors.white, fontSize: 13, fontWeight: '600' }}>✓ Complete</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: t.border }]} onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'dismiss')}>
+                    <TouchableOpacity
+                      style={[styles.smallBtn, { backgroundColor: t.border }]}
+                      onPress={() => handleCorrect(theOne.primary?.signal_id ?? '', 'dismiss')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Dismiss primary commitment"
+                      accessibilityHint="Dismisses this commitment"
+                    >
                       <Text style={{ color: t.textSecondary, fontSize: 13, fontWeight: '600' }}>✕ Dismiss</Text>
                     </TouchableOpacity>
                   </View>
@@ -279,7 +314,11 @@ export default function CommitmentsScreen() {
             )}
 
             {/* ACTIVE LIST */}
-            <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}>ACTIVE COMMITMENTS</Text>
+            <Text
+              style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}
+              accessibilityRole="header"
+              accessibilityLabel="Active commitments section"
+            >ACTIVE COMMITMENTS</Text>
             {commitments.length === 0 ? (
               <EmptyState
                 title="No active commitments"
@@ -296,15 +335,34 @@ export default function CommitmentsScreen() {
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.is_at_risk ? colors.alertRed : (c.days_stale ?? 0) > 2 ? colors.yellow : colors.successGreen, marginRight: spacing.md }} />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: t.textPrimary, flex: 1 }}>{c.entity}</Text>
+                    <Text
+                      style={{ fontSize: 15, fontWeight: 'bold', color: t.textPrimary, flex: 1 }}
+                      accessibilityRole="text"
+                      accessibilityLabel={c.entity}
+                    >{c.entity}</Text>
                     {c.deadline ? <Badge text={c.deadline} color="yellow" /> : null}
                   </View>
-                  <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }} numberOfLines={2}>"{c.text}"</Text>
+                  <Text
+                    style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}
+                    numberOfLines={2}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Commitment: ${c.text}`}
+                  >"{c.text}"</Text>
                   <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm }}>
-                    <TouchableOpacity onPress={() => handleCorrect(c.signal_id, 'complete')}>
+                    <TouchableOpacity
+                      onPress={() => handleCorrect(c.signal_id, 'complete')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Complete ${c.entity} commitment`}
+                      accessibilityHint="Completes this commitment"
+                    >
                       <Text style={{ color: colors.successGreen, fontSize: 12, fontWeight: '600' }}>✓ Complete</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleCorrect(c.signal_id, 'dismiss')}>
+                    <TouchableOpacity
+                      onPress={() => handleCorrect(c.signal_id, 'dismiss')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Dismiss ${c.entity} commitment`}
+                      accessibilityHint="Dismisses this commitment"
+                    >
                       <Text style={{ color: t.textSecondary, fontSize: 12, fontWeight: '600' }}>✕ Dismiss</Text>
                     </TouchableOpacity>
                   </View>

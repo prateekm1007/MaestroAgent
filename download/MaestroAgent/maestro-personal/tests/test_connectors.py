@@ -668,8 +668,8 @@ class TestAutoDraftDerivation:
 
     def test_auto_draft_only_takes_provider_and_recipient(self):
         """P13: the ConnectorAutoDraftRequest must NOT accept commitment_text."""
-        # This is a schema check — the request model should only have provider + recipient
-        from maestro_personal_shell.api import ConnectorAutoDraftRequest
+        # Phase 6: model moved to routers/connectors.py during api.py split
+        from maestro_personal_shell.routers.connectors import ConnectorAutoDraftRequest
         fields = ConnectorAutoDraftRequest.model_fields
         assert "provider" in fields
         assert "recipient" in fields

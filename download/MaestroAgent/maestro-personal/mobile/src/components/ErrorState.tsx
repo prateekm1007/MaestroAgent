@@ -23,11 +23,21 @@ export function ErrorState({
 }) {
   const t = getTheme('light');
   return (
-    <View style={styles.center}>
+    <View style={styles.center} accessibilityRole="alert" accessibilityLiveRegion="assertive">
       <Ionicons name="alert-circle" size={48} color={colors.alertRed} />
-      <Text style={[styles.errorText, { color: t.textPrimary }]}>{message}</Text>
+      <Text
+        style={[styles.errorText, { color: t.textPrimary }]}
+        accessibilityRole="text"
+        accessibilityLabel={message}
+      >{message}</Text>
       {onRetry && (
-        <TouchableOpacity style={[styles.retryBtn, { borderColor: colors.yellow }]} onPress={onRetry}>
+        <TouchableOpacity
+          style={[styles.retryBtn, { borderColor: colors.yellow }]}
+          onPress={onRetry}
+          accessibilityRole="button"
+          accessibilityLabel="Try again"
+          accessibilityHint="Retries the failed operation"
+        >
           <Text style={[styles.retryText, { color: colors.yellow }]}>Try Again</Text>
         </TouchableOpacity>
       )}
@@ -48,10 +58,18 @@ export function EmptyState({
 }) {
   const t = getTheme('light');
   return (
-    <View style={styles.center}>
+    <View style={styles.center} accessibilityRole="summary" accessibilityLiveRegion="polite">
       <Ionicons name={icon as any} size={48} color={colors.gray} />
-      <Text style={[styles.emptyTitle, { color: t.textPrimary }]}>{title}</Text>
-      <Text style={[styles.emptySubtitle, { color: t.textSecondary }]}>{subtitle}</Text>
+      <Text
+        style={[styles.emptyTitle, { color: t.textPrimary }]}
+        accessibilityRole="header"
+        accessibilityLabel={title}
+      >{title}</Text>
+      <Text
+        style={[styles.emptySubtitle, { color: t.textSecondary }]}
+        accessibilityRole="text"
+        accessibilityLabel={subtitle}
+      >{subtitle}</Text>
     </View>
   );
 }
@@ -61,9 +79,13 @@ export function EmptyState({
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   const t = getTheme('light');
   return (
-    <View style={styles.center}>
+    <View style={styles.center} accessibilityRole="progressbar" accessibilityLiveRegion="polite">
       <ActivityIndicator size="large" color={colors.yellow} />
-      <Text style={[styles.loadingText, { color: t.textSecondary }]}>{label}</Text>
+      <Text
+        style={[styles.loadingText, { color: t.textSecondary }]}
+        accessibilityRole="text"
+        accessibilityLabel={label}
+      >{label}</Text>
     </View>
   );
 }
@@ -72,7 +94,12 @@ export function LoadingState({ label = 'Loading…' }: { label?: string }) {
 
 export function OfflineBanner() {
   return (
-    <View style={styles.offlineBanner}>
+    <View
+      style={styles.offlineBanner}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="assertive"
+      accessibilityLabel="Offline — showing cached data"
+    >
       <Ionicons name="cloud-offline" size={16} color="#fff" />
       <Text style={styles.offlineText}>Offline — showing cached data</Text>
     </View>

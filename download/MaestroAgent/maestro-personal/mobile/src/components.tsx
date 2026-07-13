@@ -26,7 +26,10 @@ export function Card({ children, style, accent }: { children: React.ReactNode; s
   const t = getTheme(mode);
   const borderLeftColor = accent === 'yellow' ? t.yellow : accent === 'red' ? t.danger : accent === 'green' ? t.success : 'transparent';
   return (
-    <View style={[styles.card, { backgroundColor: t.cardBg, borderLeftColor, borderLeftWidth: accent ? 4 : 0 }, style]}>
+    <View
+      style={[styles.card, { backgroundColor: t.cardBg, borderLeftColor, borderLeftWidth: accent ? 4 : 0 }, style]}
+      accessibilityRole="summary"
+    >
       {children}
     </View>
   );
@@ -38,7 +41,11 @@ export function Badge({ text, color = 'gray' }: { text: string; color?: 'gray' |
   const bg = color === 'yellow' ? colors.yellow + '22' : color === 'red' ? colors.alertRed + '22' : color === 'green' ? colors.successGreen + '22' : t.border;
   const fg = color === 'yellow' ? colors.yellow : color === 'red' ? colors.alertRed : color === 'green' ? colors.successGreen : t.textSecondary;
   return (
-    <View style={{ backgroundColor: bg, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginRight: spacing.sm }}>
+    <View
+      style={{ backgroundColor: bg, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginRight: spacing.sm }}
+      accessibilityRole="text"
+      accessibilityLabel={text}
+    >
       <Text style={{ color: fg, fontSize: 12, fontWeight: '600' }}>{text}</Text>
     </View>
   );
@@ -48,15 +55,27 @@ export function ConfidenceBar({ value, label }: { value: number; label?: string 
   const { mode } = useTheme();
   const t = getTheme(mode);
   return (
-    <View style={{ marginTop: spacing.md }}>
+    <View
+      style={{ marginTop: spacing.md }}
+      accessibilityRole="adjustable"
+      accessibilityLabel={`Confidence: ${Math.round(value * 100)} percent`}
+    >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs }}>
-        <Text style={{ color: t.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 1 }}>CONFIDENCE</Text>
-        <Text style={{ color: t.textPrimary, fontSize: 14, fontWeight: 'bold' }}>{Math.round(value * 100)}%</Text>
+        <Text
+          style={{ color: t.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 1 }}
+          accessibilityRole="header"
+          accessibilityLabel="Confidence section"
+        >CONFIDENCE</Text>
+        <Text
+          style={{ color: t.textPrimary, fontSize: 14, fontWeight: 'bold' }}
+          accessibilityRole="text"
+          accessibilityLabel={`${Math.round(value * 100)} percent confidence`}
+        >{Math.round(value * 100)}%</Text>
       </View>
       <View style={{ height: 4, backgroundColor: t.border, borderRadius: radius.full, overflow: 'hidden' }}>
         <View style={{ width: `${value * 100}%`, height: '100%', backgroundColor: colors.yellow, borderRadius: radius.full }} />
       </View>
-      {label && <Text style={{ color: t.textSecondary, fontSize: 11, marginTop: spacing.xs }}>{label}</Text>}
+      {label && <Text style={{ color: t.textSecondary, fontSize: 11, marginTop: spacing.xs }} accessibilityRole="text" accessibilityLabel={label}>{label}</Text>}
     </View>
   );
 }
@@ -65,7 +84,13 @@ export function LLMDot({ size = 8 }: { size?: number }) {
   const { llmStatus } = useAuth();
   const active = llmStatus?.active;
   const color = active ? colors.successGreen : colors.yellow;
-  return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />;
+  return (
+    <View
+      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }}
+      accessibilityRole="image"
+      accessibilityLabel={active ? 'LLM active' : 'LLM inactive (rules-based)'}
+    />
+  );
 }
 
 export function TopBar({ title }: { title: string }) {
@@ -73,14 +98,27 @@ export function TopBar({ title }: { title: string }) {
   const t = getTheme(mode);
   const { logout } = useAuth();
   return (
-    <View style={[styles.topBar, { backgroundColor: t.bg, borderBottomColor: t.border }]}>
+    <View
+      style={[styles.topBar, { backgroundColor: t.bg, borderBottomColor: t.border }]}
+      accessibilityRole="header"
+      accessibilityLabel={`${title} screen`}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={{ color: colors.yellow, fontSize: 18, fontWeight: 'bold' }}>⚡</Text>
-        <Text style={{ color: t.textPrimary, fontSize: 18, fontWeight: 'bold' }}>{title}</Text>
+        <Text
+          style={{ color: t.textPrimary, fontSize: 18, fontWeight: 'bold' }}
+          accessibilityRole="header"
+          accessibilityLabel={title}
+        >{title}</Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <LLMDot />
-        <TouchableOpacity onPress={logout}>
+        <TouchableOpacity
+          onPress={logout}
+          accessibilityRole="button"
+          accessibilityLabel="Log out"
+          accessibilityHint="Logs you out and returns to the login screen"
+        >
           <Ionicons name="log-out-outline" size={22} color={t.textSecondary} />
         </TouchableOpacity>
       </View>

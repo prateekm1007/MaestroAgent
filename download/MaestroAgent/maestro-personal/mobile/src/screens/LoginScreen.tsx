@@ -72,9 +72,16 @@ export default function LoginScreen() {
             onChangeText={setServerUrl}
             autoCapitalize="none"
             autoCorrect={false}
+            accessibilityLabel="Server URL"
+            accessibilityHint="Enter the Maestro backend server URL"
           />
         )}
-        <TouchableOpacity onPress={() => setShowServerConfig(!showServerConfig)} style={{ alignSelf: 'flex-end', marginBottom: spacing.md }}>
+        <TouchableOpacity
+          onPress={() => setShowServerConfig(!showServerConfig)}
+          style={{ alignSelf: 'flex-end', marginBottom: spacing.md }}
+          accessibilityRole="button"
+          accessibilityLabel={showServerConfig ? 'Hide server URL config' : 'Show server URL config'}
+        >
           <Text style={{ color: t.textSecondary, fontSize: 12 }}>{showServerConfig ? '▲ Hide' : '⚙ Server: ' + serverUrl.replace('http://', '').replace('https://', '')}</Text>
         </TouchableOpacity>
 
@@ -90,12 +97,18 @@ export default function LoginScreen() {
           secureTextEntry
           onSubmitEditing={handleLogin}
           autoCapitalize="none"
+          accessibilityLabel="Access code"
+          accessibilityHint="Enter your Maestro access token to log in"
+          accessibilityRole="text"
         />
 
         <TouchableOpacity
           style={[styles.loginButton, { backgroundColor: colors.yellow, opacity: loading || !password ? 0.5 : 1 }]}
           onPress={handleLogin}
           disabled={loading || !password}
+          accessibilityRole="button"
+          accessibilityLabel="Log in"
+          accessibilityHint={loading ? 'Signing in' : 'Logs you into Maestro'}
         >
           {loading ? (
             <ActivityIndicator color={colors.black} />

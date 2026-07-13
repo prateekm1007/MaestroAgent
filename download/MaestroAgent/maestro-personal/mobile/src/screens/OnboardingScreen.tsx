@@ -55,37 +55,56 @@ export default function OnboardingScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: t.bg }]} contentContainerStyle={styles.content}>
       {/* Progress dots */}
-      <View style={styles.dots}>
+      <View style={styles.dots} accessibilityRole="tablist" accessibilityLabel="Onboarding progress">
         {steps.map((_, i) => (
           <View
             key={i}
             style={[styles.dot, i === step && styles.dotActive]}
+            accessibilityRole="text"
+            accessibilityLabel={`Step ${i + 1} of ${steps.length}${i === step ? ', current' : ''}`}
           />
         ))}
       </View>
 
       {/* Icon */}
-      <View style={[styles.iconCircle, { backgroundColor: colors.honey }]}>
+      <View style={[styles.iconCircle, { backgroundColor: colors.honey }]} accessibilityRole="image" accessibilityLabel={`Onboarding step icon: ${current.icon}`}>
         <Ionicons name={current.icon} size={48} color={colors.black} />
       </View>
 
       {/* Title */}
-      <Text style={[styles.title, { color: t.textPrimary }]}>{current.title}</Text>
+      <Text
+        style={[styles.title, { color: t.textPrimary }]}
+        accessibilityRole="header"
+        accessibilityLabel={current.title.replace(/\n/g, ' ')}
+      >{current.title}</Text>
 
       {/* Body */}
-      <Text style={[styles.body, { color: t.textSecondary }]}>{current.body}</Text>
+      <Text
+        style={[styles.body, { color: t.textSecondary }]}
+        accessibilityRole="text"
+        accessibilityLabel={current.body}
+      >{current.body}</Text>
 
       {/* CTA */}
       <TouchableOpacity
         style={[styles.cta, { backgroundColor: colors.yellow }]}
         onPress={handleNext}
+        accessibilityRole="button"
+        accessibilityLabel={isLast ? 'Get started' : 'Next onboarding step'}
+        accessibilityHint={isLast ? 'Completes onboarding and proceeds to login' : 'Advances to the next onboarding step'}
       >
         <Text style={styles.ctaText}>{current.cta}</Text>
       </TouchableOpacity>
 
       {/* Skip */}
       {!isLast && (
-        <TouchableOpacity onPress={completeOnboarding} style={styles.skip}>
+        <TouchableOpacity
+          onPress={completeOnboarding}
+          style={styles.skip}
+          accessibilityRole="button"
+          accessibilityLabel="Skip onboarding"
+          accessibilityHint="Skips the rest of onboarding and proceeds to login"
+        >
           <Text style={[styles.skipText, { color: t.textSecondary }]}>Skip</Text>
         </TouchableOpacity>
       )}

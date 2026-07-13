@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, SafeAreaView,
+  View, Text, ScrollView, TouchableOpacity, SafeAreaView, AccessibilityInfo,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,11 +52,23 @@ export default function DashboardScreen() {
 
   // ── Reanimated mount animation for the Moment card ─────────────────
   // Subtle fade-in + spring scale-up. Premium feel — not flashy.
+  // Phase 7 (a11y): skip the animation entirely when the user has
+  // "Reduce Motion" enabled in system settings. The card still renders
+  // (just with its final opacity/scale) so the content is identical.
   const cardOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0.96);
   useEffect(() => {
-    cardOpacity.value = withTiming(1, { duration: 400 });
-    cardScale.value = withSpring(1, { damping: 18, stiffness: 160 });
+    // AccessibilityInfo.isReduceMotionEnabled() resolves to a boolean —
+    // when true, we jump straight to the final values instead of animating.
+    AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
+      if (reduce) {
+        cardOpacity.value = 1;
+        cardScale.value = 1;
+      } else {
+        cardOpacity.value = withTiming(1, { duration: 400 });
+        cardScale.value = withSpring(1, { damping: 18, stiffness: 160 });
+      }
+    });
   }, [cardOpacity, cardScale]);
   const cardAnimStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
@@ -92,14 +104,31 @@ export default function DashboardScreen() {
         ) : momentQ.error ? (
           <ErrorState message="Couldn't load the moment." onRetry={() => momentQ.refetch()} />
         ) : moment?.has_moment && moment.commitment ? (
-          <Animated.View style={[cardAnimStyle, { marginBottom: spacing.xl }]}>
+          <Animated.View
+            style={[cardAnimStyle, { marginBottom: spacing.xl }]}
+            accessibilityLiveRegion="polite"
+            accessibilityLabel="The Moment card"
+            accessibilityRole="summary"
+          >
             <Card accent="yellow">
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}>{moment.commitment.entity}</Text>
-              <Text style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}>
+              <Text
+                style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}
+                accessibilityRole="header"
+                accessibilityLabel={`${moment.commitment.entity} commitment`}
+              >{moment.commitment.entity}</Text>
+              <Text
+                style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}
+                accessibilityRole="text"
+                accessibilityLabel={`Commitment: ${moment.commitment.text}`}
+              >
                 "{moment.commitment.text}"
               </Text>
               {moment.why_this_one ? (
-                <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.md }}>{moment.why_this_one}</Text>
+                <Text
+                  style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.md }}
+                  accessibilityRole="text"
+                  accessibilityLabel={`Why this matters: ${moment.why_this_one}`}
+                >{moment.why_this_one}</Text>
               ) : null}
               <View style={{ flexDirection: 'row', marginTop: spacing.md, gap: spacing.sm }}>
                 {moment.commitment.metadata?.deadline ? <Badge text={`📅 ${moment.commitment.metadata.deadline}`} color="yellow" /> : null}
@@ -109,6 +138,9 @@ export default function DashboardScreen() {
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: colors.successGreen }]}
                   onPress={() => handleCorrect(moment.commitment!.signal_id, 'complete')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark commitment as done"
+                  accessibilityHint="Completes this commitment"
                 >
                   <Ionicons name="checkmark" size={24} color={colors.white} />
                   <Text style={styles.actionLabel}>Done</Text>
@@ -116,6 +148,9 @@ export default function DashboardScreen() {
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: t.border }]}
                   onPress={() => handleCorrect(moment.commitment!.signal_id, 'dismiss')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Skip this commitment"
+                  accessibilityHint="Dismisses this commitment for now"
                 >
                   <Ionicons name="close" size={24} color={t.textSecondary} />
                   <Text style={[styles.actionLabel, { color: t.textSecondary }]}>Skip</Text>
@@ -124,7 +159,7 @@ export default function DashboardScreen() {
             </Card>
           </Animated.View>
         ) : (
-          <View style={{ marginBottom: spacing.xl }}>
+          <View style={{ marginBottom: spacing.xl }} accessibilityLiveRegion="polite">
             <EmptyState
               title="Nothing needs your attention right now."
               subtitle="Maestro is watching quietly."
@@ -136,12 +171,25 @@ export default function DashboardScreen() {
         {/* WHAT CHANGED — secondary, errors are silent (matches original .catch(() => null)) */}
         {shifts.length > 0 && (
           <>
-            <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}>WHAT CHANGED</Text>
+            <Text
+              style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}
+              accessibilityRole="header"
+              accessibilityLabel="What changed section"
+            >WHAT CHANGED</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.xl }}>
               {shifts.map((s, i) => (
                 <Card key={i} style={{ width: 160, marginRight: spacing.md }}>
-                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>{s.entity}</Text>
-                  <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: 2 }} numberOfLines={1}>{s.description}</Text>
+                  <Text
+                    style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Shift for ${s.entity}`}
+                  >{s.entity}</Text>
+                  <Text
+                    style={{ fontSize: 13, color: t.textSecondary, marginTop: 2 }}
+                    numberOfLines={1}
+                    accessibilityRole="text"
+                    accessibilityLabel={s.description}
+                  >{s.description}</Text>
                   <Text style={{ fontSize: 11, color: t.textSecondary, marginTop: spacing.xs }}>{s.timestamp?.slice(0, 10)}</Text>
                 </Card>
               ))}
@@ -152,9 +200,17 @@ export default function DashboardScreen() {
         {/* BRIEFING — secondary, errors are silent */}
         {briefing && (
           <Card style={{ marginBottom: spacing.xl }}>
-            <Text style={{ fontSize: 16, color: t.textPrimary }}>{briefing.greeting}</Text>
+            <Text
+              style={{ fontSize: 16, color: t.textPrimary }}
+              accessibilityRole="text"
+              accessibilityLabel={`Briefing: ${briefing.greeting}`}
+            >{briefing.greeting}</Text>
             {briefing.ask_prompt ? (
-              <Text style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.sm }}>{briefing.ask_prompt}</Text>
+              <Text
+                style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.sm }}
+                accessibilityRole="text"
+                accessibilityLabel={briefing.ask_prompt}
+              >{briefing.ask_prompt}</Text>
             ) : null}
           </Card>
         )}
@@ -163,6 +219,9 @@ export default function DashboardScreen() {
         <TouchableOpacity
           style={[styles.quickAsk, { backgroundColor: t.surface, borderColor: t.border }]}
           onPress={() => nav.navigate('Ask')}
+          accessibilityRole="button"
+          accessibilityLabel="Ask Maestro anything"
+          accessibilityHint="Opens the Ask screen"
         >
           <Ionicons name="search" size={18} color={t.textSecondary} />
           <Text style={{ color: t.textSecondary, fontSize: 14, marginLeft: spacing.sm, flex: 1 }}>Ask Maestro anything...</Text>

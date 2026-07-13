@@ -72,10 +72,19 @@ export default function SignalsScreen() {
           renderItem={({ item }) => (
             <Card style={{ marginBottom: spacing.md }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 15, fontWeight: 'bold', color: t.textPrimary, flex: 1 }}>{item.entity}</Text>
+                <Text
+                  style={{ fontSize: 15, fontWeight: 'bold', color: t.textPrimary, flex: 1 }}
+                  accessibilityRole="header"
+                  accessibilityLabel={item.entity}
+                >{item.entity}</Text>
                 <Text style={{ fontSize: 11, color: t.textSecondary }}>{item.timestamp?.slice(0, 10)}</Text>
               </View>
-              <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }} numberOfLines={2}>{item.text}</Text>
+              <Text
+                style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}
+                numberOfLines={2}
+                accessibilityRole="text"
+                accessibilityLabel={`Signal text: ${item.text}`}
+              >{item.text}</Text>
               <View style={{ flexDirection: 'row', marginTop: spacing.xs, gap: spacing.sm }}>
                 <Badge text={item.signal_type} color="gray" />
               </View>
@@ -95,6 +104,9 @@ export default function SignalsScreen() {
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.yellow }]}
         onPress={() => setShowAdd(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Add signal"
+        accessibilityHint="Opens the add signal form"
       >
         <Ionicons name="add" size={28} color={colors.black} />
       </TouchableOpacity>
@@ -103,27 +115,67 @@ export default function SignalsScreen() {
       <Modal visible={showAdd} animationType="slide" transparent>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <View style={{ backgroundColor: t.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.xl }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: t.textPrimary, marginBottom: spacing.lg }}>Add Signal</Text>
-            <TextInput style={[styles.loginInput, { backgroundColor: t.surface, color: t.textPrimary, marginBottom: spacing.md }]} placeholder="Entity" placeholderTextColor={t.textSecondary} value={entity} onChangeText={setEntity} />
-            <TextInput style={[styles.loginInput, { backgroundColor: t.surface, color: t.textPrimary, marginBottom: spacing.md, minHeight: 80 }]} placeholder="What happened?" placeholderTextColor={t.textSecondary} value={text} onChangeText={setText} multiline />
+            <Text
+              style={{ fontSize: 18, fontWeight: 'bold', color: t.textPrimary, marginBottom: spacing.lg }}
+              accessibilityRole="header"
+              accessibilityLabel="Add Signal form"
+            >Add Signal</Text>
+            <TextInput
+              style={[styles.loginInput, { backgroundColor: t.surface, color: t.textPrimary, marginBottom: spacing.md }]}
+              placeholder="Entity"
+              placeholderTextColor={t.textSecondary}
+              value={entity}
+              onChangeText={setEntity}
+              accessibilityLabel="Entity name"
+              accessibilityHint="Enter the entity this signal is about"
+            />
+            <TextInput
+              style={[styles.loginInput, { backgroundColor: t.surface, color: t.textPrimary, marginBottom: spacing.md, minHeight: 80 }]}
+              placeholder="What happened?"
+              placeholderTextColor={t.textSecondary}
+              value={text}
+              onChangeText={setText}
+              multiline
+              accessibilityLabel="What happened"
+              accessibilityHint="Describe the signal"
+            />
             <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg }}>
               {['reported_statement', 'commitment_made', 'follow_up_required'].map(typ => (
-                <TouchableOpacity key={typ} onPress={() => setType(typ)} style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, backgroundColor: type === typ ? colors.yellow : t.surface }}>
+                <TouchableOpacity
+                  key={typ}
+                  onPress={() => setType(typ)}
+                  style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, backgroundColor: type === typ ? colors.yellow : t.surface }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Signal type: ${typ.replace(/_/g, ' ')}`}
+                  accessibilityHint={type === typ ? 'Selected' : 'Tap to select this signal type'}
+                >
                   <Text style={{ color: type === typ ? colors.black : t.textSecondary, fontSize: 12 }}>{typ.replace(/_/g, ' ')}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             {createSignalMut.isError ? (
-              <Text style={{ color: colors.alertRed, fontSize: 13, marginBottom: spacing.md }}>Failed to create signal. Please try again.</Text>
+              <Text
+                style={{ color: colors.alertRed, fontSize: 13, marginBottom: spacing.md }}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+              >Failed to create signal. Please try again.</Text>
             ) : null}
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
-              <TouchableOpacity style={[styles.loginButton, { flex: 1, backgroundColor: t.border }]} onPress={() => setShowAdd(false)}>
+              <TouchableOpacity
+                style={[styles.loginButton, { flex: 1, backgroundColor: t.border }]}
+                onPress={() => setShowAdd(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel add signal"
+              >
                 <Text style={{ color: t.textSecondary, fontWeight: 'bold' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.loginButton, { flex: 1, backgroundColor: colors.yellow, opacity: !entity || !text || createSignalMut.isPending ? 0.5 : 1 }]}
                 onPress={handleAdd}
                 disabled={!entity || !text || createSignalMut.isPending}
+                accessibilityRole="button"
+                accessibilityLabel="Add signal"
+                accessibilityHint={createSignalMut.isPending ? 'Adding signal' : 'Saves the new signal'}
               >
                 <Text style={{ color: colors.black, fontWeight: 'bold' }}>{createSignalMut.isPending ? 'Adding…' : 'Add'}</Text>
               </TouchableOpacity>

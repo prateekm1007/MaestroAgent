@@ -63,7 +63,7 @@ export default function AskScreen() {
       <TopBar title="Ask" />
       <View style={{ padding: spacing.xl }}>
         {/* Search bar */}
-        <View style={[styles.searchBar, { backgroundColor: t.surface }]}>
+        <View style={[styles.searchBar, { backgroundColor: t.surface }]} accessibilityRole="search" accessibilityLabel="Ask search bar">
           <Ionicons name="search" size={20} color={t.textSecondary} style={{ marginLeft: spacing.md }} />
           <TextInput
             style={{ flex: 1, color: t.textPrimary, fontSize: 15, paddingHorizontal: spacing.md }}
@@ -73,8 +73,16 @@ export default function AskScreen() {
             onChangeText={setQuery}
             onSubmitEditing={() => handleAsk()}
             returnKeyType="search"
+            accessibilityLabel="Ask Maestro a question"
+            accessibilityHint="Type your question and submit to get an answer"
           />
-          <TouchableOpacity onPress={() => handleAsk()} style={{ paddingRight: spacing.md }}>
+          <TouchableOpacity
+            onPress={() => handleAsk()}
+            style={{ paddingRight: spacing.md }}
+            accessibilityRole="button"
+            accessibilityLabel="Submit question"
+            accessibilityHint={loading ? 'Loading answer' : 'Get the answer to your question'}
+          >
             {loading ? (
               <Text style={{ color: colors.yellow, fontSize: 13 }}>…</Text>
             ) : (
@@ -86,9 +94,20 @@ export default function AskScreen() {
         {/* Recent */}
         {history.length > 0 && !result && !loading && (
           <>
-            <Text style={[typography.label, { color: t.textSecondary, marginTop: spacing.xl, marginBottom: spacing.sm }]}>RECENT</Text>
+            <Text
+              style={[typography.label, { color: t.textSecondary, marginTop: spacing.xl, marginBottom: spacing.sm }]}
+              accessibilityRole="header"
+              accessibilityLabel="Recent questions"
+            >RECENT</Text>
             {history.map((h, i) => (
-              <TouchableOpacity key={i} onPress={() => { setQuery(h); handleAsk(h); }} style={{ paddingVertical: spacing.md }}>
+              <TouchableOpacity
+                key={i}
+                onPress={() => { setQuery(h); handleAsk(h); }}
+                style={{ paddingVertical: spacing.md }}
+                accessibilityRole="button"
+                accessibilityLabel={`Recent question: ${h}`}
+                accessibilityHint="Repeats this question"
+              >
                 <Text style={{ color: t.textPrimary, fontSize: 14 }}>{h}</Text>
               </TouchableOpacity>
             ))}
@@ -111,17 +130,41 @@ export default function AskScreen() {
 
       {/* Result */}
       {result && !loading && (
-        <ScrollView style={{ flex: 1, paddingHorizontal: spacing.xl }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+        <ScrollView
+          style={{ flex: 1, paddingHorizontal: spacing.xl }}
+          contentContainerStyle={{ paddingBottom: spacing.xxxl }}
+          accessibilityLiveRegion="polite"
+        >
           <Card style={{ marginTop: spacing.md }}>
-            <Text style={{ color: t.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 1, marginBottom: spacing.sm }}>ANSWER</Text>
-            <Text style={{ fontSize: 16, color: t.textPrimary, lineHeight: 24 }}>{result.answer}</Text>
+            <Text
+              style={{ color: t.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 1, marginBottom: spacing.sm }}
+              accessibilityRole="header"
+              accessibilityLabel="Answer section"
+            >ANSWER</Text>
+            <Text
+              style={{ fontSize: 16, color: t.textPrimary, lineHeight: 24 }}
+              accessibilityRole="text"
+              accessibilityLabel={`Answer: ${result.answer}`}
+            >{result.answer}</Text>
 
             {/* Provenance */}
             {result.source_sentence ? (
               <View style={{ marginTop: spacing.xl, borderTopWidth: 1, borderTopColor: t.border, paddingTop: spacing.md }}>
-                <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}>PROVENANCE</Text>
-                <Text style={{ fontSize: 14, color: t.textPrimary, fontStyle: 'italic' }}>"{result.source_sentence}"</Text>
-                <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>
+                <Text
+                  style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}
+                  accessibilityRole="header"
+                  accessibilityLabel="Provenance section"
+                >PROVENANCE</Text>
+                <Text
+                  style={{ fontSize: 14, color: t.textPrimary, fontStyle: 'italic' }}
+                  accessibilityRole="text"
+                  accessibilityLabel={`Source: ${result.source_sentence}`}
+                >"{result.source_sentence}"</Text>
+                <Text
+                  style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}
+                  accessibilityRole="text"
+                  accessibilityLabel={`Source entity ${result.source_entity}, timestamp ${result.source_timestamp?.slice(0, 16)}`}
+                >
                   📌 {result.source_entity} · 🕐 {result.source_timestamp?.slice(0, 16)}
                 </Text>
               </View>
@@ -133,10 +176,18 @@ export default function AskScreen() {
             {/* Counterevidence */}
             {(result.counterevidence?.length ?? 0) > 0 && (
               <View style={{ marginTop: spacing.xl }}>
-                <Text style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}>COUNTEREVIDENCE</Text>
+                <Text
+                  style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}
+                  accessibilityRole="header"
+                  accessibilityLabel="Counterevidence section"
+                >COUNTEREVIDENCE</Text>
                 {result.counterevidence?.map((c, i) => (
                   <Card key={i} accent="red" style={{ marginBottom: spacing.sm }}>
-                    <Text style={{ fontSize: 14, color: t.textPrimary }}>⚠ {typeof c === 'string' ? c : c.claim || JSON.stringify(c)}</Text>
+                    <Text
+                      style={{ fontSize: 14, color: t.textPrimary }}
+                      accessibilityRole="text"
+                      accessibilityLabel={`Counterevidence: ${typeof c === 'string' ? c : c.claim || JSON.stringify(c)}`}
+                    >⚠ {typeof c === 'string' ? c : c.claim || JSON.stringify(c)}</Text>
                   </Card>
                 ))}
               </View>
@@ -145,9 +196,18 @@ export default function AskScreen() {
             {/* Unknowns */}
             {(result.unknowns?.length ?? 0) > 0 && (
               <View style={{ marginTop: spacing.xl }}>
-                <Text style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}>UNKNOWNS</Text>
+                <Text
+                  style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}
+                  accessibilityRole="header"
+                  accessibilityLabel="Unknowns section"
+                >UNKNOWNS</Text>
                 {result.unknowns?.map((u, i) => (
-                  <Text key={i} style={{ fontSize: 14, color: t.textSecondary, marginBottom: spacing.xs }}>
+                  <Text
+                    key={i}
+                    style={{ fontSize: 14, color: t.textSecondary, marginBottom: spacing.xs }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Unknown: ${typeof u === 'string' ? u : u.description || JSON.stringify(u)}`}
+                  >
                     • {typeof u === 'string' ? u : u.description || JSON.stringify(u)}
                   </Text>
                 ))}

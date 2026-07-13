@@ -44,10 +44,21 @@ function ConsentModal({ visible, onGrant, onDeny }: { visible: boolean; onGrant:
             ⚠️ Recording without consent may be illegal in your jurisdiction.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
-            <TouchableOpacity onPress={onDeny} style={[styles.smallBtn, { backgroundColor: t.border, flex: 1 }]}>
+            <TouchableOpacity
+              onPress={onDeny}
+              style={[styles.smallBtn, { backgroundColor: t.border, flex: 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Not now — decline recording consent"
+            >
               <Text style={{ color: t.textSecondary, fontWeight: '600' }}>Not Now</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={onGrant} style={[styles.smallBtn, { backgroundColor: colors.yellow, flex: 1 }]}>
+            <TouchableOpacity
+              onPress={onGrant}
+              style={[styles.smallBtn, { backgroundColor: colors.yellow, flex: 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel="I consent to recording"
+              accessibilityHint="Grants microphone recording consent for this call"
+            >
               <Text style={{ color: colors.black, fontWeight: 'bold' }}>I Consent</Text>
             </TouchableOpacity>
           </View>
@@ -311,13 +322,27 @@ export default function CopilotScreen() {
       {/* Connection banner */}
       <View style={{ padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: connected ? colors.honey : 'transparent' }}>
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: connected ? colors.successGreen : colors.gray }} />
-        <Text style={{ color: t.textSecondary, fontSize: 13, flex: 1 }}>
+        <Text
+          style={{ color: t.textSecondary, fontSize: 13, flex: 1 }}
+          accessibilityRole="text"
+          accessibilityLabel={connected ? 'Live — WebSocket connected' : 'Offline REST mode'}
+          accessibilityLiveRegion="polite"
+        >
           {connected ? '🔴 Live — WebSocket connected' : 'Offline (REST mode)'}
         </Text>
         {hasConsent && (
-          <Text style={{ color: colors.successGreen, fontSize: 11 }}>✓ Consent</Text>
+          <Text
+            style={{ color: colors.successGreen, fontSize: 11 }}
+            accessibilityRole="text"
+            accessibilityLabel="Consent granted"
+          >✓ Consent</Text>
         )}
-        <TouchableOpacity onPress={connected ? endMeeting : startMeeting}>
+        <TouchableOpacity
+          onPress={connected ? endMeeting : startMeeting}
+          accessibilityRole="button"
+          accessibilityLabel={connected ? 'End meeting' : 'Start meeting'}
+          accessibilityHint={connected ? 'Ends the live copilot session' : 'Starts the live copilot session'}
+        >
           <Text style={{ color: connected ? colors.alertRed : colors.yellow, fontSize: 13, fontWeight: '600' }}>
             {connected ? 'End' : 'Start'} Meeting
           </Text>
@@ -358,18 +383,37 @@ export default function CopilotScreen() {
 
       {/* Whispers overlay */}
       {whispers.length > 0 && (
-        <View style={{ position: 'absolute', top: 120, right: spacing.xl, left: spacing.xl }}>
+        <View
+          style={{ position: 'absolute', top: 120, right: spacing.xl, left: spacing.xl }}
+          accessibilityLiveRegion="polite"
+        >
           {whispers.filter(w => w.type !== 'ack').slice(-3).map((w, i) => (
             <Card key={i} accent={w.type === 'critical' ? 'red' : 'yellow'} style={{ marginBottom: spacing.sm, opacity: w.type === 'suggestion' ? 0.9 : 1 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>{w.entity || 'Maestro'}</Text>
+                <Text
+                  style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}
+                  accessibilityRole="header"
+                  accessibilityLabel={`Whisper from ${w.entity || 'Maestro'}`}
+                >{w.entity || 'Maestro'}</Text>
                 {w.confidence > 0 && (
-                  <Text style={{ fontSize: 10, color: t.textSecondary }}>{Math.round(w.confidence * 100)}%</Text>
+                  <Text
+                    style={{ fontSize: 10, color: t.textSecondary }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Confidence: ${Math.round(w.confidence * 100)} percent`}
+                  >{Math.round(w.confidence * 100)}%</Text>
                 )}
               </View>
-              <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: 2 }}>{w.text}</Text>
+              <Text
+                style={{ fontSize: 13, color: t.textSecondary, marginTop: 2 }}
+                accessibilityRole="text"
+                accessibilityLabel={w.text}
+              >{w.text}</Text>
               {w.evidence?.length > 0 && (
-                <Text style={{ fontSize: 11, color: colors.yellow, marginTop: 4 }}>📌 {w.evidence[0]?.entity || 'evidence'}</Text>
+                <Text
+                  style={{ fontSize: 11, color: colors.yellow, marginTop: 4 }}
+                  accessibilityRole="text"
+                  accessibilityLabel={`Evidence: ${w.evidence[0]?.entity || 'evidence'}`}
+                >📌 {w.evidence[0]?.entity || 'evidence'}</Text>
               )}
             </Card>
           ))}
@@ -386,12 +430,21 @@ export default function CopilotScreen() {
             backgroundColor: recording ? colors.alertRed : colors.yellow,
             alignItems: 'center', justifyContent: 'center',
           }}
+          accessibilityRole="button"
+          accessibilityLabel={recording ? 'Stop recording' : 'Start recording'}
+          accessibilityHint={recording ? 'Stops audio recording and transcribes' : 'Starts audio recording (requires consent)'}
         >
           <Ionicons name={recording ? 'stop' : 'mic'} size={20} color={colors.black} />
         </TouchableOpacity>
 
         {/* Speaker toggle */}
-        <TouchableOpacity onPress={() => setSpeaker(s => s === 'me' ? 'them' : 'me')} style={{ justifyContent: 'center' }}>
+        <TouchableOpacity
+          onPress={() => setSpeaker(s => s === 'me' ? 'them' : 'me')}
+          style={{ justifyContent: 'center' }}
+          accessibilityRole="button"
+          accessibilityLabel={`Speaker: ${speaker === 'me' ? 'Me' : 'Them'}`}
+          accessibilityHint="Toggles between me and them speaker"
+        >
           <Text style={{ color: speaker === 'me' ? colors.yellow : t.textSecondary, fontSize: 12 }}>{speaker === 'me' ? 'Me' : 'Them'}</Text>
         </TouchableOpacity>
 
@@ -403,10 +456,18 @@ export default function CopilotScreen() {
           value={input}
           onChangeText={setInput}
           onSubmitEditing={sendChunk}
+          accessibilityLabel="Transcript input"
+          accessibilityHint="Type a transcript chunk and send"
         />
 
         {/* Send button */}
-        <TouchableOpacity onPress={sendChunk} style={{ justifyContent: 'center' }}>
+        <TouchableOpacity
+          onPress={sendChunk}
+          style={{ justifyContent: 'center' }}
+          accessibilityRole="button"
+          accessibilityLabel="Send transcript chunk"
+          accessibilityHint="Sends the typed text as a transcript chunk"
+        >
           <Ionicons name="send" size={20} color={colors.yellow} />
         </TouchableOpacity>
       </View>
@@ -415,46 +476,103 @@ export default function CopilotScreen() {
       <Modal visible={showPostCall} animationType="slide" onRequestClose={() => setShowPostCall(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: spacing.xl }}>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: t.textPrimary }}>Meeting Summary</Text>
-            <TouchableOpacity onPress={() => { setShowPostCall(false); setChunks([]); setWhispers([]); }}>
+            <Text
+              style={{ fontSize: 22, fontWeight: 'bold', color: t.textPrimary }}
+              accessibilityRole="header"
+              accessibilityLabel="Meeting summary"
+            >Meeting Summary</Text>
+            <TouchableOpacity
+              onPress={() => { setShowPostCall(false); setChunks([]); setWhispers([]); }}
+              accessibilityRole="button"
+              accessibilityLabel="Close meeting summary"
+            >
               <Ionicons name="close" size={24} color={t.textSecondary} />
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ flex: 1, paddingHorizontal: spacing.xl }}>
+          <ScrollView style={{ flex: 1, paddingHorizontal: spacing.xl }} accessibilityLiveRegion="polite">
             {postCallSummary && (
               <>
                 <Card style={{ marginBottom: spacing.lg }}>
-                  <Text style={{ fontSize: 13, color: t.textSecondary, marginBottom: spacing.sm }}>📊 TALK RATIO</Text>
-                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: t.textPrimary }}>{postCallSummary.talk_ratio}</Text>
-                  <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}>{postCallSummary.total_chunks} transcript chunks</Text>
+                  <Text
+                    style={{ fontSize: 13, color: t.textSecondary, marginBottom: spacing.sm }}
+                    accessibilityRole="header"
+                    accessibilityLabel="Talk ratio section"
+                  >📊 TALK RATIO</Text>
+                  <Text
+                    style={{ fontSize: 18, fontWeight: 'bold', color: t.textPrimary }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Talk ratio: ${postCallSummary.talk_ratio}`}
+                  >{postCallSummary.talk_ratio}</Text>
+                  <Text
+                    style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`${postCallSummary.total_chunks} transcript chunks`}
+                  >{postCallSummary.total_chunks} transcript chunks</Text>
                 </Card>
                 <Card accent="yellow" style={{ marginBottom: spacing.lg }}>
-                  <Text style={{ fontSize: 13, color: colors.yellow, marginBottom: spacing.sm }}>⚡ WHISPERS GENERATED</Text>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: t.textPrimary }}>{postCallSummary.whispers_count}</Text>
+                  <Text
+                    style={{ fontSize: 13, color: colors.yellow, marginBottom: spacing.sm }}
+                    accessibilityRole="header"
+                    accessibilityLabel="Whispers generated section"
+                  >⚡ WHISPERS GENERATED</Text>
+                  <Text
+                    style={{ fontSize: 28, fontWeight: 'bold', color: t.textPrimary }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`${postCallSummary.whispers_count} whispers generated`}
+                  >{postCallSummary.whispers_count}</Text>
                 </Card>
                 {postCallSummary.commitments.length > 0 && (
                   <Card accent="green" style={{ marginBottom: spacing.lg }}>
-                    <Text style={{ fontSize: 13, color: colors.successGreen, marginBottom: spacing.sm }}>✓ COMMITMENTS DETECTED</Text>
+                    <Text
+                      style={{ fontSize: 13, color: colors.successGreen, marginBottom: spacing.sm }}
+                      accessibilityRole="header"
+                      accessibilityLabel="Commitments detected section"
+                    >✓ COMMITMENTS DETECTED</Text>
                     {postCallSummary.commitments.map((c: any, i: number) => (
-                      <Text key={i} style={{ fontSize: 14, color: t.textPrimary, marginBottom: 4 }}>• {c.entity}: {c.text?.slice(0, 60)}</Text>
+                      <Text
+                        key={i}
+                        style={{ fontSize: 14, color: t.textPrimary, marginBottom: 4 }}
+                        accessibilityRole="text"
+                        accessibilityLabel={`Commitment from ${c.entity}: ${c.text?.slice(0, 60)}`}
+                      >• {c.entity}: {c.text?.slice(0, 60)}</Text>
                     ))}
                   </Card>
                 )}
                 {postCallSummary.suggestions.length > 0 && (
                   <Card style={{ marginBottom: spacing.lg }}>
-                    <Text style={{ fontSize: 13, color: t.textSecondary, marginBottom: spacing.sm }}>💡 SUGGESTIONS</Text>
+                    <Text
+                      style={{ fontSize: 13, color: t.textSecondary, marginBottom: spacing.sm }}
+                      accessibilityRole="header"
+                      accessibilityLabel="Suggestions section"
+                    >💡 SUGGESTIONS</Text>
                     {postCallSummary.suggestions.map((s: any, i: number) => (
                       <View key={i} style={{ marginBottom: 8 }}>
-                        <Text style={{ fontSize: 14, color: t.textPrimary }}>• {s.entity}: {s.text?.slice(0, 60)}</Text>
-                        <Text style={{ fontSize: 11, color: t.textSecondary }}>{s.priority} · {Math.round((s.confidence || 0) * 100)}% confidence</Text>
+                        <Text
+                          style={{ fontSize: 14, color: t.textPrimary }}
+                          accessibilityRole="text"
+                          accessibilityLabel={`Suggestion for ${s.entity}: ${s.text?.slice(0, 60)}`}
+                        >• {s.entity}: {s.text?.slice(0, 60)}</Text>
+                        <Text
+                          style={{ fontSize: 11, color: t.textSecondary }}
+                          accessibilityRole="text"
+                          accessibilityLabel={`${s.priority} · ${Math.round((s.confidence || 0) * 100)} percent confidence`}
+                        >{s.priority} · {Math.round((s.confidence || 0) * 100)}% confidence</Text>
                       </View>
                     ))}
                   </Card>
                 )}
                 {/* Follow-up email draft */}
                 <Card accent="yellow" style={{ marginBottom: spacing.lg }}>
-                  <Text style={{ fontSize: 13, color: colors.yellow, marginBottom: spacing.sm }}>📧 FOLLOW-UP EMAIL DRAFT</Text>
-                  <Text style={{ fontSize: 13, color: t.textPrimary, lineHeight: 20 }}>
+                  <Text
+                    style={{ fontSize: 13, color: colors.yellow, marginBottom: spacing.sm }}
+                    accessibilityRole="header"
+                    accessibilityLabel="Follow-up email draft section"
+                  >📧 FOLLOW-UP EMAIL DRAFT</Text>
+                  <Text
+                    style={{ fontSize: 13, color: t.textPrimary, lineHeight: 20 }}
+                    accessibilityRole="text"
+                    accessibilityLabel="Follow-up email draft. See screen for full text."
+                  >
                     Hi {'{' + (chunks[0]?.speaker || 'team') + '}'},{'\n\n'}
                     Thank you for the meeting. Here are the commitments I'm tracking:{'\n'}
                     {postCallSummary.commitments.length > 0
@@ -467,6 +585,8 @@ export default function CopilotScreen() {
                 <TouchableOpacity
                   style={[styles.loginButton, { backgroundColor: colors.yellow, marginBottom: spacing.xl }]}
                   onPress={() => { setShowPostCall(false); setChunks([]); setWhispers([]); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save and close meeting summary"
                 >
                   <Text style={{ color: colors.black, fontSize: 16, fontWeight: 'bold' }}>Save & Close</Text>
                 </TouchableOpacity>
