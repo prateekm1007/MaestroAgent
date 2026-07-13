@@ -258,9 +258,11 @@ for ent in ENTITIES:
     graph_active = graph.get("active_commitments", 0) if isinstance(graph, dict) else 0
 
     # If entity is expected to be at_risk/broken, it should be at_risk in commitments
+    # OR surfaced in whispers (critical entities like churn may not have commitment_made signals)
+    in_whisper_for_entity = any(name_lower in w.get("entity", "").lower() for w in whispers_list)
     if expected in ("at_risk", "stale", "critical"):
-        test(f"2-{name[:10]}-risk-consistent", "PASS" if commit_at_risk or graph_active > 0 else "INFO",
-             f"expected={expected}, commit_at_risk={commit_at_risk}, graph_active={graph_active}")
+        test(f"2-{name[:10]}-risk-consistent", "PASS" if commit_at_risk or graph_active > 0 or in_whisper_for_entity else "INFO",
+             f"expected={expected}, commit_at_risk={commit_at_risk}, graph_active={graph_active}, in_whisper={in_whisper_for_entity}")
     elif expected == "completed":
         test(f"2-{name[:10]}-risk-consistent", "PASS" if not commit_at_risk else "FAIL",
              f"expected={expected}, commit_at_risk={commit_at_risk} (should be False)")

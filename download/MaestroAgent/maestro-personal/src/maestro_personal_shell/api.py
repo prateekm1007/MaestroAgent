@@ -2614,13 +2614,29 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
             except Exception:
                 pass
 
+        # Coherence fix: also mark as at_risk if there's a broken/overdue
+        # reported_statement for the same entity (e.g., Riley's "Never sent")
+        entity_lower = c.get("entity", "").lower()
+        has_broken_signal = False
+        if entity_lower:
+            for sig in shell.oem_state.signals:
+                if str(getattr(sig, "entity", "")).lower() == entity_lower:
+                    sig_text = str(getattr(sig, "text", "")).lower()
+                    if any(kw in sig_text for kw in (
+                        "never sent", "didn't send", "overdue", "missed",
+                        "failed to", "broken", "delayed", "hasn't",
+                        "still pending", "not sent", "not delivered",
+                    )):
+                        has_broken_signal = True
+                        break
+
         result.append(CommitmentResponse(
             entity=c["entity"],
             text=c["text"],
             claim_type=str(c.get("claim_type", "commitment")),
             signal_id=sig_id,
             is_commitment=c.get("is_commitment", True),
-            is_at_risk=sig_id in stale_map,
+            is_at_risk=(sig_id in stale_map) or has_broken_signal,
             days_stale=days_stale,
             deadline=(c.get("metadata", {}) or {}).get("deadline", ""),
             calibration_note=cal_note,
