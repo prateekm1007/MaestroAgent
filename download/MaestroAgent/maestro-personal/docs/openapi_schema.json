@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Maestro Personal API",
-    "description": "HTTP API for Maestro Personal v1 \u2014 wraps the PersonalShell (Core via Python)",
+    "description": "HTTP API for Maestro Personal v1 — wraps the PersonalShell (Core via Python)",
     "version": "1.0.0"
   },
   "paths": {
@@ -12,7 +12,7 @@
           "admin"
         ],
         "summary": "Health",
-        "description": "Health check \u2014 no auth required.",
+        "description": "Health check — no auth required.",
         "operationId": "health_api_health_get",
         "responses": {
           "200": {
@@ -32,7 +32,7 @@
           "auth"
         ],
         "summary": "Login",
-        "description": "Login \u2014 returns a bearer token.\n\nP1 fix: passwordless email login removed. The login now requires\neither:\n1. The MAESTRO_PERSONAL_TOKEN env var (single-user local mode) \u2014\n   the caller must provide it as the password. No email-based login.\n2. A per-user token that was previously created via _create_user_token.\n   But tokens are never created without the setup password.\n\nIn dev mode (MAESTRO_PERSONAL_ENV not 'production'):\n- Bootstrap token works with password=AUTH_TOKEN (backward compat for tests)\n- Email-only login is REJECTED\n\nIn production mode:\n- Only per-user tokens work (no bootstrap)\n- Login requires password validation against user store (future)\n\nThis closes the P0-2 passwordless login vulnerability.",
+        "description": "Login — returns a bearer token.\n\nP1 fix: passwordless email login removed. The login now requires\neither:\n1. The MAESTRO_PERSONAL_TOKEN env var (single-user local mode) —\n   the caller must provide it as the password. No email-based login.\n2. A per-user token that was previously created via _create_user_token.\n   But tokens are never created without the setup password.\n\nIn dev mode (MAESTRO_PERSONAL_ENV not 'production'):\n- Bootstrap token works with password=AUTH_TOKEN (backward compat for tests)\n- Email-only login is REJECTED\n\nIn production mode:\n- Only per-user tokens work (no bootstrap)\n- Login requires password validation against user store (future)\n\nThis closes the P0-2 passwordless login vulnerability.",
         "operationId": "login_api_auth_login_post",
         "requestBody": {
           "content": {
@@ -74,7 +74,7 @@
           "auth"
         ],
         "summary": "Revoke Token",
-        "description": "Revoke the current token (P1-4 fix).\n\nThe caller's bearer token (from the Authorization header) is revoked.\nAfter this call, the token can no longer be used for authentication.\nThe user must log in again to get a new token.\n\nThis is the standard 'logout' endpoint \u2014 it ensures that even if the\ntoken is intercepted, it becomes useless after revocation.",
+        "description": "Revoke the current token (P1-4 fix).\n\nThe caller's bearer token (from the Authorization header) is revoked.\nAfter this call, the token can no longer be used for authentication.\nThe user must log in again to get a new token.\n\nThis is the standard 'logout' endpoint — it ensures that even if the\ntoken is intercepted, it becomes useless after revocation.",
         "operationId": "revoke_token_api_auth_revoke_post",
         "parameters": [
           {
@@ -115,7 +115,7 @@
           "auth"
         ],
         "summary": "Rotate Token",
-        "description": "Rotate the current token (P1-4 fix).\n\nIssues a new token and revokes ALL old tokens for the user. This is\nthe standard token rotation flow \u2014 call this periodically to limit\nthe window of opportunity for a compromised token.\n\nReturns the new token. The old token(s) are immediately invalid.",
+        "description": "Rotate the current token (P1-4 fix).\n\nIssues a new token and revokes ALL old tokens for the user. This is\nthe standard token rotation flow — call this periodically to limit\nthe window of opportunity for a compromised token.\n\nReturns the new token. The old token(s) are immediately invalid.",
         "operationId": "rotate_token_api_auth_rotate_post",
         "parameters": [
           {
@@ -156,7 +156,7 @@
           "ask"
         ],
         "summary": "Ask",
-        "description": "Ask a question \u2014 get the truth, sourced (LLM-powered when available).",
+        "description": "Ask a question — get the truth, sourced (LLM-powered when available).",
         "operationId": "ask_api_ask_post",
         "parameters": [
           {
@@ -225,7 +225,7 @@
           "ask"
         ],
         "summary": "Ask Stream",
-        "description": "Streaming Ask \u2014 SSE for sub-2s perceived latency.",
+        "description": "Streaming Ask — SSE for sub-2s perceived latency.",
         "operationId": "ask_stream_api_ask_stream_post",
         "parameters": [
           {
@@ -276,7 +276,7 @@
           "commitments"
         ],
         "summary": "Get Commitments",
-        "description": "Get active commitments \u2014 calls Core's commitment classifier via the shell.\n\nDEPTH: each commitment includes calibration_note (from CalibrationPrimitives)\nand outcome_history (from BehavioralLearningEngine).",
+        "description": "Get active commitments — calls Core's commitment classifier via the shell.\n\nDEPTH: each commitment includes calibration_note (from CalibrationPrimitives)\nand outcome_history (from BehavioralLearningEngine).",
         "operationId": "get_commitments_api_commitments_get",
         "parameters": [
           {
@@ -339,7 +339,7 @@
           "commitments"
         ],
         "summary": "Get The One Commitment",
-        "description": "The one commitment at risk today \u2014 not a list of 47.\n\nThe masterpiece Commitments: returns ONE primary commitment (the\nmost at-risk) + the rest as secondary. The inevitability: you know\nwhat you owe without scrolling.\n\nPhase 4: reads from the canonical WorldModel so all surfaces agree.",
+        "description": "The one commitment at risk today — not a list of 47.\n\nThe masterpiece Commitments: returns ONE primary commitment (the\nmost at-risk) + the rest as secondary. The inevitability: you know\nwhat you owe without scrolling.\n\nPhase 4: reads from the canonical WorldModel so all surfaces agree.",
         "operationId": "get_the_one_commitment_api_commitments_the_one_get",
         "parameters": [
           {
@@ -382,7 +382,7 @@
           "commitments"
         ],
         "summary": "Get Commitments Ledger",
-        "description": "Read the normalized commitments ledger (Phase 3).\n\nReturns persisted commitment entries with their lifecycle state,\nowner, recipient, action, deadline, and confidence. This is the\nsource of truth for commitment lifecycle \u2014 the signals table holds\nraw observations; the ledger holds the normalized commitments.\n\nFilters:\n  - state: filter by lifecycle state (candidate/active/at_risk/\n    completed_claimed/completed_verified/disputed/cancelled/\n    superseded/tombstoned)\n  - entity: filter by entity name (exact match)",
+        "description": "Read the normalized commitments ledger (Phase 3).\n\nReturns persisted commitment entries with their lifecycle state,\nowner, recipient, action, deadline, and confidence. This is the\nsource of truth for commitment lifecycle — the signals table holds\nraw observations; the ledger holds the normalized commitments.\n\nFilters:\n  - state: filter by lifecycle state (candidate/active/at_risk/\n    completed_claimed/completed_verified/disputed/cancelled/\n    superseded/tombstoned)\n  - entity: filter by entity name (exact match)",
         "operationId": "get_commitments_ledger_api_commitments_ledger_get",
         "parameters": [
           {
@@ -780,7 +780,7 @@
           "signals"
         ],
         "summary": "Sync Gmail",
-        "description": "Sync Gmail messages \u2192 signals.\n\nAccepts pre-fetched Gmail messages (the OAuth wiring happens in the\nmobile app or a background worker). Extracts commitments, follow-ups,\nand meeting changes using the Gmail adapter.",
+        "description": "Sync Gmail messages → signals.\n\nAccepts pre-fetched Gmail messages (the OAuth wiring happens in the\nmobile app or a background worker). Extracts commitments, follow-ups,\nand meeting changes using the Gmail adapter.",
         "operationId": "sync_gmail_api_sync_gmail_post",
         "parameters": [
           {
@@ -833,7 +833,7 @@
           "signals"
         ],
         "summary": "Sync Calendar",
-        "description": "Sync Calendar events \u2192 signals.\n\nAccepts pre-fetched calendar events. Extracts meeting.scheduled,\nmeeting.cancelled, and deadline.approaching signals.",
+        "description": "Sync Calendar events → signals.\n\nAccepts pre-fetched calendar events. Extracts meeting.scheduled,\nmeeting.cancelled, and deadline.approaching signals.",
         "operationId": "sync_calendar_api_sync_calendar_post",
         "parameters": [
           {
@@ -1584,7 +1584,7 @@
           "copilot"
         ],
         "summary": "Start Shadow Session",
-        "description": "Start a shadow session \u2014 manager observes a rep's live call.",
+        "description": "Start a shadow session — manager observes a rep's live call.",
         "operationId": "start_shadow_session_api_copilot_shadow_start_post",
         "parameters": [
           {
@@ -2107,7 +2107,7 @@
           "connectors"
         ],
         "summary": "Connect Provider",
-        "description": "Connect a provider (stores OAuth token encrypted).\n\nFor Gmail/Slack/Calendar/GitHub: if OAuth is configured (CLIENT_ID set),\nthis endpoint returns the authorization URL \u2014 the user visits it, grants\naccess, and the provider redirects to /api/connectors/<provider>/oauth/callback\nwhich completes the connection. If OAuth is NOT configured, stores the\nprovided oauth_token directly (demo mode).",
+        "description": "Connect a provider (stores OAuth token encrypted).\n\nFor Gmail/Slack/Calendar/GitHub: if OAuth is configured (CLIENT_ID set),\nthis endpoint returns the authorization URL — the user visits it, grants\naccess, and the provider redirects to /api/connectors/<provider>/oauth/callback\nwhich completes the connection. If OAuth is NOT configured, stores the\nprovided oauth_token directly (demo mode).",
         "operationId": "connect_provider_api_connectors__provider__connect_post",
         "parameters": [
           {
@@ -2167,7 +2167,7 @@
           "connectors"
         ],
         "summary": "Gmail Oauth Callback",
-        "description": "Gmail OAuth2 callback \u2014 exchanges authorization code for tokens.",
+        "description": "Gmail OAuth2 callback — exchanges authorization code for tokens.",
         "operationId": "gmail_oauth_callback_api_connectors_gmail_oauth_callback_get",
         "parameters": [
           {
@@ -2229,7 +2229,7 @@
           "connectors"
         ],
         "summary": "Slack Oauth Callback",
-        "description": "Slack OAuth2 callback \u2014 exchanges authorization code for tokens.",
+        "description": "Slack OAuth2 callback — exchanges authorization code for tokens.",
         "operationId": "slack_oauth_callback_api_connectors_slack_oauth_callback_get",
         "parameters": [
           {
@@ -2291,7 +2291,7 @@
           "connectors"
         ],
         "summary": "Calendar Oauth Callback",
-        "description": "Google Calendar OAuth2 callback \u2014 exchanges authorization code for tokens.",
+        "description": "Google Calendar OAuth2 callback — exchanges authorization code for tokens.",
         "operationId": "calendar_oauth_callback_api_connectors_calendar_oauth_callback_get",
         "parameters": [
           {
@@ -2353,7 +2353,7 @@
           "connectors"
         ],
         "summary": "Github Oauth Callback",
-        "description": "GitHub OAuth2 callback \u2014 exchanges authorization code for tokens.",
+        "description": "GitHub OAuth2 callback — exchanges authorization code for tokens.",
         "operationId": "github_oauth_callback_api_connectors_github_oauth_callback_get",
         "parameters": [
           {
@@ -2566,7 +2566,7 @@
           "connectors"
         ],
         "summary": "Create Draft",
-        "description": "Create a pending draft for user approval (template formatter \u2014 P13 disclosure).\n\nNOTE (P13): This endpoint takes caller-supplied commitment_text + evidence_refs.\nIt is a TEMPLATE FORMATTER, not the real capability. For the real capability\n(deriving commitment + evidence from signal history), use POST /api/drafts/auto.",
+        "description": "Create a pending draft for user approval (template formatter — P13 disclosure).\n\nNOTE (P13): This endpoint takes caller-supplied commitment_text + evidence_refs.\nIt is a TEMPLATE FORMATTER, not the real capability. For the real capability\n(deriving commitment + evidence from signal history), use POST /api/drafts/auto.",
         "operationId": "create_draft_api_drafts_post",
         "parameters": [
           {
@@ -2666,7 +2666,7 @@
           "connectors"
         ],
         "summary": "Create Auto Draft",
-        "description": "DERIVE a draft from the user's signal history \u2014 the real capability (P13 fix).\n\nOnly takes provider + recipient. Maestro DERIVES:\n  1. The commitment (by searching the user's signals for commitments to this recipient)\n  2. The evidence_refs (via keyword match + FTS5 retrieval on the recipient name)\n\nIf no commitments are found for the recipient, returns 404 with guidance.",
+        "description": "DERIVE a draft from the user's signal history — the real capability (P13 fix).\n\nOnly takes provider + recipient. Maestro DERIVES:\n  1. The commitment (by searching the user's signals for commitments to this recipient)\n  2. The evidence_refs (via keyword match + FTS5 retrieval on the recipient name)\n\nIf no commitments are found for the recipient, returns 404 with guidance.",
         "operationId": "create_auto_draft_api_drafts_auto_post",
         "parameters": [
           {
@@ -2767,7 +2767,7 @@
           "connectors"
         ],
         "summary": "Resolve Draft",
-        "description": "Resolve a draft: approve (send), deny (discard), or use_draft (open in compose).\n\nThe approval flow is the trust mechanism \u2014 Maestro NEVER auto-sends.\nEvery draft requires explicit human approval.",
+        "description": "Resolve a draft: approve (send), deny (discard), or use_draft (open in compose).\n\nThe approval flow is the trust mechanism — Maestro NEVER auto-sends.\nEvery draft requires explicit human approval.",
         "operationId": "resolve_draft_api_drafts__draft_id__resolve_post",
         "parameters": [
           {
@@ -3228,7 +3228,7 @@
           "account"
         ],
         "summary": "Register Prediction Endpoint",
-        "description": "Register a prediction \u2014 the START of the learning loop.",
+        "description": "Register a prediction — the START of the learning loop.",
         "operationId": "register_prediction_endpoint_api_predictions_post",
         "parameters": [
           {
@@ -3279,7 +3279,7 @@
           "account"
         ],
         "summary": "Resolve Outcome Endpoint",
-        "description": "Resolve a prediction with the actual outcome \u2014 CLOSES the learning loop.",
+        "description": "Resolve a prediction with the actual outcome — CLOSES the learning loop.",
         "operationId": "resolve_outcome_endpoint_api_outcomes_post",
         "parameters": [
           {
@@ -3371,7 +3371,7 @@
           "account"
         ],
         "summary": "Get Calibration History Endpoint",
-        "description": "Get calibration history \u2014 Brier score trends over time.",
+        "description": "Get calibration history — Brier score trends over time.",
         "operationId": "get_calibration_history_endpoint_api_calibration_history_get",
         "parameters": [
           {
@@ -3463,7 +3463,7 @@
           "account"
         ],
         "summary": "Get Audit Log Endpoint",
-        "description": "Get the audit log \u2014 every data access event.",
+        "description": "Get the audit log — every data access event.",
         "operationId": "get_audit_log_endpoint_api_audit_log_get",
         "parameters": [
           {
@@ -3905,7 +3905,7 @@
           "account"
         ],
         "summary": "Get Metrics",
-        "description": "Get success metrics \u2014 tracks real user value.",
+        "description": "Get success metrics — tracks real user value.",
         "operationId": "get_metrics_api_metrics_get",
         "parameters": [
           {
@@ -3946,7 +3946,7 @@
           "account"
         ],
         "summary": "Get Ambient",
-        "description": "Get ambient intelligence \u2014 what's happening between calls.",
+        "description": "Get ambient intelligence — what's happening between calls.",
         "operationId": "get_ambient_api_ambient_get",
         "parameters": [
           {
@@ -4091,7 +4091,7 @@
           "surfaces"
         ],
         "summary": "Get The Shifts",
-        "description": "The 2 things that materially shifted \u2014 not a feed.",
+        "description": "The 2 things that materially shifted — not a feed.",
         "operationId": "get_the_shifts_api_what_changed_the_shifts_get",
         "parameters": [
           {
@@ -4134,7 +4134,7 @@
           "surfaces"
         ],
         "summary": "Get Prepare",
-        "description": "Get preparation for upcoming situations \u2014 3 things that matter.",
+        "description": "Get preparation for upcoming situations — 3 things that matter.",
         "operationId": "get_prepare_api_prepare_get",
         "parameters": [
           {
@@ -4197,7 +4197,7 @@
           "surfaces"
         ],
         "summary": "Get Whispers",
-        "description": "Get active whispers \u2014 things that deserve attention RIGHT NOW.\n\nDEPTH: calls Core's WhisperSituationBridge.from_situation() for each\nsituation. Empty list = trusted silence.",
+        "description": "Get active whispers — things that deserve attention RIGHT NOW.\n\nDEPTH: calls Core's WhisperSituationBridge.from_situation() for each\nsituation. Empty list = trusted silence.",
         "operationId": "get_whispers_api_whisper_get",
         "parameters": [
           {
@@ -4244,7 +4244,7 @@
           "surfaces"
         ],
         "summary": "Get Briefing",
-        "description": "Morning briefing \u2014 the full Situation-centric intelligence.",
+        "description": "Morning briefing — the full Situation-centric intelligence.",
         "operationId": "get_briefing_api_briefing_get",
         "parameters": [
           {
@@ -4287,7 +4287,7 @@
           "surfaces"
         ],
         "summary": "Get Evening Briefing",
-        "description": "Evening briefing \u2014 what happened today, what's pending.",
+        "description": "Evening briefing — what happened today, what's pending.",
         "operationId": "get_evening_briefing_api_briefing_evening_get",
         "parameters": [
           {
@@ -4330,7 +4330,7 @@
           "surfaces"
         ],
         "summary": "Get The Moment",
-        "description": "The single most important thing Maestro knows right now.\n\nThe Spotlight moment \u2014 the one commitment that matters most. Not a list.\nIf nothing deserves attention, returns has_moment=False.",
+        "description": "The single most important thing Maestro knows right now.\n\nThe Spotlight moment — the one commitment that matters most. Not a list.\nIf nothing deserves attention, returns has_moment=False.",
         "operationId": "get_the_moment_api_the_moment_get",
         "parameters": [
           {
@@ -4522,7 +4522,7 @@
           "query"
         ],
         "title": "AskResponse",
-        "description": "The masterpiece Ask response \u2014 the truth, sourced, with full depth.\n\nNot a summary. Not a paraphrase. The exact sentence from the source,\nwith provenance you can tap to verify. PLUS: judgment, perspectives,\ndecision boundary, and reasoning trace from the full Core engine.\n\nPhase 5: added counterevidence, unknowns, confidence, as_of fields\nper the roadmap answer schema. The claim verifier populates\ncounterevidence (claims not supported by evidence) and the answer\nconfidence is calibrated from evidence quality."
+        "description": "The masterpiece Ask response — the truth, sourced, with full depth.\n\nNot a summary. Not a paraphrase. The exact sentence from the source,\nwith provenance you can tap to verify. PLUS: judgment, perspectives,\ndecision boundary, and reasoning trace from the full Core engine.\n\nPhase 5: added counterevidence, unknowns, confidence, as_of fields\nper the roadmap answer schema. The claim verifier populates\ncounterevidence (claims not supported by evidence) and the answer\nconfidence is calibrated from evidence quality."
       },
       "Body_transcribe_audio_endpoint_api_copilot_transcribe_post": {
         "properties": {
@@ -4640,7 +4640,7 @@
         },
         "type": "object",
         "title": "BriefingResponse",
-        "description": "The masterpiece briefing \u2014 Situation-centric, not agent-centric."
+        "description": "The masterpiece briefing — Situation-centric, not agent-centric."
       },
       "CalendarSyncRequest": {
         "properties": {
@@ -4807,7 +4807,7 @@
         },
         "type": "object",
         "title": "CommitmentsMasterpieceResponse",
-        "description": "The masterpiece Commitments response \u2014 one at risk, rest secondary.\n\nNot a list of 47. One primary (the at-risk commitment), the rest\navailable but secondary. The inevitability: you know what you owe\nwithout scrolling."
+        "description": "The masterpiece Commitments response — one at risk, rest secondary.\n\nNot a list of 47. One primary (the at-risk commitment), the rest\navailable but secondary. The inevitability: you know what you owe\nwithout scrolling."
       },
       "ConnectorAutoDraftRequest": {
         "properties": {
@@ -4826,7 +4826,7 @@
           "recipient"
         ],
         "title": "ConnectorAutoDraftRequest",
-        "description": "P13 fix: only provider + recipient \u2014 commitment + evidence are DERIVED."
+        "description": "P13 fix: only provider + recipient — commitment + evidence are DERIVED."
       },
       "ConnectorConnectRequest": {
         "properties": {
@@ -5434,7 +5434,7 @@
           "situation_id"
         ],
         "title": "PrepareResponse",
-        "description": "The masterpiece Prepare response \u2014 3 things that matter for THIS meeting.\n\nNot 5 prep points. Three. The forgotten commitment, the open question,\nthe contradiction. The right three. PLUS: Cluely-class depth from\nCopilotSituationBridge.pre_call_briefing()."
+        "description": "The masterpiece Prepare response — 3 things that matter for THIS meeting.\n\nNot 5 prep points. Three. The forgotten commitment, the open question,\nthe contradiction. The right three. PLUS: Cluely-class depth from\nCopilotSituationBridge.pre_call_briefing()."
       },
       "PushDeliverResponse": {
         "properties": {
@@ -5834,7 +5834,7 @@
         },
         "type": "object",
         "title": "WhatChangedMasterpieceResponse",
-        "description": "The masterpiece What Changed response \u2014 2 material shifts, not a feed.\n\nNot a chronological inbox dump. Two cards. The things that materially\nchanged since you last looked. The inevitability: you're already\ncaught up."
+        "description": "The masterpiece What Changed response — 2 material shifts, not a feed.\n\nNot a chronological inbox dump. Two cards. The things that materially\nchanged since you last looked. The inevitability: you're already\ncaught up."
       },
       "WhatChangedResponse": {
         "properties": {

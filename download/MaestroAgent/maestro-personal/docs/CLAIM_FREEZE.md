@@ -1,7 +1,7 @@
 # CLAIM FREEZE — Maestro Marketing Alignment
 
 > **Created:** Phase 0, 2026-07-13
-> **Updated:** 2026-07-14 — aligned with ROADMAP_TO_9_OF_10.md non-negotiables
+> **Updated:** 2026-07-14 — added mobile web screenshot verification (Task 56); cloud-emulator limitation documented
 > **Rule:** Marketing must match this sheet. No claim is "real" until marked VERIFIED with execution evidence.
 > **Baseline audit:** World-class mobile audit scored 2.75/10 at commit `72b4606`
 
@@ -34,7 +34,8 @@
 | Animations (reanimated) | ✅ VERIFIED | useAnimatedStyle + withSpring in DashboardScreen.tsx | — |
 | Connectors screen | ✅ VERIFIED | ConnectorsScreen.tsx (300+ lines), 8 tests, wired into tab nav | — |
 | Runs on iOS Simulator | ❌ NOT VERIFIED | No macOS in sandbox — needs local machine | Phase 0 |
-| Runs on Android Emulator | ❌ NOT VERIFIED | No Android SDK in sandbox — needs local machine | Phase 0 |
+| Runs on Android Emulator | ❌ NOT VERIFIED | No Android SDK in sandbox; cloud Android emulators (MyAndroid.org, Appetize.io, etc.) cannot reach `localhost` dev server — architectural limitation, not a setup issue. See `docs/MOBILE_SCREENSHOTS_METHOD.md`. | Phase 0 |
+| Mobile-form-factor web screenshots (390×844 iPhone 13 Pro viewport) | ✅ VERIFIED | 16 Playwright screenshots in `/home/z/my-project/download/mobile-real-*.png` cover Login, Dashboard, Ask (empty + typed + answer + scrolled + fullpage), Commitments, Signals, Copilot, Connectors. Script: `scripts/maestro_mobile_screens.py`. VLM-confirmed real UI, not placeholder. | — |
 
 ### Authentication
 
@@ -160,10 +161,10 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ VERIFIED | 42 |
+| ✅ VERIFIED | 43 |
 | ⚠️ PARTIAL | 9 |
 | ❌ NOT VERIFIED | 14 |
-| **Total** | **65** |
+| **Total** | **66** |
 
 ## Rule
 
