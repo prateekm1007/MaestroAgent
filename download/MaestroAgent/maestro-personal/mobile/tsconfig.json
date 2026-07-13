@@ -4,6 +4,7 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "module": "esnext",
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "noEmit": true,

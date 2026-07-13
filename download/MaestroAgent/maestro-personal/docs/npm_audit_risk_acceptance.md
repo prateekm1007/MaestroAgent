@@ -1,40 +1,70 @@
-# npm Audit Risk Acceptance — Phase 1
+# npm Audit Risk Acceptance — Phase 1 (Updated)
 
-**Date:** 2026-07-13
-**Expo SDK:** 52.0.0
-**Vulnerabilities:** 18 (12 moderate, 6 high) — ALL in Expo build-time transitive deps
+**Date:** 2026-07-14 (updated from 2026-07-13)
+**Expo SDK:** 53.0.0 (upgraded from 52.0.0)
+**TypeScript:** 5.4.0 (upgraded from 5.3.0)
+**Vulnerabilities:** 14 (12 moderate, 2 high) — down from 18 (12 moderate, 6 high)
 
-## Analysis
+## What the SDK 53 upgrade fixed
 
-All 18 vulnerabilities are in Expo SDK 52's transitive dependencies:
+Upgrading from Expo SDK 52 → 53 reduced **6 high → 2 high** vulnerabilities:
+- ✅ `tar` (high → fixed by SDK 53's updated cacache)
+- ✅ `cacache` (high → fixed by SDK 53)
+- ✅ `@expo/cli` (high → moderate, fixed by SDK 53's updated CLI)
+- ✅ `expo` (high → moderate, direct dep now on SDK 53)
+
+## Remaining vulnerabilities (14)
+
+### High (2) — build-time only, no runtime exposure
+
+| Package | Via | CVE | Impact |
+|---------|-----|-----|--------|
+| `@xmldom/xmldom` | `@expo/plist` | CVE-2024-4068 (prototype pollution) | Build-time XML parsing only (Xcode project generation). Not in production JS bundle. |
+| `@expo/plist` | transitive | Depends on `@xmldom/xmldom` | Build-time plist manipulation. Not shipped. |
+
+### Moderate (12) — all Expo build toolchain
+
+All 12 moderate vulnerabilities are in:
 - `@expo/cli`, `@expo/config`, `@expo/config-plugins`, `@expo/metro-config`
-- `expo-asset`, `expo-constants`, `jest-expo`
-- `tar`, `cacache`, `@xmldom/xmldom`, `@expo/plist`
-- `uuid`, `xcode`, `postcss`, `@expo/bunyan`, `@expo/rudder-sdk-node`
+- `@expo/prebuild-config`, `expo-asset`, `expo-constants`
+- `jest-expo`, `postcss`, `uuid`, `xcode`
 
-None of these ship in the production JS bundle — they are build-time / dev-time only (used by `expo-cli` for building, not by the app at runtime).
+None ship in the production JS bundle — they are build-time / dev-time only.
 
-## Risk
+## Remediation path
 
-**LOW.** These vulnerabilities affect:
-- Build tooling (expo-cli, metro bundler) — not the app's runtime code
-- Test runner (jest-expo) — not production
-- Xcode project generation — build-time only
+All remaining vulnerabilities require upgrading to **Expo SDK 57** (the latest).
+SDK 53 → 57 is a 4-major-version jump that requires:
+1. Testing all native modules (expo-av, expo-haptics, expo-secure-store, etc.)
+2. Updating React Native version (0.76 → 0.79+)
+3. Testing all screen components against new RN APIs
+4. Re-running all 70 tests
 
-An attacker would need to compromise the build machine, not the app's users.
+This is **Phase 6** work (backend/perf/scale) per the roadmap.
 
-## Remediation
+## Risk assessment
 
-Upgrade to **Expo SDK 53+** when it's stable (requires testing all plugins + native modules). This is Phase 6 work (backend/perf/scale).
+**LOW.** All remaining vulnerabilities:
+- Are in build-time tooling (expo-cli, metro bundler, jest-expo)
+- Do NOT ship in the production JS bundle
+- Cannot be exploited by app users
+- Require build-machine compromise to exploit
 
-## CVEs
-
-- `tar` (high): CVE-2024-28863 (DoS via crafted tar archive)
-- `@xmldom/xmldom` (high): CVE-2024-4068 (prototype pollution)
-- `cacache` (high): depends on vulnerable `tar`
-
-All are build-time only. No runtime exposure.
+An attacker would need to compromise the CI/CD build machine, not the app's users.
 
 ## Decision
 
-**Accept risk** until Expo SDK 53 upgrade in Phase 6. Re-audit after upgrade.
+**Accept risk** until Expo SDK 57 upgrade in Phase 6. Re-audit after upgrade.
+
+## Verification
+
+```
+$ npm audit
+14 vulnerabilities (12 moderate, 2 high)
+
+$ npx tsc --noEmit
+EXIT 0
+
+$ npx jest
+70/70 passed
+```
