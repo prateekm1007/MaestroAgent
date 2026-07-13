@@ -137,8 +137,22 @@ class TestAudioTranscription:
         """When MAESTRO_WHISPER_MODEL is set, configured should be True."""
         from maestro_personal_shell.audio_transcription import is_transcription_configured
         old_env = os.environ.copy()
+        # Clear Wit.ai to ensure whisper is detected (Wit.ai has priority)
+        os.environ.pop("MAESTRO_WITAI_TOKEN", None)
         os.environ["MAESTRO_WHISPER_MODEL"] = "base"
         assert is_transcription_configured() is True
+        os.environ.clear()
+        os.environ.update(old_env)
+
+    def test_is_transcription_configured_detects_witai(self):
+        """When MAESTRO_WITAI_TOKEN is set, configured should be True (priority provider)."""
+        from maestro_personal_shell.audio_transcription import is_transcription_configured
+        old_env = os.environ.copy()
+        os.environ["MAESTRO_WITAI_TOKEN"] = "test-token"
+        assert is_transcription_configured() is True
+        # Wit.ai should be the detected provider (highest priority)
+        from maestro_personal_shell.audio_transcription import _get_transcription_provider
+        assert _get_transcription_provider() == "witai"
         os.environ.clear()
         os.environ.update(old_env)
 

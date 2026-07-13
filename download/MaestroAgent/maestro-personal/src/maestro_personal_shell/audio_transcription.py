@@ -2,20 +2,24 @@
 Audio transcription module — pluggable speech-to-text for the Copilot.
 
 Supports multiple transcription providers (configured via env vars):
-  1. OpenAI Whisper (local) — `pip install openai-whisper` + set MAESTRO_WHISPER_MODEL
-  2. OpenAI Whisper API (cloud) — set MAESTRO_OPENAI_API_KEY
-  3. Google Cloud Speech-to-Text — set MAESTRO_GOOGLE_STT_KEY
-  4. Placeholder (default) — returns a clear message that no provider is configured
+  1. Wit.ai (free cloud, Meta-owned) — set MAESTRO_WITAI_TOKEN
+     Recommended: completely free, no usage limits, cloud-based (scalable).
+     Get a free token at https://wit.ai (create app → Settings → Server Access Token)
+  2. OpenAI Whisper (local) — `pip install openai-whisper` + set MAESTRO_WHISPER_MODEL
+     Not scalable (requires CPU/GPU per instance) but free + offline.
+  3. OpenAI Whisper API (cloud) — set MAESTRO_OPENAI_API_KEY
+     Paid but high quality.
+  4. Google Cloud Speech-to-Text — set MAESTRO_GOOGLE_STT_KEY
+     Paid (60 min/month free tier).
+  5. Placeholder (default) — returns a clear message that no provider is configured
+
+Priority order: Wit.ai (free + scalable) > Whisper local (free + offline)
+> OpenAI cloud (paid) > Google STT (paid) > none
 
 The endpoint POST /api/copilot/transcribe accepts an audio file upload,
 calls the configured provider, and returns the transcribed text. The
 mobile app uploads recorded audio here, gets text back, then sends that
 text through the existing /api/copilot/transcript pipeline.
-
-This is the same pattern as the connectors: real infrastructure, honest
-about what's configured. When no provider is set, the endpoint returns
-a 200 with a clear "transcription not configured" message — the mobile
-app shows this to the user rather than silently failing.
 """
 
 from __future__ import annotations
@@ -30,7 +34,13 @@ logger = logging.getLogger(__name__)
 
 
 def _get_transcription_provider() -> str:
-    """Detect which transcription provider is configured."""
+    """Detect which transcription provider is configured.
+
+    Priority: Wit.ai (free + scalable) first, then local Whisper,
+    then paid cloud providers.
+    """
+    if os.environ.get("MAESTRO_WITAI_TOKEN"):
+        return "witai"
     if os.environ.get("MAESTRO_WHISPER_MODEL"):
         return "whisper-local"
     if os.environ.get("MAESTRO_OPENAI_API_KEY"):
@@ -61,6 +71,8 @@ def transcribe_audio(audio_data: bytes, filename: str = "audio.m4a") -> dict[str
     """
     provider = _get_transcription_provider()
 
+    if provider == "witai":
+        return _transcribe_witai(audio_data, filename)
     if provider == "whisper-local":
         return _transcribe_whisper_local(audio_data, filename)
     elif provider == "openai-cloud":
@@ -74,10 +86,120 @@ def transcribe_audio(audio_data: bytes, filename: str = "audio.m4a") -> dict[str
             "configured": False,
             "error": (
                 "No transcription provider configured. Set one of: "
-                "MAESTRO_WHISPER_MODEL (local Whisper), "
-                "MAESTRO_OPENAI_API_KEY (cloud Whisper API), or "
-                "MAESTRO_GOOGLE_STT_KEY (Google Speech-to-Text)."
+                "MAESTRO_WITAI_TOKEN (recommended — free, scalable, cloud-based; "
+                "get a token at https://wit.ai), "
+                "MAESTRO_WHISPER_MODEL (local Whisper — free but not scalable), "
+                "MAESTRO_OPENAI_API_KEY (cloud Whisper API — paid), or "
+                "MAESTRO_GOOGLE_STT_KEY (Google Speech-to-Text — paid)."
             ),
+        }
+
+
+def _transcribe_witai(audio_data: bytes, filename: str) -> dict[str, Any]:
+    """Transcribe using Wit.ai (free, Meta-owned, cloud-based — scalable).
+
+    Wit.ai is completely free with no usage limits. Just need a server
+    access token from https://wit.ai (create app → Settings → Server Access Token).
+
+    API: POST https://api.wit.ai/speech
+    Headers: Authorization: Bearer <token>, Content-Type: audio/raw
+    Response: JSON with 'text' field
+
+    This is the recommended provider — free, scalable, no server resources.
+    """
+    token = os.environ.get("MAESTRO_WITAI_TOKEN", "")
+    if not token:
+        return {
+            "text": "",
+            "provider": "witai",
+            "configured": False,
+            "error": "MAESTRO_WITAI_TOKEN not set. Get a free token at https://wit.ai",
+        }
+
+    try:
+        import urllib.request
+        import urllib.error
+
+        # Wit.ai accepts raw audio (wav, m4a, mp3) via POST
+        # Content-Type must match the audio format
+        ext = os.path.splitext(filename)[1].lower()
+        content_types = {
+            ".wav": "audio/wav",
+            ".m4a": "audio/m4a",
+            ".mp3": "audio/mpeg",
+            ".ogg": "audio/ogg",
+            ".flac": "audio/flac",
+        }
+        content_type = content_types.get(ext, "audio/m4a")
+
+        url = "https://api.wit.ai/speech?v=20240304"
+        req = urllib.request.Request(
+            url,
+            data=audio_data,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": content_type,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                response_data = resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8", errors="replace") if e.fp else ""
+            logger.error(f"Wit.ai HTTP error: {e.code} {error_body[:200]}")
+            return {
+                "text": "",
+                "provider": "witai",
+                "configured": True,
+                "error": f"Wit.ai API error {e.code}: {error_body[:200]}",
+            }
+
+        # Wit.ai returns newline-delimited JSON or a single JSON object
+        # Parse the response — may be {"text": "..."} or {"_text": "..."}
+        import json
+        try:
+            # Try parsing as JSON
+            result = json.loads(response_data)
+            text = result.get("text") or result.get("_text") or ""
+            if isinstance(text, list):
+                # Some responses return [{"text": "..."}, ...]
+                text = " ".join(t if isinstance(t, str) else t.get("text", "") for t in text)
+            return {
+                "text": text.strip(),
+                "provider": "witai",
+                "configured": True,
+                "error": "",
+            }
+        except json.JSONDecodeError:
+            # Wit.ai sometimes returns newline-delimited JSON
+            # Try the last non-empty line
+            lines = [l.strip() for l in response_data.split("\n") if l.strip()]
+            if lines:
+                try:
+                    last = json.loads(lines[-1])
+                    text = last.get("text") or last.get("_text") or ""
+                    return {
+                        "text": text.strip(),
+                        "provider": "witai",
+                        "configured": True,
+                        "error": "",
+                    }
+                except json.JSONDecodeError:
+                    pass
+            return {
+                "text": "",
+                "provider": "witai",
+                "configured": True,
+                "error": f"Could not parse Wit.ai response: {response_data[:200]}",
+            }
+    except Exception as e:
+        logger.error(f"Wit.ai transcription failed: {e}")
+        return {
+            "text": "",
+            "provider": "witai",
+            "configured": True,
+            "error": f"Transcription failed: {e}",
         }
 
 
