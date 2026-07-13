@@ -68,3 +68,22 @@ EXIT 0
 $ npx jest
 70/70 passed
 ```
+
+## SDK 57 Upgrade Attempt (2026-07-14)
+
+Attempted upgrade to Expo SDK 57 to resolve remaining vulnerabilities.
+Result: **REVERTED to SDK 53** — SDK 57 breaks all 78 tests (native module
+incompatibility, `@expo/vector-icons` resolution failure, jest transform errors).
+
+SDK 57 is a 4-major-version jump from SDK 53. It requires:
+1. React Native 0.76 → 0.79+ (breaking native module changes)
+2. React 18 → 19 (breaking component lifecycle changes)
+3. All expo-* packages upgraded (expo-av, expo-haptics, expo-secure-store, etc.)
+4. Jest configuration changes
+5. Full re-test of all 78 tests + manual device testing
+
+This is bounded, known-cost work (~1-2 days) but cannot be done in a single
+automated session. It requires iterative testing with a real device/simulator.
+
+**Decision:** Stay on SDK 53. Accept 14 vulnerabilities (all build-time, not
+runtime). Plan SDK 57 upgrade as a dedicated task with device testing.
