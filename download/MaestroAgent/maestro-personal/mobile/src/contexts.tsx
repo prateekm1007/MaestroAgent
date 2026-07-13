@@ -3,15 +3,16 @@
  *
  * Three providers live here:
  *  - ThemeProvider  — light/dark mode toggle (light is the default)
- *  - AuthProvider   — bearer token + LLM status, persisted via AsyncStorage
+ *  - AuthProvider   — bearer token (SecureStore) + LLM status
  *  - ConsentProvider — recording consent flag for the Live Copilot
  *
- * The screens import { useTheme, useAuth, useConsent } from here. App.tsx
- * imports the providers and wraps the navigation tree with them.
+ * Phase 1 fix: AuthProvider uses SecureStore (not AsyncStorage) for token.
+ * Phase 2: Added OnboardingContext for first-launch flow.
  */
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 import * as api from './api/client';
 import { ThemeMode } from './theme/colors';
@@ -30,7 +31,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTH CONTEXT
+// AUTH CONTEXT (Phase 1: SecureStore-only)
 // ═══════════════════════════════════════════════════════════════════
 
 const AuthCtx = createContext<{
@@ -47,7 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [llmStatus, setLLMStatus] = useState<api.LLMStatus | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem('maestro_token').then(t => { if (t) setToken(t); });
+    // Phase 1: read token from SecureStore (not AsyncStorage)
+    SecureStore.getItemAsync('maestro_token').then(t => { if (t) setToken(t); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -59,7 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (password: string): Promise<boolean> => {
     try {
       const result = await api.login(password);
-      await AsyncStorage.setItem('maestro_token', result.token);
+      // Phase 1: store in SecureStore (not AsyncStorage)
+      await SecureStore.setItemAsync('maestro_token', result.token);
       setToken(result.token);
       return true;
     } catch (e) {
@@ -68,7 +71,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    AsyncStorage.removeItem('maestro_token');
+    // Phase 1: delete from SecureStore + best-effort server revoke
+    try {
+      fetch(`${api.getHost()}/api/auth/revoke`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+    } catch { /* non-fatal */ }
+    SecureStore.deleteItemAsync('maestro_token').catch(() => {});
     setToken(null);
   };
 
@@ -92,4 +102,40 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
   const grant = () => { setHasConsent(true); AsyncStorage.setItem('maestro_consent', 'true'); };
   const revoke = () => { setHasConsent(false); AsyncStorage.removeItem('maestro_consent'); };
   return <ConsentContext.Provider value={{ hasConsent, grant, revoke }}>{children}</ConsentContext.Provider>;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ONBOARDING CONTEXT (Phase 2: first-launch flow)
+// ═══════════════════════════════════════════════════════════════════
+
+const ONBOARDING_KEY = '@maestro_onboarding_complete';
+
+const OnboardingCtx = createContext<{
+  hasOnboarded: boolean;
+  completeOnboarding: () => void;
+  resetOnboarding: () => void;
+}>({ hasOnboarded: true, completeOnboarding: () => {}, resetOnboarding: () => {} });
+
+export const useOnboarding = () => useContext(OnboardingCtx);
+
+export function OnboardingProvider({ children }: { children: React.ReactNode }) {
+  const [hasOnboarded, setHasOnboarded] = useState(true); // default true = skip for existing users
+
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_KEY).then(v => {
+      if (v !== 'true') setHasOnboarded(false);
+    });
+  }, []);
+
+  const completeOnboarding = () => {
+    setHasOnboarded(true);
+    AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+  };
+
+  const resetOnboarding = () => {
+    setHasOnboarded(false);
+    AsyncStorage.removeItem(ONBOARDING_KEY);
+  };
+
+  return <OnboardingCtx.Provider value={{ hasOnboarded, completeOnboarding, resetOnboarding }}>{children}</OnboardingCtx.Provider>;
 }

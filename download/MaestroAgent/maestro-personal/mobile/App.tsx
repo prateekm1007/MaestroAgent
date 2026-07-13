@@ -1,14 +1,17 @@
 /**
  * Maestro Personal — Production Mobile App (modular root).
  *
- * This file is intentionally tiny: it composes the three shared providers
- * (Theme, Auth, Consent), mounts the bottom-tab navigator, and selects
- * between LoginScreen and the authenticated tab tree. All screen logic
- * lives in ./src/screens/*; shared components live in ./src/components;
- * shared contexts live in ./src/contexts.
+ * Phase 2: Added OnboardingProvider + QueryClientProvider.
  *
- * Tech: Expo SDK 52, React Navigation, AsyncStorage
- * Design: Bumble Yellow (#FFC629), light mode default, card-based UI
+ * Structure:
+ *   SafeAreaProvider
+ *     → ThemeProvider (light/dark)
+ *       → OnboardingProvider (first-launch flow)
+ *         → AuthProvider (SecureStore token)
+ *           → ConsentProvider (mic consent)
+ *             → QueryClientProvider (react-query offline cache)
+ *               → NavigationContainer
+ *                 → OnboardingScreen | LoginScreen | TabNavigator
  */
 
 import React from 'react';
@@ -17,16 +20,28 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { colors, getTheme } from './src/theme/colors';
-import { ThemeProvider, AuthProvider, ConsentProvider, useTheme, useAuth } from './src/contexts';
+import {
+  ThemeProvider, AuthProvider, ConsentProvider, OnboardingProvider,
+  useTheme, useAuth, useOnboarding,
+} from './src/contexts';
 
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import AskScreen from './src/screens/AskScreen';
 import CommitmentsScreen from './src/screens/CommitmentsScreen';
 import CopilotScreen from './src/screens/CopilotScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+
+// react-query client (offline cache + stale-while-revalidate)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, gcTime: 5 * 60_000, retry: 2 },
+  },
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // NAVIGATION
@@ -63,10 +78,12 @@ function TabNavigator() {
 function AppInner() {
   const { token } = useAuth();
   const { mode } = useTheme();
+  const { hasOnboarded } = useOnboarding();
+
   return (
     <>
       <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
-      {token ? <TabNavigator /> : <LoginScreen />}
+      {!hasOnboarded ? <OnboardingScreen /> : token ? <TabNavigator /> : <LoginScreen />}
     </>
   );
 }
@@ -75,13 +92,17 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthProvider>
-          <ConsentProvider>
-            <NavigationContainer>
-              <AppInner />
-            </NavigationContainer>
-          </ConsentProvider>
-        </AuthProvider>
+        <OnboardingProvider>
+          <AuthProvider>
+            <ConsentProvider>
+              <QueryClientProvider client={queryClient}>
+                <NavigationContainer>
+                  <AppInner />
+                </NavigationContainer>
+              </QueryClientProvider>
+            </ConsentProvider>
+          </AuthProvider>
+        </OnboardingProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
