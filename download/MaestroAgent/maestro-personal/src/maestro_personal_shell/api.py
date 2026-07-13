@@ -4007,6 +4007,18 @@ async def connect_provider(provider: str, req: ConnectorConnectRequest, token: s
         except ImportError:
             pass  # fall through to demo mode
 
+    # Phase E: Calendar OAuth2 flow (read-only)
+    if provider == "calendar" and not req.oauth_token:
+        try:
+            from maestro_personal_shell.calendar_connector import is_calendar_configured, CalendarOAuthClient
+            if is_calendar_configured():
+                oauth_client = CalendarOAuthClient()
+                state = f"user={token}"
+                auth_url = oauth_client.get_authorization_url(state=state)
+                return {"oauth_required": True, "authorization_url": auth_url}
+        except ImportError:
+            pass  # fall through to demo mode
+
     store = ConnectorStore()
     result = store.connect(token, provider, req.oauth_token)
     if "error" in result:
@@ -4108,6 +4120,51 @@ async def slack_oauth_callback(
         "provider": "slack",
         "user_email": user_email,
         "message": "Slack connected successfully. You can now ingest DMs and send messages.",
+    }
+
+
+@app.get("/api/connectors/calendar/oauth/callback")
+async def calendar_oauth_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+):
+    """Google Calendar OAuth2 callback — exchanges authorization code for tokens.
+
+    Calendar is read-only (no send). Tokens stored encrypted.
+    """
+    if error:
+        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    from maestro_personal_shell.connectors import ConnectorStore
+    from maestro_personal_shell.calendar_connector import CalendarOAuthClient, is_calendar_configured
+
+    if not is_calendar_configured():
+        raise HTTPException(status_code=400, detail="Calendar OAuth not configured")
+
+    user_email = ""
+    if "user=" in state:
+        user_email = state.split("user=", 1)[1]
+
+    oauth_client = CalendarOAuthClient()
+    token_data = oauth_client.exchange_code_for_tokens(code)
+
+    if "error" in token_data:
+        raise HTTPException(status_code=400, detail=f"Token exchange failed: {token_data['error']}")
+
+    token_json = json.dumps(token_data)
+    store = ConnectorStore()
+    result = store.connect(user_email, "calendar", token_json)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return {
+        "connected": True,
+        "provider": "calendar",
+        "user_email": user_email,
+        "message": "Calendar connected successfully. Maestro will surface upcoming meetings in the pre-call intelligence panel.",
     }
 
 

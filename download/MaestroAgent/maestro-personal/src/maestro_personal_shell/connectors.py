@@ -626,7 +626,38 @@ class ConnectorStore:
                 logger.warning(f"Slack ingestion failed, falling back to mock: {e}")
                 return MOCK_INGESTION_DATA.get("slack", [])
 
-        # Other providers — still mocked (Phase D-F)
+        # Phase E: real Calendar ingestion (read-only — no send)
+        if provider == "calendar":
+            try:
+                from maestro_personal_shell.calendar_connector import (
+                    is_calendar_configured,
+                    fetch_real_calendar_events,
+                    CalendarOAuthClient,
+                )
+                if not is_calendar_configured():
+                    return MOCK_INGESTION_DATA.get("calendar", [])
+
+                stored_token = self.get_stored_token(user_email, "calendar")
+                if not stored_token:
+                    return MOCK_INGESTION_DATA.get("calendar", [])
+
+                oauth_client = CalendarOAuthClient()
+                signals, updated_token = fetch_real_calendar_events(
+                    stored_token, oauth_client, max_events=25, days_ahead=14,
+                )
+
+                if updated_token != stored_token:
+                    self.update_stored_token(user_email, "calendar", updated_token)
+
+                return signals
+            except ImportError:
+                logger.warning("calendar_connector module not available, using mock data")
+                return MOCK_INGESTION_DATA.get("calendar", [])
+            except Exception as e:
+                logger.warning(f"Calendar ingestion failed, falling back to mock: {e}")
+                return MOCK_INGESTION_DATA.get("calendar", [])
+
+        # Other providers — still mocked (Phase D, F)
         return MOCK_INGESTION_DATA.get(provider, [])
 
     # --- Draft management ---------------------------------------------------

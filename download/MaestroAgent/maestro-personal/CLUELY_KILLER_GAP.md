@@ -155,10 +155,12 @@ The app ships when ALL P0 blockers are done:
 
 ## The Connectors Roadmap — The Real Moat (Phase A–F)
 
-> **Status as of 2026-07-13:** Phase A + B + C complete (P2 polish + connectors
-> infrastructure + Gmail real OAuth2 + Slack real OAuth2).
-> Phase D (GitHub) is the next active phase. GitHub/Calendar ingestion
-> still returns mock data — real OAuth API calls for those are Phase D-E work.
+> **Status as of 2026-07-13:** Phase A + B + C + E complete (P2 polish +
+> connectors infrastructure + Gmail real OAuth2 + Slack real OAuth2 +
+> Calendar real OAuth2 read-only). The meeting intelligence loop is now
+> complete: Calendar (BEFORE) → Copilot (DURING) → Gmail/Slack (AFTER).
+> Phase D (GitHub) is the next active phase. GitHub ingestion still
+> returns mock data — real OAuth API calls are Phase D work.
 
 ### Why Connectors ARE the Moat
 
@@ -224,11 +226,12 @@ Plus the connectors infrastructure (commit `cb0c218` + `a7958d9`):
 | Connectors.tsx frontend (approval modal, trust notice) | ✅ DONE | Browser-verified |
 | `_fetch_messages` Gmail real API calls | ✅ DONE (Phase B) | `gmail_connector.py` calls real Gmail API; falls back to mock when OAuth not configured |
 | `_fetch_messages` Slack real API calls | ✅ DONE (Phase C) | `slack_connector.py` calls real Slack API; falls back to mock when OAuth not configured |
-| `_fetch_messages` GitHub/Calendar real API calls | ❌ STUB | Returns `MOCK_INGESTION_DATA` — Phase D-E |
+| `_fetch_messages` Calendar real API calls | ✅ DONE (Phase E) | `calendar_connector.py` calls real Calendar API (read-only); falls back to mock when OAuth not configured |
+| `_fetch_messages` GitHub real API calls | ❌ STUB | Returns `MOCK_INGESTION_DATA` — Phase D |
 | `resolve_draft` Gmail real send | ✅ DONE (Phase B) | `_send_via_gmail()` sends via Gmail API; marks `send_failed` on error |
 | `resolve_draft` Slack real send | ✅ DONE (Phase C) | `_send_via_slack()` sends via Slack API; marks `send_failed` on error |
 
-**Total: 204 tests pass (26 Slack + 28 Gmail + 51 connector + 54 P2 + 45 regression). 30 API endpoints registered.**
+**Total: 228 tests pass (24 Calendar + 26 Slack + 28 Gmail + 51 connector + 54 P2 + 45 regression). 31 API endpoints registered.**
 
 ### Phase B — Gmail OAuth2 + Real Ingestion + Real Send (DONE ✅)
 
@@ -290,11 +293,40 @@ When these are NOT set, the connector falls back to `MOCK_INGESTION_DATA` and si
 Same pattern. GitHub OAuth2. Ingest assigned issues/PRs. Extract action items. Draft
 issue comments. Approval flow. Scope: `repo`, `user`.
 
-### Phase E — Google Calendar Connector (2 weeks, read-only)
+### Phase E — Google Calendar OAuth2 + Real Ingestion (DONE ✅)
 
-OAuth2 with `calendar.readonly` scope. Ingest upcoming meetings. Feed into pre-call
-intelligence panel (already built). No write capability — this is about giving the
-Copilot context before meetings.
+**Duration:** 1 session | **Status:** Complete | **Commit:** (this phase)
+
+Read-only connector. Pulls upcoming events, ingests as signals, feeds the Pre-call Intelligence Panel (built in Phase A). No send, no drafts — Calendar is read-only by design.
+
+**This completes the meeting intelligence loop:**
+- Calendar (BEFORE) — surfaces upcoming meetings + attendees
+- Copilot (DURING) — captures transcript, detects commitments, whispers
+- Gmail/Slack (AFTER) — drafts + sends commitment-aware follow-ups
+
+| Capability | Status | Evidence |
+|------------|--------|----------|
+| CalendarOAuthClient (auth URL, token exchange, refresh) | ✅ DONE | 5 tests pass, `calendar_connector.py` |
+| CalendarAPIClient (events.list — real REST calls) | ✅ DONE | 2 tests pass, uses urllib |
+| CalendarIngester (event → signals, attendee extraction) | ✅ DONE | 7 tests pass |
+| `_fetch_messages` calls real Calendar API | ✅ DONE | 3 integration tests pass, falls back to mock when OAuth not configured |
+| Token refresh persistence | ✅ DONE | `test_persists_refreshed_token` passes |
+| OAuth2 callback endpoint (`/api/connectors/calendar/oauth/callback`) | ✅ DONE | 5 callback tests pass |
+| Attendee extraction (skips self + resources) | ✅ DONE | `test_extract_signals_skips_self_and_resources` passes |
+| Email → name conversion (`maria.garcia@example.com` → `Maria Garcia`) | ✅ DONE | `test_extract_entity_from_email` passes |
+
+**Configuration (env vars):**
+- `MAESTRO_CALENDAR_CLIENT_ID` — Google OAuth2 client ID
+- `MAESTRO_CALENDAR_CLIENT_SECRET` — Google OAuth2 client secret
+- `MAESTRO_CALENDAR_REDIRECT_URI` — OAuth2 callback URL
+
+**Scope:** `calendar.readonly` (read-only — no write capability)
+
+When these are NOT set, the connector falls back to `MOCK_INGESTION_DATA` — so the app still works in demo mode.
+
+**Success criterion MET:** User connects Calendar → Maestro ingests upcoming events (next 14 days) → creates signals per attendee → Pre-call Intelligence Panel surfaces forgotten commitments for the next meeting.
+
+**Note:** Can share the same Google Cloud OAuth2 client as Gmail (just add the `calendar.readonly` scope to the same client).
 
 ### Phase F — Social Platforms (8+ weeks, LATER)
 
