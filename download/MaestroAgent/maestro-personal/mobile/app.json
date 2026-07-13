@@ -26,12 +26,18 @@
         "backgroundColor": "#FFC629"
       },
       "package": "com.maestro.personal",
-      "permissions": ["RECORD_AUDIO", "VIBRATE"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "VIBRATE"
+      ]
     },
-    "plugins": ["expo-haptics", "expo-av"],
+    "plugins": [
+      "expo-haptics",
+      "expo-av"
+    ],
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/favicon.png"
     },
     "extra": {

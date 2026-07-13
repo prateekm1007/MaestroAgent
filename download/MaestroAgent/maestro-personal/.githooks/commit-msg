@@ -1,0 +1,8 @@
+#!/bin/bash
+# Pre-commit credential hygiene: block OAuth token fragments in commit messages
+msg_file="$1"
+if grep -qE 'ya29\.|1//0|ghp_[A-Za-z0-9]|GOCSPX-' "$msg_file"; then
+    echo "ERROR: Commit message contains credential fragments (ya29./1//0/ghp_/GOCSPX-)." >&2
+    echo "Remove these before committing. Credentials must never appear in git history." >&2
+    exit 1
+fi
