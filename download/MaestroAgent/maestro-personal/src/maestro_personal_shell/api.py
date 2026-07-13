@@ -4051,15 +4051,50 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                             or fused.get("contradictions", [])
                         )
                         if has_content:
+                            # P0 fix: include evidence_refs + confidence in whisper
+                            # This is the Cluely killer — every whisper cites evidence
+                            evidence_refs = []
+                            for sig in fused.get("relevant_signals", [])[:3]:
+                                evidence_refs.append({
+                                    "text": sig.get("text", "")[:100],
+                                    "entity": sig.get("entity", ""),
+                                    "timestamp": sig.get("timestamp", ""),
+                                })
+                            for c in fused.get("active_commitments", [])[:2]:
+                                evidence_refs.append({
+                                    "text": c.get("text", "")[:100],
+                                    "entity": c.get("entity", ""),
+                                    "type": "commitment",
+                                })
+
+                            # P1: confidence based on evidence count + contradiction severity
+                            conf = 0.5
+                            if evidence_refs:
+                                conf = min(0.9, 0.4 + len(evidence_refs) * 0.1)
+                            if any(c.get("severity") == "high" for c in fused.get("contradictions", [])):
+                                conf = min(0.95, conf + 0.15)
+
+                            # P1: priority based on content
+                            has_high_severity = any(c.get("severity") == "high" for c in fused.get("contradictions", []))
+                            has_stale = any(s.get("days_stale", 0) > 5 for s in fused.get("stale_commitments", []))
+                            priority = "high" if (has_high_severity or has_stale) else "medium"
+
                             whisper_data = {
                                 "type": "whisper",
                                 "whisper": whisper_text,
+                                "entity": meeting_entity or (evidence_refs[0]["entity"] if evidence_refs else "Maestro"),
+                                "text": whisper_text,
+                                "priority": priority,
+                                "confidence": round(conf, 2),
+                                "evidence_refs": evidence_refs,
                                 "agent_whispers": agent_whispers,
                                 "suggestions": suggestions,
                                 "contradictions": fused.get("contradictions", []),
+                                "stale_commitments": fused.get("stale_commitments", []),
                                 "talk_ratio": fused.get("talk_ratio", {}),
                                 "negotiation_anchors": fused.get("negotiation_anchors", []),
                                 "fused_at": fused.get("fused_at", ""),
+                                "llm_active": llmStatus_active if 'llmStatus_active' in dir() else False,
                             }
                             # Only include commitments if actually detected
                             if result.get("commitments_detected"):
@@ -4087,8 +4122,21 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                     # P1-Audit-F2 fix: fallback is also quiet — only
                     # surface if commitments were actually detected
                     if result.get("commitments_detected"):
+                        # P0 fix: include evidence in fallback suggestions too
+                        fallback_evidence = []
+                        for cd in result["commitments_detected"][:2]:
+                            fallback_evidence.append({
+                                "text": cd.get("text", cd.get("action", ""))[:100],
+                                "entity": cd.get("entity", ""),
+                                "type": "commitment_detected",
+                            })
                         await websocket.send_json({
                             "type": "suggestion",
+                            "entity": meeting_entity or "Maestro",
+                            "text": result["commitments_detected"][0].get("text", "Commitment detected"),
+                            "priority": "medium",
+                            "confidence": 0.6,
+                            "evidence_refs": fallback_evidence,
                             "commitments_detected": result["commitments_detected"],
                         })
                     else:
