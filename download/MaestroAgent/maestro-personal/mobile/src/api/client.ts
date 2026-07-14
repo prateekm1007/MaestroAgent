@@ -1,10 +1,18 @@
 /**
  * API client for Maestro Personal.
  *
- * Calls the FastAPI layer on port 8766. All requests require a bearer
+ * Calls the FastAPI layer on port 8766 (the Personal API). All requests require a bearer
  * token (obtained from login). The token is stored in SecureStore
  * (expo-secure-store) — NOT AsyncStorage. This is a Phase 1 security fix:
  * SecureStore uses the iOS Keychain / Android Keystore (encrypted at rest).
+ *
+ * P0-1 note (audit V2 2026-07-15): the audit flagged a "port mismatch"
+ * between mobile (8766) and backend (8765). This was a misunderstanding —
+ * there are TWO backends:
+ *   - Personal API: port 8766 (this is what the mobile app calls)
+ *   - Enterprise API: port 8765 (separate product, not used by mobile)
+ * The mobile app correctly points to 8766. The env var
+ * EXPO_PUBLIC_API_URL can override this for production deployments.
  *
  * This is a thin HTTP client — NO intelligence here. The API calls the
  * shell, the shell calls Core. The mobile app is a view layer.
@@ -537,6 +545,11 @@ export interface WhisperItem {
   body: string;
   priority: string;
   action_url: string;
+  // P0-5 fix (audit V2): Trusted Silence depth fields from DeliveryGovernor
+  delivery_route?: string;
+  delivery_explanation?: string;
+  suppression_reason?: string;
+  evidence_refs?: string[];
 }
 
 export async function getWhispers(token?: string): Promise<WhisperItem[]> {

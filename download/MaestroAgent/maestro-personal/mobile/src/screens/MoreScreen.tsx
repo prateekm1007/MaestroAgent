@@ -27,6 +27,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors, getTheme } from '../theme/colors';
@@ -93,9 +94,12 @@ export default function MoreScreen() {
   const brierScore = calibration?.brier_score;
   const brierDisplay = brierScore != null ? brierScore.toFixed(3) : '—';
 
-  // P0-1 fix (audit 2026-07-15): connector buttons were literal no-ops
-  // (onPress={() => {}}). They now actually call the connect API, surface
-  // OAuth redirect URLs, and refresh the connectors query on success.
+  // P0-2 + P0-3 fix (audit V2 2026-07-15): connector buttons now have a
+  // full OAuth flow using expo-web-browser's openAuthSessionAsync (the
+  // proper mobile OAuth pattern), plus sync and disconnect actions.
+  // The prior fix only used Linking.openURL which doesn't capture the
+  // redirect back to the app. openAuthSessionAsync waits for the redirect
+  // and returns the result URL, which completes the OAuth flow.
   const handleConnect = async (provider: string) => {
     if (busyProvider) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -103,20 +107,29 @@ export default function MoreScreen() {
     try {
       const result = await api.connectProvider(provider, '');
       if (result.oauth_required && result.authorization_url) {
-        Alert.alert(
-          `Connect ${provider}`,
-          'Maestro will open your browser to authorize. After you grant access, you will be redirected back.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Browser', onPress: () => {
-              // Use Linking to open the URL — Expo Web falls back to window.open.
-              const { Linking } = require('react-native');
-              Linking.openURL(result.authorization_url!).catch(() => {
-                Alert.alert('Error', 'Could not open browser automatically.');
-              });
-            }},
-          ],
+        // P0-3 fix: use expo-web-browser's openAuthSessionAsync for proper
+        // mobile OAuth. This opens an in-app browser, waits for the redirect
+        // back to the app, and returns the redirect URL. The backend's
+        // OAuth callback handles the token exchange.
+        const redirectUrl = 'maestro://oauth/callback';
+        const authUrl = result.authorization_url +
+          (result.authorization_url.includes('?') ? '&' : '?') +
+          `redirect_uri=${encodeURIComponent(redirectUrl)}`;
+        
+        const browserResult = await WebBrowser.openAuthSessionAsync(
+          authUrl,
+          redirectUrl,
         );
+        
+        if (browserResult.type === 'success') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Connected', `${provider} is now connected.`);
+          queryClient.invalidateQueries({ queryKey: ['connectors'] });
+        } else if (browserResult.type === 'cancel') {
+          // User cancelled — no alert needed
+        } else {
+          Alert.alert('Authentication incomplete', 'Please try again.');
+        }
       } else if (result.connected) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('Connected', `${provider} is now connected.`);
@@ -143,6 +156,62 @@ export default function MoreScreen() {
     } finally {
       setBusyProvider(null);
     }
+  };
+
+  // P0-2 fix: sync action — pulls messages from the connector and ingests
+  // them as signals. Shows progress + result count.
+  const handleSync = async (provider: string) => {
+    if (busyProvider) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBusyProvider(provider);
+    try {
+      const result = await api.ingestConnector(provider);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Sync Complete',
+        `Ingested ${result.ingested} signals from ${provider}.\n` +
+        `${result.new_commitments} new commitments, ${result.duplicates} duplicates.`,
+      );
+      queryClient.invalidateQueries({ queryKey: ['signals'] });
+      queryClient.invalidateQueries({ queryKey: ['commitments'] });
+      queryClient.invalidateQueries({ queryKey: ['connectors'] });
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
+      Alert.alert('Sync Failed', String(detail));
+    } finally {
+      setBusyProvider(null);
+    }
+  };
+
+  // P0-2 fix: disconnect action — removes the OAuth token, keeps audit history
+  const handleDisconnect = async (provider: string) => {
+    if (busyProvider) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      `Disconnect ${provider}?`,
+      'Maestro will stop syncing from this provider. Your existing signals will be kept.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            setBusyProvider(provider);
+            try {
+              await api.disconnectProvider(provider);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              queryClient.invalidateQueries({ queryKey: ['connectors'] });
+            } catch (err: any) {
+              const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
+              Alert.alert('Disconnect Failed', String(detail));
+            } finally {
+              setBusyProvider(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const isProviderConnected = (provider: string): boolean => {
@@ -230,7 +299,8 @@ export default function MoreScreen() {
               connected={connected}
               busy={isBusy}
               t={t}
-              onPress={() => handleConnect(provider)}
+              onPress={() => connected ? handleSync(provider) : handleConnect(provider)}
+              onDisconnect={() => handleDisconnect(provider)}
             />
           );
         })}
@@ -272,6 +342,30 @@ export default function MoreScreen() {
         <Row label="Entities tracked" value={uniqueEntities?.toString() || '—'} t={t} />
         <Row label="Brier score" value={brierDisplay} t={t} />
         <Row label="LLM provider" value={llmActive ? `${llmProvider} (active)` : `${llmProvider} (inactive)`} t={t} />
+      </Section>
+
+      {/* P0-4 fix (audit V2): Learning Loop dashboard — shows Brier score,
+          calibration buckets, resolution rate, and a "Maestro learned" feed.
+          This makes the Learning Loop visible on mobile (was backend-only). */}
+      <Section title="Learning Loop" icon="school" t={t}>
+        <Row label="Brier score" value={brierDisplay} t={t} />
+        <Row label="Total predictions" value={calibration?.total_predictions?.toString() || '—'} t={t} />
+        <Row label="Resolved predictions" value={calibration?.resolved_predictions?.toString() || '—'} t={t} />
+        <Row
+          label="Resolution rate"
+          value={calibration?.total_predictions && calibration?.resolved_predictions != null
+            ? `${Math.round((calibration.resolved_predictions / calibration.total_predictions) * 100)}%`
+            : '—'}
+          t={t}
+        />
+        <Row
+          label="Calibration"
+          value={calibration?.has_sufficient_data ? `${calibration.buckets?.length || 0} buckets` : 'Insufficient data'}
+          t={t}
+        />
+        {calibration?.message ? (
+          <Row label="Status" value={calibration.message} t={t} />
+        ) : null}
       </Section>
 
       {/* Settings — P1-2 + P1-3 fix: real values */}
@@ -336,36 +430,46 @@ function ActionRow({ label, icon, onPress, busy, t }: any) {
   );
 }
 
-function ConnectorRow({ label, icon, connected, busy, onPress, t }: any) {
-  // P0-1 fix: dedicated row that shows real connection state + a busy
-  // spinner while the connect request is in flight. Replaces the old
-  // no-op ActionRow that fooled users into thinking connectors worked.
+function ConnectorRow({ label, icon, connected, busy, onPress, onDisconnect, t }: any) {
+  // P0-2 fix (audit V2): when connected, tapping the row syncs (ingest
+  // new signals). A separate "disconnect" button appears on the right.
+  // When not connected, tapping initiates the OAuth flow.
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={busy}
-      style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Ionicons name={icon} size={18} color={t.textSecondary} />
-        <Text style={{ fontSize: 14, color: t.textPrimary }}>{label}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {busy ? (
-          <ActivityIndicator size="small" color={colors.yellow} />
-        ) : connected ? (
-          <>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#008030' }} />
-            <Text style={{ fontSize: 12, fontWeight: '700', color: '#008030' }}>Connected</Text>
-          </>
-        ) : (
-          <>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#9A9A9A' }} />
-            <Text style={{ fontSize: 12, color: t.textSecondary }}>Not connected</Text>
-          </>
-        )}
-        <Ionicons name="chevron-forward" size={16} color={t.textSecondary} />
-      </View>
-    </TouchableOpacity>
+    <View style={{ borderBottomWidth: 1, borderBottomColor: t.border }}>
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={busy}
+        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name={icon} size={18} color={t.textSecondary} />
+          <Text style={{ fontSize: 14, color: t.textPrimary }}>{label}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {busy ? (
+            <ActivityIndicator size="small" color={colors.yellow} />
+          ) : connected ? (
+            <>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#008030' }} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#008030' }}>Sync</Text>
+            </>
+          ) : (
+            <>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#9A9A9A' }} />
+              <Text style={{ fontSize: 12, color: t.textSecondary }}>Connect</Text>
+            </>
+          )}
+          <Ionicons name="chevron-forward" size={16} color={t.textSecondary} />
+        </View>
+      </TouchableOpacity>
+      {connected && !busy && (
+        <TouchableOpacity
+          onPress={onDisconnect}
+          style={{ paddingHorizontal: 16, paddingVertical: 6, alignItems: 'flex-end' }}
+        >
+          <Text style={{ fontSize: 11, color: colors.alertRed }}>Disconnect</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }

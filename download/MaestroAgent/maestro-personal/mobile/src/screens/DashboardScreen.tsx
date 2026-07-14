@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView, AccessibilityInfo, Alert,
-  PanResponder, Animated as RNAnimated,
+  PanResponder, Animated as RNAnimated, Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -351,6 +351,9 @@ export default function DashboardScreen() {
 // which never resolved — the hook didn't exist, so optional chaining returned
 // undefined, falling back to `{ data: [] }`. WhisperCards was ALWAYS empty.
 // Now uses useQuery with the real getWhispers() API function (60s auto-refresh).
+// P0-5 fix (audit V2): added "Why this?" modal showing the DeliveryGovernor's
+// explanation — intervention_value, interruption_cost, reasons_to_surface.
+// This exposes the Trusted Silence reasoning to the user.
 function WhisperCards({ t, nav }: { t: ReturnType<typeof getTheme>; nav: any }) {
   const whispersQ = useQuery({
     queryKey: ['whispers'],
@@ -358,6 +361,7 @@ function WhisperCards({ t, nav }: { t: ReturnType<typeof getTheme>; nav: any }) 
     staleTime: 60_000,  // 60s auto-refresh (Issue 13-E)
   });
   const whispers: any[] = whispersQ.data ?? [];
+  const [selectedWhisper, setSelectedWhisper] = React.useState<any>(null);
 
   if (whispers.length === 0) return null;
 
@@ -370,6 +374,29 @@ function WhisperCards({ t, nav }: { t: ReturnType<typeof getTheme>; nav: any }) 
     }
   };
 
+  // P0-5 fix: build the "Why this?" explanation from the whisper's depth fields.
+  // The backend's DeliveryGovernor populates delivery_explanation,
+  // suppression_reason, and evidence_refs on each whisper.
+  const buildExplanation = (w: any): string => {
+    const parts: string[] = [];
+    if (w.delivery_explanation) {
+      parts.push(`Why surfaced: ${w.delivery_explanation}`);
+    }
+    if (w.suppression_reason) {
+      parts.push(`Suppression reason: ${w.suppression_reason}`);
+    }
+    if (w.delivery_route) {
+      parts.push(`Delivery route: ${w.delivery_route}`);
+    }
+    if (w.evidence_refs && w.evidence_refs.length > 0) {
+      parts.push(`Evidence: ${w.evidence_refs.slice(0, 3).join('; ')}`);
+    }
+    if (parts.length === 0) {
+      parts.push('Maestro detected this needs your attention based on your commitment history and signal patterns.');
+    }
+    return parts.join('\n\n');
+  };
+
   return (
     <View style={{ marginBottom: spacing.xl }}>
       <Text
@@ -380,46 +407,102 @@ function WhisperCards({ t, nav }: { t: ReturnType<typeof getTheme>; nav: any }) 
         💌 Needs Attention ({whispers.length})
       </Text>
       {whispers.slice(0, 5).map((w: any, i: number) => (
-        <TouchableOpacity
-          key={i}
-          onPress={() => nav.navigate('Ask', { query: `What should I do about ${w.entity}?` })}
-          accessibilityRole="button"
-          accessibilityLabel={`Whisper from ${w.entity}: ${w.body || w.title}`}
-          accessibilityHint="Opens Ask to draft a follow-up"
-        >
-          <Card
-            key={i}
-            style={{
-              marginBottom: spacing.sm,
-              borderLeftWidth: 4,
-              borderLeftColor: priorityColor(w.priority),
-            }}
+        <View key={i}>
+          <TouchableOpacity
+            onPress={() => nav.navigate('Ask', { query: `What should I do about ${w.entity}?` })}
+            onLongPress={() => setSelectedWhisper(w)}
+            accessibilityRole="button"
+            accessibilityLabel={`Whisper from ${w.entity}: ${w.body || w.title}`}
+            accessibilityHint="Tap to draft a follow-up. Long-press to see why Maestro surfaced this."
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>
-                {w.entity || 'Attention'}
-              </Text>
-              {w.priority ? (
-                <Text style={{ fontSize: 10, color: t.textSecondary, textTransform: 'uppercase' }}>
-                  {w.priority}
-                </Text>
-              ) : null}
-            </View>
-            <Text
-              style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.xs }}
-              numberOfLines={2}
+            <Card
+              style={{
+                marginBottom: spacing.sm,
+                borderLeftWidth: 4,
+                borderLeftColor: priorityColor(w.priority),
+              }}
             >
-              {w.body || w.title || ''}
-            </Text>
-            <View style={{ flexDirection: 'row', marginTop: spacing.sm, alignItems: 'center' }}>
-              <Ionicons name="mail" size={14} color={colors.yellow} />
-              <Text style={{ fontSize: 12, color: colors.yellow, marginLeft: spacing.xs }}>
-                Draft follow-up
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>
+                  {w.entity || 'Attention'}
+                </Text>
+                {w.priority ? (
+                  <Text style={{ fontSize: 10, color: t.textSecondary, textTransform: 'uppercase' }}>
+                    {w.priority}
+                  </Text>
+                ) : null}
+              </View>
+              <Text
+                style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.xs }}
+                numberOfLines={2}
+              >
+                {w.body || w.title || ''}
               </Text>
-            </View>
-          </Card>
-        </TouchableOpacity>
+              <View style={{ flexDirection: 'row', marginTop: spacing.sm, alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="mail" size={14} color={colors.yellow} />
+                  <Text style={{ fontSize: 12, color: colors.yellow, marginLeft: spacing.xs }}>
+                    Draft follow-up
+                  </Text>
+                </View>
+                {/* P0-5 fix: "Why this?" button — exposes Trusted Silence reasoning */}
+                <TouchableOpacity
+                  onPress={() => setSelectedWhisper(w)}
+                  style={{ flexDirection: 'row', alignItems: 'center' }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Why did Maestro surface this?"
+                >
+                  <Ionicons name="information-circle-outline" size={14} color={t.textSecondary} />
+                  <Text style={{ fontSize: 12, color: t.textSecondary, marginLeft: 4 }}>Why this?</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          </TouchableOpacity>
+        </View>
       ))}
+
+      {/* P0-5 fix: Trusted Silence "Why this?" modal */}
+      {selectedWhisper && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setSelectedWhisper(null)}
+        >
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
+            <View style={{ backgroundColor: t.surface, borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: t.textPrimary }}>
+                  Why Maestro surfaced this
+                </Text>
+                <TouchableOpacity onPress={() => setSelectedWhisper(null)}>
+                  <Ionicons name="close" size={24} color={t.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: t.textPrimary, marginBottom: 8 }}>
+                {selectedWhisper.entity || 'Attention'}
+              </Text>
+              <Text style={{ fontSize: 14, color: t.textSecondary, marginBottom: 16 }}>
+                {selectedWhisper.body || selectedWhisper.title}
+              </Text>
+              <View style={{ borderTopWidth: 1, borderTopColor: t.border, paddingTop: 16 }}>
+                <Text style={{ fontSize: 13, color: t.textPrimary, lineHeight: 20 }}>
+                  {buildExplanation(selectedWhisper)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setSelectedWhisper(null);
+                  nav.navigate('Ask', { query: `What should I do about ${selectedWhisper.entity}?` });
+                }}
+                style={{ marginTop: 20, backgroundColor: colors.yellow, paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#000' }}>Draft follow-up</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
