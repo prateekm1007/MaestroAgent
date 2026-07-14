@@ -138,6 +138,24 @@ async def connect_provider(provider: str, req: ConnectorConnectRequest, token: s
             pass  # fall through to demo mode
 
     store = ConnectorStore()
+
+    # Auditor fix (Roadmap v2 §0.5): fail-closed. If no OAuth is configured
+    # AND no oauth_token is provided, we must NOT return connected: True.
+    # The prior code allowed empty-token connects to succeed in demo mode,
+    # which falsified the "connected" status. Now we require either:
+    #   (a) a real oauth_token from the OAuth flow, OR
+    #   (b) an explicit demo_mode flag (only in dev mode)
+    if not req.oauth_token:
+        # No OAuth configured (we fell through all the provider checks above)
+        # and no token provided. Fail-closed.
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot connect {provider}: no OAuth configured and no token provided. "
+                   f"Set {provider.upper()}_CLIENT_ID and {provider.upper()}_CLIENT_SECRET env vars "
+                   f"to enable real OAuth, or provide an oauth_token."
+        )
+
     result = store.connect(token, provider, req.oauth_token)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
