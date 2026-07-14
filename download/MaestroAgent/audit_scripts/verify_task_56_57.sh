@@ -263,8 +263,46 @@ fi
 echo ""
 
 # ----------------------------------------------------------------------
-# Summary
+# Issue 13: Whisper System checks (Task 60)
 # ----------------------------------------------------------------------
+echo "=== Issue 13: Whisper System ==="
+
+# 13-A: rule-based function exists + is called
+check "_should_whisper_rule_based exists" "grep -q '_should_whisper_rule_based' '$MAESTRO_PERSONAL/src/maestro_personal_shell/routers/surfaces.py'"
+
+# 13-B: scheduler file exists + wired into lifespan
+check "whisper_scheduler.py exists" "[ -f '$MAESTRO_PERSONAL/src/maestro_personal_shell/whisper_scheduler.py' ]"
+check "scheduler wired into API lifespan" "grep -q 'whisper_loop' '$MAESTRO_PERSONAL/src/maestro_personal_shell/api.py'"
+
+# 13-C: whisper cards on web Dashboard
+check "WhisperCards on web Dashboard" "grep -q 'WhisperCards' '$MAESTRO_PERSONAL/web/src/components/maestro/Dashboard.tsx'"
+
+# 13-C (P24 fix): whisper cards on mobile Dashboard too
+check "WhisperCards on mobile Dashboard (P24)" "grep -q 'WhisperCards' '$MAESTRO_PERSONAL/mobile/src/screens/DashboardScreen.tsx'"
+
+# 13-F: test file exists
+check "test_whisper_system.py exists" "[ -f '$MAESTRO_PERSONAL/tests/test_whisper_system.py' ]"
+
+# Run whisper tests
+cd "$MAESTRO_PERSONAL"
+WHISPER_OUTPUT=$(OLLAMA_HOST="" MAESTRO_PERSONAL_TOKEN=test python3 -m pytest tests/test_whisper_system.py -q --tb=line --no-header 2>&1 | tail -3)
+echo "    Whisper tests (last 3 lines):"
+echo "$WHISPER_OUTPUT" | sed 's/^/      /'
+if echo "$WHISPER_OUTPUT" | grep -qE "16 passed"; then
+  echo "  PASS: 16/16 whisper system tests pass"
+  PASS_COUNT=$((PASS_COUNT + 1))
+else
+  echo "  FAIL: whisper tests not 16/16"
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+  FAILS="$FAILS\n  - whisper tests"
+fi
+
+# Mobile typecheck
+cd "$MAESTRO_PERSONAL/mobile"
+TC_EXIT=0
+npx tsc --noEmit > /dev/null 2>&1 || TC_EXIT=$?
+check "Mobile typecheck passes" "[ $TC_EXIT -eq 0 ]"
+echo ""
 echo "=== SUMMARY ==="
 echo "  Passed: $PASS_COUNT"
 echo "  Failed: $FAIL_COUNT"

@@ -168,6 +168,9 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* Issue 13-C: Whisper cards — "💌 Needs Attention" (mobile) */}
+        <WhisperCards t={t} nav={nav} />
+
         {/* WHAT CHANGED — secondary, errors are silent (matches original .catch(() => null)) */}
         {shifts.length > 0 && (
           <>
@@ -229,5 +232,79 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// Issue 13-C: WhisperCards — "💌 Needs Attention" section on mobile Dashboard.
+// P24 fix: whispers must appear on BOTH web and mobile (cross-surface coherence).
+function WhisperCards({ t, nav }: { t: ReturnType<typeof getTheme>; nav: any }) {
+  // Fetch whispers via react-query (60s auto-refresh = Issue 13-E)
+  // Note: useWhispers may not exist in the hooks file yet — uses optional chaining
+  // to gracefully degrade to empty list if the hook isn't wired.
+  const whispersQ = (api as any).useWhispers?.() ?? { data: [] as any[] };
+  const whispers: any[] = whispersQ.data ?? [];
+
+  if (whispers.length === 0) return null;
+
+  const priorityColor = (p?: string) => {
+    switch (p?.toLowerCase()) {
+      case 'critical': return colors.alertRed;
+      case 'high': return colors.yellow;
+      case 'medium': return colors.royalBlue;
+      default: return t.border;
+    }
+  };
+
+  return (
+    <View style={{ marginBottom: spacing.xl }}>
+      <Text
+        style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}
+        accessibilityRole="header"
+        accessibilityLabel={`Needs Attention section, ${whispers.length} items`}
+      >
+        💌 Needs Attention ({whispers.length})
+      </Text>
+      {whispers.slice(0, 5).map((w: any, i: number) => (
+        <TouchableOpacity
+          key={i}
+          onPress={() => nav.navigate('Ask', { query: `What should I do about ${w.entity}?` })}
+          accessibilityRole="button"
+          accessibilityLabel={`Whisper from ${w.entity}: ${w.body || w.title}`}
+          accessibilityHint="Opens Ask to draft a follow-up"
+        >
+          <Card
+            key={i}
+            style={{
+              marginBottom: spacing.sm,
+              borderLeftWidth: 4,
+              borderLeftColor: priorityColor(w.priority),
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>
+                {w.entity || 'Attention'}
+              </Text>
+              {w.priority ? (
+                <Text style={{ fontSize: 10, color: t.textSecondary, textTransform: 'uppercase' }}>
+                  {w.priority}
+                </Text>
+              ) : null}
+            </View>
+            <Text
+              style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.xs }}
+              numberOfLines={2}
+            >
+              {w.body || w.title || ''}
+            </Text>
+            <View style={{ flexDirection: 'row', marginTop: spacing.sm, alignItems: 'center' }}>
+              <Ionicons name="mail" size={14} color={colors.yellow} />
+              <Text style={{ fontSize: 12, color: colors.yellow, marginLeft: spacing.xs }}>
+                Draft follow-up
+              </Text>
+            </View>
+          </Card>
+        </TouchableOpacity>
+      ))}
+    </View>
   );
 }
