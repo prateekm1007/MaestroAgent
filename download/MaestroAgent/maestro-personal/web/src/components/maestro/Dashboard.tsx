@@ -19,6 +19,7 @@ import {
   confidenceTextColor,
   formatRelative,
   type Briefing,
+  type CopilotWhisper,
   type LlmStatus,
   type TheMoment,
   type TheShifts,
@@ -38,6 +39,7 @@ export function Dashboard({
   const [moment, setMoment] = useState<TheMoment | null>(null);
   const [shifts, setShifts] = useState<TheShifts | null>(null);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
+  const [whispers, setWhispers] = useState<CopilotWhisper[]>([]);
   const [loading, setLoading] = useState(true);
   const [quickAsk, setQuickAsk] = useState("");
 
@@ -45,19 +47,27 @@ export function Dashboard({
     let alive = true;
     (async () => {
       setLoading(true);
-      const [m, s, b] = await Promise.all([
+      const [m, s, b, w] = await Promise.all([
         maestroApi.getTheMoment(),
         maestroApi.getTheShifts(),
         maestroApi.getBriefing(),
+        maestroApi.getWhispers(),
       ]);
       if (!alive) return;
       setMoment(m.data);
       setShifts(s.data);
       setBriefing(b.data);
+      setWhispers(Array.isArray(w.data) ? w.data : []);
       setLoading(false);
     })();
+    // Issue 13-E: auto-refresh whispers every 60s
+    const interval = setInterval(async () => {
+      const w = await maestroApi.getWhispers();
+      if (alive) setWhispers(Array.isArray(w.data) ? w.data : []);
+    }, 60000);
     return () => {
       alive = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -85,6 +95,11 @@ export function Dashboard({
 
       {/* The Moment — hero */}
       <TheMomentCard loading={loading} moment={moment} onNavigate={onNavigate} />
+
+      {/* Issue 13-C: Whisper cards — "💌 Needs Attention" */}
+      {!loading && whispers.length > 0 && (
+        <WhisperCards whispers={whispers} onAsk={onAsk} />
+      )}
 
       {/* What Changed + Briefing */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -436,6 +451,79 @@ function SkeletonRows({ n }: { n: number }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// Issue 13-C: WhisperCards — "💌 Needs Attention" section on Dashboard.
+// Shows proactive whispers (post-its) below The Moment card.
+function WhisperCards({
+  whispers,
+  onAsk,
+}: {
+  whispers: CopilotWhisper[];
+  onAsk: (query: string) => void;
+}) {
+  // Normalize: whispers may be a single object or array
+  const list = Array.isArray(whispers) ? whispers : [whispers];
+
+  const priorityColor = (p: string) => {
+    switch (p?.toLowerCase()) {
+      case "critical": return "border-rose-500/40 bg-rose-500/[0.05]";
+      case "high": return "border-amber-500/40 bg-amber-500/[0.05]";
+      case "medium": return "border-blue-500/40 bg-blue-500/[0.05]";
+      default: return "border-border/60 bg-muted/20";
+    }
+  };
+
+  return (
+    <Card className="border-border/60">
+      <CardContent className="pt-6 space-y-3">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="text-base">💌</span>
+          <span>Needs Attention ({list.length})</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Proactive reminders — things Maestro noticed so you don&apos;t have to ask.
+        </p>
+        <div className="space-y-2">
+          {list.slice(0, 5).map((w, i) => (
+            <div
+              key={i}
+              className={cn(
+                "rounded-lg border p-3 transition-colors",
+                priorityColor(w.priority || ""),
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-foreground">
+                      {w.entity || "Attention"}
+                    </span>
+                    {w.priority && (
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                        {w.priority}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-foreground/80 line-clamp-2">
+                    {w.body || w.title || ""}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 text-xs"
+                  onClick={() => onAsk(`What should I do about ${w.entity}?`)}
+                >
+                  ✉ Draft follow-up
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

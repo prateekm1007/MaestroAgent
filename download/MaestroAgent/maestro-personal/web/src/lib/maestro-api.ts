@@ -449,6 +449,18 @@ export const maestroApi = {
       { ok: true, provider, scope, enabled },
     );
   },
+
+  /* ---------------------------------------------------------------- */
+  /*  Whispers (Issue 13-C)                                           */
+  /* ---------------------------------------------------------------- */
+
+  async getWhispers(): Promise<{ data: CopilotWhisper[] | CopilotWhisper; live: boolean }> {
+    return maestroFetch<CopilotWhisper[] | CopilotWhisper>(
+      "/api/whisper",
+      {},
+      demoCopilotWhispers,
+    );
+  },
 };
 
 /* ------------------------------------------------------------------ */

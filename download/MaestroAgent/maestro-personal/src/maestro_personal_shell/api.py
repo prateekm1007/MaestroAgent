@@ -757,8 +757,24 @@ async def lifespan(app: FastAPI):
     logger.info("Maestro Personal API starting on port %d", API_PORT)
     logger.info("DB path: %s", DB_PATH)
     logger.info("Maestro Personal API auth configured (token not logged for security)")
+
+    # Issue 13-B: Start whisper scheduler background loop.
+    # Runs hourly, generates whispers, deduplicates via notified_whispers
+    # table, sends push notifications via Expo.
+    try:
+        from maestro_personal_shell.whisper_scheduler import init_whisper_scheduler_db, whisper_loop
+        import asyncio as _asyncio
+        init_whisper_scheduler_db()
+        _whisper_task = _asyncio.create_task(whisper_loop(interval_seconds=3600))
+        logger.info("Whisper scheduler started (hourly cycle)")
+    except Exception as e:
+        logger.warning("Whisper scheduler failed to start (non-fatal): %s", e)
+        _whisper_task = None
+
     yield  # App runs here
-    # Shutdown (if needed)
+    # Shutdown
+    if _whisper_task:
+        _whisper_task.cancel()
 
 
 # MEDIUM-3 fix (independent audit): disable /docs, /openapi.json, /redoc in
