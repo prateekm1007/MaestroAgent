@@ -419,6 +419,36 @@ export const maestroApi = {
       },
     );
   },
+
+  /* ---------------------------------------------------------------- */
+  /*  Per-connector consent (Task 59-7)                               */
+  /* ---------------------------------------------------------------- */
+
+  async getConsentSettings(): Promise<{
+    data: {
+      consent: Record<string, Record<string, boolean>>;
+      defaults: Record<string, Record<string, boolean>>;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch<{
+      consent: Record<string, Record<string, boolean>>;
+      defaults: Record<string, Record<string, boolean>>;
+    }>("/api/consent/settings", {}, { consent: {}, defaults: {} });
+  },
+
+  async setConsentSetting(
+    provider: string,
+    scope: string,
+    enabled: boolean,
+  ): Promise<{ data: { ok: boolean; provider: string; scope: string; enabled: boolean }; live: boolean }> {
+    const body = JSON.stringify({ provider, scope, enabled });
+    return maestroFetch<{ ok: boolean; provider: string; scope: string; enabled: boolean }>(
+      "/api/consent/settings",
+      { method: "PUT", body },
+      { ok: true, provider, scope, enabled },
+    );
+  },
 };
 
 /* ------------------------------------------------------------------ */

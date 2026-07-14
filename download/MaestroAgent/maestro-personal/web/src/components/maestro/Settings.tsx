@@ -11,6 +11,8 @@ import {
   Shield,
   ShieldAlert,
   Trash2,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,22 +54,27 @@ export function Settings() {
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [consent, setConsent] = useState<Record<string, Record<string, boolean>> | null>(null);
+  const [consentDefaults, setConsentDefaults] = useState<Record<string, Record<string, boolean>> | null>(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [l, p, c, a] = await Promise.all([
+      const [l, p, c, a, cs] = await Promise.all([
         maestroApi.getLlmStatus(),
         maestroApi.getPrivacyMode(),
         maestroApi.getCalibration(),
         maestroApi.getAuditLog(),
+        maestroApi.getConsentSettings(),
       ]);
       if (!alive) return;
       setLlm(l.data);
       setPrivacy(p.data);
       setCalibration(c.data);
       setAudit(a.data);
+      setConsent(cs.data.consent);
+      setConsentDefaults(cs.data.defaults);
       setLoading(false);
     })();
     return () => {
@@ -359,6 +366,70 @@ export function Settings() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Per-connector consent (Task 59-7) */}
+      <Card className="border-border/60">
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <Shield className="size-3.5" />
+              <span>Per-connector consent</span>
+            </div>
+            <span className="text-[11px] text-muted-foreground/70">
+              Granular data-access toggles per connector
+            </span>
+          </div>
+          {loading || !consent || !consentDefaults ? (
+            <SkeletonRow />
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Toggle what each connector is allowed to do. Read access is on
+                by default; write actions (drafts, posts, sends) are off by
+                default and must be explicitly enabled.
+              </p>
+              {Object.entries(consentDefaults).map(([provider, scopes]) => (
+                <div key={provider} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="text-sm font-medium capitalize mb-2">{provider}</div>
+                  <div className="flex flex-wrap gap-3">
+                    {Object.entries(scopes).map(([scope, defaultEnabled]) => {
+                      const current = consent[provider]?.[scope] ?? defaultEnabled;
+                      return (
+                        <button
+                          key={scope}
+                          type="button"
+                          onClick={async () => {
+                            const next = !current;
+                            // Optimistic update
+                            setConsent((prev) => ({
+                              ...prev,
+                              [provider]: { ...prev?.[provider], [scope]: next },
+                            }));
+                            await maestroApi.setConsentSetting(provider, scope, next);
+                          }}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors",
+                            current
+                              ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300"
+                              : "border-border/60 bg-muted/40 text-muted-foreground",
+                          )}
+                        >
+                          {current ? (
+                            <ToggleRight className="size-3.5" />
+                          ) : (
+                            <ToggleLeft className="size-3.5" />
+                          )}
+                          {scope.replace(/_/g, " ")}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Audit log */}
       <Card className="border-border/60">

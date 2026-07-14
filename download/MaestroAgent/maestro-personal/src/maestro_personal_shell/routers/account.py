@@ -424,6 +424,154 @@ async def get_privacy_mode(token: str = Depends(verify_token_dep)):
     return get_processing_mode()
 
 
+# ---------------------------------------------------------------------------
+# Per-connector consent settings (Task 59-7)
+#
+# Granular consent toggles: for each connector, the user can independently
+# enable/disable specific data-type access (e.g. Gmail: read emails yes,
+# send drafts no; Calendar: read events yes, create events no).
+# ---------------------------------------------------------------------------
+
+# Default consent settings per provider — what each connector CAN access.
+# User can toggle these off individually for granular privacy control.
+_DEFAULT_CONSENT: dict[str, dict[str, bool]] = {
+    "gmail": {"read_emails": True, "create_drafts": True, "send_emails": False},
+    "calendar": {"read_events": True, "create_events": False},
+    "slack": {"read_messages": True, "post_messages": False},
+    "github": {"read_issues": True, "read_prs": True, "create_issues": False},
+    "whatsapp": {"read_messages": True},
+    "facebook": {"read_posts": True},
+    "instagram": {"read_posts": True},
+    "twitter": {"read_tweets": True},
+}
+
+
+@router.get("/consent/settings")
+async def get_consent_settings(token: str = Depends(verify_token_dep)):
+    """Get per-connector consent toggles for the current user."""
+    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.audit_trust import log_data_access
+    log_data_access(token, "read", "/api/consent/settings")
+
+    conn = get_db_conn()
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS consent_settings "
+            "(user_email TEXT, settings_json TEXT, updated_at TEXT, "
+            "PRIMARY KEY (user_email))"
+        )
+        row = conn.execute(
+            "SELECT settings_json FROM consent_settings WHERE user_email = ?",
+            (token,),
+        ).fetchone()
+        if row:
+            import json
+            user_settings = json.loads(row[0])
+        else:
+            user_settings = {}
+    finally:
+        conn.close()
+
+    # Merge defaults with user overrides
+    result = {}
+    for provider, defaults in _DEFAULT_CONSENT.items():
+        result[provider] = {}
+        for scope, default_val in defaults.items():
+            result[provider][scope] = user_settings.get(provider, {}).get(scope, default_val)
+
+    return {"consent": result, "defaults": _DEFAULT_CONSENT}
+
+
+@router.put("/consent/settings")
+async def set_consent_settings(
+    body: dict,
+    token: str = Depends(verify_token_dep),
+):
+    """Update per-connector consent toggles for the current user.
+
+    Body: {"provider": "gmail", "scope": "create_drafts", "enabled": false}
+    """
+    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.audit_trust import log_data_access
+    import json
+
+    provider = body.get("provider", "")
+    scope = body.get("scope", "")
+    enabled = bool(body.get("enabled", True))
+
+    if provider not in _DEFAULT_CONSENT:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+    if scope not in _DEFAULT_CONSENT[provider]:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Unknown scope for {provider}: {scope}")
+
+    log_data_access(token, "write", f"/api/consent/settings ({provider}.{scope}={enabled})")
+
+    conn = get_db_conn()
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS consent_settings "
+            "(user_email TEXT, settings_json TEXT, updated_at TEXT, "
+            "PRIMARY KEY (user_email))"
+        )
+        row = conn.execute(
+            "SELECT settings_json FROM consent_settings WHERE user_email = ?",
+            (token,),
+        ).fetchone()
+        settings = json.loads(row[0]) if row else {}
+        settings.setdefault(provider, {})[scope] = enabled
+        conn.execute(
+            "INSERT OR REPLACE INTO consent_settings (user_email, settings_json, updated_at) "
+            "VALUES (?, ?, ?)",
+            (token, json.dumps(settings), __import__("datetime").datetime.utcnow().isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"ok": True, "provider": provider, "scope": scope, "enabled": enabled}
+
+
+def check_consent(user_email: str, provider: str, scope: str) -> bool:
+    """Check if the user has consented to a specific data scope.
+
+    Used by connector ingestion paths to enforce granular consent before
+    reading or writing data. Returns True if consent is granted (default
+    if no explicit setting exists).
+    """
+    if provider not in _DEFAULT_CONSENT:
+        return True  # unknown provider — allow (backward compat)
+    if scope not in _DEFAULT_CONSENT[provider]:
+        return True  # unknown scope — allow
+
+    from maestro_personal_shell.db_util import get_db_conn
+    import json
+    import logging
+    logger = logging.getLogger(__name__)
+
+    conn = get_db_conn()
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS consent_settings "
+            "(user_email TEXT, settings_json TEXT, updated_at TEXT, "
+            "PRIMARY KEY (user_email))"
+        )
+        row = conn.execute(
+            "SELECT settings_json FROM consent_settings WHERE user_email = ?",
+            (user_email,),
+        ).fetchone()
+        if not row:
+            return _DEFAULT_CONSENT[provider][scope]
+        settings = json.loads(row[0])
+        return settings.get(provider, {}).get(scope, _DEFAULT_CONSENT[provider][scope])
+    except Exception as e:
+        logger.debug("check_consent error for %s.%s: %s — returning default", provider, scope, e)
+        return _DEFAULT_CONSENT[provider][scope]
+    finally:
+        conn.close()
+
+
 @router.get("/audit-log")
 async def get_audit_log_endpoint(
     limit: int = 50,
