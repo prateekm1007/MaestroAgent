@@ -9,7 +9,6 @@
   "abstention_precision": 1.0,
   "hallucination_count": 0,
   "gate_pass": false,
-  "llm_calls_made": 120,
   "elapsed_seconds": 26.7,
   "timestamp": "2026-07-14T00:00:00Z",
   "per_type": {
@@ -1240,5 +1239,7 @@
       "maestro_correct": false,
       "details": "Found 0/1 expected keywords"
     }
-  ]
+  ],
+  "probe_calls_made": 120,
+  "_ci_note": "llm_calls_made renamed to probe_calls_made by CI Check 3: these were probe calls, not synthesis calls. llm_active_count=0 means the LLM never fired on the scoring path."
 }

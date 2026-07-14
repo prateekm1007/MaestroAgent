@@ -6,11 +6,12 @@
   "bm25_baseline": 0.5,
   "lift": 0.5,
   "lift_percentage": 50.0,
-  "gate_pass": true,
+  "gate_pass": false,
   "gate_threshold": 0.1,
-  "llm_calls_made": 10,
   "abstention_precision": 1.0,
   "hallucination_count": 0,
   "timestamp": "2026-07-14T00:00:00Z",
-  "note": "10-question subset (commitment type). Full 150-question run requires ~25 min via Kaggle tunnel."
+  "note": "10-question subset (commitment type). Full 150-question run requires ~25 min via Kaggle tunnel.",
+  "_ci_note": "gate_pass corrected by CI Check 3: llm_active_count=0 means LLM never fired on scoring path, so gate cannot pass regardless of lift",
+  "probe_calls_made": 10
 }
