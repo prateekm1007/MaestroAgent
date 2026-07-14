@@ -329,6 +329,37 @@ def get_behavior_patterns(
 
 
 # ---------------------------------------------------------------------------
+# Change 5: Entity dismissal rate for Moment ranking
+# ---------------------------------------------------------------------------
+
+
+def get_entity_dismissal_rate(user_email: str, entity: str, db_path: str | None = None) -> float:
+    """Get the dismissal rate for a specific entity.
+
+    Returns: 0.0 (never dismissed) to 1.0 (always dismissed).
+    If entity has < 3 predictions, returns 0.0 (not enough data).
+    """
+    path = db_path or _get_db_path()
+    try:
+        conn = get_db_conn(path)
+        rows = conn.execute(
+            """SELECT outcome FROM predictions
+               WHERE user_email = ? AND entity_id LIKE ?
+               AND outcome IS NOT NULL""",
+            (user_email, f"%{entity}%"),
+        ).fetchall()
+        conn.close()
+
+        if len(rows) < 3:
+            return 0.0  # Not enough data
+
+        dismissals = sum(1 for r in rows if r[0] == 'miss')
+        return dismissals / len(rows)
+    except Exception:
+        return 0.0
+
+
+# ---------------------------------------------------------------------------
 # 3. Behavior context for LLM prompts
 # ---------------------------------------------------------------------------
 

@@ -15,7 +15,9 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Alert, SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 import { useAsk } from '../api/hooks';
 import { colors, getTheme, spacing, typography } from '../theme/colors';
@@ -28,6 +30,7 @@ export default function AskScreen() {
   const { mode } = useTheme();
   const t = getTheme(mode);
   const { token } = useAuth();
+  const navigation = useNavigation<any>();
   const [query, setQuery] = useState('');
   const [history, setHistory] = useState<string[]>([]);
 
@@ -46,15 +49,34 @@ export default function AskScreen() {
   const handleAsk = (q?: string) => {
     const queryText = q || query;
     if (!queryText || !token) return;
-    askMutation.mutate(queryText, {
-      onSuccess: () => {
-        const newHistory = [queryText, ...history.filter(h => h !== queryText)].slice(0, 10);
-        setHistory(newHistory);
-        AsyncStorage.setItem('maestro_ask_history', JSON.stringify(newHistory));
-      },
-      onError: () => {
-        Alert.alert('Error', 'Failed to get answer. Is the API running?');
-      },
+    // Change 8: Append conversation history to query for context
+    AsyncStorage.getItem('maestro_ask_qa_history').then(h => {
+      let context = '';
+      if (h) {
+        const qaHistory = JSON.parse(h).slice(-3);
+        if (qaHistory.length > 0) {
+          context = '\n\nPrevious conversation:\n';
+          qaHistory.forEach((item: any) => {
+            context += `Q: ${item.query}\nA: ${item.answer?.substring(0, 200)}\n\n`;
+          });
+        }
+      }
+      askMutation.mutate(queryText + context, {
+        onSuccess: (data: any) => {
+          const newHistory = [queryText, ...history.filter(h => h !== queryText)].slice(0, 10);
+          setHistory(newHistory);
+          AsyncStorage.setItem('maestro_ask_history', JSON.stringify(newHistory));
+          // Save Q&A pair for conversation context
+          AsyncStorage.getItem('maestro_ask_qa_history').then(qa => {
+            const arr = qa ? JSON.parse(qa) : [];
+            arr.push({ query: queryText, answer: data?.answer || '', timestamp: new Date().toISOString() });
+            AsyncStorage.setItem('maestro_ask_qa_history', JSON.stringify(arr.slice(-10)));
+          });
+        },
+        onError: () => {
+          Alert.alert('Error', 'Failed to get answer. Is the API running?');
+        },
+      });
     });
   };
 
@@ -77,7 +99,7 @@ export default function AskScreen() {
             accessibilityHint="Type your question and submit to get an answer"
           />
           <TouchableOpacity
-            onPress={() => handleAsk()}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleAsk(); }}
             style={{ paddingRight: spacing.md }}
             accessibilityRole="button"
             accessibilityLabel="Submit question"
@@ -102,7 +124,7 @@ export default function AskScreen() {
             {history.map((h, i) => (
               <TouchableOpacity
                 key={i}
-                onPress={() => { setQuery(h); handleAsk(h); }}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setQuery(h); handleAsk(h); }}
                 style={{ paddingVertical: spacing.md }}
                 accessibilityRole="button"
                 accessibilityLabel={`Recent question: ${h}`}
@@ -193,25 +215,41 @@ export default function AskScreen() {
               </View>
             )}
 
-            {/* Unknowns */}
+            {/* Unknowns — Change 9: tappable follow-up chips */}
             {(result.unknowns?.length ?? 0) > 0 && (
               <View style={{ marginTop: spacing.xl }}>
                 <Text
                   style={[typography.label, { color: t.textSecondary, marginBottom: spacing.sm }]}
                   accessibilityRole="header"
                   accessibilityLabel="Unknowns section"
-                >UNKNOWNS</Text>
-                {result.unknowns?.map((u, i) => (
-                  <Text
-                    key={i}
-                    style={{ fontSize: 14, color: t.textSecondary, marginBottom: spacing.xs }}
-                    accessibilityRole="text"
-                    accessibilityLabel={`Unknown: ${typeof u === 'string' ? u : u.description || JSON.stringify(u)}`}
-                  >
-                    • {typeof u === 'string' ? u : u.description || JSON.stringify(u)}
-                  </Text>
-                ))}
+                >I'M NOT SURE ABOUT:</Text>
+                {result.unknowns?.map((u, i) => {
+                  const text = typeof u === 'string' ? u : u.description || JSON.stringify(u);
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setQuery(text); handleAsk(text); }}
+                      style={{ backgroundColor: colors.honey, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, marginBottom: 6 }}
+                      accessibilityLabel={`Ask follow-up: ${text}`}
+                      accessibilityRole="button"
+                    >
+                      <Text style={{ fontSize: 12, color: colors.yellowDark }}>{text}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
+            )}
+
+            {/* Change 7: Deep link to Commitments */}
+            {result.source_entity && (
+              <TouchableOpacity
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Commitments', { filterEntity: result.source_entity }); }}
+                style={{ marginTop: 12, padding: 10, backgroundColor: colors.honey, borderRadius: 12, alignItems: 'center' }}
+                accessibilityLabel={`View ${result.source_entity} commitments`}
+                accessibilityRole="button"
+              >
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.yellowDark }}>View {result.source_entity}'s commitments →</Text>
+              </TouchableOpacity>
             )}
           </Card>
         </ScrollView>

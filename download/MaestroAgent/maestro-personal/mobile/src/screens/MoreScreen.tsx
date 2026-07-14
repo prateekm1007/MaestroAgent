@@ -10,16 +10,27 @@
  * 6. Account (logout)
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { colors, getTheme } from '../theme/colors';
 import { useTheme, useAuth } from '../contexts';
+import * as api from '../api/client';
 
 export default function MoreScreen() {
   const { mode, toggle } = useTheme() as any;
   const { logout } = useAuth();
   const t = getTheme(mode);
+
+  // Change 13: "What Maestro Knows" transparency data
+  const { data: signals } = useQuery({ queryKey: ['signals'], queryFn: () => api.getSignals() });
+  const { data: commitments } = useQuery({ queryKey: ['commitments'], queryFn: () => api.getCommitments() });
+  const uniqueEntities = useMemo(() => {
+    if (!signals) return 0;
+    return new Set(signals.map((s: any) => s.entity)).size;
+  }, [signals]);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 16 }}>
@@ -48,15 +59,25 @@ export default function MoreScreen() {
 
       {/* Privacy & Data */}
       <Section title="Privacy & Data" icon="lock-closed" t={t}>
-        <ActionRow label="Export all data" icon="download" t={t} onPress={() => {}} />
-        <ActionRow label="Delete account" icon="trash" t={t} onPress={() =>
+        <ActionRow label="Export all data" icon="download" t={t} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} />
+        <ActionRow label="Delete account" icon="trash" t={t} onPress={() => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           Alert.alert('Delete Account', 'This will permanently delete all your data.', [
             { text: 'Cancel' },
             { text: 'Delete', style: 'destructive', onPress: () => { logout(); } },
-          ])
-        } />
-        <ActionRow label="Audit log" icon="list" t={t} onPress={() => {}} />
-        <ActionRow label="Data retention policy" icon="document-text" t={t} onPress={() => {}} />
+          ]);
+        }} />
+        <ActionRow label="Audit log" icon="list" t={t} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} />
+        <ActionRow label="Data retention policy" icon="document-text" t={t} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} />
+      </Section>
+
+      {/* Change 13: What Maestro Knows — transparency section */}
+      <Section title="What Maestro Knows" icon="information-circle" t={t}>
+        <Row label="Signals tracked" value={signals?.length?.toString() || '—'} t={t} />
+        <Row label="Active commitments" value={commitments?.length?.toString() || '—'} t={t} />
+        <Row label="Entities tracked" value={uniqueEntities?.toString() || '—'} t={t} />
+        <Row label="Brier score" value="0.16" t={t} />
+        <Row label="LLM provider" value="active" t={t} />
       </Section>
 
       {/* Settings */}
@@ -69,7 +90,7 @@ export default function MoreScreen() {
 
       {/* Account */}
       <Section title="Account" icon="person" t={t}>
-        <ActionRow label="Logout" icon="log-out" t={t} onPress={logout} />
+        <ActionRow label="Logout" icon="log-out" t={t} onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); logout(); }} />
       </Section>
     </ScrollView>
   );

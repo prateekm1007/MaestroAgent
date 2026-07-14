@@ -155,6 +155,9 @@ async def get_what_changed(as_of: str | None = None, token: str = Depends(verify
     surface = WhatChangedSurface(shell=shell)
     since = datetime.now(timezone.utc) - timedelta(days=30)
     deltas = surface.get_recent_deltas(since_timestamp=since)
+    # Change 12: Strict 3-card limit — sort by materiality, take top 3
+    deltas.sort(key=lambda d: 1 if d.get("is_meaningful") else 0, reverse=True)
+    deltas = deltas[:3]
     return [
         WhatChangedResponse(
             entity=d["entity"], text=d["text"], type=d["type"],
@@ -650,6 +653,16 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
                     reasons.append(f"made {age_days} days ago")
             except Exception:
                 pass
+        # Change 5: Learning loop affects ranking — entities with high
+        # dismissal rates get deprioritized (score * (1 - dismissal_rate * 0.5))
+        try:
+            from maestro_personal_shell.learning_loop_v2 import get_entity_dismissal_rate
+            entity = c.get("entity", "")
+            dismissal_rate = get_entity_dismissal_rate(user_email=token, entity=entity)
+            c["dismissal_rate"] = dismissal_rate
+            score = int(score * (1.0 - dismissal_rate * 0.5))
+        except Exception:
+            c["dismissal_rate"] = 0.0
         if score > best_score:
             best_score = score
             best_commitment = c

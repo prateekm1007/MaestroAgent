@@ -10,9 +10,10 @@
  * UI/logic is otherwise unchanged.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView, AccessibilityInfo, Alert,
+  PanResponder, Animated as RNAnimated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -93,6 +94,31 @@ export default function DashboardScreen() {
 
   // ── Issue 7: Proactive email drafting ─────────────────────────────
   const [draftModal, setDraftModal] = React.useState<{ visible: boolean; draft: any }>({ visible: false, draft: null });
+  // Change 3: expand state for The Moment contextual expand
+  const [expanded, setExpanded] = useState(false);
+  // Change 2: swipe gesture state for The Moment
+  const pan = useRef(new RNAnimated.ValueXY()).current;
+  const [dragging, setDragging] = useState(false);
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_: any, g: any) => Math.abs(g.dx) > 10 && Math.abs(g.dy) < 30,
+      onPanResponderMove: (_: any, g: any) => {
+        pan.setValue({ x: g.dx, y: 0 });
+        if (Math.abs(g.dx) > 30 && !dragging) setDragging(true);
+      },
+      onPanResponderRelease: (_: any, g: any) => {
+        if (g.dx > 80 && moment?.commitment) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          handleCorrect(moment.commitment.signal_id, 'complete');
+        } else if (g.dx < -80 && moment?.commitment) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          handleCorrect(moment.commitment.signal_id, 'dismiss');
+        }
+        RNAnimated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+        setDragging(false);
+      },
+    })
+  ).current;
 
   const handleDraft = async (entity: string) => {
     if (!entity) return;
@@ -102,6 +128,28 @@ export default function DashboardScreen() {
       setDraftModal({ visible: true, draft: result });
     } catch (e) {
       Alert.alert('Error', 'Failed to generate draft. Is the backend running?');
+    }
+  };
+
+  // Change 4: Smart snooze
+  const handleSnooze = async (momentData: any) => {
+    if (!momentData?.commitment) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await api.correctSignal(momentData.commitment.signal_id, 'dismiss');
+      const Notifications = (await import('expo-notifications')).default;
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `${momentData.commitment.entity} — snooze reminder`,
+          body: `You snoozed: "${momentData.commitment.text?.substring(0, 60)}". Ready to act?`,
+          data: { type: 'snooze_reminder', entity: momentData.commitment.entity },
+        },
+        trigger: { seconds: 7200 } as any,
+      });
+      Alert.alert('Snoozed', `We'll remind you in 2 hours about ${momentData.commitment.entity}.`);
+      qc.invalidateQueries({ queryKey: ['theMoment'] });
+    } catch (e) {
+      Alert.alert('Error', 'Failed to snooze. Is the backend running?');
     }
   };
 
@@ -119,40 +167,59 @@ export default function DashboardScreen() {
         ) : momentQ.error ? (
           <ErrorState message="Couldn't load the moment." onRetry={() => momentQ.refetch()} />
         ) : moment?.has_moment && moment.commitment ? (
-          <Animated.View
-            style={[cardAnimStyle, { marginBottom: spacing.xl }]}
+          <RNAnimated.View
+            {...panResponder.panHandlers}
+            style={[{ transform: pan.getTranslateTransform(), marginBottom: spacing.xl }, dragging && { opacity: 0.9 }]}
             accessibilityLiveRegion="polite"
-            accessibilityLabel="The Moment card"
+            accessibilityLabel="The Moment card — swipe right for done, left for skip"
             accessibilityRole="summary"
           >
             <Card accent="yellow">
-              <Text
-                style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}
-                accessibilityRole="header"
-                accessibilityLabel={`${moment.commitment.entity} commitment`}
-              >{moment.commitment.entity}</Text>
-              <Text
-                style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}
-                accessibilityRole="text"
-                accessibilityLabel={`Commitment: ${moment.commitment.text}`}
+              <TouchableOpacity
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setExpanded(!expanded); }}
+                accessibilityLabel="Expand The Moment details"
+                accessibilityRole="button"
               >
-                "{moment.commitment.text}"
-              </Text>
-              {moment.why_this_one ? (
                 <Text
-                  style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.md }}
+                  style={{ fontSize: 20, fontWeight: 'bold', color: t.textPrimary }}
+                  accessibilityRole="header"
+                  accessibilityLabel={`${moment.commitment.entity} commitment`}
+                >{moment.commitment.entity}</Text>
+                <Text
+                  style={{ fontSize: 16, color: t.textSecondary, fontStyle: 'italic', marginTop: spacing.xs }}
                   accessibilityRole="text"
-                  accessibilityLabel={`Why this matters: ${moment.why_this_one}`}
-                >{moment.why_this_one}</Text>
-              ) : null}
-              <View style={{ flexDirection: 'row', marginTop: spacing.md, gap: spacing.sm }}>
-                {moment.commitment.metadata?.deadline ? <Badge text={`📅 ${moment.commitment.metadata.deadline}`} color="yellow" /> : null}
-                {moment.why_this_one?.includes('stale') ? <Badge text="🔥 At Risk" color="red" /> : null}
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.xl }}>
+                  accessibilityLabel={`Commitment: ${moment.commitment.text}`}
+                >
+                  "{moment.commitment.text}"
+                </Text>
+                {moment.why_this_one ? (
+                  <Text
+                    style={{ fontSize: 14, color: t.textSecondary, marginTop: spacing.md }}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Why this matters: ${moment.why_this_one}`}
+                  >{moment.why_this_one}</Text>
+                ) : null}
+                <View style={{ flexDirection: 'row', marginTop: spacing.md, gap: spacing.sm }}>
+                  {moment.commitment.metadata?.deadline ? <Badge text={`📅 ${moment.commitment.metadata.deadline}`} color="yellow" /> : null}
+                  {moment.why_this_one?.includes('stale') ? <Badge text="🔥 At Risk" color="red" /> : null}
+                </View>
+              </TouchableOpacity>
+              {/* Change 3: Contextual expand */}
+              {expanded && (
+                <View style={{ backgroundColor: t.surface, borderRadius: 8, padding: 12, marginTop: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.yellowDark, textTransform: 'uppercase', marginBottom: 6 }}>📎 Evidence</Text>
+                  {(moment as any).source_sentence && (
+                    <Text style={{ fontSize: 13, fontStyle: 'italic', color: t.textSecondary, marginBottom: 6 }}>"{(moment as any).source_sentence}"</Text>
+                  )}
+                  {(moment as any).evidence_refs && (moment as any).evidence_refs.map((ref: any, i: number) => (
+                    <Text key={i} style={{ fontSize: 12, color: t.textSecondary, marginBottom: 4 }}>• {ref.entity || 'Unknown'}: "{ref.text?.substring(0, 60)}"</Text>
+                  ))}
+                </View>
+              )}
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.sm }}>
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: colors.successGreen }]}
-                  onPress={() => handleCorrect(moment.commitment!.signal_id, 'complete')}
+                  onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); handleCorrect(moment.commitment!.signal_id, 'complete'); }}
                   accessibilityRole="button"
                   accessibilityLabel="Mark commitment as done"
                   accessibilityHint="Completes this commitment"
@@ -162,7 +229,7 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: t.border }]}
-                  onPress={() => handleCorrect(moment.commitment!.signal_id, 'dismiss')}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleCorrect(moment.commitment!.signal_id, 'dismiss'); }}
                   accessibilityRole="button"
                   accessibilityLabel="Skip this commitment"
                   accessibilityHint="Dismisses this commitment for now"
@@ -181,9 +248,20 @@ export default function DashboardScreen() {
                   <Ionicons name="mail" size={24} color={colors.black} />
                   <Text style={[styles.actionLabel, { color: colors.black }]}>Draft</Text>
                 </TouchableOpacity>
+                {/* Change 4: Snooze button */}
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: t.border }]}
+                  onPress={() => handleSnooze(moment)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Snooze for 2 hours"
+                  accessibilityHint="Reminds you in 2 hours"
+                >
+                  <Ionicons name="time" size={24} color={t.textSecondary} />
+                  <Text style={[styles.actionLabel, { color: t.textSecondary }]}>Snooze</Text>
+                </TouchableOpacity>
               </View>
             </Card>
-          </Animated.View>
+          </RNAnimated.View>
         ) : (
           <View style={{ marginBottom: spacing.xl }} accessibilityLiveRegion="polite">
             <EmptyState
