@@ -40,7 +40,185 @@ _router_checked = False
 
 
 # ---------------------------------------------------------------------------
-# ZAI Router — in-house LLM provider (z-ai-web-dev-sdk CLI)
+# ZAI HTTP Router — Python-native LLM provider (no Node.js/npm needed)
+# ---------------------------------------------------------------------------
+
+class ZAIHTTPRouter:
+    """LLM router that calls the z-ai API directly via HTTP (httpx).
+
+    This is the P0-3 follow-up fix (audit V3 2026-07-15): the prior
+    ZAIRouter required the z-ai CLI (a Node.js/Bun subprocess), which
+    meant `npm install -g z-ai-web-dev-sdk` had to be run manually.
+    On a fresh clone, the CLI wasn't installed, so /api/llm-status
+    returned active=False.
+
+    This router reads the SAME config file as the Node.js SDK
+    (~/.z-ai-config, /etc/.z-ai-config, or {cwd}/.z-ai-config) and
+    calls the SAME API endpoint ({baseUrl}/chat/completions) directly
+    via httpx — no Node.js, no npm, no subprocess. Since httpx is
+    already a project dependency, this works on any Python environment
+    where the config file exists.
+
+    Provider priority: ZAIHTTPRouter > ZAIRouter (CLI) > cloud > Ollama
+    """
+
+    def __init__(self) -> None:
+        self.default_provider = "zai-glm-http"
+        self._config = None
+        self._config_checked = False
+        self._rate_limited_until = 0.0
+
+    def _load_config(self) -> dict[str, str] | None:
+        """Load the z-ai config from the same paths as the Node.js SDK."""
+        if self._config_checked:
+            return self._config
+        self._config_checked = True
+
+        import json
+        import os as _os
+        from pathlib import Path
+
+        config_paths = [
+            Path(_os.getcwd()) / ".z-ai-config",
+            Path.home() / ".z-ai-config",
+            Path("/etc/.z-ai-config"),
+        ]
+
+        for config_path in config_paths:
+            try:
+                config_str = config_path.read_text()
+                config = json.loads(config_str)
+                if config.get("baseUrl") and config.get("apiKey"):
+                    self._config = config
+                    logger.info(
+                        "ZAI HTTP router: config loaded from %s (baseUrl=%s)",
+                        config_path, config["baseUrl"],
+                    )
+                    return self._config
+            except FileNotFoundError:
+                continue
+            except Exception as e:
+                logger.debug("ZAI HTTP config read failed at %s: %s", config_path, e)
+
+        logger.debug("ZAI HTTP router: no config file found")
+        self._config = None
+        return self._config
+
+    def health_check(self) -> bool:
+        """Check if the z-ai config file exists and is valid."""
+        config = self._load_config()
+        return config is not None
+
+    async def complete(
+        self,
+        system: str,
+        user: str,
+        temperature: float = 0.2,
+        max_tokens: int = 500,
+    ) -> ZAIResponse:
+        """Call the z-ai chat completions API directly via httpx."""
+        import time as _time
+
+        # Rate-limit cooldown
+        if self._rate_limited_until > 0 and _time.time() < self._rate_limited_until:
+            raise RuntimeError("ZAI HTTP in rate-limit cooldown — skipping call")
+
+        config = self._load_config()
+        if not config:
+            raise RuntimeError("ZAI HTTP: no config file found")
+
+        base_url = config["baseUrl"]
+        api_key = config["apiKey"]
+        token = config.get("token", "")
+        chat_id = config.get("chatId", "")
+        user_id = config.get("userId", "")
+
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "X-Z-AI-From": "Z",
+        }
+        if chat_id:
+            headers["X-Chat-Id"] = chat_id
+        if user_id:
+            headers["X-User-Id"] = user_id
+        if token:
+            headers["X-Token"] = token
+
+        body = {
+            "model": "glm-4.6",
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "thinking": {"type": "disabled"},
+        }
+
+        # Run in thread pool to avoid blocking the async event loop
+        return await asyncio.to_thread(self._complete_sync, url, headers, body)
+
+    def _complete_sync(
+        self,
+        url: str,
+        headers: dict[str, str],
+        body: dict[str, Any],
+    ) -> ZAIResponse:
+        """Make the HTTP request synchronously (runs in thread pool)."""
+        import time as _time
+
+        try:
+            import httpx
+        except ImportError:
+            raise RuntimeError("httpx not installed — required for ZAI HTTP router")
+
+        last_error = ""
+        for attempt in range(3):
+            try:
+                resp = httpx.post(url, json=body, headers=headers, timeout=30.0)
+                if resp.status_code == 429:
+                    last_error = "rate limited (429)"
+                    if attempt < 2:
+                        delay = 2 ** attempt
+                        logger.warning("ZAI HTTP rate limited (429) — retry in %ds", delay)
+                        time.sleep(delay)
+                        continue
+                    # Set cooldown
+                    self._rate_limited_until = _time.time() + 60.0
+                    raise RuntimeError(f"ZAI HTTP rate limited after {attempt+1} retries")
+
+                resp.raise_for_status()
+                data = resp.json()
+
+                # Parse OpenAI-compatible response
+                choices = data.get("choices", [])
+                if choices:
+                    content = choices[0].get("message", {}).get("content", "")
+                    if content:
+                        return ZAIResponse(content)
+
+                raise RuntimeError("ZAI HTTP: empty response from API")
+
+            except httpx.HTTPStatusError as e:
+                last_error = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise RuntimeError(f"ZAI HTTP failed after 3 retries: {last_error}")
+            except Exception as e:
+                last_error = str(e)[:200]
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise RuntimeError(f"ZAI HTTP failed after 3 retries: {last_error}")
+
+        raise RuntimeError(f"ZAI HTTP failed: {last_error}")
+
+
+# ---------------------------------------------------------------------------
+# ZAI Router — in-house LLM provider (z-ai-web-dev-sdk CLI, fallback)
 # ---------------------------------------------------------------------------
 
 class ZAIResponse:
@@ -271,15 +449,17 @@ class ZAIRouter:
 def get_llm_router() -> Any:
     """Get or initialize the LLM router.
 
-    Provider priority (P0-3 audit fix 2026-07-15):
-    1. z-ai CLI (z-ai-web-dev-sdk) — FIRST priority because it requires
-       NO API key and works out of the box once `npm install -g
-       z-ai-web-dev-sdk` has been run. This makes LLM active in the
-       default state, which is what the auditor demanded.
-    2. maestro_llm cloud providers (OPENAI_API_KEY, ANTHROPIC_API_KEY,
+    Provider priority (P0-3 audit V3 fix 2026-07-15):
+    1. ZAI HTTP Router — Python-native, calls the z-ai API directly via
+       httpx. No Node.js/npm needed. Works on any Python environment
+       where the z-ai config file exists (~/.z-ai-config or /etc/.z-ai-config).
+       This is the PRIMARY path to making LLM active by default.
+    2. z-ai CLI (z-ai-web-dev-sdk) — fallback if the config file doesn't
+       exist but the CLI is installed (requires npm install -g).
+    3. maestro_llm cloud providers (OPENAI_API_KEY, ANTHROPIC_API_KEY,
        OPENROUTER_API_KEY, XAI_API_KEY) — used when an explicit cloud
        provider is configured (production deployments).
-    3. Local Ollama (http://localhost:11434) — offline / on-prem.
+    4. Local Ollama (http://localhost:11434) — offline / on-prem.
 
     Returns None if no provider is available.
     """
@@ -288,7 +468,17 @@ def get_llm_router() -> Any:
         return _router
     _router_checked = True
 
-    # 1. Try z-ai CLI FIRST — no API key, works in default state.
+    # 1. Try ZAI HTTP Router FIRST — pure Python, no Node.js needed.
+    try:
+        zai_http = ZAIHTTPRouter()
+        if zai_http.health_check():
+            _router = zai_http
+            logger.info("LLM router initialized with z-ai HTTP provider (GLM, Python-native, no Node.js needed)")
+            return _router
+    except Exception as e:
+        logger.debug("z-ai HTTP init failed: %s", e)
+
+    # 2. Try z-ai CLI (fallback — requires npm install)
     try:
         zai = ZAIRouter()
         if zai.health_check():
@@ -298,7 +488,7 @@ def get_llm_router() -> Any:
     except Exception as e:
         logger.debug("z-ai CLI init failed: %s", e)
 
-    # 2. Try maestro_llm cloud providers
+    # 3. Try maestro_llm cloud providers
     try:
         import sys
         import pathlib
