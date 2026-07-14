@@ -160,6 +160,29 @@
 | Dynamic Type | ❌ NOT VERIFIED | Not tested at largest sizes | Phase 7 |
 | Contrast AA | ❌ NOT VERIFIED | Not tested | Phase 7 |
 
+## STRICT_CODER_INSTRUCTIONS Issues Status (honest, per P1)
+
+> Added 2026-07-14 after governance audit found CLAIM_FREEZE overclaimed.
+> Each row verified by execution (P1), not by reading the instructions.
+
+| Issue | Status | Execution Evidence |
+|-------|--------|-------------------|
+| 1: Gold-150 LLM | ✅ DONE | Results file committed: `gold_150_llm_active_full_results.json` (150 Q, 121 LLM-active, lift=+15.9, GATE PASS) |
+| 2: Raw sqlite3 | ✅ DONE | 0 raw `sqlite3.connect` calls in production code |
+| 3: Connector tests | ✅ DONE | 51 tests in `test_connectors.py` |
+| 4: Credential hygiene | ✅ DONE | `.githooks/commit-msg` blocks `ya29.`/`ghp_`/`GOCSPX-` patterns |
+| 5: Remove Copilot + 4 tabs | ❌ NOT DONE | `CopilotScreen.tsx` still exists; `App.tsx` has 6 tabs (not 4) |
+| 6: Push notifications | ❌ NOT DONE | `expo-notifications` not in `package.json`; no push infrastructure |
+| 7: Proactive email drafting | ❌ NOT DONE | No `MemoryScreen.tsx`; no `DraftApprovalModal.tsx` |
+| 8: Learning loop | ✅ DONE | `auto_register_prediction` + `auto_resolve_prediction` wired in `routers/signals.py` |
+| 9: Injection 200+ cases | ❌ NOT DONE | Only 1 injection test in `test_semantic_injection_and_streaming.py` |
+| 10: 30-meeting benchmark | ⚠️ PARTIAL | Results file committed (`benchmark_copilot_30meetings_results.json`) but 0 whispers detected (REST copilot returns state transitions, not fused coaching whispers — needs LLM fusion) |
+| 11: Slack/GitHub disclosure | ✅ DONE | PARTIAL status honestly documented in CLAIM_FREEZE |
+| 12: CLAIM_FREEZE accuracy | ⚠️ PARTIAL | Whisper rows added; Copilot rows NOT marked REMOVED (because Copilot not removed yet — see Issue 5) |
+| 13: Whisper system | ✅ DONE | All 6 parts verified: rule-based early-exit, scheduler, cards on web+mobile, push deep link, auto-refresh, 16/16 tests pass |
+
+**Honest summary: 6 of 13 issues DONE, 2 PARTIAL, 5 NOT DONE.**
+
 ## Summary
 
 | Status | Count |
