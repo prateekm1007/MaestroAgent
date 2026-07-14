@@ -339,28 +339,37 @@ class SlackIngester:
         }
 
     def _extract_commitments_from_message(self, msg: dict) -> list[dict[str, Any]]:
-        """Extract commitments from a Slack message.
+        """Extract commitments from a Slack message using intelligent ingestion.
 
-        Returns: list of signal dicts ready for ingestion.
+        Uses regex + LLM classification for high-precision extraction.
         """
         text = msg.get("text", "")
         if not text:
             return []
 
-        # Strip Slack mentions (<@U12345> → name)
         text_clean = self._strip_mentions(text)
         if not text_clean.strip():
             return []
 
-        # Get the sender's name
         user_id = msg.get("user", "")
         entity = self._get_user_name(user_id)
-
-        # Parse timestamp (Slack uses Unix epoch as string)
         timestamp = self._parse_slack_ts(msg.get("ts", ""))
+        source = "slack:dm" if msg.get("channel_type") == "im" else "slack:channel"
 
-        # Keyword commitment detection (same patterns as Gmail)
-        commitments = self._keyword_commitment_detection(text_clean, entity, timestamp)
+        # Use intelligent ingestion (regex + LLM)
+        commitments = []
+        try:
+            import asyncio
+            from maestro_personal_shell.intelligent_ingestion import extract_signals_intelligently
+            commitments = asyncio.run(extract_signals_intelligently(
+                message_text=text_clean,
+                entity=entity,
+                source=source,
+                timestamp=timestamp,
+            ))
+        except Exception:
+            # Fallback: keyword detection
+            commitments = self._keyword_commitment_detection(text_clean, entity, timestamp)
 
         # If no commitment but message is substantive, capture as reported_statement
         if not commitments and len(text_clean) > 20:

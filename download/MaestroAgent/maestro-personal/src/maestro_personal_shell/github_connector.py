@@ -298,12 +298,9 @@ class GitHubIngester:
         }
 
     def _extract_action_items_from_issue(self, issue: dict) -> list[dict[str, Any]]:
-        """Extract action items from a GitHub issue.
+        """Extract action items from a GitHub issue using intelligent ingestion.
 
-        Detects:
-          - "I will" / "I'll" → commitment_made
-          - "needs to" / "should" / "must" / "TODO" / "action item" / "follow up"
-            → reported_statement
+        Uses regex + LLM classification for high-precision extraction.
         """
         body = issue.get("body", "")
         title = issue.get("title", "")
@@ -317,10 +314,20 @@ class GitHubIngester:
         issue_number = issue.get("number", 0)
         source_url = issue.get("html_url", "")
 
+        # Use intelligent ingestion (regex + LLM)
         signals = []
-
-        # Commitment detection ("I will", "I'll", "I need to")
-        commitment_patterns = [
+        try:
+            import asyncio
+            from maestro_personal_shell.intelligent_ingestion import extract_signals_intelligently
+            signals = asyncio.run(extract_signals_intelligently(
+                message_text=full_text,
+                entity=entity,
+                source="github",
+                timestamp=timestamp,
+            ))
+        except Exception:
+            # Fallback: regex-only commitment detection
+            commitment_patterns = [
             r"i will (.+?)(?:[.\n!?]|$)",
             r"i'll (.+?)(?:[.\n!?]|$)",
             r"i need to (.+?)(?:[.\n!?]|$)",

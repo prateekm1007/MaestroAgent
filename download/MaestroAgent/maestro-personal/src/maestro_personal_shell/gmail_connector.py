@@ -413,9 +413,11 @@ class GmailIngester:
         }
 
     def _extract_commitments_from_message(self, msg: dict) -> list[dict[str, Any]]:
-        """Extract commitments from a Gmail message using the commitment classifier.
+        """Extract commitments from a Gmail message using intelligent ingestion.
 
-        Returns: list of signal dicts ready for ingestion.
+        Uses regex + LLM classification (intelligent_ingestion.py) for
+        high-precision extraction. Falls back to keyword detection if
+        intelligent ingestion is unavailable.
         """
         body = msg.get("body_text", "")
         if not body:
@@ -424,29 +426,23 @@ class GmailIngester:
         # Determine the entity (the other party in the conversation)
         from_header = msg.get("from", "")
         to_header = msg.get("to", "")
-        # If "me" is the sender, the entity is the recipient; otherwise it's the sender
-        # Gmail API doesn't resolve "me" to an email, so we check if from contains the user
-        # For simplicity, use the from header as the entity (the person who wrote the message)
         entity = self._extract_name(from_header)
-
-        # Parse the date
         timestamp = self._parse_email_date(msg.get("date", ""))
+        source = "gmail:inbox" if "me" not in to_header.lower() else "gmail:sent"
 
-        # Use the commitment_classifier to detect commitments
+        # Use intelligent ingestion (regex + LLM) for high-precision extraction
         commitments = []
         try:
-            from maestro_personal_shell.commitment_classifier import classify_text
-            result = classify_text(body)
-            for c in result.get("commitments", []):
-                commitments.append({
-                    "entity": entity,
-                    "text": c.get("text", body[:200]),
-                    "signal_type": "commitment_made",
-                    "timestamp": timestamp,
-                    "source": "gmail:inbox" if "me" not in to_header.lower() else "gmail:sent",
-                })
-        except ImportError:
-            # Fallback: use keyword detection if classifier not available
+            import asyncio
+            from maestro_personal_shell.intelligent_ingestion import extract_signals_intelligently
+            commitments = asyncio.run(extract_signals_intelligently(
+                message_text=body,
+                entity=entity,
+                source=source,
+                timestamp=timestamp,
+            ))
+        except Exception:
+            # Fallback: use keyword detection if intelligent ingestion fails
             commitments = self._keyword_commitment_detection(body, entity, timestamp)
 
         # Also capture reported statements (non-commitment but relevant)
