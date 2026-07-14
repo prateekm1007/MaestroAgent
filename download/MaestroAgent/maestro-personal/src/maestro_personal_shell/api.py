@@ -798,12 +798,24 @@ async def lifespan(app: FastAPI):
         logger.warning("Notification scheduler failed to start (non-fatal): %s", e)
         _notif_task = None
 
+    # Step 15: Start retention enforcer background loop.
+    # Runs daily, purges data that exceeds its TTL (GDPR/CCPA compliance).
+    try:
+        from maestro_personal_shell.retention_enforcer import retention_loop
+        _retention_task = _asyncio.create_task(retention_loop(interval_seconds=86400))
+        logger.info("Retention enforcer started (daily cycle)")
+    except Exception as e:
+        logger.warning("Retention enforcer failed to start (non-fatal): %s", e)
+        _retention_task = None
+
     yield  # App runs here
     # Shutdown
     if _whisper_task:
         _whisper_task.cancel()
     if _notif_task:
         _notif_task.cancel()
+    if _retention_task:
+        _retention_task.cancel()
 
 
 # MEDIUM-3 fix (independent audit): disable /docs, /openapi.json, /redoc in

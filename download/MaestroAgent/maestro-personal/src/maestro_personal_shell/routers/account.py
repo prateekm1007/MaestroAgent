@@ -424,6 +424,27 @@ async def get_privacy_mode(token: str = Depends(verify_token_dep)):
     return get_processing_mode()
 
 
+@router.get("/privacy/retention-status")
+async def get_retention_status(token: str = Depends(verify_token_dep)):
+    """Get the data retention TTL configuration (Step 15).
+
+    Returns the enforced retention periods for each data type, so users
+    can see exactly how long their data is kept.
+    """
+    from maestro_personal_shell.audit_trust import log_data_access
+    from maestro_personal_shell.retention_enforcer import get_retention_policy
+    log_data_access(token, "read", "/api/privacy/retention-status")
+    return {
+        "policy": get_retention_policy(),
+        "enforcement": "automated — runs daily via background task",
+        "user_controls": {
+            "export_all_data": "GET /api/account/export",
+            "delete_all_data": "DELETE /api/account",
+            "disconnect_connector": "DELETE /api/connectors/{provider}",
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # Per-connector consent settings (Task 59-7)
 #

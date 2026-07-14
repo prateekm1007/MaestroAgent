@@ -150,7 +150,7 @@
 | Data retention policy | ✅ VERIFIED | docs/data_retention_policy.md documents all data types | — |
 | Consent copy matches behavior | ✅ VERIFIED | Consent says audio IS uploaded, not "never leaves device" | — |
 | Per-connector consent UI | ✅ VERIFIED | GET/PUT /api/consent/settings endpoints (8 providers, granular scopes). Web UI panel in Settings.tsx with toggle buttons per scope. 8/8 consent tests pass (test_consent_settings.py). Destructive scopes (send_*, post_*, create_issues) off by default; read scopes on by default. | — |
-| Privacy data-flow audit | ❌ NOT VERIFIED | Not performed | Phase 7 |
+| Privacy data-flow audit | ✅ VERIFIED | Step 15: `retention_enforcer.py` runs daily via API lifespan, purging data that exceeds TTLs: auth tokens 30d, audit log 90d, pending drafts 30d, notified_stale 30d, inactive push tokens 90d. Signals + OAuth tokens have NO TTL (kept until account deletion). `GET /api/privacy/retention-status` endpoint shows users the enforced TTLs + user controls. 10/10 retention tests pass. Data retention policy doc updated. | — |
 
 ### Accessibility
 
