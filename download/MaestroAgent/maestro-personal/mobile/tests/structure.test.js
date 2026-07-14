@@ -58,7 +58,10 @@ describe('Mobile app — PRODUCTION structure', () => {
     test('has DashboardScreen', () => expect(readScreen('DashboardScreen')).toMatch(/function DashboardScreen/));
     test('has AskScreen', () => expect(readScreen('AskScreen')).toMatch(/function AskScreen/));
     test('has CommitmentsScreen', () => expect(readScreen('CommitmentsScreen')).toMatch(/function CommitmentsScreen/));
-    test('has SignalsScreen', () => expect(readScreen('SignalsScreen')).toMatch(/function SignalsScreen/));
+    test('SignalsScreen merged into Commitments (V2)', () => {
+      const p = path.join(ROOT, 'src', 'screens', 'SignalsScreen.tsx');
+      expect(fs.existsSync(p)).toBe(false);
+    });
     test('CopilotScreen is removed', () => {
       const p = path.join(ROOT, 'src', 'screens', 'CopilotScreen.tsx');
       expect(fs.existsSync(p)).toBe(false);

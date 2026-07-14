@@ -79,7 +79,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
  * Call this once in App.tsx on mount.
  */
 export function setupNotificationHandler(navigation: any) {
-  Notifications.addNotificationResponseReceivedListener((response) => {
+  Notifications.addNotificationResponseReceivedListener((response: any) => {
     const data = response.notification.request.content.data || {};
 
     if (data.type === 'stale_commitment') {

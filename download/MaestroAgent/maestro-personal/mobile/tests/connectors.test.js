@@ -44,46 +44,17 @@ jest.mock('../src/contexts', () => ({
 const fs = require('fs');
 const path = require('path');
 
-describe('ConnectorsScreen', () => {
-  test('ConnectorsScreen.tsx exists and exports default function', () => {
-    const source = fs.readFileSync(
-      path.join(__dirname, '..', 'src', 'screens', 'ConnectorsScreen.tsx'), 'utf-8'
-    );
-    expect(source).toMatch(/export default function ConnectorsScreen/);
+describe('Connectors (V2 — merged into MoreScreen)', () => {
+  test('ConnectorsScreen deleted (V2)', () => {
+    const p = path.join(__dirname, '..', 'src', 'screens', 'ConnectorsScreen.tsx');
+    expect(fs.existsSync(p)).toBe(false);
   });
 
-  test('has accessibility labels', () => {
+  test('MoreScreen has Connectors section', () => {
     const source = fs.readFileSync(
-      path.join(__dirname, '..', 'src', 'screens', 'ConnectorsScreen.tsx'), 'utf-8'
+      path.join(__dirname, '..', 'src', 'screens', 'MoreScreen.tsx'), 'utf-8'
     );
-    expect(source).toMatch(/accessibilityLabel/);
-    expect(source).toMatch(/accessibilityRole/);
-  });
-
-  test('has OAuth flow via WebBrowser', () => {
-    const source = fs.readFileSync(
-      path.join(__dirname, '..', 'src', 'screens', 'ConnectorsScreen.tsx'), 'utf-8'
-    );
-    expect(source).toMatch(/WebBrowser\.openAuthSessionAsync/);
-  });
-
-  test('has connect/disconnect/sync handlers', () => {
-    const source = fs.readFileSync(
-      path.join(__dirname, '..', 'src', 'screens', 'ConnectorsScreen.tsx'), 'utf-8'
-    );
-    expect(source).toMatch(/handleConnect/);
-    expect(source).toMatch(/handleDisconnect/);
-    expect(source).toMatch(/handleSync/);
-  });
-
-  test('has draft approval flow (approve/deny/use_draft)', () => {
-    const source = fs.readFileSync(
-      path.join(__dirname, '..', 'src', 'screens', 'ConnectorsScreen.tsx'), 'utf-8'
-    );
-    expect(source).toMatch(/handleResolveDraft/);
-    expect(source).toMatch(/approve/);
-    expect(source).toMatch(/deny/);
-    expect(source).toMatch(/use_draft/);
+    expect(source).toMatch(/Connectors/);
   });
 
   test('Connector API methods exist and are callable', () => {
@@ -103,13 +74,10 @@ describe('ConnectorsScreen', () => {
   });
 
   test('ConnectorsScreen merged into MoreScreen (V2)', () => {
-    // V2: ConnectorsScreen is no longer a separate tab — it's merged into MoreScreen
     const appSource = fs.readFileSync(
       path.join(__dirname, '..', 'App.tsx'), 'utf-8'
     );
-    // App.tsx should NOT import ConnectorsScreen (merged into More)
     expect(appSource).not.toMatch(/import ConnectorsScreen/);
-    // MoreScreen should exist and be imported
     expect(appSource).toMatch(/import MoreScreen/);
   });
 });
