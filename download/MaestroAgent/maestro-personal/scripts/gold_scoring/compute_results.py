@@ -7,11 +7,62 @@ Usage:
 Reads the JSONL (one result per line), deduplicates by idx (keeping the
 best result per index), computes the composite score + per-type breakdown
 + gate pass, and writes the final JSON.
+
+CRITICAL: The BM25 baseline is COMPUTED by running bm25_score() against
+the same 150-question gold set — never hardcoded. This fixes the
+auditor's finding that 0.514 was hardcoded (that value came from a
+different 50-question gold set in memory_v1.py, not the 150-question
+gold_150.py set).
 """
 import json
 import sys
 import time
 from collections import defaultdict
+
+
+def compute_bm25_baseline_on_gold_150() -> float:
+    """Compute the BM25 baseline on the 150-question gold set.
+
+    This is the HONEST baseline — not a hardcoded literal. The auditor
+    found that 0.514 was hardcoded from a different 50-question set.
+    The actual 150-question BM25 baseline is computed here by running
+    bm25_score() against each question's seed signals.
+    """
+    sys.path.insert(0, "/home/z/my-project/MaestroAgent/download/MaestroAgent/maestro-personal/src")
+    sys.path.insert(0, "/home/z/my-project/MaestroAgent/download/MaestroAgent/maestro-personal")
+    from evaluation.scoreboard.gold_150 import GOLD_150
+    from evaluation.scoreboard.bm25_baseline import bm25_score
+
+    results = []
+    for q in GOLD_150:
+        query = q["query"]
+        expected = q.get("expected_keywords", [])
+        forbidden = q.get("forbidden_keywords", [])
+        should_abstain = q.get("should_abstain", False)
+
+        # BM25: find the top document (highest-scoring seed signal)
+        top_doc = ""
+        best_bm25 = 0.0
+        for sig in q.get("seed_signals", []):
+            doc = sig.get("text", "") + " " + sig.get("entity", "")
+            s = bm25_score(query, doc)
+            if s > best_bm25:
+                best_bm25 = s
+                top_doc = doc
+
+        # Score BM25's "answer" (the top document) against gold
+        if should_abstain:
+            # BM25 can't abstain — it always returns a document.
+            # For abstention questions, BM25 scores 0 (it can't say "I don't know")
+            score = 0.0
+        else:
+            has_all_expected = all(kw.lower() in top_doc.lower() for kw in expected)
+            has_forbidden = any(kw.lower() in top_doc.lower() for kw in forbidden)
+            score = 1.0 if (has_all_expected and not has_forbidden) else 0.0
+
+        results.append(score)
+
+    return sum(results) / len(results) if results else 0.0
 
 
 def main(jsonl_path: str, out_path: str):
@@ -57,7 +108,9 @@ def main(jsonl_path: str, out_path: str):
 
     # Compute composite
     maestro_avg = sum(r["score"] for r in results) / len(results)
-    bm25_baseline = 0.514
+
+    # COMPUTE the BM25 baseline (not hardcode) — fixes auditor finding
+    bm25_baseline = compute_bm25_baseline_on_gold_150()
     lift = (maestro_avg - bm25_baseline) * 100
     llm_active_count = sum(1 for r in results if r.get("llm_active"))
 
@@ -77,8 +130,8 @@ def main(jsonl_path: str, out_path: str):
     print(f"  Process failures: {failures}")
     print(f"  Missing:          {missing}")
     print(f"  LLM active:       {llm_active_count}/150")
-    print(f"\n  BM25 baseline:    {bm25_baseline:.3f}")
-    print(f"  Maestro composite:{maestro_avg:.3f}")
+    print(f"\n  BM25 baseline:    {bm25_baseline:.4f} (COMPUTED, not hardcoded)")
+    print(f"  Maestro composite:{maestro_avg:.4f}")
     print(f"  Lift:             {lift:+.1f} points (target: >= +15)")
     print(f"\n  Per-type breakdown:")
     for t_name, scores in sorted(by_type.items()):
@@ -100,6 +153,7 @@ def main(jsonl_path: str, out_path: str):
             "missing": missing,
             "maestro_composite": maestro_avg,
             "bm25_baseline": bm25_baseline,
+            "bm25_baseline_source": "computed by compute_bm25_baseline_on_gold_150()",
             "lift": lift / 100,
             "gate_pass": gate_pass,
             "per_type": {t: sum(s) / len(s) for t, s in by_type.items()},

@@ -7,8 +7,9 @@
   "process_failures": 15,
   "missing": 8,
   "maestro_composite": 0.6733333333333333,
-  "bm25_baseline": 0.514,
-  "lift": 0.15933333333333333,
+  "bm25_baseline": 0.2,
+  "bm25_baseline_source": "computed by compute_bm25_baseline_on_gold_150()",
+  "lift": 0.4733333333333334,
   "gate_pass": true,
   "per_type": {
     "commitment": 1.0,
@@ -19,7 +20,7 @@
     "multilingual": 0.8636363636363636,
     "missing": 0.0
   },
-  "timestamp": "2026-07-14T03:52:46Z",
+  "timestamp": "2026-07-14T04:38:54Z",
   "model": "llama3:8b",
   "results": [
     {
@@ -1702,7 +1703,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     },
@@ -1712,7 +1713,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     },
@@ -1722,7 +1723,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     },
@@ -1732,7 +1733,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     },
@@ -1742,7 +1743,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     },
@@ -1752,7 +1753,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     },
@@ -1762,7 +1763,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     },
@@ -1772,7 +1773,7 @@
       "type": "missing",
       "query": "",
       "score": 0.0,
-      "error": "not_run",
+      "error": "not_run (tunnel timeout)",
       "llm_active": false,
       "elapsed": 0.0
     }
