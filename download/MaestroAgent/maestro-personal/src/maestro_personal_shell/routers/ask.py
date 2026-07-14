@@ -638,6 +638,63 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     unknowns = compute_unknowns(str(answer), evidence_refs, req.query)
     verified_answer = verification["verified_answer"]
 
+    # P0-4 fix (audit V6 2026-07-15): Trusted Silence leak.
+    # The audit found that "What is the meaning of life?" returns irrelevant
+    # Maria evidence instead of abstaining. The root cause: FTS5 retrieval
+    # finds signals that share common words (e.g. "life" matching something),
+    # but the evidence is not actually relevant to the query.
+    #
+    # Fix: check keyword overlap between the query and the evidence. If the
+    # query has content keywords but NONE of them appear in any evidence,
+    # the evidence is irrelevant — abstain. This catches philosophical /
+    # general-knowledge / off-topic queries that slip past the abstention
+    # intent classifier.
+    if evidence_refs:
+        _stopwords = frozenset({
+            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+            "do", "does", "did", "have", "has", "had", "will", "would", "shall",
+            "should", "can", "could", "may", "might", "must",
+            "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us",
+            "my", "your", "his", "its", "our", "their",
+            "this", "that", "these", "those", "there", "here",
+            "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
+            "of", "in", "on", "at", "to", "for", "with", "from", "by", "about",
+            "and", "or", "but", "not", "if", "then", "else", "so", "than", "as",
+            "up", "out", "into", "over", "under",
+            "s", "t", "d", "ll", "ve", "re", "m",
+            "did", "was", "were", "has", "had", "been", "being",
+            "tell", "me", "about",
+        })
+        # Extract content keywords from the query (words >3 chars, not stopwords)
+        query_words = _re.findall(r'\b\w+\b', req.query.lower())
+        query_keywords = {w for w in query_words if len(w) > 3 and w not in _stopwords}
+
+        if query_keywords:
+            # Build a combined evidence text to search for keyword overlap
+            evidence_text = " ".join(
+                (r.get("text", "") if isinstance(r, dict) else str(r))
+                for r in evidence_refs
+            ).lower()
+            if source_sentence:
+                evidence_text += " " + source_sentence.lower()
+
+            # Check if ANY query keyword appears in the evidence
+            keyword_overlap = any(kw in evidence_text for kw in query_keywords)
+
+            if not keyword_overlap:
+                # No keyword overlap — the evidence is irrelevant. Abstain.
+                verified_answer = (
+                    "I don't have enough information to answer that question. "
+                    "No matching signals were found in your stored data."
+                )
+                verification["confidence"] = 0.0
+                # Clear the evidence_refs and source_sentence so the response
+                # honestly reflects the abstention
+                evidence_refs = []
+                source_sentence = ""
+                source_entity = ""
+                source_timestamp = ""
+
     if not source_sentence and not evidence_refs:
         verified_answer = (
             "I don't have enough information to answer that question. "
