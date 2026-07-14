@@ -9,11 +9,15 @@ export const colors = {
   yellowDark: '#E0AB1F',
   honey: '#F8F0DD',
   black: '#1A1A1A',
-  gray: '#7A7A7A',
+  gray: '#6B6B6B',  // Phase 7: AA contrast fix — was #7A7A7A, now #6B6B6B (5.33:1 on white)
+  grayDark: '#9A9A9A',   // Phase 7: AA contrast — for dark mode (6.19:1 on #1A1A1A)
+  successGreenDark: '#00C853', // for dark mode (7.78:1 on #1A1A1A)
+  successGreenLight: '#008030', // Phase 7: AA fix — for light mode (5.08:1 on white)
   lightGray: '#E8E8E8',
   white: '#FFFFFF',
   royalBlue: '#2E1C53',
   alertRed: '#FF3B3B',
+  alertRedLight: '#CC0000', // Phase 7: AA fix — for light mode (5.89:1 on white)
   successGreen: '#00C853',
 
   // Dark mode surfaces

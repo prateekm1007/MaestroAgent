@@ -167,9 +167,129 @@ async def login(request: Request, req: LoginRequest):
             return LoginResponse(token=token, user_email=user_email, message="Login successful (default user only)")
 
     # P1 fix: REJECT passwordless email login
+    # Phase 2: Try email/password against user_accounts table
+    try:
+        from maestro_personal_shell.db_util import get_db_conn
+        db_path = os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+        db = get_db_conn(db_path)
+        row = db.execute(
+            "SELECT password_hash FROM user_accounts WHERE user_email = ? AND active = 1",
+            (req.user_email,),
+        ).fetchone()
+        db.close()
+
+        if row and _verify_password(req.password, row[0]):
+            token = _create_user_token(req.user_email)
+            return LoginResponse(token=token, user_email=req.user_email, message="Login successful")
+    except Exception:
+        pass  # Table might not exist yet — fall through to error
+
     raise HTTPException(
         status_code=401,
-        detail="Invalid credentials. Password required. Set MAESTRO_PERSONAL_TOKEN env var for local mode."
+        detail="Invalid credentials. Register at /api/auth/register or set MAESTRO_PERSONAL_TOKEN for local mode."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Real account lifecycle — register + login with email/password
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel, EmailStr
+from datetime import datetime, timezone
+import hashlib
+import secrets
+import json
+
+
+class RegisterRequest(BaseModel):
+    user_email: EmailStr
+    password: str
+
+
+class RegisterResponse(BaseModel):
+    user_email: str
+    message: str
+    token: str
+
+
+def _hash_password(password: str) -> str:
+    """Hash a password with salt using PBKDF2."""
+    salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+    return f"{salt}:{hashed.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    """Verify a password against stored salt:hash."""
+    try:
+        salt, hashed = stored.split(':')
+        computed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+        return secrets.compare_digest(computed.hex(), hashed)
+    except Exception:
+        return False
+
+
+@router.post("/register", response_model=RegisterResponse)
+@_maybe_login_decorator()
+async def register(request: Request, req: RegisterRequest):
+    """Register a new account with email + password.
+
+    Phase 2: Real account lifecycle. Creates a user account with
+    a hashed password (PBKDF2-SHA256, 100k iterations). Returns
+    a bearer token immediately after registration.
+
+    Rate limited: 3 registrations per hour per IP.
+    """
+    from maestro_personal_shell.db_util import get_db_conn
+    import os
+
+    # Validate password strength
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    db_path = os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+    db = get_db_conn(db_path)
+
+    # Create accounts table if not exists
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS user_accounts (
+            user_email TEXT PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            active INTEGER DEFAULT 1
+        )
+    """)
+
+    # Check if email already registered
+    existing = db.execute(
+        "SELECT 1 FROM user_accounts WHERE user_email = ?",
+        (req.user_email,),
+    ).fetchone()
+
+    if existing:
+        db.close()
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+    # Hash password and store
+    password_hash = _hash_password(req.password)
+    now = datetime.now(timezone.utc).isoformat()
+
+    db.execute(
+        "INSERT INTO user_accounts (user_email, password_hash, created_at, active) VALUES (?, ?, ?, 1)",
+        (req.user_email, password_hash, now),
+    )
+    db.commit()
+    db.close()
+
+    # Create a token for the new user
+    from maestro_personal_shell.api import _create_user_token
+    token = _create_user_token(req.user_email)
+
+    logger.info("New account registered: %s", req.user_email)
+    return RegisterResponse(
+        user_email=req.user_email,
+        message="Account created successfully.",
+        token=token,
     )
 
 

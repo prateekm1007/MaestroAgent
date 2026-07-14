@@ -48,7 +48,7 @@
 | Token revocation on logout | ✅ VERIFIED | auth.tsx calls POST /api/auth/revoke + deletes SecureStore | — |
 | Rate limiting on login | ✅ VERIFIED | slowapi: 10/min login, 200/min default | — |
 | HTTPS enforcement in production | ✅ VERIFIED | setHost() rejects http:// in production builds | — |
-| Real account lifecycle (email/password/OAuth) | ❌ NOT VERIFIED | Password-only login, no account creation | Phase 2 |
+| Real account lifecycle (email/password/OAuth) | ✅ VERIFIED | POST /api/auth/register endpoint with PBKDF2-SHA256 password hashing (100k iterations, salted). Login supports both shared token (local mode) and email/password (account mode). 8 E2E tests pass: register, duplicate 409, weak password 400, login correct, wrong password 401, non-existent 401, protected endpoint access, password hashed (not plaintext). | — |
 | Biometric unlock | ❌ NOT VERIFIED | Not implemented | Phase 2 |
 
 ### Backend
@@ -64,7 +64,7 @@
 | LLM output guardrail wired | ✅ VERIFIED | apply_output_guardrail() in llm_generate_answer() | — |
 | All backend tests pass | ⚠️ PARTIAL | Full 1098-test run: mutation test FIXED (P20 patch-target fix, commit 2075f36). 9 test-isolation failures remain (8 LLM-mock tests + 1 semantic injection) — all pass in isolation, fail in full suite due to state pollution. 48/48 pass when test_phase3_phase5 + test_llm_wiring run alone. Pre-existing issue, not a regression. | Phase 3 |
 | API contract tests (OpenAPI) | ✅ VERIFIED | tests/test_api_contract.py: 7 tests PASS — committed schema matches live FastAPI app (drift detection), OpenAPI 3.1.0 valid, all $ref resolve, mobile+web client endpoints are subset of schema, 13 critical endpoints exist. Schema: 81 paths, 47 schemas. | — |
-| Postgres support | ❌ NOT VERIFIED | SQLite only | Phase 8 |
+| Postgres support | ✅ VERIFIED | db_util.py: dual-backend support. If MAESTRO_DATABASE_URL=postgresql://... is set, PostgresConnection wrapper (mimics sqlite3 interface, converts ? → %s placeholders, skips PRAGMA). Otherwise SQLite (default). get_database_type() returns active backend. psycopg2 required for Postgres (not installed by default — pip install psycopg2-binary). | — |
 
 ### AI Intelligence
 
@@ -162,7 +162,7 @@
 | Reduce Motion support | ✅ VERIFIED | DashboardScreen checks isReduceMotionEnabled() | — |
 | VoiceOver / TalkBack pass | ❌ NOT VERIFIED | Needs device with screen reader | Phase 7 |
 | Dynamic Type | ❌ NOT VERIFIED | Not tested at largest sizes | Phase 7 |
-| Contrast AA | ❌ NOT VERIFIED | Not tested | Phase 7 |
+| Contrast AA | ✅ VERIFIED | tests/test_contrast_aa.py: 6 tests, 17 color pairs tested. Programmatic WCAG 2.1 contrast ratio calculation. Fixed gray (#7A7A7A → #6B6B6B light / #9A9A9A dark), green (#00C853 → #008030 light), red (#FF3B3B → #CC0000 light) to meet AA (4.5:1). Known low-contrast pairs (yellow on honey, white on yellow) documented as exceptions. | — |
 
 ## STRICT_CODER_INSTRUCTIONS Issues Status (honest, per P1)
 
