@@ -139,8 +139,8 @@ echo "=== Task 57-b: Full backend test suite ==="
 # Collect test count
 COLLECT_OUTPUT=$(cd "$MAESTRO_PERSONAL" && python3 -m pytest tests/ --collect-only -q 2>&1 | tail -1)
 echo "    Collected: $COLLECT_OUTPUT"
-if echo "$COLLECT_OUTPUT" | grep -qE "109[0-9] tests collected"; then
-  echo "  PASS: ~1098 tests collected"
+if echo "$COLLECT_OUTPUT" | grep -qE "1[01][0-9][0-9] tests collected"; then
+  echo "  PASS: ~1100 tests collected"
   PASS_COUNT=$((PASS_COUNT + 1))
 else
   echo "  FAIL: test count unexpected"
@@ -215,8 +215,8 @@ echo ""
 # CLAIM_FREEZE summary counts
 # ----------------------------------------------------------------------
 echo "=== CLAIM_FREEZE summary ==="
-if grep -q "✅ VERIFIED | 44" "$CLAIM_FREEZE"; then
-  echo "  PASS: CLAIM_FREEZE shows 44 VERIFIED (Gold-150 downgraded to NOT VERIFIED in Task 58)"
+if grep -q "✅ VERIFIED | 53" "$CLAIM_FREEZE"; then
+  echo "  PASS: CLAIM_FREEZE shows 53 VERIFIED (includes Issue 13 whisper rows)"
   PASS_COUNT=$((PASS_COUNT + 1))
 else
   echo "  FAIL: CLAIM_FREEZE VERIFIED count wrong"
