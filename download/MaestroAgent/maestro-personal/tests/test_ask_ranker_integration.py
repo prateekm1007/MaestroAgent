@@ -235,7 +235,12 @@ class TestAskRankerProductionIntegration:
             "top_evidence": [{
                 "signal_id": "sentinel-sig",
                 "entity": SENTINEL,
-                "text": "sentinel text from ranker",
+                # V6 fix: text includes "Maria reviewed" so the Trusted Silence
+                # abstention check (keyword overlap) does NOT fire. Without this,
+                # the sentinel has no keyword overlap with "What did Maria review?"
+                # and V6 correctly abstains — but this test's intent is to prove
+                # the ranker's output flows through, not to test abstention.
+                "text": "Maria reviewed the sentinel scorecard",
                 "signal_type": "reported_statement",
                 "timestamp": "2026-07-10T12:00:00Z",
             }],

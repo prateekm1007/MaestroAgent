@@ -649,6 +649,16 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # the evidence is irrelevant — abstain. This catches philosophical /
     # general-knowledge / off-topic queries that slip past the abstention
     # intent classifier.
+    #
+    # V6 enhancement (regression fix): the original V6 check only looked at
+    # signal body text, not the entity field. This caused false abstentions
+    # when the user named a specific entity (e.g. "What did RealClient commit
+    # to?" — "RealClient" is in the entity field, not the body text). Fix:
+    # (a) split camelCase in queries so "RealClient" → "real" + "client";
+    # (b) collect entity strings from evidence_refs and check entity-name
+    # overlap as a fallback when body-text overlap is empty — if the user
+    # named a known entity, trust the retrieval; (c) include source_sentence
+    # and source_entity in the check pools.
     if evidence_refs:
         _stopwords = frozenset({
             "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
@@ -665,12 +675,18 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             "did", "was", "were", "has", "had", "been", "being",
             "tell", "me", "about",
         })
-        # Extract content keywords from the query (words >3 chars, not stopwords)
-        query_words = _re.findall(r'\b\w+\b', req.query.lower())
+        # Extract content keywords from the query (words >3 chars, not stopwords).
+        # V6 enhancement: split camelCase so "RealClient" → "real" + "client".
+        query_lower = req.query.lower()
+        query_words = _re.findall(r'\b\w+\b', query_lower)
+        # Also split camelCase: "RealClient" → "real", "client"
+        camel_splits = _re.findall(r'[a-z]+(?:[A-Z][a-z]+)+', req.query)
+        for cs in camel_splits:
+            query_words.extend(_re.findall(r'[a-z]+', cs.lower()))
         query_keywords = {w for w in query_words if len(w) > 3 and w not in _stopwords}
 
         if query_keywords:
-            # Build a combined evidence text to search for keyword overlap
+            # Build a combined evidence text from body text + source_sentence
             evidence_text = " ".join(
                 (r.get("text", "") if isinstance(r, dict) else str(r))
                 for r in evidence_refs
@@ -678,8 +694,25 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             if source_sentence:
                 evidence_text += " " + source_sentence.lower()
 
-            # Check if ANY query keyword appears in the evidence
+            # Check if ANY query keyword appears in the evidence body text
             keyword_overlap = any(kw in evidence_text for kw in query_keywords)
+
+            # V6 enhancement: if no body-text overlap, check entity-name overlap.
+            # If the user named a specific entity that exists in the evidence's
+            # entity field, trust the retrieval (don't abstain). This handles
+            # "What did RealClient commit to?" where RealClient is the entity.
+            if not keyword_overlap:
+                evidence_entities = []
+                for r in evidence_refs:
+                    if isinstance(r, dict):
+                        ent = r.get("entity", "")
+                        if ent:
+                            evidence_entities.append(ent.lower())
+                if source_entity:
+                    evidence_entities.append(source_entity.lower())
+                entity_text = " ".join(evidence_entities)
+                entity_overlap = any(kw in entity_text for kw in query_keywords)
+                keyword_overlap = entity_overlap
 
             if not keyword_overlap:
                 # No keyword overlap — the evidence is irrelevant. Abstain.
