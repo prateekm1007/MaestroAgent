@@ -1,0 +1,35 @@
+{
+  "total_predictions": 30,
+  "resolved_predictions": 30,
+  "brier_score": 0.1575,
+  "hits": 17,
+  "misses": 13,
+  "per_type": {
+    "conditional": {
+      "total": 10,
+      "hits": 5,
+      "hit_rate": 0.5,
+      "avg_confidence": 0.651
+    },
+    "explicit": {
+      "total": 9,
+      "hits": 8,
+      "hit_rate": 0.8888888888888888,
+      "avg_confidence": 0.911111111111111
+    },
+    "implicit": {
+      "total": 4,
+      "hits": 3,
+      "hit_rate": 0.75,
+      "avg_confidence": 0.7875
+    },
+    "tentative": {
+      "total": 7,
+      "hits": 1,
+      "hit_rate": 0.14285714285714285,
+      "avg_confidence": 0.34285714285714286
+    }
+  },
+  "message": "Brier score: 0.1575 across 30 resolved predictions.",
+  "timestamp": "2026-07-14T07:02:27Z"
+}
