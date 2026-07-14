@@ -45,12 +45,71 @@ def _send_push_notification(push_token: str, title: str, body: str, data: dict) 
         return False
 
 
+def _resolve_db_path() -> str:
+    """Resolve the DB path using the SAME logic as api.py.
+
+    P0-5 fix (audit 2026-07-15): the previous default `"personal.db"`
+    was RELATIVE TO CWD, while api.py uses an ABSOLUTE path under the
+    package directory. When the auditor ran `uvicorn` from the repo
+    root, the scheduler opened a different DB file than the rest of
+    the app — causing the "no such table: signals" startup error.
+
+    This function now mirrors api.py's resolution exactly.
+    """
+    env = os.environ.get("MAESTRO_PERSONAL_DB")
+    if env:
+        return env
+    from pathlib import Path
+    return str(Path(__file__).resolve().parent / "personal.db")
+
+
+def ensure_scheduler_tables(db) -> None:
+    """P0-5 fix: idempotently create the tables the scheduler queries.
+
+    Even if init_db() in api.py runs first, calling this ensures the
+    scheduler never crashes on a missing table — including in tests
+    that bypass the full app lifespan.
+    """
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS signals (
+            signal_id TEXT PRIMARY KEY,
+            entity TEXT NOT NULL,
+            text TEXT NOT NULL,
+            signal_type TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            metadata TEXT DEFAULT '{}',
+            source_acl TEXT DEFAULT 'public',
+            created_at TEXT NOT NULL,
+            user_email TEXT DEFAULT 'bootstrap'
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS push_tokens (
+            user_email TEXT NOT NULL,
+            expo_token TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            active INTEGER DEFAULT 1,
+            PRIMARY KEY (user_email, expo_token)
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS notified_stale (
+            signal_id TEXT PRIMARY KEY,
+            notified_at TEXT NOT NULL
+        )
+    """)
+    db.commit()
+
+
 async def check_stale_commitments():
     """Check for newly stale commitments and send push notifications."""
     from maestro_personal_shell.db_util import get_db_conn
 
-    db_path = os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+    db_path = _resolve_db_path()
     db = get_db_conn(db_path)
+
+    # P0-5 fix: ensure tables exist before querying (idempotent).
+    ensure_scheduler_tables(db)
 
     three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
     try:

@@ -39,9 +39,9 @@ async def enforce_retention(db_path: str | None = None) -> dict:
 
     Purges data that exceeds its TTL. Returns a summary of what was deleted.
     """
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
 
-    path = db_path or os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+    path = db_path or default_sqlite_path()
     db = get_db_conn(path)
     now = datetime.now(timezone.utc).isoformat()
 

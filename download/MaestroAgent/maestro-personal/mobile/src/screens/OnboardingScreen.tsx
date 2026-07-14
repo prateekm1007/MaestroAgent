@@ -3,8 +3,13 @@
  *
  * Phase 2: New users see this before login.
  *   1. Why Maestro — the value proposition
- *   2. How it works — The Moment + Ask + Copilot
+ *   2. How it works — The Moment + Ask + Trusted Silence
  *   3. Get started — connect to login
+ *
+ * P0-4 fix (audit 2026-07-15): the third step previously advertised
+ * a feature whose screen was deleted in the V2 4-tab redesign. The
+ * step now advertises Trusted Silence, which IS shipped (impossible
+ * questions return "no data found" instead of hallucinating).
  *
  * On finish, calls completeOnboarding() which persists to AsyncStorage.
  */
@@ -34,9 +39,9 @@ export default function OnboardingScreen() {
       cta: 'Next',
     },
     {
-      icon: 'chatbubbles' as const,
-      title: 'Live Copilot during calls',
-      body: 'Maestro listens (with consent), detects commitments in real time, and whispers what matters — grounded in your organizational memory.',
+      icon: 'shield-checkmark' as const,
+      title: 'Trusted Silence',
+      body: 'When Maestro does not know, it says so. Impossible questions return "no data found" instead of hallucinating — every answer is grounded in your own evidence.',
       cta: 'Get Started',
     },
   ];

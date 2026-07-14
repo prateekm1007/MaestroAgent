@@ -32,6 +32,26 @@ def _get_database_url() -> str | None:
     return os.environ.get("MAESTRO_DATABASE_URL", "")
 
 
+def default_sqlite_path() -> str:
+    """Return the canonical SQLite path — matches api.py's DB_PATH resolution.
+
+    P0-5 fix (audit 2026-07-15): multiple modules (notification_scheduler,
+    retention_enforcer, routers/auth) were defaulting to the relative path
+    `"personal.db"` when MAESTRO_PERSONAL_DB was unset, while api.py uses
+    an ABSOLUTE path under the package directory. This caused the scheduler
+    to open a different DB file than the rest of the app — manifesting as
+    "no such table: signals" on every backend boot.
+
+    Every module that needs the SQLite path MUST use this helper (or read
+    MAESTRO_PERSONAL_DB and fall back to this) to guarantee a single
+    source of truth.
+    """
+    env = os.environ.get("MAESTRO_PERSONAL_DB")
+    if env:
+        return env
+    return str(Path(__file__).resolve().parent / "personal.db")
+
+
 def _is_postgres() -> bool:
     """Check if PostgreSQL is the active database."""
     url = _get_database_url()

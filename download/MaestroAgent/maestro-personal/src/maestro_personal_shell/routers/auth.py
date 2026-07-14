@@ -51,33 +51,18 @@ async def verify_token_dep(authorization: str = Header(None)) -> str:
 def _maybe_login_decorator():
     """Return a decorator that applies the login rate limit lazily.
 
-    The lookup of `_api._limiter` is deferred to CALL time so that
-    `importlib.reload(api_module)` in tests picks up the freshly-created
-    Limiter (and its fresh rate-limit counter). The previous version
-    captured the Limiter at IMPORT time, which meant reloads didn't
-    reset the rate-limit state and tests would accumulate 429s.
+    P0-6 audit fix (2026-07-15): the previous version had `except Exception: pass`
+    which SILENTLY SWALLOWED RateLimitExceeded — meaning login rate limiting was
+    NEVER actually enforced in production. The shared rate_limit decorator in
+    rate_limit.py correctly lets RateLimitExceeded propagate so FastAPI's
+    exception handler can convert it to a 429.
+
+    This wrapper now delegates to rate_limit("10/minute") for consistency.
+    Kept as a thin shim so existing decorators on /login and /register don't
+    need to change.
     """
-    import functools
-
-    def decorator(func):
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            try:
-                from maestro_personal_shell import api as _api
-                _lim = getattr(_api, "_limiter", None)
-                if _lim is not None and getattr(_api, "_rate_limiting_enabled", False):
-                    # Re-decorate on each call so we always use the current
-                    # Limiter (post-reload). slowapi's decorator returns a
-                    # wrapped coroutine; awaiting it runs the rate-limit
-                    # check + the underlying function.
-                    decorated = _lim.limit("10/minute")(func)
-                    return await decorated(*args, **kwargs)
-            except Exception:
-                pass
-            return await func(*args, **kwargs)
-        return wrapper
-
-    return decorator
+    from maestro_personal_shell.rate_limit import rate_limit as _rate_limit
+    return _rate_limit("10/minute")
 
 
 # ---------------------------------------------------------------------------
@@ -169,8 +154,8 @@ async def login(request: Request, req: LoginRequest):
     # P1 fix: REJECT passwordless email login
     # Phase 2: Try email/password against user_accounts table
     try:
-        from maestro_personal_shell.db_util import get_db_conn
-        db_path = os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+        from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+        db_path = default_sqlite_path()
         db = get_db_conn(db_path)
         row = db.execute(
             "SELECT password_hash FROM user_accounts WHERE user_email = ? AND active = 1",
@@ -247,7 +232,8 @@ async def register(request: Request, req: RegisterRequest):
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
 
-    db_path = os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+    from maestro_personal_shell.db_util import default_sqlite_path
+    db_path = default_sqlite_path()
     db = get_db_conn(db_path)
 
     # Create accounts table if not exists
@@ -360,9 +346,9 @@ async def register_push_token(req: PushTokenRequest, token: str = Depends(verify
     """
     from maestro_personal_shell.db_util import get_db_conn
     from datetime import datetime, timezone
-    import os
+    from maestro_personal_shell.db_util import default_sqlite_path
 
-    db_path = os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+    db_path = default_sqlite_path()
     db = get_db_conn(db_path)
     try:
         db.execute(

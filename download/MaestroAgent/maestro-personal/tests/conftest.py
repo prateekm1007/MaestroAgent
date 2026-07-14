@@ -11,6 +11,10 @@ import pytest
 # default is fail-closed; tests opt in via this env var.
 os.environ.setdefault("MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL", "1")
 
+# P0-6 fix: tests make many rapid API calls (e.g. seeding 50+ signals).
+# Set test mode so the rate limiter bypasses per-endpoint limits.
+os.environ.setdefault("MAESTRO_TEST_MODE", "1")
+
 # Add maestro-personal/src to path (the Personal shell package)
 personal_src = pathlib.Path(__file__).resolve().parents[1] / "src"
 if str(personal_src) not in sys.path:

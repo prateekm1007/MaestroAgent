@@ -271,10 +271,15 @@ class ZAIRouter:
 def get_llm_router() -> Any:
     """Get or initialize the LLM router.
 
-    Provider priority:
-    1. maestro_llm cloud providers (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
-    2. Local Ollama (http://localhost:11434)
-    3. z-ai CLI (z-ai-web-dev-sdk) — in-house, no API key needed
+    Provider priority (P0-3 audit fix 2026-07-15):
+    1. z-ai CLI (z-ai-web-dev-sdk) — FIRST priority because it requires
+       NO API key and works out of the box once `npm install -g
+       z-ai-web-dev-sdk` has been run. This makes LLM active in the
+       default state, which is what the auditor demanded.
+    2. maestro_llm cloud providers (OPENAI_API_KEY, ANTHROPIC_API_KEY,
+       OPENROUTER_API_KEY, XAI_API_KEY) — used when an explicit cloud
+       provider is configured (production deployments).
+    3. Local Ollama (http://localhost:11434) — offline / on-prem.
 
     Returns None if no provider is available.
     """
@@ -283,7 +288,17 @@ def get_llm_router() -> Any:
         return _router
     _router_checked = True
 
-    # 1. Try maestro_llm cloud providers
+    # 1. Try z-ai CLI FIRST — no API key, works in default state.
+    try:
+        zai = ZAIRouter()
+        if zai.health_check():
+            _router = zai
+            logger.info("LLM router initialized with z-ai CLI provider (GLM, no API key needed)")
+            return _router
+    except Exception as e:
+        logger.debug("z-ai CLI init failed: %s", e)
+
+    # 2. Try maestro_llm cloud providers
     try:
         import sys
         import pathlib
@@ -304,11 +319,7 @@ def get_llm_router() -> Any:
     except Exception as e:
         logger.debug("maestro_llm cloud init skipped: %s", e)
 
-    # 2. Try local Ollama (DIRECT — bypasses maestro_llm model/config issues)
-    # P1-Audit fix: use the direct _OllamaDirectRouter instead of maestro_llm's
-    # LLMRouter because: (a) maestro_llm uses "localhost" which fails on IPv6,
-    # (b) maestro_llm defaults to "llama3.1:8b" which may not be pulled.
-    # The direct router auto-detects the model from /api/tags.
+    # 3. Try local Ollama (DIRECT — bypasses maestro_llm model/config issues)
     try:
         _ollama = _OllamaDirectRouter()
         if _ollama.health_check():
@@ -318,7 +329,7 @@ def get_llm_router() -> Any:
     except Exception as e:
         logger.debug("Ollama direct init failed: %s", e)
 
-    # 2b. Try maestro_llm's Ollama (fallback if direct router fails)
+    # 3b. Try maestro_llm's Ollama (fallback if direct router fails)
     try:
         import urllib.request
         urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=2)
@@ -337,19 +348,11 @@ def get_llm_router() -> Any:
     except Exception:
         pass
 
-    # 3. Try z-ai CLI (in-house, no API key needed) — LAST priority
-    # because it's rate-limited (429) in most environments
-    try:
-        zai = ZAIRouter()
-        if zai.health_check():
-            _router = zai
-            logger.info("LLM router initialized with z-ai CLI provider (GLM)")
-            return _router
-    except Exception as e:
-        logger.debug("z-ai CLI init failed: %s", e)
-
     # No LLM available — return None (fallback to rule-based)
-    logger.warning("No LLM provider available — using rule-based fallback")
+    logger.warning(
+        "No LLM provider available — using rule-based fallback. "
+        "Install the z-ai CLI to activate LLM mode: `npm install -g z-ai-web-dev-sdk`"
+    )
     _router = None
     return None
 
@@ -472,15 +475,31 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
         }
     except Exception as e:
         latency_ms = int((_time.time() - start) * 1000)
+        err_str = str(e)[:200]
         result = {
             "provider": provider_name,
             "verified": False,
-            "error": str(e)[:200],
+            "error": err_str,
             "latency_ms": latency_ms,
         }
 
-    _probe_cache = result
-    _probe_cache_time = _time.time()
+    # P0-3 fix (audit 2026-07-15): do NOT cache transient failures (429
+    # rate-limit, network errors). Caching them would cause /api/llm-status
+    # to report active=False for 60 seconds after a single transient blip,
+    # which is dishonest. Only cache SUCCESS or persistent failures.
+    err_lower = (result.get("error") or "").lower()
+    is_transient = (
+        "429" in err_lower
+        or "rate" in err_lower
+        or "too many requests" in err_lower
+        or "timeout" in err_lower
+        or "timed out" in err_lower
+        or "connection" in err_lower
+        or "unreachable" in err_lower
+    )
+    if result["verified"] or not is_transient:
+        _probe_cache = result
+        _probe_cache_time = _time.time()
     return result
 
 

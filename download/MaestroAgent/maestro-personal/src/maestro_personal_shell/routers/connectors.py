@@ -12,8 +12,10 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
+
+from maestro_personal_shell.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +39,13 @@ async def verify_token_dep(authorization: str = Header(None)) -> str:
 
 
 class ConnectorConnectRequest(BaseModel):
-    provider: str  # gmail | slack | github | calendar | whatsapp | facebook | instagram | twitter
-    oauth_token: str = ""  # empty in demo mode
+    # P0-2 fix (audit 2026-07-15): both fields optional. The provider is
+    # already in the URL path; the body is only used to pass an oauth_token
+    # when one is available. Requiring `provider` in the body caused a 422
+    # on every connect attempt where the caller sent an empty body or
+    # omitted the redundant field.
+    provider: str = ""  # ignored — taken from the URL path
+    oauth_token: str = ""  # empty in demo mode / pre-OAuth
 
 
 class ConnectorDraftRequest(BaseModel):
@@ -78,7 +85,8 @@ async def list_connectors(token: str = Depends(verify_token_dep)):
 
 
 @router.post("/connectors/{provider}/connect")
-async def connect_provider(provider: str, req: ConnectorConnectRequest, token: str = Depends(verify_token_dep)):
+@rate_limit("10/minute")  # P0-6: OAuth flow initiation — cap at 10/min per IP (anti-spam)
+async def connect_provider(request: Request, provider: str, req: ConnectorConnectRequest | None = None, token: str = Depends(verify_token_dep)):
     """Connect a provider (stores OAuth token encrypted).
 
     For Gmail/Slack/Calendar/GitHub: if OAuth is configured (CLIENT_ID set),
@@ -86,7 +94,12 @@ async def connect_provider(provider: str, req: ConnectorConnectRequest, token: s
     access, and the provider redirects to /api/connectors/<provider>/oauth/callback
     which completes the connection. If OAuth is NOT configured, stores the
     provided oauth_token directly (demo mode).
+
+    P0-2 fix: the body is now optional. Callers may POST with no body at
+    all to initiate the OAuth flow — the previous version returned 422
+    because `provider` was a required body field (despite being in the URL).
     """
+    req = req or ConnectorConnectRequest()
     from maestro_personal_shell.connectors import ConnectorStore
 
     # Phase B: Gmail OAuth2 flow

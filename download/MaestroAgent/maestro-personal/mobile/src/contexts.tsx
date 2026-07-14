@@ -4,7 +4,10 @@
  * Three providers live here:
  *  - ThemeProvider  — light/dark mode toggle (light is the default)
  *  - AuthProvider   — bearer token (SecureStore) + LLM status
- *  - ConsentProvider — recording consent flag for the Live Copilot
+ *  - ConsentProvider — generic consent flag (currently unused; reserved
+ *    for future voice-recording features). The screen that previously
+ *    consumed this context was removed in the V2 4-tab redesign
+ *    (P0-4 audit fix 2026-07-15).
  *
  * Phase 1 fix: AuthProvider uses SecureStore (not AsyncStorage) for token.
  * Phase 2: Added OnboardingContext for first-launch flow.
@@ -86,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CONSENT CONTEXT (Live Copilot recording consent)
+// CONSENT CONTEXT (recording consent — reserved for future voice features)
 // ═══════════════════════════════════════════════════════════════════
 
 const ConsentContext = createContext<{ hasConsent: boolean; grant: () => void; revoke: () => void }>({

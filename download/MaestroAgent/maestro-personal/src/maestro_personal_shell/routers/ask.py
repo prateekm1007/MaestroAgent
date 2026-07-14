@@ -8,9 +8,10 @@ import os
 import re as _re
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 
 from maestro_personal_shell.models import AskRequest, AskResponse
+from maestro_personal_shell.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,8 @@ class _PseudoSituation:
         self.entity = entity; self.title = title; self.state = state; self.operational_state = state
 
 @router.post("", response_model=AskResponse)
-async def ask(req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
+@rate_limit("30/minute")  # P0-6: Ask is LLM-powered + expensive — cap at 30/min per IP
+async def ask(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
     """Ask a question — get the truth, sourced (LLM-powered when available)."""
     from maestro_personal_shell.api import (
         build_shell_async,

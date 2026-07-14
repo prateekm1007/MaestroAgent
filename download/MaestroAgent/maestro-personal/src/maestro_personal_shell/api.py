@@ -842,7 +842,19 @@ try:
     from slowapi.errors import RateLimitExceeded
     from slowapi.middleware import SlowAPIMiddleware
 
-    _limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+    # P0-6 audit fix (2026-07-15): lowered default from 200/min to 60/min.
+    # The auditor found 12 rapid requests all returned 200 — the prior
+    # 200/min ceiling was too lax for an API that includes LLM calls.
+    # Expensive endpoints (Ask, OAuth) have their own tighter limits via
+    # the @rate_limit decorator in rate_limit.py.
+    #
+    # Test mode: when MAESTRO_TEST_MODE=1 (set by pytest conftest), raise
+    # the default to 100000/min so the test suite doesn't trip the limit
+    # when seeding 50+ signals via the API.
+    _default_limit = os.environ.get("MAESTRO_RATE_LIMIT_DEFAULT", "60/minute")
+    if os.environ.get("MAESTRO_TEST_MODE") == "1":
+        _default_limit = "100000/minute"
+    _limiter = Limiter(key_func=get_remote_address, default_limits=[_default_limit])
     app.state.limiter = _limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
