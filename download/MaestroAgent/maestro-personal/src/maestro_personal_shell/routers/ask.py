@@ -752,6 +752,29 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     if not llm_active:
         verification["confidence"] = min(verification["confidence"], 0.6)
 
+    # P1 fix (audit R67 2026-07-15): log /api/ask invocations to the audit trail.
+    # A "provenance-first" product should record every Ask call so users can
+    # review their query history. This was missing — Ask invocations did not
+    # appear in /api/audit-log.
+    try:
+        from maestro_personal_shell.audit_trust import log_data_access
+        log_data_access(
+            user_email=token,
+            action="read",
+            endpoint="/api/ask",
+            resource_id=req.query[:100],
+            details={
+                "query": req.query[:200],
+                "source_entity": source_entity,
+                "evidence_count": len(evidence_refs),
+                "confidence": verification["confidence"],
+                "llm_active": llm_active,
+                "abstained": verification["confidence"] == 0.0,
+            },
+        )
+    except Exception as e:
+        logger.debug("Ask audit log failed (non-fatal): %s", e)
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,

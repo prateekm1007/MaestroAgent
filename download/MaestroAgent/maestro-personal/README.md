@@ -11,10 +11,10 @@ This is a monorepo containing the backend, mobile app, and web app:
 ```
 maestro-personal/
 ├── src/                   ← Backend (FastAPI, Python 3.12)
-├── tests/                 ← Backend tests (258+ tests, all passing)
+├── tests/                 ← Backend tests (1350+ tests, most passing)
 ├── evaluation/            ← Benchmarks + scoring scripts
-├── mobile/                ← Expo React Native app (7 screens, Bumble theme)
-├── web/                   ← Next.js web app (Bumble theme, Copilot, Connectors)
+├── mobile/                ← Expo React Native app (4-tab, Bumble theme)
+├── web/                   ← Next.js web app (Bumble theme, Connectors)
 └── docs/                  ← Documentation
 ```
 
@@ -33,7 +33,7 @@ python -m pytest tests/   # run tests
 python -m maestro_personal_shell.api
 
 # Mobile app (Expo)
-cd mobile && npm install --legacy-peer-deps && npx expo start
+cd mobile && npm install && npx expo start
 
 # Web app (Next.js, port 3000)
 cd web && npm install && npm run dev
