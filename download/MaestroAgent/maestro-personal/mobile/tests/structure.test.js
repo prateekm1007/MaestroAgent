@@ -63,7 +63,11 @@ describe('Mobile app — PRODUCTION structure', () => {
       const p = path.join(ROOT, 'src', 'screens', 'CopilotScreen.tsx');
       expect(fs.existsSync(p)).toBe(false);
     });
-    test('has SettingsScreen', () => expect(readScreen('SettingsScreen')).toMatch(/function SettingsScreen/));
+    test('has MoreScreen (V2)', () => expect(readScreen('MoreScreen')).toMatch(/function MoreScreen/));
+    test('has exactly 4 tabs (V2)', () => {
+      const tabCount = (appSource.match(/Tab\.Screen/g) || []).length;
+      expect(tabCount).toBe(4);
+    });
     test('has ThemeProvider with light mode default (Bumble-inspired)', () => {
       expect(contextsSource).toMatch(/function ThemeProvider/);
       expect(contextsSource).toMatch(/'light'/);

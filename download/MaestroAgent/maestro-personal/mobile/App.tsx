@@ -1,14 +1,11 @@
 /**
- * Maestro Personal — Production Mobile App (5-tab, Copilot removed).
+ * Maestro Personal — V2 4-Tab Architecture.
  *
- * Issue 5 (corrected): Copilot REMOVED. 5 tabs: Dashboard, Ask,
- * Commitments, Connectors, Settings. No restructuring — just remove
- * Copilot and add Draft + Notifications features to existing screens.
- *
- * Structure:
- *   SafeAreaProvider → ThemeProvider → OnboardingProvider → AuthProvider
- *     → ConsentProvider → QueryClientProvider → NavigationContainer
- *       → OnboardingScreen | LoginScreen | TabNavigator(5 tabs)
+ * Tabs: Today, Commitments, Ask, More
+ * - Today: DashboardScreen (The Moment + Draft + whisper cards)
+ * - Commitments: CommitmentsScreen (segmented: Commitments | Signals)
+ * - Ask: AskScreen (unchanged)
+ * - More: MoreScreen (connectors, settings, privacy, account)
  */
 
 import React from 'react';
@@ -30,8 +27,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import AskScreen from './src/screens/AskScreen';
 import CommitmentsScreen from './src/screens/CommitmentsScreen';
-import ConnectorsScreen from './src/screens/ConnectorsScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
+import MoreScreen from './src/screens/MoreScreen';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,11 +50,10 @@ function TabNavigator() {
         tabBarLabelStyle: { fontSize: 10 },
       }}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="home" size={22} color={color} /> }} />
-      <Tab.Screen name="Ask" component={AskScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="search" size={22} color={color} /> }} />
+      <Tab.Screen name="Today" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="home" size={22} color={color} />, tabBarLabel: 'Today' }} />
       <Tab.Screen name="Commitments" component={CommitmentsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="checkmark-circle" size={22} color={color} /> }} />
-      <Tab.Screen name="Connectors" component={ConnectorsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="link" size={22} color={color} /> }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="settings" size={22} color={color} /> }} />
+      <Tab.Screen name="Ask" component={AskScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="search" size={22} color={color} /> }} />
+      <Tab.Screen name="More" component={MoreScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="menu" size={22} color={color} /> }} />
     </Tab.Navigator>
   );
 }

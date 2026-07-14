@@ -102,11 +102,14 @@ describe('ConnectorsScreen', () => {
     expect(result).toBeInstanceOf(Promise);
   });
 
-  test('ConnectorsScreen is imported in App.tsx navigation', () => {
+  test('ConnectorsScreen merged into MoreScreen (V2)', () => {
+    // V2: ConnectorsScreen is no longer a separate tab — it's merged into MoreScreen
     const appSource = fs.readFileSync(
       path.join(__dirname, '..', 'App.tsx'), 'utf-8'
     );
-    expect(appSource).toMatch(/import ConnectorsScreen/);
-    expect(appSource).toMatch(/name="Connectors".*ConnectorsScreen/);
+    // App.tsx should NOT import ConnectorsScreen (merged into More)
+    expect(appSource).not.toMatch(/import ConnectorsScreen/);
+    // MoreScreen should exist and be imported
+    expect(appSource).toMatch(/import MoreScreen/);
   });
 });

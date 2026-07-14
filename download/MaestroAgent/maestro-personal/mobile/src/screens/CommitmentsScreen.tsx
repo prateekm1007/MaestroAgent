@@ -12,15 +12,16 @@
  * UI/logic is otherwise unchanged.
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Alert, SafeAreaView,
   Animated, PanResponder, StyleSheet, LayoutAnimation, UIManager, Platform,
+  FlatList,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import * as api from '../api/client';
-import { useTheOne, useCommitments } from '../api/hooks';
+import { useTheOne, useCommitments, useSignals } from '../api/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
@@ -196,12 +197,17 @@ export default function CommitmentsScreen() {
   const { token } = useAuth();
   const qc = useQueryClient();
 
-  // ── react-query hooks (replace manual useEffect + useState) ────────
+  // V2: segmented control — Commitments | Signals
+  const [activeTab, setActiveTab] = useState<'commitments' | 'signals'>('commitments');
+
+  // ── react-query hooks ─────────────────────────────────────────────
   const theOneQ = useTheOne();
   const commitmentsQ = useCommitments();
+  const signalsQ = useSignals();
 
   const theOne = theOneQ.data ?? null;
   const commitments: api.Commitment[] = commitmentsQ.data ?? [];
+  const signals: any[] = signalsQ.data ?? [];
 
   const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss' | 'cancel') => {
     if (!token || !signalId) return;
@@ -264,6 +270,44 @@ export default function CommitmentsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
       <TopBar title="Commitments" />
+
+      {/* V2: Segmented control — Commitments | Signals */}
+      <View style={{ flexDirection: 'row', marginHorizontal: spacing.xl, marginBottom: spacing.md, backgroundColor: t.surface, borderRadius: 12, padding: 4 }}>
+        {(['commitments', 'signals'] as const).map(tab => (
+          <TouchableOpacity
+            key={tab}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveTab(tab); }}
+            style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: activeTab === tab ? colors.yellow : 'transparent', alignItems: 'center' }}
+            accessibilityLabel={`Show ${tab}`}
+            accessibilityRole="tab"
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: activeTab === tab ? colors.black : t.textSecondary, textTransform: 'capitalize' }}>{tab}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* V2: Signals view (FlatList) */}
+      {activeTab === 'signals' ? (
+        <FlatList
+          data={signals}
+          keyExtractor={(item: any) => item.signal_id || Math.random().toString()}
+          contentContainerStyle={{ padding: spacing.xl }}
+          renderItem={({ item }: { item: any }) => (
+            <Card style={{ marginBottom: spacing.sm }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: t.textPrimary }}>{item.entity}</Text>
+                <Text style={{ fontSize: 9, color: colors.yellow, fontWeight: '600', textTransform: 'uppercase' }}>{item.signal_type}</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: t.textSecondary }}>{item.text}</Text>
+              <Text style={{ fontSize: 10, color: t.textSecondary, marginTop: 4 }}>{item.timestamp?.slice(0, 10)}</Text>
+            </Card>
+          )}
+          ListEmptyComponent={
+            signalsQ.isLoading ? <LoadingState label="Loading signals…" /> :
+            <EmptyState title="No signals yet" subtitle="Signals appear when connectors sync." icon="radio" />
+          }
+        />
+      ) : (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.xl }}>
         {isLoading ? (
           <LoadingState label="Loading commitments…" />
@@ -396,6 +440,7 @@ export default function CommitmentsScreen() {
           </>
         )}
       </ScrollView>
+      )}
       {/* Issue 7: Draft approval modal */}
       <DraftApprovalModal
         visible={draftModal.visible}
