@@ -49,7 +49,6 @@ jobs:
       - name: CI Check 5 — Full-suite gate
         working-directory: maestro-personal
         run: python ci_checks/check_full_suite.py
-        continue-on-error: true # Phase 0.4 — 9 test-isolation failures remain; gate is advisory until fixed
 
       - name: Mobile typecheck
         working-directory: maestro-personal/mobile

@@ -315,8 +315,17 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
 # cases where the rule-based decision is ambiguous.
 
 # Whisper types that are ALWAYS worth surfacing — never suppress.
+# Note: these still go through the materiality gate (the gate learns from
+# dismissals). Only critical_signal bypasses the gate entirely (F6 guard:
+# emergencies never get suppressed).
 _ALWAYS_WHISPER_TYPES = frozenset({
-    "critical_signal",      # lawsuit, churn, breach, outage
+    "critical_signal",      # lawsuit, churn, breach, outage — BYPASSES gate (F6)
+})
+
+# Types that go through the gate but the gate should be lenient with
+# (these are important but can still be suppressed if the user dismisses
+# them repeatedly — the learning loop needs to see them)
+_GATE_PASSTHROUGH_TYPES = frozenset({
     "broken_commitment",    # "Never sent the questionnaire"
     "stale_commitment",     # overdue commitment
     "deadline_approaching", # deadline in <48h
@@ -344,24 +353,28 @@ def _should_whisper_rule_based(w: dict) -> bool | None:
         True  — always whisper (skip LLM gate)
         False — never whisper (skip LLM gate)
         None  — borderline, let LLM gate decide
+
+    F6 guard: critical_signal whispers ALWAYS fire (emergencies never
+    suppressed). All other types go through the gate so the learning
+    loop can learn from dismissals.
     """
     w_type = w.get("type", "")
     w_priority = str(w.get("priority", "")).lower()
 
     # 1. Critical/high-priority whispers ALWAYS fire — emergencies don't
     #    need a materiality gate to decide if they're worth surfacing.
-    if w_priority in _ALWAYS_WHISPER_PRIORITIES:
-        return True
-
-    # 2. Critical whisper types ALWAYS fire
+    #    F6 guard: critical_signal type bypasses the gate entirely.
     if w_type in _ALWAYS_WHISPER_TYPES:
         return True
 
-    # 3. Low-value types NEVER fire — these are noise
+    # 2. Low-value types NEVER fire — these are noise
     if w_type in _NEVER_WHISPER_TYPES:
         return False
 
-    # 4. Borderline — let the LLM materiality gate decide
+    # 3. All other types (including stale_commitment, broken_commitment,
+    #    deadline_approaching, contradiction_detected) go through the gate.
+    #    The gate learns from dismissals — if we skip it here, the learning
+    #    loop can't learn to suppress these. (F5 regression fix.)
     return None
 
 

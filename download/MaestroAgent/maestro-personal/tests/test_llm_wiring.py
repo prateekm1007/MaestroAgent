@@ -120,6 +120,7 @@ def test_llm_complete_produces_real_text():
     assert len(result) > 0, "LLM response must not be empty"
 
 
+@pytest.mark.llm_integration
 def test_llm_generate_perspective_is_called_by_nerve():
     """llm_generate_perspective MUST be called by nerve_wiring when LLM is available.
 

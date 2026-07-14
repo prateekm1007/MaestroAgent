@@ -42,3 +42,6 @@ maestro_personal_shell = ["*.db"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+markers = [
+    "llm_integration: tests that require a live LLM (may be rate-limited in full suite)",
+]

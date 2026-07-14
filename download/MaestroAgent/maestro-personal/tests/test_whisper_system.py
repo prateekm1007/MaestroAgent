@@ -25,19 +25,26 @@ os.environ.pop("OLLAMA_HOST", None)
 class TestShouldWhisperRuleBased:
     """Issue 13-A: rule-based early-exit for whisper materiality gate."""
 
-    def test_critical_priority_always_whispers(self):
-        """High-priority whispers always fire, regardless of type."""
+    def test_critical_signal_bypasses_gate(self):
+        """critical_signal type always fires (F6 guard — emergencies never suppressed)."""
         from maestro_personal_shell.routers.surfaces import _should_whisper_rule_based
-        assert _should_whisper_rule_based({"type": "routine", "priority": "high"}) is True
-        assert _should_whisper_rule_based({"type": "routine", "priority": "critical"}) is True
+        assert _should_whisper_rule_based({"type": "critical_signal", "priority": "low"}) is True
+        assert _should_whisper_rule_based({"type": "critical_signal", "priority": "high"}) is True
 
     def test_critical_type_always_whispers(self):
-        """Critical whisper types always fire, regardless of priority."""
+        """Critical_signal whisper type always fires (bypasses gate). F6 guard."""
         from maestro_personal_shell.routers.surfaces import _should_whisper_rule_based
-        for t in ("critical_signal", "broken_commitment", "stale_commitment",
+        # Only critical_signal bypasses the gate (F6 guard)
+        assert _should_whisper_rule_based({"type": "critical_signal", "priority": "low"}) is True
+
+    def test_gate_passthrough_types_return_none(self):
+        """Important types (stale_commitment, broken_commitment, etc.) go
+        through the gate — the learning loop needs to see them. F5 fix."""
+        from maestro_personal_shell.routers.surfaces import _should_whisper_rule_based
+        for t in ("broken_commitment", "stale_commitment",
                    "deadline_approaching", "contradiction_detected"):
-            assert _should_whisper_rule_based({"type": t, "priority": "low"}) is True, \
-                f"{t} should always whisper"
+            assert _should_whisper_rule_based({"type": t, "priority": "low"}) is None, \
+                f"{t} should go through the gate (return None), not bypass it"
 
     def test_low_value_types_never_whisper(self):
         """Low-value types (fyi, newsletter, digest) are always suppressed."""
@@ -52,11 +59,13 @@ class TestShouldWhisperRuleBased:
         assert _should_whisper_rule_based({"type": "suggestion", "priority": "medium"}) is None
         assert _should_whisper_rule_based({"type": "unknown", "priority": "medium"}) is None
 
-    def test_priority_wins_over_type(self):
-        """High priority overrides low-value type suppression."""
+    def test_priority_does_not_override_gate(self):
+        """High priority does NOT bypass the gate — only critical_signal does.
+        F5 fix: the gate must see all non-critical whispers to learn from dismissals."""
         from maestro_personal_shell.routers.surfaces import _should_whisper_rule_based
-        # fyi type would normally suppress, but high priority wins
-        assert _should_whisper_rule_based({"type": "fyi", "priority": "high"}) is True
+        # routine type with high priority goes through the gate (returns None)
+        # because only critical_signal type bypasses, not high priority
+        assert _should_whisper_rule_based({"type": "routine", "priority": "high"}) is None
 
     def test_empty_whisper_returns_none(self):
         """Empty whisper dict returns None (borderline)."""
@@ -140,13 +149,19 @@ class TestWhisperEndpoint:
     @pytest.fixture
     def client(self):
         from fastapi.testclient import TestClient
-        from maestro_personal_shell.api import app
+        from maestro_personal_shell.api import app, init_db
+        # Ensure env vars are set (test-isolation fix)
+        os.environ["MAESTRO_PERSONAL_TOKEN"] = "test"
+        os.environ["MAESTRO_ENV"] = "dev"
+        os.environ.pop("OLLAMA_HOST", None)
+        init_db()
         return TestClient(app)
 
     @pytest.fixture
     def auth_headers(self, client):
         r = client.post("/api/auth/login",
                         json={"user_email": "default@personal.local", "password": "test"})
+        assert r.status_code == 200, f"Login failed: {r.status_code} {r.text[:200]}"
         return {"Authorization": f"Bearer {r.json()['token']}"}
 
     def test_whisper_endpoint_returns_200(self, client, auth_headers):

@@ -20,13 +20,19 @@ os.environ.pop("OLLAMA_HOST", None)
 @pytest.fixture
 def client():
     from fastapi.testclient import TestClient
-    from maestro_personal_shell.api import app
+    from maestro_personal_shell.api import app, init_db
+    # Ensure env vars are set (test-isolation fix — other tests may overwrite)
+    os.environ["MAESTRO_PERSONAL_TOKEN"] = "test"
+    os.environ["MAESTRO_ENV"] = "dev"
+    os.environ.pop("OLLAMA_HOST", None)
+    init_db()  # Ensure tables exist
     return TestClient(app)
 
 
 @pytest.fixture
 def auth_headers(client):
     r = client.post("/api/auth/login", json={"user_email": "default@personal.local", "password": "test"})
+    assert r.status_code == 200, f"Login failed: {r.status_code} {r.text[:200]}"
     token = r.json()["token"]
     return {"Authorization": f"Bearer {token}"}
 

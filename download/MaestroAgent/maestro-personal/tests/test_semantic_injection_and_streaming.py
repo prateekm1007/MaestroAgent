@@ -71,6 +71,7 @@ class TestSemanticInjectionClassifier:
             assert result["is_injection"] is False
             assert "no LLM" in result["reasoning"]
 
+    @pytest.mark.llm_integration
     def test_semantic_check_detects_novel_injection(self):
         """The semantic check must catch injection the regex misses."""
         from maestro_personal_shell.llm_bridge import reset_llm_router, get_llm_router

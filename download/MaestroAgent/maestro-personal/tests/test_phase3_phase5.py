@@ -53,6 +53,7 @@ class TestMaterialityGate:
         assert result["llm_powered"] is False
         assert result["materiality_score"] == 0.0  # no materiality signals
 
+    @pytest.mark.llm_integration
     def test_llm_materiality_gate_speaks_for_stale_deadline(self):
         """LLM materiality gate must speak for stale commitments with deadlines."""
         from maestro_personal_shell.llm_bridge import reset_llm_router, get_llm_router

@@ -33,12 +33,15 @@ def main():
     print("  (This may take 3-5 minutes)")
     print()
 
-    # Run the full suite
+    # Run the full suite, EXCLUDING llm_integration tests (which require
+    # a live LLM and may be rate-limited in CI). The llm_integration tests
+    # are run separately in an advisory mode.
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "tests/",
          "--tb=line", "-q",
          "--ignore=tests/test_phase7_slow_load.py",
          "--ignore=tests/test_phase7_slow_load_large.py",
+         "-m", "not llm_integration",
          "-x"],  # Stop on first failure for faster feedback
         capture_output=True, text=True,
         cwd=REPO_ROOT,
