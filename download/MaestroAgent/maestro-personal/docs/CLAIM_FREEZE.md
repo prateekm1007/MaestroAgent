@@ -108,7 +108,7 @@
 
 | Claim | Status | Evidence | Action |
 |-------|--------|----------|--------|
-| 8 connectors defined | ✅ VERIFIED | SUPPORTED_CONNECTORS dict in connectors.py | — |
+| 9 connectors defined (incl. work_email IMAP/SMTP) | ✅ VERIFIED | SUPPORTED_CONNECTORS dict in connectors.py (gmail, slack, github, calendar, work_email, whatsapp, facebook, instagram, twitter) | — |
 | Gmail real OAuth2 | ✅ VERIFIED | Real Google tokens, 48 messages scanned, auto draft derived | — |
 | Calendar real OAuth2 (read-only) | ✅ VERIFIED | Real Google tokens, events pulled, event→signal conversion | — |
 | Slack real OAuth2 | ✅ VERIFIED | OAuth2 flow verified end-to-end: auth URL generation (correct scopes: channels:read, im:history, chat:write), error callback handling (400), missing code handling (400), token revocation (disconnect → 200), fail-closed without credentials (400). 5 Slack OAuth tests pass. Token exchange requires real Slack app — see docs/CONNECTOR_OAUTH_SETUP.md for setup guide. | — |

@@ -96,6 +96,16 @@ SUPPORTED_CONNECTORS: dict[str, dict[str, Any]] = {
         "oauth_configured": False,
         "phase": 4,
     },
+    "work_email": {
+        "name": "Work Email (IMAP/SMTP)",
+        "icon": "briefcase",
+        "category": "work",
+        "scopes": ["imap", "smtp"],
+        "ingest_description": "Connect any work email via IMAP (Exchange, Outlook, ProtonMail Bridge, custom domain). Extracts commitments from sent + received mail.",
+        "write_description": "Draft and send commitment follow-up emails via SMTP (with approval)",
+        "oauth_configured": False,
+        "phase": 5,
+    },
     "whatsapp": {
         "name": "WhatsApp",
         "icon": "chat",

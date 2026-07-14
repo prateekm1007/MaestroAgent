@@ -34,13 +34,21 @@ export const queryKeys = {
   metrics: ['metrics'] as const,
 };
 
-// ─── Default options (offline-friendly) ────────────────────────────
+// ─── Default options (offline-friendly + background sync) ──────────
 
 const defaultOptions = {
   staleTime: 30_000,       // 30s before refetch
   gcTime: 5 * 60_000,      // 5 min cache retention
   retry: 2,                 // retry failed requests
   retryDelay: 1000,         // 1s between retries
+  refetchOnWindowFocus: true,  // sync when app comes to foreground
+  refetchOnReconnect: true,    // sync when network reconnects
+};
+
+// Critical data: refresh every 60s in background
+const backgroundSyncOptions = {
+  ...defaultOptions,
+  refetchInterval: 60_000,  // poll every 60s
 };
 
 // ─── Hooks ─────────────────────────────────────────────────────────
@@ -49,7 +57,7 @@ export function useTheMoment() {
   return useQuery({
     queryKey: queryKeys.moment,
     queryFn: () => api.getTheMoment(),
-    ...defaultOptions,
+    ...backgroundSyncOptions, // critical — refresh every 60s
   });
 }
 
@@ -57,7 +65,7 @@ export function useCommitments() {
   return useQuery({
     queryKey: queryKeys.commitments,
     queryFn: () => api.getCommitments(),
-    ...defaultOptions,
+    ...backgroundSyncOptions, // critical — refresh every 60s
   });
 }
 
