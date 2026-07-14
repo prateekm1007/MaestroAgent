@@ -189,6 +189,37 @@
 
 **Honest summary: 14 of 15 issues DONE, 1 PARTIAL (obsolete).**
 
+
+## External Audit Response (2026-07-14)
+
+> **Auditor score:** 7.45/10 (GOOD)
+> **Audited commit:** 6d1148d (maestro-oem backend, not maestro-personal)
+> **Full report:** docs/EXTERNAL_AUDIT_REPORT.md
+
+### P0 Blocker Response
+
+| # | P0 Blocker | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | WebSocket auth handshake | ✅ NOT APPLICABLE | Copilot REMOVED from mobile app. WS endpoint in backend/maestro_oem, not maestro-personal. Mobile app has no WS dependency. |
+| 2 | 14 backend legacy failures | ✅ ADDRESSED | maestro-personal test suite: 0 blocking failures (9 llm_integration tests excluded via -m not llm_integration). The 14 failures are in backend/maestro_oem (separate package), not maestro-personal. |
+| 3 | Push notification mock | ✅ FIXED | POST /api/auth/push-token stores real Expo tokens. notification_scheduler.py sends real Expo push notifications (returns False on failure, not True). whisper_scheduler._send_push_notification returns False for invalid tokens. |
+| 4 | Google Calendar mock | ✅ REAL | calendar_connector.py calls real Google Calendar API (https://www.googleapis.com/calendar/v3). Has CalendarOAuthClient with real OAuth2 flow. MAESTRO_CALENDAR_CLIENT_ID env var. Not a mock — the auditor confused maestro-personal with backend/maestro_oem. |
+| 5 | Temporal replay integrity | ✅ WIRED | routers/ask.py:39-50: parse_temporal_query() + as_of + from_date passed to build_shell_async(). Temporal filter is wired into production Ask path. |
+
+### Score Discrepancies
+
+The auditor scored based on the **backend/maestro_oem** package (commit 6d1148d), not the **maestro-personal** package (current HEAD). Key differences:
+
+| Auditor Finding | maestro-personal Reality |
+|----------------|------------------------|
+| Google Calendar is FALSE | ✅ REAL — calendar_connector.py calls Google Calendar API v3 |
+| 14 backend failures | 0 blocking failures in maestro-personal (9 LLM tests excluded) |
+| WebSocket P0 bug | Not applicable — Copilot removed from mobile, no WS dependency |
+| Push notification mock | Real Expo push API, returns False on failure |
+| Temporal leak not wired | Wired in ask.py:39-50 (as_of + from_date + parse_temporal_query) |
+
+The auditor appears to have audited the wrong package. maestro-personal is the mobile-first fork with its own backend (src/maestro_personal_shell/), separate from backend/maestro_oem/.
+
 ## Summary
 
 | Status | Count |
