@@ -5,12 +5,18 @@
  * - ErrorState: network error / 5xx / generic with retry button
  * - EmptyState: trusted silence / no data
  * - LoadingState: skeleton/spinner
+ *
+ * P1-5 fix (audit 2026-07-15): all three components were hardcoded to
+ * `getTheme('light')`, which meant they showed light-mode colors even
+ * when the user had dark mode enabled. They now use the useTheme hook
+ * so they respect the user's theme preference.
  */
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, getTheme } from '../theme/colors';
+import { useTheme } from '../contexts';
 
 // ─── Error State ───────────────────────────────────────────────────
 
@@ -21,9 +27,10 @@ export function ErrorState({
   message: string;
   onRetry?: () => void;
 }) {
-  const t = getTheme('light');
+  const { mode } = useTheme() as any;
+  const t = getTheme(mode);
   return (
-    <View style={styles.center} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+    <View style={[styles.center, { backgroundColor: t.bg }]} accessibilityRole="alert" accessibilityLiveRegion="assertive">
       <Ionicons name="alert-circle" size={48} color={colors.alertRed} />
       <Text
         style={[styles.errorText, { color: t.textPrimary }]}
@@ -56,9 +63,10 @@ export function EmptyState({
   subtitle?: string;
   icon?: string;
 }) {
-  const t = getTheme('light');
+  const { mode } = useTheme() as any;
+  const t = getTheme(mode);
   return (
-    <View style={styles.center} accessibilityRole="summary" accessibilityLiveRegion="polite">
+    <View style={[styles.center, { backgroundColor: t.bg }]} accessibilityRole="summary" accessibilityLiveRegion="polite">
       <Ionicons name={icon as any} size={48} color={colors.gray} />
       <Text
         style={[styles.emptyTitle, { color: t.textPrimary }]}
@@ -77,9 +85,10 @@ export function EmptyState({
 // ─── Loading State ─────────────────────────────────────────────────
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
-  const t = getTheme('light');
+  const { mode } = useTheme() as any;
+  const t = getTheme(mode);
   return (
-    <View style={styles.center} accessibilityRole="progressbar" accessibilityLiveRegion="polite">
+    <View style={[styles.center, { backgroundColor: t.bg }]} accessibilityRole="progressbar" accessibilityLiveRegion="polite">
       <ActivityIndicator size="large" color={colors.yellow} />
       <Text
         style={[styles.loadingText, { color: t.textSecondary }]}

@@ -8,16 +8,32 @@
  * 4. Privacy & Data (export, delete, audit log, retention policy)
  * 5. Settings (theme toggle, LLM status, Brier score, server URL)
  * 6. Account (logout)
+ *
+ * P1-1 fix (audit 2026-07-15): notification toggles were hardcoded
+ * `value={true}`. They now use local state persisted to AsyncStorage
+ * so the toggle reflects the user's actual choice.
+ *
+ * P1-2 fix: LLM status was hardcoded "active". Now queries the real
+ * /api/llm-status endpoint and shows active/inactive honestly.
+ *
+ * P1-3 fix: Brier score was hardcoded "0.16". Now queries /api/calibration
+ * and shows the real value (or "—" if unavailable).
+ *
+ * P1-4 fix: Export/Audit/Retention buttons were haptic-only no-ops.
+ * They now call the real API and show the result in an alert.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors, getTheme } from '../theme/colors';
 import { useTheme, useAuth } from '../contexts';
 import * as api from '../api/client';
+
+const NOTIF_PREFS_KEY = 'maestro_notification_prefs';
 
 export default function MoreScreen() {
   const { mode, toggle } = useTheme() as any;
@@ -25,6 +41,28 @@ export default function MoreScreen() {
   const t = getTheme(mode);
   const queryClient = useQueryClient();
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  // P1-1 fix: notification toggles backed by AsyncStorage (persisted, honest)
+  const [notifPrefs, setNotifPrefs] = useState({
+    stale_alerts: true,
+    meeting_reminders: true,
+    daily_briefing: true,
+    connector_sync: true,
+  });
+  useEffect(() => {
+    AsyncStorage.getItem(NOTIF_PREFS_KEY).then((stored) => {
+      if (stored) {
+        try { setNotifPrefs(JSON.parse(stored)); } catch {}
+      }
+    });
+  }, []);
+  const toggleNotifPref = (key: keyof typeof notifPrefs) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(next);
+    AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next));
+  };
 
   // Change 13: "What Maestro Knows" transparency data
   const { data: signals } = useQuery({ queryKey: ['signals'], queryFn: () => api.getSignals() });
@@ -33,10 +71,27 @@ export default function MoreScreen() {
     queryKey: ['connectors'],
     queryFn: () => api.listConnectors().catch(() => ({ connectors: [] })),
   });
+  // P1-2 fix: real LLM status (was hardcoded "active")
+  const { data: llmStatus } = useQuery({
+    queryKey: ['llm-status'],
+    queryFn: () => api.getLLMStatus().catch(() => null),
+    staleTime: 60_000,
+  });
+  // P1-3 fix: real Brier score from /api/calibration (was hardcoded "0.16")
+  const { data: calibration } = useQuery({
+    queryKey: ['calibration'],
+    queryFn: () => api.getCalibration().catch(() => null),
+    staleTime: 60_000,
+  });
   const uniqueEntities = useMemo(() => {
     if (!signals) return 0;
     return new Set(signals.map((s: any) => s.entity)).size;
   }, [signals]);
+
+  const llmActive = llmStatus?.active || llmStatus?.llm_active || false;
+  const llmProvider = llmStatus?.provider || 'none';
+  const brierScore = calibration?.brier_score;
+  const brierDisplay = brierScore != null ? brierScore.toFixed(3) : '—';
 
   // P0-1 fix (audit 2026-07-15): connector buttons were literal no-ops
   // (onPress={() => {}}). They now actually call the connect API, surface
@@ -95,6 +150,59 @@ export default function MoreScreen() {
     return connectorList.connectors.some((c: any) => c.provider === provider && c.connected);
   };
 
+  // P1-4 fix: real actions for Export / Audit / Retention (were haptic-only)
+  const handleExport = async () => {
+    if (busyAction) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBusyAction('export');
+    try {
+      const result = await api.exportData();
+      Alert.alert(
+        'Export Complete',
+        `Exported ${result.signal_count} signals at ${new Date(result.exported_at).toLocaleString()}.`,
+      );
+    } catch (err: any) {
+      Alert.alert('Export Failed', err?.message || 'Could not export data.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleAuditLog = async () => {
+    if (busyAction) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBusyAction('audit');
+    try {
+      const result = await api.getAuditLog();
+      const count = result?.events?.length ?? 0;
+      Alert.alert('Audit Log', `${count} audit entries retrieved. Check console for full details.`);
+      // eslint-disable-next-line no-console
+      console.log('Audit log:', JSON.stringify(result, null, 2));
+    } catch (err: any) {
+      Alert.alert('Audit Log Failed', err?.message || 'Could not retrieve audit log.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleRetentionPolicy = async () => {
+    if (busyAction) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBusyAction('retention');
+    try {
+      const result = await api.getRetentionPolicy();
+      const summary = Object.entries(result)
+        .filter(([k]) => k !== 'timestamp')
+        .map(([k, v]) => `${k}: ${v}`)
+        .join('\n');
+      Alert.alert('Data Retention Policy', summary || 'No retention data available.');
+    } catch (err: any) {
+      Alert.alert('Retention Policy Failed', err?.message || 'Could not retrieve retention policy.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 16 }}>
       {/* Connectors */}
@@ -135,17 +243,17 @@ export default function MoreScreen() {
         <Row label="Default provider" value="Gmail" t={t} />
       </Section>
 
-      {/* Notifications */}
+      {/* Notifications — P1-1 fix: backed by AsyncStorage */}
       <Section title="Notifications" icon="notifications" t={t}>
-        <ToggleRow label="Stale commitment alerts" value={true} t={t} />
-        <ToggleRow label="Meeting reminders" value={true} t={t} />
-        <ToggleRow label="Daily briefing (8am)" value={true} t={t} />
-        <ToggleRow label="Connector sync alerts" value={true} t={t} />
+        <ToggleRow label="Stale commitment alerts" value={notifPrefs.stale_alerts} onToggle={() => toggleNotifPref('stale_alerts')} t={t} />
+        <ToggleRow label="Meeting reminders" value={notifPrefs.meeting_reminders} onToggle={() => toggleNotifPref('meeting_reminders')} t={t} />
+        <ToggleRow label="Daily briefing (8am)" value={notifPrefs.daily_briefing} onToggle={() => toggleNotifPref('daily_briefing')} t={t} />
+        <ToggleRow label="Connector sync alerts" value={notifPrefs.connector_sync} onToggle={() => toggleNotifPref('connector_sync')} t={t} />
       </Section>
 
-      {/* Privacy & Data */}
+      {/* Privacy & Data — P1-4 fix: real actions */}
       <Section title="Privacy & Data" icon="lock-closed" t={t}>
-        <ActionRow label="Export all data" icon="download" t={t} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} />
+        <ActionRow label="Export all data" icon="download" t={t} busy={busyAction === 'export'} onPress={handleExport} />
         <ActionRow label="Delete account" icon="trash" t={t} onPress={() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           Alert.alert('Delete Account', 'This will permanently delete all your data.', [
@@ -153,8 +261,8 @@ export default function MoreScreen() {
             { text: 'Delete', style: 'destructive', onPress: () => { logout(); } },
           ]);
         }} />
-        <ActionRow label="Audit log" icon="list" t={t} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} />
-        <ActionRow label="Data retention policy" icon="document-text" t={t} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} />
+        <ActionRow label="Audit log" icon="list" t={t} busy={busyAction === 'audit'} onPress={handleAuditLog} />
+        <ActionRow label="Data retention policy" icon="document-text" t={t} busy={busyAction === 'retention'} onPress={handleRetentionPolicy} />
       </Section>
 
       {/* Change 13: What Maestro Knows — transparency section */}
@@ -162,15 +270,15 @@ export default function MoreScreen() {
         <Row label="Signals tracked" value={signals?.length?.toString() || '—'} t={t} />
         <Row label="Active commitments" value={commitments?.length?.toString() || '—'} t={t} />
         <Row label="Entities tracked" value={uniqueEntities?.toString() || '—'} t={t} />
-        <Row label="Brier score" value="0.16" t={t} />
-        <Row label="LLM provider" value="active" t={t} />
+        <Row label="Brier score" value={brierDisplay} t={t} />
+        <Row label="LLM provider" value={llmActive ? `${llmProvider} (active)` : `${llmProvider} (inactive)`} t={t} />
       </Section>
 
-      {/* Settings */}
+      {/* Settings — P1-2 + P1-3 fix: real values */}
       <Section title="Settings" icon="settings" t={t}>
         <ToggleRow label="Dark mode" value={mode === 'dark'} onToggle={toggle} t={t} />
-        <Row label="LLM status" value="active" t={t} />
-        <Row label="Brier score" value="0.16" t={t} />
+        <Row label="LLM status" value={llmActive ? `Active (${llmProvider})` : 'Inactive'} t={t} />
+        <Row label="Brier score" value={brierDisplay} t={t} />
         <Row label="Server URL" value="localhost:8766" t={t} />
       </Section>
 
@@ -212,14 +320,18 @@ function ToggleRow({ label, value, onToggle, t }: any) {
   );
 }
 
-function ActionRow({ label, icon, onPress, t }: any) {
+function ActionRow({ label, icon, onPress, busy, t }: any) {
   return (
-    <TouchableOpacity onPress={onPress} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border }}>
+    <TouchableOpacity onPress={onPress} disabled={busy} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Ionicons name={icon} size={18} color={t.textSecondary} />
         <Text style={{ fontSize: 14, color: t.textPrimary }}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={16} color={t.textSecondary} />
+      {busy ? (
+        <ActivityIndicator size="small" color={colors.yellow} />
+      ) : (
+        <Ionicons name="chevron-forward" size={16} color={t.textSecondary} />
+      )}
     </TouchableOpacity>
   );
 }

@@ -24,7 +24,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import * as api from '../api/client';
 import { useTheMoment, useShifts, useBriefing } from '../api/hooks';
@@ -347,11 +347,16 @@ export default function DashboardScreen() {
 
 // Issue 13-C: WhisperCards — "💌 Needs Attention" section on mobile Dashboard.
 // P24 fix: whispers must appear on BOTH web and mobile (cross-surface coherence).
+// P1-6 fix (audit 2026-07-15): the prior code used `(api as any).useWhispers?.()`
+// which never resolved — the hook didn't exist, so optional chaining returned
+// undefined, falling back to `{ data: [] }`. WhisperCards was ALWAYS empty.
+// Now uses useQuery with the real getWhispers() API function (60s auto-refresh).
 function WhisperCards({ t, nav }: { t: ReturnType<typeof getTheme>; nav: any }) {
-  // Fetch whispers via react-query (60s auto-refresh = Issue 13-E)
-  // Note: useWhispers may not exist in the hooks file yet — uses optional chaining
-  // to gracefully degrade to empty list if the hook isn't wired.
-  const whispersQ = (api as any).useWhispers?.() ?? { data: [] as any[] };
+  const whispersQ = useQuery({
+    queryKey: ['whispers'],
+    queryFn: () => api.getWhispers().catch(() => [] as any[]),
+    staleTime: 60_000,  // 60s auto-refresh (Issue 13-E)
+  });
   const whispers: any[] = whispersQ.data ?? [];
 
   if (whispers.length === 0) return null;

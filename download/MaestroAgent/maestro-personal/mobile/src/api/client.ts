@@ -629,6 +629,20 @@ export async function getLLMStatus(token?: string): Promise<LLMStatus> {
 // Privacy / calibration / audit / metrics — Settings screen
 // ─────────────────────────────────────────────────────────────────────
 
+// P1-4 fix: retention policy status — GET /api/privacy/retention-status
+export interface RetentionPolicy {
+  timestamp: string;
+  [key: string]: any;
+}
+
+export async function getRetentionPolicy(token?: string): Promise<RetentionPolicy> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/privacy/retention-status', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
 export async function getPrivacyMode(token?: string): Promise<PrivacyMode> {
   const t = await resolveToken(token);
   const response = await api.get('/api/privacy/mode', {

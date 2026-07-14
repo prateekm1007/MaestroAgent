@@ -147,14 +147,36 @@ def verify_claims(
             # Supported (or a trivial claim with no keywords — keep it).
             supported_claims.append(claim)
 
-            # Check for counterevidence: does any evidence CONTRADICT this claim?
-            # Simple heuristic: if the claim contains a negation and the evidence
-            # affirms (or vice versa).
+            # P1-8 fix (audit 2026-07-15): counterevidence must NOT include
+            # the same evidence that supports the claim. The prior code
+            # looped over ALL evidence_refs, so a single piece of evidence
+            # could appear as BOTH primary evidence AND counterevidence —
+            # a logical contradiction.
+            #
+            # New approach: identify which refs support THIS claim (by
+            # keyword/entity overlap), then only check the REMAINING refs
+            # for counterevidence. This ensures a ref is either supporting
+            # OR contradicting, never both.
+            supporting_ref_ids: set[int] = set()
+            for i, ref in enumerate(evidence_refs):
+                ref_text = ref.get("text", "") or ""
+                ref_keywords = _extract_keywords(ref_text)
+                ref_entities_set = _extract_entities(ref_text) | {ref.get("entity", "")} - {""}
+                if claim_keywords & ref_keywords or claim_entities & ref_entities_set:
+                    supporting_ref_ids.add(i)
+
+            # Check for counterevidence: does any NON-supporting evidence
+            # CONTRADICT this claim? Simple heuristic: if the claim contains
+            # a negation and the evidence affirms (or vice versa).
             claim_lower = claim.lower()
             has_negation = any(neg in claim_lower for neg in
                              ["not", "n't", "never", "no ", "denied", "disputed",
                               "cancelled", "won't", "didn't", "hasn't", "wasn't"])
-            for ref in evidence_refs:
+            for i, ref in enumerate(evidence_refs):
+                # P1-8 fix: skip refs that support this claim — they cannot
+                # also be counterevidence.
+                if i in supporting_ref_ids:
+                    continue
                 ref_text = (ref.get("text", "") or "").lower()
                 ref_neg = any(neg in ref_text for neg in
                             ["not", "n't", "never", "no ", "denied", "disputed",

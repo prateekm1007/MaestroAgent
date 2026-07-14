@@ -89,7 +89,11 @@ export function setupNotificationHandler(navigation: any) {
     } else if (data.type === 'daily_briefing') {
       navigation.navigate('Dashboard');
     } else if (data.type === 'connector_sync') {
-      navigation.navigate('Connectors');
+      // P1-7 fix (audit 2026-07-15): 'Connectors' tab was deleted in the
+      // V2 4-tab redesign and merged into 'More'. Routing to the deleted
+      // tab name caused a silent no-op (the navigator would log a warning
+      // but show nothing). Now routes to 'More' where connectors live.
+      navigation.navigate('More');
     }
   });
 }
