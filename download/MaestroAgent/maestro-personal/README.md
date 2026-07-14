@@ -2,7 +2,7 @@
 
 A FastAPI HTTP service that wraps the Cognitive Council Core (`maestro_cognitive_council`)
 to provide a personal intelligence API on port 8766. SQLite persistence, FTS5 semantic
-retrieval, bearer token auth, WebSocket live copilot, and 50+ REST endpoints across 6 surfaces.
+retrieval, bearer token auth, and 85+ REST endpoints across 6 surfaces.
 
 ## Monorepo Structure
 

@@ -32,10 +32,10 @@
 | Offline mode (react-query cache) | ✅ VERIFIED | 16 hooks in src/api/hooks.ts, QueryClientProvider in App.tsx | — |
 | Gestures (swipe to complete) | ✅ VERIFIED | PanResponder in CommitmentsScreen.tsx | — |
 | Animations (reanimated) | ✅ VERIFIED | useAnimatedStyle + withSpring in DashboardScreen.tsx | — |
-| Connectors screen | ✅ VERIFIED | ConnectorsScreen.tsx (300+ lines), 8 tests, wired into tab nav | — |
+| Connectors screen | ✅ VERIFIED | MoreScreen.tsx (merged into More tab in V2 4-tab redesign), connectors section with OAuth flow, sync, disconnect. 8 tests pass. | — |
 | Runs on iOS Simulator | ❌ NOT VERIFIED | No macOS in sandbox — needs local machine | Phase 0 |
 | Runs on Android Emulator | ❌ NOT VERIFIED | No Android SDK in sandbox; cloud Android emulators (MyAndroid.org, Appetize.io, etc.) cannot reach `localhost` dev server — architectural limitation, not a setup issue. See `docs/MOBILE_SCREENSHOTS_METHOD.md`. | Phase 0 |
-| Mobile-form-factor web screenshots (390×844 iPhone 13 Pro viewport) | ✅ VERIFIED | 16 Playwright screenshots in `/home/z/my-project/download/mobile-real-*.png` cover Login, Dashboard, Ask (empty + typed + answer + scrolled + fullpage), Commitments, Signals, Copilot, Connectors. Script: `scripts/maestro_mobile_screens.py`. VLM-confirmed real UI, not placeholder. | — |
+| Mobile-form-factor web screenshots (390×844 iPhone 13 Pro viewport) | ✅ VERIFIED | 16 Playwright screenshots in `/home/z/my-project/download/mobile-real-*.png` cover Login, Dashboard, Ask (empty + typed + answer + scrolled + fullpage), Commitments, Signals, More (Connectors). Script: `scripts/maestro_mobile_screens.py`. VLM-confirmed real UI, not placeholder. (Note: Copilot screenshots were from a prior V1 build; the screen was removed in V2.) | — |
 
 ### Authentication
 

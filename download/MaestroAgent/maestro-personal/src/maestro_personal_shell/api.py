@@ -771,6 +771,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("FTS5 initialization failed (semantic search disabled): %s", e)
 
+    # P0-3 fix (audit V5 2026-07-15): seed demo data on first launch.
+    # The audit found that the first-run experience is empty — "watching
+    # quietly" with zero data. This seeds a realistic demo corpus (8 signals
+    # covering commitments, completions, stale items, and a critical event)
+    # so the product feels alive on first launch. Only runs when the DB has
+    # zero signals for the bootstrap user. Real registered users get their
+    # own empty state.
+    try:
+        from maestro_personal_shell.demo_seeder import seed_demo_data_if_empty
+        seeded = seed_demo_data_if_empty()
+        if seeded > 0:
+            logger.info("Demo data seeded: %d signals (first-launch experience)", seeded)
+    except Exception as e:
+        logger.warning("Demo data seeding failed (non-fatal): %s", e)
+
     logger.info("Maestro Personal API starting on port %d", API_PORT)
     logger.info("DB path: %s", DB_PATH)
     logger.info("Maestro Personal API auth configured (token not logged for security)")
