@@ -17,6 +17,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
@@ -37,6 +38,7 @@ export default function AskScreen() {
   const [history, setHistory] = useState<string[]>([]);
   const [recording, setRecording] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const [speaking, setSpeaking] = useState(false);
 
   // ── react-query mutation (replaces manual try/catch + loading) ─────
   const askMutation = useAsk();
@@ -228,6 +230,27 @@ export default function AskScreen() {
               accessibilityRole="header"
               accessibilityLabel="Answer section"
             >ANSWER</Text>
+            {/* Read-aloud button */}
+            <TouchableOpacity
+              onPress={() => {
+                if (speaking) {
+                  Speech.stop();
+                  setSpeaking(false);
+                } else {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  Speech.speak(result.answer || '', {
+                    onDone: () => setSpeaking(false),
+                    onStopped: () => setSpeaking(false),
+                  });
+                  setSpeaking(true);
+                }
+              }}
+              style={{ position: 'absolute', right: 0, top: 0 }}
+              accessibilityLabel={speaking ? 'Stop reading aloud' : 'Read answer aloud'}
+              accessibilityRole="button"
+            >
+              <Ionicons name={speaking ? 'stop-circle' : 'volume-high'} size={18} color={colors.yellow} />
+            </TouchableOpacity>
             <Text
               style={{ fontSize: 16, color: t.textPrimary, lineHeight: 24 }}
               accessibilityRole="text"
