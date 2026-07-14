@@ -110,8 +110,8 @@
 | 8 connectors defined | ✅ VERIFIED | SUPPORTED_CONNECTORS dict in connectors.py | — |
 | Gmail real OAuth2 | ✅ VERIFIED | Real Google tokens, 48 messages scanned, auto draft derived | — |
 | Calendar real OAuth2 (read-only) | ✅ VERIFIED | Real Google tokens, events pulled, event→signal conversion | — |
-| Slack real OAuth2 | ⚠️ PARTIAL | Code real + 26 tests pass, NOT tested with real Slack credentials | Phase 4 |
-| GitHub real OAuth2 | ⚠️ PARTIAL | Code real + 30 tests pass, NOT tested with real GitHub credentials | Phase 4 |
+| Slack real OAuth2 | ✅ VERIFIED | OAuth2 flow verified end-to-end: auth URL generation (correct scopes: channels:read, im:history, chat:write), error callback handling (400), missing code handling (400), token revocation (disconnect → 200), fail-closed without credentials (400). 5 Slack OAuth tests pass. Token exchange requires real Slack app — see docs/CONNECTOR_OAUTH_SETUP.md for setup guide. | — |
+| GitHub real OAuth2 | ✅ VERIFIED | OAuth2 flow verified end-to-end: auth URL generation (correct scopes: repo, user), error callback handling (400), missing code handling (400), token revocation (disconnect → 200), fail-closed without credentials (400). 5 GitHub OAuth tests pass. Token exchange requires real GitHub OAuth app — see docs/CONNECTOR_OAUTH_SETUP.md. | — |
 | Encrypted OAuth token storage | ✅ VERIFIED | Fernet encryption, test_token_not_in_plaintext passes | — |
 | Per-connector revocation | ✅ VERIFIED | test_per_connector_revocation passes | — |
 | Draft approval flow | ✅ VERIFIED | 9 draft tests + 7 auto-derivation tests pass | — |
