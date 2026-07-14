@@ -319,31 +319,47 @@ class GitHubIngester:
         try:
             import asyncio
             from maestro_personal_shell.intelligent_ingestion import extract_signals_intelligently
-            signals = asyncio.run(extract_signals_intelligently(
+            raw_signals = asyncio.run(extract_signals_intelligently(
                 message_text=full_text,
                 entity=entity,
                 source="github",
                 timestamp=timestamp,
             ))
+            # P0-2 fix (audit V4): normalize signals from intelligent_ingestion
+            # to have the same shape as the regex fallback (source="github:issue",
+            # metadata with repo/issue_number/url). This ensures downstream code
+            # and tests can rely on a consistent signal structure regardless of
+            # which path produced the signals.
+            for sig in raw_signals:
+                sig["source"] = "github:issue"
+                sig.setdefault("metadata", {})
+                sig["metadata"].setdefault("repo", repo)
+                sig["metadata"].setdefault("issue_number", issue_number)
+                sig["metadata"].setdefault("url", source_url)
+                signals.append(sig)
         except Exception:
             # Fallback: regex-only commitment detection
+            # P0-2 fix (audit V4 2026-07-15): the prior code had an indentation
+            # bug — commitment_patterns was defined INSIDE the except block but
+            # the for loop was OUTSIDE it, causing UnboundLocalError when the
+            # try succeeded. Now the fallback is self-contained in the except.
             commitment_patterns = [
-            r"i will (.+?)(?:[.\n!?]|$)",
-            r"i'll (.+?)(?:[.\n!?]|$)",
-            r"i need to (.+?)(?:[.\n!?]|$)",
-            r"i'm going to (.+?)(?:[.\n!?]|$)",
-        ]
-        for pattern in commitment_patterns:
-            matches = re.findall(pattern, full_text, re.MULTILINE | re.IGNORECASE)
-            for match in matches[:2]:
-                signals.append({
-                    "entity": entity,
-                    "text": match.strip()[:200],
-                    "signal_type": "commitment_made",
-                    "timestamp": timestamp,
-                    "source": "github:issue",
-                    "metadata": {"repo": repo, "issue_number": issue_number, "url": source_url},
-                })
+                r"i will (.+?)(?:[.\n!?]|$)",
+                r"i'll (.+?)(?:[.\n!?]|$)",
+                r"i need to (.+?)(?:[.\n!?]|$)",
+                r"i'm going to (.+?)(?:[.\n!?]|$)",
+            ]
+            for pattern in commitment_patterns:
+                matches = re.findall(pattern, full_text, re.MULTILINE | re.IGNORECASE)
+                for match in matches[:2]:
+                    signals.append({
+                        "entity": entity,
+                        "text": match.strip()[:200],
+                        "signal_type": "commitment_made",
+                        "timestamp": timestamp,
+                        "source": "github:issue",
+                        "metadata": {"repo": repo, "issue_number": issue_number, "url": source_url},
+                    })
 
         # Action item detection (reported_statement)
         action_patterns = [

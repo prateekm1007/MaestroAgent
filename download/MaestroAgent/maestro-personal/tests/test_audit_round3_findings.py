@@ -85,28 +85,47 @@ class TestLLMProviderWiring:
 
     def test_llm_complete_falls_back_gracefully_on_rate_limit(self):
         """When the ZAI API is rate-limited (429), llm_complete should
-        return None (not crash) so the rule-based fallback kicks in."""
-        from maestro_personal_shell.llm_bridge import llm_complete, reset_llm_router
-        reset_llm_router()
+        return None (not crash) so the rule-based fallback kicks in.
 
-        # Mock the subprocess to simulate a 429 rate limit
-        with patch("subprocess.run") as mock_run:
-            mock_result = MagicMock()
-            mock_result.returncode = 1
-            mock_result.stderr = "Error: API request failed with status 429: Too many requests"
-            mock_result.stdout = ""
-            mock_run.return_value = mock_result
+        P0-3 fix (audit V4): with the new ZAIHTTPRouter (which uses httpx,
+        not subprocess), the router picks ZAIHTTPRouter first. This test
+        must disable the HTTP router so it falls through to the CLI router
+        that the subprocess mock targets.
+        """
+        import os as _os
+        _saved_ollama_host = _os.environ.pop("OLLAMA_HOST", None)
+        _saved_ollama_model = _os.environ.pop("OLLAMA_MODEL", None)
+        try:
+            from maestro_personal_shell.llm_bridge import llm_complete, reset_llm_router, ZAIHTTPRouter
+            # Disable ZAIHTTPRouter so the test exercises the CLI path
+            with patch.object(ZAIHTTPRouter, "health_check", return_value=False):
+                reset_llm_router()
 
-            import asyncio
-            result = asyncio.run(llm_complete(
-                system="test",
-                user="test",
-            ))
-            # Should return None (graceful fallback) — NOT raise an exception
-            assert result is None, (
-                "llm_complete should return None on rate limit, not crash. "
-                "This allows the rule-based fallback to kick in."
-            )
+                # Mock the subprocess to simulate a 429 rate limit
+                with patch("subprocess.run") as mock_run:
+                    mock_result = MagicMock()
+                    mock_result.returncode = 1
+                    mock_result.stderr = "Error: API request failed with status 429: Too many requests"
+                    mock_result.stdout = ""
+                    mock_run.return_value = mock_result
+
+                    import asyncio
+                    result = asyncio.run(llm_complete(
+                        system="test",
+                        user="test",
+                    ))
+                    # Should return None (graceful fallback) — NOT raise an exception
+                    assert result is None, (
+                        "llm_complete should return None on rate limit, not crash. "
+                        "This allows the rule-based fallback to kick in."
+                    )
+        finally:
+            if _saved_ollama_host is not None:
+                _os.environ["OLLAMA_HOST"] = _saved_ollama_host
+            if _saved_ollama_model is not None:
+                _os.environ["OLLAMA_MODEL"] = _saved_ollama_model
+            from maestro_personal_shell.llm_bridge import reset_llm_router as _reset
+            _reset()
 
     def test_llm_complete_works_when_api_responds(self):
         """When the ZAI API responds successfully, llm_complete should
@@ -116,44 +135,64 @@ class TestLLMProviderWiring:
         through to the z-ai CLI path (which is what this test mocks). With
         OLLAMA_HOST set, the router picks Ollama first and the mock never
         fires — producing a false negative.
+
+        P0-3 fix (audit V4 2026-07-15): with the new ZAIHTTPRouter (which
+        uses httpx, not subprocess), the router picks ZAIHTTPRouter first.
+        This test must now mock the ZAIHTTPRouter's _complete_sync method
+        directly, or disable the HTTP router so it falls through to the
+        CLI router that the subprocess mock targets.
         """
         import os as _os
         _saved_ollama_host = _os.environ.pop("OLLAMA_HOST", None)
         _saved_ollama_model = _os.environ.pop("OLLAMA_MODEL", None)
+        # Disable the ZAIHTTPRouter so the test exercises the CLI path
+        # (which is what subprocess.run mocks). Set a flag that makes
+        # ZAIHTTPRouter.health_check() return False.
+        _saved_zai_config = _os.environ.get("MAESTRO_DISABLE_ZAI_HTTP")
+        _os.environ["MAESTRO_DISABLE_ZAI_HTTP"] = "1"
         try:
-            from maestro_personal_shell.llm_bridge import llm_complete, reset_llm_router
-            reset_llm_router()
+            from maestro_personal_shell.llm_bridge import llm_complete, reset_llm_router, ZAIHTTPRouter
 
-            # Mock subprocess to simulate a successful API response
-            with patch("subprocess.run") as mock_run:
-                mock_result = MagicMock()
-                mock_result.returncode = 0
-                mock_result.stderr = ""
-                mock_result.stdout = ""
+            # Patch ZAIHTTPRouter.health_check to return False so the router
+            # falls through to the CLI-based ZAIRouter (which uses subprocess.run)
+            with patch.object(ZAIHTTPRouter, "health_check", return_value=False):
+                reset_llm_router()
 
-                # Mock the output file
-                import json as _json
-                def mock_open_fn(path, *args, **kwargs):
-                    from io import StringIO
-                    return StringIO(_json.dumps({
-                        "choices": [{"message": {"content": "LLM response works"}}]
-                    }))
-                mock_run.return_value = mock_result
+                # Mock subprocess to simulate a successful API response
+                with patch("subprocess.run") as mock_run:
+                    mock_result = MagicMock()
+                    mock_result.returncode = 0
+                    mock_result.stderr = ""
+                    mock_result.stdout = ""
 
-                with patch("builtins.open", side_effect=mock_open_fn):
-                    import asyncio
-                    result = asyncio.run(llm_complete(
-                        system="You are a test.",
-                        user="Say hello.",
-                    ))
-                    assert result is not None, "Should return response when API works"
-                    assert "LLM response works" in str(result)
+                    # Mock the output file
+                    import json as _json
+                    def mock_open_fn(path, *args, **kwargs):
+                        from io import StringIO
+                        return StringIO(_json.dumps({
+                            "choices": [{"message": {"content": "LLM response works"}}]
+                        }))
+                    mock_run.return_value = mock_result
+
+                    with patch("builtins.open", side_effect=mock_open_fn):
+                        import asyncio
+                        result = asyncio.run(llm_complete(
+                            system="You are a test.",
+                            user="Say hello.",
+                        ))
+                        assert result is not None, "Should return response when API works"
+                        assert "LLM response works" in str(result)
         finally:
             # Restore env vars so other tests can use Ollama
             if _saved_ollama_host is not None:
                 _os.environ["OLLAMA_HOST"] = _saved_ollama_host
             if _saved_ollama_model is not None:
                 _os.environ["OLLAMA_MODEL"] = _saved_ollama_model
+            # Restore ZAI HTTP disable flag
+            if _saved_zai_config is not None:
+                _os.environ["MAESTRO_DISABLE_ZAI_HTTP"] = _saved_zai_config
+            else:
+                _os.environ.pop("MAESTRO_DISABLE_ZAI_HTTP", None)
             from maestro_personal_shell.llm_bridge import reset_llm_router as _reset
             _reset()
 
