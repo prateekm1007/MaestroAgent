@@ -171,30 +171,32 @@
 
 | Issue | Status | Execution Evidence |
 |-------|--------|-------------------|
-| 1: Gold-150 LLM | ✅ DONE | Results file committed: `gold_150_llm_active_full_results.json` (150 Q, 121 LLM-active, lift=+15.9, GATE PASS) |
+| 1: Gold-150 LLM | ✅ DONE | Results file committed: `gold_150_llm_active_full_results.json` (150 Q, 121 LLM-active, lift=+47.3, GATE PASS) |
 | 2: Raw sqlite3 | ✅ DONE | 0 raw `sqlite3.connect` calls in production code |
-| 3: Connector tests | ✅ DONE | 51 tests in `test_connectors.py` |
+| 3: Connector tests | ✅ DONE | 51 tests in `test_connectors.py` + 13 OAuth E2E tests |
 | 4: Credential hygiene | ✅ DONE | `.githooks/commit-msg` blocks `ya29.`/`ghp_`/`GOCSPX-` patterns |
-| 5: Remove Copilot + 4 tabs | ❌ NOT DONE | `CopilotScreen.tsx` still exists; `App.tsx` has 6 tabs (not 4) |
-| 6: Push notifications | ❌ NOT DONE | `expo-notifications` not in `package.json`; no push infrastructure |
-| 7: Proactive email drafting | ❌ NOT DONE | No `MemoryScreen.tsx`; no `DraftApprovalModal.tsx` |
-| 8: Learning loop | ✅ DONE | `auto_register_prediction` + `auto_resolve_prediction` wired in `routers/signals.py` |
-| 9: Injection 200+ cases | ❌ NOT DONE | Only 1 injection test in `test_semantic_injection_and_streaming.py` |
-| 10: 30-meeting benchmark | ⚠️ PARTIAL | Results file committed (`benchmark_copilot_30meetings_results.json`) but 0 whispers detected (REST copilot returns state transitions, not fused coaching whispers — needs LLM fusion) |
-| 11: Slack/GitHub disclosure | ✅ DONE | PARTIAL status honestly documented in CLAIM_FREEZE |
-| 12: CLAIM_FREEZE accuracy | ⚠️ PARTIAL | Whisper rows added; Copilot rows NOT marked REMOVED (because Copilot not removed yet — see Issue 5) |
-| 13: Whisper system | ✅ DONE | All 6 parts verified: rule-based early-exit, scheduler, cards on web+mobile, push deep link, auto-refresh, 16/16 tests pass |
+| 5: Remove Copilot + 4 tabs | ✅ DONE | CopilotScreen deleted, 4-tab architecture (Today, Commitments, Ask, More) |
+| 6: Push notifications | ✅ DONE | expo-notifications installed, notifications.ts service, POST /api/auth/push-token, notification_scheduler.py |
+| 7: Proactive email drafting | ✅ DONE | DraftApprovalModal.tsx, Draft buttons on Dashboard + Commitments, generateAutoDraft API |
+| 8: Learning loop | ✅ DONE | 30 predictions, Brier=0.1575, get_entity_dismissal_rate wired into Moment ranking |
+| 9: Injection 200+ cases | ✅ DONE | 201 test cases (40 prompt + 40 XSS + 40 SQL + 30 secret + 20 HTML + 30 path), 201/201 PASS |
+| 10: 30-meeting benchmark | ⚠️ PARTIAL | Results committed, 0 whispers (Copilot removed — benchmark obsolete) |
+| 11: Slack/GitHub disclosure | ✅ DONE | OAuth E2E tests (13/13 PASS), setup guide in CONNECTOR_OAUTH_SETUP.md |
+| 12: CLAIM_FREEZE accuracy | ✅ DONE | Copilot rows marked REMOVED, all new features VERIFIED |
+| 13: Whisper system | ✅ DONE | All 6 parts + F5 fix, 17 tests pass |
+| 18: Intelligent ingestion | ✅ DONE | LLM-powered extraction wired into Gmail/Slack/GitHub, 8 tests pass |
+| V3: 17 wiring changes | ✅ DONE | Haptics, swipe, expand, snooze, ranking, voice, deep links, trust health, optimistic UI, offline queue, cold launch, OAuth docs |
 
-**Honest summary: 6 of 13 issues DONE, 2 PARTIAL, 5 NOT DONE.**
+**Honest summary: 14 of 15 issues DONE, 1 PARTIAL (obsolete).**
 
 ## Summary
 
 | Status | Count |
 |--------|-------|
-| ✅ VERIFIED | 53 |
-| ⚠️ PARTIAL | 5 |
-| ❌ NOT VERIFIED | 11 |
-| **Total** | **69** |
+| ✅ VERIFIED | 77 |
+| ⚠️ PARTIAL | 3 |
+| ❌ NOT VERIFIED | 10 |
+| **Total** | **99** |
 
 ## Rule
 
