@@ -217,3 +217,41 @@ async def rotate_token(token: str = Depends(verify_token_dep)):
         "old_tokens_revoked": old_count,
         "message": "Token rotated. Use the new token for subsequent requests.",
     }
+
+
+# ---------------------------------------------------------------------------
+# Issue 6: Push token registration
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel
+
+
+class PushTokenRequest(BaseModel):
+    push_token: str
+
+
+@router.post("/push-token")
+async def register_push_token(req: PushTokenRequest, token: str = Depends(verify_token_dep)):
+    """Store the user's Expo push token for sending notifications.
+
+    Issue 6: Called by the mobile app on login to register the device
+    for push notifications. The notification_scheduler uses these tokens
+    to send stale-commitment alerts.
+    """
+    from maestro_personal_shell.db_util import get_db_conn
+    from datetime import datetime, timezone
+    import os
+
+    db_path = os.environ.get("MAESTRO_PERSONAL_DB", "personal.db")
+    db = get_db_conn(db_path)
+    try:
+        db.execute(
+            "INSERT OR REPLACE INTO push_tokens (user_email, expo_token, created_at, active) "
+            "VALUES (?, ?, ?, 1)",
+            (token, req.push_token, datetime.now(timezone.utc).isoformat()),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    return {"registered": True, "user_email": token}

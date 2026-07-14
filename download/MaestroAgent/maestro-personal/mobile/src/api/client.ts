@@ -861,3 +861,21 @@ export async function resolveDraft(draftId: string, resolution: 'approve' | 'den
   });
   return response.data;
 }
+
+// ─── Issue 5/6/7: Proactive drafting + push notifications ───────────
+
+export async function generateAutoDraft(provider: string, recipient: string, token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/drafts/auto', { provider, recipient }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function registerPushToken(pushToken: string, token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/auth/push-token', { push_token: pushToken }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}

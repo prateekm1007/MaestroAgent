@@ -85,17 +85,19 @@
 
 | Claim | Status | Evidence | Action |
 |-------|--------|----------|--------|
-| Consent manager (modal before recording) | ✅ VERIFIED | CopilotScreen.tsx has consent modal | — |
-| Audio capture (expo-av) | ✅ VERIFIED | startRecording/stopRecording use expo-av | — |
-| Streaming STT (5-second chunks) | ✅ VERIFIED | uploadAndRestartSegment() uploads every 5s | — |
-| Wit.ai transcription | ✅ VERIFIED | Real token, audio→text→commitment detection verified | — |
-| WebSocket URL from config | ✅ VERIFIED | WS URL derived from api.getHost() | — |
+| Consent manager (modal before recording) | REMOVED | Copilot removed from mobile app v2. Browser extension is the future Copilot surface. | — |
+| Audio capture (expo-av) | REMOVED | Copilot removed from mobile app v2. Backend audio_transcription.py retained for future browser extension. | — |
+| Streaming STT (5-second chunks) | REMOVED | Copilot removed from mobile app v2. | — |
+| Wit.ai transcription | REMOVED | Copilot removed from mobile app v2. Backend audio_transcription.py retained. | — |
+| WebSocket URL from config | REMOVED | Copilot removed from mobile app v2. | — |
 | Evidence-backed whispers | ✅ VERIFIED | Whispers include evidence_refs, confidence, entity | — |
 | 3 whisper types (Critical/Suggestion/Ack) | ✅ VERIFIED | Red/yellow/muted borders in UI | — |
-| Post-call summary modal | ✅ VERIFIED | PostCallSummaryUI + /api/copilot/post-call-ui | — |
+| Post-call summary modal | REMOVED | Copilot removed from mobile app v2. | — |
 | Follow-up email generator | ✅ VERIFIED | FollowUpEmailGenerator + /api/copilot/follow-up-email | — |
-| Privacy disclosure honest | ✅ VERIFIED | Consent says audio IS uploaded for transcription | — |
-| 30-meeting benchmark | ❌ NOT VERIFIED | Needs real meetings | Phase 6 |
+| Privacy disclosure honest | REMOVED | Copilot removed from mobile app v2. | — |
+| 30-meeting benchmark | REMOVED | Copilot removed from mobile app v2. | — |
+| Proactive email drafting | ✅ VERIFIED | Draft button on CommitmentsScreen + DashboardScreen The Moment card. Calls POST /api/drafts/auto, shows DraftApprovalModal (Approve & Send / Use as Draft / Discard). generateAutoDraft + resolveDraft API methods in client.ts. | — |
+| Push notifications | ✅ VERIFIED | expo-notifications installed, notifications.ts service (registerForPushNotifications + setupNotificationHandler), POST /api/auth/push-token backend endpoint, notification_scheduler.py (hourly stale-commitment checker), push_tokens + notified_stale tables, wired into API lifespan. | — |
 | Whisper latency p95 < 1.5s | ✅ VERIFIED | Issue 13-A: `_should_whisper_rule_based()` early-exit function skips LLM for critical/high-priority (always whisper) and low-value types (never whisper). Only borderline medium-priority calls the LLM gate. Expected latency: <200ms for majority of calls (was 10-25s). 4/4 rule-based tests pass. | — |
 | Whisper background scheduler | ✅ VERIFIED | Issue 13-B: `whisper_scheduler.py` (190 lines) — runs hourly via API lifespan, generates whispers via WhisperSurface, deduplicates via `notified_whispers` table, sends push notifications via Expo. DB init + hash dedup + mark_notified all tested. | — |
 | Whisper cards on Dashboard | ✅ VERIFIED | Issue 13-C: `WhisperCards` component in Dashboard.tsx — "💌 Needs Attention (N)" section below The Moment card. Each whisper has entity + priority + body + "✉ Draft follow-up" button. Priority-colored borders (rose/amber/blue). Auto-refreshes every 60s (Issue 13-E). | — |

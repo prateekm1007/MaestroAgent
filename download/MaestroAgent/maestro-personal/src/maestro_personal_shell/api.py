@@ -286,6 +286,23 @@ def init_db(db_path: str = DB_PATH) -> None:
             active INTEGER DEFAULT 1
         )
     """)
+    # Issue 6: push_tokens table for Expo push notifications
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS push_tokens (
+            user_email TEXT NOT NULL,
+            expo_token TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            active INTEGER DEFAULT 1,
+            PRIMARY KEY (user_email, expo_token)
+        )
+    """)
+    # Issue 6: notified_stale table for dedup of stale commitment alerts
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS notified_stale (
+            signal_id TEXT PRIMARY KEY,
+            notified_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -771,10 +788,22 @@ async def lifespan(app: FastAPI):
         logger.warning("Whisper scheduler failed to start (non-fatal): %s", e)
         _whisper_task = None
 
+    # Issue 6: Start notification scheduler background loop.
+    # Runs hourly, checks for stale commitments, sends push notifications.
+    try:
+        from maestro_personal_shell.notification_scheduler import notification_loop
+        _notif_task = _asyncio.create_task(notification_loop(interval_seconds=3600))
+        logger.info("Notification scheduler started (hourly cycle)")
+    except Exception as e:
+        logger.warning("Notification scheduler failed to start (non-fatal): %s", e)
+        _notif_task = None
+
     yield  # App runs here
     # Shutdown
     if _whisper_task:
         _whisper_task.cancel()
+    if _notif_task:
+        _notif_task.cancel()
 
 
 # MEDIUM-3 fix (independent audit): disable /docs, /openapi.json, /redoc in

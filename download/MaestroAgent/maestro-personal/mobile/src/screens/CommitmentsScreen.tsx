@@ -26,6 +26,7 @@ import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, Badge, TopBar } from '../components';
 import { ErrorState, LoadingState, EmptyState } from '../components/ErrorState';
+import { DraftApprovalModal } from '../components/DraftApprovalModal';
 import { styles } from '../styles';
 
 // Android LayoutAnimation enable (for swipe-off removal animation).
@@ -222,6 +223,20 @@ export default function CommitmentsScreen() {
     );
   };
 
+  // ── Issue 7: Proactive email drafting ─────────────────────────────
+  const [draftModal, setDraftModal] = React.useState<{ visible: boolean; draft: any }>({ visible: false, draft: null });
+
+  const handleDraft = async (entity: string) => {
+    if (!entity) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const result = await api.generateAutoDraft('gmail', entity);
+      setDraftModal({ visible: true, draft: result });
+    } catch (e) {
+      Alert.alert('Error', 'Failed to generate draft. Is the backend running?');
+    }
+  };
+
   // Swipe handlers — bypass the Alert confirm for speed. Haptic is fired
   // in the card itself; the actual API call happens here.
   const handleSwipeComplete = async (signalId: string) => {
@@ -365,6 +380,15 @@ export default function CommitmentsScreen() {
                     >
                       <Text style={{ color: t.textSecondary, fontSize: 12, fontWeight: '600' }}>✕ Dismiss</Text>
                     </TouchableOpacity>
+                    {/* Issue 7: Draft email button */}
+                    <TouchableOpacity
+                      onPress={() => handleDraft(c.entity)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Draft email to ${c.entity}`}
+                      accessibilityHint="Generates a commitment-aware email draft"
+                    >
+                      <Text style={{ color: colors.yellow, fontSize: 12, fontWeight: '600' }}>✉ Draft</Text>
+                    </TouchableOpacity>
                   </View>
                 </SwipeableCommitmentCard>
               ))
@@ -372,6 +396,12 @@ export default function CommitmentsScreen() {
           </>
         )}
       </ScrollView>
+      {/* Issue 7: Draft approval modal */}
+      <DraftApprovalModal
+        visible={draftModal.visible}
+        draft={draftModal.draft}
+        onClose={() => setDraftModal({ visible: false, draft: null })}
+      />
     </SafeAreaView>
   );
 }

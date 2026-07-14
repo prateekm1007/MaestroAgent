@@ -59,7 +59,10 @@ describe('Mobile app — PRODUCTION structure', () => {
     test('has AskScreen', () => expect(readScreen('AskScreen')).toMatch(/function AskScreen/));
     test('has CommitmentsScreen', () => expect(readScreen('CommitmentsScreen')).toMatch(/function CommitmentsScreen/));
     test('has SignalsScreen', () => expect(readScreen('SignalsScreen')).toMatch(/function SignalsScreen/));
-    test('has CopilotScreen', () => expect(readScreen('CopilotScreen')).toMatch(/function CopilotScreen/));
+    test('CopilotScreen is removed', () => {
+      const p = path.join(ROOT, 'src', 'screens', 'CopilotScreen.tsx');
+      expect(fs.existsSync(p)).toBe(false);
+    });
     test('has SettingsScreen', () => expect(readScreen('SettingsScreen')).toMatch(/function SettingsScreen/));
     test('has ThemeProvider with light mode default (Bumble-inspired)', () => {
       expect(contextsSource).toMatch(/function ThemeProvider/);

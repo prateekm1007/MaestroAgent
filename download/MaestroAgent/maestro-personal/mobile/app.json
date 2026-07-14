@@ -32,7 +32,8 @@
       ]
     },
     "plugins": [
-      "expo-av"
+      "expo-av",
+      "expo-notifications"
     ],
     "web": {
       "bundler": "metro",

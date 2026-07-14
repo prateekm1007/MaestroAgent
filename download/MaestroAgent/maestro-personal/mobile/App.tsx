@@ -1,17 +1,14 @@
 /**
- * Maestro Personal — Production Mobile App (modular root).
+ * Maestro Personal — Production Mobile App (5-tab, Copilot removed).
  *
- * Phase 2: Added OnboardingProvider + QueryClientProvider.
+ * Issue 5 (corrected): Copilot REMOVED. 5 tabs: Dashboard, Ask,
+ * Commitments, Connectors, Settings. No restructuring — just remove
+ * Copilot and add Draft + Notifications features to existing screens.
  *
  * Structure:
- *   SafeAreaProvider
- *     → ThemeProvider (light/dark)
- *       → OnboardingProvider (first-launch flow)
- *         → AuthProvider (SecureStore token)
- *           → ConsentProvider (mic consent)
- *             → QueryClientProvider (react-query offline cache)
- *               → NavigationContainer
- *                 → OnboardingScreen | LoginScreen | TabNavigator
+ *   SafeAreaProvider → ThemeProvider → OnboardingProvider → AuthProvider
+ *     → ConsentProvider → QueryClientProvider → NavigationContainer
+ *       → OnboardingScreen | LoginScreen | TabNavigator(5 tabs)
  */
 
 import React from 'react';
@@ -33,20 +30,14 @@ import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import AskScreen from './src/screens/AskScreen';
 import CommitmentsScreen from './src/screens/CommitmentsScreen';
-import CopilotScreen from './src/screens/CopilotScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
 import ConnectorsScreen from './src/screens/ConnectorsScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
-// react-query client (offline cache + stale-while-revalidate)
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30_000, gcTime: 5 * 60_000, retry: 2 },
   },
 });
-
-// ═══════════════════════════════════════════════════════════════════
-// NAVIGATION
-// ═══════════════════════════════════════════════════════════════════
 
 const Tab = createBottomTabNavigator();
 
@@ -66,16 +57,11 @@ function TabNavigator() {
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="home" size={22} color={color} /> }} />
       <Tab.Screen name="Ask" component={AskScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="search" size={22} color={color} /> }} />
       <Tab.Screen name="Commitments" component={CommitmentsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="checkmark-circle" size={22} color={color} /> }} />
-      <Tab.Screen name="Copilot" component={CopilotScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="chatbubbles" size={22} color={color} /> }} />
       <Tab.Screen name="Connectors" component={ConnectorsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="link" size={22} color={color} /> }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: ({ color }) => <Ionicons name="settings" size={22} color={color} /> }} />
     </Tab.Navigator>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// APP ROOT
-// ═══════════════════════════════════════════════════════════════════
 
 function AppInner() {
   const { token } = useAuth();

@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, SafeAreaView, AccessibilityInfo,
+  View, Text, ScrollView, TouchableOpacity, SafeAreaView, AccessibilityInfo, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +31,7 @@ import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, Badge, TopBar } from '../components';
 import { ErrorState, LoadingState, EmptyState } from '../components/ErrorState';
+import { DraftApprovalModal } from '../components/DraftApprovalModal';
 import { styles } from '../styles';
 
 export default function DashboardScreen() {
@@ -88,6 +89,20 @@ export default function DashboardScreen() {
       // Invalidate the moment query so react-query refetches.
       qc.invalidateQueries({ queryKey: ['moment'] });
     } catch (e) { /* ignore */ }
+  };
+
+  // ── Issue 7: Proactive email drafting ─────────────────────────────
+  const [draftModal, setDraftModal] = React.useState<{ visible: boolean; draft: any }>({ visible: false, draft: null });
+
+  const handleDraft = async (entity: string) => {
+    if (!entity) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const result = await api.generateAutoDraft('gmail', entity);
+      setDraftModal({ visible: true, draft: result });
+    } catch (e) {
+      Alert.alert('Error', 'Failed to generate draft. Is the backend running?');
+    }
   };
 
   // Silence unused-var lint while preserving the original quick-ask field shape.
@@ -154,6 +169,17 @@ export default function DashboardScreen() {
                 >
                   <Ionicons name="close" size={24} color={t.textSecondary} />
                   <Text style={[styles.actionLabel, { color: t.textSecondary }]}>Skip</Text>
+                </TouchableOpacity>
+                {/* Issue 7: Draft email button */}
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.yellow }]}
+                  onPress={() => handleDraft(moment.commitment!.entity)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Draft email about this commitment"
+                  accessibilityHint="Generates a commitment-aware email draft"
+                >
+                  <Ionicons name="mail" size={24} color={colors.black} />
+                  <Text style={[styles.actionLabel, { color: colors.black }]}>Draft</Text>
                 </TouchableOpacity>
               </View>
             </Card>
@@ -231,6 +257,12 @@ export default function DashboardScreen() {
           <Ionicons name="arrow-forward" size={18} color={colors.yellow} />
         </TouchableOpacity>
       </ScrollView>
+      {/* Issue 7: Draft approval modal */}
+      <DraftApprovalModal
+        visible={draftModal.visible}
+        draft={draftModal.draft}
+        onClose={() => setDraftModal({ visible: false, draft: null })}
+      />
     </SafeAreaView>
   );
 }
