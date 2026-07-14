@@ -10,16 +10,18 @@
  * UI/logic is otherwise unchanged.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Alert, SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
 import { useAsk } from '../api/hooks';
+import * as api from '../api/client';
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { Card, ConfidenceBar, TopBar } from '../components';
@@ -33,6 +35,8 @@ export default function AskScreen() {
   const navigation = useNavigation<any>();
   const [query, setQuery] = useState('');
   const [history, setHistory] = useState<string[]>([]);
+  const [recording, setRecording] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   // ── react-query mutation (replaces manual try/catch + loading) ─────
   const askMutation = useAsk();
@@ -80,6 +84,57 @@ export default function AskScreen() {
     });
   };
 
+  // Change 6: Voice input — mic button that records + transcribes
+  const handleVoiceInput = async () => {
+    if (recording) {
+      const rec = recordingRef.current;
+      if (!rec) return;
+      try {
+        await rec.stopAndUnloadAsync();
+        const uri = rec.getURI();
+        setRecording(false);
+        recordingRef.current = null;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (uri) {
+          const formData = new FormData();
+          formData.append('file', { uri, type: 'audio/m4a', name: 'ask-voice.m4a' } as any);
+          const host = (api as any).getHost ? (api as any).getHost() : 'http://localhost:8766';
+          const response = await fetch(`${host}/api/copilot/transcribe`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          });
+          const result = await response.json();
+          if (result.text && result.text.trim()) {
+            setQuery(result.text.trim());
+            handleAsk(result.text.trim());
+          }
+        }
+      } catch (e) {
+        Alert.alert('Error', 'Transcription failed. Try typing instead.');
+        setRecording(false);
+        recordingRef.current = null;
+      }
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      try {
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Microphone access is required for voice input.');
+          return;
+        }
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true } as any);
+        const rec = new Audio.Recording();
+        await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        await rec.startAsync();
+        recordingRef.current = rec;
+        setRecording(true);
+      } catch (e) {
+        Alert.alert('Error', 'Failed to start recording.');
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
       <TopBar title="Ask" />
@@ -110,6 +165,16 @@ export default function AskScreen() {
             ) : (
               <Ionicons name="arrow-forward" size={20} color={colors.yellow} />
             )}
+          </TouchableOpacity>
+          {/* Change 6: Voice input mic button */}
+          <TouchableOpacity
+            onPress={handleVoiceInput}
+            style={{ paddingRight: spacing.md }}
+            accessibilityLabel={recording ? 'Stop recording' : 'Voice input'}
+            accessibilityRole="button"
+            accessibilityHint={recording ? 'Tap to stop and transcribe' : 'Tap to speak your question'}
+          >
+            <Ionicons name={recording ? 'stop' : 'mic'} size={20} color={recording ? colors.alertRed : colors.yellow} />
           </TouchableOpacity>
         </View>
 

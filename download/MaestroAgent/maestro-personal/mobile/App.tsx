@@ -8,8 +8,8 @@
  * - More: MoreScreen (connectors, settings, privacy, account)
  */
 
-import React from 'react';
-import { StatusBar } from 'react-native';
+import React, { useEffect } from 'react';
+import { StatusBar, InteractionManager } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,6 +62,18 @@ function AppInner() {
   const { token } = useAuth();
   const { mode } = useTheme();
   const { hasOnboarded } = useOnboarding();
+
+  // Change 14: Cold launch optimization — defer non-critical init
+  useEffect(() => {
+    if (!token) return;
+    // Critical: The Moment is fetched immediately by the DashboardScreen
+    // Non-critical: defer push notification registration until after first render
+    InteractionManager.runAfterInteractions(() => {
+      import('./src/services/notifications').then(({ registerForPushNotifications }) => {
+        registerForPushNotifications().catch(() => { /* non-fatal */ });
+      });
+    });
+  }, [token]);
 
   return (
     <>

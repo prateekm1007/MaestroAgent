@@ -12,13 +12,14 @@
  * UI/logic is otherwise unchanged.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Alert, SafeAreaView,
   Animated, PanResponder, StyleSheet, LayoutAnimation, UIManager, Platform,
   FlatList,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import * as api from '../api/client';
 import { useTheOne, useCommitments, useSignals } from '../api/hooks';
@@ -209,6 +210,23 @@ export default function CommitmentsScreen() {
   const commitments: api.Commitment[] = commitmentsQ.data ?? [];
   const signals: any[] = signalsQ.data ?? [];
 
+  // Change 10: Trust health per entity
+  const entityHealth = useMemo(() => {
+    const groups: Record<string, { commitments: any[]; maxStatus: 'green' | 'yellow' | 'red' }> = {};
+    (commitments || []).forEach((c: any) => {
+      const entity = c.entity || 'Unknown';
+      if (!groups[entity]) groups[entity] = { commitments: [], maxStatus: 'green' };
+      groups[entity].commitments.push(c);
+      const daysStale = c.days_stale || 0;
+      if (daysStale > 5 || c.status === 'broken') {
+        groups[entity].maxStatus = 'red';
+      } else if (daysStale > 2 && groups[entity].maxStatus !== 'red') {
+        groups[entity].maxStatus = 'yellow';
+      }
+    });
+    return groups;
+  }, [commitments]);
+
   const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss' | 'cancel') => {
     if (!token || !signalId) return;
     Alert.alert(
@@ -245,24 +263,60 @@ export default function CommitmentsScreen() {
 
   // Swipe handlers — bypass the Alert confirm for speed. Haptic is fired
   // in the card itself; the actual API call happens here.
+  // Change 11: Optimistic UI — immediately remove card, rollback on error
+  // Change 15: Offline write queue — failed actions saved to AsyncStorage for retry
   const handleSwipeComplete = async (signalId: string) => {
     if (!token || !signalId) return;
+    // Optimistic: immediately remove from cache
+    const previous = qc.getQueryData(['commitments']);
+    qc.setQueryData(['commitments'], (old: any[]) => old?.filter(c => c.signal_id !== signalId) || []);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     try {
       await api.correctSignal(signalId, 'complete');
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       qc.invalidateQueries({ queryKey: ['theOne'] });
       qc.invalidateQueries({ queryKey: ['commitments'] });
-    } catch (e) { /* ignore — react-query will surface via stale data */ }
+      // Clear any pending action for this ID
+      try { await AsyncStorage.removeItem(`pending_action_${signalId}`); } catch { /* ignore */ }
+    } catch (e: any) {
+      // Change 15: If network error, queue for retry instead of rolling back
+      const isNetworkError = e?.message?.includes('Network') || e?.message?.includes('timeout');
+      if (isNetworkError) {
+        // Save to AsyncStorage queue — will retry on next app launch
+        try {
+          await AsyncStorage.setItem(`pending_action_${signalId}`, JSON.stringify({ id: signalId, action: 'complete' }));
+        } catch { /* ignore */ }
+        Alert.alert('Offline', 'Saved. Will sync when you reconnect.');
+      } else {
+        // Non-network error: rollback
+        qc.setQueryData(['commitments'], previous);
+        Alert.alert('Error', 'Failed to update. Please try again.');
+      }
+    }
   };
 
   const handleSwipeDismiss = async (signalId: string) => {
     if (!token || !signalId) return;
+    // Optimistic: immediately remove from cache
+    const previous = qc.getQueryData(['commitments']);
+    qc.setQueryData(['commitments'], (old: any[]) => old?.filter(c => c.signal_id !== signalId) || []);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     try {
       await api.correctSignal(signalId, 'dismiss');
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       qc.invalidateQueries({ queryKey: ['theOne'] });
       qc.invalidateQueries({ queryKey: ['commitments'] });
-    } catch (e) { /* ignore */ }
+      try { await AsyncStorage.removeItem(`pending_action_${signalId}`); } catch { /* ignore */ }
+    } catch (e: any) {
+      const isNetworkError = e?.message?.includes('Network') || e?.message?.includes('timeout');
+      if (isNetworkError) {
+        try {
+          await AsyncStorage.setItem(`pending_action_${signalId}`, JSON.stringify({ id: signalId, action: 'dismiss' }));
+        } catch { /* ignore */ }
+        Alert.alert('Offline', 'Saved. Will sync when you reconnect.');
+      } else {
+        qc.setQueryData(['commitments'], previous);
+        Alert.alert('Error', 'Failed to update. Please try again.');
+      }
+    }
   };
 
   const isLoading = theOneQ.isLoading && commitmentsQ.isLoading;
@@ -399,6 +453,16 @@ export default function CommitmentsScreen() {
                       accessibilityRole="text"
                       accessibilityLabel={c.entity}
                     >{c.entity}</Text>
+                    {/* Change 10: Trust health badge per entity */}
+                    {entityHealth[c.entity]?.maxStatus === 'red' && (
+                      <Text style={{ fontSize: 9, color: colors.alertRed, fontWeight: '700', marginRight: 4 }}>🔴 Trust at risk</Text>
+                    )}
+                    {entityHealth[c.entity]?.maxStatus === 'yellow' && (
+                      <Text style={{ fontSize: 9, color: colors.yellow, fontWeight: '600', marginRight: 4 }}>🟡 Needs attention</Text>
+                    )}
+                    {entityHealth[c.entity]?.maxStatus === 'green' && (
+                      <Text style={{ fontSize: 9, color: colors.successGreen, fontWeight: '600', marginRight: 4 }}>🟢</Text>
+                    )}
                     {c.deadline ? <Badge text={c.deadline} color="yellow" /> : null}
                   </View>
                   <Text
