@@ -18,12 +18,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import * as api from '../api/client';
@@ -52,30 +46,23 @@ export default function DashboardScreen() {
   const shifts: api.WhatChangedShift[] = shiftsQ.data?.secondary ?? [];
   const briefing = briefingQ.data ?? null;
 
-  // ── Reanimated mount animation for the Moment card ─────────────────
-  // Subtle fade-in + spring scale-up. Premium feel — not flashy.
-  // Phase 7 (a11y): skip the animation entirely when the user has
-  // "Reduce Motion" enabled in system settings. The card still renders
-  // (just with its final opacity/scale) so the content is identical.
-  const cardOpacity = useSharedValue(0);
-  const cardScale = useSharedValue(0.96);
+  // ── Card mount animation (React Native built-in Animated) ─────────
+  // Replaced react-native-reanimated with RN's built-in Animated to fix
+  // "runtime not ready: error exception in hostobject get for prop
+  // renamited module" crash in Expo Go.
+  const cardOpacity = useRef(new RNAnimated.Value(0)).current;
+  const cardScale = useRef(new RNAnimated.Value(0.96)).current;
   useEffect(() => {
-    // AccessibilityInfo.isReduceMotionEnabled() resolves to a boolean —
-    // when true, we jump straight to the final values instead of animating.
     AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
       if (reduce) {
-        cardOpacity.value = 1;
-        cardScale.value = 1;
+        RNAnimated.timing(cardOpacity, { toValue: 1, duration: 0, useNativeDriver: false }).start();
+        RNAnimated.timing(cardScale, { toValue: 1, duration: 0, useNativeDriver: false }).start();
       } else {
-        cardOpacity.value = withTiming(1, { duration: 400 });
-        cardScale.value = withSpring(1, { damping: 18, stiffness: 160 });
+        RNAnimated.timing(cardOpacity, { toValue: 1, duration: 400, useNativeDriver: false }).start();
+        RNAnimated.spring(cardScale, { toValue: 1, damping: 18, stiffness: 160, useNativeDriver: false }).start();
       }
     });
   }, [cardOpacity, cardScale]);
-  const cardAnimStyle = useAnimatedStyle(() => ({
-    opacity: cardOpacity.value,
-    transform: [{ scale: cardScale.value }],
-  }));
 
   const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss') => {
     if (!token || !signalId) return;
