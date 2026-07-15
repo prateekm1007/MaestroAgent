@@ -60,12 +60,6 @@
       "eas": {
         "projectId": ""
       }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": ""
     }
   }
 }
