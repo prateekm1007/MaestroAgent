@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo/cli": "^57.0.6",
     "@expo/metro-runtime": "~5.0.5",
     "@expo/vector-icons": "^14.0.0",
     "@hookform/resolvers": "^3.9.0",
