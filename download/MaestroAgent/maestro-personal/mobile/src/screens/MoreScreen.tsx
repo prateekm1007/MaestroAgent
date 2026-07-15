@@ -107,26 +107,22 @@ export default function MoreScreen() {
     try {
       const result = await api.connectProvider(provider, '');
       if (result.oauth_required && result.authorization_url) {
-        // P0-3 fix: use expo-web-browser's openAuthSessionAsync for proper
-        // mobile OAuth. This opens an in-app browser, waits for the redirect
-        // back to the app, and returns the redirect URL. The backend's
-        // OAuth callback handles the token exchange.
         const redirectUrl = 'maestro://oauth/callback';
         const authUrl = result.authorization_url +
           (result.authorization_url.includes('?') ? '&' : '?') +
           `redirect_uri=${encodeURIComponent(redirectUrl)}`;
-        
+
         const browserResult = await WebBrowser.openAuthSessionAsync(
           authUrl,
           redirectUrl,
         );
-        
+
         if (browserResult.type === 'success') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert('Connected', `${provider} is now connected.`);
           queryClient.invalidateQueries({ queryKey: ['connectors'] });
         } else if (browserResult.type === 'cancel') {
-          // User cancelled — no alert needed
+          // User cancelled
         } else {
           Alert.alert('Authentication incomplete', 'Please try again.');
         }
@@ -137,22 +133,17 @@ export default function MoreScreen() {
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         Alert.alert(
-          'Not configured',
-          `${provider} OAuth is not configured on this server. Set the ${provider.toUpperCase()}_CLIENT_ID and ${provider.toUpperCase()}_CLIENT_SECRET environment variables to enable real OAuth.`,
+          'Demo Mode',
+          `${provider} is in demo mode. To connect a real account, set ${provider.toUpperCase()}_CLIENT_ID and ${provider.toUpperCase()}_CLIENT_SECRET environment variables on the backend server.\n\nFor now, you can explore all other features of Maestro without connectors.`,
         );
       }
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const status = err?.response?.status;
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
-      if (status === 400) {
-        Alert.alert(
-          'Not configured',
-          `${provider} OAuth is not configured on this server.\n\nDetail: ${detail}`,
-        );
-      } else {
-        Alert.alert('Connection failed', String(detail));
-      }
+      Alert.alert(
+        'Demo Mode',
+        `${provider} is not configured for real OAuth.\n\n${detail}\n\nYou can still explore all other Maestro features.`,
+      );
     } finally {
       setBusyProvider(null);
     }

@@ -107,6 +107,9 @@ DEMO_SIGNALS: list[dict[str, Any]] = [
 def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
     """Seed demo data if the signals table is empty.
 
+    Also seeds for 'default@personal.local' (the demo-bypass-token user)
+    so the demo mode shows data immediately.
+
     Args:
         user_email: The user to assign demo signals to. Defaults to
             'bootstrap' (the shared-token user). Real registered users
@@ -163,6 +166,25 @@ def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
 
     if seeded > 0:
         logger.info("Demo seeder: seeded %d demo signals for %s", seeded, user_email)
+
+        # Also seed for the demo-bypass-token user (default@personal.local)
+        # so demo mode shows data immediately without needing a real login.
+        if user_email != "default@personal.local":
+            for sig in DEMO_SIGNALS:
+                timestamp = (now - timedelta(days=sig["days_ago"])).isoformat()
+                signal_id = f"demo_{seeded+1}_{int(now.timestamp())}"
+                signal = {
+                    "signal_id": signal_id,
+                    "entity": sig["entity"],
+                    "text": sig["text"],
+                    "signal_type": sig["signal_type"],
+                    "timestamp": timestamp,
+                    "metadata": {"source": "demo_seed"},
+                }
+                try:
+                    save_signal_to_db(signal, db_path=db_path, user_email="default@personal.local")
+                except Exception:
+                    pass
 
         # Rebuild FTS index so the new signals are searchable
         try:
