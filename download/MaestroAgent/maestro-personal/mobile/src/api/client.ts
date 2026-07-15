@@ -91,7 +91,13 @@ async function resolveToken(provided?: string): Promise<string | undefined> {
     const t = await SecureStore.getItemAsync('maestro_token');
     return t || undefined;
   } catch {
-    return undefined;
+    // Web fallback: SecureStore not available on web
+    try {
+      const t = await AsyncStorage.getItem('maestro_token');
+      return t || undefined;
+    } catch {
+      return undefined;
+    }
   }
 }
 
@@ -444,7 +450,14 @@ api.interceptors.response.use(
 // ─────────────────────────────────────────────────────────────────────
 
 export async function login(password: string): Promise<LoginResult> {
-  const response = await api.post('/api/auth/login', { password });
+  // P1 fix: send user_email as empty string (backend defaults to
+  // default@personal.local when MAESTRO_PERSONAL_TOKEN is set).
+  // Previously sent only { password } which could cause issues if
+  // the backend expected user_email in the body.
+  const response = await api.post('/api/auth/login', {
+    user_email: '',
+    password,
+  });
   return response.data;
 }
 

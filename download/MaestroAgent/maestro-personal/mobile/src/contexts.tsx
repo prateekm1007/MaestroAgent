@@ -51,8 +51,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [llmStatus, setLLMStatus] = useState<api.LLMStatus | null>(null);
 
   useEffect(() => {
-    // Phase 1: read token from SecureStore (not AsyncStorage)
-    SecureStore.getItemAsync('maestro_token').then(t => { if (t) setToken(t); }).catch(() => {});
+    // Phase 1: read token from SecureStore (native) or AsyncStorage (web)
+    SecureStore.getItemAsync('maestro_token')
+      .then(t => { if (t) setToken(t); })
+      .catch(() => {
+        // Web fallback: SecureStore not available
+        AsyncStorage.getItem('maestro_token').then(t => { if (t) setToken(t); }).catch(() => {});
+      });
   }, []);
 
   useEffect(() => {
@@ -64,11 +69,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (password: string): Promise<boolean> => {
     try {
       const result = await api.login(password);
-      // Phase 1: store in SecureStore (not AsyncStorage)
-      await SecureStore.setItemAsync('maestro_token', result.token);
+      if (!result || !result.token) {
+        return false;
+      }
+      // Store token — use SecureStore on native, AsyncStorage on web
+      try {
+        await SecureStore.setItemAsync('maestro_token', result.token);
+      } catch {
+        // Web fallback: SecureStore not available on web
+        await AsyncStorage.setItem('maestro_token', result.token);
+      }
       setToken(result.token);
       return true;
-    } catch (e) {
+    } catch (e: any) {
+      console.error('Login failed:', e?.message || e);
       return false;
     }
   };
@@ -81,7 +95,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Authorization': `Bearer ${token}` },
       });
     } catch { /* non-fatal */ }
-    SecureStore.deleteItemAsync('maestro_token').catch(() => {});
+    try {
+      SecureStore.deleteItemAsync('maestro_token').catch(() => {});
+    } catch {
+      AsyncStorage.removeItem('maestro_token').catch(() => {});
+    }
     setToken(null);
   };
 
