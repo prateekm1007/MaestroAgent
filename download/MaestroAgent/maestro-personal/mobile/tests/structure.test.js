@@ -131,7 +131,11 @@ describe('Mobile app — PRODUCTION structure', () => {
     test('has RECORD_AUDIO permission', () => expect(config.expo.android?.permissions).toContain('RECORD_AUDIO'));
     test('has VIBRATE permission', () => expect(config.expo.android?.permissions).toContain('VIBRATE'));
     test('has expo-haptics plugin', () => { expect(config.expo.plugins).toBeDefined(); expect(config.expo.plugins.length).toBeGreaterThan(0); });
-    test('has expo-av plugin', () => expect(config.expo.plugins).toContain('expo-av'));
+    test('has expo-av plugin', () => {
+      // Accept both forms: 'expo-av' (string) or ['expo-av', {...}] (array with config)
+      const hasAv = config.expo.plugins.some(p => p === 'expo-av' || (Array.isArray(p) && p[0] === 'expo-av'));
+      expect(hasAv).toBe(true);
+    });
     test('iOS has NSMicrophoneUsageDescription', () => expect(config.expo.ios?.infoPlist?.NSMicrophoneUsageDescription).toBeTruthy());
     test('adaptive icon bg is Bumble Yellow', () => expect(config.expo.android?.adaptiveIcon?.backgroundColor).toBe('#FFC629'));
   });

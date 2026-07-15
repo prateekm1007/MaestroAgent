@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "maestropersonal",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.maestro.personal",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Maestro uses the microphone to capture meeting audio for real-time intelligence. Recording requires explicit consent and can be revoked at any time."
+        "NSMicrophoneUsageDescription": "Maestro uses the microphone for voice input in Ask. Recording requires explicit consent and can be revoked at any time."
       }
     },
     "android": {
@@ -28,12 +28,24 @@
       "package": "com.maestro.personal",
       "permissions": [
         "RECORD_AUDIO",
-        "VIBRATE"
+        "VIBRATE",
+        "com.google.android.c2dm.permission.RECEIVE"
       ]
     },
     "plugins": [
-      "expo-av",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FFC629"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Maestro uses the microphone for voice input in Ask."
+        }
+      ]
     ],
     "web": {
       "bundler": "metro",
@@ -48,6 +60,9 @@
     },
     "runtimeVersion": {
       "policy": "appVersion"
+    },
+    "updates": {
+      "url": ""
     }
   }
 }
