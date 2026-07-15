@@ -1,19 +1,32 @@
 /**
- * Connectors UI render-level tests — P1 fix (audit R67/R68).
+ * Connectors UI render-level tests — P1 fix (audit R67/R68/R69).
  *
  * The prior connectors.test.js was 100% file-existence/regex/typeof checks —
  * zero component-render coverage. This file adds REAL render tests using
  * @testing-library/react-native to verify the merged Connectors UI in
- * MoreScreen.tsx actually renders and responds to user interaction.
+ * MoreScreen.tsx actually renders.
  *
  * What these tests verify (by rendering, not by reading source):
  *   1. MoreScreen renders without crashing
  *   2. The Connectors section heading is present in the rendered tree
  *   3. All 4 connector labels (Gmail, Calendar, Slack, GitHub) render
- *   4. Tapping a connector calls the connectProvider API
- *   5. The "Not connected" text shows for unconnected providers
- *   6. The Learning Loop section renders (Brier score, predictions)
- *   7. The Privacy & Data section renders with Export/Audit/Retention actions
+ *   4. The "Connect" text shows for unconnected providers
+ *   5. The Learning Loop section renders (Brier score)
+ *   6. The Privacy & Data section renders with Export action
+ *
+ * P27 compliance (audit R69): the prior version of this file had 2 tests
+ * ("connectProvider API is callable" and "Export/Audit/Retention API methods
+ * are callable") that called the mock function directly and asserted
+ * `typeof === 'function'` — the identical pattern from the old file this
+ * was written to replace. Those were theater (P27). They have been removed.
+ *
+ * What is NOT tested here (honesty per P18): tap-to-call interaction
+ * (fireEvent.press on a Text inside a TouchableOpacity does not reliably
+ * propagate in @testing-library/react-native v12). A full interaction test
+ * would require testID-based element finding or upgrading to a newer
+ * testing-library version. The rendering tests above catch UI regressions;
+ * the API wiring is verified by the existing connectors.test.js structural
+ * checks.
  */
 
 // Mock modules before requiring
@@ -63,7 +76,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   }),
 }));
 
-// Track API calls so we can assert on them
+// Mock API client — returns empty/defaults so useQuery resolves
 const mockApi = {
   listConnectors: jest.fn((_token?: string) => Promise.resolve({ connectors: [] })),
   connectProvider: jest.fn((_provider: string, _oauthToken?: string, _token?: string) => Promise.resolve({ connected: false })),
@@ -87,7 +100,7 @@ jest.mock('../src/contexts', () => ({
 }));
 
 import React from 'react';
-import { render, waitFor, fireEvent } from '@testing-library/react-native';
+import { render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MoreScreen from '../src/screens/MoreScreen';
 
@@ -144,17 +157,6 @@ describe('MoreScreen — Connectors UI (render-level)', () => {
     });
   });
 
-  test('connectProvider API is callable (handler wiring)', async () => {
-    // The rendering tests above prove the UI renders. This test verifies
-    // the connectProvider API function exists and returns a promise —
-    // proving the handler is wired to a real (mocked) API call.
-    expect(typeof mockApi.connectProvider).toBe('function');
-    const result = mockApi.connectProvider('gmail', '');
-    expect(result).toBeInstanceOf(Promise);
-    await result;
-    expect(mockApi.connectProvider).toHaveBeenCalledWith('gmail', '');
-  });
-
   test('Learning Loop section renders with Brier score', async () => {
     const { getAllByText } = renderWithQueryClient(<MoreScreen />);
     await waitFor(() => {
@@ -170,17 +172,5 @@ describe('MoreScreen — Connectors UI (render-level)', () => {
       expect(getByText('Privacy & Data')).toBeTruthy();
       expect(getByText('Export all data')).toBeTruthy();
     });
-  });
-
-  test('Export/Audit/Retention API methods are callable', async () => {
-    // Verify the privacy action handlers are wired to real API methods.
-    expect(typeof mockApi.exportData).toBe('function');
-    expect(typeof mockApi.getAuditLog).toBe('function');
-    expect(typeof mockApi.getRetentionPolicy).toBe('function');
-
-    // Call each to verify they return promises (are async)
-    expect(mockApi.exportData()).toBeInstanceOf(Promise);
-    expect(mockApi.getAuditLog()).toBeInstanceOf(Promise);
-    expect(mockApi.getRetentionPolicy()).toBeInstanceOf(Promise);
   });
 });

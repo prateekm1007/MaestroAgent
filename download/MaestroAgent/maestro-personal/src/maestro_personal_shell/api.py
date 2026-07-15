@@ -38,10 +38,45 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 API_PORT = int(os.environ.get("MAESTRO_PERSONAL_PORT", "8766"))
-DB_PATH = os.environ.get(
-    "MAESTRO_PERSONAL_DB",
-    str(Path(__file__).resolve().parent / "personal.db"),
-)
+
+# P1 fix (audit R69 2026-07-15): DB_PATH was cached at import time, which
+# caused it to diverge from routers/account.py's _get_db_path() (which reads
+# the env var fresh on every call). This meant save_signal_to_db() wrote to
+# the import-time DB while /api/account/export read the current-env DB —
+# causing export to return 0 signals even when GET /api/signals returned 3.
+#
+# Fix: use a function that reads the env var fresh, matching account.py.
+# The default_sqlite_path() helper in db_util.py does exactly this.
+# All call sites that used DB_PATH as a default parameter now call this
+# function instead, so they always see the current env var value.
+from maestro_personal_shell.db_util import default_sqlite_path as _get_db_path
+
+def _db_path() -> str:
+    """Return the current DB path (reads env var fresh — not cached at import).
+
+    This replaces the module-level DB_PATH constant. All functions that
+    previously used `db_path: str = DB_PATH` as a default parameter now
+    use `db_path: str = None` and call `_db_path()` inside the function body.
+    This ensures the env var is read at CALL TIME, not IMPORT TIME.
+    """
+    return _get_db_path()
+
+# Keep DB_PATH as a property for backwards compatibility (logging, CLI output)
+# but it reads the env var fresh each time it's accessed.
+class _DBPathProxy:
+    """Proxy that reads MAESTRO_PERSONAL_DB fresh on every attribute access."""
+    def __str__(self):
+        return _db_path()
+    def __repr__(self):
+        return repr(_db_path())
+    def __eq__(self, other):
+        return _db_path() == other
+    def __hash__(self):
+        return hash(_db_path())
+    def __fspath__(self):
+        return _db_path()
+
+DB_PATH = _DBPathProxy()
 # Bearer token — in production this would be per-user; for v1 dogfood,
 # a single shared token from env or auto-generated on first run.
 AUTH_TOKEN = os.environ.get("MAESTRO_PERSONAL_TOKEN") or secrets.token_urlsafe(32)
@@ -257,8 +292,10 @@ async def verify_token(authorization: str = Header(None)) -> str:
 # ---------------------------------------------------------------------------
 
 
-def init_db(db_path: str = DB_PATH) -> None:
+def init_db(db_path: str | None = None) -> None:
     """Initialize the SQLite database for signal persistence."""
+    if db_path is None:
+        db_path = _db_path()
     conn = get_db_conn(db_path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS signals (
@@ -307,7 +344,7 @@ def init_db(db_path: str = DB_PATH) -> None:
     conn.close()
 
 
-def load_signals_from_db(db_path: str = DB_PATH, user_email: str | None = None,
+def load_signals_from_db(db_path: str | None = None, user_email: str | None = None,
                          limit: int | None = None) -> list[dict[str, Any]]:
     """Load signals from SQLite, ordered by timestamp.
 
@@ -321,6 +358,8 @@ def load_signals_from_db(db_path: str = DB_PATH, user_email: str | None = None,
     """
     # P1-3 fix: use get_db_conn for busy_timeout + WAL mode
     from maestro_personal_shell.db_util import get_db_conn
+    if db_path is None:
+        db_path = _db_path()
     conn = get_db_conn(db_path)
     conn.row_factory = sqlite3.Row
     if user_email:
@@ -349,7 +388,7 @@ def load_signals_from_db(db_path: str = DB_PATH, user_email: str | None = None,
     return [dict(r) for r in rows]
 
 
-def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email: str = "bootstrap") -> None:
+def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_email: str = "bootstrap") -> None:
     """Save a signal to SQLite.
 
     Phase 1 fix: stores user_email with each signal for per-user isolation.
@@ -365,6 +404,8 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email
         f"{signal.get('entity','')}|{signal.get('text','')}|{user_email}".encode()
     ).hexdigest()
 
+    if db_path is None:
+        db_path = _db_path()
     conn = get_db_conn(db_path)
     # Check for existing duplicate within the last hour
     one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
@@ -409,7 +450,7 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str = DB_PATH, user_email
         logger.debug("FTS indexing failed (non-fatal): %s", e)
 
 
-def clear_signals_db(db_path: str = DB_PATH, user_email: str | None = None) -> None:
+def clear_signals_db(db_path: str | None = None, user_email: str | None = None) -> None:
     """Clear signals from SQLite.
 
     F1 CRITICAL FIX: when user_email is provided, only deletes THAT user's
@@ -419,6 +460,8 @@ def clear_signals_db(db_path: str = DB_PATH, user_email: str | None = None) -> N
     authenticated user calling DELETE /api/account would destroy EVERY
     user's data. This is now scoped to the caller.
     """
+    if db_path is None:
+        db_path = _db_path()
     conn = get_db_conn(db_path)
     if user_email:
         conn.execute("DELETE FROM signals WHERE user_email = ?", (user_email,))

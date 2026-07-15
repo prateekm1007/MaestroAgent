@@ -26,13 +26,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 @pytest.fixture(autouse=True)
 def _clean_db():
-    """Use a fresh temp DB for each test, bypassing conftest's _fresh_db_per_test.
+    """Use a fresh temp DB for each test.
 
-    The conftest fixture changes MAESTRO_PERSONAL_DB after module import,
-    which causes a mismatch: save_signal_to_db uses the module-level DB_PATH
-    (cached at import), while /api/account/export reads the env var fresh.
-    This fixture sets the env var BEFORE importing the app module, so both
-    paths point to the same fresh DB.
+    P1 fix (audit R69): the prior version used importlib.reload to work around
+    api.py's module-level DB_PATH caching. That caching bug is now fixed —
+    api.py reads the env var fresh on every call via _db_path(). This fixture
+    just sets the env var and calls init_db(). No reload needed.
     """
     import tempfile
     _saved_db = os.environ.get("MAESTRO_PERSONAL_DB")
@@ -45,11 +44,9 @@ def _clean_db():
     os.environ["MAESTRO_PERSONAL_DB"] = tmp.name
     os.environ["MAESTRO_PERSONAL_ENV"] = "production"  # disable bootstrap token
 
-    # Reimport the api module so DB_PATH picks up the new env var
-    import importlib
-    import maestro_personal_shell.api as _api
-    importlib.reload(_api)
-    _api.init_db(tmp.name)
+    # Init the DB — api.py now reads MAESTRO_PERSONAL_DB fresh via _db_path()
+    from maestro_personal_shell.api import init_db
+    init_db(tmp.name)
 
     yield
 
@@ -71,7 +68,6 @@ def _clean_db():
         pass
 
 
-# Import app AFTER the fixture is defined so tests use the reloaded module
 from maestro_personal_shell.api import app  # noqa: E402
 client = TestClient(app)
 
