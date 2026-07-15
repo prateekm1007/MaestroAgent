@@ -128,13 +128,39 @@ export default function MoreScreen() {
       if (result.oauth_required && result.authorization_url) {
         // Real OAuth: open provider's login page
         if (Platform.OS === 'web') {
-          // Web: open in a new tab so the app stays open
+          // Web: open in a new tab, then poll until connected, then auto-sync
           window.open(result.authorization_url, '_blank');
-          // Poll for connection status — the callback page will close itself
-          setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: ['connectors'] });
-            showAlert('Check the other tab', 'Complete the Google login in the tab that just opened, then tap Sync.');
-          }, 1000);
+          showAlert('Check the other tab', `Complete the ${provider} login in the tab that just opened. Sync will start automatically when done.`);
+
+          // Poll every 2 seconds for up to 2 minutes — when the connector
+          // shows as connected, auto-sync immediately
+          let attempts = 0;
+          const pollInterval = setInterval(async () => {
+            attempts++;
+            if (attempts > 60) { // 2 min timeout
+              clearInterval(pollInterval);
+              setBusyProvider(null);
+              return;
+            }
+            try {
+              const connList = await api.listConnectors();
+              const conn = connList.connectors?.find((c: any) => c.provider === provider);
+              if (conn?.connected) {
+                clearInterval(pollInterval);
+                // Auto-sync immediately after connection detected
+                const syncResult = await api.ingestConnector(provider);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                showAlert(
+                  `${provider} Connected + Synced`,
+                  `Pulled ${syncResult.ingested} messages, ${syncResult.new_commitments} new commitments.`,
+                );
+                queryClient.invalidateQueries({ queryKey: ['connectors'] });
+                queryClient.invalidateQueries({ queryKey: ['signals'] });
+                queryClient.invalidateQueries({ queryKey: ['commitments'] });
+                setBusyProvider(null);
+              }
+            } catch {}
+          }, 2000);
         } else {
           // Native: use expo-web-browser for in-app OAuth
           const redirectUrl = 'maestro://oauth/callback';
@@ -143,15 +169,38 @@ export default function MoreScreen() {
             `redirect_uri=${encodeURIComponent(redirectUrl)}`;
           const browserResult = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
           if (browserResult.type === 'success') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            showAlert('Connected', `${provider} is now connected.`);
-            queryClient.invalidateQueries({ queryKey: ['connectors'] });
+            // Auto-sync immediately after OAuth completes
+            try {
+              const syncResult = await api.ingestConnector(provider);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              showAlert(
+                `${provider} Connected + Synced`,
+                `Pulled ${syncResult.ingested} messages, ${syncResult.new_commitments} new commitments.`,
+              );
+              queryClient.invalidateQueries({ queryKey: ['connectors'] });
+              queryClient.invalidateQueries({ queryKey: ['signals'] });
+              queryClient.invalidateQueries({ queryKey: ['commitments'] });
+            } catch {
+              showAlert('Connected', `${provider} connected. Tap again to sync.`);
+            }
           }
         }
       } else if (result.connected) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert('Connected', `${provider} is now connected.`);
-        queryClient.invalidateQueries({ queryKey: ['connectors'] });
+        // Already connected (demo mode) — auto-sync
+        try {
+          const syncResult = await api.ingestConnector(provider);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showAlert(
+            `${provider} Synced`,
+            `Pulled ${syncResult.ingested} messages, ${syncResult.new_commitments} new commitments.`,
+          );
+          queryClient.invalidateQueries({ queryKey: ['connectors'] });
+          queryClient.invalidateQueries({ queryKey: ['signals'] });
+          queryClient.invalidateQueries({ queryKey: ['commitments'] });
+        } catch (err: any) {
+          showAlert('Connected', `${provider} is now connected.`);
+          queryClient.invalidateQueries({ queryKey: ['connectors'] });
+        }
       } else {
         showAlert('Not configured', `${provider} OAuth is not configured on the backend.`);
       }
@@ -304,7 +353,7 @@ export default function MoreScreen() {
               connected={connected}
               busy={isBusy}
               t={t}
-              onPress={() => connected ? handleSync(provider) : handleConnect(provider)}
+              onPress={() => handleConnect(provider)}
               onDisconnect={() => handleDisconnect(provider)}
             />
           );
