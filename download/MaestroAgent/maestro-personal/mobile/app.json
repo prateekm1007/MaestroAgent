@@ -45,7 +45,10 @@
         {
           "microphonePermission": "Maestro uses the microphone for voice input in Ask."
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "web": {
       "bundler": "metro",
