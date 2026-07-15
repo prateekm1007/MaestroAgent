@@ -126,10 +126,15 @@ export default function MoreScreen() {
     try {
       const result = await api.connectProvider(provider, '');
       if (result.oauth_required && result.authorization_url) {
-        // Real OAuth: redirect to provider's login page
+        // Real OAuth: open provider's login page
         if (Platform.OS === 'web') {
-          // Web: redirect the browser to the OAuth URL
-          window.location.href = result.authorization_url;
+          // Web: open in a new tab so the app stays open
+          window.open(result.authorization_url, '_blank');
+          // Poll for connection status — the callback page will close itself
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['connectors'] });
+            showAlert('Check the other tab', 'Complete the Google login in the tab that just opened, then tap Sync.');
+          }, 1000);
         } else {
           // Native: use expo-web-browser for in-app OAuth
           const redirectUrl = 'maestro://oauth/callback';

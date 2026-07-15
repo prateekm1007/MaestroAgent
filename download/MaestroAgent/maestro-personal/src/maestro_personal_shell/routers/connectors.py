@@ -13,6 +13,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from maestro_personal_shell.rate_limit import rate_limit
@@ -197,6 +198,45 @@ def _extract_user_email(state: str) -> str:
     return ""
 
 
+def _oauth_success_page(provider: str) -> HTMLResponse:
+    """Return an HTML page that closes the popup or redirects back to the app."""
+    return HTMLResponse(content=f'''
+    <html>
+    <body style="font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #F8F0DD;">
+    <div style="text-align: center;">
+    <h1 style="color: #1A1A1A;">✅ {provider.title()} Connected!</h1>
+    <p style="color: #666; margin-top: 16px;">You can close this tab and return to Maestro.</p>
+    <script>
+      // Try to close the popup window
+      setTimeout(function() {{
+        window.close();
+      }}, 2000);
+      // If can't close (not a popup), redirect back to the app
+      setTimeout(function() {{
+        window.location.href = window.location.origin.replace('8766', '8081');
+      }}, 3000);
+    </script>
+    </div>
+    </body>
+    </html>
+    ''')
+
+def _oauth_error_page(error: str) -> HTMLResponse:
+    """Return an HTML error page for OAuth failures."""
+    return HTMLResponse(content=f'''
+    <html>
+    <body style="font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #F8F0DD;">
+    <div style="text-align: center;">
+    <h1 style="color: #CC0000;">❌ Connection Failed</h1>
+    <p style="color: #666; margin-top: 16px;">{error}</p>
+    <p style="color: #999; margin-top: 8px;">Close this tab and try again.</p>
+    <script>setTimeout(function() {{ window.close(); }}, 5000);</script>
+    </div>
+    </body>
+    </html>
+    ''', status_code=400)
+
+
 @router.get("/connectors/gmail/oauth/callback")
 async def gmail_oauth_callback(
     code: str = "",
@@ -226,14 +266,9 @@ async def gmail_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "gmail", token_json)
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        return _oauth_error_page(result["error"])
 
-    return {
-        "connected": True,
-        "provider": "gmail",
-        "user_email": user_email,
-        "message": "Gmail connected successfully. You can now ingest messages and send drafts.",
-    }
+    return _oauth_success_page("gmail")
 
 
 @router.get("/connectors/slack/oauth/callback")
@@ -265,14 +300,9 @@ async def slack_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "slack", token_json)
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        return _oauth_error_page(result["error"])
 
-    return {
-        "connected": True,
-        "provider": "slack",
-        "user_email": user_email,
-        "message": "Slack connected successfully. You can now ingest DMs and send messages.",
-    }
+    return _oauth_success_page("slack")
 
 
 @router.get("/connectors/calendar/oauth/callback")
@@ -304,14 +334,9 @@ async def calendar_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "calendar", token_json)
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        return _oauth_error_page(result["error"])
 
-    return {
-        "connected": True,
-        "provider": "calendar",
-        "user_email": user_email,
-        "message": "Calendar connected successfully. Maestro will surface upcoming meetings in the pre-call intelligence panel.",
-    }
+    return _oauth_success_page("calendar")
 
 
 @router.get("/connectors/github/oauth/callback")
@@ -343,14 +368,9 @@ async def github_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "github", token_json)
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        return _oauth_error_page(result["error"])
 
-    return {
-        "connected": True,
-        "provider": "github",
-        "user_email": user_email,
-        "message": "GitHub connected successfully. Maestro will ingest assigned issues and can post comments on your behalf (with approval).",
-    }
+    return _oauth_success_page("github")
 
 
 # ---------------------------------------------------------------------------
