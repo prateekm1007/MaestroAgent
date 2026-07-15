@@ -24,7 +24,7 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
@@ -33,6 +33,25 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors, getTheme } from '../theme/colors';
 import { useTheme, useAuth } from '../contexts';
 import * as api from '../api/client';
+
+// Cross-platform alert: Alert.alert on native, window.alert/confirm on web
+function showAlert(title: string, message?: string, buttons?: Array<{text: string; onPress?: () => void; style?: string}>): void {
+  if (Platform.OS === 'web') {
+    if (buttons && buttons.length > 1) {
+      const ok = window.confirm(message ? `${title}\n\n${message}` : title);
+      const destructiveBtn = buttons.find(b => b.style === 'destructive');
+      if (ok && destructiveBtn?.onPress) destructiveBtn.onPress();
+    } else {
+      window.alert(message ? `${title}\n\n${message}` : title);
+    }
+  } else {
+    if (buttons) {
+      Alert.alert(title, message, buttons as any);
+    } else {
+      Alert.alert(title, message);
+    }
+  }
+}
 
 const NOTIF_PREFS_KEY = 'maestro_notification_prefs';
 
@@ -119,20 +138,20 @@ export default function MoreScreen() {
 
         if (browserResult.type === 'success') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert('Connected', `${provider} is now connected.`);
+          showAlert('Connected', `${provider} is now connected.`);
           queryClient.invalidateQueries({ queryKey: ['connectors'] });
         } else if (browserResult.type === 'cancel') {
           // User cancelled
         } else {
-          Alert.alert('Authentication incomplete', 'Please try again.');
+          showAlert('Authentication incomplete', 'Please try again.');
         }
       } else if (result.connected) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Connected', `${provider} is now connected.`);
+        showAlert('Connected', `${provider} is now connected.`);
         queryClient.invalidateQueries({ queryKey: ['connectors'] });
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert(
+        showAlert(
           'Demo Mode',
           `${provider} is in demo mode. To connect a real account, set ${provider.toUpperCase()}_CLIENT_ID and ${provider.toUpperCase()}_CLIENT_SECRET environment variables on the backend server.\n\nFor now, you can explore all other features of Maestro without connectors.`,
         );
@@ -140,7 +159,7 @@ export default function MoreScreen() {
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
-      Alert.alert(
+      showAlert(
         'Demo Mode',
         `${provider} is not configured for real OAuth.\n\n${detail}\n\nYou can still explore all other Maestro features.`,
       );
@@ -158,7 +177,7 @@ export default function MoreScreen() {
     try {
       const result = await api.ingestConnector(provider);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
+      showAlert(
         'Sync Complete',
         `Ingested ${result.ingested} signals from ${provider}.\n` +
         `${result.new_commitments} new commitments, ${result.duplicates} duplicates.`,
@@ -169,7 +188,7 @@ export default function MoreScreen() {
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
-      Alert.alert('Sync Failed', String(detail));
+      showAlert('Sync Failed', String(detail));
     } finally {
       setBusyProvider(null);
     }
@@ -179,7 +198,7 @@ export default function MoreScreen() {
   const handleDisconnect = async (provider: string) => {
     if (busyProvider) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
+    showAlert(
       `Disconnect ${provider}?`,
       'Maestro will stop syncing from this provider. Your existing signals will be kept.',
       [
@@ -195,7 +214,7 @@ export default function MoreScreen() {
               queryClient.invalidateQueries({ queryKey: ['connectors'] });
             } catch (err: any) {
               const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
-              Alert.alert('Disconnect Failed', String(detail));
+              showAlert('Disconnect Failed', String(detail));
             } finally {
               setBusyProvider(null);
             }
@@ -217,12 +236,12 @@ export default function MoreScreen() {
     setBusyAction('export');
     try {
       const result = await api.exportData();
-      Alert.alert(
+      showAlert(
         'Export Complete',
         `Exported ${result.signal_count} signals at ${new Date(result.exported_at).toLocaleString()}.`,
       );
     } catch (err: any) {
-      Alert.alert('Export Failed', err?.message || 'Could not export data.');
+      showAlert('Export Failed', err?.message || 'Could not export data.');
     } finally {
       setBusyAction(null);
     }
@@ -235,11 +254,11 @@ export default function MoreScreen() {
     try {
       const result = await api.getAuditLog();
       const count = result?.events?.length ?? 0;
-      Alert.alert('Audit Log', `${count} audit entries retrieved. Check console for full details.`);
+      showAlert('Audit Log', `${count} audit entries retrieved. Check console for full details.`);
       // eslint-disable-next-line no-console
       console.log('Audit log:', JSON.stringify(result, null, 2));
     } catch (err: any) {
-      Alert.alert('Audit Log Failed', err?.message || 'Could not retrieve audit log.');
+      showAlert('Audit Log Failed', err?.message || 'Could not retrieve audit log.');
     } finally {
       setBusyAction(null);
     }
@@ -255,9 +274,9 @@ export default function MoreScreen() {
         .filter(([k]) => k !== 'timestamp')
         .map(([k, v]) => `${k}: ${v}`)
         .join('\n');
-      Alert.alert('Data Retention Policy', summary || 'No retention data available.');
+      showAlert('Data Retention Policy', summary || 'No retention data available.');
     } catch (err: any) {
-      Alert.alert('Retention Policy Failed', err?.message || 'Could not retrieve retention policy.');
+      showAlert('Retention Policy Failed', err?.message || 'Could not retrieve retention policy.');
     } finally {
       setBusyAction(null);
     }
@@ -317,7 +336,7 @@ export default function MoreScreen() {
         <ActionRow label="Export all data" icon="download" t={t} busy={busyAction === 'export'} onPress={handleExport} />
         <ActionRow label="Delete account" icon="trash" t={t} onPress={() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert('Delete Account', 'This will permanently delete all your data.', [
+          showAlert('Delete Account', 'This will permanently delete all your data.', [
             { text: 'Cancel' },
             { text: 'Delete', style: 'destructive', onPress: () => { logout(); } },
           ]);

@@ -160,13 +160,23 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
     #   (b) an explicit demo_mode flag (only in dev mode)
     if not req.oauth_token:
         # No OAuth configured (we fell through all the provider checks above)
-        # and no token provided. Fail-closed.
+        # and no token provided. Check if demo mode is enabled.
+        import os as _os
+        if _os.environ.get("MAESTRO_DEMO_MODE", "").lower() in ("1", "true", "yes"):
+            # Demo mode: allow connection without real OAuth
+            store = ConnectorStore()
+            result = store.connect(token, provider, "demo-token-not-real")
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+            result["demo_mode"] = True
+            return result
+        # Fail-closed: no OAuth, no demo mode
         from fastapi import HTTPException
         raise HTTPException(
             status_code=400,
             detail=f"Cannot connect {provider}: no OAuth configured and no token provided. "
                    f"Set {provider.upper()}_CLIENT_ID and {provider.upper()}_CLIENT_SECRET env vars "
-                   f"to enable real OAuth, or provide an oauth_token."
+                   f"to enable real OAuth, or set MAESTRO_DEMO_MODE=1 for demo connections."
         )
 
     result = store.connect(token, provider, req.oauth_token)
