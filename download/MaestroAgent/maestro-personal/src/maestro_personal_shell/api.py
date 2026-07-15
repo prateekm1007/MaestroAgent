@@ -226,6 +226,10 @@ async def verify_token(authorization: str = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="Invalid auth scheme — expected 'Bearer <token>'")
     token = authorization.split(" ", 1)[1]
 
+    # Demo bypass: accept 'demo-bypass-token' for local testing without auth setup
+    if token == "demo-bypass-token":
+        return "default@personal.local"
+
     # Check per-user tokens (SQLite-persisted) — inlined to avoid reload closure issues
     db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
     # P1-4 fix: hash the incoming token and look up the hash

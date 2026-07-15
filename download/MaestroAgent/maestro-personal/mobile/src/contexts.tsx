@@ -42,6 +42,7 @@ const AuthCtx = createContext<{
   login: (password: string) => Promise<boolean>;
   logout: () => void;
   llmStatus: api.LLMStatus | null;
+  setToken?: (t: string | null) => void;
 }>({ token: null, login: async () => false, logout: () => {}, llmStatus: null });
 
 export const useAuth = () => useContext(AuthCtx);
@@ -103,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
   };
 
-  return <AuthCtx.Provider value={{ token, login, logout, llmStatus }}>{children}</AuthCtx.Provider>;
+  return <AuthCtx.Provider value={{ token, login, logout, llmStatus, setToken }}>{children}</AuthCtx.Provider>;
 }
 
 // ═══════════════════════════════════════════════════════════════════

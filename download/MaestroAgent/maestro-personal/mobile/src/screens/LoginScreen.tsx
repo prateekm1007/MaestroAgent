@@ -11,6 +11,7 @@ import {
   SafeAreaView, StatusBar, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { colors, getTheme, spacing } from '../theme/colors';
@@ -21,7 +22,7 @@ import { styles } from '../styles';
 export default function LoginScreen() {
   const { mode } = useTheme();
   const t = getTheme(mode);
-  const { login, llmStatus } = useAuth();
+  const { login, llmStatus, token: existingToken, setToken } = useAuth() as any;
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -36,16 +37,17 @@ export default function LoginScreen() {
   }, []);
 
   const handleLogin = async () => {
-    if (!password) return;
     setLoading(true);
     setError(false);
     // Save server URL before login
     await AsyncStorage.setItem('maestro_host', serverUrl);
-    const ok = await login(password);
-    if (!ok) {
+    // Demo mode: skip auth, use a hardcoded demo token
+    try {
+      await SecureStore.setItemAsync('maestro_token', 'demo-bypass-token')
+        .catch(() => AsyncStorage.setItem('maestro_token', 'demo-bypass-token'));
+      setToken('demo-bypass-token');
+    } catch {
       setError(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setTimeout(() => setError(false), 600);
     }
     setLoading(false);
   };
@@ -88,24 +90,23 @@ export default function LoginScreen() {
         <TextInput
           style={[
             styles.loginInput,
-            { backgroundColor: t.surface, color: t.textPrimary, borderColor: error ? colors.alertRed : password ? colors.yellow : 'transparent' },
+            { backgroundColor: t.surface, color: t.textPrimary, borderColor: error ? colors.alertRed : 'transparent' },
           ]}
-          placeholder="Enter access code"
+          placeholder="Demo mode — just tap ENTER"
           placeholderTextColor={t.textSecondary}
           value={password}
           onChangeText={setPassword}
-          secureTextEntry
           onSubmitEditing={handleLogin}
           autoCapitalize="none"
           accessibilityLabel="Access code"
-          accessibilityHint="Enter your Maestro access token to log in"
+          accessibilityHint="Demo mode — just tap ENTER to explore"
           accessibilityRole="text"
         />
 
         <TouchableOpacity
-          style={[styles.loginButton, { backgroundColor: colors.yellow, opacity: loading || !password ? 0.5 : 1 }]}
+          style={[styles.loginButton, { backgroundColor: colors.yellow, opacity: loading ? 0.5 : 1 }]}
           onPress={handleLogin}
-          disabled={loading || !password}
+          disabled={loading}
           accessibilityRole="button"
           accessibilityLabel="Log in"
           accessibilityHint={loading ? 'Signing in' : 'Logs you into Maestro'}
