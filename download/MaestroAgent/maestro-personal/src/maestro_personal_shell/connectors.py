@@ -514,22 +514,36 @@ class ConnectorStore:
 
         for msg in messages:
             ingested += 1
-            if "commitment" in msg.get("commitment_type", ""):
-                # Try to ingest into the shell's signal store
-                if shell:
-                    try:
-                        shell.ingest_signal({
-                            "entity": msg["entity"],
-                            "text": msg["text"],
-                            "signal_type": msg.get("commitment_type", "reported_statement"),
-                            "timestamp": msg["timestamp"],
-                            "source": msg.get("source", provider),
-                        })
-                        new_commitments += 1
-                    except Exception:
-                        duplicates += 1
-                else:
-                    new_commitments += 1
+            # Save EVERY message as a signal to the database (not just commitments)
+            # This fixes the bug where sync showed "4 ingested" but no data appeared
+            from maestro_personal_shell.api import save_signal_to_db
+            import uuid as _uuid
+            try:
+                signal = {
+                    "signal_id": f"conn_{provider}_{_uuid.uuid4().hex[:8]}",
+                    "entity": msg.get("entity", "Unknown"),
+                    "text": msg.get("text", ""),
+                    "signal_type": msg.get("commitment_type", msg.get("signal_type", "reported_statement")),
+                    "timestamp": msg.get("timestamp", now),
+                    "metadata": {"source": msg.get("source", provider), "provider": provider},
+                }
+                save_signal_to_db(signal, db_path=self.db_path, user_email=user_email)
+                new_commitments += 1
+            except Exception:
+                duplicates += 1
+
+            # Also ingest into the shell's in-memory store for the current session
+            if shell:
+                try:
+                    shell.ingest_signal({
+                        "entity": msg.get("entity", "Unknown"),
+                        "text": msg.get("text", ""),
+                        "signal_type": msg.get("commitment_type", "reported_statement"),
+                        "timestamp": msg.get("timestamp", now),
+                        "source": msg.get("source", provider),
+                    })
+                except Exception:
+                    pass
 
         # Update last_ingest_at + commitments_ingested
         try:

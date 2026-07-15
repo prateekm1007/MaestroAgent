@@ -126,43 +126,33 @@ export default function MoreScreen() {
     try {
       const result = await api.connectProvider(provider, '');
       if (result.oauth_required && result.authorization_url) {
-        const redirectUrl = 'maestro://oauth/callback';
-        const authUrl = result.authorization_url +
-          (result.authorization_url.includes('?') ? '&' : '?') +
-          `redirect_uri=${encodeURIComponent(redirectUrl)}`;
-
-        const browserResult = await WebBrowser.openAuthSessionAsync(
-          authUrl,
-          redirectUrl,
-        );
-
-        if (browserResult.type === 'success') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          showAlert('Connected', `${provider} is now connected.`);
-          queryClient.invalidateQueries({ queryKey: ['connectors'] });
-        } else if (browserResult.type === 'cancel') {
-          // User cancelled
+        // Real OAuth: redirect to provider's login page
+        if (Platform.OS === 'web') {
+          // Web: redirect the browser to the OAuth URL
+          window.location.href = result.authorization_url;
         } else {
-          showAlert('Authentication incomplete', 'Please try again.');
+          // Native: use expo-web-browser for in-app OAuth
+          const redirectUrl = 'maestro://oauth/callback';
+          const authUrl = result.authorization_url +
+            (result.authorization_url.includes('?') ? '&' : '?') +
+            `redirect_uri=${encodeURIComponent(redirectUrl)}`;
+          const browserResult = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+          if (browserResult.type === 'success') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showAlert('Connected', `${provider} is now connected.`);
+            queryClient.invalidateQueries({ queryKey: ['connectors'] });
+          }
         }
       } else if (result.connected) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert('Connected', `${provider} is now connected.`);
         queryClient.invalidateQueries({ queryKey: ['connectors'] });
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        showAlert(
-          'Demo Mode',
-          `${provider} is in demo mode. To connect a real account, set ${provider.toUpperCase()}_CLIENT_ID and ${provider.toUpperCase()}_CLIENT_SECRET environment variables on the backend server.\n\nFor now, you can explore all other features of Maestro without connectors.`,
-        );
+        showAlert('Not configured', `${provider} OAuth is not configured on the backend.`);
       }
     } catch (err: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
-      showAlert(
-        'Demo Mode',
-        `${provider} is not configured for real OAuth.\n\n${detail}\n\nYou can still explore all other Maestro features.`,
-      );
+      showAlert('Cannot connect', detail);
     } finally {
       setBusyProvider(null);
     }
