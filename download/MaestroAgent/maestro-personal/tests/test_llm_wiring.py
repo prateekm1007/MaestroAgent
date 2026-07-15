@@ -94,7 +94,7 @@ def test_llm_provider_name():
         pytest.skip("No LLM provider available — skipping")
     name = get_llm_provider_name()
     assert name != "none", "Provider should not be 'none' when router is available"
-    assert name in ("zai-glm", "openai", "anthropic", "openrouter", "xai", "ollama"), \
+    assert name in ("zai-glm", "zai-glm-http", "openai", "anthropic", "openrouter", "xai", "ollama"), \
         f"Unknown provider: {name}"
 
 
