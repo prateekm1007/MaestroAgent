@@ -141,21 +141,30 @@ class TestLLMProviderWiring:
         This test must now mock the ZAIHTTPRouter's _complete_sync method
         directly, or disable the HTTP router so it falls through to the
         CLI router that the subprocess mock targets.
+
+        R71 fix (audit R71 2026-07-15): in environments where the z-ai CLI
+        is NOT installed (shutil.which('z-ai') returns None), ZAIRouter's
+        health_check() returns False, so even after disabling ZAIHTTPRouter,
+        the router falls through to cloud/Ollama (also unavailable) and
+        returns None — causing the test to fail with 'assert None is not None'.
+        Fix: also patch ZAIRouter.health_check to return True so the
+        subprocess.run mock is actually exercised.
         """
         import os as _os
         _saved_ollama_host = _os.environ.pop("OLLAMA_HOST", None)
         _saved_ollama_model = _os.environ.pop("OLLAMA_MODEL", None)
-        # Disable the ZAIHTTPRouter so the test exercises the CLI path
-        # (which is what subprocess.run mocks). Set a flag that makes
-        # ZAIHTTPRouter.health_check() return False.
         _saved_zai_config = _os.environ.get("MAESTRO_DISABLE_ZAI_HTTP")
         _os.environ["MAESTRO_DISABLE_ZAI_HTTP"] = "1"
         try:
-            from maestro_personal_shell.llm_bridge import llm_complete, reset_llm_router, ZAIHTTPRouter
+            from maestro_personal_shell.llm_bridge import (
+                llm_complete, reset_llm_router, ZAIHTTPRouter, ZAIRouter,
+            )
 
-            # Patch ZAIHTTPRouter.health_check to return False so the router
-            # falls through to the CLI-based ZAIRouter (which uses subprocess.run)
-            with patch.object(ZAIHTTPRouter, "health_check", return_value=False):
+            # Patch BOTH routers: disable ZAIHTTPRouter (so it falls through
+            # to CLI), enable ZAIRouter (so the CLI path is exercised even
+            # if the z-ai CLI isn't installed in this environment).
+            with patch.object(ZAIHTTPRouter, "health_check", return_value=False), \
+                 patch.object(ZAIRouter, "health_check", return_value=True):
                 reset_llm_router()
 
                 # Mock subprocess to simulate a successful API response
@@ -183,12 +192,10 @@ class TestLLMProviderWiring:
                         assert result is not None, "Should return response when API works"
                         assert "LLM response works" in str(result)
         finally:
-            # Restore env vars so other tests can use Ollama
             if _saved_ollama_host is not None:
                 _os.environ["OLLAMA_HOST"] = _saved_ollama_host
             if _saved_ollama_model is not None:
                 _os.environ["OLLAMA_MODEL"] = _saved_ollama_model
-            # Restore ZAI HTTP disable flag
             if _saved_zai_config is not None:
                 _os.environ["MAESTRO_DISABLE_ZAI_HTTP"] = _saved_zai_config
             else:
