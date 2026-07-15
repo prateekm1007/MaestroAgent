@@ -803,6 +803,13 @@ async def lifespan(app: FastAPI):
     """Lifespan event handler — replaces deprecated @app.on_event("startup")."""
     init_db()
 
+    # Load OAuth credentials from oauth_credentials.json (one-click setup)
+    try:
+        from maestro_personal_shell.oauth_loader import load_oauth_credentials
+        load_oauth_credentials()
+    except Exception as e:
+        logger.warning("OAuth credential loading failed (non-fatal): %s", e)
+
     # F2 FIX: initialize FTS5 index at startup so semantic retrieval works.
     # Without this, every save_signal_to_db() silently fails to index
     # (logged at DEBUG, swallowed) and semantic_search returns empty.
