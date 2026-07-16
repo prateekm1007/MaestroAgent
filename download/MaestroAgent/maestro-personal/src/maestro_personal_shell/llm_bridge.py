@@ -175,19 +175,13 @@ class ZAIHTTPRouter:
             raise RuntimeError("httpx not installed — required for ZAI HTTP router")
 
         last_error = ""
-        for attempt in range(3):
+        for attempt in range(2):
             try:
-                resp = httpx.post(url, json=body, headers=headers, timeout=30.0)
+                resp = httpx.post(url, json=body, headers=headers, timeout=2.5)
                 if resp.status_code == 429:
-                    last_error = "rate limited (429)"
-                    if attempt < 2:
-                        delay = 2 ** attempt
-                        logger.warning("ZAI HTTP rate limited (429) — retry in %ds", delay)
-                        time.sleep(delay)
-                        continue
-                    # Set cooldown
+                    # P0-1 fix: fast-fail on 429, set 60s cooldown, no retries
                     self._rate_limited_until = _time.time() + 60.0
-                    raise RuntimeError(f"ZAI HTTP rate limited after {attempt+1} retries")
+                    raise RuntimeError("ZAI HTTP rate limited (429) — cooldown 60s")
 
                 resp.raise_for_status()
                 data = resp.json()
@@ -203,16 +197,16 @@ class ZAIHTTPRouter:
 
             except httpx.HTTPStatusError as e:
                 last_error = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
+                if attempt < 1:
+                    time.sleep(0.5)
                     continue
-                raise RuntimeError(f"ZAI HTTP failed after 3 retries: {last_error}")
+                raise RuntimeError(f"ZAI HTTP failed after 2 attempts: {last_error}")
             except Exception as e:
                 last_error = str(e)[:200]
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
+                if attempt < 1:
+                    time.sleep(0.5)
                     continue
-                raise RuntimeError(f"ZAI HTTP failed after 3 retries: {last_error}")
+                raise RuntimeError(f"ZAI HTTP failed after 2 attempts: {last_error}")
 
         raise RuntimeError(f"ZAI HTTP failed: {last_error}")
 

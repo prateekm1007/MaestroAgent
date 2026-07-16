@@ -501,11 +501,15 @@ export async function getSignals(token?: string): Promise<Signal[]> {
   return response.data;
 }
 
-export async function ask(query: string, token?: string): Promise<AskResult> {
+export async function ask(query: string, sessionId?: string, token?: string): Promise<AskResult> {
   const t = await resolveToken(token);
+  const body: Record<string, string> = { query };
+  if (sessionId) {
+    body.session_id = sessionId;
+  }
   const response = await api.post(
     '/api/ask',
-    { query },
+    body,
     { headers: t ? { Authorization: `Bearer ${t}` } : undefined },
   );
   return response.data;

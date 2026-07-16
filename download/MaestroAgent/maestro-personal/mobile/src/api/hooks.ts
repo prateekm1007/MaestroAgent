@@ -165,9 +165,9 @@ export function useCreateSignal() {
   });
 }
 
-export function useAsk() {
+export function useAsk(sessionId?: string) {
   return useMutation({
-    mutationFn: (query: string) => api.ask(query),
+    mutationFn: (query: string) => api.ask(query, sessionId),
   });
 }
 

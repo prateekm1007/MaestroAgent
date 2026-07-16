@@ -56,7 +56,11 @@ export default function AskScreen() {
   const [speaking, setSpeaking] = useState(false);
 
   // ── react-query mutation (replaces manual try/catch + loading) ─────
-  const askMutation = useAsk();
+  // P0-3: generate a stable session ID for multi-turn conversations.
+  // The backend uses this to store prior Q+A context, so follow-up
+  // questions like "When is it due?" reference the previous entity.
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const askMutation = useAsk(sessionId);
   const result = askMutation.data ?? null;
   const loading = askMutation.isPending;
 
