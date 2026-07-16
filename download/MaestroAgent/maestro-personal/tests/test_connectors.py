@@ -230,8 +230,9 @@ class TestDrafts:
         store = ConnectorStore(db_path=str(tmp_path / "test.db"))
         draft = store.create_draft("u@t.com", "gmail", "a@x.com", "S", "B", "C")
         result = store.resolve_draft(draft["draft_id"], "approve", user_email="u@t.com")
-        assert result["status"] == "approved"
-        assert result["sent_message_id"] != ""  # simulated send
+        # P6 fix: without OAuth configured, send fails honestly
+        assert result["status"] == "send_failed"
+        assert result["send_error"] != ""  # honest error, not fabrication
 
     def test_resolve_deny_marks_denied(self, tmp_path):
         from maestro_personal_shell.connectors import ConnectorStore
@@ -448,7 +449,9 @@ class TestConnectorAPI:
             json={"resolution": "approve"},
         )
         assert response.status_code == 200
-        assert response.json()["status"] == "approved"
+        # P6 fix: without OAuth configured, send fails honestly
+        assert response.json()["status"] == "send_failed"
+        assert response.json()["send_error"] != ""
 
     def test_resolve_deny_endpoint(self, client, auth_headers):
         create = client.post("/api/drafts", headers=auth_headers, json={

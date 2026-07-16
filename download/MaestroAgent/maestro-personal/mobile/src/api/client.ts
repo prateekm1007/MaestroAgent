@@ -898,7 +898,7 @@ export async function listDrafts(status: string = 'pending', token?: string): Pr
   return response.data;
 }
 
-export async function resolveDraft(draftId: string, resolution: 'approve' | 'deny' | 'use_draft', token?: string): Promise<{ draft_id: string; status: string }> {
+export async function resolveDraft(draftId: string, resolution: 'approve' | 'deny' | 'use_draft', token?: string): Promise<{ draft_id: string; status: string; send_error?: string; sent_message_id?: string }> {
   const t = await resolveToken(token);
   const response = await api.post(`/api/drafts/${draftId}/resolve`, { resolution }, {
     headers: t ? { Authorization: `Bearer ${t}` } : undefined,

@@ -30,13 +30,22 @@ export function DraftApprovalModal({ visible, draft, onClose }: {
   if (!draft) return null;
 
   const handleApprove = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      await api.resolveDraft(draft.draft_id, 'approve');
-      showAlert('Sent', 'Your email has been sent.');
+      const result = await api.resolveDraft(draft.draft_id, 'approve');
+      // P6 fix: check send_error — don't fabricate "Sent" if nothing was sent
+      if (result.send_error || result.status === 'send_failed') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showAlert('Cannot send', result.send_error || 'Send failed. Gmail OAuth may not be configured.');
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showAlert('Sent', 'Your email has been sent.');
+      }
       onClose();
-    } catch (e) {
-      showAlert('Error', 'Failed to send. Is Gmail connected?');
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const detail = e?.response?.data?.detail || e?.message || 'Failed to send.';
+      showAlert('Cannot send', detail);
     }
   };
 

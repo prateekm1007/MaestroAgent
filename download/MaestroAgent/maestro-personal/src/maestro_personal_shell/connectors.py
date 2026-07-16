@@ -883,8 +883,9 @@ class ConnectorStore:
                     user_email or draft["user_email"], draft,
                 )
             else:
-                # Other providers — simulate send (Phase F)
-                sent_message_id = f"msg-{secrets.token_urlsafe(8)}"
+                # P6 fix: fail closed — do NOT fabricate a send
+                sent_message_id = ""
+                send_error = f"Sending via {draft['provider']} is not yet supported."
 
             if send_error:
                 action_detail = f"FAILED to send to {draft['recipient']}: {send_error}"
@@ -942,12 +943,11 @@ class ConnectorStore:
                 GmailOAuthClient,
             )
         except ImportError:
-            # Module not available — simulate send
-            return f"msg-{secrets.token_urlsafe(8)}", ""
+            return "", "Gmail connector module not available."
 
         if not is_gmail_configured():
-            # Demo mode — simulate send
-            return f"msg-{secrets.token_urlsafe(8)}", ""
+            # P6 fix: fail closed — do NOT fabricate a send
+            return "", "Gmail OAuth not configured. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET to send real emails."
 
         stored_token = self.get_stored_token(user_email, "gmail")
         if not stored_token:
@@ -985,10 +985,10 @@ class ConnectorStore:
                 SlackOAuthClient,
             )
         except ImportError:
-            return f"msg-{secrets.token_urlsafe(8)}", ""
+            return "", "Slack connector module not available."
 
         if not is_slack_configured():
-            return f"msg-{secrets.token_urlsafe(8)}", ""
+            return "", "Slack OAuth not configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET to send real messages."
 
         stored_token = self.get_stored_token(user_email, "slack")
         if not stored_token:
@@ -1030,10 +1030,10 @@ class ConnectorStore:
                 parse_github_recipient,
             )
         except ImportError:
-            return f"msg-{secrets.token_urlsafe(8)}", ""
+            return "", "GitHub connector module not available."
 
         if not is_github_configured():
-            return f"msg-{secrets.token_urlsafe(8)}", ""
+            return "", "GitHub OAuth not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to send real comments."
 
         stored_token = self.get_stored_token(user_email, "github")
         if not stored_token:
