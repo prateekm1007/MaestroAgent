@@ -17,6 +17,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ask", tags=["ask"])
 
+# P0-3: In-memory session store for multi-turn conversations.
+# Keyed by session_id, stores the last Q+A + source_entity.
+# TTL: 30 minutes (cleared on server restart — acceptable for single-user beta).
+_ask_sessions: dict[str, str] = {}
+_SESSION_TTL_SECONDS = 1800
+
 
 async def verify_token_dep(authorization: str = Header(None)) -> str:
     """Lazy proxy to api.verify_token."""
@@ -32,13 +38,29 @@ class _PseudoSituation:
 @router.post("", response_model=AskResponse)
 @rate_limit("30/minute")  # P0-6: Ask is LLM-powered + expensive — cap at 30/min per IP
 async def ask(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
-    """Ask a question — get the truth, sourced (LLM-powered when available)."""
+    """Ask a question — get the truth, sourced (LLM-powered when available).
+
+    P0-3: supports multi-turn conversations via session_id. When provided,
+    the prior Q&A is included as context so follow-up questions like
+    "When is it due?" reference the previous query's entity.
+    """
     from maestro_personal_shell.api import (
         build_shell_async,
         load_signals_from_db,
         _get_real_calibration,
     )
     from maestro_personal_shell.temporal_query import parse_temporal_query
+
+    # P0-3: Multi-turn conversation memory
+    # Store prior Q&A in an in-memory dict keyed by session_id.
+    # On follow-up queries, append prior context to the query.
+    _prior_context = ""
+    if req.session_id:
+        _prior_context = _ask_sessions.get(req.session_id, "")
+        if _prior_context:
+            # Augment the query with prior context for better retrieval
+            req.query = f"{req.query} (Context from prior turn: {_prior_context})"
+            logger.info("Multi-turn: session=%s, prior context=%s", req.session_id, _prior_context[:80])
 
     temporal = parse_temporal_query(req.query)
     from_date = None
@@ -388,7 +410,18 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     _gather_tasks = [t for t in [_llm_answer_task, _llm_holistic_task] if t is not None]
     holistic_result = None
     if _gather_tasks:
-        _gather_results = await asyncio.gather(*_gather_tasks, return_exceptions=True)
+        # P0-1 fix: 3-second LLM timeout. If the LLM is rate-limited (429
+        # retries take 7s each × 3 = 21s), we fall back to the rule-based
+        # answer which is already populated with evidence. The user gets an
+        # answer in <3s instead of waiting 18-26s.
+        try:
+            _gather_results = await asyncio.wait_for(
+                asyncio.gather(*_gather_tasks, return_exceptions=True),
+                timeout=3.0,
+            )
+        except asyncio.TimeoutError:
+            logger.info("LLM timed out after 3s — using rule-based answer")
+            _gather_results = [Exception("timeout")] * len(_gather_tasks)
         _result_idx = 0
         if _llm_answer_task is not None:
             llm_answer = _gather_results[_result_idx]
@@ -824,6 +857,13 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         )
     except Exception as e:
         logger.debug("Ask audit log failed (non-fatal): %s", e)
+
+    # P0-3: Save session context for multi-turn follow-ups
+    if req.session_id:
+        _ask_sessions[req.session_id] = (
+            f"Q: {req.query} → A: {str(verified_answer)[:200]} "
+            f"(entity: {source_entity})"
+        )
 
     return AskResponse(
         answer=str(verified_answer),

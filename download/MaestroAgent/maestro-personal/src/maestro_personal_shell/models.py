@@ -64,6 +64,7 @@ class SignalResponse(BaseModel):
 
 class AskRequest(BaseModel):
     query: str
+    session_id: str = ""  # P0-3: optional session ID for multi-turn conversations
 
 
 class AskResponse(BaseModel):

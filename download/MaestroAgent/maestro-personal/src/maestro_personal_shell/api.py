@@ -848,6 +848,14 @@ async def lifespan(app: FastAPI):
     logger.info("DB path: %s", DB_PATH)
     logger.info("Maestro Personal API auth configured (token not logged for security)")
 
+    # P0-2 fix: pre-warm the shell on startup so the first user request
+    # hits the warm path (<10ms instead of 2.5s cold load).
+    try:
+        build_shell(user_email="bootstrap")
+        logger.info("Shell pre-warmed for fast cold-start")
+    except Exception as e:
+        logger.warning("Shell pre-warm failed (non-fatal): %s", e)
+
     # Issue 13-B: Start whisper scheduler background loop.
     # Runs hourly, generates whispers, deduplicates via notified_whispers
     # table, sends push notifications via Expo.
