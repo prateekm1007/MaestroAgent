@@ -170,9 +170,9 @@ def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
         # Also seed for the demo-bypass-token user (default@personal.local)
         # so demo mode shows data immediately without needing a real login.
         if user_email != "default@personal.local":
-            for sig in DEMO_SIGNALS:
+            for i, sig in enumerate(DEMO_SIGNALS):
                 timestamp = (now - timedelta(days=sig["days_ago"])).isoformat()
-                signal_id = f"demo_{seeded+1}_{int(now.timestamp())}"
+                signal_id = f"demo_dpl_{i}_{int(now.timestamp())}"  # unique per signal
                 signal = {
                     "signal_id": signal_id,
                     "entity": sig["entity"],
