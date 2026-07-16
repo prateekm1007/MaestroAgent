@@ -660,73 +660,88 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # named a known entity, trust the retrieval; (c) include source_sentence
     # and source_entity in the check pools.
     if evidence_refs:
-        _stopwords = frozenset({
-            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-            "do", "does", "did", "have", "has", "had", "will", "would", "shall",
-            "should", "can", "could", "may", "might", "must",
-            "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us",
-            "my", "your", "his", "its", "our", "their",
-            "this", "that", "these", "those", "there", "here",
-            "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
-            "of", "in", "on", "at", "to", "for", "with", "from", "by", "about",
-            "and", "or", "but", "not", "if", "then", "else", "so", "than", "as",
-            "up", "out", "into", "over", "under",
-            "s", "t", "d", "ll", "ve", "re", "m",
-            "did", "was", "were", "has", "had", "been", "being",
-            "tell", "me", "about",
-        })
-        # Extract content keywords from the query (words >3 chars, not stopwords).
-        # V6 enhancement: split camelCase so "RealClient" → "real" + "client".
+        # V6 fix: only abstain for clearly off-topic queries (philosophical,
+        # general knowledge). If the query is asking about the user's own
+        # data (commitments, emails, signals, mail, promises, follow-ups),
+        # ALWAYS answer — the retrieval found evidence, so use it.
         query_lower = req.query.lower()
-        query_words = _re.findall(r'\b\w+\b', query_lower)
-        # Also split camelCase: "RealClient" → "real", "client"
-        camel_splits = _re.findall(r'[a-z]+(?:[A-Z][a-z]+)+', req.query)
-        for cs in camel_splits:
-            query_words.extend(_re.findall(r'[a-z]+', cs.lower()))
-        query_keywords = {w for w in query_words if len(w) > 3 and w not in _stopwords}
 
-        if query_keywords:
-            # Build a combined evidence text from body text + source_sentence
-            evidence_text = " ".join(
-                (r.get("text", "") if isinstance(r, dict) else str(r))
-                for r in evidence_refs
-            ).lower()
-            if source_sentence:
-                evidence_text += " " + source_sentence.lower()
+        # Data-relevant keywords: if the query contains any of these, it's
+        # asking about the user's data — answer, don't abstain.
+        _data_keywords = {
+            "commitment", "commitments", "promise", "promises", "promised",
+            "mail", "email", "emails", "signal", "signals",
+            "follow", "follow-up", "followup", "stale", "overdue",
+            "deliver", "delivering", "delivered", "send", "sent", "sending",
+            "review", "summary", "summarize", "status", "update",
+            "owes", "owe", "owed",
+            "meeting", "call", "schedule", "deadline", "due",
+            "alex", "maria", "sam", "jamie", "priya", "garcia", "chen", "patel",
+        }
 
-            # Check if ANY query keyword appears in the evidence body text
-            keyword_overlap = any(kw in evidence_text for kw in query_keywords)
+        # If the query is about the user's data, skip the abstention check
+        query_words_set = set(_re.findall(r'\b\w+\b', query_lower))
+        if query_words_set & _data_keywords:
+            pass  # Don't abstain — this is a data query
+        else:
+            # Off-topic check: only abstain for philosophical/general queries
+            _stopwords = frozenset({
+                "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+                "do", "does", "did", "have", "has", "had", "will", "would", "shall",
+                "should", "can", "could", "may", "might", "must",
+                "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us",
+                "my", "your", "his", "its", "our", "their",
+                "this", "that", "these", "those", "there", "here",
+                "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
+                "of", "in", "on", "at", "to", "for", "with", "from", "by", "about",
+                "and", "or", "but", "not", "if", "then", "else", "so", "than", "as",
+                "up", "out", "into", "over", "under",
+                "s", "t", "d", "ll", "ve", "re", "m",
+                "tell", "me", "about",
+            })
+            query_words = _re.findall(r'\b\w+\b', query_lower)
+            camel_splits = _re.findall(r'[a-z]+(?:[A-Z][a-z]+)+', req.query)
+            for cs in camel_splits:
+                query_words.extend(_re.findall(r'[a-z]+', cs.lower()))
+            query_keywords = {w for w in query_words if len(w) > 3 and w not in _stopwords}
 
-            # V6 enhancement: if no body-text overlap, check entity-name overlap.
-            # If the user named a specific entity that exists in the evidence's
-            # entity field, trust the retrieval (don't abstain). This handles
-            # "What did RealClient commit to?" where RealClient is the entity.
-            if not keyword_overlap:
-                evidence_entities = []
-                for r in evidence_refs:
-                    if isinstance(r, dict):
-                        ent = r.get("entity", "")
-                        if ent:
-                            evidence_entities.append(ent.lower())
-                if source_entity:
-                    evidence_entities.append(source_entity.lower())
-                entity_text = " ".join(evidence_entities)
-                entity_overlap = any(kw in entity_text for kw in query_keywords)
-                keyword_overlap = entity_overlap
+            if query_keywords:
+                # Build a combined evidence text from body text + source_sentence
+                evidence_text = " ".join(
+                    (r.get("text", "") if isinstance(r, dict) else str(r))
+                    for r in evidence_refs
+                ).lower()
+                if source_sentence:
+                    evidence_text += " " + source_sentence.lower()
 
-            if not keyword_overlap:
-                # No keyword overlap — the evidence is irrelevant. Abstain.
-                verified_answer = (
-                    "I don't have enough information to answer that question. "
-                    "No matching signals were found in your stored data."
-                )
-                verification["confidence"] = 0.0
-                # Clear the evidence_refs and source_sentence so the response
-                # honestly reflects the abstention
-                evidence_refs = []
-                source_sentence = ""
-                source_entity = ""
-                source_timestamp = ""
+                # Check if ANY query keyword appears in the evidence body text
+                keyword_overlap = any(kw in evidence_text for kw in query_keywords)
+
+                # V6 enhancement: if no body-text overlap, check entity-name overlap.
+                if not keyword_overlap:
+                    evidence_entities = []
+                    for r in evidence_refs:
+                        if isinstance(r, dict):
+                            ent = r.get("entity", "")
+                            if ent:
+                                evidence_entities.append(ent.lower())
+                    if source_entity:
+                        evidence_entities.append(source_entity.lower())
+                    entity_text = " ".join(evidence_entities)
+                    entity_overlap = any(kw in entity_text for kw in query_keywords)
+                    keyword_overlap = entity_overlap
+
+                if not keyword_overlap:
+                    # No keyword overlap — the evidence is irrelevant. Abstain.
+                    verified_answer = (
+                        "I don't have enough information to answer that question. "
+                        "No matching signals were found in your stored data."
+                    )
+                    verification["confidence"] = 0.0
+                    evidence_refs = []
+                    source_sentence = ""
+                    source_entity = ""
+                    source_timestamp = ""
 
     if not source_sentence and not evidence_refs:
         verified_answer = (
