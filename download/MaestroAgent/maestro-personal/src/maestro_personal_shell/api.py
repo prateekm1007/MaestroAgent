@@ -835,14 +835,18 @@ async def lifespan(app: FastAPI):
     # covering commitments, completions, stale items, and a critical event)
     # so the product feels alive on first launch. Only runs when the DB has
     # zero signals for the bootstrap user. Real registered users get their
-    # own empty state.
-    try:
-        from maestro_personal_shell.demo_seeder import seed_demo_data_if_empty
-        seeded = seed_demo_data_if_empty()
-        if seeded > 0:
-            logger.info("Demo data seeded: %d signals (first-launch experience)", seeded)
-    except Exception as e:
-        logger.warning("Demo data seeding failed (non-fatal): %s", e)
+    # P0 fix: gate demo seeding behind non-test mode to prevent test contamination.
+    # When MAESTRO_TEST_MODE=1, tests manage their own data — demo seeding
+    # injects 9 unexpected signals into the bootstrap user, breaking count-based
+    # assertions in ~17 tests.
+    if os.environ.get("MAESTRO_TEST_MODE") != "1":
+        try:
+            from maestro_personal_shell.demo_seeder import seed_demo_data_if_empty
+            seeded = seed_demo_data_if_empty()
+            if seeded > 0:
+                logger.info("Demo data seeded: %d signals (first-launch experience)", seeded)
+        except Exception as e:
+            logger.warning("Demo data seeding failed (non-fatal): %s", e)
 
     logger.info("Maestro Personal API starting on port %d", API_PORT)
     logger.info("DB path: %s", DB_PATH)

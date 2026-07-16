@@ -596,9 +596,19 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     for key in ("situation_state", "evidence_summary", "selection_reason"):
                         val = trace.get(key, "")
                         if val:
+                            # P1 fix: clean string, not repr(dict)
+                            if isinstance(val, dict):
+                                val = ". ".join(f"{k}: {v}" for k, v in val.items())
                             reasoning_chain.append(str(val)[:200])
                 else:
-                    reasoning_chain = [str(s)[:200] for s in steps[:5]]
+                    # P1 fix: clean each step, not raw repr
+                    cleaned_steps = []
+                    for s in steps[:5]:
+                        if isinstance(s, dict):
+                            cleaned_steps.append(". ".join(f"{k}: {v}" for k, v in s.items())[:200])
+                        else:
+                            cleaned_steps.append(str(s)[:200])
+                    reasoning_chain = cleaned_steps
         except Exception as e:
             logger.debug("Reasoning trace failed: %s", e)
 
@@ -675,9 +685,14 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             source_entity = ""
             source_timestamp = ""
             evidence_refs = []
+            _abstention_triggered = True  # prevent last-resort fallback from overriding
 
     verification = verify_claims(str(answer), evidence_refs, source_sentence)
-    _abstention_triggered = False  # tracks deliberate abstention (prevents last-resort fallback)
+    # Initialize _abstention_triggered if not already set by an abstention path above
+    try:
+        _abstention_triggered
+    except NameError:
+        _abstention_triggered = False
     unknowns = compute_unknowns(str(answer), evidence_refs, req.query)
     verified_answer = verification["verified_answer"]
 
