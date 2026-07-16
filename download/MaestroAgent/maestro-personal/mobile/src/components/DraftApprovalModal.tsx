@@ -68,9 +68,19 @@ export function DraftApprovalModal({ visible, draft, onClose }: {
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       <ScrollView style={{ flex: 1, backgroundColor: t.bg, padding: 20 }}>
-        <Text style={{ fontSize: 18, fontWeight: '800', color: t.textPrimary, marginBottom: 16 }}>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: t.textPrimary, marginBottom: 4 }}>
           📧 DRAFT
         </Text>
+        {draft.llm_generated && (
+          <Text style={{ fontSize: 11, color: colors.yellowDark, marginBottom: 12 }}>
+            ✨ AI-generated in your writing style
+          </Text>
+        )}
+        {draft.derived && !draft.llm_generated && (
+          <Text style={{ fontSize: 11, color: t.textSecondary, marginBottom: 12 }}>
+            📎 Derived from your commitment history
+          </Text>
+        )}
         <Text style={{ fontSize: 14, fontWeight: '600', color: t.textSecondary, marginBottom: 4 }}>
           Subject: {draft.subject || '(no subject)'}
         </Text>

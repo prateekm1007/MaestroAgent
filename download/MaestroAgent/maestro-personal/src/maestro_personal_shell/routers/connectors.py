@@ -475,6 +475,7 @@ async def create_auto_draft(req: ConnectorAutoDraftRequest, token: str = Depends
         provider=req.provider,
         recipient=req.recipient,
         shell=shell,
+        user_email=token,
     )
     if "error" in draft_data:
         raise HTTPException(status_code=404, detail=draft_data["error"])
