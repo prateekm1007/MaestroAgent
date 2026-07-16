@@ -12,24 +12,37 @@
  * UI/logic is otherwise unchanged.
  */
 
+
 import React, { useRef, useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Alert, SafeAreaView,
   Animated, PanResponder, StyleSheet, LayoutAnimation, UIManager, Platform,
   FlatList,
 } from 'react-native';
+
 import * as Haptics from 'expo-haptics';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 import * as api from '../api/client';
+
 import { useTheOne, useCommitments, useSignals } from '../api/hooks';
+
 import { useQueryClient } from '@tanstack/react-query';
+
 import { colors, getTheme, spacing, typography } from '../theme/colors';
+
 import { useAuth, useTheme } from '../contexts';
+
 import { Card, Badge, TopBar } from '../components';
+
 import { ErrorState, LoadingState, EmptyState } from '../components/ErrorState';
+
 import { DraftApprovalModal } from '../components/DraftApprovalModal';
+
 import { styles } from '../styles';
+import { showAlert } from '../utils/alert';
 
 // Android LayoutAnimation enable (for swipe-off removal animation).
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -229,7 +242,7 @@ export default function CommitmentsScreen() {
 
   const handleCorrect = async (signalId: string, action: 'complete' | 'dismiss' | 'cancel') => {
     if (!token || !signalId) return;
-    Alert.alert(
+    showAlert(
       `${action.charAt(0).toUpperCase() + action.slice(1)} this commitment?`,
       undefined,
       [
@@ -257,7 +270,7 @@ export default function CommitmentsScreen() {
       const result = await api.generateAutoDraft('gmail', entity);
       setDraftModal({ visible: true, draft: result });
     } catch (e) {
-      Alert.alert('Error', 'Failed to generate draft. Is the backend running?');
+      showAlert('Error', 'Failed to generate draft. Is the backend running?');
     }
   };
 
@@ -285,11 +298,11 @@ export default function CommitmentsScreen() {
         try {
           await AsyncStorage.setItem(`pending_action_${signalId}`, JSON.stringify({ id: signalId, action: 'complete' }));
         } catch { /* ignore */ }
-        Alert.alert('Offline', 'Saved. Will sync when you reconnect.');
+        showAlert('Offline', 'Saved. Will sync when you reconnect.');
       } else {
         // Non-network error: rollback
         qc.setQueryData(['commitments'], previous);
-        Alert.alert('Error', 'Failed to update. Please try again.');
+        showAlert('Error', 'Failed to update. Please try again.');
       }
     }
   };
@@ -311,10 +324,10 @@ export default function CommitmentsScreen() {
         try {
           await AsyncStorage.setItem(`pending_action_${signalId}`, JSON.stringify({ id: signalId, action: 'dismiss' }));
         } catch { /* ignore */ }
-        Alert.alert('Offline', 'Saved. Will sync when you reconnect.');
+        showAlert('Offline', 'Saved. Will sync when you reconnect.');
       } else {
         qc.setQueryData(['commitments'], previous);
-        Alert.alert('Error', 'Failed to update. Please try again.');
+        showAlert('Error', 'Failed to update. Please try again.');
       }
     }
   };

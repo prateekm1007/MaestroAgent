@@ -23,35 +23,27 @@
  * They now call the real API and show the result in an alert.
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import * as WebBrowser from 'expo-web-browser';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { colors, getTheme } from '../theme/colors';
-import { useTheme, useAuth } from '../contexts';
-import * as api from '../api/client';
 
-// Cross-platform alert: Alert.alert on native, window.alert/confirm on web
-function showAlert(title: string, message?: string, buttons?: Array<{text: string; onPress?: () => void; style?: string}>): void {
-  if (Platform.OS === 'web') {
-    if (buttons && buttons.length > 1) {
-      const ok = window.confirm(message ? `${title}\n\n${message}` : title);
-      const destructiveBtn = buttons.find(b => b.style === 'destructive');
-      if (ok && destructiveBtn?.onPress) destructiveBtn.onPress();
-    } else {
-      window.alert(message ? `${title}\n\n${message}` : title);
-    }
-  } else {
-    if (buttons) {
-      Alert.alert(title, message, buttons as any);
-    } else {
-      Alert.alert(title, message);
-    }
-  }
-}
+import React, { useMemo, useState, useEffect } from 'react';
+
+import { View, Text, TouchableOpacity, ScrollView, Switch, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native';
+
+import { Ionicons } from '@expo/vector-icons';
+
+import * as Haptics from 'expo-haptics';
+
+import * as WebBrowser from 'expo-web-browser';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { colors, getTheme } from '../theme/colors';
+
+import { useTheme, useAuth } from '../contexts';
+
+import * as api from '../api/client';
+import { showAlert } from '../utils/alert';
 
 const NOTIF_PREFS_KEY = 'maestro_notification_prefs';
 

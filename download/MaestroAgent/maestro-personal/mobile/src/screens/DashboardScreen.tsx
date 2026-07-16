@@ -10,24 +10,38 @@
  * UI/logic is otherwise unchanged.
  */
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView, AccessibilityInfo, Alert,
   PanResponder, Animated as RNAnimated, Modal,
 } from 'react-native';
+
 import { useNavigation } from '@react-navigation/native';
+
 import { Ionicons } from '@expo/vector-icons';
+
 import * as Haptics from 'expo-haptics';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+
 import * as api from '../api/client';
+
 import { useTheMoment, useShifts, useBriefing } from '../api/hooks';
+
 import { colors, getTheme, spacing, typography } from '../theme/colors';
+
 import { useAuth, useTheme } from '../contexts';
+
 import { Card, Badge, TopBar } from '../components';
+
 import { ErrorState, LoadingState, EmptyState } from '../components/ErrorState';
+
 import { DraftApprovalModal } from '../components/DraftApprovalModal';
+
 import { styles } from '../styles';
+import { showAlert } from '../utils/alert';
 
 export default function DashboardScreen() {
   const { mode } = useTheme();
@@ -114,7 +128,7 @@ export default function DashboardScreen() {
       const result = await api.generateAutoDraft('gmail', entity);
       setDraftModal({ visible: true, draft: result });
     } catch (e) {
-      Alert.alert('Error', 'Failed to generate draft. Is the backend running?');
+      showAlert('Error', 'Failed to generate draft. Is the backend running?');
     }
   };
 
@@ -133,10 +147,10 @@ export default function DashboardScreen() {
         },
         trigger: { seconds: 7200 } as any,
       });
-      Alert.alert('Snoozed', `We'll remind you in 2 hours about ${momentData.commitment.entity}.`);
+      showAlert('Snoozed', `We'll remind you in 2 hours about ${momentData.commitment.entity}.`);
       qc.invalidateQueries({ queryKey: ['theMoment'] });
     } catch (e) {
-      Alert.alert('Error', 'Failed to snooze. Is the backend running?');
+      showAlert('Error', 'Failed to snooze. Is the backend running?');
     }
   };
 

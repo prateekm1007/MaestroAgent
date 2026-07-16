@@ -27,6 +27,9 @@ Notifications.setNotificationHandler({
  * Returns the token string, or null if permission was denied.
  */
 export async function registerForPushNotifications(): Promise<string | null> {
+  // Web doesn't support push notifications — return early without throwing
+  if (Platform.OS === 'web') return null;
+
   try {
     const existingResult = await Notifications.getPermissionsAsync() as any;
     let finalStatus = existingResult.status || existingResult.granted ? 'granted' : 'denied';

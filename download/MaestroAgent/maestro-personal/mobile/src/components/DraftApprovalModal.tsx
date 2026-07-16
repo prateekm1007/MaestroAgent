@@ -5,12 +5,19 @@
  * 3 buttons: Approve & Send, Use as Draft, Discard.
  */
 
+
 import React from 'react';
+
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Share, Alert } from 'react-native';
+
 import { colors, getTheme } from '../theme/colors';
+
 import { useTheme } from '../contexts';
+
 import * as api from '../api/client';
+
 import * as Haptics from 'expo-haptics';
+import { showAlert } from '../utils/alert';
 
 export function DraftApprovalModal({ visible, draft, onClose }: {
   visible: boolean;
@@ -26,10 +33,10 @@ export function DraftApprovalModal({ visible, draft, onClose }: {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
       await api.resolveDraft(draft.draft_id, 'approve');
-      Alert.alert('Sent', 'Your email has been sent.');
+      showAlert('Sent', 'Your email has been sent.');
       onClose();
     } catch (e) {
-      Alert.alert('Error', 'Failed to send. Is Gmail connected?');
+      showAlert('Error', 'Failed to send. Is Gmail connected?');
     }
   };
 

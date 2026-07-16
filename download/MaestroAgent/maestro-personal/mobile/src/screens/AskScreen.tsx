@@ -10,24 +10,39 @@
  * UI/logic is otherwise unchanged.
  */
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Alert, SafeAreaView,
 } from 'react-native';
+
 import { Ionicons } from '@expo/vector-icons';
+
 import * as Haptics from 'expo-haptics';
+
 import { Audio } from 'expo-av';
+
 import * as Speech from 'expo-speech';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { useNavigation } from '@react-navigation/native';
 
+
 import { useAsk } from '../api/hooks';
+
 import * as api from '../api/client';
+
 import { colors, getTheme, spacing, typography } from '../theme/colors';
+
 import { useAuth, useTheme } from '../contexts';
+
 import { Card, ConfidenceBar, TopBar } from '../components';
+
 import { ErrorState, LoadingState } from '../components/ErrorState';
+
 import { styles } from '../styles';
+import { showAlert } from '../utils/alert';
 
 export default function AskScreen() {
   const { mode } = useTheme();
@@ -80,7 +95,7 @@ export default function AskScreen() {
           });
         },
         onError: () => {
-          Alert.alert('Error', 'Failed to get answer. Is the API running?');
+          showAlert('Error', 'Failed to get answer. Is the API running?');
         },
       });
     });
@@ -113,7 +128,7 @@ export default function AskScreen() {
           }
         }
       } catch (e) {
-        Alert.alert('Error', 'Transcription failed. Try typing instead.');
+        showAlert('Error', 'Transcription failed. Try typing instead.');
         setRecording(false);
         recordingRef.current = null;
       }
@@ -122,7 +137,7 @@ export default function AskScreen() {
       try {
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission needed', 'Microphone access is required for voice input.');
+          showAlert('Permission needed', 'Microphone access is required for voice input.');
           return;
         }
         await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true } as any);
@@ -132,7 +147,7 @@ export default function AskScreen() {
         recordingRef.current = rec;
         setRecording(true);
       } catch (e) {
-        Alert.alert('Error', 'Failed to start recording.');
+        showAlert('Error', 'Failed to start recording.');
       }
     }
   };

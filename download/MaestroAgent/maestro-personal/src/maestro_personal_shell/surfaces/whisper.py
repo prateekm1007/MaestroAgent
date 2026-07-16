@@ -176,8 +176,15 @@ class WhisperSurface:
 
             priority = "high" if days >= 7 else "medium"
 
-            # Capitalize entity for display (shell lowercases for comparison)
-            display_entity = entity.capitalize() if entity else "someone"
+            # Preserve original entity casing — capitalize() lowercases the rest
+            # which turns "Maria Garcia" into "Maria garcia". Use title() for
+            # multi-word names, or just keep the original if it has uppercase.
+            if entity and any(c.isupper() for c in entity[1:]):
+                # Already has uppercase (e.g., "Maria Garcia") — keep as-is
+                display_entity = entity
+            else:
+                # Single word or all-lower — capitalize first letter
+                display_entity = entity.title() if entity else "someone"
 
             whispers.append({
                 "type": "stale_commitment",

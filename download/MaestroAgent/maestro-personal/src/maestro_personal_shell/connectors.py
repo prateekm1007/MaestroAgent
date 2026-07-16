@@ -514,8 +514,7 @@ class ConnectorStore:
 
         for msg in messages:
             ingested += 1
-            # Save EVERY message as a signal to the database (not just commitments)
-            # This fixes the bug where sync showed "4 ingested" but no data appeared
+            # Save EVERY message as a signal to the database
             from maestro_personal_shell.api import save_signal_to_db
             import uuid as _uuid
             try:
@@ -532,7 +531,7 @@ class ConnectorStore:
             except Exception:
                 duplicates += 1
 
-            # Also ingest into the shell's in-memory store for the current session
+            # Also ingest into the shell's in-memory store
             if shell:
                 try:
                     shell.ingest_signal({

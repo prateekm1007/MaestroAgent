@@ -185,9 +185,22 @@ def classify_transcript_chunk(text: str) -> str:
         if marker in text_lower:
             return "tentative"
 
-    # Commitment
-    commitment_markers = ["i will", "we will", "i'll", "we'll", "commit to",
-                          "promise", "deliver by", "ship by", "by friday"]
+    # Commitment — includes first-person AND third-person forms
+    # Third-person forms catch connector-ingested commitments like
+    # "Alex committed to delivering the design review by Wednesday"
+    commitment_markers = [
+        # First-person
+        "i will", "we will", "i'll", "we'll", "i promise", "we promise",
+        "i commit to", "we commit to", "i'm going to", "i need to",
+        # Third-person (from connector ingestion)
+        "committed to", "promised to", "agreed to", "will deliver",
+        "will send", "will follow up", "will finalize", "will review",
+        "will complete", "will provide", "will share",
+        # Generic commitment patterns
+        "commit to", "promise", "deliver by", "ship by", "by friday",
+        "by monday", "by tuesday", "by wednesday", "by thursday",
+        "by the end of", "deadline",
+    ]
     for marker in commitment_markers:
         if marker in text_lower:
             return "commitment"
