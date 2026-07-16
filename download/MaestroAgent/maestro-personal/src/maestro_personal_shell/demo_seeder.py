@@ -167,25 +167,6 @@ def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
     if seeded > 0:
         logger.info("Demo seeder: seeded %d demo signals for %s", seeded, user_email)
 
-        # Also seed for the demo-bypass-token user (default@personal.local)
-        # so demo mode shows data immediately without needing a real login.
-        if user_email != "default@personal.local":
-            for i, sig in enumerate(DEMO_SIGNALS):
-                timestamp = (now - timedelta(days=sig["days_ago"])).isoformat()
-                signal_id = f"demo_dpl_{i}_{int(now.timestamp())}"  # unique per signal
-                signal = {
-                    "signal_id": signal_id,
-                    "entity": sig["entity"],
-                    "text": sig["text"],
-                    "signal_type": sig["signal_type"],
-                    "timestamp": timestamp,
-                    "metadata": {"source": "demo_seed"},
-                }
-                try:
-                    save_signal_to_db(signal, db_path=db_path, user_email="default@personal.local")
-                except Exception:
-                    pass
-
         # Rebuild FTS index so the new signals are searchable
         try:
             from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
