@@ -677,6 +677,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             evidence_refs = []
 
     verification = verify_claims(str(answer), evidence_refs, source_sentence)
+    _abstention_triggered = False  # tracks deliberate abstention (prevents last-resort fallback)
     unknowns = compute_unknowns(str(answer), evidence_refs, req.query)
     verified_answer = verification["verified_answer"]
 
@@ -784,12 +785,16 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     source_sentence = ""
                     source_entity = ""
                     source_timestamp = ""
+                    _abstention_triggered = True  # prevent last-resort fallback
 
-    if not source_sentence and not evidence_refs:
-        # Last resort: check if the user has ANY signals at all
+    # Last resort: if no evidence AND abstention was NOT deliberately triggered,
+    # check if the user has ANY signals and summarize them.
+    # This handles broad queries like "review my mail" where FTS returns empty
+    # but the user has data. It must NOT fire when abstention was deliberate
+    # (off-topic queries like "meaning of life").
+    if not source_sentence and not evidence_refs and not _abstention_triggered:
         all_user_signals = load_signals_from_db(user_email=token, limit=50)
         if all_user_signals:
-            # User has data — summarize it instead of abstaining
             summary_lines = []
             for sig in all_user_signals[:10]:
                 entity = sig.get("entity", "Unknown")
