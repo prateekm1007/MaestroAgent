@@ -115,84 +115,73 @@ export default function MoreScreen() {
     if (busyProvider) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setBusyProvider(provider);
+
+    // Helper: sync + show ONE result + refresh, no repeated popups
+    const syncAndFinish = async (isFirstConnect: boolean) => {
+      try {
+        const syncResult = await api.ingestConnector(provider);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (isFirstConnect) {
+          // Only show ONE popup on first connect — silent on re-syncs
+          showAlert(
+            `${provider} Connected`,
+            `Synced ${syncResult.ingested} messages, ${syncResult.new_commitments} new.`,
+          );
+        }
+        queryClient.invalidateQueries({ queryKey: ['connectors'] });
+        queryClient.invalidateQueries({ queryKey: ['signals'] });
+        queryClient.invalidateQueries({ queryKey: ['commitments'] });
+      } catch (err: any) {
+        if (isFirstConnect) {
+          showAlert('Connected', `${provider} connected. Data will appear shortly.`);
+        }
+        queryClient.invalidateQueries({ queryKey: ['connectors'] });
+      }
+    };
+
     try {
       const result = await api.connectProvider(provider, '');
-      if (result.oauth_required && result.authorization_url) {
-        // Real OAuth: open provider's login page
-        if (Platform.OS === 'web') {
-          // Web: open in a new tab, then poll until connected, then auto-sync
-          window.open(result.authorization_url, '_blank');
-          showAlert('Check the other tab', `Complete the ${provider} login in the tab that just opened. Sync will start automatically when done.`);
 
-          // Poll every 2 seconds for up to 2 minutes — when the connector
-          // shows as connected, auto-sync immediately
+      if (result.oauth_required && result.authorization_url) {
+        if (Platform.OS === 'web') {
+          // Web: open OAuth in new tab, poll SILENTLY (no popup until done)
+          window.open(result.authorization_url, '_blank');
+
+          // Poll silently — NO popup during polling. Only ONE popup when done.
           let attempts = 0;
+          let synced = false;
           const pollInterval = setInterval(async () => {
             attempts++;
-            if (attempts > 60) { // 2 min timeout
+            if (attempts > 60 || synced) {
               clearInterval(pollInterval);
-              setBusyProvider(null);
+              if (!synced) setBusyProvider(null);
               return;
             }
             try {
               const connList = await api.listConnectors();
               const conn = connList.connectors?.find((c: any) => c.provider === provider);
               if (conn?.connected) {
+                synced = true;
                 clearInterval(pollInterval);
-                // Auto-sync immediately after connection detected
-                const syncResult = await api.ingestConnector(provider);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                showAlert(
-                  `${provider} Connected + Synced`,
-                  `Pulled ${syncResult.ingested} messages, ${syncResult.new_commitments} new commitments.`,
-                );
-                queryClient.invalidateQueries({ queryKey: ['connectors'] });
-                queryClient.invalidateQueries({ queryKey: ['signals'] });
-                queryClient.invalidateQueries({ queryKey: ['commitments'] });
+                await syncAndFinish(true);
                 setBusyProvider(null);
               }
             } catch {}
           }, 2000);
         } else {
-          // Native: use expo-web-browser for in-app OAuth
+          // Native: in-app OAuth
           const redirectUrl = 'maestro://oauth/callback';
           const authUrl = result.authorization_url +
             (result.authorization_url.includes('?') ? '&' : '?') +
             `redirect_uri=${encodeURIComponent(redirectUrl)}`;
           const browserResult = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
           if (browserResult.type === 'success') {
-            // Auto-sync immediately after OAuth completes
-            try {
-              const syncResult = await api.ingestConnector(provider);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              showAlert(
-                `${provider} Connected + Synced`,
-                `Pulled ${syncResult.ingested} messages, ${syncResult.new_commitments} new commitments.`,
-              );
-              queryClient.invalidateQueries({ queryKey: ['connectors'] });
-              queryClient.invalidateQueries({ queryKey: ['signals'] });
-              queryClient.invalidateQueries({ queryKey: ['commitments'] });
-            } catch {
-              showAlert('Connected', `${provider} connected. Tap again to sync.`);
-            }
+            await syncAndFinish(true);
           }
         }
       } else if (result.connected) {
-        // Already connected (demo mode) — auto-sync
-        try {
-          const syncResult = await api.ingestConnector(provider);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          showAlert(
-            `${provider} Synced`,
-            `Pulled ${syncResult.ingested} messages, ${syncResult.new_commitments} new commitments.`,
-          );
-          queryClient.invalidateQueries({ queryKey: ['connectors'] });
-          queryClient.invalidateQueries({ queryKey: ['signals'] });
-          queryClient.invalidateQueries({ queryKey: ['commitments'] });
-        } catch (err: any) {
-          showAlert('Connected', `${provider} is now connected.`);
-          queryClient.invalidateQueries({ queryKey: ['connectors'] });
-        }
+        // Already connected — sync silently (no popup unless error)
+        await syncAndFinish(false);
       } else {
         showAlert('Not configured', `${provider} OAuth is not configured on the backend.`);
       }

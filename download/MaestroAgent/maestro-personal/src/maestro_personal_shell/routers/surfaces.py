@@ -374,10 +374,15 @@ def _should_whisper_rule_based(w: dict) -> bool | None:
     if w_type in _NEVER_WHISPER_TYPES:
         return False
 
-    # 3. All other types (including stale_commitment, broken_commitment,
-    #    deadline_approaching, contradiction_detected) go through the gate.
-    #    The gate learns from dismissals — if we skip it here, the learning
-    #    loop can't learn to suppress these. (F5 regression fix.)
+    # 3. High/medium-priority commitment whispers should flow — let them through
+    #    The user said "you are suppressing whisper too much, let it flow."
+    #    So: stale_commitment, broken_commitment, deadline_approaching with
+    #    medium or high priority ALWAYS pass. Only low-priority non-critical
+    #    whispers go through the gate.
+    if w_priority in ("high", "medium"):
+        return True  # Let it flow
+
+    # 4. Low-priority borderline → let LLM gate decide
     return None
 
 
