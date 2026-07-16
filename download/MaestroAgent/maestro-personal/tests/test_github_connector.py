@@ -404,13 +404,22 @@ class TestGitHubIngestionIntegration:
 class TestGitHubSendIntegration:
     """Verify resolve_draft posts comment via real GitHub API when configured."""
 
-    def test_send_falls_back_to_simulated_when_not_configured(self, no_github_env, tmp_path):
+    def test_send_fails_closed_when_not_configured(self, no_github_env, tmp_path):
+        """P0 honesty: when GitHub OAuth is not configured, resolve_draft must
+        FAIL CLOSED (status=send_failed), not fabricate a simulated `msg-` ID.
+
+        Before commit 9dbf00b: the code fabricated `msg-<uuid>` and reported
+        status=approved — a P0 fabrication. Test updated to match honest behavior.
+        """
         from maestro_personal_shell.connectors import ConnectorStore
         store = ConnectorStore(db_path=str(tmp_path / "test.db"))
         draft = store.create_draft("u@t.com", "github", "owner/repo#42", "", "Body", "commitment")
         result = store.resolve_draft(draft["draft_id"], "approve", user_email="u@t.com")
-        assert result["status"] == "approved"
-        assert result["sent_message_id"].startswith("msg-")  # simulated
+        assert result["status"] == "send_failed", \
+            f"Must fail closed when OAuth not configured, got: {result}"
+        assert not result.get("sent_message_id", "").startswith("msg-"), \
+            f"Fabricated simulated message ID — P0 fabrication: {result}"
+        assert "send_error" in result, f"Must include send_error explaining why: {result}"
 
     def test_send_calls_real_github_when_configured(self, github_env, tmp_path):
         from maestro_personal_shell.connectors import ConnectorStore

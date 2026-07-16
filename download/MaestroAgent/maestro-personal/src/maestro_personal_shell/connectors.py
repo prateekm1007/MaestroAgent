@@ -51,6 +51,35 @@ from maestro_personal_shell.db_util import get_db_conn
 
 logger = logging.getLogger(__name__)
 
+
+def _run_async_in_thread(coro):
+    """Run an async coroutine from sync code without conflicting with a running event loop.
+
+    P11 fix (wiring): ``generate_auto_draft`` is sync but needs to call async
+    functions (``fetch_user_sent_emails``, ``generate_intelligent_draft``).
+    Calling ``asyncio.run`` directly inside FastAPI's already-running loop
+    raises ``RuntimeError: This event loop is already running`` — which silently
+    fell back to the template, so the intelligent-draft feature was 0% wired.
+    Running the coroutine in a worker thread with its own loop isolates it.
+    """
+    import asyncio
+    import threading
+    holder: dict[str, Any] = {}
+
+    def _runner() -> None:
+        try:
+            holder["result"] = asyncio.run(coro)
+        except Exception as exc:  # noqa: BLE001 — re-raised on main thread
+            holder["error"] = exc
+
+    t = threading.Thread(target=_runner, daemon=True)
+    t.start()
+    t.join()
+    if "error" in holder:
+        raise holder["error"]
+    return holder.get("result")
+
+
 # ---------------------------------------------------------------------------
 # Connector definitions
 # ---------------------------------------------------------------------------
@@ -1153,9 +1182,11 @@ class ConnectorDraftGenerator:
                     stored_token = self.get_stored_token(user_email, "gmail")
                     if stored_token:
                         oauth_client = GmailOAuthClient()
-                        sent_emails = await_fetch_user_sent_emails(
-                            stored_token, oauth_client, max_emails=20
-                        ) if False else []  # sync fallback — async handled by caller
+                        # P11 fix: actually fetch sent emails (was dead code: `if False`).
+                        # Run in a worker thread so we don't touch FastAPI's loop.
+                        sent_emails = _run_async_in_thread(
+                            fetch_user_sent_emails(stored_token, oauth_client, max_emails=20)
+                        )
                         # Style analysis is sync — can be done from the fetched emails
                         writing_style = analyze_writing_style(sent_emails) if sent_emails else None
             except Exception as e:
@@ -1163,9 +1194,11 @@ class ConnectorDraftGenerator:
 
         # Step 3: Generate the draft using the intelligent draft generator
         try:
-            import asyncio
             from maestro_personal_shell.intelligent_draft import generate_intelligent_draft
-            draft = asyncio.get_event_loop().run_until_complete(
+            # P11 fix: run the async generator in a worker thread.
+            # ``asyncio.get_event_loop().run_until_complete`` raised
+            # ``RuntimeError: This event loop is already running`` inside FastAPI.
+            draft = _run_async_in_thread(
                 generate_intelligent_draft(
                     provider=provider,
                     recipient=recipient,

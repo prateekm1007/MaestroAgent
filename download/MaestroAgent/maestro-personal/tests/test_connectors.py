@@ -682,3 +682,99 @@ class TestAutoDraftDerivation:
         assert "recipient" in fields
         assert "commitment_text" not in fields, "P13 violation: auto endpoint must not take commitment_text"
         assert "evidence_refs" not in fields, "P13 violation: auto endpoint must not take evidence_refs"
+
+    def test_auto_draft_wires_llm_and_style_flags(self):
+        """P11 regression test: when the LLM is available, generate_auto_draft
+        must actually invoke it AND surface llm_generated=True / style_applied=True
+        in the returned dict.
+
+        Before fix: 4 separate wiring bugs (dead code `if False`, event-loop
+        conflict, `response.text` on a str, router dropping fields) meant the
+        LLM was never reached from the production path even though
+        intelligent_draft.py passed its own unit tests.
+        """
+        from unittest.mock import MagicMock, patch
+        from maestro_personal_shell.connectors import ConnectorDraftGenerator
+
+        shell = MagicMock()
+        sig = MagicMock()
+        sig.text = "I will send Maria the pricing proposal by Friday"
+        sig.entity = "Maria"
+        sig.signal_type = "commitment_made"
+        sig.timestamp = "2026-07-09T10:00:00Z"
+        sig.signal_id = "sig-001"
+        shell.oem_state = None
+        shell.signals = [sig]
+        shell.core = None
+
+        async def fake_llm_complete(system, user, temperature=0.2, max_tokens=500):
+            return "Hi Maria,\n\nI'll send the pricing proposal by Friday as promised.\n\nBest,"
+
+        async def fake_fetch(stored_token, oauth_client, max_emails=20):
+            return [{"to": "team@example.com", "subject": "Re: project",
+                     "body": "Hi team, Thanks for the update. Best, Alex"}]
+
+        with patch("maestro_personal_shell.llm_bridge.llm_complete",
+                   new=fake_llm_complete), \
+             patch("maestro_personal_shell.llm_bridge.is_llm_available",
+                   return_value=True), \
+             patch("maestro_personal_shell.intelligent_draft.fetch_user_sent_emails",
+                   new=fake_fetch), \
+             patch("maestro_personal_shell.gmail_connector.is_gmail_configured",
+                   return_value=True):
+            gen = ConnectorDraftGenerator(shell=shell)
+            result = gen.generate_auto_draft(
+                provider="gmail",
+                recipient="maria@example.com",
+                shell=shell,
+                user_email="user@example.com",
+            )
+
+        # The 4 assertions the auditor's pre-fix run failed on:
+        assert result.get("derived") is True
+        assert result.get("llm_generated") is True, \
+            f"P11 wiring bug regression: llm_generated must be True. Got: {result}"
+        assert result.get("style_applied") is True, \
+            f"P11 wiring bug regression: style_applied must be True. Got: {result}"
+        # Body must be LLM-generated, not the old template
+        assert "Thank you for the productive discussion" not in result["body"], \
+            "Body should be LLM-generated, not the old template"
+        assert "pricing proposal" in result["body"], \
+            "Body must still reference the commitment"
+
+    def test_reasoning_chain_no_nested_repr_leak(self):
+        """P1 round-2 regression: nested dict/list values in reasoning_chain
+        must not leak as Python repr (single quotes, braces).
+
+        Before fix: top-level dict was flattened to "key: value" but when a
+        VALUE was itself a dict, str(dict) produced `{'current_state': ...}`.
+        """
+        import json
+        # Reproduce the exact code path in routers/ask.py:599-608
+        trace = {
+            "situation_state": {
+                "situation_id": "sit-alex-chen-001",
+                "title": "Alex Chen follow-up",
+                "delivery_route": {
+                    "current_state": "needs_preparation",
+                    "next_step": "draft_email",
+                },
+            },
+        }
+        reasoning_chain = []
+        for key in ("situation_state", "evidence_summary", "selection_reason"):
+            val = trace.get(key, "")
+            if val:
+                if isinstance(val, dict):
+                    val = ". ".join(
+                        f"{k}: {json.dumps(v, default=str) if isinstance(v, (dict, list)) else v}"
+                        for k, v in val.items()
+                    )
+                reasoning_chain.append(str(val)[:300])
+
+        combined = " ".join(reasoning_chain)
+        assert "{'current_state'" not in combined, \
+            f"Python repr leaked for nested dict: {combined}"
+        assert '"current_state": "needs_preparation"' in combined or \
+               '"current_state":"needs_preparation"' in combined, \
+            f"Nested dict not serialized as JSON: {combined}"

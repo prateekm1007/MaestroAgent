@@ -597,15 +597,25 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         val = trace.get(key, "")
                         if val:
                             # P1 fix: clean string, not repr(dict)
+                            # P1 fix (round 2): nested dict/list values still leaked
+                            # as Python repr (`{'current_state': ...}`). Use json.dumps
+                            # so nested values are clean JSON, not repr.
                             if isinstance(val, dict):
-                                val = ". ".join(f"{k}: {v}" for k, v in val.items())
+                                val = ". ".join(
+                                    f"{k}: {json.dumps(v, default=str) if isinstance(v, (dict, list)) else v}"
+                                    for k, v in val.items()
+                                )
                             reasoning_chain.append(str(val)[:200])
                 else:
                     # P1 fix: clean each step, not raw repr
+                    # P1 fix (round 2): nested dict/list values still leaked
                     cleaned_steps = []
                     for s in steps[:5]:
                         if isinstance(s, dict):
-                            cleaned_steps.append(". ".join(f"{k}: {v}" for k, v in s.items())[:200])
+                            cleaned_steps.append(". ".join(
+                                f"{k}: {json.dumps(v, default=str) if isinstance(v, (dict, list)) else v}"
+                                for k, v in s.items()
+                            )[:200])
                         else:
                             cleaned_steps.append(str(s)[:200])
                     reasoning_chain = cleaned_steps

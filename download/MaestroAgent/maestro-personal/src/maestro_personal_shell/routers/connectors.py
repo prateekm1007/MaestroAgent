@@ -495,6 +495,11 @@ async def create_auto_draft(req: ConnectorAutoDraftRequest, token: str = Depends
     result["derived"] = draft_data.get("derived", False)
     result["commitment_source"] = draft_data.get("commitment_source", "")
     result["evidence_count"] = draft_data.get("evidence_count", 0)
+    # P11 fix (wiring): pass through the LLM/style flags so the mobile app
+    # can show "AI-generated in your writing style". Previously these were
+    # computed by generate_intelligent_draft but dropped here.
+    result["llm_generated"] = draft_data.get("llm_generated", False)
+    result["style_applied"] = draft_data.get("style_applied", False)
     return result
 
 

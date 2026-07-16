@@ -275,8 +275,11 @@ Keep it under 150 words. Do not include [Your name] — end with the sign-off on
                 max_tokens=300,
             )
 
-            if response and response.text:
-                draft_body = response.text.strip()
+            # P11 fix (wiring): llm_complete returns str | None, not an object
+            # with .text. The previous `response.text` raised AttributeError
+            # every time, silently falling back to the template.
+            if response:
+                draft_body = response.strip()
                 # Ensure it ends with the sign-off
                 sign_off = style.get("sign_off", "Best,")
                 if sign_off not in draft_body[-50:]:
