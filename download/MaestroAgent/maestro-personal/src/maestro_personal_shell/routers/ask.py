@@ -148,11 +148,20 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         evidence_refs_for_llm = [{"text": r.get("text", ""), "entity": r.get("entity", "")} for r in relevant[:5]]
             except Exception as e:
                 logger.debug("Semantic retrieval failed, falling back to linear: %s", e)
-                for sig in shell.oem_state.signals:
-                    sig_entity = str(getattr(sig, "entity", "")).lower()
-                    if matching_situation and sig_entity == str(getattr(matching_situation, "entity", "")).lower():
-                        source_sent = getattr(sig, "text", "")
-                        break
+
+            # If FTS found nothing but the user HAS signals, use ALL of them.
+            # This handles broad queries like "review my mail" or "what's going on"
+            # that don't match specific keywords but should summarize everything.
+            if not evidence_refs_for_llm:
+                all_signals = load_signals_from_db(user_email=token, limit=50)
+                if all_signals:
+                    evidence_refs_for_llm = [
+                        {"text": s.get("text", ""), "entity": s.get("entity", "")}
+                        for s in all_signals[:20]  # cap at 20 for LLM context
+                    ]
+                    if not source_sent and all_signals:
+                        source_sent = all_signals[0].get("text", "")
+                    logger.info("Broad query fallback: loaded %d signals as evidence", len(evidence_refs_for_llm))
 
             if not matching_situation and evidence_refs_for_llm:
                 matching_situation = _PseudoSituation(
@@ -744,11 +753,33 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     source_timestamp = ""
 
     if not source_sentence and not evidence_refs:
-        verified_answer = (
-            "I don't have enough information to answer that question. "
-            "No matching signals were found in your stored data."
-        )
-        verification["confidence"] = 0.0
+        # Last resort: check if the user has ANY signals at all
+        all_user_signals = load_signals_from_db(user_email=token, limit=50)
+        if all_user_signals:
+            # User has data — summarize it instead of abstaining
+            summary_lines = []
+            for sig in all_user_signals[:10]:
+                entity = sig.get("entity", "Unknown")
+                text = sig.get("text", "")[:100]
+                sig_type = sig.get("signal_type", "")
+                summary_lines.append(f"• {entity}: {text}")
+            verified_answer = (
+                f"Here's what I found in your data ({len(all_user_signals)} signals total):\n\n"
+                + "\n".join(summary_lines)
+            )
+            source_sentence = all_user_signals[0].get("text", "")
+            source_entity = all_user_signals[0].get("entity", "")
+            evidence_refs = [
+                {"text": s.get("text", ""), "entity": s.get("entity", "")}
+                for s in all_user_signals[:5]
+            ]
+            verification["confidence"] = max(verification["confidence"], 0.4)
+        else:
+            verified_answer = (
+                "I don't have enough information to answer that question. "
+                "No matching signals were found in your stored data."
+            )
+            verification["confidence"] = 0.0
 
     if evidence_refs:
         evidence_types = []
@@ -765,7 +796,11 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             verification["confidence"] = min(verification["confidence"], 0.5)
 
     if not llm_active:
-        verification["confidence"] = min(verification["confidence"], 0.6)
+        # Rule-based mode: cap at 0.6 but never go below 0.3 if we have evidence
+        if evidence_refs:
+            verification["confidence"] = max(min(verification["confidence"], 0.6), 0.3)
+        else:
+            verification["confidence"] = min(verification["confidence"], 0.6)
 
     # P1 fix (audit R67 2026-07-15): log /api/ask invocations to the audit trail.
     # A "provenance-first" product should record every Ask call so users can
