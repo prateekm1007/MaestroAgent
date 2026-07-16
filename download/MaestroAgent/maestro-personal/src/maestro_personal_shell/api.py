@@ -392,14 +392,16 @@ def load_signals_from_db(db_path: str | None = None, user_email: str | None = No
     return [dict(r) for r in rows]
 
 
-def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_email: str = "bootstrap") -> None:
+def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_email: str = "bootstrap") -> bool:
     """Save a signal to SQLite.
+
+    Returns True if the signal was newly inserted, False if it was deduped
+    (skipped because an identical signal exists within the last hour).
 
     Phase 1 fix: stores user_email with each signal for per-user isolation.
     Phase 1.3 fix: also indexes the signal in FTS5 for semantic retrieval.
     Audit fix #7: content-hash dedup — if a signal with the same entity +
     text + user_email already exists (within 1 hour), skip the insert.
-    The auditor found duplicate signals create noise.
     """
     import hashlib
 
@@ -424,7 +426,7 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
     if existing:
         conn.close()
         logger.debug("Duplicate signal skipped: entity=%s text=%s", signal["entity"], signal["text"][:50])
-        return  # skip duplicate
+        return False  # deduped
 
     conn.execute(
         """INSERT OR REPLACE INTO signals
@@ -452,6 +454,8 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
         index_signal(signal_with_user, db_path=db_path)
     except Exception as e:
         logger.debug("FTS indexing failed (non-fatal): %s", e)
+
+    return True  # newly inserted
 
 
 def clear_signals_db(db_path: str | None = None, user_email: str | None = None) -> None:

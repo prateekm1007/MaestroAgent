@@ -526,9 +526,13 @@ class ConnectorStore:
                     "timestamp": msg.get("timestamp", now),
                     "metadata": {"source": msg.get("source", provider), "provider": provider},
                 }
-                save_signal_to_db(signal, db_path=self.db_path, user_email=user_email)
-                new_commitments += 1
-            except Exception:
+                inserted = save_signal_to_db(signal, db_path=self.db_path, user_email=user_email)
+                if inserted:
+                    new_commitments += 1
+                else:
+                    duplicates += 1
+            except Exception as e:
+                logger.warning("Connector ingest save failed: %s", e)
                 duplicates += 1
 
             # Also ingest into the shell's in-memory store

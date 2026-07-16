@@ -160,6 +160,8 @@ class TestIngestion:
 
     def test_ingest_returns_commitment_count(self, tmp_path):
         from maestro_personal_shell.connectors import ConnectorStore
+        from maestro_personal_shell.api import init_db
+        init_db(str(tmp_path / "test.db"))
         store = ConnectorStore(db_path=str(tmp_path / "test.db"))
         store.connect("user@test.com", "gmail", "token")
         result = store.ingest("user@test.com", "gmail", shell=None)
@@ -169,6 +171,8 @@ class TestIngestion:
 
     def test_ingest_updates_commitment_count(self, tmp_path):
         from maestro_personal_shell.connectors import ConnectorStore
+        from maestro_personal_shell.api import init_db
+        init_db(str(tmp_path / "test.db"))
         store = ConnectorStore(db_path=str(tmp_path / "test.db"))
         store.connect("user@test.com", "gmail", "token")
         store.ingest("user@test.com", "gmail", shell=None)
