@@ -1,13 +1,13 @@
 /**
  * Maestro Personal API client.
  *
- * Calls the Maestro Personal FastAPI server (port 8766 in this sandbox).
- * All requests route through the Caddy gateway using the `XTransformPort`
- * query parameter — never write the port in the URL path or host.
+ * Calls the Maestro Personal FastAPI server. In dev, Next.js rewrites
+ * /api/* to http://localhost:8766/api/* (see next.config.ts), so the
+ * web app on :3000 proxies to the backend on :8766 automatically.
  *
  * If the live API is unreachable, every method falls back to demo data
- * so the CEO can see every screen working. The `mode` field on the
- * client tells you whether you're seeing real or demo data.
+ * so the UI still renders. The `mode` field tells you whether you're
+ * seeing real or demo data.
  */
 
 import {
@@ -29,7 +29,6 @@ import {
   demoPostCallSummary,
 } from "./demo-data";
 
-const MAESTRO_PORT = "8766";
 const TOKEN_KEY = "maestro.token";
 const MODE_KEY = "maestro.mode"; // "live" | "demo"
 
@@ -91,8 +90,9 @@ async function maestroFetch<T>(
   options: RequestInit = {},
   fallback?: T,
 ): Promise<{ data: T; live: boolean }> {
-  const sep = path.includes("?") ? "&" : "?";
-  const url = `${path}${sep}XTransformPort=${MAESTRO_PORT}`;
+  // Next.js rewrites /api/* to http://localhost:8766/api/* automatically
+  // (see next.config.ts). No need for XTransformPort query param.
+  const url = path;
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -128,7 +128,7 @@ export async function checkHealth(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`/api/health?XTransformPort=${MAESTRO_PORT}`, {
+    const res = await fetch(`/api/health`, {
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -152,7 +152,7 @@ export async function login(password: string): Promise<LoginResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(
-      `/api/auth/login?XTransformPort=${MAESTRO_PORT}`,
+      `/api/auth/login`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -3,11 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   CheckCircle,
-  Database,
   LayoutDashboard,
-  Link2,
   LogOut,
-  Radio,
   Search,
   Settings as SettingsIcon,
   TriangleAlert,
@@ -26,21 +23,15 @@ import { Login } from "@/components/maestro/Login";
 import { Dashboard } from "@/components/maestro/Dashboard";
 import { Ask } from "@/components/maestro/Ask";
 import { Commitments } from "@/components/maestro/Commitments";
-import { Signals } from "@/components/maestro/Signals";
-import { Copilot } from "@/components/maestro/Copilot";
-import { Connectors } from "@/components/maestro/Connectors";
 import { Settings } from "@/components/maestro/Settings";
 
-type View = "dashboard" | "ask" | "commitments" | "signals" | "copilot" | "connectors" | "settings";
+type View = "dashboard" | "ask" | "commitments" | "settings";
 
 const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "ask", label: "Ask", icon: Search },
   { id: "commitments", label: "Commitments", icon: CheckCircle },
-  { id: "signals", label: "Signals", icon: Database },
-  { id: "copilot", label: "Copilot", icon: Radio },
-  { id: "connectors", label: "Connectors", icon: Link2 },
-  { id: "settings", label: "Settings", icon: SettingsIcon },
+  { id: "settings", label: "More", icon: SettingsIcon },
 ];
 
 export default function Home() {
@@ -175,9 +166,6 @@ export default function Home() {
             />
           )}
           {view === "commitments" && <Commitments />}
-          {view === "signals" && <Signals />}
-          {view === "copilot" && <Copilot />}
-          {view === "connectors" && <Connectors />}
           {view === "settings" && <Settings />}
         </main>
       </div>

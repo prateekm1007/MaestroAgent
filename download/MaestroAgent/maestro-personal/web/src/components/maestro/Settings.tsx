@@ -45,6 +45,7 @@ import {
   type PrivacyMode,
   maestroApi,
 } from "@/lib/maestro-api";
+import { Connectors } from "@/components/maestro/Connectors";
 
 export function Settings() {
   const [llm, setLlm] = useState<LlmStatus | null>(null);
@@ -433,6 +434,9 @@ export function Settings() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Connectors — connect/disconnect/sync (merged from old Connectors tab) */}
+      <Connectors />
 
       {/* Per-connector consent (Task 59-7) */}
       <Card className="border-border/60">
