@@ -836,3 +836,94 @@ async def get_smart_notifications(
         "engine_available": True,
         "count": len(notifications),
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 9: Calendar awareness + commitment escalation endpoints
+# ---------------------------------------------------------------------------
+
+
+class CalendarAwarenessRequest(BaseModel):
+    """Request body for /calendar/awareness.
+
+    P13: caller supplies only a time horizon (CONTEXT), not meeting data.
+    The meeting context is DERIVED from the user's signal history.
+    """
+    hours_ahead: int = 48
+
+
+@router.post("/calendar/awareness")
+async def get_calendar_awareness_endpoint(
+    req: CalendarAwarenessRequest,
+    token: str = Depends(verify_token_dep),
+):
+    """Get calendar awareness for upcoming meetings (Phase 9).
+
+    P11 fix (wiring): the enterprise CalendarAwarenessEngine was built +
+    tested (16 tests) but never wired into the personal shell. This
+    endpoint is the production entry point.
+
+    P13: meeting context is DERIVED from the user's signal history
+    (commitments, talking points, risks, opportunities). The caller
+    supplies only the time horizon.
+
+    Returns:
+      list of meeting context dicts with talking_points, risks,
+      opportunities, open_commitments, overdue_commitments.
+    """
+    from maestro_personal_shell.phase9_ambient import (
+        get_calendar_awareness as _get_awareness,
+        ENTERPRISE_ENGINES_AVAILABLE,
+    )
+    if not ENTERPRISE_ENGINES_AVAILABLE:
+        return {
+            "meetings": [],
+            "engine_available": False,
+            "message": "Calendar awareness unavailable — enterprise engine not importable",
+        }
+    meetings = _get_awareness(user_email=token, hours_ahead=req.hours_ahead)
+    return {
+        "meetings": meetings,
+        "engine_available": True,
+        "count": len(meetings),
+    }
+
+
+@router.get("/commitments/escalations")
+async def get_commitment_escalations_endpoint(
+    token: str = Depends(verify_token_dep),
+):
+    """Get commitment escalations for the current user (Phase 9).
+
+    P11 fix (wiring): the enterprise CommitmentEscalationEngine was built
+    + tested but never wired into the personal shell. This endpoint is
+    the production entry point.
+
+    P13: commitments are DERIVED from the user's signal history — the
+    caller supplies nothing but the auth token.
+
+    Returns:
+      list of escalation dicts sorted by severity (CRITICAL first):
+        commitment_id, commitment_text, entity, health,
+        escalation_level, days_until_due, days_overdue,
+        nudge_text, nudge_channel, nudge_draft,
+        failure_probability, failure_reason, related_commitments
+    """
+    from maestro_personal_shell.phase9_ambient import (
+        get_commitment_escalations as _get_escalations,
+        ENTERPRISE_ENGINES_AVAILABLE,
+    )
+    if not ENTERPRISE_ENGINES_AVAILABLE:
+        return {
+            "escalations": [],
+            "engine_available": False,
+            "message": "Commitment escalation unavailable — enterprise engine not importable",
+        }
+    escalations = _get_escalations(user_email=token)
+    return {
+        "escalations": escalations,
+        "engine_available": True,
+        "count": len(escalations),
+        "critical_count": sum(1 for e in escalations if e.get("escalation_level") == "critical"),
+        "overdue_count": sum(1 for e in escalations if e.get("escalation_level") == "overdue"),
+    }
