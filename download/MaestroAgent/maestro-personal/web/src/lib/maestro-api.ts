@@ -64,6 +64,7 @@ async function maestroFetch<T>(
   path: string,
   options: RequestInit = {},
   fallback?: T,
+  timeoutMs?: number,
 ): Promise<{ data: T; live: boolean }> {
   // Next.js rewrites /api/* to http://localhost:8766/api/* automatically
   // (see next.config.ts). No need for XTransformPort query param.
@@ -77,7 +78,7 @@ async function maestroFetch<T>(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 8000);
     const res = await fetch(url, { ...options, headers, signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) {
@@ -207,12 +208,15 @@ export const maestroApi = {
     );
   },
 
-  async ask(query: string): Promise<{ data: AskResponse; live: boolean }> {
-    const body = JSON.stringify({ query });
+  async ask(query: string, sessionId?: string): Promise<{ data: AskResponse; live: boolean }> {
+    const body: Record<string, string> = { query };
+    if (sessionId) body.session_id = sessionId;
     return maestroFetch<AskResponse>(
       "/api/ask",
-      { method: "POST", body },
+      { method: "POST", body: JSON.stringify(body) },
       null,
+      // Ask may invoke the LLM (ZAI) which can take 5-15s for long prompts.
+      30000,
     );
   },
 
@@ -643,6 +647,68 @@ export const maestroApi = {
       "/api/analytics/flywheel",
       {},
       { summary: "", engine_available: false },
+    );
+  },
+
+  /* ---------------------------------------------------------------- */
+  /*  P0-2: Proactive drafting — POST /api/drafts/auto                */
+  /*  Body: { provider, recipient }                                   */
+  /*  Backend DERIVES commitment + evidence from signal history (P13).*/
+  /*  Returns draft with evidence_refs, llm_generated, style_applied. */
+  /*  Draft generation can take 10-25s when LLM is active (ZAI),      */
+  /*  so we use a 30s timeout.                                        */
+  /* ---------------------------------------------------------------- */
+  async generateAutoDraft(
+    provider: string,
+    recipient: string,
+  ): Promise<{ data: Draft & { derived?: boolean; commitment_source?: string; evidence_count?: number; llm_generated?: boolean; style_applied?: boolean }; live: boolean }> {
+    const body = JSON.stringify({ provider, recipient });
+    // 30s timeout — auto-draft may invoke the LLM + retrieval pipeline.
+    return maestroFetch<Draft & { derived?: boolean; commitment_source?: string; evidence_count?: number; llm_generated?: boolean; style_applied?: boolean }>(
+      "/api/drafts/auto",
+      { method: "POST", body },
+      null,
+      30000,
+    );
+  },
+
+  /* ---------------------------------------------------------------- */
+  /*  P1-10: Account metrics — GET /api/metrics                       */
+  /*  Returns commitment counts + engagement stats for Settings card.  */
+  /* ---------------------------------------------------------------- */
+  async getMetrics(): Promise<{
+    data: {
+      commitments?: { total?: number; active?: number; completed?: number; dismissed?: number; cancelled?: number };
+      engagement?: { signals_ingested?: number; questions_asked?: number; drafts_generated?: number; drafts_approved?: number };
+      calibration?: { brier_score?: number | null; resolved_predictions?: number };
+      [key: string]: unknown;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      "/api/metrics",
+      {},
+      { commitments: {}, engagement: {}, calibration: {} },
+    );
+  },
+
+  /* ---------------------------------------------------------------- */
+  /*  P1-10: Retention policy — GET /api/privacy/retention-status     */
+  /*  Returns per-category TTLs for the Settings retention dialog.    */
+  /* ---------------------------------------------------------------- */
+  async getRetentionStatus(): Promise<{
+    data: {
+      policy?: Record<string, string | number>;
+      ttls?: Record<string, number>;
+      message?: string;
+      [key: string]: unknown;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      "/api/privacy/retention-status",
+      {},
+      { policy: {}, ttls: {}, message: "Retention status unavailable." },
     );
   },
 };

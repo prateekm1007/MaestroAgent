@@ -5,8 +5,11 @@ import {
   ArrowRight,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Eye,
   Loader2,
+  Mail,
   Quote,
   Sparkles,
   Wind,
@@ -14,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   confidenceTextColor,
@@ -26,6 +30,10 @@ import {
   maestroApi,
 } from "@/lib/maestro-api";
 import { MaestroMark } from "./mark";
+import {
+  DraftApprovalModal,
+  type DraftWithMeta,
+} from "./DraftApprovalModal";
 
 export function Dashboard({
   llm,
@@ -36,6 +44,7 @@ export function Dashboard({
   onAsk: (query: string) => void;
   onNavigate: (view: "ask" | "commitments") => void;
 }) {
+  const { toast } = useToast();
   const [moment, setMoment] = useState<TheMoment | null>(null);
   const [shifts, setShifts] = useState<TheShifts | null>(null);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
@@ -47,6 +56,134 @@ export function Dashboard({
   const [escalations, setEscalations] = useState<any[]>([]);
   const [dealHealth, setDealHealth] = useState<any[]>([]);
   const [upcomingMeetings, setUpcomingMeetings] = useState<any[]>([]);
+
+  // P0-1 + P0-4: state for Done/Skip/Draft/Snooze on The Moment
+  const [momentBusy, setMomentBusy] = useState<"complete" | "dismiss" | "draft" | "snooze" | null>(null);
+  // P0-3 + P0-4: shared draft approval modal
+  const [draftForReview, setDraftForReview] = useState<DraftWithMeta | null>(null);
+  const [draftResolving, setDraftResolving] = useState(false);
+
+  async function refreshMoment() {
+    const m = await maestroApi.getTheMoment();
+    setMoment(m.data);
+  }
+
+  // P0-1: Done / Skip — call correctSignal, then refresh The Moment
+  async function handleMomentCorrect(action: "complete" | "dismiss") {
+    if (!moment?.commitment?.signal_id) return;
+    setMomentBusy(action);
+    try {
+      const { data, live } = await maestroApi.correctSignal(moment.commitment.signal_id, action);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not reach the API on :8766.", variant: "destructive" });
+      } else {
+        toast({
+          title: action === "complete" ? "Marked complete" : "Skipped",
+          description: action === "complete" ? "Nice — one less thing." : "Snoozed for now.",
+        });
+      }
+      await refreshMoment();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setMomentBusy(null);
+    }
+  }
+
+  // P1-2: Snooze — same API action as Skip (dismiss) + client-side 2h toast
+  async function handleSnooze() {
+    if (!moment?.commitment?.signal_id) return;
+    setMomentBusy("snooze");
+    try {
+      const { live } = await maestroApi.correctSignal(moment.commitment.signal_id, "dismiss");
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not reach the API on :8766.", variant: "destructive" });
+      } else {
+        toast({ title: "Snoozed for 2 hours", description: "Maestro will remind you later this morning." });
+      }
+      await refreshMoment();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setMomentBusy(null);
+    }
+  }
+
+  // P0-4: Draft from The Moment — call generateAutoDraft, open shared modal
+  async function handleMomentDraft() {
+    const entity = moment?.commitment?.entity;
+    if (!entity) return;
+    setMomentBusy("draft");
+    try {
+      const { data, live } = await maestroApi.generateAutoDraft("gmail", entity);
+      if (!live || !data) {
+        toast({
+          title: "Draft generation failed",
+          description: "Could not reach the API or no commitments found for this entity.",
+          variant: "destructive",
+        });
+      } else {
+        setDraftForReview(data as DraftWithMeta);
+      }
+    } catch (e: any) {
+      toast({ title: "Draft failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setMomentBusy(null);
+    }
+  }
+
+  // P0-5: Whisper "Draft follow-up" — call generateAutoDraft (was: onAsk)
+  async function handleWhisperDraft(entity: string) {
+    if (!entity) return;
+    setMomentBusy("draft");
+    try {
+      const { data, live } = await maestroApi.generateAutoDraft("gmail", entity);
+      if (!live || !data) {
+        toast({
+          title: "Draft generation failed",
+          description: "Could not reach the API or no commitments found for this entity.",
+          variant: "destructive",
+        });
+      } else {
+        setDraftForReview(data as DraftWithMeta);
+      }
+    } catch (e: any) {
+      toast({ title: "Draft failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setMomentBusy(null);
+    }
+  }
+
+  // Resolve draft (shared modal) — approve / deny / use_draft
+  async function handleResolveDraft(draft: DraftWithMeta, resolution: "approve" | "deny" | "use_draft") {
+    setDraftResolving(true);
+    try {
+      const { live } = await maestroApi.resolveDraft(draft.draft_id, resolution);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not reach the API.", variant: "destructive" });
+      } else if (resolution === "approve") {
+        toast({ title: "Sent", description: "Your email has been sent." });
+      } else if (resolution === "use_draft") {
+        // Web equivalent of mobile's Share.share: copy body to clipboard + open mailto:
+        try {
+          await navigator.clipboard?.writeText(draft.body || "");
+        } catch { /* clipboard may be blocked */ }
+        if (draft.recipient) {
+          const subject = encodeURIComponent(draft.subject || "");
+          const body = encodeURIComponent(draft.body || "");
+          window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, "_blank");
+        }
+        toast({ title: "Opened in mail app", description: "Body copied to clipboard as backup." });
+      } else {
+        toast({ title: "Discarded", description: "Draft denied." });
+      }
+      setDraftForReview(null);
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setDraftResolving(false);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -223,11 +360,24 @@ export function Dashboard({
       </div>
 
       {/* The Moment — hero */}
-      <TheMomentCard loading={loading} moment={moment} onNavigate={onNavigate} />
+      <TheMomentCard
+        loading={loading}
+        moment={moment}
+        onNavigate={onNavigate}
+        onCorrect={handleMomentCorrect}
+        onSnooze={handleSnooze}
+        onDraft={handleMomentDraft}
+        busy={momentBusy}
+      />
 
       {/* Issue 13-C: Whisper cards — "💌 Needs Attention" */}
       {!loading && whispers.length > 0 && (
-        <WhisperCards whispers={whispers} onAsk={onAsk} />
+        <WhisperCards
+          whispers={whispers}
+          onAsk={onAsk}
+          onDraft={handleWhisperDraft}
+          draftBusy={momentBusy === "draft"}
+        />
       )}
 
       {/* What Changed + Briefing */}
@@ -256,6 +406,15 @@ export function Dashboard({
           </form>
         </CardContent>
       </Card>
+
+      {/* P0-3 + P0-4 + P0-5: Shared Draft Approval Modal */}
+      <DraftApprovalModal
+        draft={draftForReview}
+        open={!!draftForReview}
+        onOpenChange={(o) => !o && setDraftForReview(null)}
+        onResolve={handleResolveDraft}
+        resolving={draftResolving}
+      />
     </div>
   );
 }
@@ -266,11 +425,23 @@ function TheMomentCard({
   loading,
   moment,
   onNavigate,
+  onCorrect,
+  onSnooze,
+  onDraft,
+  busy,
 }: {
   loading: boolean;
   moment: TheMoment | null;
   onNavigate: (view: "ask" | "commitments") => void;
+  onCorrect: (action: "complete" | "dismiss") => void;
+  onSnooze: () => void;
+  onDraft: () => void;
+  busy: "complete" | "dismiss" | "draft" | "snooze" | null;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const signalId = moment?.commitment?.signal_id;
+  const disabled = !signalId || busy !== null;
+
   return (
     <Card className="relative overflow-hidden border-primary/40 border-l-4 surface-elevated">
       {/* Subtle ambient glow — Bumble warm */}
@@ -296,23 +467,59 @@ function TheMomentCard({
           </div>
         ) : moment?.has_moment && moment.commitment ? (
           <div className="space-y-5">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium text-foreground">
-                  {moment.commitment.entity}
-                </span>
-                {moment.situation?.state && (
-                  <span className="text-muted-foreground">
-                    · situation: {moment.situation.state.replace(/_/g, " ")}
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="block w-full text-left space-y-2 group"
+              aria-expanded={expanded}
+              aria-controls="moment-evidence-panel"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium text-foreground">
+                    {moment.commitment.entity}
                   </span>
-                )}
+                  {moment.situation?.state && (
+                    <span className="text-muted-foreground">
+                      · situation: {moment.situation.state.replace(/_/g, " ")}
+                    </span>
+                  )}
+                  {moment.source_evidence && moment.source_evidence.length > 0 && (
+                    <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 group-hover:text-muted-foreground">
+                      {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                      {expanded ? "hide evidence" : `${moment.source_evidence.length} source${moment.source_evidence.length === 1 ? "" : "s"}`}
+                    </span>
+                  )}
+                </div>
+                <p className="text-2xl sm:text-3xl font-medium leading-tight text-balance text-pretty">
+                  {moment.commitment.text}
+                </p>
               </div>
-              <p className="text-2xl sm:text-3xl font-medium leading-tight text-balance text-pretty">
-                {moment.commitment.text}
-              </p>
-            </div>
+            </button>
 
-            {moment.source_evidence?.[0] && (
+            {/* P1-1: Expandable evidence panel */}
+            {expanded && moment.source_evidence && moment.source_evidence.length > 0 && (
+              <div id="moment-evidence-panel" className="space-y-2">
+                {moment.source_evidence.map((ev: any, i: number) => (
+                  <div key={i} className="flex gap-3 text-sm">
+                    <Quote className="size-4 shrink-0 text-muted-foreground/70 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground italic">
+                        &ldquo;{ev.text}&rdquo;
+                      </p>
+                      <p className="text-xs text-muted-foreground/70">
+                        {ev.entity} ·{" "}
+                        {formatRelative(ev.timestamp)} · source:{" "}
+                        {ev.source}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Compact single provenance quote when not expanded */}
+            {!expanded && moment.source_evidence?.[0] && (
               <div className="flex gap-3 text-sm">
                 <Quote className="size-4 shrink-0 text-muted-foreground/70 mt-0.5" />
                 <div className="space-y-1">
@@ -337,21 +544,49 @@ function TheMomentCard({
               )}
             </div>
 
-            {/* Done / Skip actions per investor manual */}
-            <div className="flex items-center gap-2 pt-2">
+            {/* P0-1 + P0-4 + P1-2: Done / Skip / Snooze / Draft actions */}
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <Button
                 size="sm"
                 className="h-9 bg-emerald-500 text-white hover:bg-emerald-600"
+                disabled={disabled}
+                onClick={() => onCorrect("complete")}
+                title={!signalId ? "No signal to mark complete" : undefined}
               >
-                <CheckCircle2 className="size-4" />
+                {busy === "complete" ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
                 Done
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 className="h-9 text-muted-foreground hover:text-foreground"
+                disabled={disabled}
+                onClick={() => onCorrect("dismiss")}
               >
+                {busy === "dismiss" ? <Loader2 className="size-4 animate-spin" /> : null}
                 Skip
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-9 text-muted-foreground hover:text-foreground"
+                disabled={disabled}
+                onClick={onSnooze}
+                title="Snooze for 2 hours (client-side)"
+              >
+                {busy === "snooze" ? <Loader2 className="size-4 animate-spin" /> : <CalendarClock className="size-4" />}
+                Snooze 2h
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                disabled={disabled}
+                onClick={onDraft}
+                title="Draft a follow-up email for this commitment"
+              >
+                {busy === "draft" ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
+                Draft
               </Button>
               <Button
                 size="sm"
@@ -588,9 +823,13 @@ function SkeletonRows({ n }: { n: number }) {
 function WhisperCards({
   whispers,
   onAsk,
+  onDraft,
+  draftBusy,
 }: {
   whispers: CopilotWhisper[];
   onAsk: (query: string) => void;
+  onDraft: (entity: string) => void;
+  draftBusy: boolean;
 }) {
   // Normalize: whispers may be a single object or array
   const list = Array.isArray(whispers) ? whispers : [whispers];
@@ -615,41 +854,58 @@ function WhisperCards({
           Proactive reminders — things Maestro noticed so you don&apos;t have to ask.
         </p>
         <div className="space-y-2">
-          {list.slice(0, 5).map((w, i) => (
-            <div
-              key={i}
-              className={cn(
-                "rounded-lg border p-3 transition-colors",
-                priorityColor(w.priority || ""),
-              )}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold text-foreground">
-                      {w.entity || "Attention"}
-                    </span>
-                    {w.priority && (
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                        {w.priority}
+          {list.slice(0, 5).map((w, i) => {
+            const entity = w.entity || "";
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "rounded-lg border p-3 transition-colors",
+                  priorityColor(w.priority || ""),
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-foreground">
+                        {entity || "Attention"}
                       </span>
-                    )}
+                      {w.priority && (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                          {w.priority}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground/80 line-clamp-2">
+                      {w.body || w.title || ""}
+                    </p>
                   </div>
-                  <p className="text-sm text-foreground/80 line-clamp-2">
-                    {w.body || w.title || ""}
-                  </p>
+                  {/* P0-5: Draft follow-up now actually generates a draft (was: onAsk) */}
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs"
+                      disabled={draftBusy || !entity}
+                      onClick={() => onDraft(entity)}
+                      title={!entity ? "No entity to draft for" : "Generate a follow-up email draft"}
+                    >
+                      {draftBusy ? <Loader2 className="size-3 animate-spin" /> : <Mail className="size-3" />}
+                      Draft
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => onAsk(`What should I do about ${entity}?`)}
+                    >
+                      Ask
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="shrink-0 text-xs"
-                  onClick={() => onAsk(`What should I do about ${w.entity}?`)}
-                >
-                  ✉ Draft follow-up
-                </Button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>

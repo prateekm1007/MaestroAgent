@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  Mail,
   Sparkles,
   XCircle,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   confidenceColor,
@@ -32,8 +34,20 @@ import {
   type CommitmentsTheOne,
   maestroApi,
 } from "@/lib/maestro-api";
+import {
+  DraftApprovalModal,
+  type DraftWithMeta,
+} from "./DraftApprovalModal";
+import { Signals } from "./Signals";
 
-export function Commitments() {
+export function Commitments({
+  initialEntityFilter = "",
+  onEntityFilterConsumed,
+}: {
+  initialEntityFilter?: string;
+  onEntityFilterConsumed?: () => void;
+} = {}) {
+  const { toast } = useToast();
   const [theOne, setTheOne] = useState<CommitmentsTheOne | null>(null);
   const [list, setList] = useState<Commitment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +56,24 @@ export function Commitments() {
   const [dealHealth, setDealHealth] = useState<any[]>([]);
   const [meetingGrades, setMeetingGrades] = useState<any[]>([]);
   const [threads, setThreads] = useState<any[]>([]);
+
+  // P0-6: Draft button state
+  const [draftForReview, setDraftForReview] = useState<DraftWithMeta | null>(null);
+  const [draftResolving, setDraftResolving] = useState(false);
+  const [draftBusyEntity, setDraftBusyEntity] = useState<string | null>(null);
+
+  // P1-12: Segmented control — Commitments | Signals
+  const [tab, setTab] = useState<"commitments" | "signals">("commitments");
+
+  // P1-8: Optional entity filter (set from Ask provenance deep-link)
+  const [entityFilter, setEntityFilter] = useState(initialEntityFilter);
+
+  useEffect(() => {
+    if (initialEntityFilter) {
+      setEntityFilter(initialEntityFilter);
+      onEntityFilterConsumed?.();
+    }
+  }, [initialEntityFilter, onEntityFilterConsumed]);
 
   useEffect(() => {
     let alive = true;
@@ -80,6 +112,62 @@ export function Commitments() {
     setBusyId(null);
   }
 
+  // P0-6: Draft from The One or any commitment row — calls generateAutoDraft + opens shared modal
+  async function handleDraft(entity: string) {
+    if (!entity) return;
+    setDraftBusyEntity(entity);
+    try {
+      const { data, live } = await maestroApi.generateAutoDraft("gmail", entity);
+      if (!live || !data) {
+        toast({
+          title: "Draft generation failed",
+          description: "Could not reach the API or no commitments found for this entity.",
+          variant: "destructive",
+        });
+      } else {
+        setDraftForReview(data as DraftWithMeta);
+      }
+    } catch (e: any) {
+      toast({ title: "Draft failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setDraftBusyEntity(null);
+    }
+  }
+
+  async function handleResolveDraft(draft: DraftWithMeta, resolution: "approve" | "deny" | "use_draft") {
+    setDraftResolving(true);
+    try {
+      const { live } = await maestroApi.resolveDraft(draft.draft_id, resolution);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not reach the API.", variant: "destructive" });
+      } else if (resolution === "approve") {
+        toast({ title: "Sent", description: "Your email has been sent." });
+      } else if (resolution === "use_draft") {
+        try {
+          await navigator.clipboard?.writeText(draft.body || "");
+        } catch { /* clipboard may be blocked */ }
+        if (draft.recipient) {
+          const subject = encodeURIComponent(draft.subject || "");
+          const body = encodeURIComponent(draft.body || "");
+          window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, "_blank");
+        }
+        toast({ title: "Opened in mail app", description: "Body copied to clipboard as backup." });
+      } else {
+        toast({ title: "Discarded", description: "Draft denied." });
+      }
+      setDraftForReview(null);
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setDraftResolving(false);
+    }
+  }
+
+  // P1-8: Apply entity filter to the visible list
+  const filteredList = entityFilter
+    ? list.filter((c) => c.entity?.toLowerCase().includes(entityFilter.toLowerCase()))
+    : list;
+
   return (
     <div className="space-y-6">
       <div>
@@ -89,144 +177,207 @@ export function Commitments() {
         </p>
       </div>
 
-      {/* The One */}
-      {loading ? (
-        <Card className="border-border/60">
-          <CardContent className="pt-6 flex items-center justify-center py-10">
-            <Loader2 className="size-5 text-muted-foreground animate-spin" />
-          </CardContent>
-        </Card>
-      ) : theOne?.primary ? (
-        <TheOneCard
-          commitment={theOne.primary}
-          why={theOne.why_primary}
-          overallCalibration={theOne.overall_calibration}
-          onCorrect={correct}
-          busy={busyId === theOne.primary.signal_id}
-        />
-      ) : (
-        <Card className="border-border/60 border-dashed">
-          <CardContent className="pt-6 pb-8 text-center text-sm text-muted-foreground">
-            No active commitments. You&apos;re caught up.
-          </CardContent>
-        </Card>
-      )}
-
-      {/* The rest */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold">All active</h3>
-          <span className="text-xs text-muted-foreground">
-            {loading ? "loading…" : `${list.length} commitment${list.length === 1 ? "" : "s"}`}
-          </span>
-        </div>
-        <div className="space-y-3">
-          {loading ? (
-            <SkeletonCommitment />
-          ) : list.length === 0 ? (
-            <Card className="border-border/60 border-dashed">
-              <CardContent className="pt-6 pb-8 text-center text-sm text-muted-foreground">
-                Nothing active.
-              </CardContent>
-            </Card>
-          ) : (
-            list.map((c) => (
-              <CommitmentRow
-                key={c.signal_id}
-                c={c}
-                onCorrect={correct}
-                busy={busyId === c.signal_id}
-              />
-            ))
+      {/* P1-12: Segmented control — Commitments | Signals */}
+      <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-muted/40 border border-border/60">
+        <button
+          type="button"
+          onClick={() => setTab("commitments")}
+          className={cn(
+            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+            tab === "commitments"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           )}
-        </div>
+        >
+          Commitments
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("signals")}
+          className={cn(
+            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+            tab === "signals"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Signals
+        </button>
       </div>
 
-      {/* Phase 14: Cross-Meeting Threads (institutional memory) */}
-      {threads.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Meeting Threads</h3>
-            <span className="text-xs text-muted-foreground">
-              {threads.length} thread{threads.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          <div className="space-y-3">
-            {threads.slice(0, 5).map((t) => (
-              <Card key={t.thread_id} className="border-border/60">
-                <CardContent className="py-3 px-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{t.entity}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.topic}</p>
-                    </div>
-                    <span
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ml-2",
-                        t.confidence_level === "high" ? "bg-green-500/15 text-green-600"
-                          : t.confidence_level === "medium" ? "bg-yellow-500/15 text-yellow-600"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {t.meeting_count} meeting{t.meeting_count === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  {t.topic_evolution && t.topic_evolution.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Topic evolution: {t.topic_evolution.join(" → ")}
-                    </p>
-                  )}
-                  {t.decision_chain && t.decision_chain.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {t.decision_chain.length} decision{t.decision_chain.length === 1 ? "" : "s"} tracked
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+      {/* P1-8: Entity filter banner (visible when deep-linked from Ask) */}
+      {entityFilter && (
+        <div className="flex items-center gap-2 text-xs rounded-md border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2">
+          <span className="text-amber-700 dark:text-amber-300 font-medium">
+            Filtered by entity: <span className="font-mono">{entityFilter}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setEntityFilter("")}
+            className="ml-auto text-amber-700 dark:text-amber-300 hover:underline"
+          >
+            clear
+          </button>
         </div>
       )}
 
-      {/* Phase 16: Meeting History with grades */}
-      {meetingGrades.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Meeting History</h3>
-            <span className="text-xs text-muted-foreground">
-              {meetingGrades.length} meeting{meetingGrades.length === 1 ? "" : "s"}
-            </span>
+      {tab === "signals" ? (
+        <Signals />
+      ) : (
+        <>
+          {/* The One */}
+          {loading ? (
+            <Card className="border-border/60">
+              <CardContent className="pt-6 flex items-center justify-center py-10">
+                <Loader2 className="size-5 text-muted-foreground animate-spin" />
+              </CardContent>
+            </Card>
+          ) : theOne?.primary ? (
+            <TheOneCard
+              commitment={theOne.primary}
+              why={theOne.why_primary}
+              overallCalibration={theOne.overall_calibration}
+              onCorrect={correct}
+              onDraft={handleDraft}
+              busy={busyId === theOne.primary.signal_id}
+              draftBusy={draftBusyEntity === theOne.primary.entity}
+            />
+          ) : (
+            <Card className="border-border/60 border-dashed">
+              <CardContent className="pt-6 pb-8 text-center text-sm text-muted-foreground">
+                No active commitments. You&apos;re caught up.
+              </CardContent>
+            </Card>
+          )}
+
+          {/* The rest */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">All active</h3>
+              <span className="text-xs text-muted-foreground">
+                {loading ? "loading…" : `${filteredList.length} commitment${filteredList.length === 1 ? "" : "s"}`}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {loading ? (
+                <SkeletonCommitment />
+              ) : filteredList.length === 0 ? (
+                <Card className="border-border/60 border-dashed">
+                  <CardContent className="pt-6 pb-8 text-center text-sm text-muted-foreground">
+                    {entityFilter ? `No commitments match "${entityFilter}".` : "Nothing active."}
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredList.map((c) => (
+                  <CommitmentRow
+                    key={c.signal_id}
+                    c={c}
+                    onCorrect={correct}
+                    onDraft={handleDraft}
+                    busy={busyId === c.signal_id}
+                    draftBusy={draftBusyEntity === c.entity}
+                  />
+                ))
+              )}
+            </div>
           </div>
-          <div className="space-y-3">
-            {meetingGrades.slice(0, 5).map((g) => (
-              <Card key={g.meeting_id || g.entity} className="border-border/60">
-                <CardContent className="py-3 px-4 flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">
-                      {g.entity || g.title || "Meeting"}
-                    </p>
-                    {g.title && g.title !== g.entity && (
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{g.title}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">{g.confidence_label}</p>
-                  </div>
-                  <span
-                    className={cn(
-                      "flex items-center justify-center rounded-lg w-9 h-9 text-lg font-black text-black shrink-0 ml-3",
-                      g.grade === "A" ? "bg-green-500"
-                        : g.grade === "B" ? "bg-yellow-500"
-                        : g.grade === "C" ? "bg-yellow-600"
-                        : "bg-red-500"
-                    )}
-                  >
-                    {g.effective_grade || g.grade}
-                  </span>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+
+          {/* Phase 14: Cross-Meeting Threads (institutional memory) */}
+          {threads.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Meeting Threads</h3>
+                <span className="text-xs text-muted-foreground">
+                  {threads.length} thread{threads.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {threads.slice(0, 5).map((t) => (
+                  <Card key={t.thread_id} className="border-border/60">
+                    <CardContent className="py-3 px-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{t.entity}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.topic}</p>
+                        </div>
+                        <span
+                          className={cn(
+                            "text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ml-2",
+                            t.confidence_level === "high" ? "bg-green-500/15 text-green-600"
+                              : t.confidence_level === "medium" ? "bg-yellow-500/15 text-yellow-600"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {t.meeting_count} meeting{t.meeting_count === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      {t.topic_evolution && t.topic_evolution.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Topic evolution: {t.topic_evolution.join(" → ")}
+                        </p>
+                      )}
+                      {t.decision_chain && t.decision_chain.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {t.decision_chain.length} decision{t.decision_chain.length === 1 ? "" : "s"} tracked
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Phase 16: Meeting History with grades */}
+          {meetingGrades.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Meeting History</h3>
+                <span className="text-xs text-muted-foreground">
+                  {meetingGrades.length} meeting{meetingGrades.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {meetingGrades.slice(0, 5).map((g) => (
+                  <Card key={g.meeting_id || g.entity} className="border-border/60">
+                    <CardContent className="py-3 px-4 flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {g.entity || g.title || "Meeting"}
+                        </p>
+                        {g.title && g.title !== g.entity && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{g.title}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">{g.confidence_label}</p>
+                      </div>
+                      <span
+                        className={cn(
+                          "flex items-center justify-center rounded-lg w-9 h-9 text-lg font-black text-black shrink-0 ml-3",
+                          g.grade === "A" ? "bg-green-500"
+                            : g.grade === "B" ? "bg-yellow-500"
+                            : g.grade === "C" ? "bg-yellow-600"
+                            : "bg-red-500"
+                        )}
+                      >
+                        {g.effective_grade || g.grade}
+                      </span>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
+
+      {/* P0-6: Shared Draft Approval Modal */}
+      <DraftApprovalModal
+        draft={draftForReview}
+        open={!!draftForReview}
+        onOpenChange={(o) => !o && setDraftForReview(null)}
+        onResolve={handleResolveDraft}
+        resolving={draftResolving}
+      />
     </div>
   );
 }
@@ -236,13 +387,17 @@ function TheOneCard({
   why,
   overallCalibration,
   onCorrect,
+  onDraft,
   busy,
+  draftBusy,
 }: {
   commitment: Commitment;
   why: string;
   overallCalibration?: string;
   onCorrect: (id: string, action: "complete" | "dismiss" | "cancel") => void;
+  onDraft: (entity: string) => void;
   busy: boolean;
+  draftBusy: boolean;
 }) {
   const tier = confidenceTier(commitment.confidence);
   return (
@@ -332,6 +487,18 @@ function TheOneCard({
             Dismiss
           </Button>
           <CancelWithConfirm onConfirm={() => onCorrect(commitment.signal_id, "cancel")} disabled={busy} />
+          {/* P0-6: Draft button — generates auto-draft + opens shared modal */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 ml-auto"
+            disabled={draftBusy}
+            onClick={() => onDraft(commitment.entity)}
+            title="Draft a follow-up email"
+          >
+            {draftBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Mail className="size-3.5" />}
+            Draft
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -341,11 +508,15 @@ function TheOneCard({
 function CommitmentRow({
   c,
   onCorrect,
+  onDraft,
   busy,
+  draftBusy,
 }: {
   c: Commitment;
   onCorrect: (id: string, action: "complete" | "dismiss" | "cancel") => void;
+  onDraft: (entity: string) => void;
   busy: boolean;
+  draftBusy: boolean;
 }) {
   return (
     <Card className={cn("border-border/60", c.is_at_risk && "border-amber-500/30 bg-amber-500/[0.02]")}>
@@ -400,6 +571,18 @@ function CommitmentRow({
             Dismiss
           </Button>
           <CancelWithConfirm onConfirm={() => onCorrect(c.signal_id, "cancel")} disabled={busy} small />
+          {/* P0-6: Draft button on each commitment row */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 ml-auto"
+            disabled={draftBusy}
+            onClick={() => onDraft(c.entity)}
+            title="Draft a follow-up email"
+          >
+            {draftBusy ? <Loader2 className="size-3 animate-spin" /> : <Mail className="size-3" />}
+            Draft
+          </Button>
         </div>
       </CardContent>
     </Card>

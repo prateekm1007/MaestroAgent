@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   Activity,
+  BarChart3,
+  Bell,
   Brain,
   CheckCircle2,
   Database,
@@ -29,6 +31,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -47,6 +56,43 @@ import {
 } from "@/lib/maestro-api";
 import { Connectors } from "@/components/maestro/Connectors";
 
+// P1-11: Notification prefs localStorage key (mobile uses AsyncStorage — same shape)
+const NOTIF_PREFS_KEY = "maestro.notification_prefs";
+
+type NotifPrefs = {
+  stale_alerts: boolean;
+  meeting_reminders: boolean;
+  daily_briefing: boolean;
+  connector_sync: boolean;
+  focus_mode: boolean;
+  dnd_active: boolean;
+};
+
+const DEFAULT_NOTIF_PREFS: NotifPrefs = {
+  stale_alerts: true,
+  meeting_reminders: true,
+  daily_briefing: true,
+  connector_sync: false,
+  focus_mode: false,
+  dnd_active: false,
+};
+
+function loadNotifPrefs(): NotifPrefs {
+  if (typeof window === "undefined") return DEFAULT_NOTIF_PREFS;
+  try {
+    const raw = window.localStorage.getItem(NOTIF_PREFS_KEY);
+    if (raw) return { ...DEFAULT_NOTIF_PREFS, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return DEFAULT_NOTIF_PREFS;
+}
+
+function saveNotifPrefs(prefs: NotifPrefs) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(prefs));
+  } catch { /* ignore */ }
+}
+
 export function Settings() {
   const [llm, setLlm] = useState<LlmStatus | null>(null);
   const [privacy, setPrivacy] = useState<PrivacyMode | null>(null);
@@ -62,11 +108,24 @@ export function Settings() {
   const [analyticsReport, setAnalyticsReport] = useState<any>(null);
   const [flywheelSummary, setFlywheelSummary] = useState("");
 
+  // P1-10: Metrics + retention
+  const [metrics, setMetrics] = useState<any>(null);
+  const [retentionOpen, setRetentionOpen] = useState(false);
+  const [retention, setRetention] = useState<any>(null);
+  const [retentionLoading, setRetentionLoading] = useState(false);
+
+  // P1-11: Notification prefs (localStorage)
+  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>(DEFAULT_NOTIF_PREFS);
+
+  useEffect(() => {
+    setNotifPrefs(loadNotifPrefs());
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [l, p, c, a, cs, at, af] = await Promise.all([
+      const [l, p, c, a, cs, at, af, mt] = await Promise.all([
         maestroApi.getLlmStatus(),
         maestroApi.getPrivacyMode(),
         maestroApi.getCalibration(),
@@ -74,6 +133,7 @@ export function Settings() {
         maestroApi.getConsentSettings(),
         maestroApi.getAnalyticsTrends(),
         maestroApi.getAnalyticsFlywheel(),
+        maestroApi.getMetrics(),
       ]);
       if (!alive) return;
       setLlm(l.data);
@@ -84,12 +144,30 @@ export function Settings() {
       setConsentDefaults(cs.data.defaults);
       setAnalyticsReport(at.data?.report ?? null);
       setFlywheelSummary(af.data?.summary ?? "");
+      setMetrics(mt.data ?? null);
       setLoading(false);
     })();
     return () => {
       alive = false;
     };
   }, []);
+
+  // P1-10: Fetch retention on-demand when dialog opens
+  async function openRetention() {
+    setRetentionOpen(true);
+    if (retention) return; // already loaded
+    setRetentionLoading(true);
+    const { data } = await maestroApi.getRetentionStatus();
+    setRetention(data);
+    setRetentionLoading(false);
+  }
+
+  // P1-11: Toggle a notification pref and persist
+  function toggleNotifPref(key: keyof NotifPrefs) {
+    const next = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(next);
+    saveNotifPrefs(next);
+  }
 
   async function exportData() {
     setExporting(true);
@@ -332,6 +410,16 @@ export function Settings() {
                 Export my data (JSON)
               </Button>
 
+              {/* P1-10: Data retention policy dialog */}
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={openRetention}
+              >
+                <Shield className="size-4" />
+                Data retention policy
+              </Button>
+
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -431,6 +519,89 @@ export function Settings() {
                 )}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* P1-10: Metrics card — commitments + engagement counts */}
+        <Card className="border-border/60">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <BarChart3 className="size-3.5" />
+              <span>Metrics</span>
+            </div>
+            {loading || !metrics ? (
+              <SkeletonRow />
+            ) : (
+              <div className="space-y-3 text-sm">
+                {metrics.commitments && (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <Stat label="Total" value={metrics.commitments.total ?? 0} />
+                    <Stat label="Active" value={metrics.commitments.active ?? 0} accent="emerald" />
+                    <Stat label="Completed" value={metrics.commitments.completed ?? 0} />
+                  </div>
+                )}
+                {metrics.engagement && (
+                  <div className="pt-2 border-t border-border/40 space-y-1 text-xs text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>Signals ingested</span>
+                      <span className="font-mono text-foreground/80">{metrics.engagement.signals_ingested ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Questions asked</span>
+                      <span className="font-mono text-foreground/80">{metrics.engagement.questions_asked ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Drafts generated</span>
+                      <span className="font-mono text-foreground/80">{metrics.engagement.drafts_generated ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Drafts approved</span>
+                      <span className="font-mono text-foreground/80">{metrics.engagement.drafts_approved ?? 0}</span>
+                    </div>
+                  </div>
+                )}
+                {metrics.commitment_completion_rate !== undefined && (
+                  <div className="pt-2 border-t border-border/40 text-xs text-muted-foreground">
+                    Completion rate: <span className="font-mono text-foreground/80">{((metrics.commitment_completion_rate || 0) * 100).toFixed(0)}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* P1-11: Notification preferences — client-side toggles (localStorage) */}
+        <Card className="border-border/60">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <Bell className="size-3.5" />
+              <span>Notifications</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Toggle what Maestro nudges you about. Focus mode and Do Not Disturb are passed into the smart notifications request.
+            </p>
+            <div className="space-y-2">
+              {(Object.keys(notifPrefs) as Array<keyof NotifPrefs>).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleNotifPref(key)}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-md border transition-colors",
+                    notifPrefs[key]
+                      ? "border-emerald-500/30 bg-emerald-500/[0.08] text-foreground"
+                      : "border-border/60 bg-muted/20 text-muted-foreground"
+                  )}
+                >
+                  <span className="capitalize">{key.replace(/_/g, " ")}</span>
+                  {notifPrefs[key] ? (
+                    <ToggleRight className="size-4 text-emerald-500" />
+                  ) : (
+                    <ToggleLeft className="size-4" />
+                  )}
+                </button>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -569,6 +740,59 @@ export function Settings() {
           )}
         </CardContent>
       </Card>
+
+      {/* P1-10: Retention policy dialog (loaded on-demand) */}
+      <Dialog open={retentionOpen} onOpenChange={setRetentionOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="size-5 text-primary" />
+              Data Retention Policy
+            </DialogTitle>
+            <DialogDescription>
+              How long Maestro keeps each category of data, and how enforcement works.
+            </DialogDescription>
+          </DialogHeader>
+          {retentionLoading ? (
+            <div className="py-8 flex items-center justify-center">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : retention ? (
+            <div className="space-y-4 text-sm">
+              {retention.policy && (
+                <div className="space-y-1.5">
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground">TTLs by category</div>
+                  <div className="rounded-md border border-border/60 bg-muted/20 divide-y divide-border/40">
+                    {Object.entries(retention.policy).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between px-3 py-2">
+                        <span className="text-xs text-muted-foreground capitalize">{k.replace(/_/g, " ")}</span>
+                        <span className="text-xs font-mono text-foreground/90">
+                          {typeof v === "number" ? `${v} days` : String(v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {retention.enforcement && (
+                <div className="text-xs text-muted-foreground">
+                  <strong className="text-foreground/80">Enforcement:</strong> {String(retention.enforcement)}
+                </div>
+              )}
+              {retention.user_controls && (
+                <div className="text-xs text-muted-foreground">
+                  <strong className="text-foreground/80">Your controls:</strong> {JSON.stringify(retention.user_controls)}
+                </div>
+              )}
+              {retention.message && !retention.policy && (
+                <p className="text-xs text-muted-foreground">{retention.message}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-4">Failed to load retention policy.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -9,9 +9,13 @@ import {
   HelpCircle,
   History,
   Loader2,
+  Mic,
+  MicOff,
   Quote,
   Search,
   Sparkles,
+  Square,
+  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +27,7 @@ import {
   confidenceTextColor,
   formatRelative,
   formatTimestamp,
+  getToken,
   type AskResponse,
   maestroApi,
 } from "@/lib/maestro-api";
@@ -34,24 +39,50 @@ const SUGGESTED_QUERIES = [
   "What's at risk this week?",
 ];
 
+const QA_HISTORY_KEY = "maestro.ask.qa_history";
+const MAX_QA_PAIRS = 3;
+const MAX_ANSWER_CHARS_IN_CONTEXT = 200;
+
+type QaPair = { query: string; answer: string; timestamp: string };
+
 export function Ask({
   initialQuery,
   onConsumed,
+  onViewCommitmentsForEntity,
 }: {
   initialQuery?: string;
   onConsumed: () => void;
+  onViewCommitmentsForEntity?: (entity: string) => void;
 }) {
+  // P1-3: stable session_id per Ask-tab visit (multi-turn LLM context)
+  const [sessionId] = useState(() => crypto.randomUUID());
   const [query, setQuery] = useState(initialQuery ?? "");
   const [busy, setBusy] = useState(false);
   const [response, setResponse] = useState<AskResponse | null>(null);
   const [history, setHistory] = useState<string[]>([]);
+  const [qaHistory, setQaHistory] = useState<QaPair[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Hydrate history from localStorage (last 10)
+  // P1-6: TTS state (window.speechSynthesis — no deps needed)
+  const [speaking, setSpeaking] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // P1-7: Voice input state
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  // Hydrate plain-string history (last 10) + Q&A pair history (last 3) from localStorage
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem("maestro.ask.history");
       if (raw) setHistory(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+    try {
+      const raw = window.localStorage.getItem(QA_HISTORY_KEY);
+      if (raw) setQaHistory(JSON.parse(raw));
     } catch {
       /* ignore */
     }
@@ -66,14 +97,38 @@ export function Ask({
     }
   }, [initialQuery]);
 
+  // Cleanup TTS on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   async function runAsk(q: string) {
     if (!q.trim()) return;
     setBusy(true);
     setResponse(null);
-    const { data } = await maestroApi.ask(q.trim());
+    // Stop any in-progress TTS when a new question starts
+    stopSpeaking();
+
+    // P1-4: Build context from last 3 Q&A pairs (mobile pattern)
+    let contextualQuery = q.trim();
+    if (qaHistory.length > 0) {
+      const context = qaHistory
+        .slice(0, MAX_QA_PAIRS)
+        .map((p, i) => `Q${i + 1}: ${p.query}\nA${i + 1}: ${(p.answer || "").slice(0, MAX_ANSWER_CHARS_IN_CONTEXT)}`)
+        .join("\n\n");
+      contextualQuery = `Previous conversation:\n${context}\n\nCurrent question: ${q.trim()}`;
+    }
+
+    // P1-3: Pass stable session_id so backend maintains multi-turn context
+    const { data } = await maestroApi.ask(contextualQuery, sessionId);
     setResponse(data);
     setBusy(false);
-    // Update history
+
+    // Update plain-string history (UI)
     setHistory((prev) => {
       const next = [q.trim(), ...prev.filter((x) => x !== q.trim())].slice(0, 10);
       try {
@@ -83,11 +138,108 @@ export function Ask({
       }
       return next;
     });
+
+    // P1-4: Update Q&A pair history (context for next question)
+    if (data?.answer) {
+      setQaHistory((prev) => {
+        const pair: QaPair = {
+          query: q.trim(),
+          answer: data.answer,
+          timestamp: new Date().toISOString(),
+        };
+        const next = [pair, ...prev].slice(0, MAX_QA_PAIRS);
+        try {
+          window.localStorage.setItem(QA_HISTORY_KEY, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    }
   }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     void runAsk(query);
+  }
+
+  // P1-6: Read answer aloud
+  function startSpeaking() {
+    if (!response?.answer) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(response.answer);
+    u.onend = () => setSpeaking(false);
+    u.onerror = () => setSpeaking(false);
+    utteranceRef.current = u;
+    window.speechSynthesis.speak(u);
+    setSpeaking(true);
+  }
+
+  function stopSpeaking() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
+    utteranceRef.current = null;
+  }
+
+  // P1-7: Voice input via MediaRecorder → POST /api/copilot/transcribe
+  async function startRecording() {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        stream.getTracks().forEach((t) => t.stop());
+        await transcribeAndAsk(blob);
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch (e: any) {
+      // Permission denied or no mic — show clear error, don't crash
+      console.error("Mic access failed:", e);
+      alert(`Could not access microphone: ${e?.message || e}`);
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && recording) {
+      mediaRecorderRef.current.stop();
+      setRecording(false);
+    }
+  }
+
+  async function transcribeAndAsk(blob: Blob) {
+    try {
+      const formData = new FormData();
+      formData.append("audio", blob, "recording.webm");
+      const token = getToken();
+      const res = await fetch("/api/copilot/transcribe", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        alert(`Transcription failed: HTTP ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      const text: string = data.text || data.transcript || "";
+      if (text.trim()) {
+        setQuery(text);
+        void runAsk(text);
+      } else {
+        alert("No speech detected in recording.");
+      }
+    } catch (e: any) {
+      alert(`Transcription error: ${e?.message || e}`);
+    }
   }
 
   return (
@@ -115,11 +267,32 @@ export function Ask({
                 disabled={busy}
               />
             </div>
+            {/* P1-7: Voice input button */}
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              className="h-12 px-4"
+              onClick={recording ? stopRecording : startRecording}
+              disabled={busy}
+              title={recording ? "Stop recording" : "Speak your question"}
+              aria-pressed={recording}
+            >
+              {recording ? <MicOff className="size-4 text-rose-500" /> : <Mic className="size-4" />}
+            </Button>
             <Button type="submit" size="lg" className="h-12 px-6" disabled={busy || !query.trim()}>
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
               {busy ? "Thinking…" : "Ask"}
             </Button>
           </form>
+
+          {/* Recording indicator */}
+          {recording && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-rose-500 font-medium animate-pulse">
+              <span className="size-2 rounded-full bg-rose-500" />
+              Recording… click stop when done.
+            </div>
+          )}
 
           {/* Suggested queries */}
           {!response && !busy && (
@@ -147,7 +320,19 @@ export function Ask({
         <div className="space-y-4">
           {busy && <AnswerSkeleton />}
 
-          {!busy && response && <AnswerCard response={response} />}
+          {!busy && response && (
+            <AnswerCard
+              response={response}
+              speaking={speaking}
+              onSpeak={startSpeaking}
+              onStopSpeak={stopSpeaking}
+              onViewCommitmentsForEntity={onViewCommitmentsForEntity}
+              onReAsk={(q) => {
+                setQuery(q);
+                void runAsk(q);
+              }}
+            />
+          )}
 
           {!busy && !response && (
             <Card className="border-border/60 border-dashed">
@@ -208,19 +393,50 @@ export function Ask({
 
 /* ---------------- Answer card ---------------- */
 
-function AnswerCard({ response }: { response: AskResponse }) {
+function AnswerCard({
+  response,
+  speaking,
+  onSpeak,
+  onStopSpeak,
+  onViewCommitmentsForEntity,
+  onReAsk,
+}: {
+  response: AskResponse;
+  speaking: boolean;
+  onSpeak: () => void;
+  onStopSpeak: () => void;
+  onViewCommitmentsForEntity?: (entity: string) => void;
+  onReAsk: (query: string) => void;
+}) {
   const tier = confidenceTier(response.confidence);
   const tierLabel = tier === "high" ? "High" : tier === "medium" ? "Medium" : "Low";
   const source = response.intelligence_source || (response.llm_active ? "llm" : "rules");
+  const ttsSupported = typeof window !== "undefined" && "speechSynthesis" in window;
 
   return (
     <div className="space-y-4">
       {/* Main answer */}
       <Card className="border-border/60 surface-elevated">
         <CardContent className="pt-6 space-y-4">
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-            <Sparkles className="size-3.5" />
-            <span>Answer</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <Sparkles className="size-3.5" />
+              <span>Answer</span>
+            </div>
+            {/* P1-6: TTS toggle */}
+            {ttsSupported && response.answer && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={speaking ? onStopSpeak : onSpeak}
+                title={speaking ? "Stop reading" : "Read answer aloud"}
+              >
+                {speaking ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                {speaking ? "Stop" : "Speak"}
+              </Button>
+            )}
           </div>
           <p className="text-lg sm:text-xl font-medium leading-snug text-balance text-pretty">
             {response.answer}
@@ -275,9 +491,25 @@ function AnswerCard({ response }: { response: AskResponse }) {
       {response.source_sentence && (
         <Card className="border-border/60">
           <CardContent className="pt-6 space-y-3">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              <Quote className="size-3.5" />
-              <span>Provenance</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                <Quote className="size-3.5" />
+                <span>Provenance</span>
+              </div>
+              {/* P1-8: Deep-link to commitments filtered by this entity */}
+              {response.source_entity && onViewCommitmentsForEntity && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => onViewCommitmentsForEntity(response.source_entity)}
+                  title={`View commitments for ${response.source_entity}`}
+                >
+                  View commitments for {response.source_entity}
+                  <ArrowRight className="size-3" />
+                </Button>
+              )}
             </div>
             <blockquote className="border-l-2 border-border pl-4 italic text-foreground/90">
               &ldquo;{response.source_sentence}&rdquo;
@@ -341,7 +573,7 @@ function AnswerCard({ response }: { response: AskResponse }) {
         </Card>
       )}
 
-      {/* Unknowns */}
+      {/* Unknowns — P1-5: tappable chips that re-ask the question */}
       {response.unknowns.length > 0 && (
         <Card className="border-border/60">
           <CardContent className="pt-6 space-y-3">
@@ -349,19 +581,22 @@ function AnswerCard({ response }: { response: AskResponse }) {
               <HelpCircle className="size-3.5" />
               <span>Unknowns</span>
               <span className="text-muted-foreground/70 normal-case tracking-normal">
-                · what Maestro can&apos;t verify
+                · what Maestro can&apos;t verify — tap to re-ask
               </span>
             </div>
-            <ul className="space-y-2">
+            <div className="flex flex-wrap gap-2">
               {response.unknowns.map((u, i) => (
-                <li
+                <button
                   key={i}
-                  className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm text-muted-foreground"
+                  type="button"
+                  onClick={() => onReAsk(u)}
+                  className="text-left text-sm px-3 py-2 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border transition-colors text-muted-foreground hover:text-foreground"
+                  title="Re-ask this as a new question"
                 >
                   {u}
-                </li>
+                </button>
               ))}
-            </ul>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -22,6 +22,7 @@ import { Dashboard } from "@/components/maestro/Dashboard";
 import { Ask } from "@/components/maestro/Ask";
 import { Commitments } from "@/components/maestro/Commitments";
 import { Settings } from "@/components/maestro/Settings";
+import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
 
 type View = "dashboard" | "ask" | "commitments" | "settings";
 
@@ -35,9 +36,18 @@ const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: st
 export default function Home() {
   // Restore session synchronously on first render — avoids cascading renders.
   const [authed, setAuthed] = useState<boolean>(() => !!getToken());
+  // P1-9: Onboarding gate — checked once on mount
+  const [onboarded, setOnboarded] = useState<boolean>(true);
   const [view, setView] = useState<View>("dashboard");
   const [pendingQuery, setPendingQuery] = useState<string | undefined>();
+  // P1-8: Entity deep-link from Ask provenance → Commitments filtered by entity
+  const [entityFilter, setEntityFilter] = useState<string>("");
   const [llm, setLlm] = useState<LlmStatus | null>(null);
+
+  // P1-9: Check onboarding flag on mount (client-only)
+  useEffect(() => {
+    setOnboarded(isOnboarded());
+  }, []);
 
   // Whenever authed, pull LLM status (used by topbar + dashboard).
   useEffect(() => {
@@ -63,6 +73,17 @@ export default function Home() {
   function handleAsk(query: string) {
     setPendingQuery(query);
     setView("ask");
+  }
+
+  // P1-8: Deep-link from Ask provenance → Commitments filtered by entity
+  function handleViewCommitmentsForEntity(entity: string) {
+    setEntityFilter(entity);
+    setView("commitments");
+  }
+
+  // P1-9: Onboarding gate — shown before Login if not onboarded
+  if (!onboarded) {
+    return <Onboarding onDone={() => setOnboarded(true)} />;
   }
 
   if (!authed) {
@@ -157,9 +178,15 @@ export default function Home() {
             <Ask
               initialQuery={pendingQuery}
               onConsumed={() => setPendingQuery(undefined)}
+              onViewCommitmentsForEntity={handleViewCommitmentsForEntity}
             />
           )}
-          {view === "commitments" && <Commitments />}
+          {view === "commitments" && (
+            <Commitments
+              initialEntityFilter={entityFilter}
+              onEntityFilterConsumed={() => setEntityFilter("")}
+            />
+          )}
           {view === "settings" && <Settings />}
         </main>
       </div>

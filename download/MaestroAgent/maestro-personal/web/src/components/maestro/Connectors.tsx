@@ -2,9 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  AlertTriangle,
   Calendar,
-  Check,
   Code,
   Database,
   Facebook,
@@ -19,26 +17,21 @@ import {
   Sparkles,
   Twitter,
   Unlink,
-  X,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   type Connector,
   type Draft,
   maestroApi,
 } from "@/lib/maestro-api";
+import {
+  DraftApprovalModal,
+  type DraftWithMeta,
+} from "@/components/maestro/DraftApprovalModal";
 
 const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   email: Mail,
@@ -54,7 +47,7 @@ export function Connectors() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
-  const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
+  const [selectedDraft, setSelectedDraft] = useState<DraftWithMeta | null>(null);
   const [resolving, setResolving] = useState(false);
 
   const load = useCallback(async () => {
@@ -93,7 +86,7 @@ export function Connectors() {
     setBusyProvider(null);
   }
 
-  async function handleResolve(draft: Draft, resolution: "approve" | "deny" | "use_draft") {
+  async function handleResolve(draft: DraftWithMeta, resolution: "approve" | "deny" | "use_draft") {
     setResolving(true);
     await maestroApi.resolveDraft(draft.draft_id, resolution);
     setSelectedDraft(null);
@@ -315,7 +308,7 @@ function ConnectorCard({
  * Draft Row (in the pending drafts section)
  * ─────────────────────────────────────────────────────────────── */
 
-function DraftRow({ draft, onReview }: { draft: Draft; onReview: () => void }) {
+function DraftRow({ draft, onReview }: { draft: DraftWithMeta; onReview: () => void }) {
   const Icon = draft.provider === "gmail" ? Mail : draft.provider === "slack" ? MessageSquare : draft.provider === "github" ? Code : Send;
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/60 p-3">
@@ -335,121 +328,6 @@ function DraftRow({ draft, onReview }: { draft: Draft; onReview: () => void }) {
         Review
       </Button>
     </div>
-  );
-}
-
-/* ───────────────────────────────────────────────────────────────
- * Draft Approval Modal — approve / deny / use draft
- * ─────────────────────────────────────────────────────────────── */
-
-function DraftApprovalModal({
-  draft,
-  open,
-  onOpenChange,
-  onResolve,
-  resolving,
-}: {
-  draft: Draft | null;
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  onResolve: (draft: Draft, resolution: "approve" | "deny" | "use_draft") => void;
-  resolving: boolean;
-}) {
-  if (!draft) return null;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="size-5 text-primary" />
-            Draft for {draft.recipient}
-          </DialogTitle>
-          <DialogDescription>
-            Maestro generated this draft from your commitments. Review it, then choose how to proceed.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* P25 fix: warn when a draft has no evidence backing */}
-          {(!draft.evidence_refs || draft.evidence_refs.length === 0) && (
-            <div className="rounded-md border border-amber-400/50 bg-amber-50 p-3 flex items-start gap-2">
-              <AlertTriangle className="size-4 text-amber-600 mt-0.5 shrink-0" />
-              <div className="text-xs text-amber-900">
-                <p className="font-medium">This draft has no evidence backing</p>
-                <p className="text-amber-800 mt-0.5">Review carefully before sending — Maestro could not find commitments in your signal history grounding this message.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Provenance — the moat */}
-          {draft.evidence_refs && draft.evidence_refs.length > 0 && (
-            <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
-              <div className="text-[10px] uppercase tracking-wider text-primary font-medium mb-1">
-                📎 Grounded in your commitments ({draft.evidence_refs.length} source{draft.evidence_refs.length === 1 ? "" : "s"})
-              </div>
-              {draft.evidence_refs.map((ref, i) => (
-                <div key={i} className="text-xs text-muted-foreground mt-1">
-                  <span className="italic">&quot;{ref.text}&quot;</span>
-                  <span className="text-foreground/70"> — {ref.entity}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Subject */}
-          {draft.subject && (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Subject</div>
-              <div className="text-sm font-medium">{draft.subject}</div>
-            </div>
-          )}
-
-          {/* Body */}
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Message</div>
-            <div className="rounded-md border border-border/60 bg-background/60 p-3">
-              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{draft.body}</pre>
-            </div>
-          </div>
-
-          {/* Commitment ref */}
-          {draft.commitment_ref && (
-            <div className="text-xs text-muted-foreground">
-              <strong className="text-foreground">Commitment:</strong> {draft.commitment_ref}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => onResolve(draft, "deny")}
-            disabled={resolving}
-            className="text-destructive hover:text-destructive"
-          >
-            <X className="size-4" />
-            Discard
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => onResolve(draft, "use_draft")}
-            disabled={resolving}
-          >
-            {resolving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Use as Draft
-          </Button>
-          <Button
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={() => onResolve(draft, "approve")}
-            disabled={resolving}
-          >
-            {resolving ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            Approve & Send
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
