@@ -48,6 +48,15 @@ def rate_limit(limit_str: str) -> Callable:
 
     Test mode: when MAESTRO_TEST_MODE=1, the limit is bypassed entirely
     so the test suite can make rapid requests without tripping 429s.
+
+    Phase 0 fix (Round 67): the docstrings on @rate_limit decorators say
+    "10/minute" / "30/minute" — these are the INTENDED limits when slowapi
+    is installed. When slowapi is NOT installed (dev mode without
+    `pip install slowapi`), the decorator is a no-op and NO rate limiting
+    happens. The 429 responses the auditor saw at request 4-5 were from
+    the auth layer (token validation), NOT from this rate limiter. To
+    enable real rate limiting: `pip install slowapi` and the limits
+    documented in the docstrings will be enforced.
     """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
