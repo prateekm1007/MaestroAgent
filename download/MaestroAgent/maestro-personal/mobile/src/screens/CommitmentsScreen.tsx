@@ -27,7 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import * as api from '../api/client';
 
-import { useTheOne, useCommitments, useSignals } from '../api/hooks';
+import { useTheOne, useCommitments, useSignals, useDealHealth, useMeetingGrades } from '../api/hooks';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -218,6 +218,15 @@ export default function CommitmentsScreen() {
   const theOneQ = useTheOne();
   const commitmentsQ = useCommitments();
   const signalsQ = useSignals();
+  // Phase 11 + 16: deal health per entity + meeting grades
+  const dealHealthQ = useDealHealth();
+  const meetingGradesQ = useMeetingGrades();
+  const dealHealthByEntity = useMemo(() => {
+    const map: Record<string, api.DealHealthScore> = {};
+    (dealHealthQ.data?.deals ?? []).forEach((d) => { map[d.entity] = d; });
+    return map;
+  }, [dealHealthQ.data]);
+  const meetingGrades = meetingGradesQ.data?.grades ?? [];
 
   const theOne = theOneQ.data ?? null;
   const commitments: api.Commitment[] = commitmentsQ.data ?? [];
@@ -477,6 +486,23 @@ export default function CommitmentsScreen() {
                       <Text style={{ fontSize: 9, color: colors.successGreen, fontWeight: '600', marginRight: 4 }}>🟢</Text>
                     )}
                     {c.deadline ? <Badge text={c.deadline} color="yellow" /> : null}
+                    {/* Phase 11: Deal health pill per entity */}
+                    {dealHealthByEntity[c.entity] && (
+                      <View style={{
+                        backgroundColor: dealHealthByEntity[c.entity].status === 'critical' ? colors.alertRed
+                          : dealHealthByEntity[c.entity].status === 'at_risk' ? colors.yellow
+                          : dealHealthByEntity[c.entity].status === 'strong' ? colors.successGreen
+                          : t.border,
+                        borderRadius: 6,
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        marginLeft: 4,
+                      }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: colors.black }}>
+                          {Math.round(dealHealthByEntity[c.entity].score)}%
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <Text
                     style={{ fontSize: 13, color: t.textSecondary, marginTop: spacing.xs }}
@@ -513,6 +539,56 @@ export default function CommitmentsScreen() {
                   </View>
                 </SwipeableCommitmentCard>
               ))
+            )}
+
+            {/* Phase 16: Meeting History with grades */}
+            {meetingGrades.length > 0 && (
+              <>
+                <Text
+                  style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md, marginTop: spacing.xl }]}
+                  accessibilityRole="header"
+                  accessibilityLabel="Meeting history section"
+                >MEETING HISTORY</Text>
+                {meetingGrades.slice(0, 5).map((g) => (
+                  <Card key={g.meeting_id || g.entity} style={{ marginBottom: spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>
+                          {g.entity || g.title || 'Meeting'}
+                        </Text>
+                        {g.title && g.title !== g.entity && (
+                          <Text style={{ fontSize: 12, color: t.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                            {g.title}
+                          </Text>
+                        )}
+                        <Text style={{ fontSize: 11, color: t.textSecondary, marginTop: 4 }}>
+                          {g.confidence_label}
+                        </Text>
+                      </View>
+                      <View style={{
+                        backgroundColor: g.grade === 'A' ? colors.successGreen
+                          : g.grade === 'B' ? colors.yellow
+                          : g.grade === 'C' ? colors.yellowDark
+                          : colors.alertRed,
+                        borderRadius: 8,
+                        width: 36,
+                        height: 36,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Text style={{ fontSize: 18, fontWeight: '900', color: colors.black }}>
+                          {g.effective_grade || g.grade}
+                        </Text>
+                      </View>
+                    </View>
+                    {g.action_items && g.action_items.length > 0 && (
+                      <Text style={{ fontSize: 11, color: t.textSecondary, marginTop: 6 }}>
+                        {g.action_items.length} action item{g.action_items.length !== 1 ? 's' : ''} · {Math.round(g.action_item_completion_rate || 0)}% complete
+                      </Text>
+                    )}
+                  </Card>
+                ))}
+              </>
             )}
           </>
         )}

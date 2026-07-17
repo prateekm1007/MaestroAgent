@@ -184,3 +184,97 @@ export function useExportData() {
     mutationFn: () => api.exportData(),
   });
 }
+
+// ─── Ambient Intelligence Hooks (Phases 9, 11, 14, 16, 19, 20) ────
+
+// Phase 19: Smart notifications — poll every 60s (critical for ambient awareness)
+export function useSmartNotifications(context: api.SmartNotificationContext = {}) {
+  return useQuery({
+    queryKey: ['smartNotifications', context] as const,
+    queryFn: () => api.getSmartNotifications(context),
+    ...backgroundSyncOptions,
+  });
+}
+
+// Phase 9: Commitment escalations — poll every 60s (overdue detection is time-sensitive)
+export function useEscalations() {
+  return useQuery({
+    queryKey: ['escalations'] as const,
+    queryFn: () => api.getEscalations(),
+    ...backgroundSyncOptions,
+  });
+}
+
+// Phase 9: Calendar awareness — refresh every 5 min (meetings don't change often)
+export function useCalendarAwareness(hoursAhead: number = 48) {
+  return useQuery({
+    queryKey: ['calendarAwareness', hoursAhead] as const,
+    queryFn: () => api.getCalendarAwareness(hoursAhead),
+    ...defaultOptions,
+  });
+}
+
+// Phase 11: Deal health — refresh every 5 min
+export function useDealHealth() {
+  return useQuery({
+    queryKey: ['dealHealth'] as const,
+    queryFn: () => api.getDealHealth(),
+    ...defaultOptions,
+  });
+}
+
+// Phase 14: Cross-meeting threads — refresh every 5 min
+export function useThreads(entityFilter: string = '') {
+  return useQuery({
+    queryKey: ['threads', entityFilter] as const,
+    queryFn: () => api.getThreads(entityFilter),
+    ...defaultOptions,
+  });
+}
+
+export function useThreadsForEntity(entity: string | null) {
+  return useQuery({
+    queryKey: ['threadsForEntity', entity] as const,
+    queryFn: () => api.getThreadsForEntity(entity!),
+    enabled: !!entity,
+    ...defaultOptions,
+  });
+}
+
+// Phase 16: Meeting grades — refresh every 5 min
+export function useMeetingGrades() {
+  return useQuery({
+    queryKey: ['meetingGrades'] as const,
+    queryFn: () => api.getMeetingGrades(),
+    ...defaultOptions,
+  });
+}
+
+// Phase 20: Advanced analytics — refresh every 5 min
+export function useAnalyticsTrends() {
+  return useQuery({
+    queryKey: ['analyticsTrends'] as const,
+    queryFn: () => api.getAnalyticsTrends(),
+    ...defaultOptions,
+  });
+}
+
+export function useAnalyticsFlywheel() {
+  return useQuery({
+    queryKey: ['analyticsFlywheel'] as const,
+    queryFn: () => api.getAnalyticsFlywheel(),
+    ...defaultOptions,
+  });
+}
+
+// Phase 16: Meeting grade override mutation
+export function useOverrideMeetingGrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ meetingId, grade }: { meetingId: string; grade: string }) =>
+      api.overrideMeetingGrade(meetingId, grade),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meetingGrades'] });
+    },
+  });
+}

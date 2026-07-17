@@ -28,7 +28,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import * as api from '../api/client';
 
-import { useTheMoment, useShifts, useBriefing } from '../api/hooks';
+import { useTheMoment, useShifts, useBriefing, useSmartNotifications, useEscalations, useDealHealth } from '../api/hooks';
 
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 
@@ -56,9 +56,17 @@ export default function DashboardScreen() {
   const shiftsQ = useShifts();
   const briefingQ = useBriefing();
 
+  // Ambient intelligence hooks (Phases 9, 11, 19)
+  const smartNotifsQ = useSmartNotifications({ limit: 5 });
+  const escalationsQ = useEscalations();
+  const dealHealthQ = useDealHealth();
+
   const moment = momentQ.data ?? null;
   const shifts: api.WhatChangedShift[] = shiftsQ.data?.secondary ?? [];
   const briefing = briefingQ.data ?? null;
+  const smartNotifs = smartNotifsQ.data?.notifications ?? [];
+  const escalations = escalationsQ.data?.escalations ?? [];
+  const dealHealth = dealHealthQ.data?.deals ?? [];
 
   // ── Card mount animation (React Native built-in Animated) ─────────
   // Replaced react-native-reanimated with RN's built-in Animated to fix
@@ -161,6 +169,115 @@ export default function DashboardScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }}>
       <TopBar title="Dashboard" />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.xl }}>
+        {/* AMBIENT INTELLIGENCE — Smart Notifications (Phase 19) */}
+        {smartNotifs.length > 0 && (
+          <View style={{ marginBottom: spacing.xl }}>
+            <Text style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}>🔔 NEEDS ATTENTION</Text>
+            {smartNotifs.slice(0, 3).map((n) => (
+              <TouchableOpacity
+                key={n.notification_id}
+                onPress={() => n.action_url && nav.navigate('Commitments')}
+                style={{
+                  backgroundColor: n.priority === 'critical' ? colors.alertRedLight : t.surface,
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 8,
+                  borderLeftWidth: 4,
+                  borderLeftColor: n.priority === 'critical' ? colors.alertRed : colors.yellow,
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: t.textPrimary, marginBottom: 4 }}>
+                  {n.title}
+                </Text>
+                <Text style={{ fontSize: 13, color: t.textSecondary }} numberOfLines={2}>
+                  {n.body}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* AMBIENT INTELLIGENCE — Commitment Escalations (Phase 9) */}
+        {escalations.filter(e => e.escalation_level === 'high' || e.escalation_level === 'critical').length > 0 && (
+          <View style={{ marginBottom: spacing.xl }}>
+            <Text style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}>⚠️ ESCALATIONS</Text>
+            {escalations
+              .filter(e => e.escalation_level === 'high' || e.escalation_level === 'critical')
+              .slice(0, 3)
+              .map((e) => (
+                <TouchableOpacity
+                  key={e.commitment_id}
+                  onPress={() => nav.navigate('Commitments')}
+                  style={{
+                    backgroundColor: t.surface,
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 8,
+                    borderLeftWidth: 4,
+                    borderLeftColor: e.escalation_level === 'critical' ? colors.alertRed : colors.yellow,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: t.textPrimary, marginBottom: 4 }}>
+                    {e.entity ? `${e.entity} · ` : ''}{e.commitment_text?.slice(0, 60)}
+                  </Text>
+                  {e.days_overdue ? (
+                    <Text style={{ fontSize: 12, color: colors.alertRed, fontWeight: '600' }}>
+                      {e.days_overdue} days overdue
+                    </Text>
+                  ) : null}
+                  {e.nudge_text ? (
+                    <Text style={{ fontSize: 13, color: t.textSecondary, marginTop: 4 }} numberOfLines={2}>
+                      → {e.nudge_text}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              ))}
+          </View>
+        )}
+
+        {/* AMBIENT INTELLIGENCE — Deal Health (Phase 11) */}
+        {dealHealth.filter(d => d.status === 'at_risk' || d.status === 'critical').length > 0 && (
+          <View style={{ marginBottom: spacing.xl }}>
+            <Text style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}>📉 DEALS AT RISK</Text>
+            {dealHealth
+              .filter(d => d.status === 'at_risk' || d.status === 'critical')
+              .slice(0, 3)
+              .map((d) => (
+                <View
+                  key={d.entity}
+                  style={{
+                    backgroundColor: t.surface,
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 8,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: t.textPrimary }}>
+                      {d.entity}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: t.textSecondary, marginTop: 2 }}>
+                      {d.momentum === 'decelerating' ? '↓ decelerating' : d.momentum === 'accelerating' ? '↑ accelerating' : '→ stable'}
+                    </Text>
+                  </View>
+                  <View style={{
+                    backgroundColor: d.status === 'critical' ? colors.alertRed : colors.yellow,
+                    borderRadius: 8,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                  }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: colors.black }}>
+                      {Math.round(d.score)}%
+                    </Text>
+                  </View>
+                </View>
+              ))}
+          </View>
+        )}
+
         {/* THE MOMENT */}
         <Text style={[typography.label, { color: colors.yellow, marginBottom: spacing.md }]}>⚡ THE MOMENT</Text>
         {momentQ.isLoading ? (

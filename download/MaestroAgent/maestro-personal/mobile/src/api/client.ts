@@ -923,3 +923,288 @@ export async function registerPushToken(pushToken: string, token?: string): Prom
   });
   return response.data;
 }
+
+// ─── Ambient Intelligence (Phases 9, 11, 14, 16, 19, 20) ───────────
+// These endpoints DERIVE intelligence from the user's signal history.
+// The UI supplies only CONTEXT (am I in a call? which entity?) — never
+// the conclusion. See P13 in ENTROPY_RECOVERY.md.
+
+// Phase 19: Smart notifications
+export interface SmartNotification {
+  notification_id: string;
+  type: string;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  body: string;
+  action_url: string;
+  action_label: string;
+  created_at: string;
+  metadata: Record<string, any>;
+}
+
+export interface SmartNotificationContext {
+  is_in_call?: boolean;
+  is_dnd_active?: boolean;
+  is_focus_mode?: boolean;
+  user_timezone?: string;
+  limit?: number;
+}
+
+export async function getSmartNotifications(
+  context: SmartNotificationContext = {},
+  token?: string,
+): Promise<{ notifications: SmartNotification[]; engine_available: boolean; count: number }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/notifications/smart', context, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+// Phase 9: Calendar awareness
+export interface CalendarAwarenessMeeting {
+  meeting_id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  urgency: string;
+  preparation_status: string;
+  entity: string | null;
+  open_commitments: number;
+  overdue_commitments: number;
+  suggested_talking_points: any[];
+  risks_to_address: any[];
+  opportunities_to_pursue: any[];
+}
+
+export async function getCalendarAwareness(
+  hoursAhead: number = 48,
+  token?: string,
+): Promise<{ meetings: CalendarAwarenessMeeting[]; engine_available: boolean; count: number }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/calendar/awareness', { hours_ahead: hoursAhead }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+// Phase 9: Commitment escalations
+export interface CommitmentEscalation {
+  commitment_id: string;
+  commitment_text: string;
+  owner: string;
+  entity: string | null;
+  health: string;
+  escalation_level: string;
+  days_until_due: number | null;
+  days_overdue: number | null;
+  nudge_text: string;
+  nudge_channel: string;
+  nudge_draft: string;
+  failure_probability: number | null;
+  failure_reason: string | null;
+  related_commitments: string[];
+}
+
+export async function getEscalations(
+  token?: string,
+): Promise<{ escalations: CommitmentEscalation[]; engine_available: boolean; count: number; critical_count: number; overdue_count: number }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/commitments/escalations', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+// Phase 14: Cross-meeting threads
+export interface MeetingSummary {
+  meeting_id: string;
+  title: string;
+  entity: string | null;
+  start_time: string;
+  attendees: string[];
+  topics: string[];
+  decisions: string[];
+  commitments: string[];
+  sentiment: number | null;
+}
+
+export interface CrossMeetingThread {
+  thread_id: string;
+  entity: string;
+  topic: string;
+  meeting_count: number;
+  meetings: MeetingSummary[];
+  confidence: number;
+  confidence_level: 'high' | 'medium' | 'low';
+  requires_confirmation: boolean;
+  topic_evolution: string[];
+  decision_chain: any[];
+  sentiment_trend: any;
+}
+
+export async function getThreads(
+  entityFilter: string = '',
+  token?: string,
+): Promise<{ threads: CrossMeetingThread[]; engine_available: boolean; count: number; high_confidence_count: number }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/threads', { entity_filter: entityFilter }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getThreadsForEntity(
+  entity: string,
+  token?: string,
+): Promise<{ threads: CrossMeetingThread[]; engine_available: boolean; count: number; entity: string }> {
+  const t = await resolveToken(token);
+  const response = await api.get(`/api/threads/${encodeURIComponent(entity)}`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getDecisionHistory(
+  entity: string,
+  token?: string,
+): Promise<{ decisions: any[]; engine_available: boolean; count: number; entity: string }> {
+  const t = await resolveToken(token);
+  const response = await api.get(`/api/threads/${encodeURIComponent(entity)}/decisions`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+// Phase 16: Meeting grader
+export interface MeetingGradeReport {
+  grade: string;
+  effective_grade: string;
+  score: number;
+  factors: Record<string, any>;
+  action_items: any[];
+  action_item_completion_rate: number;
+  follow_ups_pending: number;
+  follow_ups_completed: number;
+  user_override: string | null;
+  confidence_label: string;
+  meeting_id?: string;
+  entity?: string;
+  title?: string;
+}
+
+export async function getMeetingGrades(
+  token?: string,
+): Promise<{ grades: MeetingGradeReport[]; engine_available: boolean; count: number; average_score: number }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/meetings/grades', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getMeetingGrade(
+  meetingId: string,
+  token?: string,
+): Promise<{ grade: MeetingGradeReport; engine_available: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.get(`/api/meetings/${encodeURIComponent(meetingId)}/grade`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function overrideMeetingGrade(
+  meetingId: string,
+  grade: string,
+  token?: string,
+): Promise<{ grade: MeetingGradeReport; engine_available: boolean; message: string }> {
+  const t = await resolveToken(token);
+  const response = await api.post(`/api/meetings/${encodeURIComponent(meetingId)}/grade/override`, { grade }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+// Phase 11: Deal health
+export interface DealHealthScore {
+  entity: string;
+  score: number;
+  status: 'strong' | 'on_track' | 'at_risk' | 'critical';
+  momentum: 'accelerating' | 'stable' | 'decelerating';
+  confidence_label: string;
+  calibration_denominator: number;
+  risk_factors: any[];
+  positive_indicators: string[];
+  score_history: number[];
+  compounding_adjustments: any[];
+}
+
+export async function getDealHealth(
+  token?: string,
+): Promise<{ deals: DealHealthScore[]; engine_available: boolean; count: number; strong_count: number; at_risk_count: number; critical_count: number }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/deals/health', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getDealHealthForEntity(
+  entity: string,
+  token?: string,
+): Promise<{ deal_health: DealHealthScore; engine_available: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.get(`/api/deals/${encodeURIComponent(entity)}/health`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+// Phase 20: Advanced analytics
+export interface TrendMetric {
+  name: string;
+  current_value: number;
+  previous_value: number;
+  direction: 'improving' | 'stable' | 'declining';
+  change_percentage: number;
+  period: string;
+  description: string;
+  evidence: Record<string, any>;
+}
+
+export interface OrgLearningReport {
+  trends: TrendMetric[];
+  team_performance: any[];
+  laws_validated: number;
+  laws_candidate: number;
+  patterns_detected: number;
+  brier_score: number | null;
+  brier_score_previous: number | null;
+  brier_trend: string | null;
+  commitment_kept_rate: number;
+  commitment_broken_rate: number;
+  meeting_grade_average: number;
+  deal_cycle_time_days: number;
+  flywheel_summary?: string;
+}
+
+export async function getAnalyticsTrends(
+  token?: string,
+): Promise<{ report: OrgLearningReport | null; engine_available: boolean; flywheel_summary?: string; message?: string }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/analytics/trends', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getAnalyticsFlywheel(
+  token?: string,
+): Promise<{ summary: string; engine_available: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/analytics/flywheel', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}

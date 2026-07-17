@@ -44,6 +44,7 @@ import { useTheme, useAuth } from '../contexts';
 
 import * as api from '../api/client';
 import { showAlert } from '../utils/alert';
+import { useAnalyticsTrends, useAnalyticsFlywheel } from '../api/hooks';
 
 const NOTIF_PREFS_KEY = 'maestro_notification_prefs';
 
@@ -56,11 +57,14 @@ export default function MoreScreen() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   // P1-1 fix: notification toggles backed by AsyncStorage (persisted, honest)
+  // Phase 19: added focus_mode + dnd (context params for smart notifications)
   const [notifPrefs, setNotifPrefs] = useState({
     stale_alerts: true,
     meeting_reminders: true,
     daily_briefing: true,
     connector_sync: true,
+    focus_mode: false,
+    dnd_active: false,
   });
   useEffect(() => {
     AsyncStorage.getItem(NOTIF_PREFS_KEY).then((stored) => {
@@ -79,6 +83,11 @@ export default function MoreScreen() {
   // Change 13: "What Maestro Knows" transparency data
   const { data: signals } = useQuery({ queryKey: ['signals'], queryFn: () => api.getSignals() });
   const { data: commitments } = useQuery({ queryKey: ['commitments'], queryFn: () => api.getCommitments() });
+  // Phase 20: ambient analytics — drives the Insights section
+  const analyticsQ = useAnalyticsTrends();
+  const flywheelQ = useAnalyticsFlywheel();
+  const analyticsReport = analyticsQ.data?.report ?? null;
+  const flywheelSummary = flywheelQ.data?.summary ?? '';
   const { data: connectorList } = useQuery({
     queryKey: ['connectors'],
     queryFn: () => api.listConnectors().catch(() => ({ connectors: [] })),
@@ -366,6 +375,65 @@ export default function MoreScreen() {
         <ToggleRow label="Meeting reminders" value={notifPrefs.meeting_reminders} onToggle={() => toggleNotifPref('meeting_reminders')} t={t} />
         <ToggleRow label="Daily briefing (8am)" value={notifPrefs.daily_briefing} onToggle={() => toggleNotifPref('daily_briefing')} t={t} />
         <ToggleRow label="Connector sync alerts" value={notifPrefs.connector_sync} onToggle={() => toggleNotifPref('connector_sync')} t={t} />
+        <ToggleRow label="Focus mode (suppress medium)" value={notifPrefs.focus_mode} onToggle={() => toggleNotifPref('focus_mode')} t={t} />
+        <ToggleRow label="Do Not Disturb (critical only)" value={notifPrefs.dnd_active} onToggle={() => toggleNotifPref('dnd_active')} t={t} />
+      </Section>
+
+      {/* Phase 20: Insights — analytics trends + flywheel summary */}
+      <Section title="Insights" icon="trending-up" t={t}>
+        {flywheelSummary ? (
+          <View style={{ padding: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: t.textPrimary, marginBottom: 6 }}>
+              Flywheel
+            </Text>
+            <Text style={{ fontSize: 13, color: t.textSecondary }}>
+              {flywheelSummary}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ padding: 14 }}>
+            <Text style={{ fontSize: 13, color: t.textSecondary }}>
+              No data yet — sync connectors to start the flywheel.
+            </Text>
+          </View>
+        )}
+        {analyticsReport && (
+          <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: t.border }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: t.textPrimary, marginBottom: 8 }}>
+              90-Day Trends
+            </Text>
+            {analyticsReport.trends && analyticsReport.trends.length > 0 ? (
+              analyticsReport.trends.slice(0, 4).map((trend: any, i: number) => (
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 12, color: t.textSecondary, flex: 1 }}>
+                    {trend.name?.replace(/_/g, ' ')}
+                  </Text>
+                  <Text style={{
+                    fontSize: 12,
+                    fontWeight: '600',
+                    color: trend.direction === 'improving' ? colors.successGreen : trend.direction === 'declining' ? colors.alertRed : t.textSecondary,
+                  }}>
+                    {trend.direction === 'improving' ? '↑' : trend.direction === 'declining' ? '↓' : '→'} {Math.abs(trend.change_percentage || 0).toFixed(0)}%
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={{ fontSize: 12, color: t.textSecondary }}>
+                Commitment kept rate: {((analyticsReport.commitment_kept_rate || 0) * 100).toFixed(0)}%
+              </Text>
+            )}
+            {analyticsReport.meeting_grade_average > 0 && (
+              <Text style={{ fontSize: 12, color: t.textSecondary, marginTop: 6 }}>
+                Meeting grade avg: {analyticsReport.meeting_grade_average.toFixed(1)}/100
+              </Text>
+            )}
+            {analyticsReport.patterns_detected > 0 && (
+              <Text style={{ fontSize: 12, color: t.textSecondary, marginTop: 6 }}>
+                Patterns detected: {analyticsReport.patterns_detected} · Laws validated: {analyticsReport.laws_validated}
+              </Text>
+            )}
+          </View>
+        )}
       </Section>
 
       {/* Privacy & Data — P1-4 fix: real actions */}
