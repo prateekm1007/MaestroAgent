@@ -124,13 +124,60 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
 
     # P0.2: Secret keyword blocklist — prevent token/secret probing.
     # If the text contains these keywords, replace with [REDACTED].
+    # P0-Audit fix (2026-07-18): also redact the VALUE after the keyword
+    # (was: only redacting the keyword itself, leaving "API_KEY=sk-12345" →
+    # "[REDACTED]=sk-12345" — the secret value was still exposed).
     _SECRET_KEYWORDS = [
         "SECRET_TOKEN", "AUTH_TOKEN", "API_KEY", "PRIVATE_KEY",
         "JWT_SECRET", "ACCESS_TOKEN", "REFRESH_TOKEN", "SESSION_SECRET",
+        "PASSWORD", "PASSWD", "PWD",
     ]
     for kw in _SECRET_KEYWORDS:
+        # Redact keyword + optional value: "API_KEY=sk-123" → "[REDACTED]"
+        # Also catches "API_KEY: sk-123", "password is MySecret123", "api_key=sk-123"
+        pattern = _re.compile(
+            _re.escape(kw) + r'\s*(?:[:=]\s*|is\s+)\S+',
+            _re.IGNORECASE,
+        )
+        sanitized_text = pattern.sub('[REDACTED]', sanitized_text)
+        # Also redact standalone keyword (no value following)
         sanitized_text = sanitized_text.replace(kw, "[REDACTED]")
         sanitized_text = sanitized_text.replace(kw.lower(), "[REDACTED]")
+
+    # P0-Audit fix (2026-07-18): OTP/verification code redaction.
+    # Detects 4-8 digit codes (common OTPs, verification codes, PINs) when
+    # preceded by contextual keywords: "OTP", "code", "password", "PIN",
+    # "verification", "verify", "auth code". Prevents financial/banking
+    # OTPs from being stored as signals and surfaced via Ask.
+    _OTP_CONTEXT = r'(?:otp|one[\s-]?time[\s-]?password|verification\s+code|verify\s+code|auth(?:entication)?\s+code|access\s+code|security\s+code|pin|password|passcode|cvv|cvc)'
+    # "Your OTP is 9907" → "Your OTP is [REDACTED_OTP]"
+    sanitized_text = _re.sub(
+        _OTP_CONTEXT + r'\s*(?:is|:|=|\s)\s*(\d{4,8})',
+        r'[REDACTED_OTP]',
+        sanitized_text,
+        flags=_re.IGNORECASE,
+    )
+    # Also catch "9907 is your OTP" (reversed order)
+    sanitized_text = _re.sub(
+        r'(\d{4,8})\s+is\s+your\s+' + _OTP_CONTEXT,
+        r'[REDACTED_OTP]',
+        sanitized_text,
+        flags=_re.IGNORECASE,
+    )
+
+    # P0-Audit fix: Common API key pattern redaction (value-level, not just keyword).
+    # Catches: sk-..., ghp_..., github_pat_..., AKIA..., xoxb-..., AIza...
+    _API_KEY_PATTERNS = [
+        r'sk-[a-zA-Z0-9]{20,}',          # OpenAI
+        r'ghp_[a-zA-Z0-9]{36}',          # GitHub PAT
+        r'github_pat_[a-zA-Z0-9_]{22,}', # GitHub fine-grained PAT
+        r'AKIA[0-9A-Z]{16}',             # AWS access key
+        r'xox[bpoa]-[a-zA-Z0-9-]+',      # Slack token
+        r'AIza[0-9A-Za-z\-_]{35}',       # Google API key
+        r'eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+',  # JWT
+    ]
+    for pat in _API_KEY_PATTERNS:
+        sanitized_text = _re.sub(pat, '[REDACTED_KEY]', sanitized_text)
 
     # P0.3: HTML comment blocking — <!-- ignore --> comments survive regex.
     # After html.escape(), <!-- becomes &lt;!-- so we must check BOTH forms.

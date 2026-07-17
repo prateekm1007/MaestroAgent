@@ -903,6 +903,18 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     if _abstention_triggered:
         verification["confidence"] = 0.0
 
+    # P0-Audit fix (2026-07-18): defense-in-depth output redaction.
+    # Even if ingestion redaction missed something (e.g., existing signals in
+    # the DB from before the fix), this redacts OTPs, API keys, and secret
+    # values from the answer + provenance + evidence before returning to the UI.
+    # Prevents "What commitments do I have open?" from surfacing OTP 9907 that
+    # was ingested from a bank email (audit P0-3/P0-5).
+    from maestro_personal_shell.secret_redactor import redact_secrets, redact_secrets_deep
+    verified_answer = redact_secrets(str(verified_answer))
+    source_sentence = redact_secrets(source_sentence)
+    evidence_refs = redact_secrets_deep(evidence_refs)
+    verification["counterevidence"] = redact_secrets_deep(verification.get("counterevidence", []))
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,

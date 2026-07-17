@@ -48,6 +48,11 @@ def understand_query(query: str) -> dict[str, Any]:
     query_lower = query.lower()
 
     # Extract entity mentions (capitalized words, excluding common words)
+    # P0-Audit fix (2026-07-18): added command verbs (List, Show, Find, Get, Tell,
+    # Give, Display, Search) to common_words. Previously, "List my open commitments"
+    # extracted "List" as an entity → "No signals found for entity: List" (audit P0-4).
+    # These are imperative verbs, not entity names — they should never be treated
+    # as entities.
     common_words = {
         "What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are",
         "Can", "Could", "I", "Do", "Does", "Has", "Have", "Was", "Were", "Should",
@@ -55,6 +60,9 @@ def understand_query(query: str) -> dict[str, Any]:
         "To", "In", "On", "At", "By", "Of", "And", "Or", "But", "Not", "If",
         "Then", "Else", "So", "Than", "That", "This", "These", "Those", "There",
         "Here", "Where", "Which", "Whose", "Whom", "A", "An",
+        # Command/imperative verbs — NOT entity names
+        "List", "Show", "Find", "Get", "Tell", "Give", "Display", "Search",
+        "Open", "See", "Check", "Review", "Summarize", "Explain",
     }
     words = re.findall(r'\b[A-Z][a-z]+\b', query)
     entities = [w for w in words if w not in common_words]
