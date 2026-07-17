@@ -620,7 +620,7 @@ class ConnectorStore:
         """
         state = self.get_connector_state(user_email, provider)
         if not state or not state["connected"]:
-            return MOCK_INGESTION_DATA.get(provider, [])
+            return []
 
         # Phase B: real Gmail ingestion
         if provider == "gmail":
@@ -631,12 +631,15 @@ class ConnectorStore:
                     GmailOAuthClient,
                 )
                 if not is_gmail_configured():
-                    # OAuth not configured — fall back to mock (demo mode)
-                    return MOCK_INGESTION_DATA.get("gmail", [])
+                    # P0 honesty: do NOT return fabricated MOCK data. Return empty
+                    # so the UI shows an honest "no signals" state.
+                    logger.info("Gmail OAuth not configured — returning empty (not mock data)")
+                    return []
 
                 stored_token = self.get_stored_token(user_email, "gmail")
-                if not stored_token:
-                    return MOCK_INGESTION_DATA.get("gmail", [])
+                if not stored_token or "demo-token" in stored_token:
+                    logger.info("Gmail has demo token — returning empty (not mock data)")
+                    return []
 
                 oauth_client = GmailOAuthClient()
                 signals, updated_token = fetch_real_gmail_messages(
@@ -649,11 +652,11 @@ class ConnectorStore:
 
                 return signals
             except ImportError:
-                logger.warning("gmail_connector module not available, using mock data")
-                return MOCK_INGESTION_DATA.get("gmail", [])
+                logger.warning("gmail_connector module not available")
+                return []
             except Exception as e:
-                logger.warning(f"Gmail ingestion failed, falling back to mock: {e}")
-                return MOCK_INGESTION_DATA.get("gmail", [])
+                logger.warning(f"Gmail ingestion failed: {e}")
+                return []
 
         # Phase C: real Slack ingestion
         if provider == "slack":
@@ -701,11 +704,14 @@ class ConnectorStore:
                     CalendarOAuthClient,
                 )
                 if not is_calendar_configured():
-                    return MOCK_INGESTION_DATA.get("calendar", [])
+                    # P0 honesty: do NOT return fabricated MOCK data. Return empty.
+                    logger.info("Calendar OAuth not configured — returning empty (not mock data)")
+                    return []
 
                 stored_token = self.get_stored_token(user_email, "calendar")
-                if not stored_token:
-                    return MOCK_INGESTION_DATA.get("calendar", [])
+                if not stored_token or "demo-token" in stored_token:
+                    logger.info("Calendar has demo token — returning empty (not mock data)")
+                    return []
 
                 oauth_client = CalendarOAuthClient()
                 signals, updated_token = fetch_real_calendar_events(
@@ -717,11 +723,11 @@ class ConnectorStore:
 
                 return signals
             except ImportError:
-                logger.warning("calendar_connector module not available, using mock data")
-                return MOCK_INGESTION_DATA.get("calendar", [])
+                logger.warning("calendar_connector module not available")
+                return []
             except Exception as e:
-                logger.warning(f"Calendar ingestion failed, falling back to mock: {e}")
-                return MOCK_INGESTION_DATA.get("calendar", [])
+                logger.warning(f"Calendar ingestion failed: {e}")
+                return []
 
         # Phase D: real GitHub ingestion
         if provider == "github":
@@ -760,8 +766,9 @@ class ConnectorStore:
                 logger.warning(f"GitHub ingestion failed: {e}")
                 return []
 
-        # Other providers — still mocked (Phase F)
-        return MOCK_INGESTION_DATA.get(provider, [])
+        # Other providers — not yet implemented (Phase F: WhatsApp, etc.)
+        # P0 honesty: return empty, NOT fabricated mock data.
+        return []
 
     # --- Draft management ---------------------------------------------------
 

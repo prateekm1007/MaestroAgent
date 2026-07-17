@@ -159,17 +159,19 @@ class TestIngestion:
         assert "error" in result
 
     def test_ingest_returns_commitment_count(self, tmp_path):
+        """P0 honesty: ingest with no real OAuth configured returns 0 (not mock data)."""
         from maestro_personal_shell.connectors import ConnectorStore
         from maestro_personal_shell.api import init_db
         init_db(str(tmp_path / "test.db"))
         store = ConnectorStore(db_path=str(tmp_path / "test.db"))
         store.connect("user@test.com", "gmail", "token")
         result = store.ingest("user@test.com", "gmail", shell=None)
-        assert result["ingested"] > 0
-        assert result["new_commitments"] > 0
+        assert result["ingested"] == 0  # no OAuth configured → empty (not mock)
+        assert result["new_commitments"] == 0
         assert "ingested_at" in result
 
     def test_ingest_updates_commitment_count(self, tmp_path):
+        """P0 honesty: ingest with no OAuth → 0 commitments ingested (not mock)."""
         from maestro_personal_shell.connectors import ConnectorStore
         from maestro_personal_shell.api import init_db
         init_db(str(tmp_path / "test.db"))
@@ -179,7 +181,7 @@ class TestIngestion:
         store.ingest("user@test.com", "gmail", shell=None)
 
         state = store.get_connector_state("user@test.com", "gmail")
-        assert state["commitments_ingested"] > 0
+        assert state["commitments_ingested"] == 0  # no OAuth → empty (not mock)
 
     def test_ingest_logs_audit_entry(self, tmp_path):
         from maestro_personal_shell.connectors import ConnectorStore
@@ -386,7 +388,8 @@ class TestConnectorAPI:
         response = client.post("/api/connectors/gmail/ingest", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
-        assert data["ingested"] > 0
+        # P0 honesty: no real OAuth configured → 0 ingested (not mock data)
+        assert data["ingested"] == 0
 
     def test_ingest_without_connection_returns_400(self, client, auth_headers):
         response = client.post("/api/connectors/github/ingest", headers=auth_headers)

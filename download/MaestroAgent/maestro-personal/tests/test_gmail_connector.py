@@ -351,15 +351,15 @@ class TestGmailIngester:
 class TestGmailIngestionIntegration:
     """Verify _fetch_messages calls real Gmail API when configured."""
 
-    def test_falls_back_to_mock_when_oauth_not_configured(self, no_gmail_env, tmp_path):
-        """When OAuth not configured, returns mock data (demo mode)."""
+    def test_returns_empty_when_oauth_not_configured(self, no_gmail_env, tmp_path):
+        """P0 honesty: when Gmail OAuth is NOT configured, _fetch_messages
+        must return an empty list — NOT fabricated MOCK_INGESTION_DATA.
+        """
         from maestro_personal_shell.connectors import ConnectorStore
         store = ConnectorStore(db_path=str(tmp_path / "test.db"))
         store.connect("user@test.com", "gmail", json.dumps({"access_token": "x"}))
         messages = store._fetch_messages("user@test.com", "gmail")
-        # Should return mock data (not crash, not empty)
-        assert len(messages) > 0
-        assert any("gmail" in m.get("source", "") for m in messages)
+        assert messages == [], f"Should return empty (not mock data). Got: {messages}"
 
     def test_calls_real_gmail_when_configured(self, gmail_env, tmp_path):
         """When OAuth IS configured, calls fetch_real_gmail_messages."""
