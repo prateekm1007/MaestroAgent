@@ -1152,3 +1152,77 @@ async def override_meeting_grade_endpoint(
         "engine_available": True,
         "message": f"Grade overridden to {req.grade.upper()}",
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 11: Deal health (live deal momentum score)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/deals/health")
+async def get_all_deal_health_endpoint(
+    token: str = Depends(verify_token_dep),
+):
+    """Get deal health scores for all entities (Phase 11).
+
+    P11 fix (wiring): the enterprise DealHealthEngine was built + tested
+    (13 tests) but never wired into the personal shell. This endpoint
+    is the production entry point.
+
+    P13: scores are DERIVED from the user's signal history. The caller
+    supplies nothing but the auth token.
+
+    Returns:
+      list of deal health dicts sorted by score (highest first), each with:
+        entity, score, status, momentum, confidence_label,
+        calibration_denominator, risk_factors, positive_indicators,
+        score_history, compounding_adjustments
+    """
+    from maestro_personal_shell.deal_health import (
+        get_deal_health_for_all_entities as _get_all,
+        ENTERPRISE_DEAL_HEALTH_AVAILABLE,
+    )
+    if not ENTERPRISE_DEAL_HEALTH_AVAILABLE:
+        return {
+            "deals": [],
+            "engine_available": False,
+            "message": "Deal health unavailable — enterprise engine not importable",
+        }
+    deals = _get_all(user_email=token)
+    return {
+        "deals": deals,
+        "engine_available": True,
+        "count": len(deals),
+        "strong_count": sum(1 for d in deals if d.get("status") == "strong"),
+        "at_risk_count": sum(1 for d in deals if d.get("status") == "at_risk"),
+        "critical_count": sum(1 for d in deals if d.get("status") == "critical"),
+    }
+
+
+@router.get("/deals/{entity}/health")
+async def get_deal_health_endpoint(
+    entity: str,
+    token: str = Depends(verify_token_dep),
+):
+    """Get the deal health score for a specific entity.
+
+    Returns 404 if the entity has no signals.
+    """
+    from maestro_personal_shell.deal_health import (
+        get_deal_health as _get_one,
+        ENTERPRISE_DEAL_HEALTH_AVAILABLE,
+    )
+    if not ENTERPRISE_DEAL_HEALTH_AVAILABLE:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Deal health unavailable")
+    score = _get_one(user_email=token, entity=entity)
+    if not score:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=404,
+            detail=f"No signals found for entity '{entity}' — cannot compute deal health",
+        )
+    return {
+        "deal_health": score,
+        "engine_available": True,
+    }
