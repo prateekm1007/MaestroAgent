@@ -982,7 +982,7 @@ class ConnectorStore:
         Returns: (sent_message_id, error_message)
           - On success: (gmail_message_id, "")
           - On failure: ("", error_description)
-          - If OAuth not configured: falls back to simulated send (msg-xxx, "")
+          - If OAuth not configured: returns error (fail-closed)
         """
         try:
             from maestro_personal_shell.gmail_connector import (
@@ -1016,7 +1016,7 @@ class ConnectorStore:
 
         if "error" in result:
             return "", result["error"]
-        return result.get("id", f"msg-{secrets.token_urlsafe(8)}"), ""
+        return result.get("id", ""), ""
 
     def _send_via_slack(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
         """Send a draft via the real Slack API (Phase C).
@@ -1024,7 +1024,7 @@ class ConnectorStore:
         Returns: (sent_message_id, error_message)
           - On success: (slack_ts, "")
           - On failure: ("", error_description)
-          - If OAuth not configured: falls back to simulated send (msg-xxx, "")
+          - If OAuth not configured: returns error (fail-closed)
         """
         try:
             from maestro_personal_shell.slack_connector import (
@@ -1057,7 +1057,7 @@ class ConnectorStore:
         if "error" in result:
             return "", result["error"]
         # Slack returns a timestamp (ts) as the message ID
-        return result.get("ts", f"msg-{secrets.token_urlsafe(8)}"), ""
+        return result.get("ts", ""), ""
 
     def _send_via_github(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
         """Send a draft via the real GitHub API (Phase D).
@@ -1068,7 +1068,7 @@ class ConnectorStore:
         Returns: (sent_message_id, error_message)
           - On success: (github_comment_id, "")
           - On failure: ("", error_description)
-          - If OAuth not configured: falls back to simulated send (msg-xxx, "")
+          - If OAuth not configured: returns error (fail-closed)
         """
         try:
             from maestro_personal_shell.github_connector import (
@@ -1108,7 +1108,7 @@ class ConnectorStore:
         if "error" in result:
             return "", result["error"]
         # GitHub returns a comment ID
-        return str(result.get("id", f"msg-{secrets.token_urlsafe(8)}")), ""
+        return str(result.get("id", "")), ""
 
     # --- Audit log ----------------------------------------------------------
 

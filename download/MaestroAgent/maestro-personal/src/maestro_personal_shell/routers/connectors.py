@@ -169,31 +169,17 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
 
     store = ConnectorStore()  # already created above for the already-connected check
 
-    # Auditor fix (Roadmap v2 §0.5): fail-closed. If no OAuth is configured
-    # AND no oauth_token is provided, we must NOT return connected: True.
-    # The prior code allowed empty-token connects to succeed in demo mode,
-    # which falsified the "connected" status. Now we require either:
-    #   (a) a real oauth_token from the OAuth flow, OR
-    #   (b) an explicit demo_mode flag (only in dev mode)
+    # P0 honesty fix: if no OAuth is configured AND no oauth_token is provided,
+    # we must NOT return connected: True. No demo-mode fallback — fail closed
+    # with a clear error telling the user exactly what env vars to set.
     if not req.oauth_token:
-        # No OAuth configured (we fell through all the provider checks above)
-        # and no token provided. Check if demo mode is enabled.
-        import os as _os
-        if _os.environ.get("MAESTRO_DEMO_MODE", "").lower() in ("1", "true", "yes"):
-            # Demo mode: allow connection without real OAuth
-            store = ConnectorStore()
-            result = store.connect(token, provider, "demo-token-not-real")
-            if "error" in result:
-                raise HTTPException(status_code=400, detail=result["error"])
-            result["demo_mode"] = True
-            return result
-        # Fail-closed: no OAuth, no demo mode
-        from fastapi import HTTPException
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot connect {provider}: no OAuth configured and no token provided. "
-                   f"Set {provider.upper()}_CLIENT_ID and {provider.upper()}_CLIENT_SECRET env vars "
-                   f"to enable real OAuth, or set MAESTRO_DEMO_MODE=1 for demo connections."
+            detail=(
+                f"{provider} OAuth not configured. Set MAESTRO_{provider.upper()}_CLIENT_ID "
+                f"and MAESTRO_{provider.upper()}_CLIENT_SECRET environment variables to enable "
+                f"real OAuth. See docs/CONNECTOR_OAUTH_SETUP.md for setup instructions."
+            ),
         )
 
     result = store.connect(token, provider, req.oauth_token)
