@@ -461,6 +461,239 @@ export const maestroApi = {
       demoCopilotWhispers,
     );
   },
+
+  /* ---------------------------------------------------------------- */
+  /*  Ambient Intelligence (Phases 9, 11, 14, 16, 19, 20)             */
+  /*  These endpoints DERIVE intelligence from signal history.        */
+  /*  The UI supplies only CONTEXT — never the conclusion (P13).      */
+  /* ---------------------------------------------------------------- */
+
+  // Phase 19: Smart notifications
+  async getSmartNotifications(
+    context: Record<string, unknown> = {},
+  ): Promise<{
+    data: {
+      notifications: Array<{
+        notification_id: string;
+        type: string;
+        priority: string;
+        title: string;
+        body: string;
+        action_url: string;
+        action_label: string;
+        created_at: string;
+        metadata: Record<string, unknown>;
+      }>;
+      engine_available: boolean;
+      count: number;
+    };
+    live: boolean;
+  }> {
+    const body = JSON.stringify(context);
+    return maestroFetch(
+      "/api/notifications/smart",
+      { method: "POST", body },
+      { notifications: [], engine_available: false, count: 0 },
+    );
+  },
+
+  // Phase 9: Calendar awareness
+  async getCalendarAwareness(
+    hoursAhead: number = 48,
+  ): Promise<{
+    data: {
+      meetings: Array<Record<string, unknown>>;
+      engine_available: boolean;
+      count: number;
+    };
+    live: boolean;
+  }> {
+    const body = JSON.stringify({ hours_ahead: hoursAhead });
+    return maestroFetch(
+      "/api/calendar/awareness",
+      { method: "POST", body },
+      { meetings: [], engine_available: false, count: 0 },
+    );
+  },
+
+  // Phase 9: Commitment escalations
+  async getEscalations(): Promise<{
+    data: {
+      escalations: Array<Record<string, unknown>>;
+      engine_available: boolean;
+      count: number;
+      critical_count: number;
+      overdue_count: number;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      "/api/commitments/escalations",
+      {},
+      { escalations: [], engine_available: false, count: 0, critical_count: 0, overdue_count: 0 },
+    );
+  },
+
+  // Phase 14: Cross-meeting threads
+  async getThreads(
+    entityFilter: string = "",
+  ): Promise<{
+    data: {
+      threads: Array<Record<string, unknown>>;
+      engine_available: boolean;
+      count: number;
+      high_confidence_count: number;
+    };
+    live: boolean;
+  }> {
+    const body = JSON.stringify({ entity_filter: entityFilter });
+    return maestroFetch(
+      "/api/threads",
+      { method: "POST", body },
+      { threads: [], engine_available: false, count: 0, high_confidence_count: 0 },
+    );
+  },
+
+  async getThreadsForEntity(
+    entity: string,
+  ): Promise<{
+    data: {
+      threads: Array<Record<string, unknown>>;
+      engine_available: boolean;
+      count: number;
+      entity: string;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      `/api/threads/${encodeURIComponent(entity)}`,
+      {},
+      { threads: [], engine_available: false, count: 0, entity },
+    );
+  },
+
+  async getDecisionHistory(
+    entity: string,
+  ): Promise<{
+    data: {
+      decisions: Array<Record<string, unknown>>;
+      engine_available: boolean;
+      count: number;
+      entity: string;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      `/api/threads/${encodeURIComponent(entity)}/decisions`,
+      {},
+      { decisions: [], engine_available: false, count: 0, entity },
+    );
+  },
+
+  // Phase 16: Meeting grader
+  async getMeetingGrades(): Promise<{
+    data: {
+      grades: Array<Record<string, unknown>>;
+      engine_available: boolean;
+      count: number;
+      average_score: number;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      "/api/meetings/grades",
+      {},
+      { grades: [], engine_available: false, count: 0, average_score: 0 },
+    );
+  },
+
+  async getMeetingGrade(
+    meetingId: string,
+  ): Promise<{
+    data: Record<string, unknown> & { engine_available: boolean };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      `/api/meetings/${encodeURIComponent(meetingId)}/grade`,
+      {},
+      { grade: null, engine_available: false },
+    );
+  },
+
+  async overrideMeetingGrade(
+    meetingId: string,
+    grade: string,
+  ): Promise<{
+    data: Record<string, unknown> & { message: string };
+    live: boolean;
+  }> {
+    const body = JSON.stringify({ grade });
+    return maestroFetch(
+      `/api/meetings/${encodeURIComponent(meetingId)}/grade/override`,
+      { method: "POST", body },
+      { grade: null, engine_available: false, message: "Override (demo)" },
+    );
+  },
+
+  // Phase 11: Deal health
+  async getDealHealth(): Promise<{
+    data: {
+      deals: Array<Record<string, unknown>>;
+      engine_available: boolean;
+      count: number;
+      strong_count: number;
+      at_risk_count: number;
+      critical_count: number;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      "/api/deals/health",
+      {},
+      { deals: [], engine_available: false, count: 0, strong_count: 0, at_risk_count: 0, critical_count: 0 },
+    );
+  },
+
+  async getDealHealthForEntity(
+    entity: string,
+  ): Promise<{
+    data: { deal_health: Record<string, unknown> | null; engine_available: boolean };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      `/api/deals/${encodeURIComponent(entity)}/health`,
+      {},
+      { deal_health: null, engine_available: false },
+    );
+  },
+
+  // Phase 20: Advanced analytics
+  async getAnalyticsTrends(): Promise<{
+    data: {
+      report: Record<string, unknown> | null;
+      engine_available: boolean;
+      flywheel_summary?: string;
+      message?: string;
+    };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      "/api/analytics/trends",
+      {},
+      { report: null, engine_available: false, message: "Analytics unavailable (demo)" },
+    );
+  },
+
+  async getAnalyticsFlywheel(): Promise<{
+    data: { summary: string; engine_available: boolean };
+    live: boolean;
+  }> {
+    return maestroFetch(
+      "/api/analytics/flywheel",
+      {},
+      { summary: "", engine_available: false },
+    );
+  },
 };
 
 /* ------------------------------------------------------------------ */

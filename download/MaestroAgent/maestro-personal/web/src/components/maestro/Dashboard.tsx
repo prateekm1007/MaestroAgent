@@ -42,22 +42,32 @@ export function Dashboard({
   const [whispers, setWhispers] = useState<CopilotWhisper[]>([]);
   const [loading, setLoading] = useState(true);
   const [quickAsk, setQuickAsk] = useState("");
+  // Ambient intelligence state (Phases 9, 11, 19)
+  const [smartNotifs, setSmartNotifs] = useState<any[]>([]);
+  const [escalations, setEscalations] = useState<any[]>([]);
+  const [dealHealth, setDealHealth] = useState<any[]>([]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [m, s, b, w] = await Promise.all([
+      const [m, s, b, w, sn, esc, dh] = await Promise.all([
         maestroApi.getTheMoment(),
         maestroApi.getTheShifts(),
         maestroApi.getBriefing(),
         maestroApi.getWhispers(),
+        maestroApi.getSmartNotifications({ limit: 5 }),
+        maestroApi.getEscalations(),
+        maestroApi.getDealHealth(),
       ]);
       if (!alive) return;
       setMoment(m.data);
       setShifts(s.data);
       setBriefing(b.data);
       setWhispers(Array.isArray(w.data) ? w.data : []);
+      setSmartNotifs(sn.data?.notifications ?? []);
+      setEscalations(esc.data?.escalations ?? []);
+      setDealHealth(dh.data?.deals ?? []);
       setLoading(false);
     })();
     // Issue 13-E: auto-refresh whispers every 60s
@@ -80,6 +90,90 @@ export function Dashboard({
 
   return (
     <div className="space-y-6">
+      {/* AMBIENT INTELLIGENCE — Smart Notifications (Phase 19) */}
+      {smartNotifs.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-red-500 flex items-center gap-1.5">
+            <span>🔔 Needs Attention</span>
+          </h3>
+          {smartNotifs.slice(0, 3).map((n) => (
+            <button
+              key={n.notification_id}
+              onClick={() => onNavigate("commitments")}
+              className={cn(
+                "w-full text-left rounded-lg border p-3 transition-colors hover:bg-accent",
+                n.priority === "critical" ? "border-red-300 bg-red-50 dark:bg-red-950/20" : "border-border bg-card"
+              )}
+            >
+              <p className="font-semibold text-sm">{n.title}</p>
+              <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* AMBIENT INTELLIGENCE — Commitment Escalations (Phase 9) */}
+      {escalations.filter((e) => e.escalation_level === "high" || e.escalation_level === "critical").length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-red-500 flex items-center gap-1.5">
+            <span>⚠️ Escalations</span>
+          </h3>
+          {escalations
+            .filter((e) => e.escalation_level === "high" || e.escalation_level === "critical")
+            .slice(0, 3)
+            .map((e) => (
+              <button
+                key={e.commitment_id}
+                onClick={() => onNavigate("commitments")}
+                className={cn(
+                  "w-full text-left rounded-lg border-l-4 border p-3 bg-card transition-colors hover:bg-accent",
+                  e.escalation_level === "critical" ? "border-red-500" : "border-yellow-500"
+                )}
+              >
+                <p className="font-semibold text-sm">
+                  {e.entity ? `${e.entity} · ` : ""}{(e.commitment_text ?? "").slice(0, 60)}
+                </p>
+                {e.days_overdue ? (
+                  <p className="text-xs text-red-500 font-medium mt-0.5">{e.days_overdue} days overdue</p>
+                ) : null}
+                {e.nudge_text ? (
+                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">→ {e.nudge_text}</p>
+                ) : null}
+              </button>
+            ))}
+        </div>
+      )}
+
+      {/* AMBIENT INTELLIGENCE — Deal Health (Phase 11) */}
+      {dealHealth.filter((d) => d.status === "at_risk" || d.status === "critical").length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-red-500 flex items-center gap-1.5">
+            <span>📉 Deals at Risk</span>
+          </h3>
+          {dealHealth
+            .filter((d) => d.status === "at_risk" || d.status === "critical")
+            .slice(0, 3)
+            .map((d) => (
+              <div key={d.entity} className="flex items-center justify-between rounded-lg border p-3 bg-card">
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">{d.entity}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {d.momentum === "decelerating" ? "↓ decelerating" : d.momentum === "accelerating" ? "↑ accelerating" : "→ stable"}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-sm font-bold text-black",
+                    d.status === "critical" ? "bg-red-500" : "bg-yellow-500"
+                  )}
+                >
+                  {Math.round(d.score)}%
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
+
       {/* Greeting strip */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>

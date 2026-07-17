@@ -13,6 +13,7 @@ import {
   Trash2,
   ToggleLeft,
   ToggleRight,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,17 +57,22 @@ export function Settings() {
   const [deleted, setDeleted] = useState(false);
   const [consent, setConsent] = useState<Record<string, Record<string, boolean>> | null>(null);
   const [consentDefaults, setConsentDefaults] = useState<Record<string, Record<string, boolean>> | null>(null);
+  // Phase 20: ambient analytics
+  const [analyticsReport, setAnalyticsReport] = useState<any>(null);
+  const [flywheelSummary, setFlywheelSummary] = useState("");
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [l, p, c, a, cs] = await Promise.all([
+      const [l, p, c, a, cs, at, af] = await Promise.all([
         maestroApi.getLlmStatus(),
         maestroApi.getPrivacyMode(),
         maestroApi.getCalibration(),
         maestroApi.getAuditLog(),
         maestroApi.getConsentSettings(),
+        maestroApi.getAnalyticsTrends(),
+        maestroApi.getAnalyticsFlywheel(),
       ]);
       if (!alive) return;
       setLlm(l.data);
@@ -75,6 +81,8 @@ export function Settings() {
       setAudit(a.data);
       setConsent(cs.data.consent);
       setConsentDefaults(cs.data.defaults);
+      setAnalyticsReport(at.data?.report ?? null);
+      setFlywheelSummary(af.data?.summary ?? "");
       setLoading(false);
     })();
     return () => {
@@ -363,6 +371,65 @@ export function Settings() {
                 </AlertDialogContent>
               </AlertDialog>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Phase 20: Insights — analytics trends + flywheel summary */}
+        <Card className="border-border/60">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <TrendingUp className="size-3.5" />
+              <span>Insights</span>
+            </div>
+            {flywheelSummary ? (
+              <div>
+                <p className="text-xs font-semibold text-foreground/80 mb-1">Flywheel</p>
+                <p className="text-sm text-muted-foreground">{flywheelSummary}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No data yet — sync connectors to start the flywheel.
+              </p>
+            )}
+            {analyticsReport && (
+              <div className="pt-3 border-t border-border/40 space-y-2">
+                <p className="text-xs font-semibold text-foreground/80">90-Day Trends</p>
+                {analyticsReport.trends && analyticsReport.trends.length > 0 ? (
+                  analyticsReport.trends.slice(0, 4).map((trend: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {trend.name?.replace(/_/g, " ")}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-xs font-semibold",
+                          trend.direction === "improving" ? "text-emerald-500"
+                            : trend.direction === "declining" ? "text-red-500"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {trend.direction === "improving" ? "↑" : trend.direction === "declining" ? "↓" : "→"}{" "}
+                        {Math.abs(trend.change_percentage || 0).toFixed(0)}%
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Commitment kept rate: {((analyticsReport.commitment_kept_rate || 0) * 100).toFixed(0)}%
+                  </p>
+                )}
+                {analyticsReport.meeting_grade_average > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Meeting grade avg: {analyticsReport.meeting_grade_average.toFixed(1)}/100
+                  </p>
+                )}
+                {analyticsReport.patterns_detected > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Patterns: {analyticsReport.patterns_detected} · Laws validated: {analyticsReport.laws_validated}
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

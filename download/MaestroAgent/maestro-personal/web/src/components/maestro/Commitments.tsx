@@ -38,18 +38,25 @@ export function Commitments() {
   const [list, setList] = useState<Commitment[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Phase 11 + 16: deal health per entity + meeting grades
+  const [dealHealth, setDealHealth] = useState<any[]>([]);
+  const [meetingGrades, setMeetingGrades] = useState<any[]>([]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [one, all] = await Promise.all([
+      const [one, all, dh, mg] = await Promise.all([
         maestroApi.getCommitmentsTheOne(),
         maestroApi.getCommitments(),
+        maestroApi.getDealHealth(),
+        maestroApi.getMeetingGrades(),
       ]);
       if (!alive) return;
       setTheOne(one.data);
       setList(all.data);
+      setDealHealth(dh.data?.deals ?? []);
+      setMeetingGrades(mg.data?.grades ?? []);
       setLoading(false);
     })();
     return () => {
@@ -131,6 +138,46 @@ export function Commitments() {
           )}
         </div>
       </div>
+
+      {/* Phase 16: Meeting History with grades */}
+      {meetingGrades.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">Meeting History</h3>
+            <span className="text-xs text-muted-foreground">
+              {meetingGrades.length} meeting{meetingGrades.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {meetingGrades.slice(0, 5).map((g) => (
+              <Card key={g.meeting_id || g.entity} className="border-border/60">
+                <CardContent className="py-3 px-4 flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">
+                      {g.entity || g.title || "Meeting"}
+                    </p>
+                    {g.title && g.title !== g.entity && (
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{g.title}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">{g.confidence_label}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      "flex items-center justify-center rounded-lg w-9 h-9 text-lg font-black text-black shrink-0 ml-3",
+                      g.grade === "A" ? "bg-green-500"
+                        : g.grade === "B" ? "bg-yellow-500"
+                        : g.grade === "C" ? "bg-yellow-600"
+                        : "bg-red-500"
+                    )}
+                  >
+                    {g.effective_grade || g.grade}
+                  </span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
