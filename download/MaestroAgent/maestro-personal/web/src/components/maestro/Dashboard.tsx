@@ -46,12 +46,13 @@ export function Dashboard({
   const [smartNotifs, setSmartNotifs] = useState<any[]>([]);
   const [escalations, setEscalations] = useState<any[]>([]);
   const [dealHealth, setDealHealth] = useState<any[]>([]);
+  const [upcomingMeetings, setUpcomingMeetings] = useState<any[]>([]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [m, s, b, w, sn, esc, dh] = await Promise.all([
+      const [m, s, b, w, sn, esc, dh, cal] = await Promise.all([
         maestroApi.getTheMoment(),
         maestroApi.getTheShifts(),
         maestroApi.getBriefing(),
@@ -59,6 +60,7 @@ export function Dashboard({
         maestroApi.getSmartNotifications({ limit: 5 }),
         maestroApi.getEscalations(),
         maestroApi.getDealHealth(),
+        maestroApi.getCalendarAwareness(48),
       ]);
       if (!alive) return;
       setMoment(m.data);
@@ -68,6 +70,7 @@ export function Dashboard({
       setSmartNotifs(sn.data?.notifications ?? []);
       setEscalations(esc.data?.escalations ?? []);
       setDealHealth(dh.data?.deals ?? []);
+      setUpcomingMeetings(cal.data?.meetings ?? []);
       setLoading(false);
     })();
     // Issue 13-E: auto-refresh whispers every 60s
@@ -171,6 +174,38 @@ export function Dashboard({
                 </span>
               </div>
             ))}
+        </div>
+      )}
+
+      {/* AMBIENT INTELLIGENCE — Calendar Awareness (Phase 9) */}
+      {upcomingMeetings.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-blue-500 flex items-center gap-1.5">
+            <span>📅 Upcoming Meetings</span>
+          </h3>
+          {upcomingMeetings.slice(0, 2).map((m) => (
+            <div key={m.meeting_id} className="rounded-lg border-l-4 border-yellow-500 border p-3 bg-card">
+              <p className="font-semibold text-sm">{m.title || "Untitled Meeting"}</p>
+              {m.entity ? (
+                <p className="text-xs text-muted-foreground mt-0.5">{m.entity} · {m.urgency}</p>
+              ) : null}
+              {m.suggested_talking_points && m.suggested_talking_points.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">TALKING POINTS</p>
+                  {m.suggested_talking_points.slice(0, 3).map((tp: any, i: number) => (
+                    <p key={i} className="text-sm text-foreground/90">
+                      • {typeof tp === "string" ? tp : tp.text || tp.topic || JSON.stringify(tp)}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {typeof m.open_commitments === "number" && m.open_commitments > 0 ? (
+                <p className="text-xs text-red-500 mt-2 font-medium">
+                  {m.open_commitments} open commitment{m.open_commitments !== 1 ? "s" : ""}
+                </p>
+              ) : null}
+            </div>
+          ))}
         </div>
       )}
 

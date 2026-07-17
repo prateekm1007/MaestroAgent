@@ -27,7 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import * as api from '../api/client';
 
-import { useTheOne, useCommitments, useSignals, useDealHealth, useMeetingGrades } from '../api/hooks';
+import { useTheOne, useCommitments, useSignals, useDealHealth, useMeetingGrades, useThreads } from '../api/hooks';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -218,15 +218,17 @@ export default function CommitmentsScreen() {
   const theOneQ = useTheOne();
   const commitmentsQ = useCommitments();
   const signalsQ = useSignals();
-  // Phase 11 + 16: deal health per entity + meeting grades
+  // Phase 11 + 16 + 14: deal health per entity + meeting grades + cross-meeting threads
   const dealHealthQ = useDealHealth();
   const meetingGradesQ = useMeetingGrades();
+  const threadsQ = useThreads();
   const dealHealthByEntity = useMemo(() => {
     const map: Record<string, api.DealHealthScore> = {};
     (dealHealthQ.data?.deals ?? []).forEach((d: any) => { map[d.entity] = d; });
     return map;
   }, [dealHealthQ.data]);
   const meetingGrades = meetingGradesQ.data?.grades ?? [];
+  const threads = threadsQ.data?.threads ?? [];
 
   const theOne = theOneQ.data ?? null;
   const commitments: api.Commitment[] = commitmentsQ.data ?? [];
@@ -541,7 +543,47 @@ export default function CommitmentsScreen() {
               ))
             )}
 
-            {/* Phase 16: Meeting History with grades */}
+            {/* Phase 14: Cross-Meeting Threads (institutional memory) */}
+      {threads.length > 0 && (
+        <View style={{ marginTop: spacing.xl }}>
+          <Text
+            style={[typography.label, { color: t.textSecondary, marginBottom: spacing.md }]}
+            accessibilityRole="header"
+            accessibilityLabel="Meeting threads section"
+          >MEETING THREADS</Text>
+          {threads.slice(0, 5).map((th: any) => (
+            <Card key={th.thread_id} style={{ marginBottom: spacing.sm }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: t.textPrimary }}>{th.entity}</Text>
+                  <Text style={{ fontSize: 12, color: t.textSecondary, marginTop: 2 }} numberOfLines={1}>{th.topic}</Text>
+                </View>
+                <View style={{
+                  backgroundColor: th.confidence_level === 'high' ? colors.successGreen
+                    : th.confidence_level === 'medium' ? colors.yellow : t.border,
+                  borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8,
+                }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.black }}>
+                    {th.meeting_count} meeting{th.meeting_count === 1 ? '' : 's'}
+                  </Text>
+                </View>
+              </View>
+              {th.topic_evolution && th.topic_evolution.length > 0 && (
+                <Text style={{ fontSize: 11, color: t.textSecondary, marginTop: 6 }}>
+                  Topic: {th.topic_evolution.join(' → ')}
+                </Text>
+              )}
+              {th.decision_chain && th.decision_chain.length > 0 && (
+                <Text style={{ fontSize: 11, color: t.textSecondary, marginTop: 4 }}>
+                  {th.decision_chain.length} decision{th.decision_chain.length === 1 ? '' : 's'} tracked
+                </Text>
+              )}
+            </Card>
+          ))}
+        </View>
+      )}
+
+      {/* Phase 16: Meeting History with grades */}
             {meetingGrades.length > 0 && (
               <>
                 <Text

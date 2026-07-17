@@ -28,7 +28,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import * as api from '../api/client';
 
-import { useTheMoment, useShifts, useBriefing, useSmartNotifications, useEscalations, useDealHealth } from '../api/hooks';
+import { useTheMoment, useShifts, useBriefing, useSmartNotifications, useEscalations, useDealHealth, useCalendarAwareness } from '../api/hooks';
 
 import { colors, getTheme, spacing, typography } from '../theme/colors';
 
@@ -60,6 +60,7 @@ export default function DashboardScreen() {
   const smartNotifsQ = useSmartNotifications({ limit: 5 });
   const escalationsQ = useEscalations();
   const dealHealthQ = useDealHealth();
+  const calendarQ = useCalendarAwareness(48);
 
   const moment = momentQ.data ?? null;
   const shifts: api.WhatChangedShift[] = shiftsQ.data?.secondary ?? [];
@@ -67,6 +68,7 @@ export default function DashboardScreen() {
   const smartNotifs = smartNotifsQ.data?.notifications ?? [];
   const escalations = escalationsQ.data?.escalations ?? [];
   const dealHealth = dealHealthQ.data?.deals ?? [];
+  const upcomingMeetings = calendarQ.data?.meetings ?? [];
 
   // ── Card mount animation (React Native built-in Animated) ─────────
   // Replaced react-native-reanimated with RN's built-in Animated to fix
@@ -275,6 +277,50 @@ export default function DashboardScreen() {
                   </View>
                 </View>
               ))}
+          </View>
+        )}
+
+        {/* AMBIENT INTELLIGENCE — Calendar Awareness (Phase 9) */}
+        {upcomingMeetings.length > 0 && (
+          <View style={{ marginBottom: spacing.xl }}>
+            <Text style={[typography.label, { color: colors.royalBlue, marginBottom: spacing.sm }]}>📅 UPCOMING MEETINGS</Text>
+            {upcomingMeetings.slice(0, 2).map((m: any) => (
+              <View
+                key={m.meeting_id}
+                style={{
+                  backgroundColor: t.surface,
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 8,
+                  borderLeftWidth: 4,
+                  borderLeftColor: colors.yellow,
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: t.textPrimary, marginBottom: 4 }}>
+                  {m.title || 'Untitled Meeting'}
+                </Text>
+                {m.entity ? (
+                  <Text style={{ fontSize: 12, color: t.textSecondary, marginBottom: 4 }}>
+                    {m.entity} · {m.urgency}
+                  </Text>
+                ) : null}
+                {m.suggested_talking_points && m.suggested_talking_points.length > 0 ? (
+                  <View style={{ marginTop: 6 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: t.textSecondary, marginBottom: 4 }}>TALKING POINTS</Text>
+                    {m.suggested_talking_points.slice(0, 3).map((tp: any, i: number) => (
+                      <Text key={i} style={{ fontSize: 12, color: t.textPrimary, marginBottom: 2 }}>
+                        • {typeof tp === 'string' ? tp : tp.text || tp.topic || JSON.stringify(tp)}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {typeof m.open_commitments === 'number' && m.open_commitments > 0 ? (
+                  <Text style={{ fontSize: 11, color: colors.alertRed, marginTop: 6, fontWeight: '600' }}>
+                    {m.open_commitments} open commitment{(m.open_commitments as number) !== 1 ? 's' : ''}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
           </View>
         )}
 

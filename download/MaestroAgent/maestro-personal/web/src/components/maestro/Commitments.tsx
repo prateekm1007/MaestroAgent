@@ -38,25 +38,28 @@ export function Commitments() {
   const [list, setList] = useState<Commitment[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  // Phase 11 + 16: deal health per entity + meeting grades
+  // Phase 11 + 16 + 14: deal health per entity + meeting grades + cross-meeting threads
   const [dealHealth, setDealHealth] = useState<any[]>([]);
   const [meetingGrades, setMeetingGrades] = useState<any[]>([]);
+  const [threads, setThreads] = useState<any[]>([]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [one, all, dh, mg] = await Promise.all([
+      const [one, all, dh, mg, th] = await Promise.all([
         maestroApi.getCommitmentsTheOne(),
         maestroApi.getCommitments(),
         maestroApi.getDealHealth(),
         maestroApi.getMeetingGrades(),
+        maestroApi.getThreads(),
       ]);
       if (!alive) return;
       setTheOne(one.data);
       setList(all.data);
       setDealHealth(dh.data?.deals ?? []);
       setMeetingGrades(mg.data?.grades ?? []);
+      setThreads(th.data?.threads ?? []);
       setLoading(false);
     })();
     return () => {
@@ -138,6 +141,52 @@ export function Commitments() {
           )}
         </div>
       </div>
+
+      {/* Phase 14: Cross-Meeting Threads (institutional memory) */}
+      {threads.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">Meeting Threads</h3>
+            <span className="text-xs text-muted-foreground">
+              {threads.length} thread{threads.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {threads.slice(0, 5).map((t) => (
+              <Card key={t.thread_id} className="border-border/60">
+                <CardContent className="py-3 px-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{t.entity}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.topic}</p>
+                    </div>
+                    <span
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ml-2",
+                        t.confidence_level === "high" ? "bg-green-500/15 text-green-600"
+                          : t.confidence_level === "medium" ? "bg-yellow-500/15 text-yellow-600"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {t.meeting_count} meeting{t.meeting_count === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {t.topic_evolution && t.topic_evolution.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Topic evolution: {t.topic_evolution.join(" → ")}
+                    </p>
+                  )}
+                  {t.decision_chain && t.decision_chain.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {t.decision_chain.length} decision{t.decision_chain.length === 1 ? "" : "s"} tracked
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Phase 16: Meeting History with grades */}
       {meetingGrades.length > 0 && (
