@@ -1,17 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
   Loader2,
   Mail,
+  Plus,
+  Search,
   Sparkles,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,16 +47,31 @@ import {
   confidenceColor,
   confidenceTextColor,
   confidenceTier,
+  formatRelative,
   formatTimestamp,
   type Commitment,
   type CommitmentsTheOne,
+  type Signal,
   maestroApi,
 } from "@/lib/maestro-api";
 import {
   DraftApprovalModal,
   type DraftWithMeta,
 } from "./DraftApprovalModal";
-import { Signals } from "./Signals";
+
+// Signal types for the Add-Signal form (inlined from deleted Signals.tsx)
+const SIGNAL_TYPES = [
+  "reported_statement",
+  "commitment_made",
+  "commitment_received",
+  "follow_up_required",
+  "schedule_change",
+  "material_objection",
+  "observed_behavior",
+  "outcome",
+];
+
+const SIGNALS_PAGE_SIZE = 50;
 
 export function Commitments({
   initialEntityFilter = "",
@@ -67,6 +100,19 @@ export function Commitments({
 
   // P1-8: Optional entity filter (set from Ask provenance deep-link)
   const [entityFilter, setEntityFilter] = useState(initialEntityFilter);
+
+  // ── Signals-tab state (inlined from deleted Signals.tsx — matches mobile's
+  // pattern of folding signal-correction UI into CommitmentsScreen rather than
+  // keeping a standalone Signals screen) ──
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [signalsFilter, setSignalsFilter] = useState("");
+  const [signalsPage, setSignalsPage] = useState(0);
+  const [signalBusyId, setSignalBusyId] = useState<string | null>(null);
+  const [newSignalEntity, setNewSignalEntity] = useState("");
+  const [newSignalText, setNewSignalText] = useState("");
+  const [newSignalType, setNewSignalType] = useState<string>("reported_statement");
+  const [submittingSignal, setSubmittingSignal] = useState(false);
 
   useEffect(() => {
     if (initialEntityFilter) {
@@ -168,6 +214,67 @@ export function Commitments({
     ? list.filter((c) => c.entity?.toLowerCase().includes(entityFilter.toLowerCase()))
     : list;
 
+  // ── Signals-tab handlers (inlined from deleted Signals.tsx) ──
+
+  // Lazy-load signals only when user first switches to the Signals tab.
+  // Avoids fetching /api/signals on the Commitments tab where it's not needed.
+  useEffect(() => {
+    if (tab !== "signals" || signals.length > 0 || signalsLoading) return;
+    let alive = true;
+    void (async () => {
+      setSignalsLoading(true);
+      const { data } = await maestroApi.getSignals();
+      if (!alive) return;
+      setSignals(data);
+      setSignalsLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredSignals = useMemo(() => {
+    const q = signalsFilter.trim().toLowerCase();
+    if (!q) return signals;
+    return signals.filter(
+      (s) =>
+        s.entity.toLowerCase().includes(q) ||
+        s.text.toLowerCase().includes(q) ||
+        s.signal_type.toLowerCase().includes(q),
+    );
+  }, [signals, signalsFilter]);
+
+  const totalSignalPages = Math.max(1, Math.ceil(filteredSignals.length / SIGNALS_PAGE_SIZE));
+  const safeSignalPage = Math.min(signalsPage, totalSignalPages - 1);
+  const pagedSignals = filteredSignals.slice(
+    safeSignalPage * SIGNALS_PAGE_SIZE,
+    (safeSignalPage + 1) * SIGNALS_PAGE_SIZE,
+  );
+
+  async function submitNewSignal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newSignalEntity.trim() || !newSignalText.trim()) return;
+    setSubmittingSignal(true);
+    const { data } = await maestroApi.createSignal(
+      newSignalEntity.trim(),
+      newSignalText.trim(),
+      newSignalType,
+    );
+    setSignals((prev) => [data, ...prev]);
+    setNewSignalEntity("");
+    setNewSignalText("");
+    setNewSignalType("reported_statement");
+    setSubmittingSignal(false);
+  }
+
+  async function correctSignal(signal_id: string, action: "dismiss" | "complete" | "cancel") {
+    setSignalBusyId(signal_id);
+    await maestroApi.correctSignal(signal_id, action);
+    // Remove from list locally (API hides corrected signals on next fetch)
+    setSignals((prev) => prev.filter((s) => s.signal_id !== signal_id));
+    setSignalBusyId(null);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -222,7 +329,29 @@ export function Commitments({
       )}
 
       {tab === "signals" ? (
-        <Signals />
+        <SignalsTab
+          signals={pagedSignals}
+          loading={signalsLoading}
+          filter={signalsFilter}
+          onFilterChange={(v) => {
+            setSignalsFilter(v);
+            setSignalsPage(0);
+          }}
+          busyId={signalBusyId}
+          onCorrect={correctSignal}
+          newEntity={newSignalEntity}
+          newText={newSignalText}
+          newType={newSignalType}
+          submitting={submittingSignal}
+          onEntityChange={setNewSignalEntity}
+          onTextChange={setNewSignalText}
+          onTypeChange={setNewSignalType}
+          onSubmitNew={submitNewSignal}
+          page={safeSignalPage}
+          totalPages={totalSignalPages}
+          totalCount={filteredSignals.length}
+          onPageChange={setSignalsPage}
+        />
       ) : (
         <>
           {/* The One */}
@@ -645,5 +774,227 @@ function SkeletonCommitment() {
         <div className="h-3 w-1/3 bg-muted/40 rounded animate-pulse" />
       </CardContent>
     </Card>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * SignalsTab — inlined from deleted Signals.tsx.
+ * Renders Add-Signal form + filter + signal table with correction buttons.
+ * Mobile's CommitmentsScreen renders signals as a read-only FlatList; we keep
+ * the Add-Signal form + correction buttons because web doesn't have swipe
+ * gestures (mobile corrects via swipe). The segmented-control pattern matches.
+ * ─────────────────────────────────────────────────────────────── */
+
+function SignalsTab({
+  signals,
+  loading,
+  filter,
+  onFilterChange,
+  busyId,
+  onCorrect,
+  newEntity,
+  newText,
+  newType,
+  submitting,
+  onEntityChange,
+  onTextChange,
+  onTypeChange,
+  onSubmitNew,
+  page,
+  totalPages,
+  totalCount,
+  onPageChange,
+}: {
+  signals: Signal[];
+  loading: boolean;
+  filter: string;
+  onFilterChange: (v: string) => void;
+  busyId: string | null;
+  onCorrect: (signal_id: string, action: "dismiss" | "complete" | "cancel") => void;
+  newEntity: string;
+  newText: string;
+  newType: string;
+  submitting: boolean;
+  onEntityChange: (v: string) => void;
+  onTextChange: (v: string) => void;
+  onTypeChange: (v: string) => void;
+  onSubmitNew: (e: React.FormEvent) => void;
+  page: number;
+  totalPages: number;
+  totalCount: number;
+  onPageChange: (p: number) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {/* Add-signal form */}
+      <Card className="border-border/60">
+        <CardContent className="pt-6">
+          <form onSubmit={onSubmitNew} className="space-y-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <Plus className="size-3.5" />
+              <span>Add a signal</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[200px_1fr_220px_auto]">
+              <Input
+                placeholder="Entity (e.g. Maria Garcia)"
+                value={newEntity}
+                onChange={(e) => onEntityChange(e.target.value)}
+                className="bg-input/40 border-border/60"
+              />
+              <Input
+                placeholder="What you observed or were told"
+                value={newText}
+                onChange={(e) => onTextChange(e.target.value)}
+                className="bg-input/40 border-border/60"
+              />
+              <Select value={newType} onValueChange={onTypeChange}>
+                <SelectTrigger className="bg-input/40 border-border/60 w-full">
+                  <SelectValue placeholder="Signal type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SIGNAL_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="submit" disabled={submitting || !newEntity.trim() || !newText.trim()}>
+                {submitting ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                Add
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Filter + table */}
+      <Card className="border-border/60">
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="text-sm font-semibold">All signals</h3>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                value={filter}
+                onChange={(e) => onFilterChange(e.target.value)}
+                placeholder="Filter signals…"
+                className="pl-9 h-8 text-sm bg-input/40 border-border/60"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="py-12 flex items-center justify-center">
+              <Loader2 className="size-5 text-muted-foreground animate-spin" />
+            </div>
+          ) : signals.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              {filter ? "No signals match your filter." : "No signals yet. Add one above."}
+            </p>
+          ) : (
+            <div className="rounded-lg border border-border/60 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[140px]">Entity</TableHead>
+                    <TableHead>Text</TableHead>
+                    <TableHead className="w-[150px]">Type</TableHead>
+                    <TableHead className="w-[140px]">When</TableHead>
+                    <TableHead className="w-[180px] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {signals.map((s) => (
+                    <TableRow key={s.signal_id} className="group">
+                      <TableCell className="font-medium text-foreground/90 align-top">
+                        {s.entity}
+                      </TableCell>
+                      <TableCell className="text-foreground/80 align-top">
+                        <span className="line-clamp-2">{s.text}</span>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-muted/60 border border-border/60 text-muted-foreground capitalize">
+                          {s.signal_type.replace(/_/g, " ")}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground align-top" title={formatTimestamp(s.timestamp)}>
+                        {formatRelative(s.timestamp)}
+                      </TableCell>
+                      <TableCell className="text-right align-top">
+                        <div className="inline-flex gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-emerald-300 hover:text-emerald-200"
+                            disabled={busyId === s.signal_id}
+                            onClick={() => onCorrect(s.signal_id, "complete")}
+                            title="Mark complete"
+                          >
+                            <CheckCircle2 className="size-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            disabled={busyId === s.signal_id}
+                            onClick={() => onCorrect(s.signal_id, "dismiss")}
+                            title="Dismiss"
+                          >
+                            Dismiss
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-rose-300 hover:text-rose-200"
+                            disabled={busyId === s.signal_id}
+                            onClick={() => onCorrect(s.signal_id, "cancel")}
+                            title="Cancel"
+                          >
+                            <XCircle className="size-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalCount > SIGNALS_PAGE_SIZE && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                Showing {page * SIGNALS_PAGE_SIZE + 1}–{Math.min(totalCount, (page + 1) * SIGNALS_PAGE_SIZE)} of {totalCount}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={page === 0}
+                  onClick={() => onPageChange(Math.max(0, page - 1))}
+                >
+                  Prev
+                </Button>
+                <span className="px-2 py-1.5">
+                  {page + 1} / {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

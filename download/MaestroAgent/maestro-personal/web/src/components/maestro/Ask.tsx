@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -29,6 +29,7 @@ import {
   formatTimestamp,
   getToken,
   type AskResponse,
+  type Commitment,
   maestroApi,
 } from "@/lib/maestro-api";
 
@@ -43,7 +44,21 @@ const QA_HISTORY_KEY = "maestro.ask.qa_history";
 const MAX_QA_PAIRS = 3;
 const MAX_ANSWER_CHARS_IN_CONTEXT = 200;
 
+// ── Autocomplete UX constants (ported from static/js/ask.js — Enterprise pattern) ──
+// The Enterprise version calls GET /api/oem/autocomplete (forbidden — single-user
+// Personal API has no such endpoint). We port the PATTERN only: debounce + dropdown
+// + keyboard nav. Suggestions come from existing Personal data sources (history +
+// entity names from /api/commitments), NOT a per-keystroke backend call.
+const ASK_DEBOUNCE_MS = 150;
+const MAX_SUGGESTIONS = 8;
+
 type QaPair = { query: string; answer: string; timestamp: string };
+
+type Suggestion = {
+  text: string;
+  source: "history" | "entity" | "suggested";
+  label: string;
+};
 
 export function Ask({
   initialQuery,
@@ -71,6 +86,141 @@ export function Ask({
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  // ── Autocomplete state (ported from static/js/ask.js — Enterprise pattern) ──
+  // The Enterprise version calls /api/oem/autocomplete per keystroke (forbidden here).
+  // We port the PATTERN: 150ms debounce + dropdown + keyboard nav + ESC-to-close.
+  // Suggestions come from: (1) localStorage maestro.ask.history (no request), and
+  // (2) entity names from a ONE-TIME fetch of /api/commitments on mount (existing
+  // Personal endpoint, not per-keystroke). No AbortController needed because we're
+  // filtering cached arrays, not making per-keystroke network calls.
+  const [autocompleteOpen, setAutocompleteOpen] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState(-1);
+  const [entityNames, setEntityNames] = useState<string[]>([]);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // One-time fetch of /api/commitments on mount — extracts unique entity names
+  // for autocomplete suggestions. This is an existing Personal endpoint (also
+  // fetched by Commitments.tsx), not a new request per keystroke.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data } = await maestroApi.getCommitments();
+      if (!alive) return;
+      const names = Array.from(
+        new Set((data as Commitment[]).map((c) => c.entity).filter(Boolean)),
+      ) as string[];
+      setEntityNames(names);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Debounce the query by 150ms before computing suggestions.
+  // Ported from static/js/ask.js: clearTimeout + setTimeout pattern.
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, ASK_DEBOUNCE_MS);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [query]);
+
+  // Compute suggestions from cached data (no per-keystroke network call).
+  // Sources: localStorage history + entity names from /api/commitments + the
+  // hardcoded SUGGESTED_QUERIES as a fallback when nothing else matches.
+  const suggestions = useMemo<Suggestion[]>(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!q) return [];
+    const matches: Suggestion[] = [];
+    const seen = new Set<string>();
+
+    // 1. History matches (highest priority — user has typed this before)
+    for (const h of history) {
+      if (matches.length >= MAX_SUGGESTIONS) break;
+      if (h.toLowerCase().includes(q) && !seen.has(h)) {
+        matches.push({ text: h, source: "history", label: "recent" });
+        seen.add(h);
+      }
+    }
+
+    // 2. Entity-name matches → build a natural-language query template
+    for (const entity of entityNames) {
+      if (matches.length >= MAX_SUGGESTIONS) break;
+      const eLower = entity.toLowerCase();
+      if (eLower.includes(q)) {
+        const template = `What did I promise ${entity}?`;
+        if (!seen.has(template)) {
+          matches.push({ text: template, source: "entity", label: `entity: ${entity}` });
+          seen.add(template);
+        }
+      }
+    }
+
+    // 3. Suggested queries (fallback — only if user input matches a suggested query)
+    for (const s of SUGGESTED_QUERIES) {
+      if (matches.length >= MAX_SUGGESTIONS) break;
+      if (s.toLowerCase().includes(q) && !seen.has(s)) {
+        matches.push({ text: s, source: "suggested", label: "suggested" });
+        seen.add(s);
+      }
+    }
+
+    return matches;
+  }, [debouncedQuery, history, entityNames]);
+
+  // Open/close dropdown based on whether there are suggestions
+  useEffect(() => {
+    if (suggestions.length > 0 && debouncedQuery.trim() && !busy) {
+      setAutocompleteOpen(true);
+      setSelectedIdx(-1);
+    } else {
+      setAutocompleteOpen(false);
+      setSelectedIdx(-1);
+    }
+  }, [suggestions, debouncedQuery, busy]);
+
+  // Keyboard navigation — ported from static/js/ask.js:
+  // ArrowDown/ArrowUp cycle through suggestions, Enter selects, Escape closes.
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!autocompleteOpen) {
+      // Pass through to the form's submit handler when no dropdown is open
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIdx((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIdx((i) => (i - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === "Enter" && selectedIdx >= 0) {
+      e.preventDefault();
+      const selected = suggestions[selectedIdx];
+      if (selected) {
+        setQuery(selected.text);
+        setAutocompleteOpen(false);
+        setSelectedIdx(-1);
+        void runAsk(selected.text);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setAutocompleteOpen(false);
+      setSelectedIdx(-1);
+      inputRef.current?.focus();
+    }
+  }
+
+  function selectSuggestion(s: Suggestion) {
+    setQuery(s.text);
+    setAutocompleteOpen(false);
+    setSelectedIdx(-1);
+    inputRef.current?.focus();
+    void runAsk(s.text);
+  }
 
   // Hydrate plain-string history (last 10) + Q&A pair history (last 3) from localStorage
   useEffect(() => {
@@ -262,10 +412,52 @@ export function Ask({
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleInputKeyDown}
                 placeholder="“What did I promise Maria?”"
                 className="pl-9 h-12 text-base bg-input/40 border-border/60"
                 disabled={busy}
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-expanded={autocompleteOpen}
+                aria-controls="ask-autocomplete-listbox"
+                role="combobox"
               />
+              {/* Autocomplete dropdown — ported from static/js/ask.js (Enterprise pattern).
+                  Sources: localStorage history + entity names from /api/commitments.
+                  NO /api/oem/autocomplete call (Enterprise-only, forbidden). */}
+              {autocompleteOpen && suggestions.length > 0 && (
+                <div
+                  id="ask-autocomplete-listbox"
+                  role="listbox"
+                  aria-label="Ask suggestions"
+                  className="absolute z-50 left-0 right-0 mt-1 rounded-md border border-border/60 bg-popover shadow-md overflow-hidden max-h-80 overflow-y-auto"
+                >
+                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70 border-b border-border/40 bg-muted/20">
+                    Suggestions · from your history + commitments
+                  </div>
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={`${s.source}-${i}`}
+                      type="button"
+                      role="option"
+                      aria-selected={i === selectedIdx}
+                      onMouseEnter={() => setSelectedIdx(i)}
+                      onClick={() => selectSuggestion(s)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 transition-colors",
+                        i === selectedIdx
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-muted/40",
+                      )}
+                    >
+                      <span className="truncate">{s.text}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 shrink-0">
+                        {s.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {/* P1-7: Voice input button */}
             <Button
