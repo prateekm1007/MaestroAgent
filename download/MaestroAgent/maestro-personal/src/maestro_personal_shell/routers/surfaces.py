@@ -1226,3 +1226,75 @@ async def get_deal_health_endpoint(
         "deal_health": score,
         "engine_available": True,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 20: Advanced analytics (trend analysis + org learning)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/analytics/trends")
+async def get_analytics_endpoint(
+    token: str = Depends(verify_token_dep),
+):
+    """Get the organizational learning report (Phase 20).
+
+    P11 fix (wiring): the enterprise AdvancedAnalyticsEngine was built +
+    tested (20 tests) but never wired into the personal shell. This
+    endpoint is the production entry point.
+
+    P13: the report is DERIVED from the user's signal history. The caller
+    supplies nothing but the auth token.
+
+    Returns:
+      org learning report with: trends, team_performance, laws_validated,
+      laws_candidate, patterns_detected, brier_score, commitment_kept_rate,
+      commitment_broken_rate, meeting_grade_average, deal_cycle_time_days,
+      flywheel_summary
+    """
+    from maestro_personal_shell.advanced_analytics import (
+        get_analytics_report as _get_report,
+        ENTERPRISE_ANALYTICS_AVAILABLE,
+    )
+    if not ENTERPRISE_ANALYTICS_AVAILABLE:
+        return {
+            "report": None,
+            "engine_available": False,
+            "message": "Advanced analytics unavailable — enterprise engine not importable",
+        }
+    report = _get_report(user_email=token)
+    if not report:
+        return {
+            "report": None,
+            "engine_available": True,
+            "message": "No signals yet — sync connectors to start the flywheel",
+        }
+    return {
+        "report": report,
+        "engine_available": True,
+        "flywheel_summary": report.get("flywheel_summary", ""),
+    }
+
+
+@router.get("/analytics/flywheel")
+async def get_flywheel_endpoint(
+    token: str = Depends(verify_token_dep),
+):
+    """Get a one-line flywheel summary for the user.
+
+    Convenience endpoint — useful for dashboard headers + mobile UI.
+    """
+    from maestro_personal_shell.advanced_analytics import (
+        get_flywheel_summary as _get_summary,
+        ENTERPRISE_ANALYTICS_AVAILABLE,
+    )
+    if not ENTERPRISE_ANALYTICS_AVAILABLE:
+        return {
+            "summary": "Analytics unavailable",
+            "engine_available": False,
+        }
+    summary = _get_summary(user_email=token)
+    return {
+        "summary": summary,
+        "engine_available": True,
+    }
