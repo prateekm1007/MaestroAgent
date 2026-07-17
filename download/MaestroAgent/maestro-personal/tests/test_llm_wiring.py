@@ -888,6 +888,96 @@ def test_llm_holistic_analysis_handles_parse_failure():
         assert result is None, "Must return None when JSON parsing fails"
 
 
+def test_zai_http_router_complete_sync_handles_http_error_without_nameerror():
+    """P22 regression: _complete_sync must handle httpx.HTTPStatusError
+    without raising NameError on time.sleep.
+
+    Bug (2026-07-17 session): llm_bridge.py:201,207 called `time.sleep(0.5)`
+    but only `import time as _time` existed (line 170). When ZAI returned
+    HTTP 429 (or any HTTPStatusError), the retry path raised NameError,
+    masking the real underlying API error. This test exercises the
+    production retry path directly (P22 — unit test must execute the
+    real code path, not a mock of it).
+    """
+    import httpx
+    from maestro_personal_shell.llm_bridge import ZAIHTTPRouter
+
+    router = ZAIHTTPRouter()
+    # Force config to be loaded so _complete_sync reaches the httpx call.
+    router._config = {
+        "baseUrl": "https://example.invalid",
+        "apiKey": "fake",
+        "token": "",
+        "chatId": "",
+        "userId": "",
+    }
+    router._config_checked = True
+
+    # Build a real HTTPStatusError — request was "sent", response is a 500.
+    request = httpx.Request("POST", "https://example.invalid/chat/completions")
+    response_500 = httpx.Response(
+        status_code=500,
+        request=request,
+        content=b'{"error":"internal server error"}',
+    )
+    http_error = httpx.HTTPStatusError(
+        "Server error", request=request, response=response_500,
+    )
+
+    # Patch httpx.post directly (httpx is imported inside _complete_sync).
+    with patch("httpx.post", side_effect=http_error):
+        with pytest.raises(RuntimeError) as exc_info:
+            router._complete_sync(
+                url="https://example.invalid/chat/completions",
+                headers={"Content-Type": "application/json"},
+                body={"model": "glm-4.6", "messages": []},
+            )
+
+        # The bridge must raise RuntimeError with the HTTP details — NOT NameError.
+        msg = str(exc_info.value)
+        assert "NameError" not in msg, \
+            "NameError leaked — time.sleep/_time.sleep bug not fixed"
+        assert "500" in msg or "HTTP" in msg, \
+            f"RuntimeError should describe the HTTP failure, got: {msg}"
+
+
+def test_zai_http_router_complete_sync_handles_generic_exception_without_nameerror():
+    """P22 regression companion: _complete_sync must also handle generic
+    Exception (not just HTTPStatusError) on the retry path without
+    raising NameError on time.sleep.
+    """
+    import httpx
+    from maestro_personal_shell.llm_bridge import ZAIHTTPRouter
+
+    router = ZAIHTTPRouter()
+    router._config = {
+        "baseUrl": "https://example.invalid",
+        "apiKey": "fake",
+        "token": "",
+        "chatId": "",
+        "userId": "",
+    }
+    router._config_checked = True
+
+    # Patch httpx.post to raise a generic ConnectionError on every attempt.
+    with patch(
+        "httpx.post",
+        side_effect=httpx.ConnectError("connection refused"),
+    ):
+        with pytest.raises(RuntimeError) as exc_info:
+            router._complete_sync(
+                url="https://example.invalid/chat/completions",
+                headers={"Content-Type": "application/json"},
+                body={"model": "glm-4.6", "messages": []},
+            )
+
+        msg = str(exc_info.value)
+        assert "NameError" not in msg, \
+            "NameError leaked — time.sleep/_time.sleep bug not fixed"
+        assert "connection refused" in msg or "ConnectError" in msg, \
+            f"RuntimeError should describe the connection failure, got: {msg}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 

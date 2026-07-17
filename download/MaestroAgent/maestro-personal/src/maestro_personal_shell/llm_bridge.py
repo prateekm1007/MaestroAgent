@@ -198,13 +198,13 @@ class ZAIHTTPRouter:
             except httpx.HTTPStatusError as e:
                 last_error = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
                 if attempt < 1:
-                    time.sleep(0.5)
+                    _time.sleep(0.5)
                     continue
                 raise RuntimeError(f"ZAI HTTP failed after 2 attempts: {last_error}")
             except Exception as e:
                 last_error = str(e)[:200]
                 if attempt < 1:
-                    time.sleep(0.5)
+                    _time.sleep(0.5)
                     continue
                 raise RuntimeError(f"ZAI HTTP failed after 2 attempts: {last_error}")
 
