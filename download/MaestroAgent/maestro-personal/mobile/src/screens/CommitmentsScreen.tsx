@@ -223,7 +223,7 @@ export default function CommitmentsScreen() {
   const meetingGradesQ = useMeetingGrades();
   const dealHealthByEntity = useMemo(() => {
     const map: Record<string, api.DealHealthScore> = {};
-    (dealHealthQ.data?.deals ?? []).forEach((d) => { map[d.entity] = d; });
+    (dealHealthQ.data?.deals ?? []).forEach((d: any) => { map[d.entity] = d; });
     return map;
   }, [dealHealthQ.data]);
   const meetingGrades = meetingGradesQ.data?.grades ?? [];
@@ -549,7 +549,7 @@ export default function CommitmentsScreen() {
                   accessibilityRole="header"
                   accessibilityLabel="Meeting history section"
                 >MEETING HISTORY</Text>
-                {meetingGrades.slice(0, 5).map((g) => (
+                {meetingGrades.slice(0, 5).map((g: any) => (
                   <Card key={g.meeting_id || g.entity} style={{ marginBottom: spacing.sm }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <View style={{ flex: 1 }}>

@@ -173,7 +173,7 @@ export default function DashboardScreen() {
         {smartNotifs.length > 0 && (
           <View style={{ marginBottom: spacing.xl }}>
             <Text style={[typography.label, { color: colors.alertRed, marginBottom: spacing.sm }]}>🔔 NEEDS ATTENTION</Text>
-            {smartNotifs.slice(0, 3).map((n) => (
+            {smartNotifs.slice(0, 3).map((n: any) => (
               <TouchableOpacity
                 key={n.notification_id}
                 onPress={() => n.action_url && nav.navigate('Commitments')}
