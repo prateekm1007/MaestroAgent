@@ -37,6 +37,14 @@ export default function LoginScreen() {
   }, []);
 
   const handleLogin = async () => {
+    // Phase 0 fix (Round 67): validate empty password before attempting login.
+    // Prevents sending an empty credential to the backend + gives the user
+    // immediate haptic + error feedback.
+    if (!password || !password.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setError(true);
+      return;
+    }
     setLoading(true);
     setError(false);
     // Save server URL before login

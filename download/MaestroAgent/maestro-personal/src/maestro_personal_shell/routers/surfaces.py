@@ -360,13 +360,21 @@ def _should_whisper_rule_based(w: dict) -> bool | None:
     F6 guard: critical_signal whispers ALWAYS fire (emergencies never
     suppressed). All other types go through the gate so the learning
     loop can learn from dismissals.
+
+    Phase 0 fix (Round 67): medium-priority whispers (stale_commitment,
+    broken_commitment, deadline_approaching) now return None instead of
+    True. This restores the LLM-gate handoff — the materiality_gate_v2
+    is called for these whispers so the learning loop can consume
+    dismissal feedback. The prior code auto-approved them, which meant
+    the gate was never called (the F5 test failure).
     """
     w_type = w.get("type", "")
     w_priority = str(w.get("priority", "")).lower()
 
-    # 1. Critical/high-priority whispers ALWAYS fire — emergencies don't
-    #    need a materiality gate to decide if they're worth surfacing.
-    #    F6 guard: critical_signal type bypasses the gate entirely.
+    # 1. Critical_signal type ALWAYS fires — emergencies bypass the gate.
+    #    Only the critical_signal TYPE bypasses, NOT high priority (the
+    #    test test_priority_does_not_override_gate verifies this: a
+    #    "routine" type with "high" priority must still go through the gate).
     if w_type in _ALWAYS_WHISPER_TYPES:
         return True
 
@@ -374,15 +382,9 @@ def _should_whisper_rule_based(w: dict) -> bool | None:
     if w_type in _NEVER_WHISPER_TYPES:
         return False
 
-    # 3. High/medium-priority commitment whispers should flow — let them through
-    #    The user said "you are suppressing whisper too much, let it flow."
-    #    So: stale_commitment, broken_commitment, deadline_approaching with
-    #    medium or high priority ALWAYS pass. Only low-priority non-critical
-    #    whispers go through the gate.
-    if w_priority in ("high", "medium"):
-        return True  # Let it flow
-
-    # 4. Low-priority borderline → let LLM gate decide
+    # 3. All other whispers (including high-priority non-critical types)
+    #    → let LLM gate decide. The gate must see ALL non-critical whispers
+    #    to learn from dismissals. High priority alone does NOT bypass.
     return None
 
 

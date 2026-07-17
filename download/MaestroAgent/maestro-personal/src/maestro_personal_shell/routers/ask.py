@@ -895,6 +895,14 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             f"(entity: {source_entity})"
         )
 
+    # Phase 0 fix (Round 67): when the answer IS an abstention ("I don't have
+    # enough information"), confidence MUST be 0.0. The auditor found the
+    # message said "I don't have enough information" but confidence was 0.3 —
+    # the number disagreed with the message. Now: if abstention was triggered,
+    # force confidence to 0.0 regardless of what verification computed.
+    if _abstention_triggered:
+        verification["confidence"] = 0.0
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,
