@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   type Connector,
@@ -43,6 +44,7 @@ const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: string }>
 };
 
 export function Connectors() {
+  const { toast } = useToast();
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,33 +67,100 @@ export function Connectors() {
     load();
   }, [load]);
 
+  // P0-Audit fix (2026-07-18): all 4 mutating handlers now use try/catch + .live
+  // check + destructive toast on failure. Was: response discarded, setBusy(false)
+  // in a finally never ran on unhandled rejection (now-maestroFetch throws), AND
+  // the success path ran unconditionally even when the call failed silently via
+  // fabricated fallback. Now: failure → destructive toast, success → real feedback.
+  // Pattern matches Dashboard.tsx handleResolveDraft + Commitments.tsx handleResolveDraft.
   async function handleConnect(provider: string) {
     setBusyProvider(provider);
-    await maestroApi.connectProvider(provider);
-    await load();
-    setBusyProvider(null);
+    try {
+      const { live } = await maestroApi.connectProvider(provider);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not connect provider.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Connected", description: `${provider} is now connected.` });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Connect failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setBusyProvider(null);
+    }
   }
 
   async function handleDisconnect(provider: string) {
     setBusyProvider(provider);
-    await maestroApi.disconnectProvider(provider);
-    await load();
-    setBusyProvider(null);
+    try {
+      const { live } = await maestroApi.disconnectProvider(provider);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not disconnect provider.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Disconnected", description: `${provider} has been disconnected.` });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Disconnect failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setBusyProvider(null);
+    }
   }
 
   async function handleIngest(provider: string) {
     setBusyProvider(provider);
-    await maestroApi.ingestConnector(provider);
-    await load();
-    setBusyProvider(null);
+    try {
+      const { data, live } = await maestroApi.ingestConnector(provider);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not sync provider.", variant: "destructive" });
+        return;
+      }
+      toast({
+        title: "Synced",
+        description: `${data.ingested} ingested, ${data.new_commitments} new commitments, ${data.duplicates} duplicates.`,
+      });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Sync failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setBusyProvider(null);
+    }
   }
 
+  // handleResolve matches Dashboard.tsx handleResolveDraft + Commitments.tsx
+  // handleResolveDraft — same action, same implementation shape across all
+  // three call sites (Dashboard Moment/Whisper, Commitments rows, Connectors
+  // pending-drafts list).
   async function handleResolve(draft: DraftWithMeta, resolution: "approve" | "deny" | "use_draft") {
     setResolving(true);
-    await maestroApi.resolveDraft(draft.draft_id, resolution);
-    setSelectedDraft(null);
-    await load();
-    setResolving(false);
+    try {
+      const { live } = await maestroApi.resolveDraft(draft.draft_id, resolution);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not reach the API.", variant: "destructive" });
+        return;
+      }
+      if (resolution === "approve") {
+        toast({ title: "Sent", description: "Your email has been sent." });
+      } else if (resolution === "use_draft") {
+        try {
+          await navigator.clipboard?.writeText(draft.body || "");
+        } catch { /* clipboard may be blocked */ }
+        if (draft.recipient) {
+          const subject = encodeURIComponent(draft.subject || "");
+          const body = encodeURIComponent(draft.body || "");
+          window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, "_blank");
+        }
+        toast({ title: "Opened in mail app", description: "Body copied to clipboard as backup." });
+      } else {
+        toast({ title: "Discarded", description: "Draft denied." });
+      }
+      setSelectedDraft(null);
+      await load();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setResolving(false);
+    }
   }
 
   const workConnectors = connectors.filter((c) => c.category === "work");

@@ -200,11 +200,17 @@ export const maestroApi = {
     signal_id: string,
     action: "dismiss" | "complete" | "cancel",
   ): Promise<{ data: { ok: boolean }; live: boolean }> {
+    // P0-Audit fix (2026-07-18): no fabricated fallback for mutating POST.
+    // Was: fallback { ok: true } — fabricated success when backend unreachable,
+    // caller discarded the response, list-removal ran unconditionally → user
+    // believed "Done" worked while server state was unchanged.
+    // Now: no fallback → maestroFetch re-throws on failure → caller must
+    // try/catch (see Commitments.tsx correct() + correctSignal()).
     const path = `/api/signals/${signal_id}/correct?action=${action}`;
     return maestroFetch<{ ok: boolean }>(
       path,
       { method: "POST" },
-      { ok: true },
+      // no fallback — re-throws on failure
     );
   },
 
@@ -251,10 +257,17 @@ export const maestroApi = {
   },
 
   async deleteAccount(): Promise<{ data: { ok: boolean }; live: boolean }> {
+    // P0-Audit fix (2026-07-18): no fabricated fallback for destructive DELETE.
+    // Was: fallback { ok: true } — fabricated success when backend unreachable,
+    // caller (Settings.tsx deleteAccount) discarded the response and called
+    // setDeleted(true) unconditionally → user saw "account deleted" while the
+    // account and all data were fully intact server-side. Most serious case.
+    // Now: no fallback → maestroFetch re-throws on failure → caller must
+    // try/catch (see Settings.tsx deleteAccount()).
     return maestroFetch<{ ok: boolean }>(
       "/api/account",
       { method: "DELETE" },
-      { ok: true },
+      // no fallback — re-throws on failure
     );
   },
 
@@ -308,21 +321,31 @@ export const maestroApi = {
     provider: string,
     oauthToken: string = "",
   ): Promise<{ data: Connector; live: boolean }> {
+    // P0-Audit fix (2026-07-18): no fabricated fallback for mutating POST.
+    // Was: fallback null → maestroFetch returns { data: null, live: false }
+    // on failure (doesn't throw). Caller (Connectors.tsx handleConnect) discarded
+    // the response → silent failure on connect. Now: no fallback → re-throws →
+    // caller must try/catch (see Connectors.tsx handleConnect).
     const body = JSON.stringify({ provider, oauth_token: oauthToken });
     return maestroFetch<Connector>(
       `/api/connectors/${provider}/connect`,
       { method: "POST", body },
-      null,
+      // no fallback — re-throws on failure
     );
   },
 
   async disconnectProvider(
     provider: string,
   ): Promise<{ data: { provider: string; connected: boolean }; live: boolean }> {
+    // P0-Audit fix (2026-07-18): no fabricated fallback for mutating DELETE.
+    // Was: fallback { provider, connected: false } — fabricated plausible-looking
+    // disconnected state when backend unreachable, caller discarded the response.
+    // Now: no fallback → maestroFetch re-throws on failure → caller must
+    // try/catch (see Connectors.tsx handleDisconnect).
     return maestroFetch<{ provider: string; connected: boolean }>(
       `/api/connectors/${provider}`,
       { method: "DELETE" },
-      { provider, connected: false },
+      // no fallback — re-throws on failure
     );
   },
 
@@ -363,15 +386,18 @@ export const maestroApi = {
     draftId: string,
     resolution: "approve" | "deny" | "use_draft",
   ): Promise<{ data: { draft_id: string; status: string; sent_message_id?: string }; live: boolean }> {
+    // P0-Audit fix (2026-07-18): no fabricated fallback for mutating POST.
+    // Was: fallback with fake sent_message_id=`msg-${Date.now()}` — fabricated
+    // a plausible "sent" response when backend unreachable, caller discarded
+    // the response, modal just closed → user believed email was sent when it wasn't.
+    // Now: no fallback → maestroFetch re-throws on failure → caller must
+    // try/catch (see Connectors.tsx handleResolve, Dashboard.tsx
+    // handleResolveDraft, Commitments.tsx handleResolveDraft).
     const body = JSON.stringify({ resolution });
     return maestroFetch<{ draft_id: string; status: string; sent_message_id?: string }>(
       `/api/drafts/${draftId}/resolve`,
       { method: "POST", body },
-      {
-        draft_id: draftId,
-        status: resolution === "approve" ? "approved" : resolution === "deny" ? "denied" : "used_as_draft",
-        sent_message_id: resolution === "approve" ? `msg-${Date.now()}` : "",
-      },
+      // no fallback — re-throws on failure
     );
   },
 

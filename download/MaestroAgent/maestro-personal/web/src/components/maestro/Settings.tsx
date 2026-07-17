@@ -54,6 +54,7 @@ import {
   type PrivacyMode,
   maestroApi,
 } from "@/lib/maestro-api";
+import { useToast } from "@/hooks/use-toast";
 import { Connectors } from "@/components/maestro/Connectors";
 
 // P1-11: Notification prefs localStorage key (mobile uses AsyncStorage — same shape)
@@ -94,6 +95,7 @@ function saveNotifPrefs(prefs: NotifPrefs) {
 }
 
 export function Settings() {
+  const { toast } = useToast();
   const [llm, setLlm] = useState<LlmStatus | null>(null);
   const [privacy, setPrivacy] = useState<PrivacyMode | null>(null);
   const [calibration, setCalibration] = useState<Calibration | null>(null);
@@ -187,11 +189,42 @@ export function Settings() {
     URL.revokeObjectURL(url);
   }
 
+  // P0-Audit fix (2026-07-18): deleteAccount() now uses try/catch + .live check.
+  // CRITICAL: setDeleted(true) moved INSIDE the success branch. Was: ran
+  // unconditionally after the await → if the DELETE call failed for any reason
+  // (network error, non-2xx, 8s timeout), the user was shown "Your account has
+  // been deleted" while the account and all data were fully intact server-side.
+  // This is the most serious case — inverse of what a user needs to be able to
+  // trust for a destructive, privacy-critical action.
+  // Now: failure → destructive toast + stay on the settings screen (do NOT
+  // transition to the "deleted" screen). Success → setDeleted(true).
   async function deleteAccount() {
     setDeleting(true);
-    await maestroApi.deleteAccount();
-    setDeleting(false);
-    setDeleted(true);
+    try {
+      const { live } = await maestroApi.deleteAccount();
+      if (!live) {
+        toast({
+          title: "Account NOT deleted",
+          description: "Could not reach the backend. Your account and all data are still intact. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Success — only NOW transition to the "deleted" screen
+      setDeleted(true);
+      toast({
+        title: "Account deleted",
+        description: "All your signals, commitments, and predictions have been removed.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Account NOT deleted",
+        description: e?.message || "Unknown error. Your account and all data are still intact. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (deleted) {

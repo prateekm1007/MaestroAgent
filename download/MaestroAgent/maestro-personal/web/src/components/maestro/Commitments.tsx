@@ -145,17 +145,35 @@ export function Commitments({
     };
   }, []);
 
+  // P0-Audit fix (2026-07-18): correct() now uses try/catch + .live check +
+  // destructive toast on failure. Was: response discarded, list-refetch ran
+  // unconditionally → user saw list unchanged (refetch returned same data
+  // because backend state was unchanged) but had no idea the click failed.
+  // Now: failure → destructive toast, success → refetch + toast.
   async function correct(signal_id: string, action: "complete" | "dismiss" | "cancel") {
     setBusyId(signal_id);
-    await maestroApi.correctSignal(signal_id, action);
-    // Refetch both endpoints
-    const [one, all] = await Promise.all([
-      maestroApi.getCommitmentsTheOne(),
-      maestroApi.getCommitments(),
-    ]);
-    setTheOne(one.data);
-    setList(all.data);
-    setBusyId(null);
+    try {
+      const { live } = await maestroApi.correctSignal(signal_id, action);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not correct the signal.", variant: "destructive" });
+        return;
+      }
+      // Success — refetch both endpoints to reflect the server-side state change
+      const [one, all] = await Promise.all([
+        maestroApi.getCommitmentsTheOne(),
+        maestroApi.getCommitments(),
+      ]);
+      setTheOne(one.data);
+      setList(all.data);
+      toast({
+        title: action === "complete" ? "Marked complete" : action === "dismiss" ? "Dismissed" : "Cancelled",
+        description: action === "complete" ? "Commitment closed." : "Removed from your view.",
+      });
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setBusyId(null);
+    }
   }
 
   // P0-6: Draft from The One or any commitment row — calls generateAutoDraft + opens shared modal
@@ -267,12 +285,30 @@ export function Commitments({
     setSubmittingSignal(false);
   }
 
+  // P0-Audit fix (2026-07-18): correctSignal() now uses try/catch + .live check.
+  // CRITICAL: the setSignals(prev => prev.filter(...)) list-removal moved INSIDE
+  // the success branch. Was: ran unconditionally after the await → a failed
+  // correction still visually removed the signal from the list, so the user
+  // believed it worked when the backend state was unchanged.
   async function correctSignal(signal_id: string, action: "dismiss" | "complete" | "cancel") {
     setSignalBusyId(signal_id);
-    await maestroApi.correctSignal(signal_id, action);
-    // Remove from list locally (API hides corrected signals on next fetch)
-    setSignals((prev) => prev.filter((s) => s.signal_id !== signal_id));
-    setSignalBusyId(null);
+    try {
+      const { live } = await maestroApi.correctSignal(signal_id, action);
+      if (!live) {
+        toast({ title: "Backend unreachable", description: "Could not correct the signal.", variant: "destructive" });
+        return;
+      }
+      // Success — only NOW remove from list locally (API hides corrected signals on next fetch)
+      setSignals((prev) => prev.filter((s) => s.signal_id !== signal_id));
+      toast({
+        title: action === "complete" ? "Marked complete" : action === "dismiss" ? "Dismissed" : "Cancelled",
+        description: action === "complete" ? "Signal closed." : "Removed from your view.",
+      });
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setSignalBusyId(null);
+    }
   }
 
   return (
