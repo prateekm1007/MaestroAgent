@@ -237,8 +237,55 @@ def _oauth_error_page(error: str) -> HTMLResponse:
     ''', status_code=400)
 
 
+def _oauth_response(
+    request: Request,
+    provider: str,
+    user_email: str,
+    success: bool = True,
+    error: str = "",
+):
+    """Content-negotiated OAuth callback response.
+
+    Real OAuth callbacks are *browser redirects* — the OAuth provider sends
+    the user back to /api/connectors/<provider>/oauth/callback in their
+    browser, which expects an HTML page that closes the popup or redirects
+    back to the app. API clients (mobile app, tests, programmatic callers)
+    expect JSON with the connection result.
+
+    Use the Accept header to distinguish:
+      - ``Accept: text/html``  → HTML success/error page (browser)
+      - anything else          → JSON ``{connected, provider, user_email, message}``
+
+    P14 fix (4-round-old pre-existing failure): the previous version returned
+    HTML unconditionally, so every API client (including tests) got a
+    ``JSONDecodeError`` when trying to parse the response.
+    """
+    accept = request.headers.get("accept", "").lower()
+    if "text/html" in accept:
+        # Real browser — return the HTML success/error page
+        return _oauth_success_page(provider) if success else _oauth_error_page(error)
+    # API client / test — return JSON
+    if success:
+        # Pull the connector's descriptive text so the mobile app can show
+        # what the connection enables (e.g. "Ingest upcoming meetings, feed
+        # into pre-call intelligence" for Calendar).
+        from maestro_personal_shell.connectors import SUPPORTED_CONNECTORS
+        info = SUPPORTED_CONNECTORS.get(provider, {})
+        ingest = info.get("ingest_description", "")
+        write = info.get("write_description", "")
+        message = " | ".join(part for part in (ingest, write) if part)
+        return {
+            "connected": True,
+            "provider": provider,
+            "user_email": user_email,
+            "message": message,
+        }
+    raise HTTPException(status_code=400, detail=error)
+
+
 @router.get("/connectors/gmail/oauth/callback")
 async def gmail_oauth_callback(
+    request: Request,
     code: str = "",
     state: str = "",
     error: str = "",
@@ -266,13 +313,14 @@ async def gmail_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "gmail", token_json)
     if "error" in result:
-        return _oauth_error_page(result["error"])
+        return _oauth_response(request, "gmail", user_email, success=False, error=result["error"])
 
-    return _oauth_success_page("gmail")
+    return _oauth_response(request, "gmail", user_email, success=True)
 
 
 @router.get("/connectors/slack/oauth/callback")
 async def slack_oauth_callback(
+    request: Request,
     code: str = "",
     state: str = "",
     error: str = "",
@@ -300,13 +348,14 @@ async def slack_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "slack", token_json)
     if "error" in result:
-        return _oauth_error_page(result["error"])
+        return _oauth_response(request, "slack", user_email, success=False, error=result["error"])
 
-    return _oauth_success_page("slack")
+    return _oauth_response(request, "slack", user_email, success=True)
 
 
 @router.get("/connectors/calendar/oauth/callback")
 async def calendar_oauth_callback(
+    request: Request,
     code: str = "",
     state: str = "",
     error: str = "",
@@ -334,13 +383,14 @@ async def calendar_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "calendar", token_json)
     if "error" in result:
-        return _oauth_error_page(result["error"])
+        return _oauth_response(request, "calendar", user_email, success=False, error=result["error"])
 
-    return _oauth_success_page("calendar")
+    return _oauth_response(request, "calendar", user_email, success=True)
 
 
 @router.get("/connectors/github/oauth/callback")
 async def github_oauth_callback(
+    request: Request,
     code: str = "",
     state: str = "",
     error: str = "",
@@ -368,9 +418,9 @@ async def github_oauth_callback(
     store = ConnectorStore()
     result = store.connect(user_email, "github", token_json)
     if "error" in result:
-        return _oauth_error_page(result["error"])
+        return _oauth_response(request, "github", user_email, success=False, error=result["error"])
 
-    return _oauth_success_page("github")
+    return _oauth_response(request, "github", user_email, success=True)
 
 
 # ---------------------------------------------------------------------------

@@ -542,6 +542,31 @@ class TestGmailOAuthCallback:
         assert response.status_code == 400
         assert "not configured" in response.json()["detail"]
 
+    def test_oauth_callback_returns_html_for_browser(self, client, gmail_env):
+        """P14 regression: real browsers (Accept: text/html) must still get
+        an HTML success page — that's how the OAuth popup flow closes itself.
+        Only API clients / tests get JSON.
+        """
+        with patch(
+            "maestro_personal_shell.gmail_connector.GmailOAuthClient.exchange_code_for_tokens",
+            return_value={
+                "access_token": "ya29.access",
+                "refresh_token": "1//refresh",
+                "expires_in": 3600,
+                "expires_at": "2026-12-31T23:59:59+00:00",
+            },
+        ):
+            response = client.get(
+                "/api/connectors/gmail/oauth/callback?code=test-code&state=user=test@example.com",
+                headers={"Accept": "text/html"},
+            )
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        # The HTML success page contains the provider name
+        assert "gmail" in response.text.lower()
+        # Must NOT be JSON
+        assert response.headers["content-type"] != "application/json"
+
 
 # ---------------------------------------------------------------------------
 # 7. is_gmail_configured helper
