@@ -5,51 +5,33 @@
  * /api/* to http://localhost:8766/api/* (see next.config.ts), so the
  * web app on :3000 proxies to the backend on :8766 automatically.
  *
- * If the live API is unreachable, every method falls back to demo data
- * so the UI still renders. The `mode` field tells you whether you're
- * seeing real or demo data.
+ * When the backend is unreachable, methods return null/empty — no fake data.
+The `live` field is false when the backend was unreachable.
  */
 
-import {
-  demoAskResponse,
-  demoAuditLog,
-  demoBriefing,
-  demoCalibration,
-  demoCommitments,
-  demoCommitmentsTheOne,
-  demoConnectors,
-  demoCopilotWhispers,
-  demoDrafts,
-  demoLlmStatus,
-  demoPrivacyMode,
-  demoSignals,
-  demoTheMoment,
-  demoTheShifts,
-  demoTranscriptSeed,
-  demoPostCallSummary,
-} from "./demo-data";
+// No demo data — all responses come from the real backend.
 
 const TOKEN_KEY = "maestro.token";
-const MODE_KEY = "maestro.mode"; // "live" | "demo"
 
-export type MaestroMode = "live" | "demo" | "unknown";
 
-export type TheMoment = typeof demoTheMoment;
-export type Briefing = typeof demoBriefing;
-export type TheShifts = typeof demoTheShifts;
-export type CommitmentsTheOne = typeof demoCommitmentsTheOne;
-export type Commitment = (typeof demoCommitments)[number];
-export type Signal = (typeof demoSignals)[number];
-export type AskResponse = ReturnType<typeof demoAskResponse>;
-export type LlmStatus = typeof demoLlmStatus;
-export type PrivacyMode = typeof demoPrivacyMode;
-export type Calibration = typeof demoCalibration;
-export type AuditLog = typeof demoAuditLog;
-export type CopilotWhisper = (typeof demoCopilotWhispers)[number];
-export type PostCallSummary = typeof demoPostCallSummary;
-export type Connector = (typeof demoConnectors)[number];
-export type Draft = (typeof demoDrafts)[number];
-export type TranscriptLine = (typeof demoTranscriptSeed)[number];
+export type MaestroMode = "live" | "offline";
+
+export type TheMoment = any;
+export type Briefing = any;
+export type TheShifts = any;
+export type CommitmentsTheOne = any;
+export type Commitment = any;
+export type Signal = any;
+export type AskResponse = any;
+export type LlmStatus = any;
+export type PrivacyMode = any;
+export type Calibration = any;
+export type AuditLog = any;
+export type CopilotWhisper = any;
+export type PostCallSummary = any;
+export type Connector = any;
+export type Draft = any;
+export type TranscriptLine = any;
 
 /* ------------------------------------------------------------------ */
 /*  Token + mode storage                                              */
@@ -68,17 +50,10 @@ export function setToken(token: string): void {
 export function clearToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
-  window.localStorage.removeItem(MODE_KEY);
 }
 
 export function getMode(): MaestroMode {
-  if (typeof window === "undefined") return "unknown";
-  return (window.localStorage.getItem(MODE_KEY) as MaestroMode) || "unknown";
-}
-
-function setMode(mode: MaestroMode): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(MODE_KEY, mode);
+  return "live";
 }
 
 /* ------------------------------------------------------------------ */
@@ -109,11 +84,9 @@ async function maestroFetch<T>(
       throw new Error(`HTTP ${res.status}`);
     }
     const data = (await res.json()) as T;
-    setMode("live");
     return { data, live: true };
   } catch (err) {
     if (fallback !== undefined) {
-      setMode("demo");
       return { data: fallback, live: false };
     }
     throw err;
@@ -147,47 +120,25 @@ export type LoginResult = {
 };
 
 export async function login(password: string): Promise<LoginResult> {
-  // Try the real API first.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(
-      `/api/auth/login`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_email: "default@personal.local", password }),
-        signal: controller.signal,
-      },
-    );
+    const res = await fetch(`/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_email: "default@personal.local", password }),
+      signal: controller.signal,
+    });
     clearTimeout(timeout);
     if (res.ok) {
       const j = await res.json();
       setToken(j.token);
-      setMode("live");
-      return { ok: true, demo: false, message: "Logged in to live API." };
+      return { ok: true, demo: false, message: "Logged in." };
     }
-    // 401 / 403 from the real API — fall through to demo check below
-    // but only if password is "demo". Otherwise re-raise as auth failure.
-    if (password !== "demo") {
-      return { ok: false, demo: false, message: "Invalid credentials." };
-    }
+    return { ok: false, demo: false, message: "Invalid credentials." };
   } catch {
-    // Network error — fall through to demo
+    return { ok: false, demo: false, message: "Cannot connect to backend. Is the API running on port 8766?" };
   }
-
-  // Demo fallback: accept password "demo".
-  if (password === "demo") {
-    setToken("demo-token");
-    setMode("demo");
-    return {
-      ok: true,
-      demo: true,
-      message: "Demo mode. Showing sample data — the live API is not reachable.",
-    };
-  }
-
-  return { ok: false, demo: false, message: "Invalid credentials." };
 }
 
 /* ------------------------------------------------------------------ */
@@ -196,31 +147,31 @@ export async function login(password: string): Promise<LoginResult> {
 
 export const maestroApi = {
   async getTheMoment(): Promise<{ data: TheMoment; live: boolean }> {
-    return maestroFetch<TheMoment>("/api/the-moment", {}, demoTheMoment);
+    return maestroFetch<TheMoment>("/api/the-moment", {}, null);
   },
 
   async getBriefing(): Promise<{ data: Briefing; live: boolean }> {
-    return maestroFetch<Briefing>("/api/briefing", {}, demoBriefing);
+    return maestroFetch<Briefing>("/api/briefing", {}, null);
   },
 
   async getTheShifts(): Promise<{ data: TheShifts; live: boolean }> {
-    return maestroFetch<TheShifts>("/api/what-changed/the-shifts", {}, demoTheShifts);
+    return maestroFetch<TheShifts>("/api/what-changed/the-shifts", {}, { secondary: [] });
   },
 
   async getCommitments(): Promise<{ data: Commitment[]; live: boolean }> {
-    return maestroFetch<Commitment[]>("/api/commitments", {}, demoCommitments);
+    return maestroFetch<Commitment[]>("/api/commitments", {}, []);
   },
 
   async getCommitmentsTheOne(): Promise<{ data: CommitmentsTheOne; live: boolean }> {
     return maestroFetch<CommitmentsTheOne>(
       "/api/commitments/the-one",
       {},
-      demoCommitmentsTheOne,
+      null,
     );
   },
 
   async getSignals(): Promise<{ data: Signal[]; live: boolean }> {
-    return maestroFetch<Signal[]>("/api/signals", {}, demoSignals);
+    return maestroFetch<Signal[]>("/api/signals", {}, []);
   },
 
   async createSignal(
@@ -261,24 +212,24 @@ export const maestroApi = {
     return maestroFetch<AskResponse>(
       "/api/ask",
       { method: "POST", body },
-      demoAskResponse(query),
+      null,
     );
   },
 
   async getLlmStatus(): Promise<{ data: LlmStatus; live: boolean }> {
-    return maestroFetch<LlmStatus>("/api/llm-status", {}, demoLlmStatus);
+    return maestroFetch<LlmStatus>("/api/llm-status", {}, null);
   },
 
   async getPrivacyMode(): Promise<{ data: PrivacyMode; live: boolean }> {
-    return maestroFetch<PrivacyMode>("/api/privacy/mode", {}, demoPrivacyMode);
+    return maestroFetch<PrivacyMode>("/api/privacy/mode", {}, null);
   },
 
   async getCalibration(): Promise<{ data: Calibration; live: boolean }> {
-    return maestroFetch<Calibration>("/api/calibration", {}, demoCalibration);
+    return maestroFetch<Calibration>("/api/calibration", {}, null);
   },
 
   async getAuditLog(): Promise<{ data: AuditLog; live: boolean }> {
-    return maestroFetch<AuditLog>("/api/audit-log?limit=50", {}, demoAuditLog);
+    return maestroFetch<AuditLog>("/api/audit-log?limit=50", {}, { events: [] });
   },
 
   async getAccountExport(): Promise<{ data: unknown; live: boolean }> {
@@ -288,8 +239,8 @@ export const maestroApi = {
       {
         exported_at: new Date().toISOString(),
         user_email: "default@personal.local",
-        signal_count: demoSignals.length,
-        signals: demoSignals,
+        signal_count: [].length,
+        signals: [],
         note: "Demo export — live API unreachable.",
       },
     );
@@ -312,7 +263,7 @@ export const maestroApi = {
     return maestroFetch<{ whispers?: CopilotWhisper[]; ok: boolean }>(
       "/api/copilot/transcript",
       { method: "POST", body },
-      { ok: true, whispers: demoCopilotWhispers },
+      { ok: true, whispers: [] },
     );
   },
 
@@ -337,7 +288,7 @@ export const maestroApi = {
     return maestroFetch<PostCallSummary>(
       "/api/copilot/post-call-ui",
       { method: "POST", body },
-      demoPostCallSummary,
+      null,
     );
   },
 
@@ -345,7 +296,7 @@ export const maestroApi = {
     return maestroFetch<{ connectors: Connector[] }>(
       "/api/connectors",
       {},
-      { connectors: demoConnectors },
+      { connectors: [] },
     );
   },
 
@@ -357,7 +308,7 @@ export const maestroApi = {
     return maestroFetch<Connector>(
       `/api/connectors/${provider}/connect`,
       { method: "POST", body },
-      demoConnectors.find((c) => c.provider === provider) || demoConnectors[0],
+      null,
     );
   },
 
@@ -385,7 +336,7 @@ export const maestroApi = {
     return maestroFetch<{ drafts: Draft[] }>(
       `/api/drafts?status=${encodeURIComponent(status)}`,
       {},
-      { drafts: demoDrafts },
+      { drafts: [] },
     );
   },
 
@@ -400,7 +351,7 @@ export const maestroApi = {
     return maestroFetch<Draft>(
       "/api/drafts",
       { method: "POST", body },
-      demoDrafts[0],
+      [][0],
     );
   },
 
@@ -458,7 +409,7 @@ export const maestroApi = {
     return maestroFetch<CopilotWhisper[] | CopilotWhisper>(
       "/api/whisper",
       {},
-      demoCopilotWhispers,
+      [],
     );
   },
 

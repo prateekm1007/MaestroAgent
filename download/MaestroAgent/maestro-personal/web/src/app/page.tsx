@@ -7,13 +7,11 @@ import {
   LogOut,
   Search,
   Settings as SettingsIcon,
-  TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   clearToken,
-  getMode,
   getToken,
   type LlmStatus,
   maestroApi,
@@ -40,7 +38,6 @@ export default function Home() {
   const [view, setView] = useState<View>("dashboard");
   const [pendingQuery, setPendingQuery] = useState<string | undefined>();
   const [llm, setLlm] = useState<LlmStatus | null>(null);
-  const [mode, setMode] = useState<"live" | "demo" | "unknown">(() => getMode());
 
   // Whenever authed, pull LLM status (used by topbar + dashboard).
   useEffect(() => {
@@ -50,7 +47,6 @@ export default function Home() {
       const { data } = await maestroApi.getLlmStatus();
       if (!alive) return;
       setLlm(data);
-      setMode(getMode());
     })();
     return () => {
       alive = false;
@@ -62,7 +58,6 @@ export default function Home() {
     setAuthed(false);
     setView("dashboard");
     setLlm(null);
-    setMode("unknown");
   }
 
   function handleAsk(query: string) {
@@ -75,7 +70,6 @@ export default function Home() {
       <Login
         onLoggedIn={() => {
           setAuthed(true);
-          setMode(getMode());
         }}
       />
     );
@@ -105,7 +99,7 @@ export default function Home() {
         </nav>
 
         <div className="p-3 border-t border-border/60 space-y-2">
-          <ModeIndicator mode={mode} />
+          
           <Button
             variant="ghost"
             size="sm"
@@ -135,7 +129,7 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-2">
-              <ModeIndicator mode={mode} compact />
+              
               <LlmPill llm={llm} />
               <Button
                 variant="ghost"
@@ -249,28 +243,3 @@ function LlmPill({ llm }: { llm: LlmStatus | null }) {
   );
 }
 
-function ModeIndicator({
-  mode,
-  compact,
-}: {
-  mode: "live" | "demo" | "unknown";
-  compact?: boolean;
-}) {
-  if (mode === "live") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-300/90 px-2 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06]">
-        <span className="size-1.5 rounded-full bg-emerald-500" />
-        {!compact && "Live API"}
-      </span>
-    );
-  }
-  if (mode === "demo") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-300/90 px-2 py-1 rounded-full border border-amber-500/30 bg-amber-500/[0.06]">
-        <TriangleAlert className="size-3" />
-        {!compact && "Demo mode"}
-      </span>
-    );
-  }
-  return null;
-}
