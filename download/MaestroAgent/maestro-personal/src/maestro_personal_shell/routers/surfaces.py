@@ -927,3 +927,116 @@ async def get_commitment_escalations_endpoint(
         "critical_count": sum(1 for e in escalations if e.get("escalation_level") == "critical"),
         "overdue_count": sum(1 for e in escalations if e.get("escalation_level") == "overdue"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 14: Cross-meeting threads (institutional memory)
+# ---------------------------------------------------------------------------
+
+
+class ThreadRequest(BaseModel):
+    """Request body for /threads.
+
+    P13: caller supplies only an optional entity filter (CONTEXT), not
+    meeting data. The threads are DERIVED from the user's signal history.
+    """
+    entity_filter: str = ""
+
+
+@router.post("/threads")
+async def get_threads_endpoint(
+    req: ThreadRequest,
+    token: str = Depends(verify_token_dep),
+):
+    """Get cross-meeting threads linking related meetings by entity + topic.
+
+    P11 fix (wiring): the enterprise CrossMeetingThreadBuilder was built
+    + tested (13 tests) but never wired into the personal shell. This
+    endpoint is the production entry point.
+
+    P13: meeting summaries are DERIVED from the user's signal history
+    (meeting_scheduled + commitment_made + decision signals). The caller
+    supplies only an optional entity filter.
+
+    Returns:
+      list of thread dicts, each with:
+        thread_id, entity, topic, meeting_count, meetings,
+        confidence, confidence_level, requires_confirmation,
+        topic_evolution, decision_chain
+    """
+    from maestro_personal_shell.cross_meeting_threads import (
+        get_cross_meeting_threads as _get_threads,
+        ENTERPRISE_THREAD_BUILDER_AVAILABLE,
+    )
+    if not ENTERPRISE_THREAD_BUILDER_AVAILABLE:
+        return {
+            "threads": [],
+            "engine_available": False,
+            "message": "Cross-meeting threading unavailable — enterprise engine not importable",
+        }
+    threads = _get_threads(user_email=token, entity_filter=req.entity_filter)
+    return {
+        "threads": threads,
+        "engine_available": True,
+        "count": len(threads),
+        "high_confidence_count": sum(1 for t in threads if t.get("confidence_level") == "high"),
+    }
+
+
+@router.get("/threads/{entity}")
+async def get_threads_for_entity_endpoint(
+    entity: str,
+    token: str = Depends(verify_token_dep),
+):
+    """Get cross-meeting threads for a specific entity.
+
+    Convenience endpoint — used by /api/ask to surface the thread when the
+    user asks about an entity. Returns the same shape as POST /threads but
+    filtered to the specified entity.
+    """
+    from maestro_personal_shell.cross_meeting_threads import (
+        get_threads_for_entity as _get_for_entity,
+        ENTERPRISE_THREAD_BUILDER_AVAILABLE,
+    )
+    if not ENTERPRISE_THREAD_BUILDER_AVAILABLE:
+        return {
+            "threads": [],
+            "engine_available": False,
+            "message": "Cross-meeting threading unavailable",
+        }
+    threads = _get_for_entity(user_email=token, entity=entity)
+    return {
+        "threads": threads,
+        "engine_available": True,
+        "count": len(threads),
+        "entity": entity,
+    }
+
+
+@router.get("/threads/{entity}/decisions")
+async def get_decision_history_endpoint(
+    entity: str,
+    token: str = Depends(verify_token_dep),
+):
+    """Get the decision history for an entity across meetings.
+
+    Surfaces the "Decided to offer phased rollout (Oct 22); confirmed in
+    Nov 5 call" capability — decisions tracked across meetings as a chain.
+    """
+    from maestro_personal_shell.cross_meeting_threads import (
+        get_decision_history as _get_decisions,
+        ENTERPRISE_THREAD_BUILDER_AVAILABLE,
+    )
+    if not ENTERPRISE_THREAD_BUILDER_AVAILABLE:
+        return {
+            "decisions": [],
+            "engine_available": False,
+            "message": "Cross-meeting threading unavailable",
+        }
+    decisions = _get_decisions(user_email=token, entity=entity)
+    return {
+        "decisions": decisions,
+        "engine_available": True,
+        "count": len(decisions),
+        "entity": entity,
+    }
