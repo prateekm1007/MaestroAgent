@@ -533,13 +533,13 @@ export function Settings() {
               <SkeletonRow />
             ) : (
               <div className="space-y-3 text-sm">
-                {metrics.commitments && (
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <Stat label="Total" value={metrics.commitments.total ?? 0} />
-                    <Stat label="Active" value={metrics.commitments.active ?? 0} accent="emerald" />
-                    <Stat label="Completed" value={metrics.commitments.completed ?? 0} />
-                  </div>
-                )}
+                {/* API returns flat commitments_total / commitments_active / commitments_completed
+                    (NOT nested under commitments object). Verified via /api/metrics probe. */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <Stat label="Total" value={metrics.commitments_total ?? metrics.commitments?.total ?? 0} />
+                  <Stat label="Active" value={metrics.commitments_active ?? metrics.commitments?.active ?? 0} accent="emerald" />
+                  <Stat label="Completed" value={metrics.commitments_completed ?? metrics.commitments?.completed ?? 0} />
+                </div>
                 {metrics.engagement && (
                   <div className="pt-2 border-t border-border/40 space-y-1 text-xs text-muted-foreground">
                     <div className="flex justify-between">
@@ -551,18 +551,36 @@ export function Settings() {
                       <span className="font-mono text-foreground/80">{metrics.engagement.questions_asked ?? 0}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Drafts generated</span>
-                      <span className="font-mono text-foreground/80">{metrics.engagement.drafts_generated ?? 0}</span>
+                      <span>Corrections made</span>
+                      <span className="font-mono text-foreground/80">{metrics.engagement.corrections_made ?? 0}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Drafts approved</span>
-                      <span className="font-mono text-foreground/80">{metrics.engagement.drafts_approved ?? 0}</span>
+                      <span>Agents active</span>
+                      <span className="font-mono text-foreground/80">{metrics.engagement.agents_active ?? 0}</span>
                     </div>
                   </div>
                 )}
-                {metrics.commitment_completion_rate !== undefined && (
+                {metrics.commitment_completion_rate !== undefined && metrics.commitment_completion_rate !== null && (
                   <div className="pt-2 border-t border-border/40 text-xs text-muted-foreground">
                     Completion rate: <span className="font-mono text-foreground/80">{((metrics.commitment_completion_rate || 0) * 100).toFixed(0)}%</span>
+                  </div>
+                )}
+                {metrics.learning_loop && (
+                  <div className="pt-2 border-t border-border/40 space-y-1 text-xs text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>Predictions registered</span>
+                      <span className="font-mono text-foreground/80">{metrics.learning_loop.predictions_registered ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Predictions resolved</span>
+                      <span className="font-mono text-foreground/80">{metrics.learning_loop.predictions_resolved ?? 0}</span>
+                    </div>
+                  </div>
+                )}
+                {metrics.brier_score !== null && metrics.brier_score !== undefined && (
+                  <div className="pt-2 border-t border-border/40 text-xs text-muted-foreground">
+                    Brier score: <span className="font-mono text-foreground/80">{metrics.brier_score.toFixed(4)}</span>
+                    <span className="ml-1">(lower is better)</span>
                   </div>
                 )}
               </div>
