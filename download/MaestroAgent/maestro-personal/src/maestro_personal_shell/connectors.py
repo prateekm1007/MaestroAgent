@@ -664,11 +664,17 @@ class ConnectorStore:
                     SlackOAuthClient,
                 )
                 if not is_slack_configured():
-                    return MOCK_INGESTION_DATA.get("slack", [])
+                    # P0 honesty: do NOT return fabricated MOCK data. Return empty
+                    # so the UI shows an honest "no signals" state. The user must
+                    # configure MAESTRO_SLACK_CLIENT_ID + SECRET for real ingestion.
+                    logger.info("Slack OAuth not configured — returning empty (not mock data)")
+                    return []
 
                 stored_token = self.get_stored_token(user_email, "slack")
-                if not stored_token:
-                    return MOCK_INGESTION_DATA.get("slack", [])
+                if not stored_token or "demo-token" in stored_token:
+                    # Demo-mode token — can't call real API
+                    logger.info("Slack has demo token — returning empty (not mock data)")
+                    return []
 
                 oauth_client = SlackOAuthClient()
                 signals, updated_token = fetch_real_slack_messages(
@@ -680,11 +686,11 @@ class ConnectorStore:
 
                 return signals
             except ImportError:
-                logger.warning("slack_connector module not available, using mock data")
-                return MOCK_INGESTION_DATA.get("slack", [])
+                logger.warning("slack_connector module not available")
+                return []
             except Exception as e:
-                logger.warning(f"Slack ingestion failed, falling back to mock: {e}")
-                return MOCK_INGESTION_DATA.get("slack", [])
+                logger.warning(f"Slack ingestion failed: {e}")
+                return []
 
         # Phase E: real Calendar ingestion (read-only — no send)
         if provider == "calendar":
@@ -726,11 +732,17 @@ class ConnectorStore:
                     GitHubOAuthClient,
                 )
                 if not is_github_configured():
-                    return MOCK_INGESTION_DATA.get("github", [])
+                    # P0 honesty: do NOT return fabricated MOCK data. Return empty
+                    # so the UI shows an honest "no signals" state. The user must
+                    # configure MAESTRO_GITHUB_CLIENT_ID + SECRET for real ingestion.
+                    logger.info("GitHub OAuth not configured — returning empty (not mock data)")
+                    return []
 
                 stored_token = self.get_stored_token(user_email, "github")
-                if not stored_token:
-                    return MOCK_INGESTION_DATA.get("github", [])
+                if not stored_token or "demo-token" in stored_token:
+                    # Demo-mode token — can't call real API
+                    logger.info("GitHub has demo token — returning empty (not mock data)")
+                    return []
 
                 oauth_client = GitHubOAuthClient()
                 signals, updated_token = fetch_real_github_messages(
@@ -742,11 +754,11 @@ class ConnectorStore:
 
                 return signals
             except ImportError:
-                logger.warning("github_connector module not available, using mock data")
-                return MOCK_INGESTION_DATA.get("github", [])
+                logger.warning("github_connector module not available")
+                return []
             except Exception as e:
-                logger.warning(f"GitHub ingestion failed, falling back to mock: {e}")
-                return MOCK_INGESTION_DATA.get("github", [])
+                logger.warning(f"GitHub ingestion failed: {e}")
+                return []
 
         # Other providers — still mocked (Phase F)
         return MOCK_INGESTION_DATA.get(provider, [])

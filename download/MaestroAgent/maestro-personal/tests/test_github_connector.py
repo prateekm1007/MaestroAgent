@@ -371,13 +371,19 @@ class TestRecipientParsing:
 class TestGitHubIngestionIntegration:
     """Verify _fetch_messages calls real GitHub API when configured."""
 
-    def test_falls_back_to_mock_when_oauth_not_configured(self, no_github_env, tmp_path):
+    def test_returns_empty_when_oauth_not_configured(self, no_github_env, tmp_path):
+        """P0 honesty: when GitHub OAuth is NOT configured, _fetch_messages must
+        return an empty list — NOT fabricated MOCK_INGESTION_DATA.
+
+        Before fix: returned MOCK_INGESTION_DATA (fake signals) — a P0
+        fabrication that made the user think real GitHub data was ingested.
+        After fix: returns [] so the UI shows an honest 'no signals' state.
+        """
         from maestro_personal_shell.connectors import ConnectorStore
         store = ConnectorStore(db_path=str(tmp_path / "test.db"))
         store.connect("user@test.com", "github", json.dumps({"access_token": "x"}))
         messages = store._fetch_messages("user@test.com", "github")
-        assert len(messages) > 0
-        assert any("github" in m.get("source", "") for m in messages)
+        assert messages == [], f"Should return empty (not mock data) when OAuth not configured. Got: {messages}"
 
     def test_calls_real_github_when_configured(self, github_env, tmp_path):
         from maestro_personal_shell.connectors import ConnectorStore
