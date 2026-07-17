@@ -102,6 +102,22 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
     """
     req = req or ConnectorConnectRequest()
     from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+
+    # P11 fix (wiring): if the user is ALREADY connected, short-circuit and
+    # return {connected: true} instead of re-starting the OAuth flow. The
+    # previous version always returned the OAuth URL, so if the user clicked
+    # "Connect" again after completing OAuth (e.g. the UI didn't refresh in
+    # time), a SECOND OAuth tab would open — confusing and wasteful.
+    existing = store.list_connectors(token)
+    for row in existing:
+        if row.get("provider") == provider and row.get("connected"):
+            return {
+                "connected": True,
+                "provider": provider,
+                "already_connected": True,
+                "connected_at": row.get("connected_at", ""),
+            }
 
     # Phase B: Gmail OAuth2 flow
     if provider == "gmail" and not req.oauth_token:
@@ -151,7 +167,7 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
         except ImportError:
             pass  # fall through to demo mode
 
-    store = ConnectorStore()
+    store = ConnectorStore()  # already created above for the already-connected check
 
     # Auditor fix (Roadmap v2 §0.5): fail-closed. If no OAuth is configured
     # AND no oauth_token is provided, we must NOT return connected: True.

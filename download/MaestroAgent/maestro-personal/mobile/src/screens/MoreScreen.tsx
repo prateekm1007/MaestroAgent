@@ -168,8 +168,15 @@ export default function MoreScreen() {
               }
             } catch {}
           }, 2000);
+          // P11 fix (wiring): do NOT clear busyProvider here. The polling
+          // callbacks above handle it. The previous version had a finally
+          // block that cleared busyProvider immediately (since setInterval
+          // is non-blocking), making the button look available again before
+          // OAuth completed. The user would click again, opening a 2nd tab.
+          // NOTE: no finally block on this path — we manage busyProvider
+          // exclusively via the polling callbacks above.
         } else {
-          // Native: in-app OAuth
+          // Native: in-app OAuth — openAuthSessionAsync IS blocking.
           const redirectUrl = 'maestro://oauth/callback';
           const authUrl = result.authorization_url +
             (result.authorization_url.includes('?') ? '&' : '?') +
@@ -178,19 +185,24 @@ export default function MoreScreen() {
           if (browserResult.type === 'success') {
             await syncAndFinish(true);
           }
+          setBusyProvider(null);
         }
       } else if (result.connected) {
-        // Already connected — sync silently (no popup unless error)
+        // Already connected (backend short-circuited via already_connected
+        // check, OR demo mode) — sync silently (no popup unless error)
         await syncAndFinish(false);
+        setBusyProvider(null);
       } else {
         showAlert('Not configured', `${provider} OAuth is not configured on the backend.`);
+        setBusyProvider(null);
       }
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
       showAlert('Cannot connect', detail);
-    } finally {
       setBusyProvider(null);
     }
+    // NOTE: no finally block — each path clears busyProvider individually.
+    // The web OAuth path clears it via polling callbacks (not here).
   };
 
   // P0-2 fix: sync action — pulls messages from the connector and ingests

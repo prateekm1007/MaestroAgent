@@ -508,6 +508,48 @@ class TestGmailOAuthCallback:
         assert response.status_code == 200
         assert response.json()["connected"] is True
 
+    def test_connect_short_circuits_when_already_connected(self, client, auth_headers, gmail_env):
+        """P11 fix: if the user is already connected, the connect endpoint
+        must return {connected: true} instead of re-starting the OAuth flow.
+
+        Before fix: clicking "Connect" again after OAuth completed opened a
+        SECOND OAuth tab (the backend always returned the authorization_url,
+        ignoring the existing connection). The user saw the button available
+        again (because the frontend cleared busyProvider too early) and
+        clicked again, starting a redundant OAuth flow.
+        """
+        # First: connect via OAuth callback (simulates completing OAuth)
+        with patch(
+            "maestro_personal_shell.gmail_connector.GmailOAuthClient.exchange_code_for_tokens",
+            return_value={
+                "access_token": "ya29.access",
+                "refresh_token": "1//refresh",
+                "expires_in": 3600,
+                "expires_at": "2026-12-31T23:59:59+00:00",
+            },
+        ):
+            callback_resp = client.get(
+                "/api/connectors/gmail/oauth/callback?code=test-code&state=user=default@personal.local",
+            )
+            assert callback_resp.status_code == 200
+            assert callback_resp.json()["connected"] is True
+
+        # Now: calling /connect again should short-circuit — NOT return oauth_required
+        response = client.post(
+            "/api/connectors/gmail/connect",
+            headers=auth_headers,
+            json={"provider": "gmail", "oauth_token": ""},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["connected"] is True, f"Should short-circuit with connected=true. Got: {data}"
+        assert data.get("already_connected") is True, "Should flag as already_connected"
+        # Must NOT return a new OAuth URL
+        assert "oauth_required" not in data or data["oauth_required"] is False, \
+            f"Should NOT re-start OAuth when already connected. Got: {data}"
+        assert "authorization_url" not in data, \
+            f"Should NOT return authorization_url when already connected. Got: {data}"
+
     def test_oauth_callback_exchanges_code(self, client, gmail_env):
         """The OAuth callback exchanges code for tokens."""
         with patch(
