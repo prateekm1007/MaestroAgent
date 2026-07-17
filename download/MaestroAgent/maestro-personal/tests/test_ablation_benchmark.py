@@ -27,6 +27,19 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
+# Module-level marker: every test in this file makes real LLM calls
+# (via /api/whisper, /api/ask, etc. which invoke llm_bridge internally
+# when an LLM provider is active). The file's docstring confirms this:
+# "Requires Ollama running". Without this marker, `-m "not llm_integration"`
+# still runs these tests, which:
+#   1. Hit the LLM provider's rate limit (ZAI: 30 req / 10 min)
+#   2. Take 0.5-3s per LLM call, easily exceeding pytest's 20s timeout
+#      when multiple endpoints are exercised
+#   3. Fail with timeout errors that mask the real test behavior
+# This marker excludes the file from default test runs and is the same
+# pattern used by test_llm_via_ollama.py and test_llm_latency_hypothesis.py.
+pytestmark = pytest.mark.llm_integration
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PART 1: 90-DAY SYNTHETIC CORPUS
