@@ -1040,3 +1040,115 @@ async def get_decision_history_endpoint(
         "count": len(decisions),
         "entity": entity,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 16: Meeting grader (meeting effectiveness score)
+# ---------------------------------------------------------------------------
+
+
+class MeetingOverrideRequest(BaseModel):
+    """Request body for overriding a meeting grade.
+
+    P13: the caller supplies the grade letter (user judgment), not the
+    meeting data. The meeting data is DERIVED from signal history.
+    """
+    grade: str  # A, B, C, D, or F
+
+
+@router.get("/meetings/grades")
+async def get_all_meeting_grades_endpoint(
+    token: str = Depends(verify_token_dep),
+):
+    """Get grades for all meetings for the current user (Phase 16).
+
+    P11 fix (wiring): the enterprise MeetingGrader was built + tested
+    (14 tests) but never wired into the personal shell. This endpoint
+    is the production entry point.
+
+    P13: meeting data is DERIVED from the user's signal history
+    (transcript, duration, talk ratio, sentiment, participants). The
+    caller supplies nothing but the auth token.
+
+    Returns:
+      list of grade reports sorted by score (highest first), each with:
+        grade, effective_grade, score, factors, action_items,
+        action_item_completion_rate, follow_ups_pending, follow_ups_completed,
+        confidence_label, meeting_id, entity, title
+    """
+    from maestro_personal_shell.meeting_grader import (
+        grade_all_meetings as _grade_all,
+        ENTERPRISE_GRADER_AVAILABLE,
+    )
+    if not ENTERPRISE_GRADER_AVAILABLE:
+        return {
+            "grades": [],
+            "engine_available": False,
+            "message": "Meeting grading unavailable — enterprise engine not importable",
+        }
+    grades = _grade_all(user_email=token)
+    return {
+        "grades": grades,
+        "engine_available": True,
+        "count": len(grades),
+        "average_score": sum(g.get("score", 0) for g in grades) / len(grades) if grades else 0,
+    }
+
+
+@router.get("/meetings/{meeting_id}/grade")
+async def get_meeting_grade_endpoint(
+    meeting_id: str,
+    token: str = Depends(verify_token_dep),
+):
+    """Get the grade for a specific meeting.
+
+    Returns 404 if the meeting signal isn't found in the user's history.
+    """
+    from maestro_personal_shell.meeting_grader import (
+        grade_meeting as _grade_one,
+        ENTERPRISE_GRADER_AVAILABLE,
+    )
+    if not ENTERPRISE_GRADER_AVAILABLE:
+        return {
+            "grade": None,
+            "engine_available": False,
+            "message": "Meeting grading unavailable",
+        }
+    report = _grade_one(user_email=token, meeting_id=meeting_id)
+    if not report:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Meeting {meeting_id} not found")
+    return {
+        "grade": report,
+        "engine_available": True,
+    }
+
+
+@router.post("/meetings/{meeting_id}/grade/override")
+async def override_meeting_grade_endpoint(
+    meeting_id: str,
+    req: MeetingOverrideRequest,
+    token: str = Depends(verify_token_dep),
+):
+    """Override the computed grade for a meeting (Phase 16).
+
+    The user can adjust the grade based on intuition. The override is
+    transparent (recorded as user_override in the report). The computed
+    grade is still visible for comparison.
+    """
+    from maestro_personal_shell.meeting_grader import (
+        set_user_override as _override,
+        ENTERPRISE_GRADER_AVAILABLE,
+    )
+    if not ENTERPRISE_GRADER_AVAILABLE:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Meeting grading unavailable")
+    report = _override(user_email=token, meeting_id=meeting_id, grade=req.grade)
+    if not report:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Meeting {meeting_id} not found")
+    return {
+        "grade": report,
+        "engine_available": True,
+        "message": f"Grade overridden to {req.grade.upper()}",
+    }
