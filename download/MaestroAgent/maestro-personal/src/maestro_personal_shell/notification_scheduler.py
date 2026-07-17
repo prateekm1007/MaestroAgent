@@ -166,11 +166,27 @@ async def check_stale_commitments():
 
 
 async def notification_loop(interval_seconds: int = 3600):
-    """Background loop — checks every hour."""
+    """Background loop — checks every hour.
+
+    P11 fix (Phase 19 wiring): now calls BOTH the legacy stale-commitment
+    check AND the new smart-notification engine (ambient_notifications).
+    The smart engine adds context-aware filtering, DND, fatigue prevention,
+    and generates overdue/stale-relationship/digest notifications.
+    """
     logger.info("Notification scheduler loop started (interval=%ds)", interval_seconds)
     while True:
         try:
             await check_stale_commitments()
         except Exception as e:
-            logger.error("Notification cycle crashed: %s", e)
+            logger.error("Stale commitment cycle crashed: %s", e)
+        # P11 fix: also run the smart notification engine
+        try:
+            from maestro_personal_shell.ambient_notifications import (
+                check_and_push_smart_notifications,
+                ENTERPRISE_ENGINE_AVAILABLE,
+            )
+            if ENTERPRISE_ENGINE_AVAILABLE:
+                check_and_push_smart_notifications()
+        except Exception as e:
+            logger.error("Smart notification cycle crashed: %s", e)
         await asyncio.sleep(interval_seconds)

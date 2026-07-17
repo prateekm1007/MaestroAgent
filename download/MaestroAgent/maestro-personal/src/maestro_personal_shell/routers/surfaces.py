@@ -772,3 +772,67 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
         why_this_one=best_why,
         source_evidence=source_evidence,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /notifications/smart — context-aware ambient notifications (Phase 19)
+# ---------------------------------------------------------------------------
+
+
+class SmartNotificationRequest(BaseModel):
+    """Request body for /notifications/smart.
+
+    Per P13: the caller supplies CONTEXT (am I in a call? is DND on?),
+    NOT the notification content. The notifications themselves are DERIVED
+    from the user's signal history by the AmbientNotificationEngine.
+    """
+    is_in_call: bool = False
+    is_dnd_active: bool = False
+    is_focus_mode: bool = False
+    user_timezone: str = "UTC"
+    limit: int = 10
+
+
+@router.post("/notifications/smart")
+async def get_smart_notifications(
+    req: SmartNotificationRequest,
+    token: str = Depends(verify_token_dep),
+):
+    """Get context-aware ambient notifications for the current user.
+
+    P11 fix (wiring): the enterprise AmbientNotificationEngine was built
+    and tested (19 tests) but never wired into the personal shell — the
+    actual product the mobile app uses. This endpoint is the production
+    entry point.
+
+    P13: notifications are DERIVED from the user's signal history
+    (overdue commitments, stale relationships, daily digest). The caller
+    supplies only CONTEXT (in-call, DND, focus mode) — not the content.
+
+    Returns:
+      list of notifications with: notification_id, type, priority,
+      title, body, action_url, action_label, created_at, metadata
+    """
+    from maestro_personal_shell.ambient_notifications import (
+        get_smart_notifications as _get_smart,
+        ENTERPRISE_ENGINE_AVAILABLE,
+    )
+    if not ENTERPRISE_ENGINE_AVAILABLE:
+        return {
+            "notifications": [],
+            "engine_available": False,
+            "message": "Smart notifications unavailable — enterprise engine not importable",
+        }
+    notifications = _get_smart(
+        user_email=token,
+        is_in_call=req.is_in_call,
+        is_dnd_active=req.is_dnd_active,
+        is_focus_mode=req.is_focus_mode,
+        user_timezone=req.user_timezone,
+        limit=req.limit,
+    )
+    return {
+        "notifications": notifications,
+        "engine_available": True,
+        "count": len(notifications),
+    }
