@@ -37,7 +37,9 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-API_PORT = int(os.environ.get("MAESTRO_PERSONAL_PORT", "8766"))
+# Railway injects PORT automatically — the app must listen on it.
+# Priority: MAESTRO_PERSONAL_PORT (explicit override) > PORT (Railway/Heroku) > 8766 (default)
+API_PORT = int(os.environ.get("MAESTRO_PERSONAL_PORT") or os.environ.get("PORT") or "8766")
 
 # P1 fix (audit R69 2026-07-15): DB_PATH was cached at import time, which
 # caused it to diverge from routers/account.py's _get_db_path() (which reads

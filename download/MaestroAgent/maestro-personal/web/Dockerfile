@@ -13,10 +13,8 @@ COPY . .
 # Build
 RUN npm run build
 
-# Expose port
-EXPOSE 3000
-
-ENV PORT=3000
+# Railway injects PORT automatically — Next.js reads it via `next start -p $PORT`.
+# Don't hardcode EXPOSE or ENV PORT — let Railway set it.
 ENV NODE_ENV=production
 
 # Start

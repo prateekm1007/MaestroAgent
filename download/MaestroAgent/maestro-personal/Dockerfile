@@ -18,10 +18,9 @@ RUN pip install --no-cache-dir "."
 # Environment
 ENV PYTHONPATH=/app/src
 ENV MAESTRO_ENV=production
-ENV PORT=8766
 
-# Expose port
-EXPOSE 8766
+# Railway injects PORT automatically — don't hardcode EXPOSE.
+# The app reads PORT env var (see api.py line 42).
 
 # Start
 CMD ["python", "-m", "maestro_personal_shell.api"]
