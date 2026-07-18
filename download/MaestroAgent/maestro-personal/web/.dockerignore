@@ -1,7 +1,4 @@
+# Only exclude things we don't need in the Docker build
 node_modules
 .next
 .git
-src/
-tests/
-docs/
-mobile/

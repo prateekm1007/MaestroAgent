@@ -2,13 +2,13 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files
-COPY web/package.json web/package-lock.json ./
+# Copy package files first (for Docker layer caching)
+COPY package.json package-lock.json ./
 
 RUN npm ci --no-audit --no-fund
 
-# Copy source
-COPY web/ ./
+# Copy all web source
+COPY . .
 
 # Build
 RUN npm run build
