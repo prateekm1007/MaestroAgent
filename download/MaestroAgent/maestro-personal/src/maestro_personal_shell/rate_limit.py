@@ -49,16 +49,18 @@ def rate_limit(limit_str: str) -> Callable:
     Test mode: when MAESTRO_TEST_MODE=1, the limit is bypassed entirely
     so the test suite can make rapid requests without tripping 429s.
 
-    Phase 0 fix (Round 67): the docstrings on @rate_limit decorators say
-    "10/minute" / "30/minute" — these are the INTENDED limits when slowapi
-    is installed. When slowapi is NOT installed (dev mode without
-    `pip install slowapi`), the decorator is a no-op and NO rate limiting
-    happens. The 429 responses the auditor saw at request 4-5 were from
-    the auth layer (token validation), NOT from this rate limiter. To
-    enable real rate limiting: `pip install slowapi` and the limits
-    documented in the docstrings will be enforced.
+    Round 68 fix (2026-07-18): the previous implementation re-decorated
+    the function on EVERY call (`_lim.limit(limit_str)(func)` inside the
+    wrapper). This created a new slowapi decorator instance per request,
+    which confused the internal counter — a "10/minute" limit triggered
+    at request 5 instead of 11 (the auditor caught this). Now: the
+    decorated function is created ONCE (on first call) and cached. The
+    lazy lookup still works (the Limiter is looked up at call time, not
+    import time, so test-isolation reloads still get the current Limiter).
     """
     def decorator(func: Callable) -> Callable:
+        _decorated_cache = None
+
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             import os as _os
@@ -66,17 +68,21 @@ def rate_limit(limit_str: str) -> Callable:
             if _os.environ.get("MAESTRO_TEST_MODE") == "1":
                 return await func(*args, **kwargs)
 
+            nonlocal _decorated_cache
             from maestro_personal_shell import api as _api
             _lim = getattr(_api, "_limiter", None)
             enabled = getattr(_api, "_rate_limiting_enabled", False)
             if _lim is not None and enabled:
-                # Re-decorate on each call so we always use the current
-                # Limiter (post-reload). The decorated function raises
-                # RateLimitExceeded when the limit is exceeded — we let
-                # that propagate so the FastAPI exception handler can
-                # convert it to a 429 response.
-                decorated = _lim.limit(limit_str)(func)
-                return await decorated(*args, **kwargs)
+                # Decorate ONCE and cache. Re-decorating on every call was
+                # the root cause of the early-trigger bug (Round 68 audit):
+                # slowapi's internal counter got confused by repeated
+                # decoration, triggering 429 at request 5 instead of 11
+                # for a "10/minute" limit. Caching the decorated function
+                # gives slowapi a stable decorator instance with a proper
+                # counter.
+                if _decorated_cache is None:
+                    _decorated_cache = _lim.limit(limit_str)(func)
+                return await _decorated_cache(*args, **kwargs)
             # Limiter not available (slowapi not installed) — run without limit.
             return await func(*args, **kwargs)
         return wrapper
