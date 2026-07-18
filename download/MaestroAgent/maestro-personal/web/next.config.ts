@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
-// Railway/production: set BACKEND_URL to the backend's public URL
+// Railway/production: BACKEND_URL env var (set in Railway dashboard).
+// If not set at build time, hardcode the known Railway backend URL.
 // Local dev: defaults to http://localhost:8766
-const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.MAESTRO_PORT || "8766"}`;
+const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://maestroagent-production.up.railway.app";
 
 const nextConfig: NextConfig = {
   output: "standalone",
