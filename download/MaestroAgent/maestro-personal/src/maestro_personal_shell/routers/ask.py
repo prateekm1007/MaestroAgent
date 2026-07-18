@@ -413,17 +413,24 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     _gather_tasks = [t for t in [_llm_answer_task, _llm_holistic_task] if t is not None]
     holistic_result = None
     if _gather_tasks:
-        # P0-1 fix: 3-second LLM timeout. If the LLM is rate-limited (429
-        # retries take 7s each × 3 = 21s), we fall back to the rule-based
-        # answer which is already populated with evidence. The user gets an
-        # answer in <3s instead of waiting 18-26s.
+        # P-2026-07-18 fix: use LLM_LATENCY_BUDGET_SECONDS instead of hardcoded 3.0s.
+        # The 3s budget was set for ZAI (which had 2.5s httpx timeout) but remote
+        # Ollama on Kaggle P100 takes 5-15s per real answer generation (the probe
+        # is faster because it's a trivial "OK" response). With the 3s budget,
+        # every real Ask query timed out and fell back to rules — defeating the
+        # purpose of wiring the LLM. Now uses 60s for remote Ollama, 8s for local.
+        try:
+            from maestro_personal_shell.llm_bridge import LLM_LATENCY_BUDGET_SECONDS
+            _ask_llm_timeout = LLM_LATENCY_BUDGET_SECONDS
+        except ImportError:
+            _ask_llm_timeout = 30.0  # safe fallback
         try:
             _gather_results = await asyncio.wait_for(
                 asyncio.gather(*_gather_tasks, return_exceptions=True),
-                timeout=3.0,
+                timeout=_ask_llm_timeout,
             )
         except asyncio.TimeoutError:
-            logger.info("LLM timed out after 3s — using rule-based answer")
+            logger.info("LLM timed out after %ss — using rule-based answer", int(_ask_llm_timeout))
             _gather_results = [Exception("timeout")] * len(_gather_tasks)
         _result_idx = 0
         if _llm_answer_task is not None:
