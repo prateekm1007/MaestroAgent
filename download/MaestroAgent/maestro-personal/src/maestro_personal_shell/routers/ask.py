@@ -85,18 +85,43 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # no unrelated evidence references. Regardless of capitalization.
     query_lower = req.query.lower().strip()
 
-    # Skip the gate for genuinely broad queries (no proper nouns at all)
-    # and for queries that are clearly about the user themselves ("what
-    # did I promise?", "what's going on?"). These don't name a specific
-    # entity and are safe to summarize.
+    # Skip the gate for genuinely broad queries that don't name a specific
+    # entity ("what's going on?", "what changed?", "how many commitments?").
+    # But "what did i promise elon musk?" is NOT broad — it names a specific
+    # entity (Elon Musk) that doesn't exist in the user's data.
+    #
+    # The distinction: broad queries don't have a specific entity after the
+    # pattern. "What did I promise?" is broad. "What did I promise Elon Musk?"
+    # is specific. We check by seeing if the query has any words AFTER the
+    # broad pattern that look like an entity name (any multi-word sequence
+    # or capitalized word that isn't a common stopword).
     _BROAD_QUERY_PATTERNS = [
-        "what did i promise", "what's going on", "what is going on",
-        "what do i owe", "review my", "summarize my", "what changed",
+        "what's going on", "what is going on",
+        "review my", "summarize my", "what changed",
         "what's new", "what is new", "give me an overview",
         "what are my commitments", "how many commitments",
-        "what commitments", "anything urgent", "what's at risk",
+        "anything urgent", "what's at risk",
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
+
+    # "what did i promise" / "what do i owe" are only broad if they DON'T
+    # have additional entity-like words after them. If the query is exactly
+    # "what did i promise?" (no entity), it's broad. If it's "what did i
+    # promise elon musk?", the "elon musk" part makes it specific.
+    _ENTITY_REQUIRING_PATTERNS = ["what did i promise", "what do i owe", "what commitments"]
+    for pattern in _ENTITY_REQUIRING_PATTERNS:
+        if pattern in query_lower:
+            # Check if there are additional words after the pattern
+            after_pattern = query_lower.split(pattern, 1)[-1].strip().rstrip("?.,!")
+            # Remove common stopwords
+            _stopwords = {"me", "to", "for", "by", "the", "a", "an", "is", "are", "was", "were", "this", "that", "today", "this week", "this month", "now", "still", "already", "ever", "anyone", "someone"}
+            after_words = [w for w in after_pattern.split() if w and w not in _stopwords]
+            if after_words:
+                # There are specific words after the pattern — treat as specific query
+                _is_broad_query = False
+            else:
+                _is_broad_query = True
+            break
 
     if not _is_broad_query:
         # Build the set of known entities from the user's signals (case-insensitive)
