@@ -517,7 +517,7 @@ async def get_whispers(token: str = Depends(verify_token_dep)):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/briefing", response_model=BriefingResponse)
+@router.get("/briefing", response_model=BriefingResponse, response_model_exclude_none=True)
 async def get_briefing(token: str = Depends(verify_token_dep)):
     """Morning briefing — the full Situation-centric intelligence."""
     from maestro_personal_shell.api import build_shell
@@ -558,7 +558,7 @@ async def get_briefing(token: str = Depends(verify_token_dep)):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/briefing/evening", response_model=BriefingResponse)
+@router.get("/briefing/evening", response_model=BriefingResponse, response_model_exclude_none=True)
 async def get_evening_briefing(token: str = Depends(verify_token_dep)):
     """Evening briefing — what happened today, what's pending."""
     from maestro_personal_shell.api import build_shell

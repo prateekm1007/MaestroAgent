@@ -135,9 +135,18 @@ async def login(request: Request, req: LoginRequest):
     ).lower() in ("1", "true", "yes")
 
     # The set of user identities that the shared secret is allowed to mint.
-    # "default@personal.local" is the canonical default user.
-    # "bootstrap" is the documented demo user (demo data is seeded for this user).
+    # "default@personal.local" is the canonical default user (has seeded demo data).
+    # "bootstrap" and "bootstrap@maestro.local" are the documented demo login
+    # — but the demo seed is scoped to "default@personal.local", so we map
+    # bootstrap → default internally to ensure the demo data is visible.
     _ALLOWED_DEMO_IDENTITIES = {"default@personal.local", "bootstrap", "bootstrap@maestro.local"}
+    # R2 fix (auditor S1): bootstrap login was returning 0 commitments because
+    # demo data is seeded for "default@personal.local". Map bootstrap → default
+    # so the documented demo login actually shows the demo data.
+    _DEMO_ALIAS_MAP = {
+        "bootstrap": "default@personal.local",
+        "bootstrap@maestro.local": "default@personal.local",
+    }
 
     if env_token and req.password == env_token:
         if _is_production() or not allow_arbitrary_email:
@@ -156,12 +165,17 @@ async def login(request: Request, req: LoginRequest):
                         "multi-user access."
                     ),
                 )
-            user_email = requested if requested else "default@personal.local"
+            # Map bootstrap → default so demo data is visible
+            user_email = _DEMO_ALIAS_MAP.get(requested, requested) if requested else "default@personal.local"
+            # Echo back the original requested email (or default) so the UI shows
+            # what the user typed, but the token is scoped to the data-having user
+            display_email = requested if requested else "default@personal.local"
         else:
             # Explicit opt-in test mode: allow any email
             user_email = req.user_email or "default@personal.local"
+            display_email = user_email
         token = _create_user_token(user_email)
-        return LoginResponse(token=token, user_email=user_email, message="Login successful")
+        return LoginResponse(token=token, user_email=display_email, message="Login successful")
 
     # Dev mode: allow bootstrap token as password (for tests)
     # F8 fix: same fail-closed gate applies to the AUTH_TOKEN fallback path
@@ -189,12 +203,14 @@ async def login(request: Request, req: LoginRequest):
                         "multi-user access."
                     ),
                 )
-            user_email = requested if requested else "default@personal.local"
+            # R2 fix: map bootstrap → default so demo data is visible
+            user_email = _DEMO_ALIAS_MAP.get(requested, requested) if requested else "default@personal.local"
+            display_email = requested if requested else "default@personal.local"
             if user_email == "default@personal.local":
                 token = AUTH_TOKEN
             else:
                 token = _create_user_token(user_email)
-            return LoginResponse(token=token, user_email=user_email, message="Login successful (default user only)")
+            return LoginResponse(token=token, user_email=display_email, message="Login successful (default user only)")
 
     # P1 fix: REJECT passwordless email login
     # Phase 2: Try email/password against user_accounts table
