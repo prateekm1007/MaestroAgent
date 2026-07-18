@@ -175,18 +175,47 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 logger.debug("Semantic retrieval failed, falling back to linear: %s", e)
 
             # If FTS found nothing but the user HAS signals, use ALL of them.
-            # This handles broad queries like "review my mail" or "what's going on"
-            # that don't match specific keywords but should summarize everything.
+            # S1-01 fix (auditor critical finding): the previous "broad query
+            # fallback" loaded ALL signals (up to 50) when no specific evidence
+            # matched. This caused "What did I promise Elon Musk?" to dump all
+            # 9 stored signals — a data-leak class bug. The product's core
+            # promise is evidence-grounded answers; dumping unrelated data
+            # when no match is found violates that promise.
+            #
+            # Fix: distinguish between genuinely broad queries (no entity
+            # mentioned, like "what's going on?") and specific-entity queries
+            # that didn't match (like "What did I promise Elon Musk?").
+            # Broad queries can summarize everything. Specific-entity queries
+            # that don't match must return a clean refusal with NO evidence.
             if not evidence_refs_for_llm:
-                all_signals = load_signals_from_db(user_email=token, limit=50)
-                if all_signals:
-                    evidence_refs_for_llm = [
-                        {"text": s.get("text", ""), "entity": s.get("entity", "")}
-                        for s in all_signals[:20]  # cap at 20 for LLM context
-                    ]
-                    if not source_sent and all_signals:
-                        source_sent = all_signals[0].get("text", "")
-                    logger.info("Broad query fallback: loaded %d signals as evidence", len(evidence_refs_for_llm))
+                # Check if the query mentions a specific entity (capitalized word)
+                # that simply wasn't found in the user's data
+                query_entities = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
+                query_entities = [e for e in query_entities if e not in common_words]
+                has_specific_entity = len(query_entities) > 0
+
+                if has_specific_entity:
+                    # Specific entity query with no match — DO NOT dump all signals.
+                    # Return a clean refusal with no evidence.
+                    logger.info(
+                        "S1-01 fix: query mentions specific entities %s but no evidence found — "
+                        "returning clean refusal (no signal dump)",
+                        query_entities[:3],
+                    )
+                    # Skip the LLM call entirely — there's nothing to ground on
+                    matching_situation = None
+                    evidence_refs_for_llm = []
+                else:
+                    # Genuinely broad query (no entity mentioned) — OK to summarize
+                    all_signals = load_signals_from_db(user_email=token, limit=50)
+                    if all_signals:
+                        evidence_refs_for_llm = [
+                            {"text": s.get("text", ""), "entity": s.get("entity", "")}
+                            for s in all_signals[:20]  # cap at 20 for LLM context
+                        ]
+                        if not source_sent and all_signals:
+                            source_sent = all_signals[0].get("text", "")
+                        logger.info("Broad query fallback: loaded %d signals as evidence", len(evidence_refs_for_llm))
 
             if not matching_situation and evidence_refs_for_llm:
                 matching_situation = _PseudoSituation(

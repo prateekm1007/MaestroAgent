@@ -184,14 +184,43 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
 
     store = ConnectorStore()  # already created above for the already-connected check
 
+    # S2-03 fix (auditor S2 finding): if OAuth IS configured for this provider,
+    # REJECT any direct oauth_token in the body. The only valid path is through
+    # the real OAuth flow (authorization URL → provider login → callback). This
+    # prevents fake tokens like {"oauth_token": "fake-token"} from producing
+    # connected: true. Previously, sending a fake token bypassed the OAuth flow
+    # entirely and stored the token directly — a security and trust failure.
+    if req.oauth_token:
+        # Check if OAuth is configured for this provider
+        _oauth_configured = False
+        try:
+            if provider == "gmail":
+                from maestro_personal_shell.gmail_connector import is_gmail_configured
+                _oauth_configured = is_gmail_configured()
+            elif provider == "calendar":
+                from maestro_personal_shell.calendar_connector import is_calendar_configured
+                _oauth_configured = is_calendar_configured()
+            elif provider == "slack":
+                from maestro_personal_shell.slack_connector import is_slack_configured
+                _oauth_configured = is_slack_configured()
+            elif provider == "github":
+                from maestro_personal_shell.github_connector import is_github_configured
+                _oauth_configured = is_github_configured()
+        except ImportError:
+            pass
+
+        if _oauth_configured:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Direct token assignment is not allowed for '{provider}'. "
+                    f"This connector requires OAuth — click 'Connect' to be redirected "
+                    f"to the provider's authorization page."
+                ),
+            )
+
     # P0 honesty fix: if no OAuth is configured AND no oauth_token is provided,
     # we must NOT return connected: True. No demo-mode fallback — fail closed.
-    # P-2026-07-18 fix (auditor P3 finding): do NOT template the caller-supplied
-    # provider name into the env var names — that leaks the config convention
-    # and looks unprofessional. Use a generic message that tells the user
-    # OAuth isn't configured for this provider without revealing internal
-    # variable naming. Real users see this in the UI; they don't need to know
-    # the env var names. Admins/developers can read the docs.
     if not req.oauth_token:
         raise HTTPException(
             status_code=400,
