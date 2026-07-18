@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import {
   confidenceTextColor,
   formatRelative,
+  type AmbientIntelligence,
   type Briefing,
   type CopilotWhisper,
   type LlmStatus,
@@ -406,6 +407,11 @@ export function Dashboard({
           </form>
         </CardContent>
       </Card>
+
+      {/* Ambient Intelligence — Round 69 audit: was 0% wired.
+          Surfaces stale commitments, upcoming meetings, sentiment alerts.
+          This is core Personal value: "what's happening between calls". */}
+      <AmbientCard />
 
       {/* P0-3 + P0-4 + P0-5: Shared Draft Approval Modal */}
       <DraftApprovalModal
@@ -907,6 +913,133 @@ function WhisperCards({
             );
           })}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ---------------- Ambient Intelligence ---------------- */
+/* Round 69 audit fix: wires /api/ambient to the Dashboard.
+   Surfaces stale commitments, upcoming meetings, sentiment alerts.
+   Was 0% wired despite being core Personal value ("what's happening
+   between calls"). */
+
+function AmbientCard() {
+  const [ambient, setAmbient] = useState<AmbientIntelligence | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await maestroApi.getAmbient();
+        if (!alive) return;
+        setAmbient(data);
+      } catch {
+        // silent fail — ambient is non-critical
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <Card className="border-border/60">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading ambient intelligence…
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!ambient) return null;
+
+  const stale = ambient.stale_commitments || [];
+  const upcoming = ambient.upcoming_meetings || [];
+  const alerts = ambient.sentiment_alerts || [];
+  const prep = ambient.preparation_needed || [];
+
+  // Hide the card entirely if there's nothing to surface
+  if (stale.length === 0 && upcoming.length === 0 && alerts.length === 0 && prep.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card className="border-border/60">
+      <CardContent className="pt-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wind className="size-4 text-primary" />
+            <h3 className="text-sm font-semibold">Ambient Intelligence</h3>
+          </div>
+          {ambient.ambient_summary && (
+            <span className="text-xs text-muted-foreground italic">{ambient.ambient_summary}</span>
+          )}
+        </div>
+
+        {/* Stale commitments — the most actionable signal */}
+        {stale.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Stale commitments ({stale.length})
+            </div>
+            <div className="space-y-1.5">
+              {stale.map((c, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/[0.06] p-2.5"
+                >
+                  <CalendarClock className="size-3.5 text-amber-500 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-foreground truncate">{c.commitment}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      <span className="capitalize">{c.entity}</span> · {c.days_stale} day{c.days_stale === 1 ? "" : "s"} stale
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Upcoming meetings */}
+        {upcoming.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Upcoming meetings ({upcoming.length})
+            </div>
+            <div className="space-y-1.5">
+              {upcoming.slice(0, 3).map((m, i) => (
+                <div key={i} className="text-xs text-foreground/80 rounded-md border border-border/60 bg-muted/20 p-2">
+                  {String(m.title || m.summary || m.subject || JSON.stringify(m)).slice(0, 120)}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sentiment alerts */}
+        {alerts.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Sentiment alerts ({alerts.length})
+            </div>
+            <div className="space-y-1.5">
+              {alerts.slice(0, 3).map((a, i) => (
+                <div key={i} className="text-xs text-foreground/80 rounded-md border border-rose-500/30 bg-rose-500/[0.06] p-2">
+                  {String(a.entity || a.summary || JSON.stringify(a)).slice(0, 120)}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

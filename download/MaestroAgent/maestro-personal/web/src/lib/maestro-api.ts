@@ -60,6 +60,52 @@ export type SimulationResult = {
   risk_score: number;
 };
 
+// Round 69 audit: Ambient + Evening Briefing + Ledger types
+export type StaleCommitment = {
+  entity: string;
+  days_stale: number;
+  commitment: string;
+};
+
+export type AmbientIntelligence = {
+  upcoming_meetings: Array<Record<string, unknown>>;
+  preparation_needed: Array<Record<string, unknown>>;
+  sentiment_alerts: Array<Record<string, unknown>>;
+  stale_commitments: StaleCommitment[];
+  ambient_summary: string;
+  llm_powered: boolean;
+};
+
+export type EveningBriefing = {
+  greeting: string;
+  top_situation: Record<string, unknown> | null;
+  material_changes: string[];
+  unknowns: string[];
+  disputes: string[];
+  can_decide_now: string[];
+  cannot_decide_yet: string[];
+  why_boundary: string;
+  next_step: string;
+  belief: string;
+  why_belief: string;
+  what_would_change_belief: string;
+  watching_quietly: string[];
+  ask_prompt: string;
+};
+
+export type LedgerEntry = {
+  ledger_id: string;
+  entity: string;
+  owner: string;
+  recipient: string;
+  action: string;
+  deadline: string;
+  state: string;
+  source_signal_id: string;
+  created_at: string;
+  transitioned_at: string;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Token + mode storage                                              */
 /* ------------------------------------------------------------------ */
@@ -861,6 +907,67 @@ export const maestroApi = {
       // No fallback — re-throws on failure so caller can show error
       undefined,
       15000, // 15s timeout — simulation may compute conflicts across many commitments
+    );
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Ambient + Evening Briefing (Round 69 audit: was 0% wired)          */
+  /* ------------------------------------------------------------------ */
+
+  async getAmbient(): Promise<{ data: AmbientIntelligence; live: boolean }> {
+    return maestroFetch<AmbientIntelligence>(
+      "/api/ambient",
+      {},
+      {
+        upcoming_meetings: [],
+        preparation_needed: [],
+        sentiment_alerts: [],
+        stale_commitments: [],
+        ambient_summary: "",
+        llm_powered: false,
+      },
+    );
+  },
+
+  async getEveningBriefing(): Promise<{ data: EveningBriefing; live: boolean }> {
+    return maestroFetch<EveningBriefing>(
+      "/api/briefing/evening",
+      {},
+      {
+        greeting: "",
+        top_situation: null,
+        material_changes: [],
+        unknowns: [],
+        disputes: [],
+        can_decide_now: [],
+        cannot_decide_yet: [],
+        why_boundary: "",
+        next_step: "",
+        belief: "",
+        why_belief: "",
+        what_would_change_belief: "",
+        watching_quietly: [],
+        ask_prompt: "",
+      },
+    );
+  },
+
+  async getCommitmentLedger(): Promise<{ data: { entries: LedgerEntry[]; count: number }; live: boolean }> {
+    return maestroFetch<{ entries: LedgerEntry[]; count: number }>(
+      "/api/commitments/ledger",
+      {},
+      { entries: [], count: 0 },
+    );
+  },
+
+  async transitionCommitment(
+    ledgerId: string,
+    toState: string,
+  ): Promise<{ data: { ledger_id: string; state: string; transitioned: boolean }; live: boolean }> {
+    return maestroFetch(
+      `/api/commitments/${encodeURIComponent(ledgerId)}/transition?to_state=${encodeURIComponent(toState)}`,
+      { method: "POST" },
+      undefined,
     );
   },
 };
