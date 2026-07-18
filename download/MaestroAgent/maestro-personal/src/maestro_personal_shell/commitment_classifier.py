@@ -325,6 +325,68 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "llm_powered": False,
         }
 
+    # S2-05 fix (auditor finding): joke/quote/negation detection BEFORE
+    # the explicit_keywords check. Previously, "I promise I will become a
+    # billionaire tomorrow, haha." was classified as explicit because it
+    # contains "i promise". And `Maria said: "I will send..."` was classified
+    # as explicit because it contains "i will". These are false positives.
+
+    # Joke detection — laughter markers indicate non-serious statements
+    joke_markers = ["haha", "lol", "lmao", "rofl", "jk", "just kidding", "sike", "iykyk", "🤣", "😂"]
+    if any(marker in text_lower for marker in joke_markers):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.9,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": "rule-based: joke marker detected — not a real commitment",
+            "llm_powered": False,
+        }
+
+    # Quote / third-party report detection — "X said:", "X says:", "X wrote:"
+    # indicates the user is REPORTING someone else's promise, not making their own
+    quote_patterns = [
+        r'\b said\b', r'\b says\b', r'\b wrote\b', r'\b mentioned\b',
+        r'\b told me\b', r'\b confirmed\b', r'\b stated\b',
+        r'"[^"]*will ', r'"[^"]*promise', r'"[^"]*commit',
+    ]
+    import re as _re
+    if any(_re.search(p, text_lower) for p in quote_patterns):
+        # Check if it's the user quoting someone else (not the user's own promise)
+        # Patterns like "Maria said: I will..." or 'Alex wrote: "I promise..."'
+        if not text_lower.strip().startswith(("i will", "i'll", "i promise", "i commit")):
+            return {
+                "commitment_type": "third_party_report",
+                "is_commitment": True,  # it IS a commitment, but owned by someone else
+                "confidence": 0.8,
+                "state": "active",
+                "owner": "other",  # key distinction: not the user's commitment
+                "deadline_text": "",
+                "reasoning": "rule-based: third-party report detected (quote/said/wrote)",
+                "llm_powered": False,
+            }
+
+    # Negation detection — "I will not", "I won't", "I can't" are refusals, not promises
+    negation_patterns = [
+        r"\bi will not\b", r"\bi won't\b", r"\bi won t\b",
+        r"\bi can't\b", r"\bi cannot\b", r"\bi can not\b",
+        r"\bi'm not going to\b", r"\bim not going to\b",
+        r"\bi will never\b", r"\bi won't be able\b",
+    ]
+    if any(_re.search(p, text_lower) for p in negation_patterns):
+        return {
+            "commitment_type": "negation",
+            "is_commitment": False,  # a negation is NOT a commitment
+            "confidence": 0.85,
+            "state": "cancelled",
+            "owner": "user",
+            "deadline_text": "",
+            "reasoning": "rule-based: negation detected — not a commitment",
+            "llm_powered": False,
+        }
+
     # Explicit commitment
     explicit_keywords = ["i will", "i'll", "i promise", "i commit", "i guarantee", "i'm going to", "im going to"]
     if any(kw in text_lower for kw in explicit_keywords):
