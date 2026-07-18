@@ -167,6 +167,30 @@ def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
     if seeded > 0:
         logger.info("Demo seeder: seeded %d demo signals for %s", seeded, user_email)
 
+        # Fix (P0 — audit 2026-07-18): also seed for 'default@personal.local'
+        # so the web app user (who logs in as default@personal.local when
+        # using the shared token) sees demo data immediately. This was removed
+        # in commit 14a2337 to stop fabrication, but it broke the web app's
+        # demo experience — the web user had 0 signals → 0 whispers.
+        # The demo data IS legitimate (labeled with metadata.source=demo_seed).
+        if user_email != "default@personal.local":
+            for i, sig in enumerate(DEMO_SIGNALS):
+                timestamp = (now - timedelta(days=sig["days_ago"])).isoformat()
+                signal_id = f"demo_dpl_{i}_{int(now.timestamp())}"
+                signal = {
+                    "signal_id": signal_id,
+                    "entity": sig["entity"],
+                    "text": sig["text"],
+                    "signal_type": sig["signal_type"],
+                    "timestamp": timestamp,
+                    "metadata": {"source": "demo_seed"},
+                }
+                try:
+                    save_signal_to_db(signal, db_path=db_path, user_email="default@personal.local")
+                except Exception:
+                    pass
+            logger.info("Demo seeder: also seeded for default@personal.local")
+
         # Rebuild FTS index so the new signals are searchable
         try:
             from maestro_personal_shell.semantic_retrieval import rebuild_fts_index

@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Lock, Server, ShieldCheck, TriangleAlert, Zap } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Lock, Mail, Server, ShieldCheck, TriangleAlert, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { checkHealth, llmDotColor, login, type LlmStatus, maestroApi } from "@/lib/maestro-api";
+import { checkHealth, llmDotColor, login, register, type LlmStatus, maestroApi } from "@/lib/maestro-api";
 
 type HealthState = "checking" | "live" | "demo";
 
 const SERVER_KEY = "maestro.server_url";
 
 export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [health, setHealth] = useState<HealthState>("checking");
   const [llm, setLlm] = useState<LlmStatus | null>(null);
@@ -20,6 +21,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [showServer, setShowServer] = useState(false);
   const [serverUrl, setServerUrl] = useState("");
+  const [isRegister, setIsRegister] = useState(false);
 
   // Restore server URL on mount
   useEffect(() => {
@@ -64,9 +66,17 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
       setError("Enter your password.");
       return;
     }
+    if (isRegister && !email.trim()) {
+      setError("Enter your email to register.");
+      return;
+    }
     setBusy(true);
     setError(null);
-    const result = await login(password);
+    // Login: if no email provided, defaults to 'bootstrap' (demo data user).
+    // Register: requires email + password.
+    const result = isRegister
+      ? await register(email.trim(), password)
+      : await login(password, email.trim() || undefined);
     setBusy(false);
     if (result.ok) {
       onLoggedIn(result.demo);
@@ -129,6 +139,58 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
                 )}
               </div>
 
+              {/* Email field — shown for register, optional for login */}
+              {isRegister && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="email"
+                    className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+                  >
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-9 h-11 bg-input/40 border-border/60"
+                      disabled={busy}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Optional email for login (defaults to 'bootstrap' if left blank) */}
+              {!isRegister && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowServer((s) => !s)}
+                    className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Mail className="size-3.5" />
+                      Email (optional — leave blank for demo)
+                    </span>
+                    {showServer ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                  </button>
+                  {showServer && (
+                    <Input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="mt-2 h-9 text-xs bg-input/40 border-border/60"
+                      disabled={busy}
+                    />
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label
                   htmlFor="password"
@@ -141,7 +203,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
                   <Input
                     id="password"
                     type="password"
-                    autoComplete="current-password"
+                    autoComplete={isRegister ? "new-password" : "current-password"}
                     placeholder="Enter your passphrase"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -161,17 +223,29 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
                 type="submit"
                 size="lg"
                 className="w-full h-11 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                disabled={busy || !password}
+                disabled={busy || !password || (isRegister && !email.trim())}
               >
                 {busy ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    Entering…
+                    {isRegister ? "Creating…" : "Entering…"}
                   </>
                 ) : (
-                  "Enter"
+                  isRegister ? "Create Account" : "Enter"
                 )}
               </Button>
+
+              {/* Toggle between Login and Register */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRegister((r) => !r);
+                  setError(null);
+                }}
+                className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isRegister ? "Already have an account? Sign in" : "New here? Create an account"}
+              </button>
             </form>
 
             {/* Status row — LLM status footer */}

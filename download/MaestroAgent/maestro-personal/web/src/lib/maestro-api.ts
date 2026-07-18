@@ -120,14 +120,19 @@ export type LoginResult = {
   message: string;
 };
 
-export async function login(password: string): Promise<LoginResult> {
+export async function login(password: string, email?: string): Promise<LoginResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 6000);
+  // Fix: use 'bootstrap' as default user — demo data is seeded for this user.
+  // Was 'default@personal.local' which had 0 signals → empty whispers.
+  // If the user provides an email (via the Login form's email input),
+  // use that instead (for registered users).
+  const user_email = email || "bootstrap";
   try {
     const res = await fetch(`/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_email: "default@personal.local", password }),
+      body: JSON.stringify({ user_email, password }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -137,6 +142,29 @@ export async function login(password: string): Promise<LoginResult> {
       return { ok: true, demo: false, message: "Logged in." };
     }
     return { ok: false, demo: false, message: "Invalid credentials." };
+  } catch {
+    return { ok: false, demo: false, message: "Cannot connect to backend. Is the API running on port 8766?" };
+  }
+}
+
+export async function register(email: string, password: string): Promise<LoginResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(`/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_email: email, password }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const j = await res.json();
+      setToken(j.token);
+      return { ok: true, demo: false, message: "Account created." };
+    }
+    const errorBody = await res.text();
+    return { ok: false, demo: false, message: errorBody || "Registration failed." };
   } catch {
     return { ok: false, demo: false, message: "Cannot connect to backend. Is the API running on port 8766?" };
   }
@@ -248,7 +276,7 @@ export const maestroApi = {
       {},
       {
         exported_at: new Date().toISOString(),
-        user_email: "default@personal.local",
+        user_email: "bootstrap",
         signal_count: [].length,
         signals: [],
         note: "Demo export — live API unreachable.",
