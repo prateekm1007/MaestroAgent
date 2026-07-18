@@ -63,7 +63,9 @@ class SignalResponse(BaseModel):
 
 
 class AskRequest(BaseModel):
-    query: str
+    # Phase 3 fix: empty query should be rejected at the model level (422),
+    # not crash the pipeline (500). min_length=1 prevents empty strings.
+    query: str = Field(..., min_length=1, max_length=10_000)
     session_id: str = ""  # P0-3: optional session ID for multi-turn conversations
 
 
