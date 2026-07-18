@@ -86,9 +86,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     answer = rule_based_answer
     llm_answer_used = False
 
-    known_facts = getattr(result, "known_facts", []) or []
-    if known_facts and not source_sentence:
-        pass
+    # P-2026-07-18 fix: removed dead `if known_facts and not source_sentence: pass`
+    # block that referenced `source_sentence` BEFORE its initialization at line ~215,
+    # causing NameError → HTTP 500 on EVERY /api/ask call once the LLM became active.
+    # The block was a no-op (`pass`) — safe to remove. P1 (claim = executed):
+    # verified by curl POST /api/ask returning 500 before fix; will re-verify after
+    # deploy returns 200 with an LLM-grounded answer.
 
     _llm_answer_task = None
     _llm_holistic_task = None
