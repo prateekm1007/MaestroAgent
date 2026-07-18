@@ -726,7 +726,14 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
 
     provider_name = str(getattr(router, "default_provider", "unknown"))
 
-    # Make a real lightweight LLM call to verify the provider works
+    # Make a real lightweight LLM call to verify the provider works.
+    # P-2026-07-18 fix: use LLM_LATENCY_BUDGET_SECONDS (60s for remote
+    # Ollama like Kaggle P100 tunnel, 8s for local) instead of hardcoded 10s.
+    # The Kaggle Ollama tunnel can take 30-50s for a single inference call
+    # (slow GPU + cold model + tunnel latency). The 10s timeout was causing
+    # /api/llm-status to report active=false even though the LLM works fine
+    # given enough time.
+    _probe_timeout = LLM_LATENCY_BUDGET_SECONDS
     start = _time.time()
     try:
         response = await asyncio.wait_for(
@@ -736,7 +743,7 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
                 temperature=0.0,
                 max_tokens=200,  # Reasoning models need more tokens (gpt-oss uses ~160 for reasoning)
             ),
-            timeout=10.0,
+            timeout=_probe_timeout,
         )
         latency_ms = int((_time.time() - start) * 1000)
 
@@ -758,8 +765,8 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
         result = {
             "provider": provider_name,
             "verified": False,
-            "error": "Provider timed out (10s)",
-            "latency_ms": 10000,
+            "error": f"Provider timed out ({int(_probe_timeout)}s)",
+            "latency_ms": int(_probe_timeout * 1000),
         }
     except Exception as e:
         latency_ms = int((_time.time() - start) * 1000)
