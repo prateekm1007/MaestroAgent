@@ -41,6 +41,35 @@ class WhatChangedSurface:
 
         deltas = []
 
+        # S2-06 fix: build a map of entity → latest completion/cancellation
+        # signal. If a commitment's entity has a later completion, the
+        # commitment should NOT appear in What Changed (it's been resolved).
+        completion_entities = set()
+        cancellation_entities = set()
+        for signal in self._shell.oem_state.signals:
+            sig_type = str(getattr(signal, "signal_type", "") or
+                           getattr(getattr(signal, "type", ""), "value", "")).lower()
+            sig_text = str(getattr(signal, "text", "")).lower()
+            sig_entity = str(getattr(signal, "entity", "")).lower()
+
+            # Completion signals
+            if sig_type in ("commitment.completed", "outcome.resolved"):
+                completion_entities.add(sig_entity)
+
+            # Heuristic: text contains completion keywords
+            completion_keywords = ["delivered successfully", "completed successfully",
+                                   "was delivered", "has been sent", "fulfilled",
+                                   "shipped", "marked as done"]
+            if any(kw in sig_text for kw in completion_keywords) and sig_entity:
+                completion_entities.add(sig_entity)
+
+            # Cancellation signals
+            if sig_type in ("commitment.cancelled",):
+                cancellation_entities.add(sig_entity)
+            cancel_keywords = ["cancelled", "never mind", "forget it", "don't need"]
+            if any(kw in sig_text for kw in cancel_keywords) and sig_entity:
+                cancellation_entities.add(sig_entity)
+
         # Get all signals since the timestamp
         for signal in self._shell.oem_state.signals:
             sig_time = getattr(signal, "timestamp", None)
@@ -55,6 +84,19 @@ class WhatChangedSurface:
             if sig_time > since_timestamp:
                 sig_type = str(getattr(signal, "signal_type", "") or
                                getattr(getattr(signal, "type", ""), "value", ""))
+                sig_entity_lower = str(getattr(signal, "entity", "")).lower()
+
+                # S2-06: skip commitments whose entity has a completion/cancellation
+                is_commitment_type = sig_type in ("commitment_made", "personal.promise",
+                                                   "personal.commitment")
+                if is_commitment_type:
+                    if sig_entity_lower in completion_entities:
+                        # This commitment was completed — skip it
+                        continue
+                    if sig_entity_lower in cancellation_entities:
+                        # This commitment was cancelled — skip it
+                        continue
+
                 deltas.append({
                     "entity": getattr(signal, "entity", ""),
                     "text": getattr(signal, "text", ""),

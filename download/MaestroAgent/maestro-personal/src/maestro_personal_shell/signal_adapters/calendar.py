@@ -104,7 +104,11 @@ def extract_signals_from_event(
                 "source": "calendar",
                 "summary": summary,
                 "start": start_str,
-                "attendees": [a.get("email") for a in attendees],
+                # S2-04 round 2: handle both dict and str attendees
+                "attendees": [
+                    a.get("email", "") if isinstance(a, dict) else str(a)
+                    for a in attendees
+                ],
             },
         })
 
@@ -182,8 +186,15 @@ def extract_meeting_context(
     attendees = event.get("attendees", [])
 
     # Find signals from any attendee
-    attendee_emails = {a.get("email", "").lower() for a in attendees}
-    attendee_names = {a.get("displayName", "").lower() for a in attendees}
+    # S2-04 round 2: handle both dict and str attendees
+    attendee_emails = {
+        (a.get("email", "") if isinstance(a, dict) else str(a)).lower()
+        for a in attendees
+    }
+    attendee_names = {
+        (a.get("displayName", "") if isinstance(a, dict) else "").lower()
+        for a in attendees
+    }
 
     related_signals = []
     for sig in signals:
