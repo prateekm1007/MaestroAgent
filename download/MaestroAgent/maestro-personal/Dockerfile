@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir "."
 
 # Environment
 ENV PYTHONPATH=/app/src
-ENV MAESTRO_ENV=production
+ENV MAESTRO_PERSONAL_ENV=dev
 
 # Railway injects PORT automatically — don't hardcode EXPOSE.
 # The app reads PORT env var (see api.py line 42).
