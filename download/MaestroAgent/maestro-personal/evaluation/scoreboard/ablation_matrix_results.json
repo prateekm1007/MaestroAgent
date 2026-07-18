@@ -1,11 +1,11 @@
 {
   "A_bm25": 0.55,
-  "B_full_maestro": 0.5,
+  "B_full_maestro": 0.5333,
   "C_rule_based": 0.45,
-  "lift_B_vs_A": -5.0,
-  "lift_B_vs_C": 5.0,
+  "lift_B_vs_A": -1.7,
+  "lift_B_vs_C": 8.3,
   "lift_C_vs_A": -10.0,
-  "llm_active": 0,
+  "llm_active": 10,
   "total_questions": 10,
   "results_A": [
     {
@@ -64,81 +64,81 @@
       "type": "direct_lookup",
       "score": 1.0,
       "answer": "Based on the evidence: Alex Chen \u2014 \"I will send Alex Chen the pricing deck by Friday\" (recorded 2026",
-      "llm": false,
+      "llm": true,
       "conf": 0.5,
-      "elapsed": 1.2
+      "elapsed": 55.0
     },
     {
       "type": "broken",
       "score": 0.0,
       "answer": "**Regarding: What did I fail to deliver?**\n\n**Orion Tech situation**\nState: observing | Epistemic: r",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.2
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 6.1
     },
     {
       "type": "relational",
       "score": 0.0,
-      "answer": "**Regarding: Who am I repeatedly disappointing?**\n\n**Orion Tech situation**\nState: observing | Epist",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.2
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": true,
+      "conf": 0.0,
+      "elapsed": 6.0
     },
     {
       "type": "contradiction",
       "score": 1.0,
       "answer": "**Regarding: What is Orion Tech's pricing?**\n\n**Orion Tech situation**\nState: observing | Epistemic:",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.2
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 5.6
     },
     {
       "type": "recurring",
       "score": 1.0,
       "answer": "**Regarding: What pattern do I see in production incidents?**\n\n**EngOncall situation**\nState: needs_",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.2
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 5.6
     },
     {
       "type": "conditional",
-      "score": 0.0,
-      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
-      "llm": false,
+      "score": 0.3333333333333333,
+      "answer": "I don't have enough information to answer that question. No signals found for entity: SSO.",
+      "llm": true,
       "conf": 0.0,
-      "elapsed": 0.2
+      "elapsed": 7.5
     },
     {
       "type": "direct_lookup",
       "score": 1.0,
       "answer": "**Regarding: Who is Avery Stone?**\n\n**Avery Stone: I will send Avery Stone the quarterly report**\nSt",
-      "llm": false,
-      "conf": 0.45,
-      "elapsed": 0.2
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 5.7
     },
     {
       "type": "relational",
       "score": 0.0,
-      "answer": "**Regarding: Who are my most reliable partners?**\n\n**Orion Tech situation**\nState: observing | Epist",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.2
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": true,
+      "conf": 0.0,
+      "elapsed": 18.6
     },
     {
       "type": "recurring",
       "score": 0.0,
-      "answer": "**Regarding: What keeps breaking?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.2
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": true,
+      "conf": 0.0,
+      "elapsed": 5.7
     },
     {
       "type": "multilingual",
       "score": 1.0,
       "answer": "Based on the evidence: Carlos Ruiz \u2014 \"Carlos dijo que enviar\u00e1 el contrato el lunes que viene\" (recor",
-      "llm": false,
+      "llm": true,
       "conf": 0.5,
-      "elapsed": 0.2
+      "elapsed": 18.4
     }
   ],
   "results_C": [

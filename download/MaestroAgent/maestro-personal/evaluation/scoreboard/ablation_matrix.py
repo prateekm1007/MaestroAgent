@@ -64,19 +64,21 @@ print(f"Seeded {len(corpus)} signals", flush=True)
 # ── Start server ──────────────────────────────────────────────────
 env = os.environ.copy()
 env["PYTHONPATH"] = str(SHELL_SRC) + ":" + str(REPO / "backend") + ":" + str(REPO / "maestro-personal")
+# Round 68: capture server logs so we can diagnose crashes (was DEVNULL)
+server_log = open("/tmp/ablation_server.log", "w")
 server_proc = subprocess.Popen(
     [sys.executable, "-c", f"""
-import sys
+import sys, os
 sys.path.insert(0, "{SHELL_SRC}")
 sys.path.insert(0, "{REPO / 'backend'}")
 from maestro_personal_shell import api as pa
 pa.init_db()
 import uvicorn
-cfg = uvicorn.Config(pa.app, host="127.0.0.1", port={PORT}, log_level="error")
+cfg = uvicorn.Config(pa.app, host="127.0.0.1", port={PORT}, log_level="warning")
 srv = uvicorn.Server(cfg)
 srv.run()
 """],
-    env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    env=env, stdout=server_log, stderr=subprocess.STDOUT,
 )
 for i in range(60):
     try:

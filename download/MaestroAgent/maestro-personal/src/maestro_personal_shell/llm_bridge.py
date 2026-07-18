@@ -467,9 +467,21 @@ class ZAIRouter:
         assume it works — individual calls will fall back to rules
         if the API is unavailable or rate limited.
 
+        Round 68 fix: also check the ZAIHTTPRouter's class-level cooldown.
+        Both ZAIHTTPRouter and ZAIRouter call the same underlying ZAI API,
+        so if one hits 429, the other will too. Checking the shared
+        cooldown prevents the bridge from picking the CLI router when
+        the HTTP router already knows the API is rate-limited.
+
         Use probe_provider() for a real end-to-end verification.
         """
-        return shutil.which("z-ai") is not None
+        if shutil.which("z-ai") is None:
+            return False
+        # Check shared ZAI cooldown (same API, same rate limit)
+        import time as _time
+        if ZAIHTTPRouter._rate_limited_until_cls > 0 and _time.time() < ZAIHTTPRouter._rate_limited_until_cls:
+            return False
+        return True
 
 
 def get_llm_router() -> Any:
