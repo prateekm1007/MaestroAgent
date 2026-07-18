@@ -124,8 +124,22 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             break
 
     if not _is_broad_query:
-        # Build the set of known entities from the user's signals (case-insensitive)
+        # Build the set of known entities from the user's signals (case-insensitive).
+        # Use load_signals_from_db (reliable DB query) instead of shell.oem_state.signals
+        # which may not be populated yet at this point in the request lifecycle.
         known_entities_lower = set()
+        try:
+            all_sigs = load_signals_from_db(user_email=token, limit=500)
+            for sig in all_sigs:
+                if isinstance(sig, dict):
+                    sig_entity = str(sig.get("entity", "")).strip()
+                    if sig_entity:
+                        known_entities_lower.add(sig_entity.lower())
+        except Exception as e:
+            logger.debug("Failed to load signals for entity gate: %s", e)
+
+        # Also add entities from shell.oem_state.signals (in case DB load failed
+        # but the shell has them in memory)
         for sig in shell.oem_state.signals:
             sig_entity = str(getattr(sig, "entity", "")).strip()
             if sig_entity:
