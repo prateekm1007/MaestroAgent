@@ -82,18 +82,20 @@ async function maestroFetch<T>(
     const res = await fetch(url, { ...options, headers, signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) {
-      // P-2026-07-18 fix: auto-clear token on 401 Unauthorized.
-      // The backend uses an in-memory token store that is wiped on every
-      // redeploy. When that happens, the user's localStorage token becomes
-      // invalid, and every API call returns 401. Without this fix, the user
-      // sees a broken page (empty connectors, empty dashboard, etc.) and
-      // has to manually log out and log back in. With this fix, the first
-      // 401 automatically clears the stale token and reloads the page,
-      // sending the user to the login screen.
-      if (res.status === 401) {
+      // P-2026-07-18 fix (revised): auto-clear token on 401 Unauthorized,
+      // but ONLY when a token was present. The Login page calls /api/llm-status
+      // without a token (to show the LLM pill in the footer), and that endpoint
+      // returns 401 for unauthenticated requests. If we reload on every 401,
+      // the Login page enters an infinite reload loop: load → call llm-status
+      // → 401 → reload → load → ...
+      // The fix: only clear+reload when there WAS a token that became stale
+      // (i.e., the user was logged in but the backend's in-memory token store
+      // was wiped on redeploy). When there's no token, 401 is expected —
+      // just throw and let the caller fall back to empty data.
+      if (res.status === 401 && token) {
         clearToken();
-        // Reload to send user to login screen (only if not already there)
-        if (typeof window !== "undefined" && !window.location.pathname.includes("login")) {
+        // Reload to send user to login screen
+        if (typeof window !== "undefined") {
           window.location.reload();
         }
       }
