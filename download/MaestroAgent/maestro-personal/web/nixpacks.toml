@@ -1,0 +1,13 @@
+# Nixpacks configuration for Railway — used when Railway auto-detects
+# instead of using the Dockerfile. This ensures the build works either way.
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm ci --no-audit --no-fund"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"
