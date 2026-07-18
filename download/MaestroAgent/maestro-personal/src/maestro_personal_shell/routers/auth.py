@@ -119,25 +119,44 @@ async def login(request: Request, req: LoginRequest):
     # Fix: default to fail-closed. Allow arbitrary email minting ONLY when
     # MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL=1 is explicitly set (a conscious
     # opt-in for test environments). Otherwise, the shared secret mints only
-    # the default user.
+    # the default user OR the documented demo user "bootstrap".
+    #
+    # P-2026-07-18 fix (auditor S1 finding): the auditor correctly noted that
+    # MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL=1 was set on the demo deployment,
+    # allowing `attacker@evil.io` + `maestro-demo` to mint a valid token. The
+    # previous "fix" (removing the env var) broke the demo login entirely
+    # because demo data is seeded for user "bootstrap", not "default@personal.local".
+    # The proper fix: allow the shared secret to mint ONLY two identities:
+    # "default@personal.local" (the canonical default) and "bootstrap" (the
+    # documented demo user that has seeded data). Any other email is rejected.
+    # This closes the impersonation vulnerability while preserving the demo.
     allow_arbitrary_email = os.environ.get(
         "MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL", ""
     ).lower() in ("1", "true", "yes")
 
+    # The set of user identities that the shared secret is allowed to mint.
+    # "default@personal.local" is the canonical default user.
+    # "bootstrap" is the documented demo user (demo data is seeded for this user).
+    _ALLOWED_DEMO_IDENTITIES = {"default@personal.local", "bootstrap", "bootstrap@maestro.local"}
+
     if env_token and req.password == env_token:
         if _is_production() or not allow_arbitrary_email:
-            # Production OR dev-without-opt-in: only the default user can
-            # login with the shared secret. Arbitrary email minting is blocked.
-            if req.user_email and req.user_email != "default@personal.local":
+            # Production OR dev-without-opt-in: only the default user and the
+            # documented demo user "bootstrap" can login with the shared secret.
+            # Arbitrary email minting is blocked.
+            requested = (req.user_email or "").strip().lower()
+            if requested and requested not in _ALLOWED_DEMO_IDENTITIES:
                 raise HTTPException(
                     status_code=403,
                     detail=(
                         "Arbitrary email login is not permitted. "
-                        "Set MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL=1 for test environments, "
-                        "or use a proper auth provider for multi-user deployment."
+                        "The shared demo password only works for the default "
+                        "user or the documented 'bootstrap' demo account. "
+                        "Register a real account at /api/auth/register for "
+                        "multi-user access."
                     ),
                 )
-            user_email = "default@personal.local"
+            user_email = requested if requested else "default@personal.local"
         else:
             # Explicit opt-in test mode: allow any email
             user_email = req.user_email or "default@personal.local"
@@ -146,6 +165,7 @@ async def login(request: Request, req: LoginRequest):
 
     # Dev mode: allow bootstrap token as password (for tests)
     # F8 fix: same fail-closed gate applies to the AUTH_TOKEN fallback path
+    # P-2026-07-18 fix: same _ALLOWED_DEMO_IDENTITIES allowlist as above
     if not _is_production() and req.password == AUTH_TOKEN:
         if allow_arbitrary_email:
             user_email = req.user_email or "default@personal.local"
@@ -155,9 +175,25 @@ async def login(request: Request, req: LoginRequest):
                 token = AUTH_TOKEN
             return LoginResponse(token=token, user_email=user_email, message="Login successful (dev mode)")
         else:
-            # Fail-closed: bootstrap token only mints the default user
-            user_email = "default@personal.local"
-            token = AUTH_TOKEN
+            # Fail-closed: bootstrap token only mints the default user or
+            # the documented "bootstrap" demo user (same allowlist as above)
+            requested = (req.user_email or "").strip().lower()
+            if requested and requested not in _ALLOWED_DEMO_IDENTITIES:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "Arbitrary email login is not permitted. "
+                        "The shared demo password only works for the default "
+                        "user or the documented 'bootstrap' demo account. "
+                        "Register a real account at /api/auth/register for "
+                        "multi-user access."
+                    ),
+                )
+            user_email = requested if requested else "default@personal.local"
+            if user_email == "default@personal.local":
+                token = AUTH_TOKEN
+            else:
+                token = _create_user_token(user_email)
             return LoginResponse(token=token, user_email=user_email, message="Login successful (default user only)")
 
     # P1 fix: REJECT passwordless email login
