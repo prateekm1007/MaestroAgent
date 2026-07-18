@@ -603,7 +603,13 @@ function AnswerCard({
   const tier = confidenceTier(response.confidence);
   const tierLabel = tier === "high" ? "High" : tier === "medium" ? "Medium" : "Low";
   const source = response.intelligence_source || (response.llm_active ? "llm" : "rules");
-  const ttsSupported = typeof window !== "undefined" && "speechSynthesis" in window;
+  // P0 hydration fix: use state + useEffect for TTS support check (was: direct
+  // typeof window check during render, which returns false on server, true on
+  // client → hydration mismatch).
+  const [ttsSupported, setTtsSupported] = useState(false);
+  useEffect(() => {
+    setTtsSupported(typeof window !== "undefined" && "speechSynthesis" in window);
+  }, []);
 
   return (
     <div className="space-y-4">

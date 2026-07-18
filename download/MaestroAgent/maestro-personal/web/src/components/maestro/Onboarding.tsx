@@ -21,7 +21,10 @@ import { cn } from "@/lib/utils";
 const ONBOARDED_KEY = "maestro.onboarded";
 
 export function isOnboarded(): boolean {
-  if (typeof window === "undefined") return true; // SSR — assume onboarded
+  // P0 hydration fix: return false on SSR so the initial client state matches.
+  // The page.tsx mounted guard ensures this is only called from useEffect
+  // (after hydration), so the SSR return value doesn't cause a mismatch.
+  if (typeof window === "undefined") return false;
   return window.localStorage.getItem(ONBOARDED_KEY) === "1";
 }
 

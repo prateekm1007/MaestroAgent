@@ -34,18 +34,25 @@ const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: st
 ];
 
 export default function Home() {
-  // Restore session synchronously on first render — avoids cascading renders.
-  const [authed, setAuthed] = useState<boolean>(() => !!getToken());
-  // P1-9: Onboarding gate — checked once on mount
-  const [onboarded, setOnboarded] = useState<boolean>(true);
+  // P0 hydration fix: use a `mounted` flag so NOTHING that reads localStorage
+  // or window renders until after hydration is complete. This eliminates ALL
+  // server/client mismatches in one shot. The server renders a loading screen,
+  // the client hydrates the same loading screen, then useEffect fires and the
+  // real app appears — no hydration error possible.
+  const [mounted, setMounted] = useState(false);
+  const [authed, setAuthed] = useState<boolean>(false);
+  const [onboarded, setOnboarded] = useState<boolean>(false);
   const [view, setView] = useState<View>("dashboard");
   const [pendingQuery, setPendingQuery] = useState<string | undefined>();
   // P1-8: Entity deep-link from Ask provenance → Commitments filtered by entity
   const [entityFilter, setEntityFilter] = useState<string>("");
   const [llm, setLlm] = useState<LlmStatus | null>(null);
 
-  // P1-9: Check onboarding flag on mount (client-only)
+  // Mount effect — read localStorage/window HERE (not during render).
+  // This runs only on the client, AFTER hydration is complete.
   useEffect(() => {
+    setMounted(true);
+    setAuthed(!!getToken());
     setOnboarded(isOnboarded());
   }, []);
 
@@ -79,6 +86,17 @@ export default function Home() {
   function handleViewCommitmentsForEntity(entity: string) {
     setEntityFilter(entity);
     setView("commitments");
+  }
+
+  // P0 hydration fix: don't render anything until mounted (client-only).
+  // Server renders this loading screen, client hydrates the same loading
+  // screen, then useEffect sets mounted=true and the real app appears.
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground text-sm animate-pulse">Loading…</div>
+      </div>
+    );
   }
 
   // P1-9: Onboarding gate — shown before Login if not onboarded
