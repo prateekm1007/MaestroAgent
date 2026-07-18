@@ -982,7 +982,13 @@ app.include_router(_auth_router.router)
 app.include_router(_ask_router.router)
 app.include_router(_commitments_router.router)
 app.include_router(_signals_router.router)
-app.include_router(_copilot_router.router)
+# P-2026-07-18 fix (auditor roadmap §2.5 + user instruction "don't use copilot"):
+# /api/copilot/* (14 endpoints) is NOT included in the public surface. The
+# backend code remains for potential future Enterprise use, but no routes are
+# mounted. This drops the OpenAPI path count from 98 to ~84 and removes a
+# major source of "wide-but-hollow" API surface that the auditor flagged.
+# To re-enable: uncomment the next line.
+# app.include_router(_copilot_router.router)
 app.include_router(_connectors_router.router)
 app.include_router(_account_router.router)
 app.include_router(_surfaces_router.router)
@@ -1569,8 +1575,10 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
 
 
 # Register the WebSocket route properly
-from fastapi import WebSocket
-app.add_api_websocket_route("/ws/copilot", websocket_copilot_handler)
+# P-2026-07-18 fix: /ws/copilot is also disabled (part of the /api/copilot/*
+# surface that the auditor flagged). To re-enable, uncomment the next line.
+# from fastapi import WebSocket
+# app.add_api_websocket_route("/ws/copilot", websocket_copilot_handler)
 
 
 # ---------------------------------------------------------------------------

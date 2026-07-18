@@ -73,11 +73,26 @@ class DraftResolutionRequest(BaseModel):
 
 
 @router.get("/connectors")
-async def list_connectors(token: str = Depends(verify_token_dep)):
-    """List all available connectors with the user's connection state."""
+async def list_connectors(
+    experimental: bool = False,
+    token: str = Depends(verify_token_dep),
+):
+    """List all available connectors with the user's connection state.
+
+    P-2026-07-18 fix (auditor roadmap §2.1): by default, only show Gmail and
+    Google Calendar — the two connectors that are actually configured for real
+    OAuth. Slack, GitHub, Work Email, WhatsApp, Facebook, Instagram, Twitter
+    are hidden unless ?experimental=true is passed. This prevents the demo
+    from implying promises we can't keep (10 connectors listed, only 2 work).
+    """
     from maestro_personal_shell.connectors import ConnectorStore
     store = ConnectorStore()
-    return {"connectors": store.list_connectors(token)}
+    all_connectors = store.list_connectors(token)
+    if experimental:
+        return {"connectors": all_connectors}
+    # Demo surface: only Gmail + Calendar
+    _DEMO_CONNECTORS = {"gmail", "calendar"}
+    return {"connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS]}
 
 
 # ---------------------------------------------------------------------------

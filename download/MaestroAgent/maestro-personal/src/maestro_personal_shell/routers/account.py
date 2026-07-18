@@ -290,12 +290,27 @@ async def deliver_whispers_push(token: str = Depends(verify_token_dep)):
 
 
 @router.get("/agents")
-async def list_agents(token: str = Depends(verify_token_dep)):
-    """List all wired Nerve agents."""
+async def list_agents(
+    experimental: bool = False,
+    token: str = Depends(verify_token_dep),
+):
+    """List all wired Nerve agents.
+
+    P-2026-07-18 fix (auditor roadmap §2.2): by default, only show 3 agents
+    (Sales, Customer Success, Chief of Staff) — the ones with demoable
+    insights. The other 5 (Product, Engineering, Strategy, Communications,
+    Finance) are hidden unless ?experimental=true. Eight agents with no
+    insights is a red flag; three agents with real insights is a feature.
+    """
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     nerve = shell.nerve
-    return {"agents": nerve.wired_agents, "count": nerve.wired_count}
+    all_agents = nerve.wired_agents
+    if experimental:
+        return {"agents": all_agents, "count": nerve.wired_count}
+    _DEMO_AGENTS = {"sales", "customer_success", "chief_of_staff"}
+    demo_agents = [a for a in all_agents if a in _DEMO_AGENTS]
+    return {"agents": demo_agents, "count": len(demo_agents)}
 
 
 @router.get("/agents/dashboard")
@@ -305,12 +320,23 @@ async def agent_dashboard(
     priority: str = "",
     min_confidence: float = 0.0,
     text: str = "",
+    experimental: bool = False,
 ):
-    """Unified dashboard view: all insights from all agents."""
+    """Unified dashboard view: all insights from all agents.
+
+    P-2026-07-18 fix (auditor roadmap §2.2): filter to 3 demo agents by
+    default. Pass ?experimental=true to see all 8.
+    """
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     nerve = shell.nerve
     insights = nerve.get_insights(situation_text=text) if text else nerve.get_insights()
+
+    # Filter to demo agents unless experimental=true
+    if not experimental:
+        _DEMO_AGENTS = {"sales", "customer_success", "chief_of_staff"}
+        insights = [i for i in insights if i.get("agent") in _DEMO_AGENTS]
+
     if agent:
         insights = [i for i in insights if i.get("agent") == agent]
     if priority:
@@ -658,7 +684,26 @@ async def llm_status(token: str = Depends(verify_token_dep)):
 
 @router.get("/depth")
 async def get_depth(token: str = Depends(verify_token_dep)):
-    """Show which Core modules are wired to Personal (honest: producing_value vs placeholder)."""
+    """Show which Core modules are wired to Personal (honest: producing_value vs placeholder).
+
+    P-2026-07-18 fix (auditor roadmap §2.3): this endpoint is now gated behind
+    an admin token. Self-honesty is a governance practice, not a buyer-facing
+    surface. A Fortune 100 evaluator should never see "producing_value_pct: 57"
+    in their browser. The data still exists internally to guide development;
+    it's just not publicly accessible.
+
+    To access: set MAESTRO_ADMIN_TOKEN env var and pass it as the password
+    in the Authorization header (Bearer <admin_token>).
+    """
+    import os as _os
+    admin_token = _os.environ.get("MAESTRO_ADMIN_TOKEN", "")
+    # If no admin token is configured, return 404 (endpoint doesn't exist publicly)
+    if not admin_token:
+        raise HTTPException(status_code=404, detail="Not Found")
+    # If admin token is configured but the caller's token doesn't match, 403
+    if token != admin_token:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     from maestro_personal_shell.llm_bridge import is_llm_available
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)

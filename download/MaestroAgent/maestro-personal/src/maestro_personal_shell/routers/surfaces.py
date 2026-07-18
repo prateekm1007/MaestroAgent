@@ -16,7 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from maestro_personal_shell.models import (
     PrepareResponse,
@@ -46,21 +46,44 @@ async def verify_token_dep(authorization: str = Header(None)) -> str:
 
 
 class BriefingResponse(BaseModel):
-    """The masterpiece briefing — Situation-centric, not agent-centric."""
+    """The masterpiece briefing — Situation-centric, not agent-centric.
+
+    P-2026-07-18 fix (auditor roadmap §2.4): empty aspirational fields are
+    now omitted from the JSON response (exclude_none=True). Empty strings
+    and empty arrays are converted to None before serialization so they
+    don't appear on the wire. A professional buyer should never see
+    `belief: ""` or `can_decide_now: []` — either populate them or omit them.
+    """
     greeting: str = ""
     top_situation: dict[str, Any] | None = None
-    material_changes: list[str] = []
-    unknowns: list[str] = []
-    disputes: list[dict[str, Any]] = []
-    can_decide_now: list[str] = []
-    cannot_decide_yet: list[str] = []
-    why_boundary: str = ""
-    next_step: str = ""
-    belief: str = ""
-    why_belief: str = ""
-    what_would_change_belief: str = ""
-    watching_quietly: list[dict[str, Any]] = []
-    ask_prompt: str = ""
+    material_changes: list[str] | None = None
+    unknowns: list[str] | None = None
+    disputes: list[dict[str, Any]] | None = None
+    can_decide_now: list[str] | None = None
+    cannot_decide_yet: list[str] | None = None
+    why_boundary: str | None = None
+    next_step: str | None = None
+    belief: str | None = None
+    why_belief: str | None = None
+    what_would_change_belief: str | None = None
+    watching_quietly: list[dict[str, Any]] | None = None
+    ask_prompt: str | None = None
+
+    model_config = {"exclude_none": True}
+
+    @model_validator(mode="after")
+    def _strip_empty_to_none(self):
+        """Convert empty strings and empty lists to None so they're excluded."""
+        for field_name in [
+            "material_changes", "unknowns", "disputes", "can_decide_now",
+            "cannot_decide_yet", "why_boundary", "next_step", "belief",
+            "why_belief", "what_would_change_belief", "watching_quietly",
+            "ask_prompt",
+        ]:
+            val = getattr(self, field_name)
+            if val == "" or val == []:
+                setattr(self, field_name, None)
+        return self
 
 
 class TheMomentResponse(BaseModel):
