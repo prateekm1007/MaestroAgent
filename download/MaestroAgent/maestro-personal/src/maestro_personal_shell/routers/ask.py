@@ -73,6 +73,85 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     shell = await build_shell_async(user_email=token, as_of=as_of, signal_limit=500,
                                     from_date=from_date)
 
+    # S1-01 fix (auditor CRITICAL — evidence boundary violation):
+    # The previous capitalization heuristic was bypassable with lowercase
+    # input ("what did i promise elon musk?" → Alex Chen evidence dumped).
+    # The proper fix: check if the query mentions ANY entity that actually
+    # EXISTS in the user's data (case-insensitive). If no known entity is
+    # mentioned, return a clean refusal immediately — before any retrieval,
+    # LLM call, or fallback. This is the evidence isolation gate.
+    #
+    # Invariant enforced: No matching evidence → no claim, no citation,
+    # no unrelated evidence references. Regardless of capitalization.
+    query_lower = req.query.lower().strip()
+
+    # Skip the gate for genuinely broad queries (no proper nouns at all)
+    # and for queries that are clearly about the user themselves ("what
+    # did I promise?", "what's going on?"). These don't name a specific
+    # entity and are safe to summarize.
+    _BROAD_QUERY_PATTERNS = [
+        "what did i promise", "what's going on", "what is going on",
+        "what do i owe", "review my", "summarize my", "what changed",
+        "what's new", "what is new", "give me an overview",
+        "what are my commitments", "how many commitments",
+        "what commitments", "anything urgent", "what's at risk",
+    ]
+    _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
+
+    if not _is_broad_query:
+        # Build the set of known entities from the user's signals (case-insensitive)
+        known_entities_lower = set()
+        for sig in shell.oem_state.signals:
+            sig_entity = str(getattr(sig, "entity", "")).strip()
+            if sig_entity:
+                known_entities_lower.add(sig_entity.lower())
+
+        # Also add entities from situations
+        try:
+            for s in shell.detect_situations():
+                s_entity = str(getattr(s, "entity", "")).strip()
+                if s_entity:
+                    known_entities_lower.add(s_entity.lower())
+        except Exception:
+            pass
+
+        # Check if ANY known entity appears in the query (case-insensitive)
+        _query_mentions_known_entity = False
+        for entity_lower in known_entities_lower:
+            if entity_lower and entity_lower in query_lower:
+                _query_mentions_known_entity = True
+                break
+
+        if not _query_mentions_known_entity and known_entities_lower:
+            # The query doesn't mention any known entity — return clean refusal
+            logger.info(
+                "S1-01 evidence isolation gate: query '%s' doesn't match any "
+                "known entity %s — returning clean refusal (no evidence dump)",
+                req.query[:80], list(known_entities_lower)[:5],
+            )
+            return AskResponse(
+                answer="I don't have enough information to answer that question. "
+                       "No matching signals were found in your stored data.",
+                query=req.query,
+                source_sentence="",
+                source_entity="",
+                source_timestamp="",
+                situation_state="",
+                evidence_refs=[],
+                confidence=0.0,
+                counterevidence=[],
+                unknowns=["No evidence found for this query."],
+                as_of=str(as_of or ""),
+                decision_boundary="",
+                perspectives=[],
+                reasoning_chain=[],
+                calibration_note="",
+                consequence_paths=[],
+                llm_active=False,
+                llm_provider="none",
+                intelligence_source="rules",
+            )
+
     from maestro_personal_shell.surfaces.ask import AskSurface
     surface = AskSurface(shell=shell)
     result = surface.ask(req.query)
