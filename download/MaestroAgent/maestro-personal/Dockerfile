@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # because pyproject.toml says packages.find where = ["src"])
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
-COPY .z-ai-config ./
 
 # Install (non-editable — no need for -e in production)
 RUN pip install --no-cache-dir "."
