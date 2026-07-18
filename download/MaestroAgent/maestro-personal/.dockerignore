@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+__pycache__
+*.pyc
+*.db
+.env
+.venv
+maestro-venv
+tests/
+evaluation/
+docs/
+mobile/
+web/
