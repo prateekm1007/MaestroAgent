@@ -1,0 +1,622 @@
+{
+  "round": 68,
+  "timestamp": "2026-07-18T02:10:35.624836+00:00",
+  "llm_active": true,
+  "llm_provider": "zai-glm-http",
+  "total_questions": 30,
+  "full_maestro_avg": 7.02,
+  "llm_only_avg": 2.0,
+  "lift_maestro_vs_llm_only": 250.8,
+  "old_artifact": {
+    "bm25": 0.55,
+    "full_maestro": 0.5,
+    "rule_based": 0.45,
+    "lift_B_vs_A": -5.0,
+    "llm_active": 0,
+    "total_questions": 10
+  },
+  "maestro_results": [
+    {
+      "id": "F1",
+      "query": "What did Alex Chen commit to for the Orion migration?",
+      "answer": "**Regarding your question about promises to Alex Chen:**\n  \u2022 Orion migration plan delivered to the team\n  \u2022 I will deliver the Orion migration plan by March 15\n\n**Alex Chen: The Orion migration will d",
+      "score": 9.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.2
+    },
+    {
+      "id": "F2",
+      "query": "When did Jamie Lee say the API migration was delayed?",
+      "answer": "**Regarding: When did Jamie Lee say the API migration was delayed?**\n\n**Jamie Lee: I will have the API migration done by March 25**\nState: observing | Epistemic: assumed\n\n**What's been reported (not y",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "F3",
+      "query": "What did Priya Patel say about the regression suite?",
+      "answer": "**Regarding: What did Priya Patel say about the regression suite?**\n\n**Priya Patel: I will create the test plan for Orion by March 28**\nState: material | Epistemic: disputed\n\n**What's been reported (n",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "F4",
+      "query": "What did Frank Wong deliver for the Delta integration?",
+      "answer": "**Regarding: What did Frank Wong deliver for the Delta integration?**\n\n**Frank Wong: I will build the Delta API integration by April 20**\nState: observing | Epistemic: assumed\n\n**What's been reported ",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "F5",
+      "query": "What did Grace Kim present at the all-hands meeting?",
+      "answer": "**Regarding: What did Grace Kim present at the all-hands meeting?**\n\n**Grace Kim: I will update the product roadmap after the Delta integratio**\nState: observing | Epistemic: assumed\n\n**What's been re",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "F6",
+      "query": "What did Eve Smith say about AcmeCorp churning?",
+      "answer": "**Regarding: What did Eve Smith say about AcmeCorp churning?**\n\n**Eve Smith: I will check in with the AcmeCorp account by April 15**\nState: observing | Epistemic: assumed\n\n**What's been reported (not ",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "F7",
+      "query": "What did Carol Torres propose for the Phoenix launch date?",
+      "answer": "**Regarding: What did Carol Torres propose for the Phoenix launch date?**\n\n**Carol Torres: I will review all Phoenix project documents by April 30**\nState: observing | Epistemic: assumed\n\n**What's bee",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "F8",
+      "query": "What did David Kim transition to Carol Torres?",
+      "answer": "**Regarding: What did David Kim transition to Carol Torres?**\n\n**David Kim: I will present the Phoenix launch plan to the board by April**\nState: observing | Epistemic: assumed\n\n**What's been reported",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "F9",
+      "query": "What security incident was detected?",
+      "answer": "**Regarding unresolved issues for Priya Patel (query: 'What security incident was detected?'):**\n  \u2022 Was the security condition for Priya Patel cleared? **Priya Patel: I will create the test plan for ",
+      "score": 4.0,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.0
+    },
+    {
+      "id": "F10",
+      "query": "What legal issue was identified?",
+      "answer": "**Regarding: What legal issue was identified?**\n\n**Alex Chen: The Orion migration will definitely be done by March 15**\nState: observing | Epistemic: assumed\n\n**What's been reported (not yet verified)",
+      "score": 4.0,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E1",
+      "query": "What did Jamie Lee promise about the database schema?",
+      "answer": "**Regarding your question about promises to Jamie Lee:**\n  \u2022 I will deliver the database schema by March 30\n\n**Jamie Lee: I will have the API migration done by March 25**\nState: observing | Epistemic:",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E2",
+      "query": "What did Carol Torres commit to reviewing?",
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Carol Torres, the key commitment is: Carol Torres: I will review all Phoenix project documents by April 30\n\n**Carol Torres: I wil",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E3",
+      "query": "What did Frank Wong say about integration testing?",
+      "answer": "**Regarding: What did Frank Wong say about integration testing?**\n\n**Frank Wong: I will build the Delta API integration by April 20**\nState: observing | Epistemic: assumed\n\n**What's been reported (not",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E4",
+      "query": "What did Eve Smith schedule with AcmeCorp?",
+      "answer": "**Regarding: What did Eve Smith schedule with AcmeCorp?**\n\n**Eve Smith: I will check in with the AcmeCorp account by April 15**\nState: observing | Epistemic: assumed\n\n**What's been reported (not yet v",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E5",
+      "query": "What did Alex Chen say about mentoring?",
+      "answer": "**Regarding: What did Alex Chen say about mentoring?**\n\n**Alex Chen: The Orion migration will definitely be done by March 15**\nState: observing | Epistemic: assumed\n\n**What's been reported (not yet ve",
+      "score": 9.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E6",
+      "query": "What did Priya Patel commit to attending?",
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Priya Patel, the key commitment is: Priya Patel: I will create the test plan for Orion by March 28\n\n**Priya Patel: I will create ",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 2,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E7",
+      "query": "What did Grace Kim say about the Q3 strategy?",
+      "answer": "**Regarding: What did Grace Kim say about the Q3 strategy?**\n\n**Grace Kim: I will update the product roadmap after the Delta integratio**\nState: observing | Epistemic: assumed\n\n**What's been reported ",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "E8",
+      "query": "What did David Kim present to the board?",
+      "answer": "**Regarding: What did David Kim present to the board?**\n\n**David Kim: I will present the Phoenix launch plan to the board by April**\nState: observing | Epistemic: assumed\n\n**What's been reported (not ",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "A1",
+      "query": "Who has become a delivery risk on the Orion project?",
+      "answer": "I don't have enough information to answer that question. No signals found for entity: Orion.",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "A2",
+      "query": "What leadership change happened on the Phoenix project?",
+      "answer": "I don't have enough information to answer that question. No signals found for entity: Phoenix.",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "A3",
+      "query": "What critical events need immediate attention?",
+      "answer": "**Regarding: What critical events need immediate attention?**\n\n**Alex Chen: The Orion migration will definitely be done by March 15**\nState: observing | Epistemic: assumed\n\n**What's been reported (not",
+      "score": 5.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "A4",
+      "query": "Who am I repeatedly disappointing?",
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stored data.",
+      "score": 2.0,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "A5",
+      "query": "Which commitments are now overdue?",
+      "answer": "I don't have enough information to answer that question. No signals found for entity: Which.",
+      "score": 4.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "C1",
+      "query": "What contradictions exist in the Orion migration timeline?",
+      "answer": "I don't have enough information to answer that question. No signals found for entity: Orion.",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "C2",
+      "query": "Did the Phoenix launch date change? What was the original vs new date?",
+      "answer": "I don't have enough information to answer that question. No signals found for entity: Phoenix.",
+      "score": 4.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "C3",
+      "query": "What did Alex Chen say that contradicts now?",
+      "answer": "**Regarding: What did Alex Chen say that contradicts now?**\n\n**Alex Chen: The Orion migration will definitely be done by March 15**\nState: observing | Epistemic: assumed\n\n**What's been reported (not y",
+      "score": 10.0,
+      "entity_correct": true,
+      "keyword_hits": 3,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "T1",
+      "query": "What did I commit to in the last 30 days?",
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stored data.",
+      "score": 5.0,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "T2",
+      "query": "What happened with the Orion migration 60-90 days ago?",
+      "answer": "I don't have enough information to answer that question. No signals found for entity: Orion.",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "T3",
+      "query": "What changed recently about the Phoenix project?",
+      "answer": "I don't have enough information to answer that question. No signals found for entity: Phoenix.",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.1
+    },
+    {
+      "id": "T4",
+      "query": "What critical alerts occurred in the last 10 days?",
+      "answer": "**Regarding: What critical alerts occurred in the last 10 days?**\n\n**Newsletter situation**\nState: observing | Epistemic: reported\n\n**What's been reported (not yet verified):**\n  \u2022 Weekly tech newslet",
+      "score": 5.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": false,
+      "intelligence_source": "rules",
+      "llm_active": false,
+      "latency_s": 0.0
+    }
+  ],
+  "llm_only_results": [
+    {
+      "id": "F1",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F2",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F3",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F4",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F5",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F6",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F7",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F8",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F9",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "F10",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E1",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E2",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E3",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E4",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E5",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E6",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E7",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "E8",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "A1",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "A2",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "A3",
+      "score": 4.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "A4",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "A5",
+      "score": 4.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "C1",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "C2",
+      "score": 4.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "C3",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "T1",
+      "score": 4.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "T2",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "T3",
+      "score": 1.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    },
+    {
+      "id": "T4",
+      "score": 4.5,
+      "entity_correct": false,
+      "keyword_hits": 0,
+      "abstained": true,
+      "answer": "I don't have enough information to answer that. (RuntimeError)"
+    }
+  ]
+}

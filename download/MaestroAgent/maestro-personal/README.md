@@ -187,11 +187,60 @@ cd maestro-personal && python -m pytest tests/ -q
 
 ## LLM Integration
 
-- Cloud (OpenAI/Anthropic), local (Ollama), and rule-based fallback
-- When no LLM is available: `llm_active: false`, `mode: "Rule-based"`
-- All user text sanitized via `sanitize_for_llm()` before entering LLM prompts
-- Homoglyph + leetspeak normalization + 60+ injection patterns
-- Semantic injection check (LLM-based defense in depth)
+### Provider Priority (automatic — tries in order)
+
+1. **ZAI HTTP Router** (if `/etc/.z-ai-config` or `~/.z-ai-config` exists) — Python-native, no Node.js needed. Calls the ZAI GLM API via httpx. Rate-limited to 30 req/10min. When rate-limited, automatically falls through to Ollama.
+2. **ZAI CLI** (if `z-ai` is on PATH) — requires `npm install -g z-ai-web-dev-sdk`.
+3. **Cloud providers** (if `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` / `XAI_API_KEY` is set) — production deployments.
+4. **Local Ollama** (if running on `http://127.0.0.1:11434`) — offline / on-prem. No rate limits.
+
+When no LLM is available: `llm_active: false`, `mode: "Rule-based (keyword fallback)"`.
+All user text sanitized via `sanitize_for_llm()` before entering LLM prompts.
+Homoglyph + leetspeak normalization + 60+ injection patterns.
+Semantic injection check (LLM-based defense in depth).
+
+### Setting up Ollama (reproducible — works on any machine)
+
+```bash
+# 1. Install Ollama (Linux)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. Start the Ollama server
+ollama serve &
+
+# 3. Pull a small model (qwen2.5:0.5b = 397MB, runs on CPU)
+ollama pull qwen2.5:0.5b
+
+# 4. Set env vars + start the backend
+export OLLAMA_HOST=http://127.0.0.1:11434
+export OLLAMA_MODEL=qwen2.5:0.5b
+cd maestro-personal
+PYTHONPATH=src python -m maestro_personal_shell.api
+
+# 5. Verify LLM is active
+curl -s http://localhost:8766/api/llm-status | python -m json.tool
+# Expected: {"active": true, "provider": "ollama", ...}
+```
+
+For larger models (better quality, needs GPU):
+```bash
+ollama pull llama3:8b    # 4.7GB, needs 8GB+ RAM or GPU
+ollama pull qwen2.5:7b   # 4.7GB, good quality/size ratio
+```
+
+### Running the Ablation Benchmark
+
+```bash
+# With LLM active (Ollama or ZAI):
+cd maestro-personal
+PYTHONPATH=src python ../scripts/run_ablation_benchmark.py
+
+# Or via pytest (marked as llm_integration — skipped by default):
+PYTHONPATH=src python -m pytest tests/test_ablation_benchmark.py -v -m "llm_integration"
+```
+
+The benchmark tests 30 questions across 5 categories (factual, entity-specific,
+abstract, contradiction, temporal) and compares Full Maestro vs LLM-only.
 
 ## What this is NOT
 

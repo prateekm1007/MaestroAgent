@@ -60,12 +60,30 @@ class ZAIHTTPRouter:
     where the config file exists.
 
     Provider priority: ZAIHTTPRouter > ZAIRouter (CLI) > cloud > Ollama
+
+    Round 68 fix: _rate_limited_until is now a CLASS variable, not
+    instance-level. Previously, each new ZAIHTTPRouter() instance had
+    its own cooldown timer at 0.0, so get_llm_router() could create a
+    fresh instance (cooldown=0) even when a prior instance had set a
+    60s cooldown after a 429. This caused the bridge to pick ZAI
+    (health_check=True because cooldown=0 on the new instance), then
+    every complete() call would hit the API, get another 429, and
+    set a new cooldown — repeating the cycle. Now: the cooldown is
+    shared across all instances, so once any instance hits 429, all
+    instances (including new ones) report unhealthy until cooldown
+    expires. This lets get_llm_router() fall through to Ollama.
     """
+
+    # CLASS-LEVEL rate-limit cooldown — shared across all instances.
+    # Set when any instance receives a 429, checked by health_check().
+    _rate_limited_until_cls: float = 0.0
 
     def __init__(self) -> None:
         self.default_provider = "zai-glm-http"
         self._config = None
         self._config_checked = False
+        # Instance ref to the class-level cooldown for backward compat
+        # with code that reads self._rate_limited_until
         self._rate_limited_until = 0.0
 
     def _load_config(self) -> dict[str, str] | None:
@@ -105,9 +123,21 @@ class ZAIHTTPRouter:
         return self._config
 
     def health_check(self) -> bool:
-        """Check if the z-ai config file exists and is valid."""
+        """Check if the z-ai config file exists and is valid.
+
+        Round 68 fix: also returns False if the router is in rate-limit
+        cooldown. Uses the CLASS-LEVEL _rate_limited_until_cls so that
+        any instance hitting 429 makes all instances (including new ones)
+        report unhealthy. This lets get_llm_router() fall through to Ollama.
+        """
+        import time as _time
         config = self._load_config()
-        return config is not None
+        if not config:
+            return False
+        # Check CLASS-LEVEL cooldown (shared across all instances)
+        if ZAIHTTPRouter._rate_limited_until_cls > 0 and _time.time() < ZAIHTTPRouter._rate_limited_until_cls:
+            return False
+        return True
 
     async def complete(
         self,
@@ -119,8 +149,8 @@ class ZAIHTTPRouter:
         """Call the z-ai chat completions API directly via httpx."""
         import time as _time
 
-        # Rate-limit cooldown
-        if self._rate_limited_until > 0 and _time.time() < self._rate_limited_until:
+        # Rate-limit cooldown (class-level)
+        if ZAIHTTPRouter._rate_limited_until_cls > 0 and _time.time() < ZAIHTTPRouter._rate_limited_until_cls:
             raise RuntimeError("ZAI HTTP in rate-limit cooldown — skipping call")
 
         config = self._load_config()
@@ -180,7 +210,9 @@ class ZAIHTTPRouter:
                 resp = httpx.post(url, json=body, headers=headers, timeout=2.5)
                 if resp.status_code == 429:
                     # P0-1 fix: fast-fail on 429, set 60s cooldown, no retries
-                    self._rate_limited_until = _time.time() + 60.0
+                    # Round 68: set CLASS-LEVEL cooldown so all instances report unhealthy
+                    ZAIHTTPRouter._rate_limited_until_cls = _time.time() + 60.0
+                    self._rate_limited_until = ZAIHTTPRouter._rate_limited_until_cls
                     raise RuntimeError("ZAI HTTP rate limited (429) — cooldown 60s")
 
                 resp.raise_for_status()
@@ -456,10 +488,24 @@ def get_llm_router() -> Any:
     4. Local Ollama (http://localhost:11434) — offline / on-prem.
 
     Returns None if no provider is available.
+
+    Round 68 fix: if the cached router has become unhealthy (e.g. ZAI
+    entered rate-limit cooldown after the initial health_check passed),
+    the cache is invalidated and a new router is initialized. This
+    prevents the bridge from returning a dead router that will fail
+    on every subsequent call.
     """
     global _router, _router_checked
-    if _router_checked:
-        return _router
+    if _router_checked and _router is not None:
+        # Check if the cached router is still healthy. If not, re-initialize.
+        if hasattr(_router, 'health_check') and not _router.health_check():
+            logger.info("Cached LLM router %s became unhealthy — re-initializing", type(_router).__name__)
+            _router = None
+            _router_checked = False
+        else:
+            return _router
+    if _router_checked and _router is None:
+        return None  # Already checked, no router available
     _router_checked = True
 
     # 1. Try ZAI HTTP Router FIRST — pure Python, no Node.js needed.
@@ -566,10 +612,56 @@ def reset_llm_router() -> None:
     global _router, _router_checked
     _router = None
     _router_checked = False
+    # Also clear the ZAI class-level cooldown so tests get a fresh start
+    ZAIHTTPRouter._rate_limited_until_cls = 0.0
     # Also clear the probe cache so tests get a fresh probe
     global _probe_cache, _probe_cache_time
     _probe_cache = None
     _probe_cache_time = 0.0
+
+
+def _get_fallback_router(primary: Any) -> Any:
+    """Get a fallback LLM router when the primary fails.
+
+    Round 68 fix: called by llm_complete() when the primary router raises
+    (e.g. ZAI 429 rate-limit). Tries the remaining providers in priority
+    order, skipping the primary. Returns None if no fallback is available.
+
+    Priority order (same as get_llm_router, but skipping the primary):
+      1. ZAI HTTP (if primary isn't ZAI and ZAI isn't in cooldown)
+      2. Local Ollama (always tries this as fallback)
+      3. Cloud providers (OPENAI_API_KEY etc.)
+    """
+    # If primary is ZAI, try Ollama
+    if isinstance(primary, ZAIHTTPRouter):
+        try:
+            _ollama = _OllamaDirectRouter()
+            if _ollama.health_check():
+                return _ollama
+        except Exception:
+            pass
+        # Also try maestro_llm cloud
+        try:
+            import sys as _sys
+            import pathlib as _pl
+            _backend_dir = str(_pl.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+            if _backend_dir not in _sys.path:
+                _sys.path.insert(0, _backend_dir)
+            from maestro_llm.router import LLMRouter
+            if LLMRouter.has_env_provider():
+                return LLMRouter.from_env_sync()
+        except Exception:
+            pass
+    # If primary is Ollama, try ZAI
+    elif isinstance(primary, _OllamaDirectRouter):
+        try:
+            zai = ZAIHTTPRouter()
+            if zai.health_check():
+                return zai
+        except Exception:
+            pass
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -1330,7 +1422,33 @@ async def llm_complete(
 
         return result
     except Exception as e:
-        logger.debug("LLM complete failed: %s", e)
+        logger.debug("LLM complete failed with %s: %s — trying fallback", type(router).__name__, e)
+
+        # Round 68 fix: if the primary router failed (e.g. ZAI rate-limited),
+        # try the NEXT available provider before giving up. This is what makes
+        # the LLM actually active when ZAI hits its 30/10min rate limit —
+        # without this, every Ask silently falls back to rules.
+        fallback = _get_fallback_router(router)
+        if fallback and fallback is not router:
+            try:
+                response = await asyncio.wait_for(
+                    fallback.complete(
+                        system=system,
+                        user=user,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                    ),
+                    timeout=LLM_LATENCY_BUDGET_SECONDS,
+                )
+                result = response.text
+                result = validate_llm_output(result)
+                if result is not None:
+                    _cache_put(cache_key, result)
+                    logger.info("LLM fallback to %s succeeded", type(fallback).__name__)
+                    return result
+            except Exception as e2:
+                logger.debug("LLM fallback also failed: %s", e2)
+
         return None
 
 
