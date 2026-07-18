@@ -33,6 +33,33 @@ export type Connector = any;
 export type Draft = any;
 export type TranscriptLine = any;
 
+// Round 69 audit: Agents + Commitment Simulation types
+export type AgentInsight = {
+  agent: string;
+  title: string;
+  body: string;
+  confidence: number;
+  evidence_chain: Array<Record<string, unknown>>;
+  recommended_action: string;
+  priority: "low" | "medium" | "high" | string;
+};
+
+export type AgentDashboard = {
+  total_insights: number;
+  agent_count: number;
+  by_agent: Record<string, { count: number; insights: AgentInsight[] }>;
+  filters?: Record<string, unknown>;
+};
+
+export type SimulationResult = {
+  risk_level: "low" | "medium" | "high";
+  conflicts: string[];
+  recommendation: "proceed" | "negotiate deadline" | "decline";
+  active_commitment_count: number;
+  entity_commitment_count: number;
+  risk_score: number;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Token + mode storage                                              */
 /* ------------------------------------------------------------------ */
@@ -780,6 +807,60 @@ export const maestroApi = {
       "/api/privacy/retention-status",
       {},
       { policy: {}, ttls: {}, message: "Retention status unavailable." },
+    );
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Agents + Commitment Simulation (Round 69 audit: was 0% wired)     */
+  /* ------------------------------------------------------------------ */
+
+  async listAgents(): Promise<{ data: { agents: string[]; count: number }; live: boolean }> {
+    return maestroFetch<{ agents: string[]; count: number }>(
+      "/api/agents",
+      {},
+      { agents: [], count: 0 },
+    );
+  },
+
+  async getAgentDashboard(filters?: {
+    agent?: string;
+    priority?: string;
+    min_confidence?: number;
+    text?: string;
+  }): Promise<{ data: AgentDashboard; live: boolean }> {
+    const params = new URLSearchParams();
+    if (filters?.agent) params.set("agent", filters.agent);
+    if (filters?.priority) params.set("priority", filters.priority);
+    if (filters?.min_confidence) params.set("min_confidence", String(filters.min_confidence));
+    if (filters?.text) params.set("text", filters.text);
+    const qs = params.toString();
+    return maestroFetch<AgentDashboard>(
+      `/api/agents/dashboard${qs ? "?" + qs : ""}`,
+      {},
+      { total_insights: 0, agent_count: 0, by_agent: {}, filters: {} },
+    );
+  },
+
+  async getRelevantAgents(text: string): Promise<{ data: { relevant_agents: string[]; text: string }; live: boolean }> {
+    const qs = text ? `?text=${encodeURIComponent(text)}` : "";
+    return maestroFetch<{ relevant_agents: string[]; text: string }>(
+      `/api/agents/relevant${qs}`,
+      {},
+      { relevant_agents: [], text },
+    );
+  },
+
+  async simulateCommitment(payload: {
+    commitment_text: string;
+    entity: string;
+    deadline?: string;
+  }): Promise<{ data: SimulationResult; live: boolean }> {
+    return maestroFetch<SimulationResult>(
+      "/api/commitments/simulate",
+      { method: "POST", body: JSON.stringify(payload) },
+      // No fallback — re-throws on failure so caller can show error
+      undefined,
+      15000, // 15s timeout — simulation may compute conflicts across many commitments
     );
   },
 };

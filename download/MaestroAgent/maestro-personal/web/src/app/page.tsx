@@ -7,6 +7,7 @@ import {
   LogOut,
   Search,
   Settings as SettingsIcon,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,14 +23,16 @@ import { Dashboard } from "@/components/maestro/Dashboard";
 import { Ask } from "@/components/maestro/Ask";
 import { Commitments } from "@/components/maestro/Commitments";
 import { Settings } from "@/components/maestro/Settings";
+import { Agents } from "@/components/maestro/Agents";
 import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
 
-type View = "dashboard" | "ask" | "commitments" | "settings";
+type View = "dashboard" | "ask" | "commitments" | "agents" | "settings";
 
 const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "ask", label: "Ask", icon: Search },
   { id: "commitments", label: "Commitments", icon: CheckCircle },
+  { id: "agents", label: "Agents", icon: Users },
   { id: "settings", label: "More", icon: SettingsIcon },
 ];
 
@@ -205,6 +208,7 @@ export default function Home() {
               onEntityFilterConsumed={() => setEntityFilter("")}
             />
           )}
+          {view === "agents" && <Agents />}
           {view === "settings" && <Settings />}
         </main>
       </div>
