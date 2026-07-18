@@ -170,15 +170,20 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
     store = ConnectorStore()  # already created above for the already-connected check
 
     # P0 honesty fix: if no OAuth is configured AND no oauth_token is provided,
-    # we must NOT return connected: True. No demo-mode fallback — fail closed
-    # with a clear error telling the user exactly what env vars to set.
+    # we must NOT return connected: True. No demo-mode fallback — fail closed.
+    # P-2026-07-18 fix (auditor P3 finding): do NOT template the caller-supplied
+    # provider name into the env var names — that leaks the config convention
+    # and looks unprofessional. Use a generic message that tells the user
+    # OAuth isn't configured for this provider without revealing internal
+    # variable naming. Real users see this in the UI; they don't need to know
+    # the env var names. Admins/developers can read the docs.
     if not req.oauth_token:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"{provider} OAuth not configured. Set MAESTRO_{provider.upper()}_CLIENT_ID "
-                f"and MAESTRO_{provider.upper()}_CLIENT_SECRET environment variables to enable "
-                f"real OAuth. See docs/CONNECTOR_OAUTH_SETUP.md for setup instructions."
+                f"OAuth is not configured for '{provider}'. "
+                f"Ask your administrator to configure this connector, "
+                f"or see docs/CONNECTOR_OAUTH_SETUP.md for setup instructions."
             ),
         )
 

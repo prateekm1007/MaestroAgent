@@ -91,12 +91,21 @@ async def login(request: Request, req: LoginRequest):
     - Login requires password validation against user store (future)
 
     This closes the P0-2 passwordless login vulnerability.
+
+    P-2026-07-18 fix (auditor S3 finding): accept both `user_email` and
+    `email` fields. Previously, sending `email` was silently ignored and
+    the login defaulted to "default@personal.local" — confusing first-touch
+    UX for API clients who guess the field name.
     """
     from maestro_personal_shell.api import (
         _is_production,
         AUTH_TOKEN,
         _create_user_token,
     )
+
+    # Merge `email` alias into `user_email` if user_email is empty
+    if not req.user_email and req.email:
+        req.user_email = req.email
 
     env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
 

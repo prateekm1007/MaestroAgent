@@ -26,7 +26,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Maestro" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    // P-2026-07-18 fix (auditor S1 finding): was pointing at
+    // https://z-cdn.chatglm.cn/z-ai/static/logo.svg — a third-party CDN
+    // hosted in China, left over from the Z-AI/ChatGLM starter template.
+    // Replaced with a local Maestro-branded favicon (yellow circle +
+    // lightning bolt, matching the MaestroMark component).
+    icon: "/favicon.svg",
   },
 };
 

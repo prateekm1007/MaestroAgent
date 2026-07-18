@@ -20,7 +20,12 @@ from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
+    # P-2026-07-18 fix (auditor S3 finding): accept both `user_email` (the
+    # canonical field) and `email` (the intuitive field most API clients try
+    # first). Previously, sending `email` was silently ignored and the login
+    # defaulted to "default@personal.local" — confusing first-touch UX.
     user_email: str = ""
+    email: str = ""  # alias — merged into user_email in the login handler
     password: str = ""
 
 
