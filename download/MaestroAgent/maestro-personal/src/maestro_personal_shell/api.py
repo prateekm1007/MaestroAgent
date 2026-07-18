@@ -778,6 +778,14 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
             timestamp = datetime.now(timezone.utc)
 
         meta = json.loads(row["metadata"]) if row["metadata"] else {}
+        # Fix: metadata might be a string instead of a dict (demo_seeder stores it as JSON string)
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
 
         # F9 fix: skip dismissed/cancelled/completed signals at load time
         status = meta.get("status") or meta.get("correction")
