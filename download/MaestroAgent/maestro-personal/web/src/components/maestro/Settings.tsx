@@ -261,6 +261,14 @@ export function Settings() {
         </p>
       </div>
 
+      {/* Connectors — moved to TOP of More page (P-2026-07-18 fix).
+          Previously buried ~3500px down the page after 7 settings cards,
+          so users couldn't see Gmail/Calendar/Slack/etc. without scrolling
+          past LLM Status, Privacy, Calibration, Your Data, Insights,
+          Metrics, and Notifications. Connectors are the most-used feature
+          on this page — they should be the first thing the user sees. */}
+      <Connectors />
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* LLM status */}
         <Card className="border-border/60">
@@ -656,9 +664,6 @@ export function Settings() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Connectors — connect/disconnect/sync (merged from old Connectors tab) */}
-      <Connectors />
 
       {/* Per-connector consent (Task 59-7) */}
       <Card className="border-border/60">
