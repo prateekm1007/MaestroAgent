@@ -191,6 +191,72 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 intelligence_source="rules",
             )
 
+    # Broad query handler: for queries like "what is going on?" or
+    # "what did I promise?" (without naming a specific entity), return
+    # a useful summary of the user's active commitments and situations.
+    # The auditor noted these returned empty after the S1-01 fix removed
+    # the "load all signals" fallback. This replaces that with a structured
+    # summary that's safe (no unrelated entity leakage) and useful.
+    if _is_broad_query:
+        try:
+            all_sigs = load_signals_from_db(user_email=token, limit=50)
+            if all_sigs:
+                # Build a summary grouped by entity
+                entity_map = {}
+                for sig in all_sigs:
+                    if isinstance(sig, dict):
+                        ent = sig.get("entity", "Unknown")
+                        if ent not in entity_map:
+                            entity_map[ent] = []
+                        entity_map[ent].append(sig)
+
+                summary_lines = []
+                evidence_refs = []
+                for ent, sigs in list(entity_map.items())[:5]:  # top 5 entities
+                    latest = sigs[0] if sigs else {}
+                    text = latest.get("text", "")
+                    ts = latest.get("timestamp", "")
+                    summary_lines.append(f"• {ent}: {text[:100]}")
+                    if text:
+                        evidence_refs.append({
+                            "text": text,
+                            "entity": ent,
+                            "timestamp": str(ts),
+                            "signal_id": latest.get("signal_id", ""),
+                            "source_type": "manual",
+                        })
+
+                answer = f"You have {len(all_sigs)} signals across {len(entity_map)} entities:\n" + "\n".join(summary_lines)
+                if len(entity_map) > 5:
+                    answer += f"\n...and {len(entity_map) - 5} more."
+
+                logger.info("Broad query '%s' → summary of %d signals across %d entities",
+                            req.query[:50], len(all_sigs), len(entity_map))
+
+                return AskResponse(
+                    answer=answer,
+                    query=req.query,
+                    source_sentence=evidence_refs[0]["text"] if evidence_refs else "",
+                    source_entity=evidence_refs[0]["entity"] if evidence_refs else "",
+                    source_timestamp=evidence_refs[0]["timestamp"] if evidence_refs else "",
+                    situation_state="",
+                    evidence_refs=evidence_refs[:5],
+                    confidence=0.6,
+                    counterevidence=[],
+                    unknowns=[],
+                    as_of=str(as_of or ""),
+                    decision_boundary="",
+                    perspectives=[],
+                    reasoning_chain=[],
+                    calibration_note="",
+                    consequence_paths=[],
+                    llm_active=False,
+                    llm_provider="none",
+                    intelligence_source="rules",
+                )
+        except Exception as e:
+            logger.debug("Broad query handler failed: %s", e)
+
     from maestro_personal_shell.surfaces.ask import AskSurface
     surface = AskSurface(shell=shell)
     result = surface.ask(req.query)

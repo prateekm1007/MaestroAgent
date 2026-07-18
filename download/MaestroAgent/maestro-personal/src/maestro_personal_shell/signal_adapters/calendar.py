@@ -62,13 +62,31 @@ def extract_signals_from_event(
     summary = event.get("summary", "Untitled event")
     status = event.get("status", "confirmed")
 
-    start_str = event.get("start", {}).get("dateTime") or event.get("start", {}).get("date", "")
+    # S2-04 fix (auditor finding): handle both string and dict forms for
+    # start/end. Google Calendar API returns dicts like {"dateTime": "...",
+    # "timeZone": "..."}, but some clients send plain strings like
+    # "2026-07-19T10:00:00Z". The previous code called .get("dateTime") on
+    # the value, which crashed with AttributeError when the value was a string.
+    def _extract_datetime(val):
+        """Extract datetime string from either a dict or a plain string."""
+        if isinstance(val, dict):
+            return val.get("dateTime") or val.get("date", "")
+        elif isinstance(val, str):
+            return val
+        return ""
+
+    start_raw = event.get("start", {})
+    end_raw = event.get("end", {})
+    start_str = _extract_datetime(start_raw)
+    end_str = _extract_datetime(end_raw)
     start_time = _parse_datetime(start_str) if start_str else datetime.now(timezone.utc)
 
     # Extract primary attendee (the person the user is meeting with)
     attendees = event.get("attendees", [])
     entity = "unknown"
     for attendee in attendees:
+        if not isinstance(attendee, dict):
+            continue
         email = attendee.get("email", "")
         if email.lower() != user_email.lower():
             entity = attendee.get("displayName") or email.split("@")[0]
