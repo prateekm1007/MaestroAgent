@@ -1,0 +1,29 @@
+.git
+node_modules
+.next
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+maestro-venv
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+dist
+build
+
+# Exclude web/mobile build artifacts (we only need source for backend)
+download/MaestroAgent/maestro-personal/web/.next
+download/MaestroAgent/maestro-personal/web/node_modules
+download/MaestroAgent/maestro-personal/mobile/node_modules
+
+# Exclude other large dirs not needed for backend build
+download/MaestroAgent/maestro-personal/download
+download/MaestroAgent/download
+download/MaestroAgent/docs
+download/MaestroAgent/static
