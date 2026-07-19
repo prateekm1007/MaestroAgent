@@ -1610,6 +1610,8 @@ Situation: {title}
 Entity: {entity}
 Current state: {state}
 
+The following evidence is about {entity}. Use it to answer the question.
+
 Evidence:
 {evidence_text}
 
