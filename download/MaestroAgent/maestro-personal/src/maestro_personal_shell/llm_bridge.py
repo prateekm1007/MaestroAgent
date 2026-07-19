@@ -528,6 +528,46 @@ def get_llm_router() -> Any:
     prevents the bridge from returning a dead router that will fail
     on every subsequent call.
     """
+    # 0. TRULY STATELESS CLOUD ROUTER (auditor recommendation v2):
+    # If a cloud provider env var is set (OPENROUTER_API_KEY, etc.),
+    # return a FRESH LLMRouter.from_env_sync() on EVERY call — completely
+    # bypassing the module-global cache (_router, _router_checked) and the
+    # circuit breaker below.
+    #
+    # This STRUCTURALLY eliminates the multi-worker bugs:
+    #   - cached-None-forever: no cache means no cached None
+    #   - different workers seeing different state: every call builds fresh
+    #   - circuit breaker not clearing: no circuit breaker for cloud
+    #   - router init retry cooldowns: no retry needed, just build fresh
+    #
+    # The cloud API call is stateless (httpx client creation is cheap —
+    # object init, no network). The correctness benefit far outweighs
+    # the tiny overhead. The cache below is ONLY for local providers
+    # (ZAI, Ollama) where connection reuse matters.
+    try:
+        import sys as _sys
+        import pathlib as _pathlib
+        _backend_dir = str(_pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+        if _backend_dir not in _sys.path:
+            _sys.path.insert(0, _backend_dir)
+        from maestro_llm.router import LLMRouter as _LLMRouter
+
+        if _LLMRouter.has_env_provider():
+            # Build a FRESH router every call. No module-global caching.
+            # No circuit breaker. No retry cooldown. Just stateless cloud.
+            fresh_router = _LLMRouter.from_env_sync()
+            logger.debug(
+                "LLM router (stateless cloud): provider=%s",
+                fresh_router.default_provider,
+            )
+            return fresh_router
+    except Exception as e:
+        logger.debug("maestro_llm cloud init failed: %s", e)
+        # Fall through to cached local providers below
+
+    # ── Local provider cache (only reached when no cloud provider is set) ──
+    # The cache below is for local providers (ZAI, Ollama) where connection
+    # reuse matters. Cloud providers bypass this entirely (see above).
     global _router, _router_checked
     if _router_checked and _router is not None:
         # Check if the cached router is still healthy. If not, re-initialize.
@@ -539,9 +579,6 @@ def get_llm_router() -> Any:
             return _router
     if _router_checked and _router is None:
         # F-RemoteTunnel fix: retry router init after a cooldown period.
-        # Previously, a single failed init (cold Kaggle tunnel timeout)
-        # permanently disabled the LLM for the worker's lifetime. Now we
-        # retry every 30s so the router can recover after the tunnel warms up.
         import time as _t
         now = _t.time()
         if not hasattr(get_llm_router, '_last_retry'):
@@ -552,41 +589,6 @@ def get_llm_router() -> Any:
         get_llm_router._last_retry = now
         _router_checked = False  # Allow retry
     _router_checked = True
-
-    # 0. CLOUD ROUTER PRIORITY (auditor recommendation): if a cloud
-    # provider env var is set (OPENROUTER_API_KEY, OPENAI_API_KEY, etc.),
-    # use maestro_llm's LLMRouter.from_env_sync() as the PRIMARY router.
-    #
-    # Note: this is NOT fully stateless — the top-of-function cache check
-    # (lines above) still returns a cached healthy router on subsequent
-    # calls within the same worker. What this fixes is the INITIALIZATION
-    # order: cloud providers are now tried FIRST (before ZAI/Ollama), so
-    # when OPENROUTER_API_KEY is set, the cached router is a clean
-    # LLMRouter instance rather than a Kaggle-tunnel-specific one.
-    #
-    # The multi-worker cached-None-forever bug is mitigated (not eliminated)
-    # by the retry logic at the top of this function: if a worker's cached
-    # router becomes unhealthy, the cache is invalidated and re-init runs,
-    # which hits this cloud branch first.
-    try:
-        import sys
-        import pathlib
-        _backend_dir = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
-        if _backend_dir not in sys.path:
-            sys.path.insert(0, _backend_dir)
-        from maestro_llm.router import LLMRouter
-
-        if LLMRouter.has_env_provider():
-            fresh_router = LLMRouter.from_env_sync()
-            _router_checked = True
-            _router = fresh_router  # cache for subsequent calls
-            logger.debug(
-                "LLM router (cloud priority): provider=%s",
-                fresh_router.default_provider,
-            )
-            return fresh_router
-    except Exception as e:
-        logger.debug("maestro_llm cloud init skipped: %s", e)
 
     # 1. Try ZAI HTTP Router (only if no cloud provider configured)
     try:
@@ -651,11 +653,33 @@ def get_llm_router() -> Any:
 def is_llm_available() -> bool:
     """Check if an LLM provider is available.
 
-    F-S1c fix: check the circuit breaker first. If the LLM recently
-    failed (tunnel died, timeout, etc.), skip ALL LLM calls for the
-    cooldown period. This prevents every Ask query from hanging for
-    15-60s when the LLM is down.
+    F-StatelessCloud fix: when a cloud provider env var is set
+    (OPENROUTER_API_KEY, etc.), skip the circuit breaker entirely.
+    The circuit breaker is for LOCAL providers (Ollama, ZAI) that can
+    fail and need cooldown. Cloud providers are stateless — if one
+    request fails, the next request builds a fresh client and retries.
+
+    This fixes the multi-worker circuit breaker inconsistency: different
+    workers have different circuit breaker states, so some workers
+    return False (breaker open) while others return True. With cloud
+    providers, there's no breaker to be inconsistent about.
     """
+    # Check for cloud provider FIRST — bypass circuit breaker entirely
+    try:
+        import sys as _sys
+        import pathlib as _pathlib
+        _backend_dir = str(_pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+        if _backend_dir not in _sys.path:
+            _sys.path.insert(0, _backend_dir)
+        from maestro_llm.router import LLMRouter as _LLMRouter
+        if _LLMRouter.has_env_provider():
+            # Cloud provider configured — no circuit breaker, just check
+            # that we can build a router (env vars are set)
+            return True
+    except Exception:
+        pass
+
+    # Local provider path — check circuit breaker
     if _is_circuit_breaker_open():
         return False
     return get_llm_router() is not None
