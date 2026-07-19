@@ -774,6 +774,9 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
                 "error": "",
                 "latency_ms": latency_ms,
             }
+            # F-RemoteTunnel fix: clear the circuit breaker on success.
+            # A successful probe proves the LLM is working.
+            _clear_circuit_breaker()
         else:
             result = {
                 "provider": provider_name,
@@ -972,6 +975,20 @@ def _trip_circuit_breaker():
     global _LLM_CIRCUIT_BREAKER_UNTIL
     _LLM_CIRCUIT_BREAKER_UNTIL = _time.time() + _LLM_CIRCUIT_BREAKER_COOLDOWN
     logger.warning("LLM circuit breaker tripped — skipping LLM calls for %ss", int(_LLM_CIRCUIT_BREAKER_COOLDOWN))
+
+
+def _clear_circuit_breaker():
+    """Clear the circuit breaker after a successful probe.
+
+    F-RemoteTunnel fix: if probe_provider succeeds, the LLM is working.
+    Clear the breaker so is_llm_available() returns True and Ask calls
+    can use the LLM. Without this, a single timeout (e.g. cold Kaggle
+    inference) keeps the breaker open for 60s even after the LLM recovers.
+    """
+    global _LLM_CIRCUIT_BREAKER_UNTIL
+    if _LLM_CIRCUIT_BREAKER_UNTIL > 0:
+        logger.info("LLM circuit breaker cleared — probe succeeded")
+    _LLM_CIRCUIT_BREAKER_UNTIL = 0.0
 
 # LLM latency budget. If the LLM doesn't respond within this many seconds,
 # we fall back to rule-based logic. The UI must never hang waiting for LLM.
