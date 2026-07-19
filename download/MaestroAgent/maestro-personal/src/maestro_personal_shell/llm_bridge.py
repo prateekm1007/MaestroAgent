@@ -298,17 +298,10 @@ class _OllamaDirectRouter:
     ) -> ZAIResponse:
         import urllib.request
         # F-Qwen3 fix: Qwen 3.5 reasoning models put output in `thinking`
-        # and may leave `content` empty when max_tokens is too low. We:
-        # 1. Append /no_think to the model name to disable reasoning mode
-        #    (Qwen 3.5 supports this for faster direct answers)
-        # 2. Fall back to `thinking` content if `content` is empty
-        model_name = self._model
-        # Only append /no_think for qwen3 models (not llama, etc.)
-        if "qwen3" in model_name.lower() and "/no_think" not in model_name:
-            model_name = f"{model_name}/no_think"
-
+        # and may leave `content` empty when max_tokens is too low.
+        # We fall back to `thinking` content if `content` is empty.
         payload = json.dumps({
-            "model": model_name,
+            "model": self._model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -789,7 +782,7 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
                 system="You are a health check. Reply with exactly: OK",
                 user="Health check.",
                 temperature=0.0,
-                max_tokens=200,  # Reasoning models need more tokens (gpt-oss uses ~160 for reasoning)
+                max_tokens=500,  # Qwen 3.5 reasoning models need ~200 for thinking + content (gpt-oss uses ~160 for reasoning)
             ),
             timeout=_probe_timeout,
         )
@@ -1719,7 +1712,7 @@ Evidence timestamps:
     user_prompt += """
 Answer the user's question based ONLY on the evidence above. If you cannot answer from this evidence, say so honestly."""
 
-    result = await llm_complete(system_prompt, user_prompt, temperature=0.1, max_tokens=300)
+    result = await llm_complete(system_prompt, user_prompt, temperature=0.1, max_tokens=500)
     if not result:
         return None
 
