@@ -553,11 +553,44 @@ def get_llm_router() -> Any:
         _router_checked = False  # Allow retry
     _router_checked = True
 
-    # 1. Try ZAI HTTP Router FIRST — pure Python, no Node.js needed.
+    # 0. STATELESS CLOUD ROUTER (auditor recommendation): if a cloud
+    # provider env var is set (OPENROUTER_API_KEY, OPENAI_API_KEY, etc.),
+    # return a FRESH LLMRouter.from_env_sync() on EVERY call — no caching.
+    # This sidesteps the entire class of multi-worker bugs:
+    #   - cached-None-forever (worker A fails init, caches None, never retries)
+    #   - different workers seeing different router state
+    #   - circuit breaker not clearing across workers
+    #   - router init retry cooldowns
+    # The cloud router is cheap to construct (reads env vars + creates
+    # httpx clients). Caching it was an optimization that introduced bugs.
+    try:
+        import sys
+        import pathlib
+        _backend_dir = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+        if _backend_dir not in sys.path:
+            sys.path.insert(0, _backend_dir)
+        from maestro_llm.router import LLMRouter
+
+        if LLMRouter.has_env_provider():
+            # FRESH router every call — no module-global caching
+            fresh_router = LLMRouter.from_env_sync()
+            # Mark as checked so the cache logic below doesn't re-init
+            _router_checked = True
+            _router = fresh_router  # cache for THIS call's health_check
+            logger.debug(
+                "LLM router (stateless cloud): provider=%s",
+                fresh_router.default_provider,
+            )
+            return fresh_router
+    except Exception as e:
+        logger.debug("maestro_llm cloud init skipped: %s", e)
+
+    # 1. Try ZAI HTTP Router (only if no cloud provider configured)
     try:
         zai_http = ZAIHTTPRouter()
         if zai_http.health_check():
             _router = zai_http
+            _router_checked = True
             logger.info("LLM router initialized with z-ai HTTP provider (GLM, Python-native, no Node.js needed)")
             return _router
     except Exception as e:
@@ -568,31 +601,11 @@ def get_llm_router() -> Any:
         zai = ZAIRouter()
         if zai.health_check():
             _router = zai
+            _router_checked = True
             logger.info("LLM router initialized with z-ai CLI provider (GLM, no API key needed)")
             return _router
     except Exception as e:
         logger.debug("z-ai CLI init failed: %s", e)
-
-    # 3. Try maestro_llm cloud providers
-    try:
-        import sys
-        import pathlib
-        # The backend directory is a sibling of the maestro-personal package.
-        # Resolve it relative to THIS file so it works regardless of CWD.
-        _backend_dir = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
-        if _backend_dir not in sys.path:
-            sys.path.insert(0, _backend_dir)
-        from maestro_llm.router import LLMRouter
-
-        if LLMRouter.has_env_provider():
-            _router = LLMRouter.from_env_sync()
-            logger.info(
-                "LLM router initialized with cloud provider: %s",
-                _router.default_provider,
-            )
-            return _router
-    except Exception as e:
-        logger.debug("maestro_llm cloud init skipped: %s", e)
 
     # 3. Try local Ollama (DIRECT — bypasses maestro_llm model/config issues)
     try:

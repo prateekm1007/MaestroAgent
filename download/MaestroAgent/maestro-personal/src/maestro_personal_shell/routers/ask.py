@@ -241,8 +241,8 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 s_entity = str(getattr(s, "entity", "")).strip()
                 if s_entity:
                     known_entities_lower.add(s_entity.lower())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("detect_situations entity collection failed: %s", e)
 
         # Check if ANY known entity appears in the query (case-insensitive).
         # Match on full entity name OR any significant word from the entity
@@ -796,8 +796,8 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     source_entity = sig_entity
                     source_timestamp = str(getattr(sig, "timestamp", ""))
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("entity_resolver fuzzy match failed: %s", e)
 
     if not source_sentence:
         try:
@@ -811,8 +811,8 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     source_sentence = top.get("text", "")
                     source_entity = top.get("entity", "")
                     source_timestamp = top.get("timestamp", "")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("semantic_retrieval source_sentence fallback failed: %s", e)
 
     clean_evidence_refs = [ref for ref in evidence_refs
                            if ref.get("text", "") and not (len(ref.get("text", "")) == 36 and ref.get("text", "").count("-") == 4)]
@@ -963,8 +963,8 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     "confidence": hp.get("confidence", 0.0),
                     "llm_powered": True,
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("holistic perspective parsing failed: %s", e)
         if holistic_persps:
             llm_perspectives_used = True
 
@@ -1021,8 +1021,8 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         evidence=np.get("evidence", []),
                     )
                     persp_objects.append(p)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("nerve perspective parsing failed: %s", e)
         elif matching_situation:
             pass  # P1-Audit-F2: no fake "No agent insight available" entries
 
