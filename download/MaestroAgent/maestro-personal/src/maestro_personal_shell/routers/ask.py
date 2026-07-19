@@ -904,7 +904,11 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # The probe timeout stays at LLM_LATENCY_BUDGET_SECONDS (60s) so
         # /api/llm-status can still verify the LLM, but Ask doesn't make
         # the user wait 60s for a fallback.
-        _ask_llm_timeout = 15.0  # 15s max for Ask — fall back to rules on timeout
+        # F-Qwen3 fix: increased from 15s to 45s. Qwen 3 14B on Kaggle P100
+        # takes ~26s per inference (reasoning model generates <think> tags).
+        # The 15s timeout was causing every Ask query to fall back to rules.
+        # 45s gives the model enough time while still bounding user wait time.
+        _ask_llm_timeout = 45.0  # 45s max for Ask (Qwen3 reasoning model)
         try:
             _gather_results = await asyncio.wait_for(
                 asyncio.gather(*_gather_tasks, return_exceptions=True),
