@@ -393,7 +393,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             situations = shell.detect_situations()
             matching_situation = None
             words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
-            common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
+            common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I", "Which", "Whose", "Whom"}
             entities = [w for w in words if w not in common_words]
             # F-S1a fix (auditor): use word-boundary regex instead of
             # bidirectional substring. Substring 'alex' matches 'alexander';
@@ -751,7 +751,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 })
 
     words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
-    common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
+    common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I", "Which", "Whose", "Whom"}
     entities = [w for w in words if w not in common_words]
 
     situations = shell.detect_situations()
@@ -1153,7 +1153,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 source_sentence = top_text
                 source_entity = top_entity
 
-    if not llm_answer_used and entities:
+    # F-IntentGate fix v2: skip this second entity check for intent-based
+    # queries. 'Which promises are now overdue?' extracts 'Which' as a
+    # capitalized word, but 'Which' is not an entity name — it's a question
+    # word. The first entity gate already handled entity validation; this
+    # second check is redundant for intent queries and causes false refusals.
+    if not llm_answer_used and entities and not _is_intent_query:
         try:
             from maestro_personal_shell.db_util import get_db_conn
             _db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
