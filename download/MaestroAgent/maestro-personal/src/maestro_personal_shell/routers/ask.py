@@ -342,9 +342,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             match_count += 1
                 if match_count > 0:
                     all_matches.append((match_count, s))
-            logger.warning('F-S1b-a debug: entities=%s, all_matches=%d, situations=%d',
-                        entities, len(all_matches), len(situations))
-            if all_matches:
+                        if all_matches:
                 # F-S1b-b fix: deterministic tie-breaking. When match counts
                 # are equal, sort by entity name alphabetically (stable,
                 # deterministic, not dependent on iteration order).
@@ -356,15 +354,60 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 # This prevents the LLM from stitching one entity's evidence
                 # into another entity's answer (hallucination-with-provenance).
                 if len(all_matches) >= 2:
+                    # F-S1b-a fix round 2: llama3:8b doesn't follow rule 14
+                    # (answer separately). Instead of calling the LLM with a
+                    # combined situation, return a STRUCTURAL multi-entity
+                    # answer built from the rule-based path. This prevents
+                    # the LLM from stitching one entity evidence into another.
                     matched_entities = [str(getattr(s, "entity", "unknown")) for _, s in all_matches]
-                    combined_title = f"Multi-entity query about: {', '.join(matched_entities)}"
-                    matching_situation = _PseudoSituation(
-                        entity="; ".join(matched_entities),
-                        title=combined_title,
-                        state="observing",
-                    )
-                    logger.info("F-S1b-a: multi-entity match (%d entities) — combined situation",
+                    logger.warning("F-S1b-a: multi-entity match (%d entities) — using structural answer",
                                 len(all_matches))
+
+                    # Build per-entity answers from signals
+                    from maestro_personal_shell.api import load_signals_from_db
+                    all_sigs = load_signals_from_db(user_email=token, limit=50)
+                    answer_parts = []
+                    multi_evidence = []
+                    for ent in matched_entities:
+                        ent_sigs = [s for s in all_sigs if isinstance(s, dict) and s.get("entity", "").lower() == ent.lower()]
+                        if ent_sigs:
+                            latest = ent_sigs[0]
+                            answer_parts.append(f'{ent}: "{latest.get("text", "")}"')
+                            multi_evidence.append({
+                                "text": latest.get("text", ""),
+                                "entity": ent,
+                                "timestamp": str(latest.get("timestamp", "")),
+                                "signal_id": latest.get("signal_id", ""),
+                                "source_type": "manual",
+                            })
+                        else:
+                            answer_parts.append(f'{ent}: No evidence found.')
+
+                    combined_answer = "You made the following commitments:
+" + "
+".join(answer_parts)
+
+                    return AskResponse(
+                        answer=combined_answer,
+                        query=req.query,
+                        source_sentence=multi_evidence[0]["text"] if multi_evidence else "",
+                        source_entity="; ".join(matched_entities),
+                        source_timestamp=multi_evidence[0]["timestamp"] if multi_evidence else "",
+                        situation_state="",
+                        evidence_refs=multi_evidence[:5],
+                        confidence=0.7,
+                        counterevidence=[],
+                        unknowns=[],
+                        as_of=str(as_of or ""),
+                        decision_boundary="",
+                        perspectives=[],
+                        reasoning_chain=[],
+                        calibration_note="",
+                        consequence_paths=[],
+                        llm_active=False,
+                        llm_provider="none",
+                        intelligence_source="rules",
+                    )
                 else:
                     matching_situation = all_matches[0][1]
             if not matching_situation and situations:
