@@ -343,8 +343,28 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 if match_count > 0:
                     all_matches.append((match_count, s))
             if all_matches:
-                all_matches.sort(key=lambda x: x[0], reverse=True)
-                matching_situation = all_matches[0][1]
+                # F-S1b-b fix: deterministic tie-breaking. When match counts
+                # are equal, sort by entity name alphabetically (stable,
+                # deterministic, not dependent on iteration order).
+                all_matches.sort(key=lambda x: (-x[0], str(getattr(x[1], "entity", "")).lower()))
+
+                # F-S1b-a fix (auditor S1): when 2+ entities match (multi-entity
+                # query like "What did I promise Alex and Maria?"), build a
+                # COMBINED pseudo-situation that includes all matched entities.
+                # This prevents the LLM from stitching one entity's evidence
+                # into another entity's answer (hallucination-with-provenance).
+                if len(all_matches) >= 2:
+                    matched_entities = [str(getattr(s, "entity", "unknown")) for _, s in all_matches]
+                    combined_title = f"Multi-entity query about: {', '.join(matched_entities)}"
+                    matching_situation = _PseudoSituation(
+                        entity="; ".join(matched_entities),
+                        title=combined_title,
+                        state="observing",
+                    )
+                    logger.info("F-S1b-a: multi-entity match (%d entities) — combined situation",
+                                len(all_matches))
+                else:
+                    matching_situation = all_matches[0][1]
             if not matching_situation and situations:
                 matching_situation = situations[0]
 
