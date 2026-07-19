@@ -221,7 +221,7 @@ if total_q and isinstance(total_q, int):
         if isinstance(val, list) and all(isinstance(r, dict) for r in val) and len(val) > 0:
             if len(val) < total_q:
                 gap = total_q - len(val)
-                if accounted >= gap and accounted <= total_q:
+                if accounted >= gap and accounted <= total_q and (completed or 0) <= len(val):
                     continue
                 print(f'SILENTLY_MISSING: {key} has {len(val)} rows but total_questions={total_q}')
                 found_errors = True

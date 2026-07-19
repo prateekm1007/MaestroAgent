@@ -327,15 +327,24 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
             common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
             entities = [w for w in words if w not in common_words]
+            # F-S1a fix (auditor): use word-boundary regex instead of
+            # bidirectional substring. Substring 'alex' matches 'alexander';
+            # 'sam' matches 'sample'. Word-boundary only matches complete words.
+            # F-S1b fix (auditor): collect ALL matches, pick most specific.
+            all_matches = []
             for s in situations:
                 s_entity = str(getattr(s, "entity", "")).lower()
-                # S1 root cause fix: use substring match, not exact match.
-                # "Alex" and "Chen" are extracted as separate words, but
-                # s_entity is "alex chen" (full name). Exact match "alex" ==
-                # "alex chen" is False. Substring "alex" in "alex chen" is True.
-                if any(e.lower() in s_entity or s_entity in e.lower() for e in entities):
-                    matching_situation = s
-                    break
+                match_count = 0
+                for e in entities:
+                    e_lower = e.lower()
+                    if len(e_lower) >= 3:
+                        if _re.search(r'\b' + _re.escape(e_lower) + r'\b', s_entity):
+                            match_count += 1
+                if match_count > 0:
+                    all_matches.append((match_count, s))
+            if all_matches:
+                all_matches.sort(key=lambda x: x[0], reverse=True)
+                matching_situation = all_matches[0][1]
             if not matching_situation and situations:
                 matching_situation = situations[0]
 
@@ -669,17 +678,16 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     _gather_tasks = [t for t in [_llm_answer_task, _llm_holistic_task] if t is not None]
     holistic_result = None
     if _gather_tasks:
-        # P-2026-07-18 fix: use LLM_LATENCY_BUDGET_SECONDS instead of hardcoded 3.0s.
-        # The 3s budget was set for ZAI (which had 2.5s httpx timeout) but remote
-        # Ollama on Kaggle P100 takes 5-15s per real answer generation (the probe
-        # is faster because it's a trivial "OK" response). With the 3s budget,
-        # every real Ask query timed out and fell back to rules — defeating the
-        # purpose of wiring the LLM. Now uses 60s for remote Ollama, 8s for local.
-        try:
-            from maestro_personal_shell.llm_bridge import LLM_LATENCY_BUDGET_SECONDS
-            _ask_llm_timeout = LLM_LATENCY_BUDGET_SECONDS
-        except ImportError:
-            _ask_llm_timeout = 30.0  # safe fallback
+        # F-S1c fix (auditor S1): when the LLM tunnel is dead, the 60s
+        # timeout means Ask hangs for 60 seconds before falling back.
+        # This is worse than not having an LLM at all.
+        # Fix: use a SHORTER timeout for Ask (15s). Real LLM answers on
+        # a working tunnel take 3-10s. If the LLM doesn't respond in 15s,
+        # it's either dead or too slow — fall back to rules immediately.
+        # The probe timeout stays at LLM_LATENCY_BUDGET_SECONDS (60s) so
+        # /api/llm-status can still verify the LLM, but Ask doesn't make
+        # the user wait 60s for a fallback.
+        _ask_llm_timeout = 15.0  # 15s max for Ask — fall back to rules on timeout
         try:
             _gather_results = await asyncio.wait_for(
                 asyncio.gather(*_gather_tasks, return_exceptions=True),

@@ -600,7 +600,15 @@ def get_llm_router() -> Any:
 
 
 def is_llm_available() -> bool:
-    """Check if an LLM provider is available."""
+    """Check if an LLM provider is available.
+
+    F-S1c fix: check the circuit breaker first. If the LLM recently
+    failed (tunnel died, timeout, etc.), skip ALL LLM calls for the
+    cooldown period. This prevents every Ask query from hanging for
+    15-60s when the LLM is down.
+    """
+    if _is_circuit_breaker_open():
+        return False
     return get_llm_router() is not None
 
 
@@ -768,6 +776,10 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
             "error": f"Provider timed out ({int(_probe_timeout)}s)",
             "latency_ms": int(_probe_timeout * 1000),
         }
+        # F-S1c fix: trip the circuit breaker on timeout. The LLM tunnel
+        # is dead or too slow. Skip ALL LLM calls for 60s so Ask and other
+        # endpoints fall back to rules immediately instead of hanging.
+        _trip_circuit_breaker()
     except Exception as e:
         latency_ms = int((_time.time() - start) * 1000)
         err_str = str(e)[:200]
@@ -777,6 +789,9 @@ async def probe_provider(force: bool = False) -> dict[str, Any]:
             "error": err_str,
             "latency_ms": latency_ms,
         }
+        # F-S1c fix: trip on connection errors too (tunnel dead, DNS failure)
+        if any(kw in err_str.lower() for kw in ("connection", "refused", "unreachable", "dns", "resolve", "timeout")):
+            _trip_circuit_breaker()
 
     # P0-3 fix (audit 2026-07-15): do NOT cache transient failures (429
     # rate-limit, network errors). Caching them would cause /api/llm-status
@@ -925,16 +940,36 @@ def _get_calibration_context(user_email: str | None = None) -> str:
 # S3: Latency budget + caching
 # ---------------------------------------------------------------------------
 
+# F-S1c fix (auditor S1): circuit breaker. When the LLM tunnel dies,
+# every request hangs for 60s before timing out. This makes Ask, The
+# Moment, and /api/llm-status all hang. The circuit breaker caches
+# probe failures for 60s — if the LLM recently failed, skip ALL LLM
+# calls immediately (return None → caller falls back to rules).
+# This is P6 (fail loudly, not silently): the probe failure is logged,
+# the fallback is explicit, and the user gets a rule-based answer in
+# <200ms instead of hanging for 60s.
+_LLM_CIRCUIT_BREAKER_UNTIL: float = 0.0  # timestamp until which LLM is skipped
+_LLM_CIRCUIT_BREAKER_COOLDOWN = 60.0  # seconds to skip LLM after a failure
+
+def _is_circuit_breaker_open() -> bool:
+    """Check if the circuit breaker is open (LLM should be skipped)."""
+    return _time.time() < _LLM_CIRCUIT_BREAKER_UNTIL
+
+def _trip_circuit_breaker():
+    """Trip the circuit breaker — skip LLM calls for the cooldown period."""
+    global _LLM_CIRCUIT_BREAKER_UNTIL
+    _LLM_CIRCUIT_BREAKER_UNTIL = _time.time() + _LLM_CIRCUIT_BREAKER_COOLDOWN
+    logger.warning("LLM circuit breaker tripped — skipping LLM calls for %ss", int(_LLM_CIRCUIT_BREAKER_COOLDOWN))
+
 # LLM latency budget. If the LLM doesn't respond within this many seconds,
 # we fall back to rule-based logic. The UI must never hang waiting for LLM.
-# P11 fix: when using a REMOTE Ollama (e.g., Kaggle P100 via Cloudflare
-# tunnel), the latency is much higher than local — 15-30s per call vs
-# <1s locally. The 8s budget was too short and killed every remote call,
-# making llm_active=False despite the LLM being available and verified.
-# Fix: use 60s for remote Ollama, keep 8s for local.
+# F-S1c fix: reduce remote Ollama timeout from 60s to 30s. The probe
+# can still take up to 30s, but Ask uses its own 15s timeout (set in
+# ask.py). The 60s timeout was causing /api/llm-status to hang for a
+# full minute when the tunnel died.
 import os as _os
 if _os.environ.get("OLLAMA_HOST", "").startswith("http") and "localhost" not in _os.environ.get("OLLAMA_HOST", "") and "127.0.0.1" not in _os.environ.get("OLLAMA_HOST", ""):
-    LLM_LATENCY_BUDGET_SECONDS = 60.0  # remote Ollama (Kaggle/Colab tunnel)
+    LLM_LATENCY_BUDGET_SECONDS = 30.0  # remote Ollama (reduced from 60s)
 else:
     LLM_LATENCY_BUDGET_SECONDS = 8.0   # local Ollama or cloud provider
 
