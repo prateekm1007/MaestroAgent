@@ -672,7 +672,7 @@ async def llm_status(token: str = Depends(verify_token_dep)):
             if active
             else f"Provider '{provider}' configured but probe failed: {probe.get('error', 'unknown')}. Falling back to rules."
             if configured and not verified
-            else "No LLM available. Easiest fix: `npm install -g z-ai-web-dev-sdk` (no API key needed). Alternatives: set OPENAI_API_KEY / ANTHROPIC_API_KEY / OPENROUTER_API_KEY / XAI_API_KEY, or run Ollama locally."
+            else "No LLM available. Set ANTHROPIC_API_KEY or OPENAI_API_KEY as a Railway env var to enable LLM-powered intelligence. See docs/LLM_SETUP.md for details."
         ),
     }
 
