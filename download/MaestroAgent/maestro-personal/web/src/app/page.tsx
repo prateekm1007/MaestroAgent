@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  CalendarClock,
   CheckCircle,
   LayoutDashboard,
   LogOut,
@@ -27,7 +28,6 @@ import { Agents } from "@/components/maestro/Agents";
 import { Prepare } from "@/components/maestro/Prepare";
 import { SessionExpiredDialog } from "@/components/maestro/SessionExpiredDialog";
 import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
-import { CalendarClock } from "lucide-react";
 
 type View = "dashboard" | "ask" | "commitments" | "prepare" | "agents" | "settings";
 
