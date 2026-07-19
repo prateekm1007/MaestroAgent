@@ -563,9 +563,39 @@ def get_llm_router() -> Any:
             return fresh_router
     except Exception as e:
         logger.debug("maestro_llm cloud init failed: %s", e)
-        # Fall through to cached local providers below
+        # Fall through to remote Ollama or cached local providers below
 
-    # ── Local provider cache (only reached when no cloud provider is set) ──
+    # 0b. STATELESS REMOTE OLLAMA (Kaggle tunnel): if OLLAMA_HOST is set
+    # to a remote URL (not localhost), treat it like a cloud provider —
+    # fresh _OllamaDirectRouter on every call, no caching, no circuit
+    # breaker. This fixes the multi-worker issue for Kaggle tunnels too.
+    # The Ollama API is stateless (each /api/chat call is independent).
+    _ollama_host = os.environ.get("OLLAMA_HOST", "")
+    _is_remote_ollama = (
+        _ollama_host
+        and _ollama_host.startswith("http")
+        and "localhost" not in _ollama_host
+        and "127.0.0.1" not in _ollama_host
+    )
+    if _is_remote_ollama:
+        try:
+            fresh_ollama = _OllamaDirectRouter()
+            # Don't cache — return fresh every call.
+            # health_check is cheap (just /api/tags with 15s timeout).
+            if fresh_ollama.health_check():
+                logger.debug(
+                    "LLM router (stateless remote Ollama): model=%s",
+                    fresh_ollama._model,
+                )
+                return fresh_ollama
+            # Health check failed — return None (no caching, no breaker)
+            logger.debug("Remote Ollama health check failed (stateless — will retry next call)")
+            return None
+        except Exception as e:
+            logger.debug("Remote Ollama init failed: %s", e)
+            return None
+
+    # ── Local provider cache (only reached for localhost Ollama / ZAI) ──
     # The cache below is for local providers (ZAI, Ollama) where connection
     # reuse matters. Cloud providers bypass this entirely (see above).
     global _router, _router_checked
@@ -673,11 +703,22 @@ def is_llm_available() -> bool:
             _sys.path.insert(0, _backend_dir)
         from maestro_llm.router import LLMRouter as _LLMRouter
         if _LLMRouter.has_env_provider():
-            # Cloud provider configured — no circuit breaker, just check
-            # that we can build a router (env vars are set)
             return True
     except Exception:
         pass
+
+    # Check for remote Ollama tunnel — also bypass circuit breaker
+    _ollama_host = os.environ.get("OLLAMA_HOST", "")
+    _is_remote_ollama = (
+        _ollama_host
+        and _ollama_host.startswith("http")
+        and "localhost" not in _ollama_host
+        and "127.0.0.1" not in _ollama_host
+    )
+    if _is_remote_ollama:
+        # Remote Ollama is stateless — no circuit breaker.
+        # Just check that we can build a router.
+        return True
 
     # Local provider path — check circuit breaker
     if _is_circuit_breaker_open():
