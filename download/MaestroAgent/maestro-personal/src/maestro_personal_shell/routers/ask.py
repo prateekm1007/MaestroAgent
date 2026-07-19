@@ -176,11 +176,28 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         except Exception:
             pass
 
-        # Check if ANY known entity appears in the query (case-insensitive)
+        # Check if ANY known entity appears in the query (case-insensitive).
+        # Match on full entity name OR any significant word from the entity
+        # name (e.g., "Maria Garcia" matches query "Maria" because "maria"
+        # is a significant word in the entity name).
         _query_mentions_known_entity = False
+        _entity_stopwords = {"corp", "inc", "llc", "the", "and", "of"}
         for entity_lower in known_entities_lower:
-            if entity_lower and entity_lower in query_lower:
+            if not entity_lower:
+                continue
+            # Full entity name match (e.g., "maria garcia" in query)
+            if entity_lower in query_lower:
                 _query_mentions_known_entity = True
+                break
+            # Word-level match: split entity into words, check if any
+            # significant word (length > 2, not a stopword) appears in query
+            entity_words = [w for w in entity_lower.split() if len(w) > 2 and w not in _entity_stopwords]
+            for word in entity_words:
+                # Use word boundary to avoid partial matches (e.g., "lee" in "feeling")
+                if _re.search(r'\b' + _re.escape(word) + r'\b', query_lower):
+                    _query_mentions_known_entity = True
+                    break
+            if _query_mentions_known_entity:
                 break
 
         if not _query_mentions_known_entity and known_entities_lower:
