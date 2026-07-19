@@ -342,7 +342,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             match_count += 1
                 if match_count > 0:
                     all_matches.append((match_count, s))
-            logger.info('F-S1b-a debug: entities=%s, all_matches=%d, situations=%d',
+            logger.warning('F-S1b-a debug: entities=%s, all_matches=%d, situations=%d',
                         entities, len(all_matches), len(situations))
             if all_matches:
                 # F-S1b-b fix: deterministic tie-breaking. When match counts
