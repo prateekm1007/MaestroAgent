@@ -198,4 +198,40 @@ def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
         except Exception as e:
             logger.warning("Demo seeder: FTS rebuild failed (non-fatal): %s", e)
 
+        # F3 fix (auditor P24 cross-surface coherence): populate the
+        # personal knowledge graph for seeded entities. Previously the
+        # graph_entities/graph_edges tables were empty because the seeder
+        # used save_signal_to_db directly, bypassing the graph population
+        # in POST /api/signals. This caused /api/graph/entity/Alex%20Chen
+        # to return exists=false for entities that clearly exist in signals.
+        try:
+            from maestro_personal_shell.personal_graph import PersonalGraph
+            for target_email in ([user_email, "default@personal.local"]
+                                 if user_email != "default@personal.local"
+                                 else ["default@personal.local"]):
+                graph = PersonalGraph(user_email=target_email)
+                for sig in DEMO_SIGNALS:
+                    entity = sig["entity"]
+                    graph.add_entity(entity, entity_type="contact", user_email=target_email)
+                    # Add signal edge
+                    graph.add_edge(
+                        source_entity=entity,
+                        edge_type="signal",
+                        topic=sig["text"][:100],
+                        confidence=0.5,
+                        metadata={"source": "demo_seed", "signal_type": sig["signal_type"]},
+                    )
+                    # Add commitment edge if it's a commitment
+                    if sig["signal_type"] in ("commitment_made", "personal.commitment", "personal.promise"):
+                        graph.add_edge(
+                            source_entity=entity,
+                            edge_type="commitment",
+                            topic=sig["text"][:100],
+                            confidence=0.5,
+                            metadata={"source": "demo_seed"},
+                        )
+            logger.info("Demo seeder: populated graph for %d entities", len(DEMO_SIGNALS))
+        except Exception as e:
+            logger.warning("Demo seeder: graph population failed (non-fatal): %s", e)
+
     return seeded
