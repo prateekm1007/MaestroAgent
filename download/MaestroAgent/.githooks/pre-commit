@@ -35,15 +35,53 @@ if [ ! -f "$CONFIG" ]; then
   exit 0
 fi
 
+# ─── Benchmark Integrity: block VOID artifacts ──────────────────────
+# P22/P30 fix (auditor S1): this check MUST run BEFORE the STAGED_PY
+# early-exit guard below. The previous placement was after the guard,
+# so JSON-only commits (which is what benchmark commits are) never
+# reached this check. The check silently passed on every benchmark
+# commit — the exact opposite of its purpose.
+echo "─── Benchmark Integrity: verify_benchmark.sh ───"
+STAGED_SCOREBOARD=$(git diff --cached --name-only --diff-filter=ACM -- '*/evaluation/scoreboard/*.json' || true)
+if [ -n "$STAGED_SCOREBOARD" ]; then
+  echo "  Staged scoreboard files detected — running verify_benchmark.sh..."
+  # P22 fix: capture the exit code of verify_benchmark.sh directly,
+  # NOT through a pipe (pipe captures tail's exit code, which is always 0).
+  BENCH_OUTPUT=$(bash "$PROJECT_ROOT/audit_scripts/verify_benchmark.sh" 2>&1)
+  BENCH_EXIT=$?
+  echo "$BENCH_OUTPUT" | tail -1
+  if [ $BENCH_EXIT -eq 0 ]; then
+    echo "  Benchmark integrity: PASS"
+  else
+    echo "  Benchmark integrity: FAILED — VOID artifact detected. Commit blocked."
+    echo "  Fix: move the VOID artifact to voided/ with a README, or fix the data."
+    exit 1
+  fi
+else
+  echo "  No scoreboard files staged — skipped."
+fi
+
 # Get staged .py files (only files actually modified/added).
 # git returns paths relative to the git root, which may differ from
 # PROJECT_ROOT (submodule/nested worktree). We pass the raw paths to
 # Python which resolves them against PROJECT_ROOT.
 STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM -- '*.py' || true)
 if [ -z "$STAGED_PY" ]; then
-  # No .py files staged — nothing to check
-  exit 0
+  # No .py files staged — skip P20/P6 checks but DON'T exit (benchmark
+  # check already ran above). Just skip to the P23 section.
+  echo "  No .py files staged — skipping P20/P6 checks."
+  # Jump past the P20/P6 blocks to P23
+  # We can't use goto in bash, so we use a flag
+  SKIP_PY_CHECKS=1
+else
+  SKIP_PY_CHECKS=0
 fi
+
+if [ "$SKIP_PY_CHECKS" = "1" ]; then
+  # Skip directly to P23 + final checks
+  # (The benchmark check already ran above)
+  :
+else
 
 # Helper: parse JSON without jq (fallback to python3 if jq unavailable)
 json_get() {
@@ -293,6 +331,8 @@ if [ $P6_VIOLATIONS -gt 0 ]; then
 fi
 echo "  P6: no bare 'except.*pass' found in staged files."
 
+fi  # end of SKIP_PY_CHECKS else block
+
 # ─── P23: verification scripts on fix(cX) commits ──────────────────────
 # If the commit message references a finding (fix(c1), fix(c2), etc.),
 # run the corresponding verify_*.sh script. If the script fails, the
@@ -342,26 +382,6 @@ else
   else
     echo "  P23: no fix(cX) findings in commit message — skipped."
   fi
-fi
-
-
-# ─── Benchmark Integrity: block VOID artifacts ──────────────────────
-# Evidence Integrity score 8/10 requires: CI blocks any commit that
-# adds a new VOID artifact. This check runs verify_benchmark.sh when
-# any file under evaluation/scoreboard/ is staged.
-echo "─── Benchmark Integrity: verify_benchmark.sh ───"
-STAGED_SCOREBOARD=$(git diff --cached --name-only --diff-filter=ACM -- '*/evaluation/scoreboard/*.json' || true)
-if [ -n "$STAGED_SCOREBOARD" ]; then
-  echo "  Staged scoreboard files detected — running verify_benchmark.sh..."
-  if bash "$PROJECT_ROOT/audit_scripts/verify_benchmark.sh" 2>&1 | tail -1; then
-    echo "  Benchmark integrity: PASS"
-  else
-    echo "  Benchmark integrity: FAILED — VOID artifact detected. Commit blocked."
-    echo "  Fix: move the VOID artifact to voided/ with a README, or fix the data."
-    exit 1
-  fi
-else
-  echo "  No scoreboard files staged — skipped."
 fi
 
 echo "─── pre-commit hook PASSED ───"

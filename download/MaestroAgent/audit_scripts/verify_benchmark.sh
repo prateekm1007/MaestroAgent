@@ -58,10 +58,10 @@ with open('$json_file') as f:
 if not isinstance(d, dict):
     sys.exit(0)  # not a dict, skip
 
-# Check top-level llm_active vs per-row
-top_llm = d.get('llm_active')
-if top_llm is None:
-    sys.exit(0)  # no llm_active field, skip
+# P30 fix (auditor S3): generalize past the literal field name 'llm_active'.
+# Check ANY boolean-shaped field that appears at both top level and per-row.
+# If the top-level value disagrees with the per-row values, it's a
+# metadata-consistency violation regardless of what the field is called.
 
 # Find row-level data
 rows = None
@@ -73,21 +73,62 @@ for key in ('maestro_results', 'results', 'results_B', 'rows', 'queries'):
 if rows is None:
     sys.exit(0)  # no rows to compare, skip
 
-# Check if rows have llm_active field
-row_llm_values = set()
-for r in rows:
-    if isinstance(r, dict) and 'llm_active' in r:
-        row_llm_values.add(r['llm_active'])
+# Find all boolean-shaped fields that appear at both top level and per-row
+top_level_keys = {k for k, v in d.items() if isinstance(v, (bool,)) or (isinstance(v, (int, float, str)) and v in (True, False, 0, 1, 'true', 'false', 'True', 'False', 0.0, 1.0))}
 
-if not row_llm_values:
-    sys.exit(0)  # rows don't have llm_active, skip
+# Also check common boolean field name patterns
+boolean_field_patterns = ['llm_active', 'llm_used', 'llm_powered', 'active',
+                          'verified', 'configured', 'is_active', 'is_verified',
+                          'used_llm', 'model_active', 'has_llm', 'llm_enabled']
 
-# Compare
-top_bool = bool(top_llm)
-row_bool = bool(list(row_llm_values)[0]) if len(row_llm_values) == 1 else None
+# Add any top-level key that looks boolean
+for k in d:
+    v = d[k]
+    if isinstance(v, bool) or v in (0, 1, 'true', 'false', 'True', 'False'):
+        top_level_keys.add(k)
 
-if row_bool is not None and top_bool != row_bool:
-    print(f'METADATA_MISMATCH: top={top_llm} rows={row_llm_values}')
+# Also add pattern-matched keys
+for k in d:
+    if any(p in k.lower() for p in ['active', 'verified', 'configured', 'enabled', 'powered', 'used']):
+        top_level_keys.add(k)
+
+if not top_level_keys:
+    sys.exit(0)  # no boolean-shaped top-level fields, skip
+
+mismatches = []
+for field in top_level_keys:
+    top_val = d.get(field)
+    # Check if rows have this field
+    row_values = set()
+    for r in rows:
+        if isinstance(r, dict) and field in r:
+            row_values.add(r[field])
+
+    if not row_values:
+        continue  # rows don't have this field, skip
+
+    # Compare top vs row values
+    # Normalize to boolean for comparison
+    def to_bool(v):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return bool(v)
+        if isinstance(v, str):
+            return v.lower() in ('true', '1', 'yes')
+        return False
+
+    top_bool = to_bool(top_val)
+    row_bools = {to_bool(v) for v in row_values}
+
+    # If all rows agree on a single boolean value, and it differs from top
+    if len(row_bools) == 1:
+        row_bool = row_bools.pop()
+        if top_bool != row_bool:
+            mismatches.append(f'{field}: top={top_val} rows={row_values}')
+
+if mismatches:
+    print(f'METADATA_MISMATCH: {\" ; \".join(mismatches)}')
 else:
     print('OK')
 " 2>&1)
