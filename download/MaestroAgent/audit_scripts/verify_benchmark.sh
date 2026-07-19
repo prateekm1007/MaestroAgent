@@ -163,7 +163,7 @@ import re as _re
 
 ERROR_KEYS = {'error', 'exception', 'traceback', 'exception_class',
               'exception_type', 'error_type', 'error_message'}
-ERROR_PATTERN = _re.compile(r'^(RuntimeError|TypeError|ValueError|KeyError|AttributeError|Exception|Traceback|ImportError|NameError|IndexError|ZeroDivisionError|OverflowError|MemoryError)\b')
+ERROR_PATTERN = _re.compile(r'(RuntimeError|TypeError|ValueError|KeyError|AttributeError|Exception|Traceback|ImportError|NameError|IndexError|ZeroDivisionError|OverflowError|MemoryError)\b')
 
 def has_error_recursive(obj, visited=None):
     '''Recursively walk a dict/list looking for error-shaped keys/values.
@@ -180,7 +180,7 @@ def has_error_recursive(obj, visited=None):
         for k, v in obj.items():
             if k in ERROR_KEYS:
                 return True
-            if isinstance(v, str) and ERROR_PATTERN.match(v):
+            if isinstance(v, str) and ERROR_PATTERN.search(v):
                 return True
             if has_error_recursive(v, visited):
                 return True
@@ -189,7 +189,7 @@ def has_error_recursive(obj, visited=None):
             if has_error_recursive(item, visited):
                 return True
     elif isinstance(obj, str):
-        if ERROR_PATTERN.match(obj):
+        if ERROR_PATTERN.search(obj):
             return True
     return False
 
@@ -221,7 +221,7 @@ if total_q and isinstance(total_q, int):
         if isinstance(val, list) and all(isinstance(r, dict) for r in val) and len(val) > 0:
             if len(val) < total_q:
                 gap = total_q - len(val)
-                if accounted >= gap:
+                if accounted >= gap and accounted <= total_q:
                     continue
                 print(f'SILENTLY_MISSING: {key} has {len(val)} rows but total_questions={total_q}')
                 found_errors = True
