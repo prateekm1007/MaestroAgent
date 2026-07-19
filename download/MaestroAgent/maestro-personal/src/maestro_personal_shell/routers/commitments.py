@@ -286,18 +286,29 @@ def _filter_completed_commitments(commitments: list[dict], signals: list) -> lis
             # completion matching). "Never mind, we don't need the report"
             # has "report" → cancels "I will send the report by Friday"
             # but NOT "I will review the contract by Monday".
-            commitment_words = set(c_text.split())
+            # P2-2026-07-19 fix: strip punctuation before comparing so
+            # "report." matches "report" (trailing period was preventing match).
+            import re as _re_cancel
+            def _normalize_words(text):
+                # Remove punctuation, lowercase, split
+                cleaned = _re_cancel.sub(r'[^\w\s]', '', text)
+                return set(cleaned.split())
+
+            commitment_words = _normalize_words(c_text)
             common_words = {"i", "will", "the", "to", "a", "an", "by", "for",
                             "send", "sent", "is", "are", "was", "were", "be",
                             "have", "has", "that", "this", "it", "in", "on",
                             "at", "of", "and", "or", "but", "not",
-                            "never", "mind", "we", "do", "need", "don't",
-                            "forget", "cancelled", "canceled", "scratch"}
+                            "never", "mind", "we", "do", "need", "dont",
+                            "forget", "cancelled", "canceled", "scratch",
+                            "friday", "monday", "tuesday", "wednesday",
+                            "thursday", "saturday", "sunday",
+                            "tomorrow", "today", "next", "week", "month"}
             commitment_keywords = commitment_words - common_words
 
             cancelled = False
             for cancel_text in entity_cancellations[c_entity]:
-                cancel_words = set(cancel_text.split())
+                cancel_words = _normalize_words(cancel_text)
                 overlap = commitment_keywords & cancel_words
                 if overlap:
                     cancelled = True
