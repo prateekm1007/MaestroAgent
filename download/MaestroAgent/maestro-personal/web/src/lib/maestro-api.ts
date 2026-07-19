@@ -106,6 +106,67 @@ export type LedgerEntry = {
   transitioned_at: string;
 };
 
+// Vision-wired surface types (P11: wiring, P12: product-thesis-driven)
+export type WhatChangedItem = {
+  entity: string;
+  text: string;
+  type: string;
+  is_meaningful: boolean;
+  timestamp?: string;
+  signal_id?: string;
+};
+
+export type PrepareItem = {
+  situation_id: string;
+  entity: string;
+  meeting_context: string;
+  the_forgotten?: string;
+  the_open_question?: string;
+  the_contradiction?: string;
+  copilot_timeline?: Array<Record<string, unknown>>;
+  prep_points?: string[];
+};
+
+export type SituationItem = {
+  situation_id: string;
+  entity: string;
+  title: string;
+  state: string;
+  operational_state?: string;
+  evidence_refs?: string[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type WhisperDecision = {
+  whisper_id: string;
+  whisper_type: string;
+  entity: string;
+  title: string;
+  materiality_score: number;
+  transition_type: string;
+  reasoning: string;
+  evidence_available: number;
+  timestamp: string;
+};
+
+export type EntityGraph = {
+  exists: boolean;
+  message?: string;
+  entity?: string;
+  signals?: Array<Record<string, unknown>>;
+  relationships?: Array<Record<string, unknown>>;
+};
+
+export type EntityRisk = {
+  entity: string;
+  exists: boolean;
+  risk_level: string;
+  completion_rate: number | null;
+  risk_factors: string[];
+  recommendation: string;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Token + mode storage                                              */
 /* ------------------------------------------------------------------ */
@@ -979,6 +1040,63 @@ export const maestroApi = {
       `/api/commitments/${encodeURIComponent(ledgerId)}/transition?to_state=${encodeURIComponent(toState)}`,
       { method: "POST" },
       undefined,
+    );
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Vision-wired surfaces (P11: wiring, P12: product-thesis-driven)   */
+  /* ------------------------------------------------------------------ */
+
+  // "Surfaces what changed" — the thesis surface. Wire to Dashboard.
+  async getWhatChanged(): Promise<{ data: WhatChangedItem[]; live: boolean }> {
+    return maestroFetch<WhatChangedItem[]>(
+      "/api/what-changed",
+      {},
+      [],
+    );
+  },
+
+  // "Tells you what to do next" — pre-meeting preparation. Wire as Prepare tab.
+  async getPrepare(): Promise<{ data: PrepareItem[]; live: boolean }> {
+    return maestroFetch<PrepareItem[]>(
+      "/api/prepare",
+      {},
+      [],
+    );
+  },
+
+  // "Remembers what you promised" — browse the situation memory layer.
+  async getSituations(): Promise<{ data: SituationItem[]; live: boolean }> {
+    return maestroFetch<SituationItem[]>(
+      "/api/situations",
+      {},
+      [],
+    );
+  },
+
+  // "Provenance" — why did Maestro tell you this? Whisper decision audit trail.
+  async getWhisperDecisions(): Promise<{ data: { decisions: WhisperDecision[]; count: number }; live: boolean }> {
+    return maestroFetch<{ decisions: WhisperDecision[]; count: number }>(
+      "/api/observability/whisper-decisions",
+      {},
+      { decisions: [], count: 0 },
+    );
+  },
+
+  // Per-entity detail: relationship graph + risk profile
+  async getEntityGraph(entityName: string): Promise<{ data: EntityGraph; live: boolean }> {
+    return maestroFetch<EntityGraph>(
+      `/api/graph/entity/${encodeURIComponent(entityName)}`,
+      {},
+      { exists: false, message: "No data" },
+    );
+  },
+
+  async getEntityRisk(entityName: string): Promise<{ data: EntityRisk; live: boolean }> {
+    return maestroFetch<EntityRisk>(
+      `/api/graph/risk/${encodeURIComponent(entityName)}`,
+      {},
+      { entity: entityName, exists: false, risk_level: "unknown", risk_factors: [], recommendation: "" },
     );
   },
 };

@@ -24,15 +24,18 @@ import { Ask } from "@/components/maestro/Ask";
 import { Commitments } from "@/components/maestro/Commitments";
 import { Settings } from "@/components/maestro/Settings";
 import { Agents } from "@/components/maestro/Agents";
+import { Prepare } from "@/components/maestro/Prepare";
 import { SessionExpiredDialog } from "@/components/maestro/SessionExpiredDialog";
 import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
+import { CalendarClock } from "lucide-react";
 
-type View = "dashboard" | "ask" | "commitments" | "agents" | "settings";
+type View = "dashboard" | "ask" | "commitments" | "prepare" | "agents" | "settings";
 
 const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "ask", label: "Ask", icon: Search },
   { id: "commitments", label: "Commitments", icon: CheckCircle },
+  { id: "prepare", label: "Prepare", icon: CalendarClock },
   { id: "agents", label: "Agents", icon: Users },
   { id: "settings", label: "More", icon: SettingsIcon },
 ];
@@ -209,6 +212,7 @@ export default function Home() {
               onEntityFilterConsumed={() => setEntityFilter("")}
             />
           )}
+          {view === "prepare" && <Prepare />}
           {view === "agents" && <Agents />}
           {view === "settings" && <Settings />}
         </main>
