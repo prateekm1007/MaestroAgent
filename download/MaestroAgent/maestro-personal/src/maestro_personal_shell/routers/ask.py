@@ -470,64 +470,102 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             source_sent = ""
             evidence_refs_for_llm = []
 
+            # ── Phase 1-5 Hybrid Retrieval Ensemble (auditor's prescription) ──
+            # Replaces the fragmented BM25+ledger+intent+ranker chain with a
+            # unified 5-stage pipeline:
+            #   Stage 1: BM25 broad recall (top 50)
+            #   Stage 2: 5 specialist retrievers in parallel (entity, temporal,
+            #            commitment, relationship, intent_keyword)
+            #   Stage 3: Reciprocal Rank Fusion (RRF, k=60)
+            #   Stage 4: Context engineering (dedup, chronological, top-8)
+            #   Stage 5: Structural memory (JSON entity state for LLM)
+            #
+            # Diagnosis this addresses: BM25=0.55, Rules=0.45, LLM=0.40.
+            # The LLM was making things WORSE because it reasoned over noise.
+            # No model swap fixes a retrieval architecture problem.
             try:
-                from maestro_personal_shell.semantic_retrieval import get_relevant_signals
-                from maestro_personal_shell.ask_ranker import rank_for_ask, understand_query
-                raw_relevant = get_relevant_signals(
-                    req.query, user_email=token, limit=10, as_of=as_of, from_date=from_date,
+                from maestro_personal_shell.retrieval_ensemble import retrieve as ensemble_retrieve
+                _db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                retrieval_result = ensemble_retrieve(
+                    query=req.query,
+                    user_email=token,
+                    db_path=_db,
+                    as_of=as_of,
+                    from_date=from_date,
+                    include_structural=True,
+                )
+                ensemble_evidence = retrieval_result.get("evidence", [])
+                structural_memory_text = retrieval_result.get("structural_memory_text", "")
+                retriever_counts = retrieval_result.get("retriever_counts", {})
+                fused_count = retrieval_result.get("fused_count", 0)
+                logger.info(
+                    "Retrieval ensemble: fused=%d, evidence=%d, retrievers=%s",
+                    fused_count, len(ensemble_evidence), retriever_counts,
                 )
 
-                query_understanding = understand_query(req.query)
-                intent = query_understanding.get("intent", "general")
-
-                ledger_evidence = []
-                try:
-                    from maestro_personal_shell.ledger_routing import route_to_ledger, ledger_entries_to_evidence
-                    _db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
-                    ledger_entries = route_to_ledger(intent, token, _db)
-                    if ledger_entries:
-                        ledger_evidence = ledger_entries_to_evidence(ledger_entries)
-                        logger.info("Phase 1.2 ledger-first: intent=%s, %d ledger entries found",
-                                    intent, len(ledger_entries))
-                        evidence_refs_for_llm = ledger_evidence + evidence_refs_for_llm
-                        if not source_sent and ledger_evidence:
-                            source_sent = ledger_evidence[0]["text"]
-                except Exception as e:
-                    logger.debug("Ledger routing failed (non-fatal): %s", e)
-                intent_keywords = query_understanding.get("intent_keywords", [])
-                if intent_keywords and intent in ("broken", "overdue", "relational", "risk", "recurring", "conditional", "cross_entity", "critical", "noise_lookup"):
-                    all_signals = load_signals_from_db(user_email=token, limit=500)
-                    fts_ids = {r.get("signal_id") for r in raw_relevant}
-                    for sig in all_signals:
-                        if sig.get("signal_id") in fts_ids:
-                            continue
-                        sig_text = str(sig.get("text", "")).lower()
-                        if any(kw in sig_text for kw in intent_keywords):
-                            raw_relevant.append(sig)
-
-                if raw_relevant:
-                    ranked = rank_for_ask(req.query, raw_relevant)
-                    relevant = ranked["top_evidence"]
-                    entity_summary = ranked.get("entity_summary", [])
-                    if entity_summary:
-                        summary_lines = [
-                            f"  - {ent['entity']}: {ent['broken_count']} broken, "
-                            f"{ent['completed_count']} completed, {ent['stale_count']} stale commitments"
-                            for ent in entity_summary[:5]
-                        ]
-                        entity_context = "Entity summary (grouped by person/project):\n" + "\n".join(summary_lines)
-                        if query_understanding.get("intent") in ("relational", "broken", "overdue"):
-                            source_sent = entity_context
-                        evidence_refs_for_llm.append({"text": entity_context, "entity": "entity_summary"})
-                else:
-                    relevant = []
-                if relevant:
+                if ensemble_evidence:
+                    # Prepend structural memory as the first evidence ref so
+                    # the LLM sees the structured entity state BEFORE raw
+                    # signal text. This shifts reasoning burden from the LLM
+                    # to the system (Phase 8 prescription).
+                    if structural_memory_text:
+                        evidence_refs_for_llm.append({
+                            "text": structural_memory_text,
+                            "entity": "structural_memory",
+                            "source_type": "structural",
+                        })
+                    # Add the context-engineered evidence (top 8, deduped, chronological)
+                    for ev in ensemble_evidence:
+                        evidence_refs_for_llm.append({
+                            "text": ev.get("text", ""),
+                            "entity": ev.get("entity", ""),
+                            "timestamp": str(ev.get("timestamp", "")),
+                            "signal_id": ev.get("signal_id", ""),
+                            "source_type": ev.get("source_type", "ensemble"),
+                        })
                     if not source_sent:
-                        source_sent = relevant[0].get("text", "")
-                    if not evidence_refs_for_llm:
-                        evidence_refs_for_llm = [{"text": r.get("text", ""), "entity": r.get("entity", "")} for r in relevant[:5]]
+                        # Use the first non-structural evidence as source_sentence
+                        for ev in ensemble_evidence:
+                            if ev.get("text"):
+                                source_sent = ev.get("text", "")
+                                break
+                else:
+                    logger.info("Ensemble returned no evidence — falling back to legacy retrieval")
+                    # Legacy fallback: original BM25+ranker path
+                    from maestro_personal_shell.semantic_retrieval import get_relevant_signals
+                    from maestro_personal_shell.ask_ranker import rank_for_ask
+                    raw_relevant = get_relevant_signals(
+                        req.query, user_email=token, limit=10, as_of=as_of, from_date=from_date,
+                    )
+                    if raw_relevant:
+                        ranked = rank_for_ask(req.query, raw_relevant)
+                        relevant = ranked["top_evidence"]
+                        if relevant:
+                            source_sent = relevant[0].get("text", "")
+                            evidence_refs_for_llm = [
+                                {"text": r.get("text", ""), "entity": r.get("entity", "")}
+                                for r in relevant[:5]
+                            ]
             except Exception as e:
-                logger.debug("Semantic retrieval failed, falling back to linear: %s", e)
+                logger.warning("Retrieval ensemble failed, falling back to legacy: %s", e)
+                # Last-resort fallback: original BM25 path
+                try:
+                    from maestro_personal_shell.semantic_retrieval import get_relevant_signals
+                    from maestro_personal_shell.ask_ranker import rank_for_ask
+                    raw_relevant = get_relevant_signals(
+                        req.query, user_email=token, limit=10, as_of=as_of, from_date=from_date,
+                    )
+                    if raw_relevant:
+                        ranked = rank_for_ask(req.query, raw_relevant)
+                        relevant = ranked["top_evidence"]
+                        if relevant:
+                            source_sent = relevant[0].get("text", "")
+                            evidence_refs_for_llm = [
+                                {"text": r.get("text", ""), "entity": r.get("entity", "")}
+                                for r in relevant[:5]
+                            ]
+                except Exception as e2:
+                    logger.error("Legacy fallback also failed: %s", e2)
 
             # If FTS found nothing but the user HAS signals, use ALL of them.
             # S1-01 fix (auditor critical finding): the previous "broad query
