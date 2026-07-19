@@ -682,6 +682,52 @@ async def llm_status(token: str = Depends(verify_token_dep)):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/debug-llm")
+async def debug_llm(token: str = Depends(verify_token_dep)):
+    """TEMP debug — inspect LLM router state."""
+    import os
+    from maestro_personal_shell.llm_bridge import (
+        get_llm_router, is_llm_available, _is_circuit_breaker_open,
+        _OllamaDirectRouter,
+    )
+    ollama_host = os.environ.get("OLLAMA_HOST", "<NOT SET>")
+    ollama_model = os.environ.get("OLLAMA_MODEL", "<NOT SET>")
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "<NOT SET>")
+    cb_open = _is_circuit_breaker_open()
+    llm_avail = is_llm_available()
+    
+    # Try to build a router directly
+    router = None
+    router_error = ""
+    try:
+        router = get_llm_router()
+    except Exception as e:
+        router_error = str(e)[:200]
+    
+    # Try health check directly
+    health = None
+    health_error = ""
+    if ollama_host and ollama_host.startswith("http") and "localhost" not in ollama_host:
+        try:
+            test = _OllamaDirectRouter()
+            health = test.health_check()
+        except Exception as e:
+            health_error = str(e)[:200]
+    
+    return {
+        "OLLAMA_HOST": ollama_host,
+        "OLLAMA_MODEL": ollama_model,
+        "OPENROUTER_API_KEY": "<set>" if openrouter_key and openrouter_key != "<NOT SET>" else openrouter_key,
+        "circuit_breaker_open": cb_open,
+        "is_llm_available": llm_avail,
+        "router_present": router is not None,
+        "router_provider": getattr(router, "default_provider", "none") if router else "none",
+        "router_error": router_error,
+        "direct_health_check": health,
+        "health_error": health_error,
+    }
+
+
 @router.get("/depth")
 async def get_depth(token: str = Depends(verify_token_dep)):
     """Show which Core modules are wired to Personal (honest: producing_value vs placeholder).
