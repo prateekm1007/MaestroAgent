@@ -684,17 +684,58 @@ async def llm_status(token: str = Depends(verify_token_dep)):
 
 @router.get("/debug-env")
 async def debug_env(token: str = Depends(verify_token_dep)):
-    """TEMP debug endpoint — print all LLM-related env vars. Remove after debugging."""
+    """TEMP debug endpoint — print all LLM-related env vars + probe tunnel. Remove after debugging."""
     import os
+    import urllib.request
+    import json as _json
+    import time as _time
+
+    # Direct probe of the Ollama tunnel from inside Railway
+    ollama_host = os.environ.get("OLLAMA_HOST", "")
+    probe_result = {"attempted": False, "status": "", "latency_ms": 0, "error": "", "models": []}
+    if ollama_host:
+        probe_result["attempted"] = True
+        try:
+            start = _time.time()
+            req = urllib.request.Request(f"{ollama_host}/api/tags", headers={"User-Agent": "maestro-debug"})
+            resp = urllib.request.urlopen(req, timeout=20)
+            latency = int((_time.time() - start) * 1000)
+            data = _json.loads(resp.read())
+            probe_result["status"] = "OK"
+            probe_result["latency_ms"] = latency
+            probe_result["models"] = [m.get("name") for m in data.get("models", [])][:5]
+        except Exception as e:
+            probe_result["status"] = "FAILED"
+            probe_result["error"] = str(e)[:300]
+
+    # Also check circuit breaker state
+    from maestro_personal_shell.llm_bridge import _is_circuit_breaker_open, get_llm_router, is_llm_available
+    cb_open = _is_circuit_breaker_open()
+    router = get_llm_router()
+    llm_avail = is_llm_available()
+
+    # Try to init _OllamaDirectRouter directly and check health
+    ollama_router_info = {"attempted": False}
+    try:
+        from maestro_personal_shell.llm_bridge import _OllamaDirectRouter
+        ollama_router = _OllamaDirectRouter()
+        ollama_router_info["attempted"] = True
+        ollama_router_info["base_url"] = ollama_router._base_url
+        ollama_router_info["model"] = ollama_router._model
+        ollama_router_info["health_check"] = ollama_router.health_check()
+    except Exception as e:
+        ollama_router_info["error"] = str(e)[:200]
+
     return {
-        "OLLAMA_HOST": os.environ.get("OLLAMA_HOST", "<NOT SET>"),
+        "OLLAMA_HOST": ollama_host or "<NOT SET>",
         "OLLAMA_MODEL": os.environ.get("OLLAMA_MODEL", "<NOT SET>"),
-        "ANTHROPIC_API_KEY": "<set>" if os.environ.get("ANTHROPIC_API_KEY") else "<NOT SET>",
-        "OPENAI_API_KEY": "<set>" if os.environ.get("OPENAI_API_KEY") else "<NOT SET>",
-        "ZAI_API_KEY": "<set>" if os.environ.get("ZAI_API_KEY") else "<NOT SET>",
         "MAESTRO_PERSONAL_DB": os.environ.get("MAESTRO_PERSONAL_DB", "<NOT SET>"),
-        "total_env_vars": len(os.environ),
-        "env_var_names": sorted([k for k in os.environ if not k.startswith("RAILWAY_") and not k.startswith("PYTHON")])[:30],
+        "circuit_breaker_open": cb_open,
+        "llm_available": llm_avail,
+        "router_present": router is not None,
+        "router_provider": getattr(router, "default_provider", "none") if router else "none",
+        "ollama_router_info": ollama_router_info,
+        "tunnel_probe": probe_result,
     }
 
 
