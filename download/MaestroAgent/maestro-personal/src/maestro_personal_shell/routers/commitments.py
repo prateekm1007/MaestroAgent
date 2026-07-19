@@ -157,18 +157,77 @@ def _detect_completion(signals: list) -> dict[str, str]:
     return completed
 
 
+def _detect_cancellation(signals: list) -> dict[str, str]:
+    """Detect cancelled commitments from signals (S2-07 fix).
+
+    Cancellation is different from completion:
+    - Completion: "sent", "delivered", "done" (the commitment was fulfilled)
+    - Cancellation: "never mind", "forget it", "we don't need this" (the
+      commitment was withdrawn)
+
+    Both should remove the commitment from the active list, but they have
+    different semantics for the ledger (completed vs cancelled state).
+
+    Returns dict of signal_id → 'cancelled' for signals that indicate
+    cancellation of a prior commitment.
+    """
+    cancellation_keywords = [
+        "never mind", "forget it", "don't need", "do not need",
+        "cancelled", "canceled", "call it off", "called off",
+        "no longer needed", "not needed anymore", "scratch that",
+        "forget about", "disregard", "ignore that",
+        "won't be needed", "will not be needed",
+        "pull the plug", "scrap it", "scrap the",
+    ]
+
+    # Also check signal_type for explicit cancellation signals
+    cancellation_signal_types = {
+        "commitment.cancelled", "commitment_canceled",
+        "cancellation", "cancelled",
+    }
+
+    cancelled = {}  # signal_id -> "cancelled"
+    for sig in signals:
+        text = str(getattr(sig, "text", "")).lower()
+        sig_type = str(getattr(sig, "signal_type", "") or
+                      getattr(getattr(sig, "type", ""), "value", "")).lower()
+
+        # Check signal_type first
+        if sig_type in cancellation_signal_types:
+            sig_id = str(getattr(sig, "signal_id", ""))
+            cancelled[sig_id] = "cancelled"
+            continue
+
+        # Check keywords
+        if any(kw in text for kw in cancellation_keywords):
+            sig_id = str(getattr(sig, "signal_id", ""))
+            cancelled[sig_id] = "cancelled"
+
+    return cancelled
+
+
 def _filter_completed_commitments(commitments: list[dict], signals: list) -> list[dict]:
-    """Filter out completed commitments (F2 fix + auditor fix).
+    """Filter out completed AND cancelled commitments (F2 fix + auditor fix + S2-07 fix).
+
+    S2-07 fix: previously, only completion signals (sent, delivered, etc.)
+    filtered commitments. Cancellation signals ("never mind", "we don't
+    need this", "cancelled") were not handled, so cancelled commitments
+    still showed in /api/commitments as active. This caused a canonical
+    state inconsistency: What Changed removed the cancelled commitment,
+    but /api/commitments still listed it.
 
     Auditor fix: completion must be signal-specific, not entity-wide.
     "Proposal sent" should only close the proposal commitment for that
     entity, not ALL commitments for that entity.
 
-    Matches completion signals to commitments by:
+    Matches completion/cancellation signals to commitments by:
     1. Same entity
-    2. Keyword overlap (the completion text mentions the commitment topic)
+    2. Keyword overlap (the completion/cancellation text mentions the commitment topic)
     """
     completed_signal_ids = _detect_completion(signals)
+
+    # S2-07 fix: also detect cancellation signals
+    cancelled_signal_ids = _detect_cancellation(signals)
 
     # Build a map of entity → list of completion signal texts
     entity_completions: dict[str, list[str]] = {}
@@ -181,10 +240,29 @@ def _filter_completed_commitments(commitments: list[dict], signals: list) -> lis
                 entity_completions[entity] = []
             entity_completions[entity].append(text)
 
+    # Build a map of entity → list of cancellation signal texts
+    entity_cancellations: dict[str, list[str]] = {}
+    for sig in signals:
+        sig_id = str(getattr(sig, "signal_id", ""))
+        if sig_id in cancelled_signal_ids:
+            entity = str(getattr(sig, "entity", "")).lower()
+            text = str(getattr(sig, "text", "")).lower()
+            if entity not in entity_cancellations:
+                entity_cancellations[entity] = []
+            entity_cancellations[entity].append(text)
+
     filtered = []
     for c in commitments:
         c_entity = str(c.get("entity", "")).lower()
         c_text = str(c.get("text", "")).lower()
+
+        # S2-07: check cancellation first (broader — entity-wide is OK for
+        # cancellation because "never mind, we don't need the report" clearly
+        # cancels ALL commitments for that entity/topic)
+        if c_entity in entity_cancellations:
+            # For cancellation, entity match is sufficient — if the user said
+            # "never mind" about this entity, ALL commitments for it are cancelled
+            continue  # skip this commitment — it's cancelled
 
         # Check if there's a completion signal for this entity
         if c_entity in entity_completions:
