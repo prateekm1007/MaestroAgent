@@ -112,6 +112,49 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
 
+    # F-IntentGate fix (auditor Phase 1-5): intent-based queries like
+    # "What did I fail to deliver?" / "Which promises are overdue?" /
+    # "Who am I disappointing?" were being refused by the entity gate
+    # because they don't name a specific entity. But these are exactly
+    # the queries the retrieval ensemble's specialist retrievers are
+    # designed to answer (intent_keyword, commitment, relationship).
+    # Treat recognized intent patterns as broad so the ensemble can run.
+    _INTENT_BROAD_PATTERNS = [
+        # broken / fail-to-deliver intent
+        "fail to deliver", "failed to deliver", "what did i fail",
+        "what did i miss", "didn't deliver", "did not deliver",
+        "never sent", "never delivered", "broken promise",
+        "broken commitment", "missed deadline",
+        # overdue intent
+        "overdue", "past due", "behind schedule", "late promise",
+        "late commitment", "which promises are", "which commitments are",
+        # relational intent
+        "who am i", "who are my", "who keeps", "who owes",
+        "who is my", "which clients", "which people", "which projects",
+        "disappointing", "delivery risk", "most reliable", "biggest risk",
+        "most urgent", "who are my most",
+        # at-risk intent
+        "at risk", "what's at risk", "what is at risk",
+        # recurring intent
+        "keeps happening", "keeps breaking", "what pattern",
+        "again and again", "recurring issue", "recurring problem",
+        # contradiction intent
+        "change their mind", "changed their mind", "did anyone change",
+        "what's the pricing", "what is the pricing", "pricing issue",
+        "pricing dispute", "did orion",
+        # disputed intent
+        "were any completions", "disputed", "challenged",
+        # conditional intent
+        "depends on", "is sso ready", "what depends",
+        # critical intent
+        "legal issue", "legal matter", "churn", "cancel account",
+        "board escalation", "emergency meeting", "breach",
+        # cross-entity intent
+        "who has", "who have",
+    ]
+    if not _is_broad_query:
+        _is_broad_query = any(p in query_lower for p in _INTENT_BROAD_PATTERNS)
+
     # Defect 3 fix (auditor roadmap Phase 2): temporal keyword bypass.
     # Queries like "What changed since Tuesday?" or "What happened yesterday?"
     # contain temporal keywords that the FTS5 entity-column check treats as
