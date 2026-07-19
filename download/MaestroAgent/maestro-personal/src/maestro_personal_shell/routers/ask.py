@@ -101,6 +101,14 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "what's new", "what is new", "give me an overview",
         "what are my commitments", "how many commitments",
         "anything urgent", "what's at risk",
+        # F-S1b-a-2 fix (auditor): "list all" / "every" / "all of them"
+        # are the most natural commitment-tracker queries. Without these
+        # patterns, "Give me every commitment I have" returns a bare
+        # refusal because it doesn't name a specific entity.
+        "give me every", "give me all", "list all", "list every",
+        "show me all", "show me every", "all of them",
+        "all my commitments", "every commitment",
+        "what did i promise all", "what did i promise every",
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
 
@@ -363,27 +371,70 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     logger.warning("F-S1b-a: multi-entity match (%d entities) — using structural answer",
                                 len(all_matches))
 
+                    # F-S1b-a-1 fix (auditor): detect semantic modifiers
+                    # (not, except, without, but not, only) to handle
+                    # exclusion queries like "What did I promise Alex but
+                    # not Maria?" Without this, the structural path treats
+                    # all multi-entity queries as conjunctions.
+                    _EXCLUSION_KEYWORDS = ["but not", "not ", "except", "without", "only "]
+                    _has_exclusion = any(kw in query_lower for kw in _EXCLUSION_KEYWORDS)
+
                     # Build per-entity answers from signals
                     from maestro_personal_shell.api import load_signals_from_db
                     all_sigs = load_signals_from_db(user_email=token, limit=50)
                     answer_parts = []
                     multi_evidence = []
-                    for ent in matched_entities:
-                        ent_sigs = [s for s in all_sigs if isinstance(s, dict) and s.get("entity", "").lower() == ent.lower()]
-                        if ent_sigs:
-                            latest = ent_sigs[0]
-                            answer_parts.append(f'{ent}: "{latest.get("text", "")}"')
-                            multi_evidence.append({
-                                "text": latest.get("text", ""),
-                                "entity": ent,
-                                "timestamp": str(latest.get("timestamp", "")),
-                                "signal_id": latest.get("signal_id", ""),
-                                "source_type": "manual",
-                            })
-                        else:
-                            answer_parts.append(f'{ent}: No evidence found.')
 
-                    combined_answer = 'You made the following commitments:\n' + '\n'.join(answer_parts)
+                    if _has_exclusion:
+                        # Exclusion query: figure out which entities to EXCLUDE.
+                        # The entity after "not"/"except"/"without" is excluded.
+                        # Simple heuristic: split on the exclusion keyword,
+                        # the right side contains the excluded entity.
+                        excluded_entities = set()
+                        for kw in _EXCLUSION_KEYWORDS:
+                            if kw in query_lower:
+                                after_kw = query_lower.split(kw, 1)[-1].strip()
+                                # Check which matched entities appear after the keyword
+                                for ent in matched_entities:
+                                    if ent.lower() in after_kw:
+                                        excluded_entities.add(ent)
+                                break
+
+                        included_entities = [e for e in matched_entities if e not in excluded_entities]
+                        excluded_str = ", ".join(excluded_entities) if excluded_entities else "none"
+
+                        for ent in included_entities:
+                            ent_sigs = [s for s in all_sigs if isinstance(s, dict) and s.get("entity", "").lower() == ent.lower()]
+                            if ent_sigs:
+                                latest = ent_sigs[0]
+                                answer_parts.append(f'{ent}: "{latest.get("text", "")}"')
+                                multi_evidence.append({
+                                    "text": latest.get("text", ""),
+                                    "entity": ent,
+                                    "timestamp": str(latest.get("timestamp", "")),
+                                    "signal_id": latest.get("signal_id", ""),
+                                    "source_type": "manual",
+                                })
+
+                        combined_answer = f'You made the following commitments (excluding {excluded_str}):\n' + '\n'.join(answer_parts) if answer_parts else f'No commitments found after excluding {excluded_str}.'
+                    else:
+                        # Conjunction query (default): list all matched entities
+                        for ent in matched_entities:
+                            ent_sigs = [s for s in all_sigs if isinstance(s, dict) and s.get("entity", "").lower() == ent.lower()]
+                            if ent_sigs:
+                                latest = ent_sigs[0]
+                                answer_parts.append(f'{ent}: "{latest.get("text", "")}"')
+                                multi_evidence.append({
+                                    "text": latest.get("text", ""),
+                                    "entity": ent,
+                                    "timestamp": str(latest.get("timestamp", "")),
+                                    "signal_id": latest.get("signal_id", ""),
+                                    "source_type": "manual",
+                                })
+                            else:
+                                answer_parts.append(f'{ent}: No evidence found.')
+
+                        combined_answer = 'You made the following commitments:\n' + '\n'.join(answer_parts)
 
                     return AskResponse(
                         answer=combined_answer,
