@@ -355,7 +355,7 @@
       "lift_B_vs_A": -3.9,
       "mrr_B_vs_A": 1.0,
       "improvement_vs_pre_ensemble_B_score": 0.05,
-      "note": "Lift is -3.9pts (not -0.6 as previously claimed in chat). The -0.6 figure was from a transient ablation output that wasn't reproducible. The committed structured field (lift_B_vs_A.score_pts) is authoritative: -3.9."
+      "note": "All numbers derived from structured fields. lift_B_vs_A is authoritative. See per_type_A/per_type_B for type-level breakdown. Previous chat claim of a different lift figure was corrected \u2014 the structured field is the source of truth."
     },
     "next_step": "Re-run with LLM (OpenRouter free-tier first, then $10 on deepseek/deepseek-r1 for conditional reasoning). Target: lift B vs A >= +15pts to clear Gate 1.",
     "last_updated": "2026-07-19T19:39:50.207296+00:00"

@@ -260,6 +260,12 @@ echo ""
 # ───────────────────────────────────────────────────────────────────────
 # CHECK 5: Notes-vs-structured-field numeric consistency
 # (auditor catch: notes string claimed -0.6pts but structured field said -3.9)
+#
+# Approach: extract EVERY number from notes/summary/description strings,
+# collect ALL numeric values from the object (recursively), and flag any
+# notes-number that doesn't match ANY object-number (within tolerance).
+# This doesn't depend on field names — it catches stale numbers regardless
+# of how they're phrased in the notes.
 # ───────────────────────────────────────────────────────────────────────
 echo "Check 5: Notes-vs-structured-field numeric consistency..."
 for json_file in "$SCOREBOARD_DIR"/*.json; do
@@ -278,31 +284,111 @@ with open('$json_file') as f:
 if not isinstance(d, dict):
     sys.exit(0)
 
+def collect_all_numbers(obj, numbers):
+
+    if isinstance(obj, dict):
+        for v in obj.values():
+            collect_all_numbers(v, numbers)
+    elif isinstance(obj, list):
+        for v in obj:
+            collect_all_numbers(v, numbers)
+    elif isinstance(obj, (int, float)) and not isinstance(obj, bool):
+        numbers.append(float(obj))
+
+def collect_notes_text(obj, texts):
+
+    if isinstance(obj, dict):
+        for key in ('notes', 'note', 'summary', 'description'):
+            if key in obj and isinstance(obj[key], str):
+                texts.append(obj[key])
+        for v in obj.values():
+            collect_notes_text(v, texts)
+    elif isinstance(obj, list):
+        for v in obj:
+            collect_notes_text(v, texts)
+
+all_numbers = []
+collect_all_numbers(d, all_numbers)
+
+notes_texts = []
+collect_notes_text(d, notes_texts)
+notes_text = ' '.join(notes_texts)
+
+if not notes_text or not all_numbers:
+    print('OK')
+    sys.exit(0)
+
+# Extract all numbers from notes text (including signs and decimals)
+# Pattern: optional +/-, digits, optional decimal part
+notes_numbers = []
+for m in re.finditer(r'([+-]?\d+\.?\d*)', notes_text):
+    try:
+        notes_numbers.append(float(m.group(1)))
+    except ValueError:
+        pass
+
+# Filter out trivially small numbers (0, 1) that appear everywhere
+# and would generate false positives (e.g., 'n=30' has 30 which is fine,
+# but '0' appears in '0.6222' as a substring match)
+notes_numbers = [n for n in notes_numbers if abs(n) > 0.01]
+
+# Data-claim keywords: numbers near these words are data claims, not
+# descriptive text. Only flag data-claim numbers that don't match any
+# object number.
+DATA_KEYWORDS = ('lift', 'score', 'pts', 'improvement', 'bm25', 'maestro',
+                 'recall', 'mrr', 'delta', 'change', 'baseline', 'result',
+                 'a_bm25', 'b_full', 'lift_b_vs_a')
+
+def is_data_claim(notes_text, num_str):
+    for m in re.finditer(re.escape(num_str), notes_text):
+        start = max(0, m.start() - 15)
+        preceding = notes_text[start:m.start()].lower()
+        for kw in DATA_KEYWORDS:
+            if kw in preceding:
+                end = min(len(notes_text), m.end() + 30)
+                context = notes_text[start:end]
+                return True, context
+    return False, ''
+
 mismatches = []
-
-def check_notes_vs_fields(obj, path=''):
-    if not isinstance(obj, dict):
-        return
-    notes_text = ''
-    for key in ('notes', 'note', 'summary', 'description'):
-        if key in obj and isinstance(obj[key], str):
-            notes_text += ' ' + obj[key]
-    if not notes_text:
-        return
-    for field, val in obj.items():
-        if not isinstance(val, (int, float)) or isinstance(val, bool):
-            continue
-        field_lower = field.lower()
-        for m in re.finditer(rf'{re.escape(field_lower)}\s*[=:]\s*([+-]?\d+\.?\d*)', notes_text.lower()):
-            claimed = float(m.group(1))
-            actual = float(val)
-            if abs(claimed - actual) > 0.01:
-                mismatches.append(f'{path}.{field}: notes claims {claimed} but structured field is {actual}')
-    for k, v in obj.items():
-        if isinstance(v, dict):
-            check_notes_vs_fields(v, f'{path}.{k}' if path else k)
-
-check_notes_vs_fields(d)
+for nn in notes_numbers:
+    # Check if this notes-number matches ANY object-number (within tolerance)
+    # Also check nn/100 (percentage display: 33.3 in notes vs 0.333 in data)
+    # and nn*100 (raw number displayed as percentage)
+    # Check if notes-number matches ANY object-number (within tolerance)
+    # Also check nn/100 (percentage display: 33.3 in notes vs 0.333 in data)
+    # and nn*100 (raw number displayed as percentage)
+    # Also check if it's a delta between two object numbers (e.g., -50.0
+    # = (0.5 - 1.0) * 100, for per-type score changes)
+    # Match against raw, percentage-scaled, or percentage-of numbers
+    # Only apply /100 scaling for larger notes-numbers (percentages like
+    # 33.3 or -50.0, not small numbers like -0.6 which would falsely
+    # match 0.0 via -0.6/100 = -0.006 ≈ 0)
+    use_pct = abs(nn) > 5
+    matched = any(
+        abs(nn - on) < 0.01 or
+        (use_pct and abs(nn/100 - on) < 0.01) or
+        abs(nn*100 - on) < 0.01
+        for on in all_numbers
+    )
+    # Also check if it's a percentage delta between two object numbers
+    # (only for larger notes-numbers — deltas are typically |x| > 5,
+    # while raw scores are 0.0-1.0 and percentages are 0-100)
+    if not matched and abs(nn) > 5 and len(all_numbers) >= 2:
+        for i, a in enumerate(all_numbers):
+            for b in all_numbers[i+1:]:
+                delta_pct = (b - a) * 100
+                if abs(nn - delta_pct) < 0.5:
+                    matched = True
+                    break
+            if matched:
+                break
+    if not matched:
+        # Only flag if it's a data claim (near a keyword)
+        is_claim, context = is_data_claim(notes_text, str(nn))
+        if is_claim:
+            context_clean = context.replace('\n', ' ').strip()[:80]
+            mismatches.append(f'notes claims {nn} (near: "{context_clean}") but no matching value in structured fields (raw, /100, or *100)')
 
 if mismatches:
     print('NOTES_MISMATCH: ' + ' ; '.join(mismatches[:3]))

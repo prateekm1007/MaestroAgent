@@ -553,16 +553,21 @@ def get_llm_router() -> Any:
         _router_checked = False  # Allow retry
     _router_checked = True
 
-    # 0. STATELESS CLOUD ROUTER (auditor recommendation): if a cloud
+    # 0. CLOUD ROUTER PRIORITY (auditor recommendation): if a cloud
     # provider env var is set (OPENROUTER_API_KEY, OPENAI_API_KEY, etc.),
-    # return a FRESH LLMRouter.from_env_sync() on EVERY call — no caching.
-    # This sidesteps the entire class of multi-worker bugs:
-    #   - cached-None-forever (worker A fails init, caches None, never retries)
-    #   - different workers seeing different router state
-    #   - circuit breaker not clearing across workers
-    #   - router init retry cooldowns
-    # The cloud router is cheap to construct (reads env vars + creates
-    # httpx clients). Caching it was an optimization that introduced bugs.
+    # use maestro_llm's LLMRouter.from_env_sync() as the PRIMARY router.
+    #
+    # Note: this is NOT fully stateless — the top-of-function cache check
+    # (lines above) still returns a cached healthy router on subsequent
+    # calls within the same worker. What this fixes is the INITIALIZATION
+    # order: cloud providers are now tried FIRST (before ZAI/Ollama), so
+    # when OPENROUTER_API_KEY is set, the cached router is a clean
+    # LLMRouter instance rather than a Kaggle-tunnel-specific one.
+    #
+    # The multi-worker cached-None-forever bug is mitigated (not eliminated)
+    # by the retry logic at the top of this function: if a worker's cached
+    # router becomes unhealthy, the cache is invalidated and re-init runs,
+    # which hits this cloud branch first.
     try:
         import sys
         import pathlib
@@ -572,13 +577,11 @@ def get_llm_router() -> Any:
         from maestro_llm.router import LLMRouter
 
         if LLMRouter.has_env_provider():
-            # FRESH router every call — no module-global caching
             fresh_router = LLMRouter.from_env_sync()
-            # Mark as checked so the cache logic below doesn't re-init
             _router_checked = True
-            _router = fresh_router  # cache for THIS call's health_check
+            _router = fresh_router  # cache for subsequent calls
             logger.debug(
-                "LLM router (stateless cloud): provider=%s",
+                "LLM router (cloud priority): provider=%s",
                 fresh_router.default_provider,
             )
             return fresh_router
