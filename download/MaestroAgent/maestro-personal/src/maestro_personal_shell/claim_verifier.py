@@ -162,7 +162,19 @@ def verify_claims(
                     source_fragment_match = True
                     break
 
-        if keyword_overlap or entity_match or not claim_keywords or source_fragment_match:
+        # S1 fix round 2: if the claim mentions ANY entity from evidence,
+        # consider it grounded. LLMs paraphrase evidence — the entity name
+        # is the strongest signal that the claim is about the evidence, not
+        # fabricated. This prevents the guardrail from blocking legitimate
+        # paraphrased answers.
+        claim_lower_full = claim.lower()
+        evidence_entity_match = any(
+            ent.lower() in claim_lower_full
+            for ent in evidence_entities
+            if ent and len(ent) > 2
+        )
+
+        if keyword_overlap or entity_match or not claim_keywords or source_fragment_match or evidence_entity_match:
             # Supported (or a trivial claim with no keywords — keep it).
             supported_claims.append(claim)
 
