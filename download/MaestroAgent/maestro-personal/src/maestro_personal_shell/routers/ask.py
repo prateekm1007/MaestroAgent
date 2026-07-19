@@ -383,9 +383,9 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         else:
                             answer_parts.append(f'{ent}: No evidence found.')
 
-                    combined_answer = "You made the following commitments:
-" + "
-".join(answer_parts)
+                    combined_answer = 'You made the following commitments:
+' + '
+'.join(answer_parts)
 
                     return AskResponse(
                         answer=combined_answer,
