@@ -1010,7 +1010,7 @@ def _clear_circuit_breaker():
 # full minute when the tunnel died.
 import os as _os
 if _os.environ.get("OLLAMA_HOST", "").startswith("http") and "localhost" not in _os.environ.get("OLLAMA_HOST", "") and "127.0.0.1" not in _os.environ.get("OLLAMA_HOST", ""):
-    LLM_LATENCY_BUDGET_SECONDS = 30.0  # remote Ollama (reduced from 60s)
+    LLM_LATENCY_BUDGET_SECONDS = 90.0  # remote Ollama (Qwen3 14B on Kaggle P100 takes ~26s/call) Ollama (reduced from 60s)
 else:
     LLM_LATENCY_BUDGET_SECONDS = 8.0   # local Ollama or cloud provider
 

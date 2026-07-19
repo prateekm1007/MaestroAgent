@@ -908,7 +908,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # takes ~26s per inference (reasoning model generates <think> tags).
         # The 15s timeout was causing every Ask query to fall back to rules.
         # 45s gives the model enough time while still bounding user wait time.
-        _ask_llm_timeout = 45.0  # 45s max for Ask (Qwen3 reasoning model)
+        _ask_llm_timeout = 90.0  # 90s max for Ask (Qwen3 14B on Kaggle P100 takes ~26s/call)
         try:
             _gather_results = await asyncio.wait_for(
                 asyncio.gather(*_gather_tasks, return_exceptions=True),
