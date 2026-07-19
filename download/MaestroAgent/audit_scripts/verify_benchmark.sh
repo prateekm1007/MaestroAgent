@@ -73,8 +73,10 @@ for key in ('maestro_results', 'results', 'results_B', 'rows', 'queries'):
 if rows is None:
     sys.exit(0)  # no rows to compare, skip
 
-# Find all boolean-shaped fields that appear at both top level and per-row
-top_level_keys = {k for k, v in d.items() if isinstance(v, (bool,)) or (isinstance(v, (int, float, str)) and v in (True, False, 0, 1, 'true', 'false', 'True', 'False', 0.0, 1.0))}
+# Find all boolean-shaped fields at top level that look like claims
+# (not counts or statistics). A boolean claim is: True, False, 0, or 1.
+# Exclude values > 1 (those are counts like llm_active_count: 47).
+top_level_keys = {k for k, v in d.items() if isinstance(v, bool) or v in (0, 1, 'true', 'false', 'True', 'False')}
 
 # Also check common boolean field name patterns
 boolean_field_patterns = ['llm_active', 'llm_used', 'llm_powered', 'active',
@@ -87,8 +89,10 @@ for k in d:
     if isinstance(v, bool) or v in (0, 1, 'true', 'false', 'True', 'False'):
         top_level_keys.add(k)
 
-# Also add pattern-matched keys
+# Also add pattern-matched keys (but exclude counts/statistics)
 for k in d:
+    if 'count' in k.lower() or 'total' in k.lower() or 'precision' in k.lower() or 'recall' in k.lower() or 'score' in k.lower() or 'rate' in k.lower() or 'pct' in k.lower():
+        continue  # skip statistics
     if any(p in k.lower() for p in ['active', 'verified', 'configured', 'enabled', 'powered', 'used']):
         top_level_keys.add(k)
 
@@ -105,7 +109,15 @@ for field in top_level_keys:
             row_values.add(r[field])
 
     if not row_values:
-        continue  # rows don't have this field, skip
+        # Loophole 1 fix (auditor): if the top-level claims a boolean
+        # (e.g. llm_active: True) but NO rows have the field at all,
+        # that's an unasserted claim. Only flag boolean-shaped values
+        # (True/False), NOT counts or floats (those are summary stats).
+        if isinstance(top_val, bool) and top_val:
+            mismatches.append(f'{field}: top={top_val} but field absent in all rows (unasserted claim)')
+        elif isinstance(top_val, (int, float)) and top_val == 1:
+            mismatches.append(f'{field}: top={top_val} but field absent in all rows (unasserted claim)')
+        continue
 
     # Compare top vs row values
     # Normalize to boolean for comparison
@@ -185,11 +197,13 @@ for arm_key in ('maestro_results', 'results', 'results_A', 'results_B', 'results
             if 'RuntimeError' in answer or 'Traceback' in answer:
                 error_count += 1
 
-    if total > 0 and error_count == total:
-        print(f'ALL_ERRORS: {arm_key} has {error_count}/{total} errors')
+    # Loophole 2 fix (auditor): Anti-Gaming Clause 2 says >0% error rate
+    # is VOID. Previously only 100% errors were VOID; partial errors were
+    # warnings. Reconcile with the clause: any error rate >0% is VOID.
+    if total > 0 and error_count > 0:
+        pct = int(100 * error_count / total)
+        print(f'HAS_ERRORS: {arm_key} has {error_count}/{total} errors ({pct}%)')
         sys.exit(0)
-    elif error_count > 0:
-        print(f'SOME_ERRORS: {arm_key} has {error_count}/{total} errors')
 
 print('OK')
 " 2>&1)
@@ -197,11 +211,9 @@ print('OK')
     if [ "$result" = "OK" ]; then
         echo "  ✅ $filename: no error arms"
         PASS=$((PASS + 1))
-    elif echo "$result" | grep -q "ALL_ERRORS"; then
-        echo "  ❌ $filename: $result (VOID per anti-gaming clause 1)"
+    elif echo "$result" | grep -q "HAS_ERRORS"; then
+        echo "  ❌ $filename: $result (VOID per anti-gaming clause 2: >0% errors)"
         FAILURES=$((FAILURES + 1))
-    elif echo "$result" | grep -q "SOME_ERRORS"; then
-        echo "  ⚠️  $filename: $result (warning, not VOID)"
     fi
 done
 echo ""

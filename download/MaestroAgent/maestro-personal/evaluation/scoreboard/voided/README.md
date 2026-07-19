@@ -19,3 +19,24 @@ That file is the one to trust for AI Quality scoring.
 condition and to prevent re-introduction. The `verify_benchmark.sh`
 script in `audit_scripts/` will reject any commit that moves it back
 to the parent directory.
+
+## gold_150_llm_active_full_results.json
+
+**VOID reason:** Two violations:
+1. Metadata-consistency: `gate_pass: True` at top level but absent in all
+   rows (unasserted claim — the top-level says the gate passed but rows
+   don't record it).
+2. Error rate: 23/150 rows (15%) have errors. Anti-Gaming Clause 2 says
+   >0% error rate is VOID.
+
+## gold_150_rule_based_results.json
+
+**VOID reason:** Metadata-consistency: `abstention_precision: 1.0` at top
+level but absent in all rows. A precision of 1.0 is a boolean-shaped claim
+(perfect precision) that rows don't verify.
+
+## security_campaign_results.json
+
+**VOID reason:** Metadata-consistency: `total_fail: 1` and
+`injection_resistance: 1.0` at top level but absent in all rows.
+These are boolean-shaped summary claims that per-row data doesn't echo.
