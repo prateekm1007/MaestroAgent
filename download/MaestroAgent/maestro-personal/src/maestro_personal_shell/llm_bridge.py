@@ -1643,7 +1643,10 @@ Answer the user's question based ONLY on the evidence above. If you cannot answe
             current_user_email=getattr(situation, "_user_email", "") or os.environ.get("MAESTRO_PERSONAL_USER", ""),
         )
         if not guardrail_result.get("safe", True):
-            logger.warning("LLM output guardrail blocked response: %s", guardrail_result.get("violations", []))
+            logger.warning("LLM output guardrail blocked response: %s | violations=%s | original_output=%s",
+        guardrail_result.get("violations", []),
+        guardrail_result.get("details", {}),
+        repr(result[:200]))
             # Return a safe fallback instead of the blocked content
             return "I don't have enough reliable evidence to answer this question."
         # Use the guardrail's (possibly redacted) output
