@@ -519,7 +519,7 @@ def get_llm_router() -> Any:
     prevents the bridge from returning a dead router that will fail
     on every subsequent call.
     """
-    global _router, _router_checked
+    global _router, _router_checked, _router_last_retry
     if _router_checked and _router is not None:
         # Check if the cached router is still healthy. If not, re-initialize.
         if hasattr(_router, 'health_check') and not _router.health_check():
@@ -529,7 +529,19 @@ def get_llm_router() -> Any:
         else:
             return _router
     if _router_checked and _router is None:
-        return None  # Already checked, no router available
+        # F-RemoteTunnel fix: retry router init after a cooldown period.
+        # Previously, a single failed init (cold Kaggle tunnel timeout)
+        # permanently disabled the LLM for the worker's lifetime. Now we
+        # retry every 30s so the router can recover after the tunnel warms up.
+        import time as _t
+        now = _t.time()
+        if not hasattr(_get_llm_router, '_last_retry'):
+            _get_llm_router._last_retry = 0.0
+        if now - _get_llm_router._last_retry < 30.0:
+            return None  # Still in cooldown — don't retry yet
+        logger.info("Retrying LLM router init (previous attempt failed, 30s cooldown elapsed)")
+        _get_llm_router._last_retry = now
+        _router_checked = False  # Allow retry
     _router_checked = True
 
     # 1. Try ZAI HTTP Router FIRST — pure Python, no Node.js needed.
