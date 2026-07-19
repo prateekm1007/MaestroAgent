@@ -256,13 +256,55 @@ def _filter_completed_commitments(commitments: list[dict], signals: list) -> lis
         c_entity = str(c.get("entity", "")).lower()
         c_text = str(c.get("text", "")).lower()
 
-        # S2-07: check cancellation first (broader — entity-wide is OK for
-        # cancellation because "never mind, we don't need the report" clearly
-        # cancels ALL commitments for that entity/topic)
+        # S2-07 fix (round 2, auditor Round 7): cancellation must be
+        # topic-specific, NOT entity-wide. "Never mind, we don't need the
+        # report" should only cancel the report commitment, NOT an unrelated
+        # "review the contract" commitment for the same entity.
+        #
+        # Exception: explicit "cancel everything" phrasing cancels all
+        # commitments for that entity.
         if c_entity in entity_cancellations:
-            # For cancellation, entity match is sufficient — if the user said
-            # "never mind" about this entity, ALL commitments for it are cancelled
-            continue  # skip this commitment — it's cancelled
+            # Check for explicit entity-wide cancellation
+            entity_wide_phrases = [
+                "cancel everything", "cancel all", "forget everything",
+                "scrap everything", "scrap all", "pull the plug on everything",
+                "never mind about everything", "forget it all",
+                "we don't need anything", "do not need anything",
+                "cancel all commitments", "cancel everything with",
+            ]
+            is_entity_wide = False
+            for cancel_text in entity_cancellations[c_entity]:
+                if any(phrase in cancel_text for phrase in entity_wide_phrases):
+                    is_entity_wide = True
+                    break
+
+            if is_entity_wide:
+                continue  # entity-wide cancellation — skip ALL commitments
+
+            # Topic-specific cancellation: require keyword overlap between
+            # the cancellation text and the commitment text (same logic as
+            # completion matching). "Never mind, we don't need the report"
+            # has "report" → cancels "I will send the report by Friday"
+            # but NOT "I will review the contract by Monday".
+            commitment_words = set(c_text.split())
+            common_words = {"i", "will", "the", "to", "a", "an", "by", "for",
+                            "send", "sent", "is", "are", "was", "were", "be",
+                            "have", "has", "that", "this", "it", "in", "on",
+                            "at", "of", "and", "or", "but", "not",
+                            "never", "mind", "we", "do", "need", "don't",
+                            "forget", "cancelled", "canceled", "scratch"}
+            commitment_keywords = commitment_words - common_words
+
+            cancelled = False
+            for cancel_text in entity_cancellations[c_entity]:
+                cancel_words = set(cancel_text.split())
+                overlap = commitment_keywords & cancel_words
+                if overlap:
+                    cancelled = True
+                    break
+
+            if cancelled:
+                continue  # skip this commitment — it's topic-specifically cancelled
 
         # Check if there's a completion signal for this entity
         if c_entity in entity_completions:
