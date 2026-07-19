@@ -385,8 +385,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
                     combined_answer = 'You made the following commitments:\n' + '\n'.join(answer_parts)
 ' + '
-'.join(answer_parts)
-
                     return AskResponse(
                         answer=combined_answer,
                         query=req.query,
