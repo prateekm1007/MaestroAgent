@@ -359,13 +359,5 @@
     },
     "next_step": "Re-run with LLM (OpenRouter free-tier first, then $10 on deepseek/deepseek-r1 for conditional reasoning). Target: lift B vs A >= +15pts to clear Gate 1.",
     "last_updated": "2026-07-19T19:39:50.207296+00:00"
-  },
-  "correction_log": [
-    {
-      "timestamp": "2026-07-19T19:52:00.085545+00:00",
-      "issue": "Notes field claimed -0.6pts / +14.4pt improvement, but structured lift_B_vs_A.score_pts says -3.9. Same species of defect as round68.json (metadata contradicting structured data).",
-      "fix": "Corrected notes to match structured fields. Added contradiction (-50.0) to remaining regressions list (was missing despite being the worst regression).",
-      "auditor": "external"
-    }
-  ]
+  }
 }
