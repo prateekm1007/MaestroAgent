@@ -682,6 +682,22 @@ async def llm_status(token: str = Depends(verify_token_dep)):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/debug-env")
+async def debug_env(token: str = Depends(verify_token_dep)):
+    """TEMP debug endpoint — print all LLM-related env vars. Remove after debugging."""
+    import os
+    return {
+        "OLLAMA_HOST": os.environ.get("OLLAMA_HOST", "<NOT SET>"),
+        "OLLAMA_MODEL": os.environ.get("OLLAMA_MODEL", "<NOT SET>"),
+        "ANTHROPIC_API_KEY": "<set>" if os.environ.get("ANTHROPIC_API_KEY") else "<NOT SET>",
+        "OPENAI_API_KEY": "<set>" if os.environ.get("OPENAI_API_KEY") else "<NOT SET>",
+        "ZAI_API_KEY": "<set>" if os.environ.get("ZAI_API_KEY") else "<NOT SET>",
+        "MAESTRO_PERSONAL_DB": os.environ.get("MAESTRO_PERSONAL_DB", "<NOT SET>"),
+        "total_env_vars": len(os.environ),
+        "env_var_names": sorted([k for k in os.environ if not k.startswith("RAILWAY_") and not k.startswith("PYTHON")])[:30],
+    }
+
+
 @router.get("/depth")
 async def get_depth(token: str = Depends(verify_token_dep)):
     """Show which Core modules are wired to Personal (honest: producing_value vs placeholder).
