@@ -344,5 +344,25 @@ else
   fi
 fi
 
+
+# ─── Benchmark Integrity: block VOID artifacts ──────────────────────
+# Evidence Integrity score 8/10 requires: CI blocks any commit that
+# adds a new VOID artifact. This check runs verify_benchmark.sh when
+# any file under evaluation/scoreboard/ is staged.
+echo "─── Benchmark Integrity: verify_benchmark.sh ───"
+STAGED_SCOREBOARD=$(git diff --cached --name-only --diff-filter=ACM -- '*/evaluation/scoreboard/*.json' || true)
+if [ -n "$STAGED_SCOREBOARD" ]; then
+  echo "  Staged scoreboard files detected — running verify_benchmark.sh..."
+  if bash "$PROJECT_ROOT/audit_scripts/verify_benchmark.sh" 2>&1 | tail -1; then
+    echo "  Benchmark integrity: PASS"
+  else
+    echo "  Benchmark integrity: FAILED — VOID artifact detected. Commit blocked."
+    echo "  Fix: move the VOID artifact to voided/ with a README, or fix the data."
+    exit 1
+  fi
+else
+  echo "  No scoreboard files staged — skipped."
+fi
+
 echo "─── pre-commit hook PASSED ───"
 exit 0
