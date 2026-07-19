@@ -319,8 +319,73 @@ def get_threads_for_entity(
 ) -> list[dict[str, Any]]:
     """Get all threads for a specific entity.
 
-    Convenience wrapper around get_cross_meeting_threads with an entity filter.
-    Useful for /api/ask — when the user asks about an entity, surface the
-    cross-meeting thread for context.
+    F3a fix (auditor P24 cross-surface coherence): when the enterprise
+    CrossMeetingThreadBuilder is unavailable, fall back to deriving threads
+    from the signal store directly. This ensures /api/threads/{entity}
+    returns data that agrees with /api/graph/entity/{entity} — both derive
+    from the same signal store.
+
+    The fallback builds a simple thread per entity: one "thread" containing
+    all signals for that entity, sorted by timestamp, with a topic derived
+    from the first commitment signal. This isn't as sophisticated as the
+    enterprise builder (which tracks topic evolution and decision chains),
+    but it ensures the three surfaces (Ask, Graph, Threads) agree on what
+    entities exist and what their history is.
+
+    F3b fix: case-insensitive entity matching. Previously exact-match only;
+    now matches on lowercased entity name, same as the graph endpoint.
     """
-    return get_cross_meeting_threads(user_email, entity_filter=entity, db_path=db_path)
+    # Try the enterprise builder first
+    threads = get_cross_meeting_threads(user_email, entity_filter=entity, db_path=db_path)
+    if threads:
+        return threads
+
+    # F3a fallback: derive threads from signals directly
+    signals = _get_signals_for_user(user_email, db_path=db_path)
+    if not signals:
+        return []
+
+    entity_lower = entity.lower().strip()
+    # F3b: case-insensitive + partial name matching (same as Ask entity gate)
+    entity_signals = []
+    for sig in signals:
+        sig_entity = str(sig.get("entity", "")).lower().strip()
+        if sig_entity == entity_lower:
+            entity_signals.append(sig)
+        elif entity_lower in sig_entity or sig_entity in entity_lower:
+            entity_signals.append(sig)
+
+    if not entity_signals:
+        return []
+
+    # Sort by timestamp
+    entity_signals.sort(key=lambda s: s.get("timestamp", ""))
+
+    # Build a simple thread
+    topic = "Commitments and interactions"
+    for sig in entity_signals:
+        if sig.get("signal_type") in ("commitment_made", "personal.commitment", "personal.promise"):
+            topic = sig.get("text", "")[:80]
+            break
+
+    return [{
+        "thread_id": f"thread_{entity_lower.replace(' ', '_')}",
+        "entity": entity,
+        "topic": topic,
+        "meeting_count": len(entity_signals),
+        "meetings": [
+            {
+                "signal_id": sig.get("signal_id", ""),
+                "text": sig.get("text", ""),
+                "signal_type": sig.get("signal_type", ""),
+                "timestamp": sig.get("timestamp", ""),
+            }
+            for sig in entity_signals[:20]  # cap at 20 for response size
+        ],
+        "confidence": 0.6,
+        "confidence_level": "likely",
+        "requires_confirmation": False,
+        "topic_evolution": [],
+        "decision_chain": [],
+        "source": "signal_store_fallback",  # indicate this is the fallback path
+    }]

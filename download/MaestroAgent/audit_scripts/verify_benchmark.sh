@@ -179,56 +179,81 @@ if not isinstance(d, dict):
 
 # Check for error/exception fields in result rows
 # F1 fix (auditor): recursively walk row dicts for error-shaped keys/values.
-# Previously only scanned top-level string fields. A RuntimeError nested
-# one level down ({'debug': {'exception_class': 'RuntimeError'}}) was missed.
+# F1a fix: remove depth cap — use a visited set instead (depth > 5 missed
+#   errors nested deeper than 5 levels). A visited set prevents infinite
+#   recursion without imposing an arbitrary depth limit.
+# F1b fix: iterate EVERY top-level list of dicts as a potential arm, not
+#   just a whitelist of 8 known key names. A results list named 'trials'
+#   was missed because it wasn't in the whitelist.
+# F1c fix: if total_questions is present and len(rows) < total_questions,
+#   flag as 'silently missing rows' — a benchmark that drops rows and
+#   reports the survivors is VOID per Anti-Gaming Clause 2.
 
 ERROR_KEYS = {'error', 'exception', 'traceback', 'exception_class',
               'exception_type', 'error_type', 'error_message'}
 ERROR_VALUES = {'RuntimeError', 'Exception', 'Traceback', 'Error',
                 'TypeError', 'ValueError', 'KeyError', 'AttributeError'}
 
-def has_error_recursive(obj, depth=0):
-    '''Recursively walk a dict/list looking for error-shaped keys/values.'''
-    if depth > 5:  # prevent infinite recursion
+def has_error_recursive(obj, visited=None):
+    '''Recursively walk a dict/list looking for error-shaped keys/values.
+    Uses a visited set (by id) to prevent infinite recursion on circular
+    references — no arbitrary depth cap.'''
+    if visited is None:
+        visited = set()
+    obj_id = id(obj)
+    if obj_id in visited:
         return False
+    visited.add(obj_id)
     if isinstance(obj, dict):
         for k, v in obj.items():
             if k in ERROR_KEYS:
                 return True
             if isinstance(v, str) and any(e in v for e in ERROR_VALUES):
                 return True
-            if has_error_recursive(v, depth + 1):
+            if has_error_recursive(v, visited):
                 return True
     elif isinstance(obj, list):
         for item in obj:
-            if has_error_recursive(item, depth + 1):
+            if has_error_recursive(item, visited):
                 return True
     elif isinstance(obj, str):
         if any(e in obj for e in ERROR_VALUES):
             return True
     return False
 
-for arm_key in ('maestro_results', 'results', 'results_A', 'results_B', 'results_C',
-                'llm_only_results', 'rule_based_results', 'bm25_results'):
-    if arm_key not in d:
+# F1b fix: iterate EVERY top-level key whose value is a list of dicts.
+# Previously only checked 8 hardcoded arm_key names. Any list of dicts
+# could be a results arm.
+found_errors = False
+for key, val in d.items():
+    if not isinstance(val, list) or len(val) == 0:
         continue
-    arm = d[arm_key]
-    if not isinstance(arm, list) or len(arm) == 0:
+    # Only check lists of dicts (result rows)
+    if not all(isinstance(r, dict) for r in val):
         continue
 
     error_count = 0
-    total = len(arm)
-    for r in arm:
+    total = len(val)
+    for r in val:
         if has_error_recursive(r):
             error_count += 1
 
-    # Loophole 2 fix (auditor): Anti-Gaming Clause 2 says >0% error rate
-    # is VOID. Previously only 100% errors were VOID; partial errors were
-    # warnings. Reconcile with the clause: any error rate >0% is VOID.
     if total > 0 and error_count > 0:
         pct = int(100 * error_count / total)
-        print(f'HAS_ERRORS: {arm_key} has {error_count}/{total} errors ({pct}%)')
-        sys.exit(0)
+        print(f'HAS_ERRORS: {key} has {error_count}/{total} errors ({pct}%)')
+        found_errors = True
+
+# F1c fix: check for silently missing rows
+total_q = d.get('total_questions') or d.get('total') or d.get('question_count')
+if total_q and isinstance(total_q, int):
+    for key, val in d.items():
+        if isinstance(val, list) and all(isinstance(r, dict) for r in val) and len(val) > 0:
+            if len(val) < total_q:
+                print(f'SILENTLY_MISSING: {key} has {len(val)} rows but total_questions={total_q}')
+                found_errors = True
+
+if found_errors:
+    sys.exit(0)
 
 print('OK')
 " 2>&1)
@@ -238,6 +263,9 @@ print('OK')
         PASS=$((PASS + 1))
     elif echo "$result" | grep -q "HAS_ERRORS"; then
         echo "  ❌ $filename: $result (VOID per anti-gaming clause 2: >0% errors)"
+        FAILURES=$((FAILURES + 1))
+    elif echo "$result" | grep -q "SILENTLY_MISSING"; then
+        echo "  ❌ $filename: $result (VOID: rows silently dropped)"
         FAILURES=$((FAILURES + 1))
     fi
 done
