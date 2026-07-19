@@ -18,6 +18,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # F2 fix: activate pre-commit hooks in CI so the benchmark integrity
+      # check runs on every PR, not just for developers who ran `make hooks`.
+      # Per P22 (regression = production path), the production path for the
+      # hook is CI — that's where PRs are gated.
+      - name: Activate pre-commit hooks
+        working-directory: download/MaestroAgent
+        run: git config core.hooksPath .githooks
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -28,6 +36,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
+
+      # F2 fix: run verify_benchmark.sh as a standalone CI step so VOID
+      # artifacts are caught even if the pre-commit hook is bypassed.
+      - name: Benchmark integrity check
+        working-directory: download/MaestroAgent
+        run: bash audit_scripts/verify_benchmark.sh
 
       - name: Run audit gate (13 verify scripts)
         working-directory: download/MaestroAgent

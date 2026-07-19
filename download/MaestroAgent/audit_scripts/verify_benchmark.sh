@@ -178,6 +178,36 @@ if not isinstance(d, dict):
     sys.exit(0)
 
 # Check for error/exception fields in result rows
+# F1 fix (auditor): recursively walk row dicts for error-shaped keys/values.
+# Previously only scanned top-level string fields. A RuntimeError nested
+# one level down ({'debug': {'exception_class': 'RuntimeError'}}) was missed.
+
+ERROR_KEYS = {'error', 'exception', 'traceback', 'exception_class',
+              'exception_type', 'error_type', 'error_message'}
+ERROR_VALUES = {'RuntimeError', 'Exception', 'Traceback', 'Error',
+                'TypeError', 'ValueError', 'KeyError', 'AttributeError'}
+
+def has_error_recursive(obj, depth=0):
+    '''Recursively walk a dict/list looking for error-shaped keys/values.'''
+    if depth > 5:  # prevent infinite recursion
+        return False
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in ERROR_KEYS:
+                return True
+            if isinstance(v, str) and any(e in v for e in ERROR_VALUES):
+                return True
+            if has_error_recursive(v, depth + 1):
+                return True
+    elif isinstance(obj, list):
+        for item in obj:
+            if has_error_recursive(item, depth + 1):
+                return True
+    elif isinstance(obj, str):
+        if any(e in obj for e in ERROR_VALUES):
+            return True
+    return False
+
 for arm_key in ('maestro_results', 'results', 'results_A', 'results_B', 'results_C',
                 'llm_only_results', 'rule_based_results', 'bm25_results'):
     if arm_key not in d:
@@ -189,13 +219,8 @@ for arm_key in ('maestro_results', 'results', 'results_A', 'results_B', 'results
     error_count = 0
     total = len(arm)
     for r in arm:
-        if isinstance(r, dict):
-            if r.get('error') or r.get('exception') or r.get('traceback'):
-                error_count += 1
-            # Check for RuntimeError in answer text
-            answer = str(r.get('answer', ''))
-            if 'RuntimeError' in answer or 'Traceback' in answer:
-                error_count += 1
+        if has_error_recursive(r):
+            error_count += 1
 
     # Loophole 2 fix (auditor): Anti-Gaming Clause 2 says >0% error rate
     # is VOID. Previously only 100% errors were VOID; partial errors were
