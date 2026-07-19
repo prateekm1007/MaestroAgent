@@ -214,7 +214,7 @@
     "llm_active": 0,
     "timestamp": "2026-07-19T19:39:26Z",
     "target": "https://maestroagent-production.up.railway.app",
-    "notes": "Rules-only retrieval ensemble (no LLM). 5-stage pipeline: BM25 broad recall \u2192 5 specialist retrievers (entity, temporal, commitment, relationship, intent_keyword) \u2192 RRF fusion (k=60) \u2192 context engineering (dedup, chronological, top-8) \u2192 structural memory. LLM was off (Kaggle tunnel dead). The retrieval ensemble alone closed the BM25 gap from -15pts to -0.6pts (+14.4pt improvement), with Maestro actually beating BM25 on MRR (+1.0pt). Per-type wins: at_risk +33.3, recurring +25.0, relational +16.7. Remaining regressions: broken (0.0 \u2014 RRF weight tuning needed), critical (-33.3 \u2014 same RRF issue), noise_lookup (-16.7).",
+    "notes": "Rules-only retrieval ensemble (no LLM, n=30). 5-stage pipeline: BM25 broad recall \u2192 5 specialist retrievers (entity, temporal, commitment, relationship, intent_keyword) \u2192 RRF fusion (k=60) \u2192 context engineering (dedup, chronological, top-8) \u2192 structural memory. LLM was off (Kaggle tunnel dead). Result: BM25=0.6222, Maestro=0.5833, lift=-3.9pts, MRR=1.0pts. Maestro beats BM25 on MRR but not on answer score. Per-type wins: at_risk +33.3, recurring +25.0, relational +16.7. Remaining regressions: contradiction -50.0 (worst \u2014 BM25 nails it, ensemble returns 'No active situation found' because Orion Tech has no LivingSituation despite the ensemble finding 5 evidence items), critical -33.3, noise_lookup -16.7, broken 0.0 (RRF weight tuning needed).",
     "per_type_A": {
       "at_risk": {
         "score": 0.0,
@@ -353,9 +353,19 @@
       "A_bm25": 0.6222,
       "B_full_maestro": 0.5833,
       "lift_B_vs_A": -3.9,
-      "improvement_vs_pre_ensemble": 0.050000000000000044
+      "mrr_B_vs_A": 1.0,
+      "improvement_vs_pre_ensemble_B_score": 0.05,
+      "note": "Lift is -3.9pts (not -0.6 as previously claimed in chat). The -0.6 figure was from a transient ablation output that wasn't reproducible. The committed structured field (lift_B_vs_A.score_pts) is authoritative: -3.9."
     },
     "next_step": "Re-run with LLM (OpenRouter free-tier first, then $10 on deepseek/deepseek-r1 for conditional reasoning). Target: lift B vs A >= +15pts to clear Gate 1.",
     "last_updated": "2026-07-19T19:39:50.207296+00:00"
-  }
+  },
+  "correction_log": [
+    {
+      "timestamp": "2026-07-19T19:52:00.085545+00:00",
+      "issue": "Notes field claimed -0.6pts / +14.4pt improvement, but structured lift_B_vs_A.score_pts says -3.9. Same species of defect as round68.json (metadata contradicting structured data).",
+      "fix": "Corrected notes to match structured fields. Added contradiction (-50.0) to remaining regressions list (was missing despite being the worst regression).",
+      "auditor": "external"
+    }
+  ]
 }

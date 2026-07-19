@@ -1148,7 +1148,16 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
     if not llm_answer_used and evidence_refs and source_sentence:
         top_entity = evidence_refs[0].get("entity", "") if evidence_refs else ""
-        if top_entity and top_entity.lower() not in str(rule_based_answer).lower():
+        # F-Contradiction fix (auditor): also override when the rule-based
+        # answer is a no-situation refusal. "No active situation found for
+        # Orion Tech" contains "Orion Tech" but is still a refusal, not an
+        # answer. The ensemble found evidence — use it.
+        _is_no_situation_refusal = (
+            "no active situation" in str(rule_based_answer).lower()
+            or "no active situations" in str(rule_based_answer).lower()
+        )
+        _entity_not_in_answer = top_entity and top_entity.lower() not in str(rule_based_answer).lower()
+        if top_entity and (_entity_not_in_answer or _is_no_situation_refusal):
             top_text = evidence_refs[0].get("text", "")
             top_timestamp = evidence_refs[0].get("timestamp", "")
             date_str = f" (recorded {top_timestamp[:10]})" if top_timestamp else ""
@@ -1156,6 +1165,19 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             if not source_sentence:
                 source_sentence = top_text
                 source_entity = top_entity
+            # If there are multiple evidence items, include them all
+            # (contradiction queries need all the pricing data points)
+            if len(evidence_refs) > 1:
+                extra_evidence = []
+                for ref in evidence_refs[1:4]:  # up to 3 more
+                    if isinstance(ref, dict):
+                        ref_text = ref.get("text", "")
+                        ref_ts = ref.get("timestamp", "")
+                        if ref_text and ref_text != top_text:
+                            ref_date = f" [{ref_ts[:10]}]" if ref_ts else ""
+                            extra_evidence.append(f'"{ref_text}"{ref_date}')
+                if extra_evidence:
+                    answer += "\n\nRelated evidence:\n" + "\n".join(f"• {e}" for e in extra_evidence)
 
     # F-IntentGate fix v2: skip this second entity check for intent-based
     # queries. 'Which promises are now overdue?' extracts 'Which' as a
