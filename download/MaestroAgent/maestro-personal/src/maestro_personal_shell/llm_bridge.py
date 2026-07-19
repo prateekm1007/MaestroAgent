@@ -328,11 +328,23 @@ class _OllamaDirectRouter:
         P1-GPU: supports remote Ollama (Colab GPU via ngrok).
         When OLLAMA_MODEL is set, uses that model instead of
         auto-detecting from /api/tags.
+
+        F-RemoteTunnel fix: use a longer timeout (15s) for remote tunnels
+        because Cloudflare/Kaggle tunnels add 5-10s of latency on the first
+        request. The previous 5s timeout was causing health_check to fail
+        even though the LLM was actually reachable, which made
+        is_llm_available() return False for the entire session.
         """
         try:
             import urllib.request
             req = urllib.request.Request(f"{self._base_url}/api/tags")
-            resp = urllib.request.urlopen(req, timeout=5)
+            # Use 15s timeout for remote tunnels, 5s for local
+            is_remote = (
+                "localhost" not in self._base_url
+                and "127.0.0.1" not in self._base_url
+            )
+            timeout = 15 if is_remote else 5
+            resp = urllib.request.urlopen(req, timeout=timeout)
             data = json.loads(resp.read())
             models = data.get("models", [])
             if models:
