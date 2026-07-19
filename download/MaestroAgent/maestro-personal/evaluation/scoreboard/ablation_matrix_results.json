@@ -201,18 +201,18 @@
       "mrr": 0.6844
     },
     "B_full_maestro": {
-      "score": 0.6167,
-      "recall_at_10": 0.6833,
+      "score": 0.5833,
+      "recall_at_10": 0.65,
       "mrr": 0.6944,
-      "avg_latency_ms": 224.0
+      "avg_latency_ms": 241.0
     },
     "lift_B_vs_A": {
-      "score_pts": -0.6,
-      "recall_pts": -2.2,
+      "score_pts": -3.9,
+      "recall_pts": -5.6,
       "mrr_pts": 1.0
     },
     "llm_active": 0,
-    "timestamp": "2026-07-19T11:32:15Z",
+    "timestamp": "2026-07-19T19:39:26Z",
     "target": "https://maestroagent-production.up.railway.app",
     "notes": "Rules-only retrieval ensemble (no LLM). 5-stage pipeline: BM25 broad recall \u2192 5 specialist retrievers (entity, temporal, commitment, relationship, intent_keyword) \u2192 RRF fusion (k=60) \u2192 context engineering (dedup, chronological, top-8) \u2192 structural memory. LLM was off (Kaggle tunnel dead). The retrieval ensemble alone closed the BM25 gap from -15pts to -0.6pts (+14.4pt improvement), with Maestro actually beating BM25 on MRR (+1.0pt). Per-type wins: at_risk +33.3, recurring +25.0, relational +16.7. Remaining regressions: broken (0.0 \u2014 RRF weight tuning needed), critical (-33.3 \u2014 same RRF issue), noise_lookup (-16.7).",
     "per_type_A": {
@@ -291,8 +291,8 @@
         "recall": 1.0
       },
       "contradiction": {
-        "score": 1.0,
-        "recall": 1.0
+        "score": 0.5,
+        "recall": 0.5
       },
       "critical": {
         "score": 0.3333333333333333,
@@ -351,11 +351,11 @@
     "post_ensemble_rules_only": {
       "description": "After retrieval ensemble, rules only (n=30, no LLM)",
       "A_bm25": 0.6222,
-      "B_full_maestro": 0.6167,
-      "lift_B_vs_A": -0.6,
-      "improvement_vs_pre_ensemble": 0.08340000000000003
+      "B_full_maestro": 0.5833,
+      "lift_B_vs_A": -3.9,
+      "improvement_vs_pre_ensemble": 0.050000000000000044
     },
     "next_step": "Re-run with LLM (OpenRouter free-tier first, then $10 on deepseek/deepseek-r1 for conditional reasoning). Target: lift B vs A >= +15pts to clear Gate 1.",
-    "last_updated": "2026-07-19T14:02:58.452132+00:00"
+    "last_updated": "2026-07-19T19:39:50.207296+00:00"
   }
 }
