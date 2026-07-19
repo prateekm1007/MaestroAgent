@@ -339,7 +339,7 @@ fi  # end of SKIP_PY_CHECKS else block
 # commit is blocked — the fix is theater.
 # This extends mechanical enforcement from P20+P6 to P23 (commit cites
 # executed output — the script IS the output).
-COMMIT_MSG_FILE="$1"
+COMMIT_MSG_FILE="${1:-}"
 if [ -z "$COMMIT_MSG_FILE" ]; then
   # During a pre-commit hook, the commit message file is passed as $1
   # by git. If not available (e.g., running manually), skip P23 check.
