@@ -346,14 +346,24 @@ def get_threads_for_entity(
         return []
 
     entity_lower = entity.lower().strip()
-    # F3b: case-insensitive + partial name matching (same as Ask entity gate)
+    # F3b: case-insensitive + partial name matching
+    # F3c fix (auditor round 2): require substring length >= 3 to prevent
+    # single-letter matches ("a" matching "Alex Chen"). Also use word-
+    # boundary matching instead of raw substring to prevent "lee" matching
+    # "feeling". This makes Threads and Graph use the same matching rules
+    # so they can't disagree by construction.
+    import re as _re_entity
     entity_signals = []
     for sig in signals:
         sig_entity = str(sig.get("entity", "")).lower().strip()
         if sig_entity == entity_lower:
             entity_signals.append(sig)
-        elif entity_lower in sig_entity or sig_entity in entity_lower:
-            entity_signals.append(sig)
+        elif len(entity_lower) >= 3:
+            # F3c: word-boundary match for queries >= 3 chars
+            if _re_entity.search(r'\b' + _re_entity.escape(entity_lower) + r'\b', sig_entity):
+                entity_signals.append(sig)
+            elif _re_entity.search(r'\b' + _re_entity.escape(sig_entity) + r'\b', entity_lower):
+                entity_signals.append(sig)
 
     if not entity_signals:
         return []

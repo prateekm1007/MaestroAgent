@@ -319,7 +319,12 @@ class PersonalGraph:
         return hits / len(rows)
 
     def get_entity_summary(self, entity_name: str, user_email: str | None = None) -> dict[str, Any]:
-        """Get a summary of an entity's history (user-scoped)."""
+        """Get a summary of an entity's history (user-scoped).
+
+        F3c fix (auditor round 2): when exact match fails, try word-boundary
+        partial match (same rules as threads endpoint) so Graph and Threads
+        can't disagree on "Alex" vs "Alex Chen"."""
+        import re as _re_graph
         ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
         conn = get_db_conn(self._db_path)
@@ -329,6 +334,21 @@ class PersonalGraph:
             "SELECT * FROM graph_entities WHERE entity_id = ? AND user_email = ?",
             (entity_id, ue),
         ).fetchone()
+
+        # F3c: if exact match fails, try partial word-boundary match
+        if not entity and len(entity_id) >= 3:
+            all_entities = conn.execute(
+                "SELECT * FROM graph_entities WHERE user_email = ?",
+                (ue,),
+            ).fetchall()
+            for e in all_entities:
+                e_id = str(e["entity_id"]).lower().strip()
+                if _re_graph.search(r'\b' + _re_graph.escape(entity_id) + r'\b', e_id):
+                    entity = e
+                    break
+                elif _re_graph.search(r'\b' + _re_graph.escape(e_id) + r'\b', entity_id):
+                    entity = e
+                    break
 
         if not entity:
             conn.close()

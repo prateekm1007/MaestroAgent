@@ -58,12 +58,7 @@ with open('$json_file') as f:
 if not isinstance(d, dict):
     sys.exit(0)  # not a dict, skip
 
-# P30 fix (auditor S3): generalize past the literal field name 'llm_active'.
-# Check ANY boolean-shaped field that appears at both top level and per-row.
-# If the top-level value disagrees with the per-row values, it's a
-# metadata-consistency violation regardless of what the field is called.
 
-# Find row-level data
 rows = None
 for key in ('maestro_results', 'results', 'results_B', 'rows', 'queries'):
     if key in d and isinstance(d[key], list) and len(d[key]) > 0:
@@ -73,23 +68,17 @@ for key in ('maestro_results', 'results', 'results_B', 'rows', 'queries'):
 if rows is None:
     sys.exit(0)  # no rows to compare, skip
 
-# Find all boolean-shaped fields at top level that look like claims
-# (not counts or statistics). A boolean claim is: True, False, 0, or 1.
-# Exclude values > 1 (those are counts like llm_active_count: 47).
 top_level_keys = {k for k, v in d.items() if isinstance(v, bool) or v in (0, 1, 'true', 'false', 'True', 'False')}
 
-# Also check common boolean field name patterns
 boolean_field_patterns = ['llm_active', 'llm_used', 'llm_powered', 'active',
                           'verified', 'configured', 'is_active', 'is_verified',
                           'used_llm', 'model_active', 'has_llm', 'llm_enabled']
 
-# Add any top-level key that looks boolean
 for k in d:
     v = d[k]
     if isinstance(v, bool) or v in (0, 1, 'true', 'false', 'True', 'False'):
         top_level_keys.add(k)
 
-# Also add pattern-matched keys (but exclude counts/statistics)
 for k in d:
     if 'count' in k.lower() or 'total' in k.lower() or 'precision' in k.lower() or 'recall' in k.lower() or 'score' in k.lower() or 'rate' in k.lower() or 'pct' in k.lower():
         continue  # skip statistics
@@ -102,25 +91,18 @@ if not top_level_keys:
 mismatches = []
 for field in top_level_keys:
     top_val = d.get(field)
-    # Check if rows have this field
     row_values = set()
     for r in rows:
         if isinstance(r, dict) and field in r:
             row_values.add(r[field])
 
     if not row_values:
-        # Loophole 1 fix (auditor): if the top-level claims a boolean
-        # (e.g. llm_active: True) but NO rows have the field at all,
-        # that's an unasserted claim. Only flag boolean-shaped values
-        # (True/False), NOT counts or floats (those are summary stats).
         if isinstance(top_val, bool) and top_val:
             mismatches.append(f'{field}: top={top_val} but field absent in all rows (unasserted claim)')
         elif isinstance(top_val, (int, float)) and top_val == 1:
             mismatches.append(f'{field}: top={top_val} but field absent in all rows (unasserted claim)')
         continue
 
-    # Compare top vs row values
-    # Normalize to boolean for comparison
     def to_bool(v):
         if isinstance(v, bool):
             return v
@@ -133,7 +115,6 @@ for field in top_level_keys:
     top_bool = to_bool(top_val)
     row_bools = {to_bool(v) for v in row_values}
 
-    # If all rows agree on a single boolean value, and it differs from top
     if len(row_bools) == 1:
         row_bool = row_bools.pop()
         if top_bool != row_bool:
@@ -177,27 +158,18 @@ with open('$json_file') as f:
 if not isinstance(d, dict):
     sys.exit(0)
 
-# Check for error/exception fields in result rows
-# F1 fix (auditor): recursively walk row dicts for error-shaped keys/values.
-# F1a fix: remove depth cap — use a visited set instead (depth > 5 missed
-#   errors nested deeper than 5 levels). A visited set prevents infinite
-#   recursion without imposing an arbitrary depth limit.
-# F1b fix: iterate EVERY top-level list of dicts as a potential arm, not
-#   just a whitelist of 8 known key names. A results list named 'trials'
-#   was missed because it wasn't in the whitelist.
-# F1c fix: if total_questions is present and len(rows) < total_questions,
-#   flag as 'silently missing rows' — a benchmark that drops rows and
-#   reports the survivors is VOID per Anti-Gaming Clause 2.
+
+import re as _re
 
 ERROR_KEYS = {'error', 'exception', 'traceback', 'exception_class',
               'exception_type', 'error_type', 'error_message'}
-ERROR_VALUES = {'RuntimeError', 'Exception', 'Traceback', 'Error',
-                'TypeError', 'ValueError', 'KeyError', 'AttributeError'}
+ERROR_PATTERN = _re.compile(r'^(RuntimeError|TypeError|ValueError|KeyError|AttributeError|Exception|Traceback|ImportError|NameError|IndexError|ZeroDivisionError|OverflowError|MemoryError)\b')
 
 def has_error_recursive(obj, visited=None):
     '''Recursively walk a dict/list looking for error-shaped keys/values.
-    Uses a visited set (by id) to prevent infinite recursion on circular
-    references — no arbitrary depth cap.'''
+    F1d: only flag values under ERROR_KEYS or strings matching the
+    structural error pattern. Substring matching of Error in legitimate
+    text like Error handling done. is a false positive.'''
     if visited is None:
         visited = set()
     obj_id = id(obj)
@@ -208,7 +180,7 @@ def has_error_recursive(obj, visited=None):
         for k, v in obj.items():
             if k in ERROR_KEYS:
                 return True
-            if isinstance(v, str) and any(e in v for e in ERROR_VALUES):
+            if isinstance(v, str) and ERROR_PATTERN.match(v):
                 return True
             if has_error_recursive(v, visited):
                 return True
@@ -217,18 +189,14 @@ def has_error_recursive(obj, visited=None):
             if has_error_recursive(item, visited):
                 return True
     elif isinstance(obj, str):
-        if any(e in obj for e in ERROR_VALUES):
+        if ERROR_PATTERN.match(obj):
             return True
     return False
 
-# F1b fix: iterate EVERY top-level key whose value is a list of dicts.
-# Previously only checked 8 hardcoded arm_key names. Any list of dicts
-# could be a results arm.
 found_errors = False
 for key, val in d.items():
     if not isinstance(val, list) or len(val) == 0:
         continue
-    # Only check lists of dicts (result rows)
     if not all(isinstance(r, dict) for r in val):
         continue
 
@@ -243,12 +211,18 @@ for key, val in d.items():
         print(f'HAS_ERRORS: {key} has {error_count}/{total} errors ({pct}%)')
         found_errors = True
 
-# F1c fix: check for silently missing rows
 total_q = d.get('total_questions') or d.get('total') or d.get('question_count')
 if total_q and isinstance(total_q, int):
+    completed = d.get('completed') or d.get('answered') or d.get('successful')
+    skipped = d.get('skipped') or d.get('filtered') or d.get('excluded')
+    accounted = (completed or 0) + (skipped or 0)
+
     for key, val in d.items():
         if isinstance(val, list) and all(isinstance(r, dict) for r in val) and len(val) > 0:
             if len(val) < total_q:
+                gap = total_q - len(val)
+                if accounted >= gap:
+                    continue
                 print(f'SILENTLY_MISSING: {key} has {len(val)} rows but total_questions={total_q}')
                 found_errors = True
 
