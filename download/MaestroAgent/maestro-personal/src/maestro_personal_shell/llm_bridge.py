@@ -297,8 +297,18 @@ class _OllamaDirectRouter:
         max_tokens: int,
     ) -> ZAIResponse:
         import urllib.request
+        # F-Qwen3 fix: Qwen 3.5 reasoning models put output in `thinking`
+        # and may leave `content` empty when max_tokens is too low. We:
+        # 1. Append /no_think to the model name to disable reasoning mode
+        #    (Qwen 3.5 supports this for faster direct answers)
+        # 2. Fall back to `thinking` content if `content` is empty
+        model_name = self._model
+        # Only append /no_think for qwen3 models (not llama, etc.)
+        if "qwen3" in model_name.lower() and "/no_think" not in model_name:
+            model_name = f"{model_name}/no_think"
+
         payload = json.dumps({
-            "model": self._model,
+            "model": model_name,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -317,7 +327,13 @@ class _OllamaDirectRouter:
         )
         resp = urllib.request.urlopen(req, timeout=120)  # 120s for remote GPU
         data = json.loads(resp.read())
-        text = data.get("message", {}).get("content", "")
+        msg = data.get("message", {})
+        text = msg.get("content", "")
+        # F-Qwen3 fix: if content is empty, fall back to thinking
+        if not text:
+            thinking = msg.get("thinking", "")
+            if thinking:
+                text = thinking
         if not text:
             raise RuntimeError("Ollama returned empty content")
         return ZAIResponse(text=text)
