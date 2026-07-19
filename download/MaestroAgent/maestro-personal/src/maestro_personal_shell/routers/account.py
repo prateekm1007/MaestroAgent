@@ -707,12 +707,23 @@ async def debug_llm(token: str = Depends(verify_token_dep)):
     # Try health check directly
     health = None
     health_error = ""
+    direct_fetch_error = ""
     if ollama_host and ollama_host.startswith("http") and "localhost" not in ollama_host:
         try:
             test = _OllamaDirectRouter()
             health = test.health_check()
         except Exception as e:
             health_error = str(e)[:200]
+        # Also try a direct urllib fetch to see the actual error
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{ollama_host}/api/tags")
+            resp = urllib.request.urlopen(req, timeout=15)
+            direct_data = json.loads(resp.read())
+            direct_fetch_status = f"OK ({len(direct_data.get('models', []))} models)"
+        except Exception as e:
+            direct_fetch_status = "FAILED"
+            direct_fetch_error = str(e)[:300]
     
     return {
         "OLLAMA_HOST": ollama_host,
@@ -725,6 +736,8 @@ async def debug_llm(token: str = Depends(verify_token_dep)):
         "router_error": router_error,
         "direct_health_check": health,
         "health_error": health_error,
+        "direct_fetch_status": direct_fetch_status,
+        "direct_fetch_error": direct_fetch_error,
     }
 
 
