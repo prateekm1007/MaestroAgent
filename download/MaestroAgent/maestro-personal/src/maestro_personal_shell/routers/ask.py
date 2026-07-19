@@ -138,6 +138,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # recurring intent
         "keeps happening", "keeps breaking", "what pattern",
         "again and again", "recurring issue", "recurring problem",
+        "recurring across", "keeps recurring",
         # contradiction intent
         "change their mind", "changed their mind", "did anyone change",
         "what's the pricing", "what is the pricing", "pricing issue",
@@ -149,11 +150,27 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # critical intent
         "legal issue", "legal matter", "churn", "cancel account",
         "board escalation", "emergency meeting", "breach",
+        "legal issues", "any legal", "any customer", "any board",
+        "customer at risk",
         # cross-entity intent
         "who has", "who have",
+        # noise_lookup intent (newsletters, FYI)
+        "newsletter", "industry news", "fyi", "digest",
+        # production incidents
+        "production incident", "production down", "sev1", "outage",
+        "auth service", "auth outage",
     ]
-    if not _is_broad_query:
-        _is_broad_query = any(p in query_lower for p in _INTENT_BROAD_PATTERNS)
+    # F-IntentGate fix v2: distinguish 'broad' (generic summary) from
+    # 'intent-based' (run ensemble). The previous fix added intent patterns
+    # to _is_broad_query, which caused intent queries to hit the broad
+    # query handler (returning a generic summary) instead of the ensemble.
+    # Now: intent queries skip BOTH the entity gate AND the broad query
+    # handler, going straight to the ensemble.
+    _is_intent_query = any(p in query_lower for p in _INTENT_BROAD_PATTERNS)
+    # Intent queries are NOT broad (they shouldn't hit the generic summary)
+    # but they DO skip the entity gate.
+    if _is_intent_query:
+        _is_broad_query = False
 
     # Defect 3 fix (auditor roadmap Phase 2): temporal keyword bypass.
     # Queries like "What changed since Tuesday?" or "What happened yesterday?"
@@ -196,7 +213,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 _is_broad_query = True
             break
 
-    if not _is_broad_query:
+    if not _is_broad_query and not _is_intent_query:
         # Build the set of known entities from the user's signals (case-insensitive).
         # Use load_signals_from_db (reliable DB query) instead of shell.oem_state.signals
         # which may not be populated yet at this point in the request lifecycle.
@@ -287,7 +304,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # The auditor noted these returned empty after the S1-01 fix removed
     # the "load all signals" fallback. This replaces that with a structured
     # summary that's safe (no unrelated entity leakage) and useful.
-    if _is_broad_query:
+    if _is_broad_query and not _is_intent_query:
         try:
             all_sigs = load_signals_from_db(user_email=token, limit=50)
             if all_sigs:
