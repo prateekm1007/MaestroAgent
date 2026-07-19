@@ -396,8 +396,13 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 after_kw = query_lower.split(kw, 1)[-1].strip()
                                 # Check which matched entities appear after the keyword
                                 for ent in matched_entities:
-                                    if ent.lower() in after_kw:
-                                        excluded_entities.add(ent)
+                                    ent_lower = ent.lower()
+                                    ent_words = ent_lower.split()
+                                    # Check if any word from the entity name appears in after_kw
+                                    for ew in ent_words:
+                                        if len(ew) >= 3 and _re.search(r'\b' + _re.escape(ew) + r'\b', after_kw):
+                                            excluded_entities.add(ent)
+                                            break
                                 break
 
                         included_entities = [e for e in matched_entities if e not in excluded_entities]
