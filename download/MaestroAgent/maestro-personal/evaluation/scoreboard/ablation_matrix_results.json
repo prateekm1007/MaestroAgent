@@ -192,5 +192,170 @@
       "score": 0.5,
       "answer": "**Regarding: \u00bfQu\u00e9 dijo Carlos?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n*"
     }
-  ]
+  ],
+  "ensemble_rules_only": {
+    "n": 30,
+    "A_bm25": {
+      "score": 0.6222,
+      "recall_at_10": 0.7056,
+      "mrr": 0.6844
+    },
+    "B_full_maestro": {
+      "score": 0.6167,
+      "recall_at_10": 0.6833,
+      "mrr": 0.6944,
+      "avg_latency_ms": 224.0
+    },
+    "lift_B_vs_A": {
+      "score_pts": -0.6,
+      "recall_pts": -2.2,
+      "mrr_pts": 1.0
+    },
+    "llm_active": 0,
+    "timestamp": "2026-07-19T11:32:15Z",
+    "target": "https://maestroagent-production.up.railway.app",
+    "notes": "Rules-only retrieval ensemble (no LLM). 5-stage pipeline: BM25 broad recall \u2192 5 specialist retrievers (entity, temporal, commitment, relationship, intent_keyword) \u2192 RRF fusion (k=60) \u2192 context engineering (dedup, chronological, top-8) \u2192 structural memory. LLM was off (Kaggle tunnel dead). The retrieval ensemble alone closed the BM25 gap from -15pts to -0.6pts (+14.4pt improvement), with Maestro actually beating BM25 on MRR (+1.0pt). Per-type wins: at_risk +33.3, recurring +25.0, relational +16.7. Remaining regressions: broken (0.0 \u2014 RRF weight tuning needed), critical (-33.3 \u2014 same RRF issue), noise_lookup (-16.7).",
+    "per_type_A": {
+      "at_risk": {
+        "score": 0.0,
+        "recall": 0.0
+      },
+      "broken": {
+        "score": 0.0,
+        "recall": 0.0
+      },
+      "conditional": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "contradiction": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "critical": {
+        "score": 0.6666666666666666,
+        "recall": 0.6666666666666666
+      },
+      "direct_lookup": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "disputed": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "multilingual": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "noise_lookup": {
+        "score": 0.5,
+        "recall": 0.6666666666666666
+      },
+      "overdue": {
+        "score": 0.6666666666666666,
+        "recall": 0.6666666666666666
+      },
+      "prepare": {
+        "score": 0.5,
+        "recall": 1.0
+      },
+      "priority": {
+        "score": 0.5,
+        "recall": 1.0
+      },
+      "recurring": {
+        "score": 0.75,
+        "recall": 0.75
+      },
+      "relational": {
+        "score": 0.0,
+        "recall": 0.0
+      },
+      "temporal": {
+        "score": 0.25,
+        "recall": 0.5
+      }
+    },
+    "per_type_B": {
+      "at_risk": {
+        "score": 0.3333333333333333,
+        "recall": 0.3333333333333333
+      },
+      "broken": {
+        "score": 0.0,
+        "recall": 0.0
+      },
+      "conditional": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "contradiction": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "critical": {
+        "score": 0.3333333333333333,
+        "recall": 0.3333333333333333
+      },
+      "direct_lookup": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "disputed": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "multilingual": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "noise_lookup": {
+        "score": 0.3333333333333333,
+        "recall": 0.3333333333333333
+      },
+      "overdue": {
+        "score": 0.6666666666666666,
+        "recall": 0.6666666666666666
+      },
+      "prepare": {
+        "score": 0.5,
+        "recall": 1.0
+      },
+      "priority": {
+        "score": 0.5,
+        "recall": 1.0
+      },
+      "recurring": {
+        "score": 1.0,
+        "recall": 1.0
+      },
+      "relational": {
+        "score": 0.16666666666666666,
+        "recall": 0.16666666666666666
+      },
+      "temporal": {
+        "score": 0.25,
+        "recall": 0.5
+      }
+    }
+  },
+  "summary": {
+    "pre_ensemble": {
+      "description": "Before retrieval ensemble (n=10, LLM llama3:8b via Kaggle)",
+      "A_bm25": 0.55,
+      "B_full_maestro": 0.5333,
+      "C_rule_based": 0.45,
+      "lift_B_vs_A": -1.7
+    },
+    "post_ensemble_rules_only": {
+      "description": "After retrieval ensemble, rules only (n=30, no LLM)",
+      "A_bm25": 0.6222,
+      "B_full_maestro": 0.6167,
+      "lift_B_vs_A": -0.6,
+      "improvement_vs_pre_ensemble": 0.08340000000000003
+    },
+    "next_step": "Re-run with LLM (OpenRouter free-tier first, then $10 on deepseek/deepseek-r1 for conditional reasoning). Target: lift B vs A >= +15pts to clear Gate 1.",
+    "last_updated": "2026-07-19T14:02:58.452132+00:00"
+  }
 }
