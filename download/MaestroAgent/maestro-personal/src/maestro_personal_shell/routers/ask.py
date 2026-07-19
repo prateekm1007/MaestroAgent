@@ -342,7 +342,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             match_count += 1
                 if match_count > 0:
                     all_matches.append((match_count, s))
-                        if all_matches:
+            if all_matches:
                 # F-S1b-b fix: deterministic tie-breaking. When match counts
                 # are equal, sort by entity name alphabetically (stable,
                 # deterministic, not dependent on iteration order).
