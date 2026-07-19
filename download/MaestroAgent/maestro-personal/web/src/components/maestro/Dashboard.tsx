@@ -30,7 +30,7 @@ import {
   type TheShifts,
   maestroApi,
 } from "@/lib/maestro-api";
-import { WhatChangedCard } from "./WhatChangedCard";
+import { WhatChangedCard as WhatChangedFeed } from "./WhatChangedCard";
 import { MaestroMark } from "./mark";
 import {
   DraftApprovalModal,
@@ -417,7 +417,7 @@ export function Dashboard({
       {/* What Changed — P11 wiring: /api/what-changed was 0% wired despite
           being the thesis surface ("surfaces what changed"). Returns per-signal
           deltas with entity, text, and is_meaningful flags. */}
-      <WhatChangedCard />
+      <WhatChangedFeed />
 
       {/* P0-3 + P0-4 + P0-5: Shared Draft Approval Modal */}
       <DraftApprovalModal
