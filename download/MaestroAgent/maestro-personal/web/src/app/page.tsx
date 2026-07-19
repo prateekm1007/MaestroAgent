@@ -24,6 +24,7 @@ import { Ask } from "@/components/maestro/Ask";
 import { Commitments } from "@/components/maestro/Commitments";
 import { Settings } from "@/components/maestro/Settings";
 import { Agents } from "@/components/maestro/Agents";
+import { SessionExpiredDialog } from "@/components/maestro/SessionExpiredDialog";
 import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
 
 type View = "dashboard" | "ask" | "commitments" | "agents" | "settings";
@@ -212,6 +213,11 @@ export default function Home() {
           {view === "settings" && <Settings />}
         </main>
       </div>
+
+      {/* Defect 4 fix: non-destructive session-expired dialog.
+          Listens for "maestro:auth:expired" events from maestroFetch
+          instead of destroying page state with window.location.reload(). */}
+      <SessionExpiredDialog />
 
       {/* Mobile bottom nav */}
       <nav

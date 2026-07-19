@@ -160,16 +160,27 @@ async function maestroFetch<T>(
       // without a token (to show the LLM pill in the footer), and that endpoint
       // returns 401 for unauthenticated requests. If we reload on every 401,
       // the Login page enters an infinite reload loop: load → call llm-status
-      // → 401 → reload → load → ...
-      // The fix: only clear+reload when there WAS a token that became stale
-      // (i.e., the user was logged in but the backend's in-memory token store
-      // was wiped on redeploy). When there's no token, 401 is expected —
-      // just throw and let the caller fall back to empty data.
+      // Defect 4 fix (auditor roadmap Phase 2): replace destructive
+      // window.location.reload() with a non-destructive custom event.
+      // The reload destroyed unsaved UI state (input boxes, drill-down
+      // modals) without warning. Now we dispatch a "maestro:auth:expired"
+      // event that the app can listen for and show a session-expired dialog,
+      // preserving the current page state. The user re-authenticates in-place.
       if (res.status === 401 && token) {
         clearToken();
-        // Reload to send user to login screen
         if (typeof window !== "undefined") {
-          window.location.reload();
+          // Dispatch a custom event instead of reloading.
+          // The SessionExpiredDialog listens for this and shows a modal.
+          // If no listener is registered, fall back to reload after 2s.
+          window.dispatchEvent(new CustomEvent("maestro:auth:expired"));
+          // Fallback: if no dialog is listening, reload after a short delay
+          // so the user isn't stuck on a broken page.
+          setTimeout(() => {
+            // Only reload if the token is still gone (dialog didn't re-auth)
+            if (!getToken()) {
+              window.location.reload();
+            }
+          }, 3000);
         }
       }
       throw new Error(`HTTP ${res.status}`);

@@ -104,6 +104,28 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
 
+    # Defect 3 fix (auditor roadmap Phase 2): temporal keyword bypass.
+    # Queries like "What changed since Tuesday?" or "What happened yesterday?"
+    # contain temporal keywords that the FTS5 entity-column check treats as
+    # proper nouns ("Tuesday" → entity lookup → no match → clean refusal).
+    # These are genuinely broad queries that should return a time-filtered
+    # summary, not an entity-specific refusal. Detect temporal keywords and
+    # treat the query as broad so the broad query handler returns a summary.
+    _TEMPORAL_KEYWORDS = {
+        "today", "yesterday", "tomorrow",
+        "monday", "tuesday", "wednesday", "thursday", "friday",
+        "saturday", "sunday",
+        "last week", "this week", "next week",
+        "last month", "this month", "next month",
+        "since", "ago", "recent", "recently",
+        "this morning", "this afternoon", "this evening",
+    }
+    _has_temporal_keyword = any(kw in query_lower for kw in _TEMPORAL_KEYWORDS)
+    if _has_temporal_keyword:
+        # Temporal queries are broad — they ask about time ranges, not entities.
+        # The broad query handler will return a time-filtered summary.
+        _is_broad_query = True
+
     # "what did i promise" / "what do i owe" are only broad if they DON'T
     # have additional entity-like words after them. If the query is exactly
     # "what did i promise?" (no entity), it's broad. If it's "what did i
