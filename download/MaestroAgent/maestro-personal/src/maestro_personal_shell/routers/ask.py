@@ -329,7 +329,11 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             entities = [w for w in words if w not in common_words]
             for s in situations:
                 s_entity = str(getattr(s, "entity", "")).lower()
-                if any(e.lower() == s_entity for e in entities):
+                # S1 root cause fix: use substring match, not exact match.
+                # "Alex" and "Chen" are extracted as separate words, but
+                # s_entity is "alex chen" (full name). Exact match "alex" ==
+                # "alex chen" is False. Substring "alex" in "alex chen" is True.
+                if any(e.lower() in s_entity or s_entity in e.lower() for e in entities):
                     matching_situation = s
                     break
             if not matching_situation and situations:
