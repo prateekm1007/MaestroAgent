@@ -258,6 +258,69 @@ fi
 echo ""
 
 # ───────────────────────────────────────────────────────────────────────
+# CHECK 5: Notes-vs-structured-field numeric consistency
+# (auditor catch: notes string claimed -0.6pts but structured field said -3.9)
+# ───────────────────────────────────────────────────────────────────────
+echo "Check 5: Notes-vs-structured-field numeric consistency..."
+for json_file in "$SCOREBOARD_DIR"/*.json; do
+    [ -f "$json_file" ] || continue
+    filename=$(basename "$json_file")
+
+    result=$(python3 -c "
+import json, re, sys
+
+with open('$json_file') as f:
+    try:
+        d = json.load(f)
+    except json.JSONDecodeError:
+        sys.exit(0)
+
+if not isinstance(d, dict):
+    sys.exit(0)
+
+mismatches = []
+
+def check_notes_vs_fields(obj, path=''):
+    if not isinstance(obj, dict):
+        return
+    notes_text = ''
+    for key in ('notes', 'note', 'summary', 'description'):
+        if key in obj and isinstance(obj[key], str):
+            notes_text += ' ' + obj[key]
+    if not notes_text:
+        return
+    for field, val in obj.items():
+        if not isinstance(val, (int, float)) or isinstance(val, bool):
+            continue
+        field_lower = field.lower()
+        for m in re.finditer(rf'{re.escape(field_lower)}\s*[=:]\s*([+-]?\d+\.?\d*)', notes_text.lower()):
+            claimed = float(m.group(1))
+            actual = float(val)
+            if abs(claimed - actual) > 0.01:
+                mismatches.append(f'{path}.{field}: notes claims {claimed} but structured field is {actual}')
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            check_notes_vs_fields(v, f'{path}.{k}' if path else k)
+
+check_notes_vs_fields(d)
+
+if mismatches:
+    print('NOTES_MISMATCH: ' + ' ; '.join(mismatches[:3]))
+else:
+    print('OK')
+" 2>&1)
+
+    if [ "$result" = "OK" ]; then
+        echo "  ✅ $filename: notes consistent with structured fields"
+        PASS=$((PASS + 1))
+    elif echo "$result" | grep -q "NOTES_MISMATCH"; then
+        echo "  ❌ $filename: $result"
+        FAILURES=$((FAILURES + 1))
+    fi
+done
+echo ""
+
+# ───────────────────────────────────────────────────────────────────────
 # SUMMARY
 # ───────────────────────────────────────────────────────────────────────
 echo "=== Summary ==="
