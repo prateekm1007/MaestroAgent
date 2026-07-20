@@ -283,6 +283,65 @@ session doesn't re-derive them.
   partial-activation rate that isn't understood makes every number
   after it slightly uncertain.
 
+**6. RRF bug reproduction (this session, by execution).**
+- Wrote `/home/z/my-project/scripts/reproduce_rrf_bug.py` (LLM-disabled,
+  fresh temp DB with controlled 10-signal corpus). Ran it. **Result:
+  NO BUG at the retrieval-ensemble layer.** Riley's "Never sent"
+  signal ranked #1 for both "What did I fail to deliver?" and "Which
+  promises are now overdue?". Alex Chen ranked #7 or absent.
+- Wrote `/home/z/my-project/scripts/reproduce_rrf_bug_with_llm.py`
+  (HTTP /api/ask with Groq env vars set). Ran it. **Result: BUG
+  CONFIRMED in production API path.** For "What did I fail to
+  deliver?", evidence_refs returned 3 Alex Chen signals, Riley absent.
+  For "Which commitments are at risk?", Alex Chen at rank 4, Riley's
+  "Never sent" absent. For "Which promises are now overdue?" (TEST 2),
+  no bug — Riley at rank 1.
+- **Root cause traced (P1: by execution, not by reading):** there are
+  TWO retrieval paths in the codebase, and they behave differently:
+    * Path A — `maestro-personal/src/maestro_personal_shell/retrieval_ensemble.py`
+      (`retrieve()` function, the 5-stage BM25+specialists+RRF pipeline).
+      This is what the ablation script tests. This path WORKS — Riley
+      ranks #1.
+    * Path B — `backend/maestro_cognitive_council/ask_bridge.py`
+      (`SituationAwareAskBridge.ask()`). This is what `/api/ask` ACTUALLY
+      calls when LLM is unavailable (via `AskSurface.ask()` →
+      `SituationAwareAskBridge`). This path does entity-detection-first:
+      it picks an entity from the query (or from `_detect_entity_from_signals()`
+      when no entity is named), then returns the situation for THAT
+      entity. For "What did I fail to deliver?" — no entity named →
+      `_detect_entity_from_signals()` picks Alex Chen (first in demo
+      seeder) → returns Alex Chen's situation → Riley never surfaces.
+- **This is a structural disconnect the ablation can't see.** The
+  ablation tests Path A (retrieval_ensemble.py) and shows it works.
+  Production uses Path B (SituationAwareAskBridge) which doesn't use
+  the ensemble at all when LLM is off. So the "lift -0.6pts" result in
+  `6167675` is measuring Path A, while the actual user-facing behavior
+  is Path B. Fixing Path A's RRF won't move the user-facing bug.
+- **The auditor's connection is now sharper.** The senior auditor
+  flagged that the tool-call layer (`get_completed_commitments`) is
+  structurally the fix Gate 1's `recurring`/`relational` types need.
+  But the bigger structural finding is that the production Ask path
+  (Path B) doesn't even USE the retrieval ensemble (Path A) when LLM
+  is off. So the question isn't just "extend the tool-call layer to
+  recurring/relational" — it's "make Path B actually call Path A for
+  intent queries, instead of doing entity-detection-first." That's the
+  real unblock.
+- **Groq API key issue (this session).** The `gsk_*` key supplied
+  returns `{"error":{"message":"Forbidden"}}` on both
+  `GET /v1/models` and `POST /v1/chat/completions`. Verified by
+  direct curl. So the LLM-active path was never actually exercised
+  in my reproduction either — all 3 tests fell back to rules. This
+  means the commit `6167675`'s "23/30 LLM active" claim may also be
+  questionable (Railway env may have had a working key then; the key
+  supplied to me now is not working). **User: the Groq key needs to
+  be re-supplied** for any LLM-active work going forward.
+- Reproduction scripts persisted:
+  - `/home/z/my-project/scripts/reproduce_rrf_bug.py` — LLM-disabled,
+    controlled corpus. Proves retrieval ensemble works in isolation.
+  - `/home/z/my-project/scripts/reproduce_rrf_bug_with_llm.py` — HTTP
+    /api/ask with Groq env. Proves the bug is in the production path
+    (Path B), not the ensemble (Path A).
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between
