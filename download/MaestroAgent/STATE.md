@@ -26,8 +26,13 @@ Controlled single-user beta. Mobile login bypass is the new P0 (security).
 ### Coder Handoff — 2026-07-20
 
 **Previous coder:** handed off via the 354-line forensic audit document.
-The previous coder held Railway CLI access (deploying the web app) and Grok
+The previous coder held Railway CLI access (deploying the web app) and Groq
 Cloud LLM credentials (configured via Railway env vars, not in the codebase).
+NOTE (2026-07-20 correction): the provider is **Groq** (the fast-inference
+chip company — `gsk_` key prefix, models like `llama-3.3-70b-versatile`,
+`deepseek-r1-distill-llama-70b`), NOT **Grok** (xAI's chatbot). Confirmed
+from commits `7d279ad`, `8258c49`, `ea7612d` which reference real Groq-hosted
+model names.
 
 **New coder (this session):** read all governance files from disk this session
 per the GOVERNANCE_LOOP mutual-read protocol. Read receipt pasted below.
@@ -38,7 +43,7 @@ per the GOVERNANCE_LOOP mutual-read protocol. Read receipt pasted below.
 |-------|---------|---------|
 | GitHub PAT (`ghp_*`) | Push to `prateekm1007/MaestroAgent` | `/home/z/my-project/.env.local` (outside repo) |
 | Railway API token (`e3d39b32-…`) | Manage Railway deployment of the web app; token name: "Agent" | `/home/z/my-project/.env.local` (outside repo) |
-| Grok Cloud API key (`gsk_*`) | LLM inference via x.ai (replaces/augments the prior Groq setup) | `/home/z/my-project/.env.local` (outside repo) |
+| Groq API key (`gsk_*`) | LLM inference via Groq.com (llama-3.3-70b-versatile, deepseek-r1-distill-llama-70b) | `/home/z/my-project/.env.local` (outside repo) |
 
 > ⚠️ **No raw token values are committed to git.** All three tokens live only
 > in `/home/z/my-project/.env.local` — a file outside the repo tree, also
@@ -150,6 +155,133 @@ Two strategic docs committed alongside this STATE.md update:
 > would violate the governance principle that the forensic audit codified.
 > The new coder should NOT jump to the retrieval plan until mobile login +
 > test isolation are fixed.
+
+### Second-session corrections (2026-07-20, senior auditor review)
+
+A senior auditor reviewed the first coder session's work and flagged five
+issues. All verified by execution this session. Recorded here so the next
+session doesn't re-derive them.
+
+**1. `SCORING_SYSTEM_v2.md` does NOT exist in the repo.**
+- The auditor instructed me to read it before my first commit; I looked,
+  it's not there. `find . -iname 'scoring_system*'` returns nothing.
+  `audit_scripts/verify_benchmark.sh` references "SCORING_SYSTEM.md" in a
+  comment but that file also doesn't exist.
+- The auditor has owned this as their error: they created it as a
+  downloadable artifact for Prateek via `present_files` but never pushed
+  it into git. Going forward, **`STATE.md` + `FORENSIC_AUDIT_AND_HANDOFF.md`
+  are the canonical handoff record** — what's in the repo is what counts.
+- Governance gap to flag to Prateek: the Rosetta Stone that was supposed
+  to reconcile three different "AI Quality" definitions (Gate 1 BM25
+  ablation, the parallel auditor's Ask-correctness definition, the
+  roadmap's LLM-orchestration definition) is not in the repo. Three
+  different threads have each invented their own "AI Quality" — the
+  pattern of confusion it causes is exactly what that document was
+  supposed to prevent.
+
+**2. Route wiring is NOT 100%. Verified by execution.**
+- The previous coder's commit `01e321e` claimed "100% of routes wired."
+  False. Recomputed this session by walking `routers/*.py`, extracting
+  every `@router.<method>(...)` decorator, resolving the prefix, then
+  grepping `web/src/lib/maestro-api.ts` and `mobile/src/api/client.ts`
+  for literal references to each route path.
+- **Methodology (use this going forward — registered routes only, not
+  source-exists):** the `/api/copilot/*` router exists in source
+  (`routers/copilot.py`, 21 route decorators) but is COMMENTED OUT in
+  `api.py` line 991 per commit `2987f60` ("Day 1 cuts: hide copilot").
+  Excluding unregistered routers, the honest denominator is **84
+  registered `(method, path)` pairs** across 8 routers (admin, auth,
+  ask, commitments, connectors, signals, surfaces, account).
+- Recompute script: `/home/z/my-project/scripts/count_route_wiring.py`
+  (persisted per Rule 9). Run it with:
+  `python3 /home/z/my-project/scripts/count_route_wiring.py`
+- **Verified numbers (this session):** 97 unique paths (path-params
+  normalized) → web 61/97 (62.9%), mobile 50/97 (51.5%). The senior
+  auditor's count was 99 routes / 59.6% web / 47.5% mobile — small
+  discrepancy explained by the copilot-router question and by my
+  matcher counting any literal substring (slightly liberal). Either
+  way, **wiring is in the 50-65% range, not 100%**. The "100% wired"
+  claim in commit `01e321e` is false and must not be repeated.
+- 36 routes are wired on NEITHER platform. Full table in the script
+  output. The biggest clusters: 16 `/api/copilot/*` routes (intentionally
+  unwired — disabled), 4 OAuth callback routes (server-side only, no
+  client call needed), observability/trace routes, device registration,
+  whisper push, ask/stream.
+
+**3. Joke classifier is PARTIAL, not done. Verified by execution.**
+- Commit `43a5539` ("fix: structural joke detection + completion query
+  dimension") claims both directions #2 and #3 from the senior auditor's
+  roadmap review. Both are PARTIAL.
+- **Joke classifier:** ran `classify_commitment()` against 8 cases (the
+  auditor's riddle + 5 novel joke structures + 2 real-commitment
+  controls). Result: **6/8 pass**. PASSES on riddle, knock-knock,
+  what-do-you-call, absurd-hypothetical-via-negation. FAILS on
+  puns/wordplay ("I'd tell you a chemistry joke but I know I wouldn't
+  get a reaction. I promise it's funny." → classified as real
+  commitment) and sarcasm-without-slang ("Oh sure, I promise I'll get
+  right on that." → classified as real commitment). The classifier
+  catches STRUCTURE (riddle format) but not SEMANTIC non-literalness
+  (puns, sarcasm). Per direction #2: bar was "riddle + 2 other
+  unrelated structures" — MET for patterns in code; does NOT generalize.
+  Verification script: `/home/z/my-project/scripts/verify_43a5539_fixes.py`.
+- Auditor's transparency note (worth keeping): their first attempt at
+  the negation case used the wrong construction (hypothetical without
+  a negation keyword) and got a false failure. They checked
+  `negation_keywords = ["won't", "can't", "cannot", "not able to",
+  "unable to"]` before concluding anything, reconstructed the test, and
+  got the same 6/8. Same discipline asked of everyone — verify test
+  constructions against the actual code before publishing numbers.
+
+**4. Completion-state Ask dimension is source-wired but NOT end-to-end
+   verified. Verified by source inspection.**
+- `43a5539` added 'completed' intent to `ask.py` line 178-179 (broad
+  patterns: "completed", "fulfilled", "already done", "already sent"),
+  `ledger_routing.py` line 62-71 (`get_completed_commitments()` returns
+  `completed_claimed` + `completed_verified` ledger entries), and
+  `ledger_routing.py` line 123-125 (`elif intent == "completed": return
+  get_completed_commitments(...)`).
+- Full /api/ask end-to-end test NOT yet run. The intent-detection
+  import path failed in my verification script (`_INTENT_BROAD_PATTERNS`
+  not exported) — fell back to source inspection. A live test through
+  the actual `/api/ask` endpoint is needed before this is closed.
+- **Critically: does NOT yet serve the ablation's `recurring` /
+  `relational` question types.** The senior auditor's key insight was
+  that this same tool-call layer is structurally the fix Gate 1's
+  `recurring`/`relational` types need (they score 0.0 across every arm
+  including LLM because pure-text retrieval can't answer them).
+  `43a5539` only wired `completed`. Extending to `recurring` +
+  `relational` is the most likely path to actually moving Gate 1.
+
+**5. Real Gate 1 movement happened in commit `6167675`.**
+- Before this session, Gate 1 (BM25 ablation) was at -3.9pts lift
+  (B_full_maestro=0.45 vs A_bm25=0.55). Commit `6167675` ("benchmark:
+  Groq LLM-active ablation, n=30, 23/30 LLM active") ran the first
+  genuinely LLM-active ablation on stable infrastructure (no tunnel,
+  no circuit-breaker flapping). Result: **lift -0.6pts**
+  (B_full_maestro=0.5333 vs A_bm25=0.55). Real movement, honestly
+  diagnosed in the commit message: "lift is still -0.6pts — same as
+  rules-only... this confirms the retrieval architecture is the
+  bottleneck, not the LLM."
+- Concrete failing example in the commit: the RRF ranker puts Alex
+  Chen's pricing deck above Riley's actual answer for a `broken`-type
+  query — the LLM then faithfully reports the wrong evidence it was
+  handed. That's a precise, actionable root cause.
+- **Hygiene gap (new, found this session):** the block is internally
+  labeled "Rules-only retrieval ensemble... LLM was off" in its own
+  `notes` field, while the same block's `llm_active: 23` and the commit
+  message both say LLM was active on 23/30 calls. `verify_benchmark.sh`
+  Check 5 passes clean (37/37) because Check 5 only checks NUMERIC
+  notes-vs-structured consistency, not DESCRIPTIVE claims like "LLM was
+  off" against the `llm_active` count sitting right next to it. Same
+  family as the bugs Check 5 was built to catch — different shape
+  (qualitative claim vs numeric claim). Worth a Check 6, not urgent
+  because the commit message itself is accurate.
+- **Unexplained:** 7/30 queries fell back to rules. Commit correctly
+  flags this as needing investigation rather than papering over it.
+  Root cause (entity gate blocking vs circuit breaker) not yet
+  determined. Worth root-causing before any future run because a
+  partial-activation rate that isn't understood makes every number
+  after it slightly uncertain.
 
 ### Reconciliation note (why this STATE.md update exists)
 

@@ -11,6 +11,40 @@
 > (a claim is not true until it has been executed), no stage is marked
 > complete without pasted benchmark output from THIS session hitting the
 > stated Recall@k / MRR / precision / latency / accuracy numbers.
+>
+> **⚠️ CORRECTIONS (2026-07-20, senior auditor review):**
+> 1. **Stages 1 and 2 are largely already built.** The 5-stage pipeline
+>    described here (BM25 broad recall → 5 specialist retrievers → RRF
+>    fusion → context engineering → structural memory) is, near-verbatim,
+>    what's already committed in `maestro-personal/src/maestro_personal_shell/retrieval_ensemble.py`
+>    (verified by code read this session). The docstring even cites the
+>    same auditor diagnosis this plan is responding to. Treat this plan
+>    as **validation and refinement guidance for the existing system**,
+>    NOT a from-scratch build — the risk otherwise is duplicating real
+>    work that already shipped. The actual open work is (a) fixing the
+>    RRF ranking bug surfaced by commit `6167675` (Alex Chen's pricing
+>    deck outranking Riley's actual answer on a `broken`-type query),
+>    (b) extending the tool-call layer from just `completed` to also
+>    serve the ablation's `recurring` / `relational` question types.
+> 2. **Stage 4's model list needs a reality check against what Groq
+>    actually hosts.** The plan recommends `Qwen 3 14B/32B`,
+>    `DeepSeek-R1 Distill Qwen 14B`, `Gemma 3 12B`, `Mistral Small 3.2`
+>    — none of these match Groq's actual catalog based on what's been
+>    tested so far (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`,
+>    `deepseek-r1-distill-llama-70b`, `openai/gpt-oss-120b`). Before
+>    switching models, check Groq's live model list by calling
+>    `GET https://api.groq.com/openai/v1/models` with the `gsk_*` key
+>    and paste the actual response. A model-name mismatch here would
+>    cost a wasted round the way the earlier Qwen 3.5 "thinking vs
+>    content" saga did.
+> 3. **Real Gate 1 movement already happened in commit `6167675`**
+>    (Groq LLM-active ablation, n=30, 23/30 LLM active, lift -0.6pts —
+>    up from -3.9). The diagnosed root cause is the RRF ranker, not the
+>    LLM. Fix that first (direction #1 below), then root-cause the 7/30
+>    fallback rate, THEN run the actual Gate 1 exit criterion (n=100,
+>    3 question sets, via Groq — it's stable and cheap now). Only after
+>    that, if still short of +15, consider Stage 3 (cross-encoder
+>    reranker) and Stage 4 (model migration).
 
 This is a rewritten version of the architectural blueprint — a **tactical execution plan**.
 

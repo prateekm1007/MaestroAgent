@@ -9,6 +9,32 @@
 > items (mobile login bypass, test isolation). Those must close first — see
 > STATE.md for the unified priority order. Building new product on top of
 > unresolved security debt violates P6 (fail closed, not silent).
+>
+> **⚠️ CORRECTIONS (2026-07-20, second coder session):** A senior auditor
+> reviewed this roadmap against the repo's scoring discipline and flagged
+> three issues. They are documented inline below at the affected sections.
+> The roadmap is NOT discarded — its good engineering ideas (intent
+> classification, commitment lifecycle, agentic Ask with tool-calling) are
+> retained. But it must NOT be executed as-written because:
+> 1. The benchmark score table (below) has target numbers with NO gate, NO
+>    command, NO falsifiable check. Per direction #1: "Do not report a
+>    score, percentage, or 'impact' without the command that produced it."
+>    Every target in that table is an assertion, not an earned score.
+> 2. "AI Quality" as used here is a FOURTH definition. The repo already has
+>    two: Gate 1 (BM25 ablation, currently 2/10) and the Ask-correctness
+>    one from a parallel auditor thread. `SCORING_SYSTEM_v2.md` was
+>    supposed to be the Rosetta Stone but **does not exist in the repo**
+>    (verified this session — `find . -iname 'scoring_system*'` returns
+>    nothing; `verify_benchmark.sh` references "SCORING_SYSTEM.md" in a
+>    comment but that file also doesn't exist). This is a governance gap
+>    to flag to Prateek.
+> 3. The Phase 1.1 "Hardened Ambient Intelligence" diagnosis is factually
+>    wrong. `ambient_notifications.py` ALREADY has DND/in-call suppression
+>    (verified by code read this session). The actual open question is a
+>    PRODUCT DECISION: should "commitment overdue" be CRITICAL (breaks
+>    through DND, current behavior) or HIGH (suppressed in DND)? That's
+>    one line of severity reclassification pending Prateek's call, not a
+>    phase of engineering.
 
 This roadmap outlines the precise engineering and product phases required to elevate Maestro Personal from a "Promising Prototype" to a genuinely **World-Class (9/10)** category leader across all 16 audit benchmarks.
 
@@ -20,6 +46,20 @@ It directly addresses the critical flaws identified in the external audit: the r
 **Goal:** Fix trust-breaking behaviors, silence the noise, and implement true intent parsing.
 
 ### 1. Hardened Ambient Intelligence (The "Zero Noise" Policy)
+
+> **⚠️ CORRECTION (2026-07-20):** This item is misdiagnosed. The DND/in-call
+> suppression state-machine the roadmap proposes to build ALREADY EXISTS in
+> `ambient_notifications.py` (verified by code read this session — see
+> `RESPONSE_TO_STALE_REVIEW.md` and three other places that document the
+> "DND active: only CRITICAL shows" rule). The roadmap's Phase 1.1 is
+> proposing to build something that's already built. The ACTUAL open
+> question is a product decision, not engineering: should "commitment
+> overdue" be classified CRITICAL (breaks through DND — current behavior)
+> or HIGH (suppressed in DND, shown in focus mode)? That's one line of
+> severity reclassification pending a Prateek decision. Do NOT execute
+> this item as a multi-month engineering phase. Take it to Prateek as a
+> product question per the auditor's direction #4.
+
 * **The Fix:** Completely decouple notification generation from notification *delivery*. Implement a strict state-machine that respects `is_in_call` and `is_dnd_active`. If DND is active, high-priority notifications must be queued into a "Digest" delivered only when the user's state changes to available.
 * **Impact:** Ambient Intelligence reaches **9/10**. UX reaches **9/10**.
 
