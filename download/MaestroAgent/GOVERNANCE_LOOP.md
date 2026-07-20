@@ -20,6 +20,27 @@ Principles (P1-P26) were prose. Gates (1-20) were checklists. Both were violated
 
 ## What the Coder Must Read (at the start of every session)
 
+### 0. `STATE.md` (handoff section, top of file)
+**Why:** STATE.md is the canonical handoff log. The 2026-07-20 entry records the
+coder transition, the current HEAD, the open-issue list (mirrored from
+FORENSIC_AUDIT_AND_HANDOFF.md), and the new coder's read receipt. Skipping this
+read means re-deriving who's holding which tokens and what the current P0 is.
+
+**Read receipt:** Paste the timestamp + the HEAD SHA from STATE.md + the P0
+issue currently at the top of the open-issues table.
+
+### 0b. `FORENSIC_AUDIT_AND_HANDOFF.md`
+**Why:** The 354-line forensic audit + handoff document (committed at `8ff6b92`)
+is the load-bearing artifact for the new coder. It contains the verified-works
+list, the verified-broken list (with severity + fix), the architectural
+decisions, and the shell-verification tips earned from 1,053 commits of history.
+The audit doc itself instructs: "Read GOVERNANCE.md, ENTROPY_RECOVERY.md,
+GOVERNANCE_LOOP.md, and AUDITOR_GOVERNANCE.md from disk before writing any code."
+
+**Read receipt:** Paste the timestamp + confirm you read the "What Works" and
+"What's Broken" tables + the 8 architectural decisions + the shell-verification
+tips.
+
 ### 1. `ENTROPY_RECOVERY.md` Part Four (P20-P26) + Part Five (P27-P34)
 **Why:** Part Four contains the principles the Coder has violated most. P20 (call-site parameter rule), P21 (all-paths trigger), P22 (regression = production path), P23 (commit cites output), P24 (cross-surface coherence), P25 (confidence display gate), P26 (re-application meta-principle). Part Five contains the Auditor's own failures — P27 (read assertions), P28 (test 3+ inputs), P29 (re-run canonical scenario), P30 (verify comprehensiveness by counting), P31 (run verify scripts yourself), P32 (check all derived state), P33 (search for refutation), P34 (re-derive method from failures).
 

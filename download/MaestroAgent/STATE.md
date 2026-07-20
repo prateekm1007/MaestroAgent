@@ -1,9 +1,121 @@
 # Maestro State Log
 
-> ⛔ **GOVERNANCE GATE: Read [GOVERNANCE.md](./GOVERNANCE.md) and [ENTROPY_RECOVERY.md](./GOVERNANCE.md) BEFORE doing any work or trusting any claim in this file.**
+> ⛔ **GOVERNANCE GATE: Read [GOVERNANCE.md](./GOVERNANCE.md) and [ENTROPY_RECOVERY.md](./ENTROPY_RECOVERY.md) BEFORE doing any work or trusting any claim in this file.**
+> ⛔ **HANDOFF GATE: Read [FORENSIC_AUDIT_AND_HANDOFF.md](./FORENSIC_AUDIT_AND_HANDOFF.md) before any new coder session.**
+
+---
 
 ## Last Updated
-2026-07-12 — LLM-active test run with Kaggle P100 Ollama tunnel. Both baseline failures CLOSED.
+2026-07-20 — CODER HANDOFF. Previous coder has stepped off; new coder onboarding
+this session. Forensic audit + handoff doc committed at `8ff6b92`. STATE.md
+reconciled from stale `11342e4` (last entry below) up to current HEAD `8ff6b92`.
+
+## Current Status: ~7/10 — audit-fix pass + LLM active + web + mobile wired.
+Controlled single-user beta. Mobile login bypass is the new P0 (security).
+
+> **HEAD:** `8ff6b92` on `main` (was `7d279ad` at forensic-audit time, was
+> `11342e4` at last STATE.md update on 2026-07-12).
+>
+> **Forensic audit (354 lines) committed at `8ff6b92`:**
+> - 105 REST endpoints verified (backend port 8766)
+> - Web (port 3000) + mobile (Expo) verified at HEAD `7d279ad`
+> - 7 open issues (P0-P2) with concrete fixes documented
+> - 8 key architectural decisions captured
+> - Shell verification tips (pipe/tsc/ANSI/test-isolation) captured
+
+### Coder Handoff — 2026-07-20
+
+**Previous coder:** handed off via the 354-line forensic audit document.
+The previous coder held Railway CLI access (deploying the web app) and Grok
+Cloud LLM credentials (configured via Railway env vars, not in the codebase).
+
+**New coder (this session):** read all governance files from disk this session
+per the GOVERNANCE_LOOP mutual-read protocol. Read receipt pasted below.
+
+**Token inventory held by the new coder (NOT stored in git):**
+
+| Token | Purpose | Storage |
+|-------|---------|---------|
+| GitHub PAT (`ghp_*`) | Push to `prateekm1007/MaestroAgent` | `/home/z/my-project/.env.local` (outside repo) |
+| Railway API token (`e3d39b32-…`) | Manage Railway deployment of the web app; token name: "Agent" | `/home/z/my-project/.env.local` (outside repo) |
+| Grok Cloud API key (`gsk_*`) | LLM inference via x.ai (replaces/augments the prior Groq setup) | `/home/z/my-project/.env.local` (outside repo) |
+
+> ⚠️ **No raw token values are committed to git.** All three tokens live only
+> in `/home/z/my-project/.env.local` — a file outside the repo tree, also
+> belt-and-suspenders gitignored by `download/MaestroAgent/.gitignore` (.env,
+> .env.local, .env.*.local). Per user instruction, the user will re-supply
+> tokens in future sessions as needed; the coder should remind the user when
+> a token is required and not store it in the repo.
+
+**Read receipt (Coder side, this session):**
+```
+GOVERNANCE LOOP READ RECEIPT (Coder):
+- ENTROPY_RECOVERY.md (225 lines, Parts 1-5, P1-P34) read at 2026-07-20 07:08
+  P20: "Call-site parameter rule — when a function gains a parameter, EVERY caller must pass it"
+  P26: "Meta: principles don't enforce themselves, re-application does"
+  P27: "Read the assertion, not the test name — a test that asserts `True` is theater"
+- GOVERNANCE.md (177 lines, 13 gates) read at 2026-07-20 07:08
+- GOVERNANCE_LOOP.md (159 lines) read at 2026-07-20 07:08
+- AUDITOR_GOVERNANCE.md (211 lines, Gates 1-20) read at 2026-07-20 07:08
+  Gate 15: "For 'wired' claims, will you verify callers pass the parameter?"
+  Gate 17: "For 'dedup' claims, will you send duplicate input?"
+- STATE.md (was 72 lines, stale at HEAD 11342e4) read at 2026-07-20 07:08
+- ROAD_TO_9_STATUS.md (129 lines, stale at HEAD 6d1148d) read at 2026-07-20 07:08
+
+> Auditor: Read GOVERNANCE.md, ENTROPY_RECOVERY.md, GOVERNANCE_LOOP.md,
+> and AUDITOR_GOVERNANCE.md from disk before auditing. The loop cannot be broken.
+```
+
+### Open issues (from FORENSIC_AUDIT_AND_HANDOFF.md, prioritized)
+
+| # | Issue | Severity | Owner |
+|---|-------|----------|-------|
+| 1 | Mobile login uses `demo-bypass-token` — no real auth (SECURITY) | **P0** | New coder |
+| 2 | No mobile registration flow (`/api/auth/register` works, no screen calls it) | **P0** | New coder |
+| 3 | Test isolation — chaos tests bleed into other files (18 errors when run together) | **P1** | New coder |
+| 4 | Threads for Entity — backend works, no mobile/web screen calls it | **P1** | New coder |
+| 5 | Decision History — backend works, no client function (`getDecisions`) exists | **P1** | New coder |
+| 6 | Grade Override — backend works, no screen renders the override button | **P1** | New coder |
+| 7 | API key redaction — only OTP patterns, not `sk-*` / `ghp_*` (IRONY: this STATE.md update itself would not be redacted by current redactor) | **P1** | New coder |
+| 8 | Physical device testing (cold launch, scroll fps, VoiceOver/TalkBack) | **P2** | Blocked — needs device |
+| 9 | Real OAuth round-trips with user credentials | **P2** | Needs user OAuth apps |
+| 10 | Hybrid BM25+embedding retrieval for better Ask quality at scale | **P2** | New coder |
+| 11 | Investor materials not committed to git | **P2** | User decision |
+| 12 | 14 `/api/copilot/*` routes still registered but excluded from UIs | **P2** | New coder (deprecation) |
+
+### Next coder priority order (from the forensic audit)
+
+1. **P0** — Fix mobile login bypass (`mobile/src/screens/LoginScreen.tsx`: replace `demo-bypass-token` with a real `api.login(password)` call from `useAuth()` context; add a registration link)
+2. **P0** — Fix test isolation (chaos tests: switch `unittest.mock.patch` → `monkeypatch` for `get_db_conn`, or add a conftest fixture that resets the mock between files)
+3. **P1** — Wire Threads for Entity + Decision History to both mobile + web (add `getDecisions(entity)` to `client.ts` and `maestro-api.ts`; add a ThreadDetail screen calling `getThreadsForEntity(entity)`)
+4. **P1** — Add API key redaction patterns to `secret_redactor.py` (sk-*, ghp_*, gsk_*, Bearer tokens)
+5. **P1** — Grade Override UI in the meeting grade detail view
+6. **P2** — Physical device testing (needs phone)
+7. **P2** — Real OAuth round-trips with user credentials
+8. **P2** — Hybrid BM25+embedding retrieval for better Ask quality at scale
+9. **P2** — Commit investor materials to the repo (if available)
+
+### Reconciliation note (why this STATE.md update exists)
+
+The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between
+then and the forensic audit, 13+ commits landed (ending at `7d279ad`), and the
+forensic audit itself added commit `8ff6b92`. This update:
+
+- Closes audit finding F10 retroactively for the new HEAD (it was previously
+  closed for `11342e4` but became stale again — a recurring pattern P14
+  warns about: "bugs migrate one layer deeper").
+- Records the coder handoff so the next session doesn't re-derive who's
+  holding which tokens.
+- Pastes a real read receipt (timestamp + key line) per GOVERNANCE_LOOP.md,
+  rather than the previous verbal "Governance gate: ... read from disk this
+  session" line that didn't prove the read happened.
+
+The 2026-07-12 entry is preserved below for history.
+
+---
+
+## Last Updated
+2026-07-12 — LLM-active test run with Kaggle P100 Ollama tunnel. Both baseline failures CLOSED. (Stale at this commit — superseded by the 2026-07-20 handoff entry above; preserved for history.)
 
 ## Current Status: ~5.3/10 → audit-fix pass complete + LLM proven. Controlled single-user beta. Not multi-user safe.
 
