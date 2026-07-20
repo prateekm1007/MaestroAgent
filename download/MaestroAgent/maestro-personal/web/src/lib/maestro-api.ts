@@ -1099,6 +1099,23 @@ export const maestroApi = {
       { entity: entityName, exists: false, risk_level: "unknown", risk_factors: [], recommendation: "" },
     );
   },
+
+  // ── Connector sync (POST /api/sync/{provider}) ──
+  syncGmail: async (messages: Array<Record<string, unknown>>, token?: string) => {
+    const t = await resolveToken(token);
+    const response = await api.post('/api/sync/gmail', { messages, user_email: '' }, {
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    return response.data as { signals_created: number; message: string };
+  },
+
+  syncCalendar: async (events: Array<Record<string, unknown>>, token?: string) => {
+    const t = await resolveToken(token);
+    const response = await api.post('/api/sync/calendar', { events, user_email: '' }, {
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    return response.data as { signals_created: number; message: string };
+  },
 };
 
 /* ------------------------------------------------------------------ */

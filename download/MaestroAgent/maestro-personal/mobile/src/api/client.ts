@@ -1211,6 +1211,23 @@ export async function getAnalyticsTrends(
   return response.data;
 }
 
+
+export async function syncGmail(messages: any[], token?: string): Promise<{ signals_created: number; message: string }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/sync/gmail', { messages, user_email: '' }, {
+    headers: { Authorization: `Bearer ${t}` },
+  });
+  return response.data;
+}
+
+export async function syncCalendar(events: any[], token?: string): Promise<{ signals_created: number; message: string }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/sync/calendar', { events, user_email: '' }, {
+    headers: { Authorization: `Bearer ${t}` },
+  });
+  return response.data;
+}
+
 export async function getAnalyticsFlywheel(
   token?: string,
 ): Promise<{ summary: string; engine_available: boolean }> {
