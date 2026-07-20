@@ -624,8 +624,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             "Answer the user's question using ONLY the evidence below. "
                             "If the evidence does not answer the question, say so explicitly. "
                             "Do not invent commitments, entities, dates, or facts. "
-                            "Be concise (2-4 sentences). Lead with the most relevant entity "
-                            "and quote the evidence verbatim where possible."
+                            "Be concise (2-4 sentences). "
+                            "List ALL entities supported by the evidence — do not pick just one. "
+                            "If the question asks about 'threatened', 'at risk', 'overdue', "
+                            "'broken', or similar concepts, treat them as related: "
+                            "evidence saying 'overdue' or 'never sent' IS relevant to 'at risk' "
+                            "or 'threatened' queries. Quote the evidence verbatim where possible."
                         )
                         user_prompt = (
                             f"Question: {safe_query}\n\n"

@@ -559,6 +559,45 @@ Senior auditor said "do all 3 sequentially":
   - After relational intent fix: **0.7974** (+2.9pts more)
   - Target: 0.95. Gap: ~15pts (was ~41pts at session start)
 
+**11. 4-stage ablation + senior reviewer corrections + Hypothesis H-12.**
+
+4-stage ablation results (commit `6e5c232`, 100 questions, qwen-plus):
+```
+Stage                                    | Score  | Delta
+1. BM25 only                             | 0.5483 | (baseline)
+2. BM25 + RRF                            | 0.7433 | +19.5pts
+3. BM25 + RRF + Cohere reranker          | 0.7433 | +0.0pts
+4. BM25 + RRF + reranker + LLM           | 0.7583 | +1.5pts
+```
+
+**Corrected conclusions (per senior reviewer):**
+- "RRF contributes 93% of the gain" → **"The hybrid retrieval stage (specialized retrievers + RRF fusion) accounts for approximately 93% of the observed improvement."** Ablation cannot distinguish RRF alone from the specialist retrievers + routing + fusion logic — they're introduced together.
+- "Don't invest more in reranker" → **"Don't invest more in reranker until you can measure it properly."** The reranker may already be helping — the current scorer is entity-presence-based (checks ALL retrieved text), so it's blind to reranking. A reranker that moves Maria from rank 19 to rank 1 is a huge UX improvement even though the scorer says +0.0. Need MRR/NDCG/Precision@1 metrics to measure reranker value.
+- "LLM non-determinism caused temporal regression" → **VERIFIED WRONG.** The 4-stage ablation shows the LLM drops temporal from 0.75 (Stage 2) to 0.31 (Stage 4) — this is a SYSTEMATIC grounding error, not randomness. The LLM consistently picks the wrong entity from correct evidence.
+
+**Hypothesis H-12 (formalized per reviewer):**
+> Given correct evidence, the generation layer incorrectly selects or omits supported entities due to grounding and evidence-selection behavior rather than retrieval failure.
+
+Evidence for H-12:
+- Stage 2 (no LLM) scores 0.7433; Stage 4 (with LLM) scores 0.7583 — only +1.5pts.
+- The LLM HURTS 4 types: at_risk (-33pts), broken (-33pts), temporal (-44pts), cross_entity (-33pts).
+- The LLM HELPS 1 type: abstention (+100pts — correctly says "I don't have enough information").
+- For the 4 hurt types, retrieve() found the correct entities (verified by direct calls), but the LLM's answer mentions the WRONG entity.
+
+Every subsequent experiment should aim to falsify or refine H-12.
+
+**Reviewer's revised priorities (superseding previous):**
+1. **Diagnose WHY the LLM chooses the wrong entity** — highest-leverage unknown.
+   Test hypotheses: A (too much evidence), B (not chronological), C (prompt lacks selection constraints), D (not grounded).
+2. **Redesign evaluation suite** — measure Recall, Precision, MRR, NDCG, Answer Accuracy, Grounding, Entity Accuracy independently. Current scorer is blind to reranking and rewards entity presence rather than correct judgment.
+3. **Cross-model experiment** — same evidence + prompt, different models (Qwen, Gemma, DeepSeek, GPT-4, Claude). If every model picks the wrong entity → architecture/context issue. If only one fails → model quality.
+4. **Only after understanding LLM failures** should we invest further in Recall@10.
+
+**Missing experiments identified by reviewer:**
+- **Oracle Generator**: Stage 2 → perfect deterministic generator. How good can the system become without any LLM mistakes? This tells us the ceiling.
+- **Bootstrap confidence intervals**: 100 questions → report 0.7583 ± 0.03. Distinguish real gains from noise.
+- **Second benchmark**: Maestro isn't an entity finder — it provides correct, grounded judgment. Eventually need benchmarks for correctness, completeness, grounding, explanation, abstention, confidence calibration.
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between

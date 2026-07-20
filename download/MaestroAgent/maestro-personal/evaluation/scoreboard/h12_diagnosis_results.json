@@ -1,0 +1,464 @@
+{
+  "timestamp": "2026-07-20T19:03:56.678774+00:00",
+  "hypothesis_scores": {
+    "A": 8,
+    "B": 7,
+    "C": 9,
+    "D": 0
+  },
+  "total_failures": 9,
+  "cases": [
+    {
+      "idx": 5,
+      "type": "at_risk",
+      "query": "Which commitments are at risk?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [],
+      "not_in_answer": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "evidence_count": 8,
+      "evidence": [
+        {
+          "entity": "Avery Stone",
+          "text": "I will send Avery Stone the quarterly report",
+          "timestamp": "2026-04-27"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "I will send Alex Chen the pricing deck by Friday",
+          "timestamp": "2026-05-28"
+        },
+        {
+          "entity": "Sam Patel",
+          "text": "I will deliver the API integration by March 15",
+          "timestamp": "2026-06-02"
+        },
+        {
+          "entity": "Priya Shah",
+          "text": "I will send Priya Shah the compliance report by June 30",
+          "timestamp": "2026-06-12"
+        }
+      ],
+      "llm_answer": "The commitment at risk is \u201c[Sam Patel] (2026-06-02) I will deliver the API integration by March 15\u201d \u2014 the due date (March 15) is in the past relative to the listed date (2026-06-02), indicating it is overdue. All other commitments have future due dates relative to their listed dates. No other eviden"
+    },
+    {
+      "idx": 15,
+      "type": "temporal",
+      "query": "What's been pending for over a month?",
+      "expected": [
+        "Avery"
+      ],
+      "in_evidence": [
+        "Avery"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [],
+      "not_in_answer": [
+        "Avery"
+      ],
+      "evidence_count": 8,
+      "evidence": [
+        {
+          "entity": "Jamie Park",
+          "text": "SSO work is complete \u2014 pending legal review",
+          "timestamp": "2026-07-05"
+        },
+        {
+          "entity": "Avery Stone",
+          "text": "I will send Avery Stone the quarterly report",
+          "timestamp": "2026-04-27"
+        },
+        {
+          "entity": "EngOncall",
+          "text": "Third auth outage this month \u2014 systemic issue",
+          "timestamp": "2026-07-10"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        },
+        {
+          "entity": "Jamie Park",
+          "text": "If legal signs off, I'll have SSO ready by Q4",
+          "timestamp": "2026-05-23"
+        }
+      ],
+      "llm_answer": "The SSO work for Jamie Park has been pending for over a month: \u201cSSO work is complete \u2014 pending legal review\u201d (2026-07-05), and \u201cIf legal signs off, I'll have SSO ready by Q4\u201d (2026-05-23) \u2014 meaning legal review has been pending since at least May 23. That is over a month as of July 5. No other item "
+    },
+    {
+      "idx": 31,
+      "type": "cross_entity",
+      "query": "Which clients have pricing issues?",
+      "expected": [
+        "Orion",
+        "Maria",
+        "Acme"
+      ],
+      "in_evidence": [
+        "Orion",
+        "Maria",
+        "Acme"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [
+        "Orion",
+        "Maria"
+      ],
+      "not_in_answer": [
+        "Acme"
+      ],
+      "evidence_count": 8,
+      "evidence": [
+        {
+          "entity": "Orion Tech",
+          "text": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute",
+          "timestamp": "2026-07-07"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "I will send Alex Chen the pricing deck by Friday",
+          "timestamp": "2026-05-28"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "Sent the pricing deck to Alex Chen yesterday",
+          "timestamp": "2026-05-30"
+        },
+        {
+          "entity": "Orion Tech",
+          "text": "Orion Tech quoted us $120k for the annual contract",
+          "timestamp": "2026-06-12"
+        },
+        {
+          "entity": "Maria Garcia",
+          "text": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F",
+          "timestamp": "2026-07-09"
+        }
+      ],
+      "llm_answer": "Only Orion Tech has a confirmed pricing issue, as stated in evidence #1: \u201cOrion Tech sent the final invoice at $150k \u2014 pricing dispute.\u201d Evidence #4 shows Orion Tech previously quoted $120k, supporting the dispute. No other clients are described as having pricing issues \u2014 Alex Chen received a pricin"
+    },
+    {
+      "idx": 47,
+      "type": "broken",
+      "query": "What did I not send?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "in_evidence": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [],
+      "not_in_answer": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "evidence_count": 5,
+      "evidence": [
+        {
+          "entity": "Avery Stone",
+          "text": "I will send Avery Stone the quarterly report",
+          "timestamp": "2026-04-27"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "I will send Alex Chen the pricing deck by Friday",
+          "timestamp": "2026-05-28"
+        },
+        {
+          "entity": "Priya Shah",
+          "text": "I will send Priya Shah the compliance report by June 30",
+          "timestamp": "2026-06-12"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        },
+        {
+          "entity": "Maria Garcia",
+          "text": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F",
+          "timestamp": "2026-07-09"
+        }
+      ],
+      "llm_answer": "You did not send the updated pricing proposal to Maria Garcia from Acme Corp. The evidence states: \u201cMaria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by Friday.\u201d There is no indication in the evidence that this was sent. All other listed items are commit"
+    },
+    {
+      "idx": 49,
+      "type": "broken",
+      "query": "What's overdue and broken?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [
+        "Riley",
+        "Priya"
+      ],
+      "not_in_answer": [
+        "Avery"
+      ],
+      "evidence_count": 8,
+      "evidence": [
+        {
+          "entity": "Priya Shah",
+          "text": "Compliance report is overdue \u2014 hasn't been sent",
+          "timestamp": "2026-06-30"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "Never sent the security questionnaire \u2014 overdue",
+          "timestamp": "2026-07-02"
+        },
+        {
+          "entity": "Priya Shah",
+          "text": "I will send Priya Shah the compliance report by June 30",
+          "timestamp": "2026-06-12"
+        },
+        {
+          "entity": "Priya Shah",
+          "text": "[ENTITY SUMMARY] Priya Shah: 1 broken, 0 completed, 1 stale, 1 total commitments, risk_score=6",
+          "timestamp": ""
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        }
+      ],
+      "llm_answer": "Overdue and broken items are:  \n- Priya Shah\u2019s compliance report, overdue since 2026-06-30 (\u201cCompliance report is overdue \u2014 hasn't been sent\u201d).  \n- Riley Quinn\u2019s security questionnaire, overdue since 2026-07-02 (\u201cNever sent the security questionnaire \u2014 overdue\u201d).  \nEvidence 4 explicitly states Priya"
+    },
+    {
+      "idx": 55,
+      "type": "at_risk",
+      "query": "What commitments are in danger?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [
+        "Riley"
+      ],
+      "not_in_answer": [
+        "Avery",
+        "Priya"
+      ],
+      "evidence_count": 8,
+      "evidence": [
+        {
+          "entity": "Avery Stone",
+          "text": "I will send Avery Stone the quarterly report",
+          "timestamp": "2026-04-27"
+        },
+        {
+          "entity": "Sam Patel",
+          "text": "I will deliver the API integration by March 15",
+          "timestamp": "2026-06-02"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "I will send Alex Chen the pricing deck by Friday",
+          "timestamp": "2026-05-28"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        },
+        {
+          "entity": "Morgan Liu",
+          "text": "I will present Nova results at the all-hands",
+          "timestamp": "2026-06-22"
+        }
+      ],
+      "llm_answer": "The commitment to Riley Quinn is in danger, as the deadline was \u201cend of week\u201d and the evidence shows it was due on 2026-05-13 \u2014 which has already passed. The commitment to Alex Chen is also at risk, since the deadline was \u201cby Friday\u201d and the evidence date is 2026-05-28 \u2014 if today is past that Friday"
+    },
+    {
+      "idx": 56,
+      "type": "at_risk",
+      "query": "Which promises might slip?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [
+        "Priya"
+      ],
+      "not_in_answer": [
+        "Riley",
+        "Avery"
+      ],
+      "evidence_count": 7,
+      "evidence": [
+        {
+          "entity": "Avery Stone",
+          "text": "I will send Avery Stone the quarterly report",
+          "timestamp": "2026-04-27"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "I will send Alex Chen the pricing deck by Friday",
+          "timestamp": "2026-05-28"
+        },
+        {
+          "entity": "Sam Patel",
+          "text": "I will deliver the API integration by March 15",
+          "timestamp": "2026-06-02"
+        },
+        {
+          "entity": "Priya Shah",
+          "text": "I will send Priya Shah the compliance report by June 30",
+          "timestamp": "2026-06-12"
+        }
+      ],
+      "llm_answer": "Promises that might slip are those with deadlines that have already passed or are overdue relative to today\u2019s date (assumed to be after June 30, 2026, given all listed dates are in 2026). Specifically: \u201c[Sam Patel] (2026-06-02) I will deliver the API integration by March 15\u201d \u2014 the March 15 deadline "
+    },
+    {
+      "idx": 58,
+      "type": "at_risk",
+      "query": "Which commitments are threatened?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [],
+      "not_in_answer": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "evidence_count": 8,
+      "evidence": [
+        {
+          "entity": "Avery Stone",
+          "text": "I will send Avery Stone the quarterly report",
+          "timestamp": "2026-04-27"
+        },
+        {
+          "entity": "Sam Patel",
+          "text": "I will deliver the API integration by March 15",
+          "timestamp": "2026-06-02"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "I will send Alex Chen the pricing deck by Friday",
+          "timestamp": "2026-05-28"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        },
+        {
+          "entity": "Morgan Liu",
+          "text": "I will present Nova results at the all-hands",
+          "timestamp": "2026-06-22"
+        }
+      ],
+      "llm_answer": "No commitments are explicitly stated as \u201cthreatened\u201d in the evidence. All entries are stated as affirmative commitments (e.g., \u201cI will send\u2026\u201d or \u201cI will deliver\u2026\u201d), with no language indicating risk, delay, or uncertainty. Therefore, the evidence does not identify any threatened commitments."
+    },
+    {
+      "idx": 73,
+      "type": "temporal",
+      "query": "What did I commit to months ago?",
+      "expected": [
+        "Avery",
+        "Riley"
+      ],
+      "in_evidence": [
+        "Avery",
+        "Riley"
+      ],
+      "not_in_evidence": [],
+      "in_answer": [
+        "Riley"
+      ],
+      "not_in_answer": [
+        "Avery"
+      ],
+      "evidence_count": 8,
+      "evidence": [
+        {
+          "entity": "Avery Stone",
+          "text": "I will send Avery Stone the quarterly report",
+          "timestamp": "2026-04-27"
+        },
+        {
+          "entity": "Sam Patel",
+          "text": "I will deliver the API integration by March 15",
+          "timestamp": "2026-06-02"
+        },
+        {
+          "entity": "Alex Chen",
+          "text": "I will send Alex Chen the pricing deck by Friday",
+          "timestamp": "2026-05-28"
+        },
+        {
+          "entity": "Riley Quinn",
+          "text": "I will send Riley Quinn the security questionnaire by end of week",
+          "timestamp": "2026-05-13"
+        },
+        {
+          "entity": "Morgan Liu",
+          "text": "I will present Nova results at the all-hands",
+          "timestamp": "2026-06-22"
+        }
+      ],
+      "llm_answer": "You committed to sending Riley Quinn the security questionnaire by end of week on May 13, 2026. That is the only commitment in the evidence dated \u201cmonths ago\u201d (May 13 is roughly two months ago from today, assuming current date is mid-July 2026). The other commitments are dated April 27 or later, so "
+    }
+  ]
+}
