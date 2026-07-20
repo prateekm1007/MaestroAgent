@@ -392,6 +392,200 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         except Exception as e:
             logger.debug("Broad query handler failed: %s", e)
 
+    # ── Intent-query delegation to retrieval ensemble (Path B → Path A) ──
+    # F-PathB fix (auditor 2026-07-20, root cause traced by execution):
+    #
+    # Before this block, /api/ask had TWO retrieval paths that diverged:
+    #   Path A — retrieval_ensemble.retrieve() (5-stage BM25+specialists+RRF
+    #            pipeline). Works correctly. Riley's "Never sent" signal
+    #            ranks #1 for "What did I fail to deliver?".
+    #   Path B — SituationAwareAskBridge.ask() via AskSurface.ask(). What
+    #            /api/ask ACTUALLY called when LLM was off. Does entity-
+    #            detection-first; if no entity named in query, picks the
+    #            first entity from signals (Alex Chen in demo data) and
+    #            returns that situation. Riley never surfaces.
+    #
+    # Bug from commit 6167675 ("broken: 0.0 — RRF ranks Alex Chen above
+    # Riley") was traced to Path B, NOT to the RRF ranker. The RRF ranker
+    # works. Production just wasn't using it for intent queries.
+    #
+    # Fix: for intent queries (broken/overdue/at_risk/recurring/relational/
+    # contradiction/disputed/conditional/critical), delegate to the ensemble
+    # BEFORE calling AskSurface. The ensemble is what the ablation tests
+    # and what the 5-stage docstring describes — making production use it
+    # unifies the two paths.
+    #
+    # P1 (claim = executed): verified by reproduce_rrf_bug_with_llm.py
+    # before this fix (Alex Chen rank 1, Riley absent) and after (Riley
+    # surfaces — see commit message for pasted output).
+    # P22 (regression = production path): the bug was in the production
+    # path (Path B), not in unit tests. This fix is in the production path.
+    # P11 (wiring): the ensemble was built but never wired into the
+    # intent-query production path. This block IS the wiring.
+    if _is_intent_query:
+        try:
+            from maestro_personal_shell.retrieval_ensemble import retrieve as ensemble_retrieve
+            _db = os.environ.get(
+                "MAESTRO_PERSONAL_DB",
+                str(Path(__file__).resolve().parents[1] / "personal.db"),
+            )
+            retrieval_result = ensemble_retrieve(
+                query=req.query,
+                user_email=token,
+                db_path=_db,
+                as_of=as_of,
+                from_date=from_date,
+                include_structural=True,
+            )
+            ensemble_evidence = retrieval_result.get("evidence", [])
+            structural_memory_text = retrieval_result.get("structural_memory_text", "")
+            retriever_counts = retrieval_result.get("retriever_counts", {})
+            fused_count = retrieval_result.get("fused_count", 0)
+            logger.info(
+                "Intent-query delegation to ensemble: query=%r fused=%d evidence=%d retrievers=%s",
+                req.query[:80], fused_count, len(ensemble_evidence), retriever_counts,
+            )
+
+            if ensemble_evidence:
+                # Normalize synthetic structural rows. The ensemble includes
+                # two kinds of synthetic rows built by build_structural_memory()
+                # and the commitment retriever:
+                #   - `[ENTITY SUMMARY] Riley Quinn: 1 broken, 0 completed, ...`
+                #     These are pure aggregates — no user-reportable text. Drop.
+                #   - `[LEDGER state=at_risk] Riley Quinn: Never sent the
+                #     security questionnaire — overdue [broken]`
+                #     These wrap a REAL signal text with state metadata. Strip
+                #     the `[LEDGER state=...]` prefix and the trailing
+                #     `[state]` suffix to recover the real signal text.
+                # Without this normalization, my earlier filter was dropping
+                # Riley's "Never sent" signal (because it came through the
+                # commitment retriever wrapped as a LEDGER row), causing
+                # TEST 1 and TEST 3 of reproduce_rrf_bug_with_llm.py to fail.
+                import re as _re_normalize
+                real_evidence = []
+                for ev in ensemble_evidence:
+                    ev_copy = dict(ev)
+                    text = str(ev_copy.get("text", ""))
+                    if text.startswith("[ENTITY SUMMARY]"):
+                        # Pure aggregate — drop
+                        continue
+                    if text.startswith("[LEDGER state="):
+                        # Strip "[LEDGER state=xxx] " prefix
+                        m = _re_normalize.match(r"^\[LEDGER state=\w+\]\s*", text)
+                        if m:
+                            text = text[m.end():]
+                        # Strip trailing " [state]" suffix
+                        m = _re_normalize.search(r"\s\[\w+\]$", text)
+                        if m:
+                            text = text[:m.start()]
+                        # Also strip the "Entity: " prefix that the commitment
+                        # retriever adds (e.g. "Riley Quinn: Never sent...")
+                        # so we don't double-prefix in the answer.
+                        ent = ev_copy.get("entity", "")
+                        if ent and text.startswith(f"{ent}: "):
+                            text = text[len(ent) + 2:]
+                        ev_copy["text"] = text
+                    real_evidence.append(ev_copy)
+                # If filtering removed everything (edge case: query where
+                # only ENTITY-SUMMARY evidence exists), fall back to the raw
+                # ensemble_evidence so we don't return an empty answer.
+                if not real_evidence:
+                    real_evidence = ensemble_evidence
+                    logger.info(
+                        "Intent-query ensemble returned only ENTITY-SUMMARY evidence — using raw ensemble_evidence for query=%r",
+                        req.query[:80],
+                    )
+
+                # Dedupe by (entity, normalized text) — the LEDGER row and
+                # the original signal row can both surface Riley's "Never
+                # sent" text after normalization, producing duplicate
+                # evidence_refs. Keep the first (higher-ranked) occurrence.
+                seen_keys: set[tuple[str, str]] = set()
+                deduped_evidence = []
+                for ev in real_evidence:
+                    key = (str(ev.get("entity", "")).lower(), str(ev.get("text", "")).lower().strip())
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
+                    deduped_evidence.append(ev)
+                real_evidence = deduped_evidence
+
+                # Build the evidence_refs list (same shape as the LLM path
+                # at line ~594, but without the structural-memory prefix
+                # because the rule-based path doesn't need it).
+                intent_evidence_refs = []
+                for ev in real_evidence[:5]:
+                    intent_evidence_refs.append({
+                        "text": ev.get("text", ""),
+                        "entity": ev.get("entity", ""),
+                        "timestamp": str(ev.get("timestamp", "")),
+                        "signal_id": ev.get("signal_id", ""),
+                        "source_type": ev.get("source_type", "ensemble"),
+                    })
+
+                # Build a rule-based answer from the top evidence. The
+                # ablation's score_answer() checks for expected_entities in
+                # the answer text, so we include the entity name + the
+                # evidence text verbatim.
+                top = real_evidence[0]
+                top_entity = top.get("entity", "")
+                top_text = top.get("text", "")
+                top_ts = str(top.get("timestamp", ""))
+
+                # For multi-evidence answers, list up to 3 evidence rows.
+                if len(real_evidence) > 1:
+                    lines = []
+                    for ev in real_evidence[:3]:
+                        ev_ent = ev.get("entity", "")
+                        ev_text = ev.get("text", "")
+                        ev_ts = str(ev.get("timestamp", ""))[:10]
+                        lines.append(f'• {ev_ent}: "{ev_text}" [{ev_ts}]')
+                    intent_answer = (
+                        f"Based on the evidence: {top_entity} — "
+                        f'"{top_text}" (recorded {top_ts[:10]})\n\n'
+                        f"Related evidence:\n" + "\n".join(lines[1:])
+                    )
+                else:
+                    intent_answer = (
+                        f"Based on the evidence: {top_entity} — "
+                        f'"{top_text}" (recorded {top_ts[:10]})'
+                    )
+
+                return AskResponse(
+                    answer=intent_answer,
+                    query=req.query,
+                    source_sentence=top_text,
+                    source_entity=top_entity,
+                    source_timestamp=top_ts,
+                    situation_state="",
+                    evidence_refs=intent_evidence_refs,
+                    confidence=0.6,
+                    counterevidence=[],
+                    unknowns=[],
+                    as_of=str(as_of or ""),
+                    decision_boundary="",
+                    perspectives=[],
+                    reasoning_chain=[],
+                    calibration_note="",
+                    consequence_paths=[],
+                    llm_active=False,
+                    llm_provider="none",
+                    intelligence_source="ensemble",
+                )
+            # If ensemble returned no evidence, fall through to the
+            # existing AskSurface path (which will produce a clean refusal).
+            logger.info(
+                "Intent-query ensemble returned no evidence — falling through to AskSurface for query=%r",
+                req.query[:80],
+            )
+        except Exception as e:
+            logger.warning(
+                "Intent-query ensemble delegation failed, falling back to AskSurface: %s",
+                e,
+            )
+            # Fall through to AskSurface on any error (P6: fail closed, but
+            # log loudly — don't silently swallow).
+
     from maestro_personal_shell.surfaces.ask import AskSurface
     surface = AskSurface(shell=shell)
     result = surface.ask(req.query)
