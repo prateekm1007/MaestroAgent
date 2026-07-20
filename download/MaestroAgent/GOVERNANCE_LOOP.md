@@ -41,6 +41,18 @@ GOVERNANCE_LOOP.md, and AUDITOR_GOVERNANCE.md from disk before writing any code.
 "What's Broken" tables + the 8 architectural decisions + the shell-verification
 tips.
 
+### 0c. `ROADMAP_TO_WORLD_CLASS.md` + `RETRIEVAL_EXECUTION_PLAN.md`
+**Why:** The 6-month product roadmap (3 phases, 16-benchmark score-tracking
+table) and the 4-stage retrieval execution plan (BM25 recall → hybrid RRF →
+cross-encoder rerank → reasoning-engine upgrade) define what "done" looks like
+for the next two quarters. STATE.md's "Strategic direction" section
+cross-references the audit's open issues against these docs — read them before
+choosing what to work on, not after.
+
+**Read receipt:** Paste the timestamp + the current Phase / Stage target from
+each doc + confirm you read STATE.md's cross-reference table that maps audit
+issues to roadmap phases.
+
 ### 1. `ENTROPY_RECOVERY.md` Part Four (P20-P26) + Part Five (P27-P34)
 **Why:** Part Four contains the principles the Coder has violated most. P20 (call-site parameter rule), P21 (all-paths trigger), P22 (regression = production path), P23 (commit cites output), P24 (cross-surface coherence), P25 (confidence display gate), P26 (re-application meta-principle). Part Five contains the Auditor's own failures — P27 (read assertions), P28 (test 3+ inputs), P29 (re-run canonical scenario), P30 (verify comprehensiveness by counting), P31 (run verify scripts yourself), P32 (check all derived state), P33 (search for refutation), P34 (re-derive method from failures).
 

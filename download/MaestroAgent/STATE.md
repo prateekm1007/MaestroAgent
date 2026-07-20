@@ -95,6 +95,62 @@ GOVERNANCE LOOP READ RECEIPT (Coder):
 8. **P2** — Hybrid BM25+embedding retrieval for better Ask quality at scale
 9. **P2** — Commit investor materials to the repo (if available)
 
+### Strategic direction (6-month roadmap + retrieval execution plan)
+
+Two strategic docs committed alongside this STATE.md update:
+
+- **`ROADMAP_TO_WORLD_CLASS.md`** — 3-phase, 6-month plan to lift all 16 audit
+  benchmarks to 9/10. Phase 1 (months 1-2): zero-noise ambient, intent-aware
+  commitment extraction, commitment lifecycle graph. Phase 2 (months 3-4):
+  agentic Ask engine, contradiction/resolution memory, conversational
+  fallbacks. Phase 3 (months 5-6): enterprise security, micro-latency budgets,
+  auto-healing connectors. Includes the 16-benchmark score-tracking table
+  (audit → phase 1 → phase 2 → phase 3 targets).
+- **`RETRIEVAL_EXECUTION_PLAN.md`** — 4-stage tactical plan for the retrieval
+  sub-system. Stage 1: BM25 high-recall (Recall@50 > 99%, < 50ms). Stage 2:
+  parallel hybrid retrieval with RRF across entity/temporal/graph/commitment
+  retrievers (Recall@20 > 95%, MRR > 0.85). Stage 3: cross-encoder reranking
+  + compression (evidence precision > 95%, token reduction > 60%). Stage 4:
+  reasoning engine upgrade (Qwen 3 14B/32B, DeepSeek-R1 for judgment).
+  Each stage has a "Success Measurement" gate — per P1, no stage is marked
+  complete without pasted benchmark output hitting the stated numbers.
+
+**Cross-reference: how the audit's open issues map to the roadmap**
+
+| Audit issue | Severity | Maps to roadmap |
+|-------------|----------|-----------------|
+| #1 Mobile login bypass | P0 | (governance debt — close before any roadmap work) |
+| #2 No mobile registration | P0 | (governance debt — close before any roadmap work) |
+| #3 Test isolation (chaos bleed) | P1 | (governance debt — close before Phase 1; Phase 1.2 intent classifier will add many new tests, isolation must be solid first) |
+| #4 Threads for Entity UI | P1 | Phase 2.1 (Agentic Ask — threads become a retriever target) |
+| #5 Decision History client fn | P1 | Phase 2.1 (Agentic Ask — decisions become a tool-call target) |
+| #6 Grade Override UI | P1 | Phase 1.3 (commitment lifecycle UI) |
+| #7 API key redaction (sk-*/ghp_*/gsk_*) | P1 | Phase 3.1 (enterprise security) — but fix is trivial, do it now |
+| #8 Physical device testing | P2 | Phase 3.2 (performance budgets) — needs device |
+| #9 Real OAuth round-trips | P2 | Phase 3.3 (auto-healing connectors) |
+| #10 Hybrid BM25+embedding | P2 | **`RETRIEVAL_EXECUTION_PLAN.md` stages 1-3** — this is the entry point for the retrieval work |
+| #11 Investor materials not in git | P2 | (operational — user decision) |
+| #12 Copilot routes deprecated | P2 | Phase 3 cleanup |
+
+**The two-track priority for the new coder:**
+
+1. **Tactical debt track** (audit P0-P1): mobile login, test isolation, API-key
+   redaction, missing client functions (#4, #5, #6). These block trustworthy
+   development on the roadmap. Estimate: 1-2 weeks of focused work.
+2. **Strategic track** (roadmap Phase 1 + retrieval stages 1-2): zero-noise
+   ambient, intent-aware commitment extraction, commitment lifecycle, BM25
+   recall baseline + parallel hybrid retrieval. This is the 9/10 work. The
+   retrieval plan's Stage 1 (BM25 Recall@50 > 99%) is the natural first
+   executable step on the strategic track because it has a clean success
+   metric and unblocks everything downstream.
+
+> ⚠️ **Per P6 (fail closed, not silent) and the audit's governance gate:**
+> the tactical debt track must close BEFORE the strategic track starts. Building
+> Phase 1 product on top of unresolved P0 security debt (mobile login bypass)
+> would violate the governance principle that the forensic audit codified.
+> The new coder should NOT jump to the retrieval plan until mobile login +
+> test isolation are fixed.
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between
