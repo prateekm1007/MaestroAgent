@@ -403,6 +403,103 @@ session doesn't re-derive them.
   (patches INDICES in ablation_matrix.py, runs all 47 questions,
   restores the original file, copies results to a clearly-named path).
 
+**8. Three follow-up fixes + n=100 ablation (this session, by execution).**
+Senior auditor said "do all 3 sequentially":
+  (1) root-cause 23% LLM activation, (2) write more questions for n=100,
+  (3) fix context_engineer chronological sort. All three landed.
+
+**(1) LLM activation 23% → 63% (direction #3 root cause + fix).**
+- Root cause: intent queries (broken/overdue/at_risk/recurring/relational/
+  abstention) NEVER reached the LLM because (a) my Path B → Path A fix
+  (commit `c448459`) returns early for intent queries BEFORE the LLM gate
+  at line ~614, and (b) the LLM gate at line ~1097 requires
+  `matching_situation` which requires an entity match. For intent queries
+  that don't name an entity, no LLM fired.
+- Fix: in the intent-delegation block, when LLM is available, call
+  `llm_complete()` directly with the ensemble evidence as grounding context.
+  If LLM returns a usable answer, use it (llm_active=True). If LLM times
+  out or fails, fall back to the rule-based answer (P6: fail closed).
+  Added ~80 lines to `routers/ask.py`.
+- Verified by execution: n=47 re-run went from 11/47 LLM-active to 34/47.
+  n=100 run achieved 63/100 LLM-active.
+
+**(2) Question expansion 47 → 100 (direction #4 n=100 bar).**
+- Added 53 new questions to `evaluation/scoreboard/memory_v1.py`,
+  all grounded in the existing 32-signal corpus. No fabrication — every
+  question references only entities/facts that actually exist in SIGNALS.
+- Type distribution after expansion (was → now):
+  broken 1→5, overdue 1→5, at_risk 1→5, direct_lookup 7→15, relational
+  5→10, temporal 4→8, critical 4→8, abstention 4→8, contradiction 3→6,
+  recurring 3→6, noise_lookup 3→6, priority 2→4, multilingual 2→3,
+  disputed 2→3, conditional 2→3, cross_entity 2→3, prepare 1→2.
+  Total: 47 → 100.
+- Per P18 (scope honesty): still 1 question set, not 3. Did NOT pretend
+  3 distinct sets exist. Surfaced gap to user.
+
+**(3) context_engineer intent-aware sort (repro TEST 2/3 fix).**
+- Root cause: `context_engineer` sorted ALL evidence chronologically
+  (oldest first). For intent queries like "Which promises are now
+  overdue?", this put Riley's original commitment (May 21) ABOVE
+  Riley's "Never sent" signal (July 10) — the wrong ranking for this
+  intent. The broken-fulfillment signal should rank higher.
+- Fix: in `retrieval_ensemble.py` `context_engineer()`, detect intent
+  queries via a substring list (mirrors `_INTENT_BROAD_PATTERNS` in
+  ask.py). For intent queries, preserve RRF rank order (don't sort
+  chronologically). For timeline-reasoning queries (direct_lookup,
+  contradiction, temporal, prepare), keep chronological sort.
+
+**n=100 ablation results (this session, by execution):**
+- A_bm25: 0.5033 (n=47 was 0.5142, n=30 was 0.5500)
+- B_full_maestro: **0.6850 = 6.9/10** (n=47 was 0.7411, n=30 was 0.5333)
+- C_rule_based: 0.2750 (n=47 was 0.3227, n=30 was 0.4500)
+- llm_active: **63/100 = 63%** (n=47 was 34/47=72%, n=30 was 10/10=100%)
+- lift_B_vs_A: **+18.2pts** (n=47 was +22.7pts, n=30 was -1.7pts)
+- Wall time: ~7 min via OpenRouter meta-llama/llama-3.3-70b-instruct
+- **GATE 1 STILL CLEARED** at n=100. B_full_maestro = 6.9/10, above 5/10 floor.
+
+**Per-type B (Full Maestro) n=100 (worst → best):**
+- priority: 0.38 (1/4 LLM) — needs investigation
+- temporal: 0.38 (1/8 LLM) — LLM rarely fires on temporal
+- disputed: 0.33 (2/3 LLM)
+- relational: 0.47 (7/10 LLM)
+- recurring: 0.50 (3/6 LLM)
+- cross_entity: 0.50 (2/3 LLM)
+- at_risk: 0.53 (3/5 LLM)
+- broken: 0.60 (3/5 LLM) — down from 1.00 in n=47 (only 1 question then)
+- overdue: 0.67 (2/5 LLM)
+- critical: 0.69 (7/8 LLM)
+- noise_lookup: 0.75 (5/6 LLM)
+- prepare: 0.75 (1/2 LLM)
+- conditional: 0.78 (3/3 LLM)
+- direct_lookup: 0.93 (14/15 LLM)
+- contradiction: 1.00 (6/6 LLM)
+- multilingual: 1.00 (3/3 LLM)
+- abstention: 1.00 (0/8 LLM — by design, abstention doesn't need LLM)
+
+**Three honest caveats (P18):**
+1. **B_full_maestro dropped 0.7411 → 0.6850 at n=100.** This is NOT a
+   regression from my fixes — it's the broader question set exposing
+   weaker types. n=47 only had 1 broken question (which scored 1.00);
+   n=100 has 5 broken questions averaging 0.60. The fix didn't get
+   worse; the test got more honest.
+2. **LLM activation 63%, not higher.** The LLM-grounding fix tripled
+   activation (23% → 63%) but 37 queries still fall back to rules.
+   Remaining gap: some intent queries return empty ensemble evidence
+   (no matching signals), so the LLM-grounding block never fires.
+3. **Still 1 question set, not 3.** Senior auditor's full bar not met.
+   The 100 questions are grounded in 1 corpus; a true 3-set test would
+   need 3 distinct corpora. Surfaced to user.
+
+**Files changed (this session, not yet committed as a unit):**
+- `maestro-personal/src/maestro_personal_shell/routers/ask.py` — LLM
+  grounding block for intent queries (+80 lines, on top of c448459's +194)
+- `maestro-personal/src/maestro_personal_shell/retrieval_ensemble.py` —
+  intent-aware sort in context_engineer (+~60 lines)
+- `maestro-personal/evaluation/scoreboard/memory_v1.py` — 53 new questions
+  (+95 lines)
+- `evaluation/scoreboard/ablation_n100_results.json` — new, 100-row results
+- `evaluation/scoreboard/ablation_n100_log.txt` — new, comparison log
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between

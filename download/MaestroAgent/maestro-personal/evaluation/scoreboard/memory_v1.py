@@ -191,6 +191,100 @@ QUESTIONS = [
     # ── More abstention ──
     {"q": "What's the weather?", "expected_entities": [], "expected_type": "abstention"},
     {"q": "Who is the CEO of Microsoft?", "expected_entities": [], "expected_type": "abstention"},
+
+    # ═══════════════════════════════════════════════════════════════════
+    # EXPANSION SET (53 new questions, grounded in the existing 32-signal
+    # corpus). Added 2026-07-20 to enable n=100 ablation per senior
+    # auditor direction #4. Each question references only entities/facts
+    # that actually exist in SIGNALS above. No fabrication.
+    # ═══════════════════════════════════════════════════════════════════
+
+    # ── More broken (was 1, add 4) ──
+    {"q": "What did I not send?", "expected_entities": ["Riley", "security questionnaire"], "expected_type": "broken"},
+    {"q": "Which commitment did I miss?", "expected_entities": ["Riley", "security questionnaire"], "expected_type": "broken"},
+    {"q": "What's overdue and broken?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "broken"},
+    {"q": "Did I fail to deliver anything to Riley?", "expected_entities": ["Riley", "security questionnaire"], "expected_type": "broken"},
+
+    # ── More overdue (was 1, add 4) ──
+    {"q": "What's past due?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "overdue"},
+    {"q": "Which promises haven't been fulfilled?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "overdue"},
+    {"q": "What am I late on?", "expected_entities": ["Riley", "Priya"], "expected_type": "overdue"},
+    {"q": "Show me overdue commitments", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "overdue"},
+
+    # ── More at_risk (was 1, add 4) ──
+    {"q": "What commitments are in danger?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "at_risk"},
+    {"q": "Which promises might slip?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "at_risk"},
+    {"q": "What's at risk of being missed?", "expected_entities": ["Riley", "Priya"], "expected_type": "at_risk"},
+    {"q": "Which commitments are threatened?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "at_risk"},
+
+    # ── More direct_lookup (was 7, add 8) ──
+    {"q": "What did I promise Priya?", "expected_entities": ["Priya", "compliance report"], "expected_type": "direct_lookup"},
+    {"q": "What did I send Avery?", "expected_entities": ["Avery", "quarterly report"], "expected_type": "direct_lookup"},
+    {"q": "What did I promise to deliver to Riley?", "expected_entities": ["Riley", "security questionnaire"], "expected_type": "direct_lookup"},
+    {"q": "What's the status of the SSO work?", "expected_entities": ["Jamie", "SSO", "legal"], "expected_type": "direct_lookup"},
+    {"q": "What did Carlos say in Spanish?", "expected_entities": ["Carlos", "contrato"], "expected_type": "direct_lookup"},
+    {"q": "What did Morgan present?", "expected_entities": ["Morgan", "Nova"], "expected_type": "direct_lookup"},
+    {"q": "What did I commit to the Hiring Committee?", "expected_entities": ["Hiring Committee", "offer", "senior engineer"], "expected_type": "direct_lookup"},
+    {"q": "What's the VendorZ situation?", "expected_entities": ["Alice", "VendorZ", "$1M"], "expected_type": "direct_lookup"},
+
+    # ── More relational (was 5, add 5) ──
+    {"q": "Who has broken commitments?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "relational", "expected_not_entities": ["TechNewsletter"]},
+    {"q": "Who should I follow up with?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "relational"},
+    {"q": "Which clients are unhappy?", "expected_entities": ["Globex"], "expected_type": "relational"},
+    {"q": "Who delivered on time?", "expected_entities": ["Alex", "Sam"], "expected_type": "relational"},
+    {"q": "Who has unfulfilled promises?", "expected_entities": ["Riley", "Avery", "Priya"], "expected_type": "relational", "expected_not_entities": ["TechNewsletter"]},
+
+    # ── More temporal (was 4, add 4) ──
+    {"q": "What's been outstanding the longest?", "expected_entities": ["Avery"], "expected_type": "temporal"},
+    {"q": "What did I commit to months ago?", "expected_entities": ["Avery", "Riley"], "expected_type": "temporal"},
+    {"q": "What's the oldest commitment I haven't kept?", "expected_entities": ["Avery"], "expected_type": "temporal"},
+    {"q": "What's been delayed the most?", "expected_entities": ["Avery", "Riley"], "expected_type": "temporal"},
+
+    # ── More critical (was 4, add 4) ──
+    {"q": "Are there any regulatory issues?", "expected_entities": ["regulatory fine", "GDPR"], "expected_type": "critical"},
+    {"q": "Is any account churning?", "expected_entities": ["Globex", "cancel"], "expected_type": "critical"},
+    {"q": "What's the board concerned about?", "expected_entities": ["Board", "Q3", "investor"], "expected_type": "critical"},
+    {"q": "Are there any legal threats?", "expected_entities": ["regulatory fine", "GDPR"], "expected_type": "critical"},
+
+    # ── More abstention (was 4, add 4) ──
+    {"q": "What's the stock price of AAPL?", "expected_entities": [], "expected_type": "abstention"},
+    {"q": "How tall is Mount Everest?", "expected_entities": [], "expected_type": "abstention"},
+    {"q": "What did I commit to in 2023?", "expected_entities": [], "expected_type": "abstention"},
+    {"q": "Who is Albert Einstein?", "expected_entities": [], "expected_type": "abstention"},
+
+    # ── More contradiction (was 3, add 3) ──
+    {"q": "Did Orion Tech's price change?", "expected_entities": ["Orion", "$120k", "$95k", "$150k"], "expected_type": "contradiction"},
+    {"q": "What was Orion Tech's final invoice?", "expected_entities": ["Orion", "$150k"], "expected_type": "contradiction"},
+    {"q": "Was there a pricing dispute with Orion?", "expected_entities": ["Orion", "$150k", "pricing dispute"], "expected_type": "contradiction"},
+
+    # ── More recurring (was 3, add 3) ──
+    {"q": "What's the recurring production issue?", "expected_entities": ["auth", "outage"], "expected_type": "recurring"},
+    {"q": "What keeps going wrong?", "expected_entities": ["auth", "outage"], "expected_type": "recurring"},
+    {"q": "What's the systemic issue?", "expected_entities": ["auth", "systemic"], "expected_type": "recurring"},
+
+    # ── More noise_lookup (was 3, add 3) ──
+    {"q": "What digest did I get?", "expected_entities": ["TechNewsletter", "digest"], "expected_type": "noise_lookup"},
+    {"q": "What industry trends did I read about?", "expected_entities": ["TechNewsletter", "industry trends"], "expected_type": "noise_lookup"},
+    {"q": "What newsletters came in?", "expected_entities": ["TechNewsletter"], "expected_type": "noise_lookup"},
+
+    # ── More priority (was 2, add 2) ──
+    {"q": "What's the most urgent commitment?", "expected_entities": ["Riley", "Globex"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter"]},
+    {"q": "What needs attention immediately?", "expected_entities": ["Globex", "regulatory fine"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter"]},
+
+    # ── More multilingual (was 2, add 1) ──
+    {"q": "¿Qué enviará Carlos?", "expected_entities": ["Carlos", "contrato"], "expected_type": "multilingual"},
+
+    # ── More disputed (was 2, add 1) ──
+    {"q": "Was the Nova presentation complete?", "expected_entities": ["Morgan", "Nova", "incomplete"], "expected_type": "disputed"},
+
+    # ── More conditional (was 2, add 1) ──
+    {"q": "Is the SSO ready if legal approves?", "expected_entities": ["Jamie", "SSO", "legal"], "expected_type": "conditional"},
+
+    # ── More cross_entity (was 2, add 1) ──
+    {"q": "Which entities have compliance issues?", "expected_entities": ["Priya", "compliance"], "expected_type": "cross_entity"},
+
+    # ── More prepare (was 1, add 1) ──
+    {"q": "What should I prepare for the board meeting?", "expected_entities": ["Board", "Q3"], "expected_type": "prepare", "expected_not_entities": ["TechNewsletter"]},
 ]
 
 

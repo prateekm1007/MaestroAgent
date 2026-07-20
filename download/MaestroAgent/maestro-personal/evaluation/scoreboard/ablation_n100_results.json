@@ -1,0 +1,1816 @@
+{
+  "A_bm25": 0.5033,
+  "B_full_maestro": 0.685,
+  "C_rule_based": 0.275,
+  "lift_B_vs_A": 18.2,
+  "lift_B_vs_C": 41.0,
+  "lift_C_vs_A": -22.8,
+  "llm_active": 63,
+  "total_questions": 100,
+  "results_A": [
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Alex Chen the pricing deck by Friday I will send Riley Quinn the security questionnaire "
+    },
+    {
+      "type": "overdue",
+      "score": 0.6666666666666666,
+      "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "I will deliver the API integration by March 15"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "Globex Corp is threatening to cancel their contract \u2014 pulling out"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "Third auth outage this month \u2014 systemic issue"
+    },
+    {
+      "type": "recurring",
+      "score": 0.5,
+      "answer": "Production down \u2014 sev1 incident on auth service Board escalation: investor wants to see Q3 numbers b"
+    },
+    {
+      "type": "prepare",
+      "score": 0.5,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "Auth service outage again \u2014 same root cause as last week"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "Orion Tech quoted us $120k for the annual contract SSO work is complete \u2014 pending legal review Third"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.5,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Board escalation: investor wants to see Q3 numbers before Friday meeting Maria Garcia from Acme Corp"
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": ""
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+    },
+    {
+      "type": "disputed",
+      "score": 1.0,
+      "answer": "Nova results presentation was incomplete \u2014 missing the Q2 data I will present Nova results at the al"
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Hiring Committee will make an offer to the senior engineer candidate by Friday Maria Garcia from Acm"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "Team standup notes: velocity is fine, sprint on track Team standup notes: velocity is fine, no block"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Avery Stone the quarterly report"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Priya Shah the compliance report by June 30 Compliance report is overdue \u2014 hasn't been s"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "cross_entity",
+      "score": 1.0,
+      "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday Maria "
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.5,
+      "answer": ""
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "I will send Riley Quinn the security questionnaire by end of week Auth service outage again \u2014 same r"
+    },
+    {
+      "type": "contradiction",
+      "score": 0.0,
+      "answer": "Globex Corp is threatening to cancel their contract \u2014 pulling out"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "critical",
+      "score": 0.5,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "disputed",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "broken",
+      "score": 1.0,
+      "answer": "I will send Alex Chen the pricing deck by Friday I will send Riley Quinn the security questionnaire "
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "broken",
+      "score": 0.6666666666666666,
+      "answer": "Never sent the security questionnaire \u2014 overdue Maria Garcia from Acme Corp called on Tuesday and as"
+    },
+    {
+      "type": "broken",
+      "score": 1.0,
+      "answer": "I will send Riley Quinn the security questionnaire by end of week Never sent the security questionna"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "overdue",
+      "score": 0.3333333333333333,
+      "answer": "Compliance report is overdue \u2014 hasn't been sent"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "overdue",
+      "score": 0.6666666666666666,
+      "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Priya Shah the compliance report by June 30 Compliance report is overdue \u2014 hasn't been s"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Avery Stone the quarterly report I will send Alex Chen the pricing deck by Friday I will"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will send Riley Quinn the security questionnaire by end of week Never sent the security questionna"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will present Nova results at the all-hands Presented Nova results at the all-hands Nova results pr"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Hiring Committee will make an offer to the senior engineer candidate by Friday Maria Garcia from Acm"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "Weekly tech digest: 10 articles about AI you should read"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.5,
+      "answer": "Delivered the API integration on time"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "EU regulatory fine of 5M euros imposed for GDPR violation"
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "Third auth outage this month \u2014 systemic issue Maria Garcia from Acme Corp called on Tuesday and aske"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "Weekly tech digest: 10 articles about AI you should read"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "Weekly tech digest: 10 articles about AI you should read Monthly newsletter roundup \u2014 industry trend"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "priority",
+      "score": 0.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+    },
+    {
+      "type": "disputed",
+      "score": 1.0,
+      "answer": "Nova results presentation was incomplete \u2014 missing the Q2 data I will present Nova results at the al"
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review Maria Garc"
+    },
+    {
+      "type": "cross_entity",
+      "score": 1.0,
+      "answer": "If legal signs off, I'll have SSO ready by Q4 I will send Priya Shah the compliance report by June 3"
+    },
+    {
+      "type": "prepare",
+      "score": 1.0,
+      "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+    }
+  ],
+  "results_B": [
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "You promised Alex Chen that you will send Alex Chen the pricing deck by Friday. Based on: \"I will se",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 23.4
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Maria asked the Engineering Team to send the updated pricing proposal by Friday, as the procurement ",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 20.8
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Sam Patel: The evidence does not explicitly state what you sent to Sam, but it mentions that you wil",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 5.7
+    },
+    {
+      "type": "overdue",
+      "score": 1.0,
+      "answer": "Priya Shah has an overdue compliance report, as stated: \"Compliance report is overdue \u2014 hasn't been ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.1
+    },
+    {
+      "type": "broken",
+      "score": 1.0,
+      "answer": "You, as the entity in question, are not explicitly mentioned in the evidence, but based on the conte",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 5.5
+    },
+    {
+      "type": "at_risk",
+      "score": 1.0,
+      "answer": "Sam Patel's commitment is at risk, as the evidence states \"I will deliver the API integration by Mar",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 7.4
+    },
+    {
+      "type": "relational",
+      "score": 0.6666666666666666,
+      "answer": "Priya Shah and Riley Quinn are the ones you are repeatedly disappointing, as evidenced by the overdu",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.1
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "Morgan Liu is mentioned as having made a commitment and fulfilled it, but there is no indication of ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.0
+    },
+    {
+      "type": "relational",
+      "score": 1.0,
+      "answer": "The evidence does not explicitly state who keeps their promises. It only lists commitments made to v",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.2
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: What is Orion Tech's pricing?**\n\n**Orion Tech situation**\nState: observing | Epistemic:",
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 9.5
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech's price changed, as they \"quoted us $120k for the annual contract\" initially, but later \"",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.0
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "The issue that keeps recurring across meetings is not explicitly stated, but there are mentions of m",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.9
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "Auth service incidents show a pattern of recurrence, with [EngOncall] stating on 2026-07-05 that the",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.8
+    },
+    {
+      "type": "prepare",
+      "score": 0.5,
+      "answer": "You have 32 signals across 19 entities:\n\u2022 Avery Stone: I will send Avery Stone the quarterly report\n",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "You received the [TechNewsletter] on two occasions, with the messages: \"Monthly newsletter roundup \u2014",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.6
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.5,
+      "answer": "Morgan Liu presented Nova results at the all-hands on 2026-07-02, as stated: \"Presented Nova results",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.0
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "[Legal Dept] reports a legal issue: \"EU regulatory fine of 5M euros imposed for GDPR violation\" as o",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.5
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "Customer is not explicitly mentioned in the evidence, however, the auth service outage and GDPR viol",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.2
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "The Board has an escalation: as stated by the Board on 2026-07-11, \"Board escalation: investor wants",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.2
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "You have 32 signals across 19 entities:\n\u2022 Avery Stone: I will send Avery Stone the quarterly report\n",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.0
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Carlos said that he will send the contract next Monday. Based on: \"Carlos dijo que enviar\u00e1 el contra",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "disputed",
+      "score": 1.0,
+      "answer": "Morgan Liu presented the Nova results at the all-hands on 2026-07-02. However, there is a contradict",
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 8.2
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "Jamie Park states that \"SSO work is complete \u2014 pending legal review\", which suggests SSO is not yet ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.8
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding your question about promises to Hiring Committee:**\n  \u2022 Hiring Committee will make an of",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "Based on the evidence, the Engineering Team's velocity is fine, with no blockers, as noted in the te",
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Avery Stone is an entity that you have a commitment to send a quarterly report to, as stated in the ",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "You promised Priya Shah that you will send her the compliance report by June 30. Based on: \"I will s",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I don't have enough reliable evidence to answer this question.",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "cross_entity",
+      "score": 1.0,
+      "answer": "Orion Tech has a pricing issue, as evidenced by the note that they \"sent the final invoice at $150k ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 7.3
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.5,
+      "answer": "Riley Quinn owes you the security questionnaire, as it is \"overdue\" and was \"never sent\" as of 2026-",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.5
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "relational",
+      "score": 1.0,
+      "answer": "Sam Patel is identified as a reliable partner, as the evidence states: \"Delivered the API integratio",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 5.3
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "Orion Tech is a potential risk due to the significant contract value, as evidenced by the quote of \"",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.3
+    },
+    {
+      "type": "temporal",
+      "score": 1.0,
+      "answer": "Avery Stone has the oldest unfulfilled commitment, as the evidence states: \"I will send Avery Stone ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.7
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "You have 32 signals across 19 entities:\n\u2022 Avery Stone: I will send Avery Stone the quarterly report\n",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.0
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech changed their quote, as evidenced by the revision from \"$120k\" to \"$95k\" after negotiatio",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.2
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "Auth service keeps breaking, as stated by [EngOncall] on 2026-07-05: \"Auth service outage again \u2014 sa",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 7.8
+    },
+    {
+      "type": "critical",
+      "score": 0.5,
+      "answer": "[Board] states \"Board escalation: investor wants to see Q3 numbers before Friday meeting\" as of 2026",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.6
+    },
+    {
+      "type": "disputed",
+      "score": 0.0,
+      "answer": "Jamie Park states that the \"SSO work is complete \u2014 pending legal review\". This does not explicitly i",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.5
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "Jamie Park's SSO (Single Sign-On) depends on legal, as stated: \"If legal signs off, I'll have SSO re",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 6.6
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene. Based on: \"Carlos dijo que enviar\u00e1 el contra",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "broken",
+      "score": 1.0,
+      "answer": "Priya Shah's compliance report is overdue, as she stated \"Compliance report is overdue \u2014 hasn't been",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.0
+    },
+    {
+      "type": "broken",
+      "score": 1.0,
+      "answer": "Riley Quinn notes that you \"Never sent the security questionnaire \u2014 overdue\" as of 2026-07-02. Accor",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.4
+    },
+    {
+      "type": "overdue",
+      "score": 0.6666666666666666,
+      "answer": "Riley Quinn has a security questionnaire that is \"overdue\" as of 2026-07-02, and Priya Shah's compli",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.7
+    },
+    {
+      "type": "overdue",
+      "score": 0.6666666666666666,
+      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 8.0
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "overdue",
+      "score": 1.0,
+      "answer": "Based on the evidence: Priya Shah \u2014 \"Compliance report is overdue \u2014 hasn't been sent\" (recorded 2026",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 8.0
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "at_risk",
+      "score": 1.0,
+      "answer": "Priya Shah's compliance report is at risk of being missed, as the report is \"overdue \u2014 hasn't been s",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.7
+    },
+    {
+      "type": "at_risk",
+      "score": 0.6666666666666666,
+      "answer": "Avery Stone, Sam Patel, Alex Chen, and Riley Quinn have commitments related to them. According to th",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "You promised Priya Shah that you will send her the compliance report by June 30. Based on: \"I will s",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.3
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Avery Stone is mentioned in the evidence as the recipient of the quarterly report, as stated: \"I wil",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 6.3
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "You promised to deliver the security questionnaire to Riley Quinn by the end of the week, as stated ",
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Based on the evidence, Carlos said \"enviar\u00e1 el contrato el lunes que viene\", which translates to \"he",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Morgan Liu presented Nova results at the all-hands on 2026-07-02. Based on: \"Presented Nova results ",
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding your question about promises to Hiring Committee:**\n  \u2022 Hiring Committee will make an of",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Based on the evidence, Alice has a commitment to pay $1M to VendorZ by Friday. The current state of ",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 20.6
+    },
+    {
+      "type": "relational",
+      "score": 1.0,
+      "answer": "Based on the evidence: Riley Quinn \u2014 \"Never sent the security questionnaire \u2014 overdue\" (recorded 202",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 8.0
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "Orion Tech is unhappy due to a \"pricing dispute\" as stated in the evidence: \"Orion Tech sent the fin",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.9
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "relational",
+      "score": 1.0,
+      "answer": "Avery Stone, Riley Quinn, Alex Chen, Priya Shah, and Sam Patel have unfulfilled promises, as the evi",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.4
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 1.0,
+      "answer": "You have 32 signals across 19 entities:\n\u2022 Avery Stone: I will send Avery Stone the quarterly report\n",
+      "llm": false,
+      "conf": 0.6,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Globex Corp is threatening to cancel their contract, as stated: \"Globex Corp is threatening to cance",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 6.0
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "The board is concerned about seeing the Q3 numbers before the Friday meeting, as indicated by an inv",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 21.7
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "The Legal Dept mentions a \"EU regulatory fine of 5M euros imposed for GDPR violation\" as of 2026-07-",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 5.8
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech's price changed, as evidenced by the quotes: \"$120k for the annual contract\", which was l",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.1
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: What was Orion Tech's final invoice?**\n\n**Orion Tech situation**\nState: observing | Epi",
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 16.2
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "Orion Tech was involved in a pricing dispute, as stated in the evidence: \"Orion Tech sent the final ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 5.9
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "You got the \"Weekly tech digest: 10 articles about AI you should read\" as stated in the [TechNewslet",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 5.3
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "[TechNewsletter] came in with two issues: a \"Monthly newsletter roundup \u2014 industry trends\" on 2026-0",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.7
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "[Board] has a commitment that is time-sensitive, stating \"investor wants to see Q3 numbers before Fr",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.8
+    },
+    {
+      "type": "priority",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "multilingual",
+      "score": 1.0,
+      "answer": "Carlos enviar\u00e1 el contrato el lunes que viene. Basado en: Carlos dijo que enviar\u00e1 el contrato el lun",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 18.2
+    },
+    {
+      "type": "disputed",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "conditional",
+      "score": 0.3333333333333333,
+      "answer": "I don't have enough information to answer that question. No signals found for entity: SSO.",
+      "llm": true,
+      "conf": 0.0,
+      "elapsed": 12.2
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "prepare",
+      "score": 1.0,
+      "answer": "To prepare for the board meeting, you should focus on the Engineering Team's tasks. Based on: \"Board",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    }
+  ],
+  "results_C": [
+    {
+      "type": "direct_lookup",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.6666666666666666,
+      "answer": "**Regarding: What did Maria ask for?**\n\n**Orion Tech situation**\nState: observing | Epistemic: repor"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: What did I send Sam?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding: What did I fail to deliver?**\n\n**Orion Tech situation**\nState: observing | Epistemic: r"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who am I repeatedly disappointing?**\n\n**Orion Tech situation**\nState: observing | Epist"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Which person has become a delivery risk?**\n\n**Orion Tech situation**\nState: observing |"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: What is Orion Tech's pricing?**\n\n**Orion Tech situation**\nState: observing | Epistemic:"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: Did Orion Tech change their price?**\n\n**Orion Tech situation**\nState: observing | Epist"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "**Regarding: Which issue keeps recurring across meetings?**\n\n**Orion Tech situation**\nState: observi"
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "**Regarding: What pattern do I see in production incidents?**\n\n**EngOncall situation**\nState: needs_"
+    },
+    {
+      "type": "prepare",
+      "score": 0.5,
+      "answer": "**Regarding your decision on Orion Tech (query: 'What should I prepare before tomorrow's meeting?'):"
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding: What's been pending for over a month?**\n\n**Orion Tech situation**\nState: observing | Ep"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": "**Recent changes for Orion Tech:**\n  \u2022 Orion Tech quoted us $120k for the annual contract (2026-06-1"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.5,
+      "answer": "**Recent changes for Orion Tech:**\n  \u2022 Orion Tech quoted us $120k for the annual contract (2026-06-1"
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "**Regarding: Are there any legal issues?**\n\n**Orion Tech situation**\nState: observing | Epistemic: r"
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "**Regarding: Is any customer at risk of churning?**\n\n**Orion Tech situation**\nState: observing | Epi"
+    },
+    {
+      "type": "critical",
+      "score": 0.5,
+      "answer": "No active situation found for Board."
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "**Regarding: What needs my attention today?**\n\n**Orion Tech situation**\nState: observing | Epistemic"
+    },
+    {
+      "type": "multilingual",
+      "score": 0.5,
+      "answer": "**Regarding: What did Carlos say?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported"
+    },
+    {
+      "type": "disputed",
+      "score": 0.6666666666666666,
+      "answer": "**Regarding: Did Morgan complete the Nova presentation?**\n\n**Orion Tech situation**\nState: observing"
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "**Regarding: Is SSO ready?**\n\n**Jamie Park: If legal signs off, I'll have SSO ready by Q4**\nState: o"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding your question about promises to Hiring Committee:**\n  \u2022 Hiring Committee will make an of"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: How is engineering velocity?**\n\n**Orion Tech situation**\nState: observing | Epistemic: "
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: Who is Avery Stone?**\n\n**Avery Stone: I will send Avery Stone the quarterly report**\nSt"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.3333333333333333,
+      "answer": "**Regarding: What's the Globex situation?**\n\n**Orion Tech situation**\nState: observing | Epistemic: "
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.0,
+      "answer": "**Regarding: Which clients have pricing issues?**\n\n**Alex Chen: I will send Alex Chen the pricing de"
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.5,
+      "answer": "**Regarding: Who owes me something?**\n\n**Orion Tech situation**\nState: observing | Epistemic: report"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: Who is John Smith?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who are my most reliable partners?**\n\n**Orion Tech situation**\nState: observing | Epist"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who are my biggest risks?**\n\n**Orion Tech situation**\nState: observing | Epistemic: rep"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "**Regarding: What did I do this week?**\n\n**Orion Tech situation**\nState: observing | Epistemic: repo"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: Did anyone change their mind?**\n\n**Orion Tech situation**\nState: observing | Epistemic:"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "**Regarding: What keeps breaking?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported"
+    },
+    {
+      "type": "critical",
+      "score": 0.5,
+      "answer": "**Regarding: What's the most urgent thing right now?**\n\n**Orion Tech situation**\nState: observing | "
+    },
+    {
+      "type": "disputed",
+      "score": 0.0,
+      "answer": "**Regarding: Were any completions challenged?**\n\n**Orion Tech situation**\nState: observing | Epistem"
+    },
+    {
+      "type": "conditional",
+      "score": 0.0,
+      "answer": "**Regarding: What depends on legal?**\n\n**Orion Tech situation**\nState: observing | Epistemic: report"
+    },
+    {
+      "type": "multilingual",
+      "score": 0.5,
+      "answer": "**Regarding: \u00bfQu\u00e9 dijo Carlos?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n*"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: What's the weather?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: Who is the CEO of Microsoft?**\n\n**Orion Tech situation**\nState: observing | Epistemic: "
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding: What did I not send?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding: What's overdue and broken?**\n\n**Orion Tech situation**\nState: observing | Epistemic: re"
+    },
+    {
+      "type": "broken",
+      "score": 0.5,
+      "answer": "**Regarding: Did I fail to deliver anything to Riley?**\n\n**Orion Tech situation**\nState: observing |"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding: What's past due?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n**"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding: What am I late on?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported\n\n"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "**Regarding: What's at risk of being missed?**\n\n**Orion Tech situation**\nState: observing | Epistemi"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: What did I send Avery?**\n\n**Orion Tech situation**\nState: observing | Epistemic: report"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: What's the status of the SSO work?**\n\n**Jamie Park: If legal signs off, I'll have SSO r"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: What did Carlos say in Spanish?**\n\n**Orion Tech situation**\nState: observing | Epistemi"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: What did Morgan present?**\n\n**Orion Tech situation**\nState: observing | Epistemic: repo"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding your question about promises to Hiring Committee:**\n  \u2022 Hiring Committee will make an of"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: What's the VendorZ situation?**\n\n**VendorZ: Alice will pay $1M to VendorZ by Friday**\nS"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding your decision on Orion Tech (query: 'Who should I follow up with?'):**\n  The situation i"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Which clients are unhappy?**\n\n**Orion Tech situation**\nState: observing | Epistemic: re"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who delivered on time?**\n\n**Orion Tech situation**\nState: observing | Epistemic: report"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding: What's been outstanding the longest?**\n\n**Orion Tech situation**\nState: observing | Epi"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding: What's been delayed the most?**\n\n**Orion Tech situation**\nState: observing | Epistemic:"
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "**Regarding: Are there any regulatory issues?**\n\n**Orion Tech situation**\nState: observing | Epistem"
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "**Regarding: Is any account churning?**\n\n**Orion Tech situation**\nState: observing | Epistemic: repo"
+    },
+    {
+      "type": "critical",
+      "score": 0.3333333333333333,
+      "answer": "No active situation found for Board."
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "**Regarding: Are there any legal threats?**\n\n**Orion Tech situation**\nState: observing | Epistemic: "
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: What's the stock price of AAPL?**\n\n**Orion Tech situation**\nState: observing | Epistemi"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: How tall is Mount Everest?**\n\n**Orion Tech situation**\nState: observing | Epistemic: re"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: Who is Albert Einstein?**\n\n**Orion Tech situation**\nState: observing | Epistemic: repor"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: Did Orion Tech's price change?**\n\n**Orion Tech situation**\nState: observing | Epistemic"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: What was Orion Tech's final invoice?**\n\n**Orion Tech situation**\nState: observing | Epi"
+    },
+    {
+      "type": "contradiction",
+      "score": 0.6666666666666666,
+      "answer": "**Regarding: Was there a pricing dispute with Orion?**\n\n**Alex Chen: I will send Alex Chen the prici"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "**Regarding: What's the recurring production issue?**\n\n**Orion Tech situation**\nState: observing | E"
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "**Regarding: What keeps going wrong?**\n\n**Orion Tech situation**\nState: observing | Epistemic: repor"
+    },
+    {
+      "type": "recurring",
+      "score": 0.5,
+      "answer": "**Regarding: What's the systemic issue?**\n\n**Orion Tech situation**\nState: observing | Epistemic: re"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: What digest did I get?**\n\n**Orion Tech situation**\nState: observing | Epistemic: report"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: What industry trends did I read about?**\n\n**Orion Tech situation**\nState: observing | E"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": "**Recent changes for Orion Tech:**\n  \u2022 Orion Tech quoted us $120k for the annual contract (2026-06-1"
+    },
+    {
+      "type": "priority",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Orion Tech, the key commitmen"
+    },
+    {
+      "type": "priority",
+      "score": 0.0,
+      "answer": "**Regarding: What needs attention immediately?**\n\n**Orion Tech situation**\nState: observing | Episte"
+    },
+    {
+      "type": "multilingual",
+      "score": 0.5,
+      "answer": "**Regarding: \u00bfQu\u00e9 enviar\u00e1 Carlos?**\n\n**Orion Tech situation**\nState: observing | Epistemic: reported"
+    },
+    {
+      "type": "disputed",
+      "score": 0.3333333333333333,
+      "answer": "**Regarding: Was the Nova presentation complete?**\n\n**Orion Tech situation**\nState: observing | Epis"
+    },
+    {
+      "type": "conditional",
+      "score": 1.0,
+      "answer": "**Regarding: Is the SSO ready if legal approves?**\n\n**Jamie Park: If legal signs off, I'll have SSO "
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.5,
+      "answer": "**Regarding: Which entities have compliance issues?**\n\n**Orion Tech situation**\nState: observing | E"
+    },
+    {
+      "type": "prepare",
+      "score": 0.5,
+      "answer": "No active situation found for Board."
+    }
+  ]
+}

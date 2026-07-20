@@ -5,7 +5,7 @@
   "lift_B_vs_A": 22.7,
   "lift_B_vs_C": 41.8,
   "lift_C_vs_A": -19.1,
-  "llm_active": 11,
+  "llm_active": 34,
   "total_questions": 47,
   "results_A": [
     {
@@ -251,47 +251,47 @@
       "answer": "Based on the evidence: Alex Chen \u2014 \"I will send Alex Chen the pricing deck by Friday\" (recorded 2026",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 24.0
+      "elapsed": 18.2
     },
     {
       "type": "direct_lookup",
       "score": 1.0,
-      "answer": "Maria asked the Engineering Team to send the updated pricing proposal by Friday, as she stated that ",
+      "answer": "Maria asked the Engineering Team to send the updated pricing proposal by Friday. Based on: \"Maria Ga",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 10.5
+      "elapsed": 8.2
     },
     {
       "type": "direct_lookup",
       "score": 1.0,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Sam Patel: The evidence does not explicitly state what you sent to Sam. It mentions that you will \"d",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.8
     },
     {
       "type": "overdue",
       "score": 0.6666666666666666,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Avery Stone has a promise that is now overdue, as the evidence states \"I will send Avery Stone the q",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.4
     },
     {
       "type": "broken",
       "score": 1.0,
-      "answer": "Based on the evidence: Sam Patel \u2014 \"I will deliver the API integration by March 15\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "You, as referenced in the context of the evidence provided, are not explicitly mentioned, but based ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 6.3
     },
     {
       "type": "at_risk",
       "score": 0.6666666666666666,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Avery Stone's commitment is at risk since the quarterly report was supposed to be sent by April 27, ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.3
     },
     {
       "type": "relational",
@@ -299,23 +299,23 @@
       "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
       "llm": false,
       "conf": 0.6,
-      "elapsed": 0.0
+      "elapsed": 8.0
     },
     {
       "type": "relational",
       "score": 0.5,
-      "answer": "Based on the evidence: Riley Quinn \u2014 \"I will send Riley Quinn the security questionnaire by end of w",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Riley Quinn has become a delivery risk, as evidenced by the statement \"I will send Riley Quinn the s",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.4
     },
     {
       "type": "relational",
       "score": 0.0,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Avery Stone is mentioned as the recipient of a quarterly report, with the statement \"I will send Ave",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.6
     },
     {
       "type": "contradiction",
@@ -328,18 +328,18 @@
     {
       "type": "contradiction",
       "score": 1.0,
-      "answer": "Based on the evidence: Alex Chen \u2014 \"I will send Alex Chen the pricing deck by Friday\" (recorded 2026",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Orion Tech initially quoted $120k, but later revised the quote down to $95k. However, the final invo",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 7.4
     },
     {
       "type": "recurring",
       "score": 1.0,
-      "answer": "Based on the evidence: Priya Shah \u2014 \"Compliance report is overdue \u2014 hasn't been sent\" (recorded 2026",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "The issue that keeps recurring across meetings is not explicitly stated, but there are mentions of m",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 5.8
     },
     {
       "type": "recurring",
@@ -347,7 +347,7 @@
       "answer": "Based on the evidence: EngOncall \u2014 \"Production down \u2014 sev1 incident on auth service\" (recorded 2026-",
       "llm": false,
       "conf": 0.6,
-      "elapsed": 0.0
+      "elapsed": 8.0
     },
     {
       "type": "prepare",
@@ -376,10 +376,10 @@
     {
       "type": "noise_lookup",
       "score": 1.0,
-      "answer": "Based on the evidence: TechNewsletter \u2014 \"Weekly tech digest: 10 articles about AI you should read\" (",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "You received the [TechNewsletter] on two occasions, with messages: \"Weekly tech digest: 10 articles ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.6
     },
     {
       "type": "noise_lookup",
@@ -387,31 +387,31 @@
       "answer": "Based on the evidence: EngOncall \u2014 \"Production down \u2014 sev1 incident on auth service\" (recorded 2026-",
       "llm": false,
       "conf": 0.6,
-      "elapsed": 0.0
+      "elapsed": 8.0
     },
     {
       "type": "critical",
       "score": 1.0,
-      "answer": "Based on the evidence: Jamie Park \u2014 \"If legal signs off, I'll have SSO ready by Q4\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Jamie Park mentions that SSO work is \"pending legal review\", indicating a potential legal issue. How",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.1
     },
     {
       "type": "critical",
       "score": 0.0,
-      "answer": "Based on the evidence: Alex Chen \u2014 \"I will send Alex Chen the pricing deck by Friday\" (recorded 2026",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Alex Chen is mentioned in the evidence, but there is no indication that any customer, including Alex",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.7
     },
     {
       "type": "critical",
       "score": 0.5,
-      "answer": "Based on the evidence: EngOncall \u2014 \"Production down \u2014 sev1 incident on auth service\" (recorded 2026-",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Maria Garcia mentions a \"board meeting next Wednesday\", which implies a potential board escalation. ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.7
     },
     {
       "type": "priority",
@@ -435,39 +435,39 @@
       "answer": "I don't have enough reliable evidence to answer this question.",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 8.2
+      "elapsed": 5.7
     },
     {
       "type": "disputed",
       "score": 1.0,
-      "answer": "Morgan Liu presented the Nova results at the all-hands on 2026-07-02. However, there is a contradict",
+      "answer": "Based on the evidence, Morgan Liu presented the Nova results at the all-hands on 2026-07-02. However",
       "llm": true,
       "conf": 1.0,
-      "elapsed": 8.2
+      "elapsed": 6.6
     },
     {
       "type": "conditional",
       "score": 1.0,
-      "answer": "Based on the evidence: Jamie Park \u2014 \"If legal signs off, I'll have SSO ready by Q4\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Jamie Park states that \"SSO work is complete \u2014 pending legal review\" as of 2026-07-05. This indicate",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 7.6
     },
     {
       "type": "direct_lookup",
       "score": 1.0,
-      "answer": "**Regarding your question about promises to Hiring Committee:**\n  \u2022 Hiring Committee will make an of",
+      "answer": "The Hiring Committee has a planned action to make an offer to the senior engineer candidate by Frida",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 8.2
+      "elapsed": 2.7
     },
     {
       "type": "noise_lookup",
       "score": 1.0,
-      "answer": "Based on the evidence, the Engineering Team's velocity is fine, with no blockers and their sprint on",
+      "answer": "Based on the evidence, the Engineering Team's velocity is fine, with no blockers, as noted in the te",
       "llm": true,
-      "conf": 1.0,
-      "elapsed": 8.2
+      "conf": 0.8,
+      "elapsed": 3.5
     },
     {
       "type": "direct_lookup",
@@ -475,15 +475,15 @@
       "answer": "Avery Stone is an entity that you have a commitment to send a quarterly report to, as stated in the ",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 6.7
+      "elapsed": 7.3
     },
     {
       "type": "direct_lookup",
       "score": 1.0,
-      "answer": "Based on the evidence: Priya Shah \u2014 \"I will send Priya Shah the compliance report by June 30\" (recor",
+      "answer": "You promised Priya Shah that you will send her the compliance report by June 30. Based on: \"I will s",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 8.1
+      "elapsed": 3.3
     },
     {
       "type": "direct_lookup",
@@ -491,23 +491,23 @@
       "answer": "I don't have enough reliable evidence to answer this question.",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 3.3
+      "elapsed": 2.7
     },
     {
       "type": "cross_entity",
       "score": 0.0,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Alex Chen has pricing issues, as evidenced by the statement \"I will send Alex Chen the pricing deck ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.3
     },
     {
       "type": "cross_entity",
       "score": 0.5,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Avery Stone does not owe you something, as the evidence states \"I will send Avery Stone the quarterl",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.7
     },
     {
       "type": "abstention",
@@ -528,26 +528,26 @@
     {
       "type": "relational",
       "score": 0.5,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Avery Stone, Riley Quinn, and Alex Chen are mentioned as recipients of documents, but the evidence d",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.5
     },
     {
       "type": "relational",
       "score": 0.3333333333333333,
-      "answer": "Based on the evidence: Riley Quinn \u2014 \"I will send Riley Quinn the security questionnaire by end of w",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Riley Quinn is associated with a pending action regarding a security questionnaire, which may imply ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.2
     },
     {
       "type": "temporal",
       "score": 1.0,
-      "answer": "Based on the evidence: Avery Stone \u2014 \"I will send Avery Stone the quarterly report\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Avery Stone has the oldest unfulfilled commitment, as the evidence states \"[Avery Stone] (2026-04-27",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.3
     },
     {
       "type": "temporal",
@@ -560,50 +560,50 @@
     {
       "type": "contradiction",
       "score": 1.0,
-      "answer": "Based on the evidence: Orion Tech \u2014 \"Orion Tech quoted us $120k for the annual contract\" (recorded 2",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Orion Tech changed their quote from $120k to $95k, as stated: \"Orion Tech revised the quote down to ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.5
     },
     {
       "type": "recurring",
       "score": 1.0,
-      "answer": "Based on the evidence: EngOncall \u2014 \"Auth service outage again \u2014 same root cause as last week\" (recor",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Auth service keeps breaking, as stated by [EngOncall] on 2026-07-05: \"Auth service outage again \u2014 sa",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.9
     },
     {
       "type": "critical",
       "score": 0.5,
-      "answer": "Based on the evidence: EngOncall \u2014 \"Production down \u2014 sev1 incident on auth service\" (recorded 2026-",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "[EngOncall] states \"Third auth outage this month \u2014 systemic issue\" as of 2026-07-10, indicating a cu",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.2
     },
     {
       "type": "disputed",
       "score": 0.0,
-      "answer": "Based on the evidence: Jamie Park \u2014 \"SSO work is complete \u2014 pending legal review\" (recorded 2026-07-",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Jamie Park states that the \"SSO work is complete \u2014 pending legal review\". This does not explicitly m",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.6
     },
     {
       "type": "conditional",
       "score": 1.0,
-      "answer": "Based on the evidence: Jamie Park \u2014 \"If legal signs off, I'll have SSO ready by Q4\" (recorded 2026-0",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 0.0
+      "answer": "Jamie Park's SSO (Single Sign-On) depends on legal, as stated: \"If legal signs off, I'll have SSO re",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.5
     },
     {
       "type": "multilingual",
       "score": 1.0,
-      "answer": "Based on the evidence: Carlos Ruiz \u2014 \"Carlos dijo que enviar\u00e1 el contrato el lunes que viene\" (recor",
+      "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene, seg\u00fan se menciona en la evidencia del 2026-0",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 8.1
+      "elapsed": 2.8
     },
     {
       "type": "abstention",

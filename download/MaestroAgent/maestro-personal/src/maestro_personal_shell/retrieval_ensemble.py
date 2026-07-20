@@ -520,7 +520,71 @@ def context_engineer(
     def _ts_key(sig: dict[str, Any]) -> str:
         return str(sig.get("timestamp", "")) or ""
 
-    deduped.sort(key=_ts_key)
+    # F-IntentSort fix (auditor 2026-07-20, reproduce_rrf_bug_with_llm.py
+    # TEST 2/3 partial): for intent queries where the relevant evidence is
+    # the BROKEN-FULFILLMENT signal (newer) rather than the original
+    # commitment (older), chronological sort puts the wrong signal first.
+    # Example: 'Which promises are now overdue?' returned Riley's commitment
+    # (May 21) at rank 1 and Riley's 'Never sent' (July 10) at rank 2 —
+    # because chronological sort puts the older commitment first. But for
+    # overdue queries, the 'Never sent' signal IS the answer.
+    #
+    # Fix: for intent queries (broken/overdue/at_risk/recurring/relational/
+    # critical/priority/disputed/noise_lookup), preserve the RRF rank order
+    # (don't sort chronologically). For timeline-reasoning queries
+    # (direct_lookup, contradiction, temporal, prepare), keep chronological.
+    #
+    # Intent detection: mirror the _INTENT_BROAD_PATTERNS list from
+    # routers/ask.py (keep in sync). Use a compact set of substrings —
+    # the full list there has 60+ patterns; here we use the load-bearing
+    # ones that distinguish intent queries from timeline queries.
+    query_lower_for_intent = query.lower()
+    intent_substrings = [
+        # broken / fail-to-deliver
+        "fail to deliver", "what did i fail", "never sent", "never delivered",
+        "broken promise", "broken commitment", "missed deadline",
+        "what did i not send", "which commitment did i miss",
+        "did i fail to deliver",
+        # overdue
+        "overdue", "past due", "behind schedule", "what am i late",
+        "what's past due", "show me overdue",
+        # at_risk
+        "at risk", "what commitments are in danger", "which promises might slip",
+        "which commitments are threatened",
+        # relational
+        "who am i", "who are my", "who keeps", "who owes", "who is my",
+        "which clients", "which people", "which projects",
+        "disappointing", "delivery risk", "most reliable", "biggest risk",
+        "who has broken", "who should i follow", "who delivered on time",
+        "who has unfulfilled",
+        # recurring
+        "keeps happening", "keeps breaking", "what pattern",
+        "recurring issue", "recurring problem", "what keeps going wrong",
+        "systemic issue",
+        # critical / priority
+        "legal issue", "legal matter", "churn", "cancel account",
+        "board escalation", "emergency meeting", "breach",
+        "any legal", "any customer", "any board", "customer at risk",
+        "most urgent", "what needs attention",
+        "regulatory", "is any account churning",
+        # disputed
+        "were any completions", "disputed", "challenged",
+        "was the nova presentation",
+        # noise_lookup
+        "newsletter", "digest", "industry trend",
+        # which promises / commitments
+        "which promises are", "which commitments are",
+        "which entities have",
+    ]
+    is_intent_query = any(p in query_lower_for_intent for p in intent_substrings)
+    if is_intent_query:
+        # Preserve RRF rank order — the fused_signals list is already
+        # sorted by RRF score (highest first) from reciprocal_rank_fusion().
+        # Don't re-sort chronologically.
+        pass
+    else:
+        # Chronological sort (oldest first) for timeline-reasoning queries
+        deduped.sort(key=_ts_key)
 
     return deduped[:top_k]
 

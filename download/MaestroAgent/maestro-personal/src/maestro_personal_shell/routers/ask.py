@@ -540,26 +540,105 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         ev_text = ev.get("text", "")
                         ev_ts = str(ev.get("timestamp", ""))[:10]
                         lines.append(f'• {ev_ent}: "{ev_text}" [{ev_ts}]')
-                    intent_answer = (
+                    rule_based_intent_answer = (
                         f"Based on the evidence: {top_entity} — "
                         f'"{top_text}" (recorded {top_ts[:10]})\n\n'
                         f"Related evidence:\n" + "\n".join(lines[1:])
                     )
                 else:
-                    intent_answer = (
+                    rule_based_intent_answer = (
                         f"Based on the evidence: {top_entity} — "
                         f'"{top_text}" (recorded {top_ts[:10]})'
                     )
 
+                # ── LLM grounding for intent queries (direction #3 fix) ──
+                # Before this block, intent queries (broken/overdue/at_risk/
+                # recurring/relational/abstention/etc.) NEVER reached the LLM
+                # because (a) this block returns early before the LLM gate at
+                # line ~614, and (b) the LLM gate at line ~1097 requires
+                # `matching_situation` which requires an entity match. For
+                # intent queries that don't name an entity, no LLM fired.
+                # That's why n=47 ablation showed llm_active=11/47 (23%) —
+                # almost all LLM-active queries were direct_lookup (which
+                # name entities).
+                #
+                # Fix: when the LLM is available, send the ensemble evidence
+                # to llm_complete() as grounding context and let the LLM
+                # synthesize a conversational answer. If the LLM times out
+                # or fails, fall back to the rule-based answer above (P6:
+                # fail closed, log loudly).
+                llm_active_for_intent = False
+                llm_provider_for_intent = "none"
+                final_intent_answer = rule_based_intent_answer
+                try:
+                    from maestro_personal_shell.llm_bridge import (
+                        is_llm_available,
+                        llm_complete,
+                        get_llm_provider_name,
+                        sanitize_for_llm,
+                    )
+                    if is_llm_available():
+                        # Build the evidence context for the LLM.
+                        # Sanitize all user-controlled text (S4 hygiene).
+                        safe_query = sanitize_for_llm(req.query)
+                        evidence_lines = []
+                        for i, ev in enumerate(real_evidence[:5], 1):
+                            ev_ent = sanitize_for_llm(str(ev.get("entity", "")), max_length=80)
+                            ev_text = sanitize_for_llm(str(ev.get("text", "")), max_length=400)
+                            ev_ts = str(ev.get("timestamp", ""))[:10]
+                            evidence_lines.append(f"  {i}. [{ev_ent}] ({ev_ts}) {ev_text}")
+                        evidence_block = "\n".join(evidence_lines) if evidence_lines else "  (no evidence retrieved)"
+
+                        system_prompt = (
+                            "You are Maestro, an honest commitment-tracking assistant. "
+                            "Answer the user's question using ONLY the evidence below. "
+                            "If the evidence does not answer the question, say so explicitly. "
+                            "Do not invent commitments, entities, dates, or facts. "
+                            "Be concise (2-4 sentences). Lead with the most relevant entity "
+                            "and quote the evidence verbatim where possible."
+                        )
+                        user_prompt = (
+                            f"Question: {safe_query}\n\n"
+                            f"Evidence (ranked by relevance):\n{evidence_block}\n\n"
+                            f"Answer the question using only this evidence."
+                        )
+
+                        llm_result = await llm_complete(
+                            system=system_prompt,
+                            user=user_prompt,
+                            temperature=0.2,
+                            max_tokens=300,
+                        )
+                        if llm_result and len(llm_result.strip()) > 10:
+                            # LLM returned a usable answer. Use it.
+                            final_intent_answer = llm_result.strip()
+                            llm_active_for_intent = True
+                            llm_provider_for_intent = get_llm_provider_name()
+                            logger.info(
+                                "Intent-query LLM grounding succeeded: query=%r provider=%s answer_len=%d",
+                                req.query[:80], llm_provider_for_intent, len(final_intent_answer),
+                            )
+                        else:
+                            logger.info(
+                                "Intent-query LLM returned empty/short — using rule-based answer for query=%r",
+                                req.query[:80],
+                            )
+                except Exception as e:
+                    logger.warning(
+                        "Intent-query LLM grounding failed, using rule-based answer: %s",
+                        e,
+                    )
+                    # Fall through with rule-based answer (P6: fail closed)
+
                 return AskResponse(
-                    answer=intent_answer,
+                    answer=final_intent_answer,
                     query=req.query,
                     source_sentence=top_text,
                     source_entity=top_entity,
                     source_timestamp=top_ts,
                     situation_state="",
                     evidence_refs=intent_evidence_refs,
-                    confidence=0.6,
+                    confidence=0.7 if llm_active_for_intent else 0.6,
                     counterevidence=[],
                     unknowns=[],
                     as_of=str(as_of or ""),
@@ -568,9 +647,9 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     reasoning_chain=[],
                     calibration_note="",
                     consequence_paths=[],
-                    llm_active=False,
-                    llm_provider="none",
-                    intelligence_source="ensemble",
+                    llm_active=llm_active_for_intent,
+                    llm_provider=llm_provider_for_intent,
+                    intelligence_source=("llm" if llm_active_for_intent else "ensemble"),
                 )
             # If ensemble returned no evidence, fall through to the
             # existing AskSurface path (which will produce a clean refusal).
