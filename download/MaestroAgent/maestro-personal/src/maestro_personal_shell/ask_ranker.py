@@ -187,18 +187,43 @@ def understand_query(query: str) -> dict[str, Any]:
                         r"any\s+(?:legal|lawsuit|regulatory|compliance)\s+",
                         r"churn|cancel(?:ling|ation)?\s+account",
                         r"at\s+risk\s+of\s+(?:churn|leaving|cancelling)",
+                        r"churn(?:ing)?",
                         r"board\s+escalation", r"emergency\s+meeting",
                         r"breach\s+(?:of\s+contract|security)",
+                        r"sev1\s+incident", r"sev2\s+(?:bug|incident)",
+                        r"production\s+down",
                         r"what.*urgent", r"most\s+urgent"],
             "signal_match": ["lawsuit", "legal action", "compliance violation",
                              "regulatory fine", "gdpr", "breach",
-                             "churn", "cancel account", "threatening to leave",
-                             "pulling out", "moving to competitor",
+                             "churn", "churning", "cancel account", "threatening to leave",
+                             "threatening to cancel", "pulling out", "moving to competitor",
                              "board escalation", "emergency", "investor",
                              "regulatory", "subpoena", "penalty",
                              "data breach", "security incident",
-                             "production down", "outage", "sev1"],
-            "signal_types": {"reported_statement", "commitment_made"},
+                             "production down", "outage", "sev1", "sev2",
+                             "systemic", "third.*outage"],
+            "signal_types": {"reported_statement", "commitment_made", "alert"},
+        }),
+        # F-WeakRecall fix (2026-07-20): priority intent — "What's most urgent?"
+        # Was falling through to general because no trigger matched. The
+        # critical intent's "what.*urgent" trigger caught some but not all
+        # priority phrasings. Separate priority intent gives it its own
+        # signal_match keywords so the intent_keyword retriever fires.
+        ("priority", {
+            "trigger": [r"most\s+important\s+commitment",
+                        r"needs?\s+my\s+attention",
+                        r"needs?\s+attention\s+immediately",
+                        r"what.*urgent",
+                        r"most\s+urgent",
+                        r"what.*important",
+                        r"what.*priority"],
+            "signal_match": ["urgent", "important", "critical", "overdue",
+                             "broken", "at risk", "threatening", "cancel",
+                             "churn", "sev1", "outage", "production down",
+                             "regulatory", "fine", "breach", "escalation",
+                             "emergency", "never sent", "hasn't been sent",
+                             "still outstanding", "delayed"],
+            "signal_types": {"reported_statement", "commitment_made", "alert"},
         }),
         # F1 fix: noise_lookup — "What newsletters did I get?"
         ("noise_lookup", {

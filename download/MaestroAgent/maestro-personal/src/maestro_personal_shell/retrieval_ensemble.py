@@ -750,6 +750,7 @@ def retrieve(
     from_date: str | None = None,
     include_structural: bool = True,
     use_reranker: bool = False,
+    reranker_method: str = "llm",
 ) -> dict[str, Any]:
     """Top-level retrieval orchestrator.
 
@@ -764,10 +765,10 @@ def retrieve(
       }
 
     Args:
-        use_reranker: If True, apply LLM-based cross-encoder reranking
-            (Stage 4) between RRF fusion and context engineering.
-            Default False for backward compatibility. Set True to
-            measure precision improvement.
+        use_reranker: If True, apply cross-encoder reranking (Stage 4)
+            between RRF fusion and context engineering. Default False.
+        reranker_method: "llm" (LLM-as-a-reranker, default) or "cohere"
+            (true cross-encoder via Cohere Rerank API).
     """
     from maestro_personal_shell.ask_ranker import understand_query
 
@@ -819,6 +820,7 @@ def retrieve(
             from maestro_personal_shell.stage4_reranker import rerank_evidence_sync
             fused = rerank_evidence_sync(
                 query, fused, top_k=20, max_to_score=20,
+                method=reranker_method,
             )
             reranked = True
         except Exception as e:

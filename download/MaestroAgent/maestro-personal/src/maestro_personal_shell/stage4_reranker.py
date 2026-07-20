@@ -85,17 +85,20 @@ async def rerank_evidence(
     evidence: list[dict[str, Any]],
     top_k: int = 8,
     max_to_score: int = 20,
+    method: str = "llm",
 ) -> list[dict[str, Any]]:
-    """Rerank evidence using LLM-based relevance scoring.
+    """Rerank evidence using the specified method.
 
     Args:
         query: The user's question.
         evidence: List of evidence dicts (from RRF fusion).
         top_k: Number of top-scored evidence to return.
         max_to_score: Max number of evidence to score (skip the rest).
+        method: "llm" (LLM-as-a-reranker, default) or "cohere"
+            (true cross-encoder via Cohere Rerank API).
 
     Returns:
-        Re-sorted evidence list, top_k items, highest LLM score first.
+        Re-sorted evidence list, top_k items, highest score first.
     """
     if not evidence:
         return []
@@ -103,6 +106,80 @@ async def rerank_evidence(
     # Only score the top max_to_score (RRF already did coarse ranking)
     to_score = evidence[:max_to_score]
 
+    if method == "cohere":
+        return _rerank_cohere(query, to_score, top_k)
+    else:
+        return await _rerank_llm(query, to_score, top_k)
+
+
+def _rerank_cohere(
+    query: str,
+    evidence: list[dict[str, Any]],
+    top_k: int,
+) -> list[dict[str, Any]]:
+    """Rerank using Cohere Rerank API (true cross-encoder).
+
+    Uses rerank-multilingual-v3.0 by default (better than english-v3.0
+    for diverse text — verified 2026-07-20). Falls back to unranked on
+    any error (P6: fail closed).
+    """
+    import json as _json
+    import urllib.request as _urllib
+
+    api_key = os.environ.get("COHERE_API_KEY")
+    if not api_key:
+        logger.debug("COHERE_API_KEY not set — skipping Cohere reranker")
+        return evidence[:top_k]
+
+    model = os.environ.get("COHERE_RERANK_MODEL", "rerank-multilingual-v3.0")
+
+    # Build documents list (entity + text for context)
+    documents = []
+    for ev in evidence:
+        text = str(ev.get("text", ""))[:1000]  # Cohere doc limit
+        entity = str(ev.get("entity", ""))
+        documents.append(f"[{entity}] {text}" if entity else text)
+
+    payload = _json.dumps({
+        "model": model,
+        "query": query,
+        "documents": documents,
+        "top_n": min(top_k, len(documents)),
+    }).encode()
+
+    req = _urllib.Request(
+        "https://api.cohere.ai/v1/rerank",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with _urllib.urlopen(req, timeout=10) as resp:
+            body = _json.loads(resp.read())
+        # Cohere returns results as [{index, relevance_score}, ...] sorted by score desc
+        results = body.get("results", [])
+        reranked = [evidence[r["index"]] for r in results if r["index"] < len(evidence)]
+        logger.info(
+            "Cohere reranker: %d signals scored, top score=%.4f",
+            len(results),
+            results[0]["relevance_score"] if results else 0.0,
+        )
+        return reranked[:top_k]
+    except Exception as e:
+        logger.warning("Cohere reranker failed: %s — returning unranked", e)
+        return evidence[:top_k]
+
+
+async def _rerank_llm(
+    query: str,
+    evidence: list[dict[str, Any]],
+    top_k: int,
+) -> list[dict[str, Any]]:
+    """Rerank using LLM-as-a-reranker technique (original method)."""
     try:
         from maestro_personal_shell.llm_bridge import is_llm_available, llm_complete
     except ImportError:
@@ -121,9 +198,9 @@ async def rerank_evidence(
         return (score, ev)
 
     try:
-        scored = await asyncio.gather(*[score_one(ev) for ev in to_score])
+        scored = await asyncio.gather(*[score_one(ev) for ev in evidence])
     except Exception as e:
-        logger.warning("Reranker gather failed: %s — returning unranked", e)
+        logger.warning("LLM reranker gather failed: %s — returning unranked", e)
         return evidence[:top_k]
 
     # Sort by score descending
@@ -138,12 +215,20 @@ def rerank_evidence_sync(
     evidence: list[dict[str, Any]],
     top_k: int = 8,
     max_to_score: int = 20,
+    method: str = "llm",
 ) -> list[dict[str, Any]]:
     """Synchronous wrapper for rerank_evidence.
 
     Used when the caller is not in an async context (e.g., the evaluation
     harness which calls retrieve() directly).
+
+    Args:
+        method: "llm" (default) or "cohere" (true cross-encoder).
     """
+    if method == "cohere":
+        # Cohere is synchronous (urllib) — no asyncio needed
+        to_score = evidence[:max_to_score]
+        return _rerank_cohere(query, to_score, top_k)
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -152,12 +237,12 @@ def rerank_evidence_sync(
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 future = pool.submit(
                     asyncio.run,
-                    rerank_evidence(query, evidence, top_k, max_to_score)
+                    _rerank_llm(query, evidence[:max_to_score], top_k)
                 )
                 return future.result()
         else:
             return loop.run_until_complete(
-                rerank_evidence(query, evidence, top_k, max_to_score)
+                _rerank_llm(query, evidence[:max_to_score], top_k)
             )
     except RuntimeError:
-        return asyncio.run(rerank_evidence(query, evidence, top_k, max_to_score))
+        return asyncio.run(_rerank_llm(query, evidence[:max_to_score], top_k))
