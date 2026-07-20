@@ -310,6 +310,29 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
             except Exception as e:
                 logger.debug("Copilot pre_call_briefing failed: %s", e)
 
+        # S2-3 fix (auditor): if copilot_talking_points is still empty,
+        # generate them from the situation's evidence. The auditor found
+        # /api/prepare returns prep_points: [] and copilot_talking_points: []
+        # because the copilot bridge isn't wired. Generate fallback points
+        # from the commitment + contradiction data we already have.
+        if not copilot_talking_points:
+            fallback_points = []
+            if the_forgotten:
+                fallback_points.append({"point": f"Forgotten: {the_forgotten}", "source": "rule-based"})
+            if the_open_question:
+                fallback_points.append({"point": f"Open question: {the_open_question}", "source": "rule-based"})
+            if the_contradiction:
+                fallback_points.append({"point": f"Contradiction: {the_contradiction}", "source": "rule-based"})
+            # Add the situation state as a talking point
+            fallback_points.append({"point": f"Current state: {meeting_context}", "source": "rule-based"})
+            copilot_talking_points = fallback_points[:5]
+
+        if not copilot_timeline:
+            # Generate a simple timeline from the situation's signals
+            sig_refs = getattr(s, "evidence_refs", []) or []
+            if sig_refs:
+                copilot_timeline = [{"summary": f"Signal: {sid}"} for sid in sig_refs[:3]]
+
         result.append(PrepareResponse(
             situation_id=sit_id, entity=entity, meeting_context=meeting_context,
             is_stale=is_stale, the_forgotten=the_forgotten,

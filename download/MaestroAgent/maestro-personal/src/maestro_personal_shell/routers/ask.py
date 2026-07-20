@@ -53,14 +53,24 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
     # P0-3: Multi-turn conversation memory
     # Store prior Q&A in an in-memory dict keyed by session_id.
-    # On follow-up queries, append prior context to the query.
+    # On follow-up queries, extract the prior ENTITY so follow-up questions
+    # like "When is it due?" can resolve to the right entity.
+    # S1-1 fix (auditor): previously appended the full prior context string
+    # to the query, which broke entity detection (the entity gate saw words
+    # from the prior Q&A, not just the follow-up). Now we extract the prior
+    # entity and use it only when the follow-up query doesn't name one.
     _prior_context = ""
+    _prior_entity = ""
     if req.session_id:
         _prior_context = _ask_sessions.get(req.session_id, "")
         if _prior_context:
-            # Augment the query with prior context for better retrieval
-            req.query = f"{req.query} (Context from prior turn: {_prior_context})"
-            logger.info("Multi-turn: session=%s, prior context=%s", req.session_id, _prior_context[:80])
+            # Extract the entity from the prior context string
+            # Format: "Q: {query} → A: {answer} (entity: {entity})"
+            import re as _re_session
+            entity_match = _re_session.search(r'entity:\s*([^\)]+)', _prior_context)
+            if entity_match:
+                _prior_entity = entity_match.group(1).strip()
+            logger.info("Multi-turn: session=%s, prior entity=%s", req.session_id, _prior_entity[:50])
 
     temporal = parse_temporal_query(req.query)
     from_date = None
@@ -83,6 +93,17 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     #
     # Invariant enforced: No matching evidence → no claim, no citation,
     # no unrelated evidence references. Regardless of capitalization.
+    # S1-1 fix: if this is a follow-up question (short, no entity named)
+    # and we have a prior entity from the session, augment the query.
+    if _prior_entity and len(req.query.split()) <= 6:
+        # Check if the query already names an entity (capitalized word)
+        _has_entity = bool(_re.findall(r'\b[A-Z][a-z]+\b', req.query))
+        if not _has_entity:
+            # Augment with the prior entity so retrieval finds the right data
+            req.query = f"{req.query} {_prior_entity}"
+            logger.info("Multi-turn: augmented follow-up with prior entity '%s' → '%s'",
+                        _prior_entity, req.query[:80])
+
     query_lower = req.query.lower().strip()
 
     # Skip the gate for genuinely broad queries that don't name a specific
@@ -158,6 +179,9 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "completed", "fulfilled", "already done", "already sent",
         "already delivered", "what have i done", "what did i finish",
         "what did i deliver", "what's been done",
+        # follow-through intent — "did I follow through on X?"
+        "follow through", "followed through", "did i deliver",
+        "did i send", "did i finish", "did i complete",
         # noise_lookup intent (newsletters, FYI)
         "newsletter", "industry news", "fyi", "digest",
         # production incidents
