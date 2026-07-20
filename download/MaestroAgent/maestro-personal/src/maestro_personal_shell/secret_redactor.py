@@ -28,8 +28,10 @@ _SECRET_KEYWORDS = [
 # Common API key value patterns (not keyword-dependent)
 _API_KEY_PATTERNS = [
     r'sk-[a-zA-Z0-9]{20,}',          # OpenAI
+    r'sk-or-v1-[a-zA-Z0-9]{20,}',    # OpenRouter (added 2026-07-20)
     r'ghp_[a-zA-Z0-9]{36}',          # GitHub PAT
     r'github_pat_[a-zA-Z0-9_]{22,}', # GitHub fine-grained PAT
+    r'gsk_[a-zA-Z0-9]{40,}',         # Groq (added 2026-07-20)
     r'AKIA[0-9A-Z]{16}',             # AWS access key
     r'xox[bpoa]-[a-zA-Z0-9-]+',      # Slack token
     r'AIza[0-9A-Za-z\-_]{35}',       # Google API key

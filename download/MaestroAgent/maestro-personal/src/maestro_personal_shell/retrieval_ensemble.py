@@ -575,6 +575,14 @@ def context_engineer(
         # which promises / commitments
         "which promises are", "which commitments are",
         "which entities have",
+        # F-WeakTypes fix (2026-07-20): temporal/priority/disputed phrasings
+        # that should preserve RRF order, not chronological.
+        "pending for over", "outstanding the longest", "oldest commitment",
+        "haven't kept", "delayed the most", "commit to months ago",
+        "commit to last quarter", "did i do this week",
+        "most important commitment", "needs my attention",
+        "needs attention immediately",
+        "was the nova presentation", "presentation complete",
     ]
     is_intent_query = any(p in query_lower_for_intent for p in intent_substrings)
     if is_intent_query:

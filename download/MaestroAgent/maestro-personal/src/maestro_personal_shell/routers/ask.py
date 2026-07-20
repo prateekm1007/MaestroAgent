@@ -187,6 +187,20 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # production incidents
         "production incident", "production down", "sev1", "outage",
         "auth service", "auth outage",
+        # F-WeakTypes fix (2026-07-20): add temporal/priority/disputed phrasings
+        # that were falling through to the entity gate and getting refused.
+        # The ensemble WOULD find the right evidence (verified by direct
+        # retrieve() calls), but the API never called it for these queries.
+        # temporal intent
+        "pending for over", "outstanding the longest", "oldest commitment",
+        "haven't kept", "delayed the most", "commit to months ago",
+        "commit to last quarter", "did i do this week",
+        # priority intent
+        "most important commitment", "needs my attention",
+        "needs attention immediately",
+        # disputed intent — completion-status challenges
+        "was the nova presentation", "was the.*presentation",
+        "presentation complete",
     ]
     # F-IntentGate fix v2: distinguish 'broad' (generic summary) from
     # 'intent-based' (run ensemble). The previous fix added intent patterns

@@ -1212,21 +1212,13 @@ export async function getAnalyticsTrends(
 }
 
 
-export async function syncGmail(messages: any[], token?: string): Promise<{ signals_created: number; message: string }> {
-  const t = await resolveToken(token);
-  const response = await api.post('/api/sync/gmail', { messages, user_email: '' }, {
-    headers: { Authorization: `Bearer ${t}` },
-  });
-  return response.data;
-}
-
-export async function syncCalendar(events: any[], token?: string): Promise<{ signals_created: number; message: string }> {
-  const t = await resolveToken(token);
-  const response = await api.post('/api/sync/calendar', { events, user_email: '' }, {
-    headers: { Authorization: `Bearer ${t}` },
-  });
-  return response.data;
-}
+// NOTE: syncGmail and syncCalendar were previously declared TWICE in this
+// file (lines ~766 and ~1215) with different signatures. The duplicate
+// at lines 1215-1229 was removed 2026-07-20 — it caused tsc TS2393
+// (Duplicate function implementation) which would break production builds.
+// The canonical declarations at lines ~766-789 take (messages, userEmail,
+// token) — the duplicate at 1215 took (messages, token) which was a
+// signature regression from commit 01e321e.
 
 export async function getAnalyticsFlywheel(
   token?: string,
