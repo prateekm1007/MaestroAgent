@@ -19,16 +19,19 @@ sys.path.insert(0, str(REPO / "backend"))
 def client(tmp_path, monkeypatch):
     db_path = str(tmp_path / "test.db")
     monkeypatch.setenv("MAESTRO_PERSONAL_DB", db_path)
+    monkeypatch.setenv("MAESTRO_PERSONAL_TOKEN", "test-token")  # enable login
 
-    from maestro_personal_shell.api import save_signal_to_db
+    from maestro_personal_shell.api import init_db, save_signal_to_db
     signals = [
         {"signal_id": "del1", "entity": "Alex", "text": "test commitment",
-         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "delete_me@personal.local"},
+         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "default@personal.local"},
         {"signal_id": "del2", "entity": "Maria", "text": "test statement",
-         "signal_type": "reported_statement", "timestamp": "2026-07-02T00:00:00Z", "user_email": "delete_me@personal.local"},
+         "signal_type": "reported_statement", "timestamp": "2026-07-02T00:00:00Z", "user_email": "default@personal.local"},
     ]
+    init_db(db_path=db_path)  # create signals table before inserting
+    init_db(db_path=db_path)  # create signals table before inserting
     for sig in signals:
-        save_signal_to_db(sig, db_path=db_path)
+        save_signal_to_db(sig, db_path=db_path, user_email="default@personal.local")
 
     from maestro_personal_shell.api import app
     return TestClient(app)
@@ -40,8 +43,8 @@ def test_s2_07_account_deletion_wipes_signals(client, tmp_path, monkeypatch):
 
     # Login
     login_resp = client.post("/api/auth/login", json={
-        "user_email": "delete_me@personal.local",
-        "password": "test",
+        "user_email": "default@personal.local",
+        "password": "test-token",
     })
     assert login_resp.status_code == 200
     token = login_resp.json().get("token", "")
@@ -51,7 +54,7 @@ def test_s2_07_account_deletion_wipes_signals(client, tmp_path, monkeypatch):
     conn = sqlite3.connect(db_path)
     count_before = conn.execute(
         "SELECT COUNT(*) FROM signals WHERE user_email = ?",
-        ("delete_me@personal.local",),
+        ("default@personal.local",),
     ).fetchone()[0]
     assert count_before == 2, f"Expected 2 signals before deletion, got {count_before}"
     conn.close()
@@ -71,7 +74,7 @@ def test_s2_07_account_deletion_wipes_signals(client, tmp_path, monkeypatch):
     conn = sqlite3.connect(db_path)
     count_after = conn.execute(
         "SELECT COUNT(*) FROM signals WHERE user_email = ?",
-        ("delete_me@personal.local",),
+        ("default@personal.local",),
     ).fetchone()[0]
     conn.close()
 

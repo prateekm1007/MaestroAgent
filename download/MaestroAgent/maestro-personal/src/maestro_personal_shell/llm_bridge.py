@@ -473,7 +473,7 @@ class ZAIRouter:
         finally:
             try:
                 os.unlink(output_path)
-            except OSError:
+            except OSError as e:
                 logger.debug("unlink failed: %s", e)
     def health_check(self) -> bool:
         """Quick health check — verify the z-ai CLI is installed.
@@ -998,7 +998,7 @@ def extract_json(text: str, expect: str = "object") -> Any | None:
             return result
         if expect == "array" and isinstance(result, list):
             return result
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         logger.debug("return result failed: %s", e)
     return None
 

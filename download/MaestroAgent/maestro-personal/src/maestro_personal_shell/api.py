@@ -1562,7 +1562,7 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                 )
                 await websocket.send_json({"type": "post_call", **summary})
 
-    except WebSocketDisconnect:
+    except WebSocketDisconnect as e:
         logger.debug("send_json failed: %s", e)
     except Exception as e:
         try:

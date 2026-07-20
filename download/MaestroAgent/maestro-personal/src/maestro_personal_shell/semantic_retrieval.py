@@ -463,7 +463,7 @@ def delete_signal_from_fts(signal_id: str, db_path: str | None = None) -> None:
     try:
         conn.execute("DELETE FROM signals_fts WHERE signal_id = ?", (signal_id,))
         conn.commit()
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as e:
         logger.debug("commit failed: %s", e)
     finally:
         conn.close()

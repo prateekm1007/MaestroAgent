@@ -25,14 +25,16 @@ def client(tmp_path, monkeypatch):
     """Create a test client with a seeded DB."""
     db_path = str(tmp_path / "test.db")
     monkeypatch.setenv("MAESTRO_PERSONAL_DB", db_path)
+    monkeypatch.setenv("MAESTRO_PERSONAL_TOKEN", "test-token")  # enable login
 
-    from maestro_personal_shell.api import save_signal_to_db
+    from maestro_personal_shell.api import init_db, save_signal_to_db
     signals = [
         {"signal_id": "s1", "entity": "Alex Chen", "text": "I will send pricing deck by Friday",
-         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "test@personal.local"},
+         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "default@personal.local"},
         {"signal_id": "s2", "entity": "Maria Garcia", "text": "Maria asked for proposal",
-         "signal_type": "reported_statement", "timestamp": "2026-07-02T00:00:00Z", "user_email": "test@personal.local"},
+         "signal_type": "reported_statement", "timestamp": "2026-07-02T00:00:00Z", "user_email": "default@personal.local"},
     ]
+    init_db(db_path=db_path)  # create signals table before inserting
     for sig in signals:
         save_signal_to_db(sig, db_path=db_path)
 
@@ -43,8 +45,8 @@ def client(tmp_path, monkeypatch):
 def test_s1_01_nonexistent_entity_does_not_leak_data(client):
     """Asking about a nonexistent entity must NOT return other entities' data."""
     login_resp = client.post("/api/auth/login", json={
-        "user_email": "test@personal.local",
-        "password": "test",
+        "user_email": "default@personal.local",
+        "password": "test-token",
     })
     assert login_resp.status_code == 200
     token = login_resp.json().get("token", "")
@@ -71,8 +73,8 @@ def test_s1_01_nonexistent_entity_does_not_leak_data(client):
 def test_s1_01_known_entity_returns_data(client):
     """Asking about a known entity must return that entity's data (positive case)."""
     login_resp = client.post("/api/auth/login", json={
-        "user_email": "test@personal.local",
-        "password": "test",
+        "user_email": "default@personal.local",
+        "password": "test-token",
     })
     token = login_resp.json().get("token", "")
 

@@ -19,12 +19,14 @@ sys.path.insert(0, str(REPO / "backend"))
 def client(tmp_path, monkeypatch):
     db_path = str(tmp_path / "test.db")
     monkeypatch.setenv("MAESTRO_PERSONAL_DB", db_path)
+    monkeypatch.setenv("MAESTRO_PERSONAL_TOKEN", "test-token")  # enable login
 
-    from maestro_personal_shell.api import save_signal_to_db
+    from maestro_personal_shell.api import init_db, save_signal_to_db
+    init_db(db_path=db_path)  # create signals table before inserting
     save_signal_to_db(
         {"signal_id": "s1", "entity": "Alex", "text": "test",
          "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z",
-         "user_email": "test@personal.local"},
+         "user_email": "default@personal.local"},
         db_path=db_path,
     )
 
@@ -36,8 +38,8 @@ def test_rate_limiter_blocks_excess_requests(client):
     """Rate limiter must block requests exceeding 30/minute on /api/ask."""
     # Login
     login_resp = client.post("/api/auth/login", json={
-        "user_email": "test@personal.local",
-        "password": "test",
+        "user_email": "default@personal.local",
+        "password": "test-token",
     })
     token = login_resp.json().get("token", "")
     headers = {"Authorization": f"Bearer {token}"}

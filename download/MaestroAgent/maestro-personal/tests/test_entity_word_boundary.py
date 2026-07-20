@@ -21,18 +21,20 @@ sys.path.insert(0, str(REPO / "backend"))
 def client(tmp_path, monkeypatch):
     db_path = str(tmp_path / "test.db")
     monkeypatch.setenv("MAESTRO_PERSONAL_DB", db_path)
+    monkeypatch.setenv("MAESTRO_PERSONAL_TOKEN", "test-token")  # enable login
 
-    from maestro_personal_shell.api import save_signal_to_db
+    from maestro_personal_shell.api import init_db, save_signal_to_db
     signals = [
         {"signal_id": "wb1", "entity": "Alex", "text": "Alex commitment",
-         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "test@personal.local"},
+         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "default@personal.local"},
         {"signal_id": "wb2", "entity": "Alexander", "text": "Alexander different commitment",
-         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "test@personal.local"},
+         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "default@personal.local"},
         {"signal_id": "wb3", "entity": "Sam", "text": "Sam promise",
-         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "test@personal.local"},
+         "signal_type": "commitment_made", "timestamp": "2026-07-01T00:00:00Z", "user_email": "default@personal.local"},
         {"signal_id": "wb4", "entity": "Sample Corp", "text": "Sample Corp report",
-         "signal_type": "reported_statement", "timestamp": "2026-07-01T00:00:00Z", "user_email": "test@personal.local"},
+         "signal_type": "reported_statement", "timestamp": "2026-07-01T00:00:00Z", "user_email": "default@personal.local"},
     ]
+    init_db(db_path=db_path)  # create signals table before inserting
     for sig in signals:
         save_signal_to_db(sig, db_path=db_path)
 
@@ -43,8 +45,8 @@ def client(tmp_path, monkeypatch):
 def test_word_boundary_alex_does_not_match_alexander(client):
     """Querying 'Alex' must not return Alexander's data."""
     login_resp = client.post("/api/auth/login", json={
-        "user_email": "test@personal.local",
-        "password": "test",
+        "user_email": "default@personal.local",
+        "password": "test-token",
     })
     token = login_resp.json().get("token", "")
 
@@ -71,8 +73,8 @@ def test_word_boundary_alex_does_not_match_alexander(client):
 def test_word_boundary_sam_does_not_match_sample(client):
     """Querying 'Sam' must not return Sample Corp's data."""
     login_resp = client.post("/api/auth/login", json={
-        "user_email": "test@personal.local",
-        "password": "test",
+        "user_email": "default@personal.local",
+        "password": "test-token",
     })
     token = login_resp.json().get("token", "")
 
