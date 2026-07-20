@@ -131,8 +131,8 @@ QUESTIONS = [
     {"q": "Are there any board escalations?", "expected_entities": ["Board", "investor"], "expected_type": "critical"},
 
     # ── False-positive traps (should NOT return newsletters) ──
-    {"q": "What's my most important commitment?", "expected_entities": [], "expected_type": "priority", "expected_not_entities": ["TechNewsletter", "IndustryNews", "Engineering Team"]},
-    {"q": "What needs my attention today?", "expected_entities": [], "expected_type": "priority", "expected_not_entities": ["TechNewsletter", "IndustryNews"]},
+    {"q": "What's my most important commitment?", "expected_entities": ["Riley", "Globex", "Avery", "Priya"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter", "IndustryNews", "Engineering Team"]},
+    {"q": "What needs my attention today?", "expected_entities": ["Riley", "Globex", "EngOncall", "regulatory"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter", "IndustryNews"]},
 
     # ── Multilingual ──
     {"q": "What did Carlos say?", "expected_entities": ["Carlos", "contrato"], "expected_type": "multilingual"},
@@ -268,8 +268,8 @@ QUESTIONS = [
     {"q": "What newsletters came in?", "expected_entities": ["TechNewsletter"], "expected_type": "noise_lookup"},
 
     # ── More priority (was 2, add 2) ──
-    {"q": "What's the most urgent commitment?", "expected_entities": ["Riley", "Globex"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter"]},
-    {"q": "What needs attention immediately?", "expected_entities": ["Globex", "regulatory fine"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter"]},
+    {"q": "What's the most urgent commitment?", "expected_entities": ["Riley", "Globex", "EngOncall", "regulatory"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter", "IndustryNews"]},
+    {"q": "What needs attention immediately?", "expected_entities": ["Globex", "regulatory fine", "EngOncall"], "expected_type": "priority", "expected_not_entities": ["TechNewsletter"]},
 
     # ── More multilingual (was 2, add 1) ──
     {"q": "¿Qué enviará Carlos?", "expected_entities": ["Carlos", "contrato"], "expected_type": "multilingual"},

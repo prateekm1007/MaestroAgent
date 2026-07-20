@@ -1,0 +1,754 @@
+{
+  "A_bm25": 0.4715,
+  "B_full_maestro": 0.5488,
+  "C_rule_based": 0.4065,
+  "lift_B_vs_A": 7.7,
+  "lift_B_vs_C": 14.2,
+  "lift_C_vs_A": -6.5,
+  "llm_active": 23,
+  "total_questions": 41,
+  "results_A": [
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will be on-call this week \u2014 covering the auth service Production down \u2014 auth service sev1 incident"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will deploy the payment API fix by Friday Never deployed the payment API fix \u2014 still broken Paymen"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will complete the DB migration by end of sprint DB migration completed successfully \u2014 zero downtim"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will investigate the search service latency by Monday Search service latency increased from 50ms t"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will ship the mobile app release by Wednesday Shipped the mobile app release on time \u2014 v2.3.0 live"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "API Gateway handles 10k requests per second \u2014 confirmed in load test API Gateway maxes out at 4k req"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "I will complete the SOC2 audit by end of quarter SOC2 audit overdue \u2014 hasn't been started I will dep"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "broken",
+      "score": 0.3333333333333333,
+      "answer": "Never deployed the payment API fix \u2014 still broken"
+    },
+    {
+      "type": "broken",
+      "score": 1.0,
+      "answer": "I will deploy the payment API fix by Friday"
+    },
+    {
+      "type": "overdue",
+      "score": 0.5,
+      "answer": "SOC2 audit overdue \u2014 hasn't been started"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "relational",
+      "score": 0.5,
+      "answer": "Never deployed the payment API fix \u2014 still broken"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "API Gateway handles 10k requests per second \u2014 confirmed in load test API Gateway maxes out at 4k req"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "API Gateway handles 10k requests per second \u2014 confirmed in load test API Gateway maxes out at 4k req"
+    },
+    {
+      "type": "contradiction",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "Third auth service outage this month \u2014 systemic issue"
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "Third auth service outage this month \u2014 systemic issue I will deploy the payment API fix by Friday Ne"
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Production down \u2014 auth service sev1 incident"
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Production down \u2014 auth service sev1 incident API Gateway maxes out at 4k requests per second \u2014 produ"
+    },
+    {
+      "type": "critical",
+      "score": 0.5,
+      "answer": "Production down \u2014 auth service sev1 incident I will deploy the payment API fix by Friday Never deplo"
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Customer reported login fails on Safari \u2014 sev2 Login Safari bug still open \u2014 4 days no fix"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I will deploy the payment API fix by Friday Never deployed the payment API fix \u2014 still broken I will"
+    },
+    {
+      "type": "temporal",
+      "score": 0.5,
+      "answer": "Tech debt in the checkout flow still unaddressed \u2014 50 days old Third auth service outage this month "
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I will deploy the payment API fix by Friday Never deployed the payment API fix \u2014 still broken I will"
+    },
+    {
+      "type": "priority",
+      "score": 0.0,
+      "answer": "I will deploy the payment API fix by Friday Never deployed the payment API fix \u2014 still broken I will"
+    },
+    {
+      "type": "priority",
+      "score": 0.0,
+      "answer": "Tech debt in the checkout flow \u2014 needs refactoring"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "Industry blog: Kubernetes best practices 2026"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "I will deploy the payment API fix by Friday Never deployed the payment API fix \u2014 still broken I will"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "I will deploy the payment API fix by Friday Never deployed the payment API fix \u2014 still broken I will"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "I will deploy the payment API fix by Friday Never deployed the payment API fix \u2014 still broken I will"
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.0,
+      "answer": ""
+    },
+    {
+      "type": "cross_entity",
+      "score": 1.0,
+      "answer": "Search service latency increased from 50ms to 800ms \u2014 regression I will investigate the search servi"
+    }
+  ],
+  "results_B": [
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "The auth service is down. Evidence states: \u201c[Auth Service] (2026-06-20) Production down \u2014 auth servi",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.0
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "You made the following commitments:\nAPI Gateway: \"API Gateway handles 10k requests per second \u2014 conf",
+      "llm": false,
+      "conf": 0.7,
+      "elapsed": 0.1
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "The DB migration was completed successfully with zero downtime on 2026-07-10. You had previously com",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 16.0
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "The search service issue is high latency \u2014 it increased from 50ms to 800ms (a regression) on 2026-07",
+      "llm": true,
+      "conf": 1.0,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "Yes, you shipped the mobile app. Based on: \u201cShipped the mobile app release on time \u2014 v2.3.0 live [20",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "You made the following commitments:\nAPI Gateway: \"API Gateway handles 10k requests per second \u2014 conf",
+      "llm": false,
+      "conf": 0.7,
+      "elapsed": 0.0
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "The SOC2 audit for Bug Report is overdue and hasn\u2019t been started, as of 2026-07-15. You committed to",
+      "llm": true,
+      "conf": 0.5,
+      "elapsed": 8.2
+    },
+    {
+      "type": "broken",
+      "score": 0.5,
+      "answer": "You failed to deliver the Payment API deployment, which \u201cfailed \u2014 rolled back\u201d on 2026-07-02. You al",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.0
+    },
+    {
+      "type": "broken",
+      "score": 0.6666666666666666,
+      "answer": "None of the commitments are confirmed as broken in the evidence. All entries are stated as future in",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.7
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "overdue",
+      "score": 0.5,
+      "answer": "The overdue promises are:  \n- \u201c[Security Audit] (2026-07-15) SOC2 audit overdue \u2014 hasn't been starte",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.0
+    },
+    {
+      "type": "overdue",
+      "score": 1.0,
+      "answer": "The SOC2 audit is past due: \u201c[Security Audit] (2026-07-15) SOC2 audit overdue \u2014 hasn't been started\u201d",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.6
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "at_risk",
+      "score": 0.5,
+      "answer": "No commitments are stated as \u201cat risk\u201d in the evidence. All items are phrased as active commitments ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.8
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "relational",
+      "score": 1.0,
+      "answer": "You are disappointing the Engineering Team, as their sprint velocity dropped to 28 points \u2014 \u201cbehind ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.2
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "relational",
+      "score": 1.0,
+      "answer": "The entity responsible for broken commitments is not explicitly named in the evidence, but the commi",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.1
+    },
+    {
+      "type": "contradiction",
+      "score": 0.6666666666666666,
+      "answer": "You made the following commitments:\nAPI Gateway: \"API Gateway handles 10k requests per second \u2014 conf",
+      "llm": false,
+      "conf": 0.7,
+      "elapsed": 0.0
+    },
+    {
+      "type": "contradiction",
+      "score": 0.6666666666666666,
+      "answer": "You made the following commitments:\nAPI Gateway: \"API Gateway handles 10k requests per second \u2014 conf",
+      "llm": false,
+      "conf": 0.7,
+      "elapsed": 0.0
+    },
+    {
+      "type": "contradiction",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": true,
+      "conf": 0.0,
+      "elapsed": 8.2
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "The SOC2 audit keeps recurring. The evidence states: \u201cSOC2 audit overdue \u2014 hasn't been started.\u201d Thi",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.3
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "The issue that keeps happening is the auth service outage. Evidence states: \u201cThird auth service outa",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.1
+    },
+    {
+      "type": "recurring",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Yes, there is a sev1 incident: \u201c[Auth Service] (2026-06-20) Production down \u2014 auth service sev1 inci",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.5
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Yes, production is down. Evidence #1 states: \u201c[Auth Service] (2026-06-20) Production down \u2014 auth ser",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.7
+    },
+    {
+      "type": "critical",
+      "score": 0.5,
+      "answer": "The most urgent incident is \u201c[Auth Service] (2026-06-20) Production down \u2014 auth service sev1 inciden",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.3
+    },
+    {
+      "type": "critical",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": true,
+      "conf": 0.0,
+      "elapsed": 8.2
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "The most urgent thing is the [Auth Service] production down \u2014 auth service sev1 incident (2026-06-20",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.2
+    },
+    {
+      "type": "priority",
+      "score": 0.0,
+      "answer": "The tech debt in the checkout flow needs your attention. It is due on 2026-05-31 and requires refact",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.0
+    },
+    {
+      "type": "noise_lookup",
+      "score": 1.0,
+      "answer": "You received two newsletters: \u201c[EngNewsletter] (2026-07-14) Weekly engineering digest: 8 articles ab",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.7
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "abstention",
+      "score": 1.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "cross_entity",
+      "score": 1.0,
+      "answer": "The Auth Service has outages, as confirmed by two incidents: \u201c[Auth Service] (2026-06-20) Production",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.4
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    }
+  ],
+  "results_C": [
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: What's the auth service status?**\n\n**Auth Service situation**\nState: needs_preparation "
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Payment API, the key commitme"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: What happened with the DB migration?**\n\n**Database Migration: I will complete the DB mi"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: What's the search service issue?**\n\n**Search Service: I will investigate the search ser"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: Did I ship the mobile app?**\n\n**Mobile App: I will ship the mobile app release by Wedne"
+    },
+    {
+      "type": "direct_lookup",
+      "score": 1.0,
+      "answer": "**Regarding: What's the API Gateway capacity?**\n\n**API Gateway situation**\nState: needs_preparation "
+    },
+    {
+      "type": "direct_lookup",
+      "score": 0.5,
+      "answer": "**Regarding: What's the SOC2 audit status?**\n\n**Auth Service situation**\nState: needs_preparation | "
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding: What did I fail to deliver?**\n\n**Auth Service situation**\nState: needs_preparation | Ep"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Auth Service, the key commitm"
+    },
+    {
+      "type": "broken",
+      "score": 0.0,
+      "answer": "**Regarding: What did I not deploy?**\n\n**Auth Service situation**\nState: needs_preparation | Epistem"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Auth Service, the key commitm"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding: What's past due?**\n\n**Auth Service situation**\nState: needs_preparation | Epistemic: re"
+    },
+    {
+      "type": "overdue",
+      "score": 0.0,
+      "answer": "**Regarding: What am I late on?**\n\n**Auth Service situation**\nState: needs_preparation | Epistemic: "
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Auth Service, the key commitm"
+    },
+    {
+      "type": "at_risk",
+      "score": 0.0,
+      "answer": "**Regarding: What might slip?**\n\n**Auth Service situation**\nState: needs_preparation | Epistemic: re"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Who am I disappointing?**\n\n**Auth Service situation**\nState: needs_preparation | Episte"
+    },
+    {
+      "type": "relational",
+      "score": 0.3333333333333333,
+      "answer": "**Regarding: Which services are failing?**\n\n**Auth Service situation**\nState: needs_preparation | Ep"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding: Which services are healthy?**\n\n**Auth Service situation**\nState: needs_preparation | Ep"
+    },
+    {
+      "type": "relational",
+      "score": 0.0,
+      "answer": "**Regarding your question about promises:**\nBased on the situation for Auth Service, the key commitm"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: Did the API Gateway capacity change?**\n\n**API Gateway situation**\nState: needs_preparat"
+    },
+    {
+      "type": "contradiction",
+      "score": 1.0,
+      "answer": "**Regarding: What was the API Gateway discrepancy?**\n\n**API Gateway situation**\nState: needs_prepara"
+    },
+    {
+      "type": "contradiction",
+      "score": 0.0,
+      "answer": "**Regarding: Did anyone change their numbers?**\n\n**Auth Service situation**\nState: needs_preparation"
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "**Regarding: What keeps recurring?**\n\n**Auth Service situation**\nState: needs_preparation | Epistemi"
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "**Regarding: Which issue keeps happening?**\n\n**Auth Service situation**\nState: needs_preparation | E"
+    },
+    {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "**Regarding: What's the systemic issue?**\n\n**Auth Service situation**\nState: needs_preparation | Epi"
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "**Regarding: Are there any sev1 incidents?**\n\n**Auth Service situation**\nState: needs_preparation | "
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "**Regarding: Is production down?**\n\n**Auth Service situation**\nState: needs_preparation | Epistemic:"
+    },
+    {
+      "type": "critical",
+      "score": 0.5,
+      "answer": "**Regarding: What's the most urgent incident?**\n\n**Auth Service situation**\nState: needs_preparation"
+    },
+    {
+      "type": "critical",
+      "score": 0.3333333333333333,
+      "answer": "**Regarding: Any sev2 bugs open?**\n\n**Auth Service situation**\nState: needs_preparation | Epistemic:"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding: What's been pending the longest?**\n\n**Auth Service situation**\nState: needs_preparation"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding: What's the oldest unaddressed issue?**\n\n**Auth Service situation**\nState: needs_prepara"
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "**Regarding: What's been delayed the most?**\n\n**Auth Service situation**\nState: needs_preparation | "
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "**Regarding: What's the most urgent thing?**\n\n**Auth Service situation**\nState: needs_preparation | "
+    },
+    {
+      "type": "priority",
+      "score": 0.5,
+      "answer": "**Regarding: What needs my attention?**\n\n**Auth Service situation**\nState: needs_preparation | Epist"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": "**Recent changes for Auth Service:**\n  \u2022 Production down \u2014 auth service sev1 incident (2026-06-20T14"
+    },
+    {
+      "type": "noise_lookup",
+      "score": 0.0,
+      "answer": "**Regarding: What industry blogs came in?**\n\n**Auth Service situation**\nState: needs_preparation | E"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: What's the weather?**\n\n**Auth Service situation**\nState: needs_preparation | Epistemic:"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: Who won the World Cup?**\n\n**Auth Service situation**\nState: needs_preparation | Epistem"
+    },
+    {
+      "type": "abstention",
+      "score": 0.0,
+      "answer": "**Regarding: What's the stock price?**\n\n**Auth Service situation**\nState: needs_preparation | Episte"
+    },
+    {
+      "type": "cross_entity",
+      "score": 1.0,
+      "answer": "**Regarding: Which services have outages?**\n\n**Auth Service situation**\nState: needs_preparation | E"
+    },
+    {
+      "type": "cross_entity",
+      "score": 0.0,
+      "answer": "**Regarding: Which services have latency issues?**\n\n**Auth Service situation**\nState: needs_preparat"
+    }
+  ]
+}

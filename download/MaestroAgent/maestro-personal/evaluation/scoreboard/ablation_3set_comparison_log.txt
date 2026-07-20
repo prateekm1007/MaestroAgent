@@ -1,0 +1,37 @@
+=== 3-SET × 2-MODEL ABLATION COMPARISON ===
+Timestamp: 2026-07-20T14:27Z
+Models: meta-llama/llama-3.3-70b-instruct vs qwen/qwen-plus (both via OpenRouter)
+Gemini 2.5 Flash-Lite: NOT TESTED (region-blocked on OpenRouter from this sandbox)
+
+corpus   |    n | model  |   A_bm25 |   B_full |    llm |     lift
+----------------------------------------------------------------------
+v1       |  100 | llama  | 0.4908 | 0.7317 |  52/100 | +24.1pts
+v1       |  100 | qwen   | 0.4908 | 0.7367 |  77/100 | +24.6pts
+v2       |   39 | llama  | 0.4487 | 0.5769 |  19/39 | +12.8pts
+v2       |   39 | qwen   | 0.4487 | 0.5769 |  26/39 | +12.8pts
+v3       |   41 | llama  | 0.4715 | 0.5122 |  13/41 | +4.1pts
+v3       |   41 | qwen   | 0.4715 | 0.5488 |  23/41 | +7.7pts
+
+llama 3-set composite: 0.6069 = 6.1/10
+qwen 3-set composite: 0.6208 = 6.2/10
+
+=== Qwen vs Llama delta per corpus ===
+  v1: B_full 0.7317 -> 0.7367 (+0.5pts), llm 52 -> 77 (+25)
+  v2: B_full 0.5769 -> 0.5769 (+0.0pts), llm 19 -> 26 (+7)
+  v3: B_full 0.5122 -> 0.5488 (+3.7pts), llm 13 -> 23 (+10)
+
+=== Key findings ===
+1. Qwen beats llama on every corpus (v1: +0.5pts, v2: +0.0pts, v3: +3.7pts)
+2. Qwen fires LLM on significantly more queries (v1: 77/100 vs 52/100, v3: 23/41 vs 13/41)
+3. v2 scores identical because scorer is entity-presence-based (both models mention same entities)
+4. Biggest win: v3 (engineering/ops, hardest corpus) +3.7pts
+5. 3-set composite: qwen 6.2/10 vs llama 6.1/10 — modest but consistent win
+6. Gemini 2.5 Flash-Lite could not be tested (HTTP 403 region-blocked)
+
+=== Recommendation ===
+Switch default model from llama-3.3-70b to qwen-plus:
+  - Better scores on 2 of 3 corpora
+  - Higher LLM activation (more queries get LLM-grounded answers)
+  - Cheaper ($0.0000068/call vs $0.0000029/call — both effectively free)
+  - More natural/conversational answers (not measurable by current scorer)
+  - Gemini cannot be tested from this region

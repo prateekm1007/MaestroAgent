@@ -7,6 +7,7 @@ import {
   Clock,
   Loader2,
   Mail,
+  MessageSquare,
   Plus,
   Search,
   Sparkles,
@@ -41,6 +42,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -195,6 +203,33 @@ export function Commitments({
       toast({ title: "Draft failed", description: e?.message || "Unknown error", variant: "destructive" });
     } finally {
       setDraftBusyEntity(null);
+    }
+  }
+
+  // P1-#4 fix (2026-07-20): View Threads for Entity — calls getThreadsForEntity
+  // and opens a modal showing the cross-meeting thread for that entity.
+  // The client function existed but no UI called it (forensic audit P1 #4).
+  const [threadsModalEntity, setThreadsModalEntity] = useState<string | null>(null);
+  const [threadsModalData, setThreadsModalData] = useState<any[] | null>(null);
+  const [threadsModalLoading, setThreadsModalLoading] = useState(false);
+  async function handleViewThreads(entity: string) {
+    if (!entity) return;
+    setThreadsModalEntity(entity);
+    setThreadsModalData(null);
+    setThreadsModalLoading(true);
+    try {
+      const { data, live } = await maestroApi.getThreadsForEntity(entity);
+      if (!live) {
+        toast({ title: "Could not load threads", description: "API unreachable.", variant: "destructive" });
+        setThreadsModalEntity(null);
+      } else {
+        setThreadsModalData(data?.threads ?? []);
+      }
+    } catch (e: any) {
+      toast({ title: "Threads failed", description: e?.message || "Unknown error", variant: "destructive" });
+      setThreadsModalEntity(null);
+    } finally {
+      setThreadsModalLoading(false);
     }
   }
 
@@ -404,6 +439,7 @@ export function Commitments({
               overallCalibration={theOne.overall_calibration}
               onCorrect={correct}
               onDraft={handleDraft}
+              onViewThreads={handleViewThreads}
               busy={busyId === theOne.primary.signal_id}
               draftBusy={draftBusyEntity === theOne.primary.entity}
             />
@@ -439,6 +475,7 @@ export function Commitments({
                     c={c}
                     onCorrect={correct}
                     onDraft={handleDraft}
+                    onViewThreads={handleViewThreads}
                     busy={busyId === c.signal_id}
                     draftBusy={draftBusyEntity === c.entity}
                   />
@@ -515,17 +552,53 @@ export function Commitments({
                         )}
                         <p className="text-xs text-muted-foreground mt-1">{g.confidence_label}</p>
                       </div>
-                      <span
-                        className={cn(
-                          "flex items-center justify-center rounded-lg w-9 h-9 text-lg font-black text-black shrink-0 ml-3",
-                          g.grade === "A" ? "bg-green-500"
-                            : g.grade === "B" ? "bg-yellow-500"
-                            : g.grade === "C" ? "bg-yellow-600"
-                            : "bg-red-500"
-                        )}
-                      >
-                        {g.effective_grade || g.grade}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* P1-#6 fix (2026-07-20): Grade Override button — calls overrideMeetingGrade */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            const newGrade = window.prompt(
+                              `Override grade for ${g.entity || g.title || "this meeting"}.\nCurrent: ${g.effective_grade || g.grade}\nEnter new grade (A/B/C/D):`,
+                              g.effective_grade || g.grade
+                            );
+                            if (!newGrade) return;
+                            const upper = newGrade.trim().toUpperCase();
+                            if (!["A", "B", "C", "D"].includes(upper)) {
+                              toast({ title: "Invalid grade", description: "Must be A, B, C, or D.", variant: "destructive" });
+                              return;
+                            }
+                            try {
+                              const { live } = await maestroApi.overrideMeetingGrade(g.meeting_id, upper);
+                              if (!live) {
+                                toast({ title: "Override failed", description: "API unreachable.", variant: "destructive" });
+                              } else {
+                                toast({ title: "Grade overridden", description: `${g.entity || g.title}: ${g.grade} → ${upper}` });
+                                // Refresh grades
+                                const mg = await maestroApi.getMeetingGrades();
+                                setMeetingGrades(mg.data?.grades ?? []);
+                              }
+                            } catch (e: any) {
+                              toast({ title: "Override failed", description: e?.message || "Unknown error", variant: "destructive" });
+                            }
+                          }}
+                          title="Override the meeting grade"
+                        >
+                          Override
+                        </Button>
+                        <span
+                          className={cn(
+                            "flex items-center justify-center rounded-lg w-9 h-9 text-lg font-black text-black",
+                            g.grade === "A" ? "bg-green-500"
+                              : g.grade === "B" ? "bg-yellow-500"
+                              : g.grade === "C" ? "bg-yellow-600"
+                              : "bg-red-500"
+                          )}
+                        >
+                          {g.effective_grade || g.grade}
+                        </span>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -543,6 +616,41 @@ export function Commitments({
         onResolve={handleResolveDraft}
         resolving={draftResolving}
       />
+
+      {/* P1-#4 fix (2026-07-20): Threads-for-Entity modal — calls getThreadsForEntity */}
+      <Dialog open={!!threadsModalEntity} onOpenChange={(o) => !o && setThreadsModalEntity(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cross-Meeting Threads: {threadsModalEntity}</DialogTitle>
+            <DialogDescription>
+              Decisions and signals tracked across meetings for this entity.
+            </DialogDescription>
+          </DialogHeader>
+          {threadsModalLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : threadsModalData && threadsModalData.length > 0 ? (
+            <div className="space-y-3">
+              {threadsModalData.map((t: any, i: number) => (
+                <Card key={i} className="border-border/60">
+                  <CardContent className="py-3 px-4 space-y-1">
+                    <p className="text-sm font-medium">{t.entity || threadsModalEntity}</p>
+                    <p className="text-sm text-foreground/80">{t.text || t.summary || t.topic}</p>
+                    {t.timestamp && (
+                      <p className="text-xs text-muted-foreground">{String(t.timestamp).slice(0, 10)}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              No threads found for {threadsModalEntity}.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -553,6 +661,7 @@ function TheOneCard({
   overallCalibration,
   onCorrect,
   onDraft,
+  onViewThreads,
   busy,
   draftBusy,
 }: {
@@ -561,6 +670,7 @@ function TheOneCard({
   overallCalibration?: string;
   onCorrect: (id: string, action: "complete" | "dismiss" | "cancel") => void;
   onDraft: (entity: string) => void;
+  onViewThreads?: (entity: string) => void;
   busy: boolean;
   draftBusy: boolean;
 }) {
@@ -674,12 +784,14 @@ function CommitmentRow({
   c,
   onCorrect,
   onDraft,
+  onViewThreads,
   busy,
   draftBusy,
 }: {
   c: Commitment;
   onCorrect: (id: string, action: "complete" | "dismiss" | "cancel") => void;
   onDraft: (entity: string) => void;
+  onViewThreads?: (entity: string) => void;
   busy: boolean;
   draftBusy: boolean;
 }) {
@@ -747,6 +859,17 @@ function CommitmentRow({
           >
             {draftBusy ? <Loader2 className="size-3 animate-spin" /> : <Mail className="size-3" />}
             Draft
+          </Button>
+          {/* P1-#4 fix (2026-07-20): View Threads button — calls getThreadsForEntity */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+            onClick={() => onViewThreads?.(c.entity)}
+            title={`View cross-meeting threads for ${c.entity}`}
+          >
+            <MessageSquare className="size-3" />
+            Threads
           </Button>
         </div>
       </CardContent>

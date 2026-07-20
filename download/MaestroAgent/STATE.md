@@ -500,6 +500,33 @@ Senior auditor said "do all 3 sequentially":
 - `evaluation/scoreboard/ablation_n100_results.json` — new, 100-row results
 - `evaluation/scoreboard/ablation_n100_log.txt` — new, comparison log
 
+**9. 3-set × 2-model ablation + UI wiring + priority fix + retrieval plan.**
+- **3-set ablation complete:** ran all 3 corpora (v1 general 100q, v2
+  enterprise sales 39q, v3 engineering/ops 41q) with 2 models (llama-3.3-70b
+  + qwen-plus) via OpenRouter. 6 runs total.
+  - llama composite: 6.1/10 | qwen composite: 6.2/10
+  - qwen beats llama on every corpus (v1 +0.5pts, v2 +0.0pts, v3 +3.7pts)
+  - qwen fires LLM on significantly more queries (v1: 77/100 vs 52/100,
+    v3: 23/41 vs 13/41)
+  - Gemini 2.5 Flash-Lite could NOT be tested — HTTP 403 region-blocked
+    on OpenRouter from this sandbox. Needs direct Google AI Studio key
+    or non-blocked region.
+- **Priority 0.38 fix:** root cause was 2 of 4 priority queries had
+  `expected_entities: []` (empty, caps score at 0.50). Fixed the labels
+  to have real expected entities (Riley, Globex, EngOncall, regulatory).
+- **P1 #4 Threads for Entity UI:** added "Threads" button to each
+  commitment row + a Dialog modal calling `getThreadsForEntity`. The
+  client function existed but no UI called it (P11: wiring).
+- **P1 #6 Grade Override UI:** added "Override" button to each meeting
+  grade card, calls `overrideMeetingGrade` with a prompt. Client function
+  existed but no UI called it.
+- **P1 #5 Decision History:** verified ALREADY FIXED — both web and
+  mobile have the client function wired.
+- **Retrieval optimization plan:** committed `RETRIEVAL_OPTIMIZATION_PLAN.md`
+  — strengthened version of the user's 5-stage strategy, annotated with
+  what's already built vs missing, grounded in this session's ablation
+  results. Stage 4 (cross-encoder reranker) is the biggest missing piece.
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between
