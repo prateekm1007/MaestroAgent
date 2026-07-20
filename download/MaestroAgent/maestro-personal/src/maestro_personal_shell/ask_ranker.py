@@ -131,15 +131,21 @@ def understand_query(query: str) -> dict[str, Any]:
         ("relational", {
             "trigger": [r"who\s+am\s+i\s+(?:disappoint|failing|letting)",
                         r"who\s+(?:is|are)\s+(?:my\s+)?(?:risk|delivery\s+risk)",
-                        r"which\s+(?:person|client|customer|partner)\s+(?:has|is|are)",
+                        r"which\s+(?:person|partner)\s+(?:has|is|are)",
                         r"who\s+(?:keeps|has)\s+(?:breaking|missing|failing|broken)",
                         r"who\s+(?:are\s+)?my\s+(?:most\s+)?(?:reliable|risk|unreliable|biggest)",
-                        r"who\s+owes\s+me", r"who\s+am\s+i\s+(?:waiting|waiting\s+on)",
+                        r"who\s+am\s+i\s+(?:waiting|waiting\s+on)",
                         r"who\s+(?:should\s+i|to)\s+follow\s+up",
                         r"who\s+(?:delivered|delivers)\s+on\s+time",
                         r"who\s+has\s+(?:broken|unfulfilled|outstanding)",
-                        r"which\s+(?:clients|customers|people)\s+(?:are|have)",
                         r"who\s+(?:keeps|has)\s+(?:their\s+)?promises"],
+            # NOTE (P14 fix 2026-07-20): removed "which clients/customers/people
+            # are/have" and "who owes me" from relational triggers — they
+            # overlap with cross_entity's triggers and were catching cross_entity
+            # queries before cross_entity could match. cross_entity is checked
+            # AFTER relational in the intent_definitions list, so the overlap
+            # caused a P14 regression (cross_entity Recall dropped 0.92 -> 0.75).
+            # cross_entity keeps these triggers; relational no longer does.
             "signal_match": ["never sent", "didn't send", "overdue", "missed",
                              "failed to", "broken", "delayed", "hasn't",
                              "still pending", "delivered", "completed", "sent the",

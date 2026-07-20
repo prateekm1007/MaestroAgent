@@ -583,6 +583,9 @@ def context_engineer(
         "most important commitment", "needs my attention",
         "needs attention immediately",
         "was the nova presentation", "presentation complete",
+        # F-Recurring fix (2026-07-20): recurring phrasings
+        "recurring production", "keeps going wrong", "systemic issue",
+        "what keeps", "what pattern", "keeps happening",
     ]
     is_intent_query = any(p in query_lower_for_intent for p in intent_substrings)
     if is_intent_query:
