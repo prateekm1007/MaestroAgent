@@ -248,6 +248,19 @@ class OpenRouterProvider(OpenAIProvider):
         super().__init__(base_url=base_url, api_key=api_key)
 
 
+class GroqProvider(OpenAIProvider):
+    """Groq — fast LPU inference, OpenAI-compatible API.
+
+    Free tier: 30 req/min, 1000 req/day on llama-3.3-70b-versatile.
+    Sub-second responses even on 70B models.
+    """
+
+    name = "groq"
+
+    def __init__(self, base_url: str = "https://api.groq.com/openai/v1", api_key: str | None = None) -> None:
+        super().__init__(base_url=base_url, api_key=api_key)
+
+
 class GrokProvider(OpenAIProvider):
     """xAI Grok — OpenAI-compatible."""
 

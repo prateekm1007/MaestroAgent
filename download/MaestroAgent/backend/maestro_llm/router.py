@@ -26,6 +26,7 @@ from maestro_llm.cost import CostLedger
 from maestro_llm.providers import (
     AnthropicProvider,
     GrokProvider,
+    GroqProvider,
     LLMRequest,
     LLMResponse,
     LMStudioProvider,
@@ -46,7 +47,7 @@ class LLMRouter:
     ledger: CostLedger | None = None
     # Failover chain (tried in order).
     default_chain: list[str] = field(
-        default_factory=lambda: ["ollama", "openai", "anthropic", "openrouter"]
+        default_factory=lambda: ["groq", "ollama", "openai", "anthropic", "openrouter"]
     )
     default_provider: str = "ollama"
     default_model: str = "llama3.1:8b"
@@ -58,6 +59,7 @@ class LLMRouter:
             "openai": "gpt-4o-mini",
             "anthropic": "claude-3-5-haiku",
             "openrouter": "openrouter/auto",
+            "groq": "llama-3.3-70b-versatile",
             "grok": "grok-beta",
             "gemini": "gemini-2.0-flash",
             "deepseek": "deepseek-chat",
@@ -112,6 +114,8 @@ class LLMRouter:
             providers["openai"] = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
         if os.environ.get("ANTHROPIC_API_KEY"):
             providers["anthropic"] = AnthropicProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
+        if os.environ.get("GROQ_API_KEY"):
+            providers["groq"] = GroqProvider(api_key=os.environ["GROQ_API_KEY"])
         if os.environ.get("OPENROUTER_API_KEY"):
             providers["openrouter"] = OpenRouterProvider(api_key=os.environ["OPENROUTER_API_KEY"])
         if os.environ.get("XAI_API_KEY"):
@@ -139,6 +143,7 @@ class LLMRouter:
                 api_key=os.environ["DEEPSEEK_API_KEY"],
             )
         default_provider = (
+            "groq" if "groq" in providers else
             "openai" if "openai" in providers else
             "anthropic" if "anthropic" in providers else
             "openrouter" if "openrouter" in providers else
@@ -152,6 +157,9 @@ class LLMRouter:
         # "openrouter/auto" routes to whatever OpenRouter picks, which may
         # be expensive. Setting OPENROUTER_MODEL to a specific low-cost model
         # (e.g. "openai/gpt-oss-120b" at $0.216/M tokens) keeps costs predictable.
+        groq_model = os.environ.get("GROQ_MODEL")
+        if groq_model and "groq" in providers:
+            router.default_models["groq"] = groq_model
         openrouter_model = os.environ.get("OPENROUTER_MODEL")
         if openrouter_model and "openrouter" in providers:
             router.default_models["openrouter"] = openrouter_model
@@ -174,7 +182,7 @@ class LLMRouter:
         """True if any cloud LLM env var is set."""
         import os
         return any(os.environ.get(k) for k in [
-            "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+            "GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
             "OPENROUTER_API_KEY", "XAI_API_KEY",
             "GEMINI_API_KEY", "DEEPSEEK_API_KEY",
         ])
