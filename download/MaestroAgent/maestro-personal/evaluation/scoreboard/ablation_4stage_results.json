@@ -1,0 +1,2202 @@
+{
+  "timestamp": "2026-07-20T18:27:18.122161+00:00",
+  "model": "qwen/qwen-plus",
+  "reranker": "cohere",
+  "question_count": 100,
+  "stage1_bm25": {
+    "average": 0.5483333333333333,
+    "per_type": {
+      "abstention": 0.0,
+      "at_risk": 0.2,
+      "broken": 0.5333333333333333,
+      "conditional": 1.0,
+      "contradiction": 0.8333333333333334,
+      "critical": 0.6875,
+      "cross_entity": 0.8333333333333334,
+      "direct_lookup": 1.0,
+      "disputed": 0.6666666666666666,
+      "multilingual": 1.0,
+      "noise_lookup": 0.9166666666666666,
+      "overdue": 0.4666666666666666,
+      "prepare": 0.75,
+      "priority": 0.0,
+      "recurring": 0.5833333333333334,
+      "relational": 0.08333333333333333,
+      "temporal": 0.1875
+    },
+    "results": [
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Sent the pricing deck to Alex Chen yesterday I will send Alex Chen the pricing deck by Friday"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Delivered the API integration on time I will deliver the API integration by March 15 I will send Ave"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent"
+      },
+      {
+        "type": "broken",
+        "score": 0.0,
+        "answer": "Delivered the API integration on time I will deliver the API integration by March 15"
+      },
+      {
+        "type": "at_risk",
+        "score": 0.3333333333333333,
+        "answer": "Alice will pay $1M to VendorZ by Friday I will send Avery Stone the quarterly report I will deliver "
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": "Team standup notes: velocity is fine, sprint on track Maria Garcia from Acme Corp called on Tuesday "
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue Board escalation: investor wants to see Q3 numbers bef"
+      },
+      {
+        "type": "recurring",
+        "score": 0.5,
+        "answer": "Production down \u2014 sev1 incident on auth service Board escalation: investor wants to see Q3 numbers b"
+      },
+      {
+        "type": "prepare",
+        "score": 0.5,
+        "answer": "Board escalation: investor wants to see Q3 numbers before Friday meeting Maria Garcia from Acme Corp"
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "Auth service outage again \u2014 same root cause as last week Alice will pay $1M to VendorZ by Friday I w"
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Third auth outage this month \u2014 systemic issue SSO work "
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Weekly tech digest: 10 articles about AI you should rea"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 0.5,
+        "answer": "Monthly newsletter roundup \u2014 industry trends FYI: competitor raised Series B \u2014 for your awareness We"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue SSO work is complete \u2014 pending legal review EU regulat"
+      },
+      {
+        "type": "critical",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Board escalation: investor wants to see Q3 numbers before Friday meeting Maria Garcia from Acme Corp"
+      },
+      {
+        "type": "priority",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "priority",
+        "score": 0.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "Presented Nova results at the all-hands I will present Nova results at the all-hands Nova results pr"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Hiring Committee will make an offer to the senior engineer candidate by Friday"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Team standup notes: velocity is fine, no blockers Team standup notes: velocity is fine, sprint on tr"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Priya Shah the compliance report by June 30 Compliance report is overdue \u2014 hasn't been s"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Globex Corp is threatening to cancel their contract \u2014 pulling out"
+      },
+      {
+        "type": "cross_entity",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue Sent the pricing deck to Alex Chen yesterday I will se"
+      },
+      {
+        "type": "cross_entity",
+        "score": 0.5,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": "Alice will pay $1M to VendorZ by Friday I will send Avery Stone the quarterly report I will deliver "
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "Auth service outage again \u2014 same root cause as last week I will send Riley Quinn the security questi"
+      },
+      {
+        "type": "contradiction",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "recurring",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "critical",
+        "score": 0.5,
+        "answer": ""
+      },
+      {
+        "type": "disputed",
+        "score": 0.0,
+        "answer": "SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "SSO work is complete \u2014 pending legal review EU regulatory fine of 5M euros imposed for GDPR violatio"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Alex Chen the pricing deck by Friday I will"
+      },
+      {
+        "type": "broken",
+        "score": 0.0,
+        "answer": "Nova results presentation was incomplete \u2014 missing the Q2 data Alice will pay $1M to VendorZ by Frid"
+      },
+      {
+        "type": "broken",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent"
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "I will send Riley Quinn the security questionnaire by end of week Never sent the security questionna"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent"
+      },
+      {
+        "type": "overdue",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "overdue",
+        "score": 0.0,
+        "answer": "Team standup notes: velocity is fine, sprint on track Maria Garcia from Acme Corp called on Tuesday "
+      },
+      {
+        "type": "overdue",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent Alic"
+      },
+      {
+        "type": "at_risk",
+        "score": 0.3333333333333333,
+        "answer": "Alice will pay $1M to VendorZ by Friday I will send Avery Stone the quarterly report I will deliver "
+      },
+      {
+        "type": "at_risk",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "at_risk",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "at_risk",
+        "score": 0.3333333333333333,
+        "answer": "Globex Corp is threatening to cancel their contract \u2014 pulling out Alice will pay $1M to VendorZ by F"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Priya Shah the compliance report by June 30 Compliance report is overdue \u2014 hasn't been s"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Alex Chen the pricing deck by Friday I will"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Riley Quinn the security questionnaire by end of week Never sent the security questionna"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "SSO work is complete \u2014 pending legal review If legal signs off, I'll have SSO ready by Q4"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Presented Nova results at the all-hands I will present Nova results at the all-hands Nova results pr"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Hiring Committee will make an offer to the senior engineer candidate by Friday Alice will pay $1M to"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Alice will pay $1M to VendorZ by Friday"
+      },
+      {
+        "type": "relational",
+        "score": 0.3333333333333333,
+        "answer": "Alice will pay $1M to VendorZ by Friday I will send Avery Stone the quarterly report I will deliver "
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "relational",
+        "score": 0.5,
+        "answer": "Delivered the API integration on time I will deliver the API integration by March 15"
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "Third auth outage this month \u2014 systemic issue Alice will pay $1M to VendorZ by Friday I will send Av"
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue EU regulatory fine of 5M euros imposed for GDPR violat"
+      },
+      {
+        "type": "critical",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Board escalation: investor wants to see Q3 numbers before Friday meeting Maria Garcia from Acme Corp"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "SSO work is complete \u2014 pending legal review EU regulatory fine of 5M euros imposed for GDPR violatio"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": "Alice will pay $1M to VendorZ by Friday I will send Avery Stone the quarterly report I will deliver "
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech revised the quote down to $9"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech revised the quote down to $9"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue Production down \u2014 sev1 incident on auth service"
+      },
+      {
+        "type": "recurring",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Weekly tech digest: 10 articles about AI you should read"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Weekly tech digest: 10 articles about AI you should rea"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Weekly tech digest: 10 articles about AI you should rea"
+      },
+      {
+        "type": "priority",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "priority",
+        "score": 0.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "Presented Nova results at the all-hands I will present Nova results at the all-hands Nova results pr"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+      },
+      {
+        "type": "cross_entity",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue Compliance report is overdue \u2014 hasn't been sent I will"
+      },
+      {
+        "type": "prepare",
+        "score": 1.0,
+        "answer": "Board escalation: investor wants to see Q3 numbers before Friday meeting Maria Garcia from Acme Corp"
+      }
+    ]
+  },
+  "stage2_bm25_rrf": {
+    "average": 0.7433333333333333,
+    "per_type": {
+      "abstention": 0.0,
+      "at_risk": 0.8666666666666666,
+      "broken": 0.9333333333333333,
+      "conditional": 1.0,
+      "contradiction": 1.0,
+      "critical": 0.9375,
+      "cross_entity": 0.8333333333333334,
+      "direct_lookup": 0.7333333333333333,
+      "disputed": 0.6666666666666666,
+      "multilingual": 1.0,
+      "noise_lookup": 0.75,
+      "overdue": 0.6,
+      "prepare": 0.5,
+      "priority": 0.6666666666666666,
+      "recurring": 1.0,
+      "relational": 0.7166666666666666,
+      "temporal": 0.75
+    },
+    "results": [
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue I wi"
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "Delivered the API integration on time Never sent the security questionnaire \u2014 overdue I will deliver"
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue SSO "
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent Deli"
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent Deli"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday Orion "
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday Orion "
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue Mari"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Production down \u2014 sev1 incident on auth service Auth service outage again \u2014 same root cause as last "
+      },
+      {
+        "type": "prepare",
+        "score": 0.5,
+        "answer": "I will send Alex Chen the pricing deck by Friday Alice will pay $1M to VendorZ by Friday SSO work is"
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "I will present Nova results at the all-hands I will send Avery Stone the quarterly report I will del"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "SSO work is complete \u2014 pending legal review I will send Avery Stone the quarterly report Third auth "
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Weekly tech digest: 10 articles about AI you should rea"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 0.5,
+        "answer": "Production down \u2014 sev1 incident on auth service Compliance report is overdue \u2014 hasn't been sent Pres"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Third auth outage this month \u2014 systemic is"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Production down \u2014 sev1 incident on auth service Third auth outage this month \u2014 systemic issue EU reg"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Board escalation: investor wants to see Q3 numbers before Friday meeting EU regulatory fine of 5M eu"
+      },
+      {
+        "type": "priority",
+        "score": 0.75,
+        "answer": "Production down \u2014 sev1 incident on auth service Compliance report is overdue \u2014 hasn't been sent Neve"
+      },
+      {
+        "type": "priority",
+        "score": 0.5,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Maria Garcia from Acme Corp called on Tues"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "I will present Nova results at the all-hands Presented Nova results at the all-hands Nova results pr"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Hiring Committee will make an offer to the senior engineer candidate by Friday Team standup notes: v"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Globex Corp is threatening to cancel their contract \u2014 pulling out"
+      },
+      {
+        "type": "cross_entity",
+        "score": 1.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute I will send Alex Chen the pricing deck "
+      },
+      {
+        "type": "cross_entity",
+        "score": 0.5,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent Deli"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent Deli"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "Auth service outage again \u2014 same root cause as last week Team standup notes: velocity is fine, sprin"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Auth service outage again \u2014 same root cause as last week Third auth outage this month \u2014 systemic iss"
+      },
+      {
+        "type": "critical",
+        "score": 0.5,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Production down \u2014 sev1 incident on auth se"
+      },
+      {
+        "type": "disputed",
+        "score": 0.0,
+        "answer": "SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Alex Chen the pricing deck by Friday I will"
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "broken",
+        "score": 0.6666666666666666,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue I wi"
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue I will send Riley Quinn the security questionnaire b"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "overdue",
+        "score": 0.0,
+        "answer": "Team standup notes: velocity is fine, sprint on track Maria Garcia from Acme Corp called on Tuesday "
+      },
+      {
+        "type": "overdue",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue I wi"
+      },
+      {
+        "type": "at_risk",
+        "score": 0.6666666666666666,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue Glob"
+      },
+      {
+        "type": "at_risk",
+        "score": 0.6666666666666666,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Sent the pricing deck to Alex Chen yesterday Delivered the API integration on time I will present No"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Alice will pay $1M to VendorZ by Friday"
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent I wi"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Delivered the API integration on time Compliance rep"
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+      },
+      {
+        "type": "relational",
+        "score": 0.5,
+        "answer": "Delivered the API integration on time Never sent the security questionnaire \u2014 overdue I will deliver"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Delivered the API integration on time Compliance rep"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Third auth outage this month \u2014 systemic is"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Production down \u2014 sev1 incident on auth se"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation SSO work is complete \u2014 pending legal revie"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday Orion "
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue Globex Corp is threatening to cancel their contract \u2014 "
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Auth service outage again \u2014 same root cause as last week Third auth outage this month \u2014 systemic iss"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Weekly tech digest: 10 articles about AI you should read"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Weekly tech digest: 10 articles about AI you should rea"
+      },
+      {
+        "type": "priority",
+        "score": 0.75,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Production down \u2014 sev1 incident on auth se"
+      },
+      {
+        "type": "priority",
+        "score": 0.6666666666666666,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "Presented Nova results at the all-hands I will present Nova results at the all-hands Nova results pr"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+      },
+      {
+        "type": "cross_entity",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent I will send Priya Shah the compliance report by June"
+      },
+      {
+        "type": "prepare",
+        "score": 0.5,
+        "answer": "I will send Alex Chen the pricing deck by Friday Alice will pay $1M to VendorZ by Friday SSO work is"
+      }
+    ]
+  },
+  "stage3_bm25_rrf_reranker": {
+    "average": 0.7433333333333333,
+    "per_type": {
+      "abstention": 0.0,
+      "at_risk": 0.8666666666666666,
+      "broken": 0.9333333333333333,
+      "conditional": 1.0,
+      "contradiction": 1.0,
+      "critical": 0.9375,
+      "cross_entity": 0.8333333333333334,
+      "direct_lookup": 0.7333333333333333,
+      "disputed": 0.6666666666666666,
+      "multilingual": 1.0,
+      "noise_lookup": 0.75,
+      "overdue": 0.6,
+      "prepare": 0.5,
+      "priority": 0.6666666666666666,
+      "recurring": 1.0,
+      "relational": 0.7166666666666666,
+      "temporal": 0.75
+    },
+    "results": [
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "[ENTITY SUMMARY] Priya Shah: 1 broken, 0 completed, 1 stale, 1 total commitments, risk_score=6 [ENTI"
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue I will deliver the API integration by March 15 Deliv"
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "[ENTITY SUMMARY] Alex Chen: 0 broken, 1 completed, 1 stale, 1 total commitments, risk_score=3 [ENTIT"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "[ENTITY SUMMARY] Priya Shah: 1 broken, 0 completed, 1 stale, 1 total commitments, risk_score=6 [ENTI"
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "[ENTITY SUMMARY] Priya Shah: 1 broken, 0 completed, 1 stale, 1 total commitments, risk_score=6 [ENTI"
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "[ENTITY SUMMARY] Sam Patel: 0 broken, 1 completed, 1 stale, 1 total commitments, risk_score=3 [ENTIT"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday Orion "
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday Orion "
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue Mari"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Production down \u2014 sev1 incident on auth service Auth service outage again \u2014 same root cause as last "
+      },
+      {
+        "type": "prepare",
+        "score": 0.5,
+        "answer": "I will send Alex Chen the pricing deck by Friday Alice will pay $1M to VendorZ by Friday SSO work is"
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "I will present Nova results at the all-hands I will send Avery Stone the quarterly report I will del"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "SSO work is complete \u2014 pending legal review I will send Avery Stone the quarterly report Third auth "
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Weekly tech digest: 10 articles about AI you should rea"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 0.5,
+        "answer": "Production down \u2014 sev1 incident on auth service Compliance report is overdue \u2014 hasn't been sent Pres"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Third auth outage this month \u2014 systemic is"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Production down \u2014 sev1 incident on auth service Third auth outage this month \u2014 systemic issue EU reg"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Board escalation: investor wants to see Q3 numbers before Friday meeting EU regulatory fine of 5M eu"
+      },
+      {
+        "type": "priority",
+        "score": 0.75,
+        "answer": "Production down \u2014 sev1 incident on auth service Compliance report is overdue \u2014 hasn't been sent Neve"
+      },
+      {
+        "type": "priority",
+        "score": 0.5,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Maria Garcia from Acme Corp called on Tues"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "I will present Nova results at the all-hands Presented Nova results at the all-hands Nova results pr"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Hiring Committee will make an offer to the senior engineer candidate by Friday Team standup notes: v"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Globex Corp is threatening to cancel their contract \u2014 pulling out"
+      },
+      {
+        "type": "cross_entity",
+        "score": 1.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute I will send Alex Chen the pricing deck "
+      },
+      {
+        "type": "cross_entity",
+        "score": 0.5,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent Deli"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent Deli"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "Auth service outage again \u2014 same root cause as last week Team standup notes: velocity is fine, sprin"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Auth service outage again \u2014 same root cause as last week Third auth outage this month \u2014 systemic iss"
+      },
+      {
+        "type": "critical",
+        "score": 0.5,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Production down \u2014 sev1 incident on auth se"
+      },
+      {
+        "type": "disputed",
+        "score": 0.0,
+        "answer": "SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Alex Chen the pricing deck by Friday I will"
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "broken",
+        "score": 0.6666666666666666,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue I wi"
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue I will send Riley Quinn the security questionnaire b"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent"
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "overdue",
+        "score": 0.0,
+        "answer": "Team standup notes: velocity is fine, sprint on track Maria Garcia from Acme Corp called on Tuesday "
+      },
+      {
+        "type": "overdue",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue I wi"
+      },
+      {
+        "type": "at_risk",
+        "score": 0.6666666666666666,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent Never sent the security questionnaire \u2014 overdue Glob"
+      },
+      {
+        "type": "at_risk",
+        "score": 0.6666666666666666,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Sent the pricing deck to Alex Chen yesterday Delivered the API integration on time I will present No"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Alice will pay $1M to VendorZ by Friday"
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Never sent the security questionnaire \u2014 overdue Compliance report is overdue \u2014 hasn't been sent I wi"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Delivered the API integration on time Compliance rep"
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": "Orion Tech sent the final invoice at $150k \u2014 pricing dispute Orion Tech quoted us $120k for the annu"
+      },
+      {
+        "type": "relational",
+        "score": 0.5,
+        "answer": "Delivered the API integration on time Never sent the security questionnaire \u2014 overdue I will deliver"
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Never sent the security questionnaire \u2014 overdue Delivered the API integration on time Compliance rep"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will deliver the API integration by March 15 I will s"
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Third auth outage this month \u2014 systemic is"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Production down \u2014 sev1 incident on auth se"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation SSO work is complete \u2014 pending legal revie"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": "I will send Avery Stone the quarterly report I will send Riley Quinn the security questionnaire by e"
+      },
+      {
+        "type": "abstention",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech quoted us $120k for the annual contract Orion Tech revised the quote down to $95k after n"
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "I will send Alex Chen the pricing deck by Friday Sent the pricing deck to Alex Chen yesterday Orion "
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue Globex Corp is threatening to cancel their contract \u2014 "
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Auth service outage again \u2014 same root cause as last week Third auth outage this month \u2014 systemic iss"
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "Third auth outage this month \u2014 systemic issue"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Weekly tech digest: 10 articles about AI you should read"
+      },
+      {
+        "type": "noise_lookup",
+        "score": 0.0,
+        "answer": ""
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Monthly newsletter roundup \u2014 industry trends Weekly tech digest: 10 articles about AI you should rea"
+      },
+      {
+        "type": "priority",
+        "score": 0.75,
+        "answer": "EU regulatory fine of 5M euros imposed for GDPR violation Production down \u2014 sev1 incident on auth se"
+      },
+      {
+        "type": "priority",
+        "score": 0.6666666666666666,
+        "answer": "Maria Garcia from Acme Corp called on Tuesday and asked us to send the updated pricing proposal by F"
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene"
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "Presented Nova results at the all-hands I will present Nova results at the all-hands Nova results pr"
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "If legal signs off, I'll have SSO ready by Q4 SSO work is complete \u2014 pending legal review EU regulat"
+      },
+      {
+        "type": "cross_entity",
+        "score": 1.0,
+        "answer": "Compliance report is overdue \u2014 hasn't been sent I will send Priya Shah the compliance report by June"
+      },
+      {
+        "type": "prepare",
+        "score": 0.5,
+        "answer": "I will send Alex Chen the pricing deck by Friday Alice will pay $1M to VendorZ by Friday SSO work is"
+      }
+    ]
+  },
+  "stage4_full": {
+    "average": 0.7583333333333333,
+    "per_type": {
+      "abstention": 1.0,
+      "at_risk": 0.5333333333333333,
+      "broken": 0.6,
+      "conditional": 1.0,
+      "contradiction": 1.0,
+      "critical": 0.8125,
+      "cross_entity": 0.5,
+      "direct_lookup": 0.9333333333333333,
+      "disputed": 0.6666666666666666,
+      "multilingual": 1.0,
+      "noise_lookup": 0.75,
+      "overdue": 0.6666666666666666,
+      "prepare": 0.75,
+      "priority": 0.6666666666666666,
+      "recurring": 1.0,
+      "relational": 0.5666666666666667,
+      "temporal": 0.3125
+    },
+    "results": [
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "You promised Alex Chen that you would send the pricing deck by Friday. Based on: \u201cI will send Alex C",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Maria Garcia asked for the updated pricing proposal to be sent by Friday. She stated that Acme Corp\u2019",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "You sent Sam Patel the API integration. The evidence states: \u201c[Sam Patel] (2026-06-02) I will delive",
+        "llm": true
+      },
+      {
+        "type": "overdue",
+        "score": 1.0,
+        "answer": "The overdue promises are: \u201c[Priya Shah] (2026-06-30) Compliance report is overdue \u2014 hasn't been sent",
+        "llm": true
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "You failed to deliver the security questionnaire (Riley Quinn, 2026-07-02: \u201cNever sent the security ",
+        "llm": true
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "No commitments are at risk based on the evidence provided. All listed deadlines (2026-04-27, 2026-05",
+        "llm": true
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "You are repeatedly disappointing Priya Shah and Riley Quinn. Priya Shah\u2019s compliance report is overd",
+        "llm": true
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Priya Shah has become a delivery risk. The evidence states: \u201c(2026-06-30) Compliance report is overd",
+        "llm": true
+      },
+      {
+        "type": "relational",
+        "score": 0.5,
+        "answer": "Priya Shah keeps their promises, as evidenced by the commitment: \u201cI will send Priya Shah the complia",
+        "llm": true
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech\u2019s pricing is inconsistent across evidence: they initially quoted $120k for the annual con",
+        "llm": true
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Yes, Orion Tech changed their price. They first quoted $120k (2026-06-12), then revised it down to $",
+        "llm": true
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "The recurring issue across meetings is overdue deliverables. Specifically, the evidence cites \u201c[Priy",
+        "llm": true
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "You see a recurring pattern of auth service outages: three production incidents in less than two wee",
+        "llm": true
+      },
+      {
+        "type": "prepare",
+        "score": 0.5,
+        "answer": "You have 32 signals across 19 entities:\n\u2022 Avery Stone: I will send Avery Stone the quarterly report\n",
+        "llm": false
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "You committed to sending Priya Shah the compliance report by June 30 (evidence #1: \u201c[Priya Shah] (20",
+        "llm": true
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": "The security questionnaire for Riley Quinn has been pending since 2026-07-02 and is described as \u201cov",
+        "llm": true
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "You received two newsletters: \u201c[TechNewsletter] (2026-07-11) Monthly newsletter roundup \u2014 industry t",
+        "llm": true
+      },
+      {
+        "type": "noise_lookup",
+        "score": 0.5,
+        "answer": "The latest industry news in the evidence is Morgan Liu\u2019s incomplete Nova results presentation on 202",
+        "llm": true
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Yes, there are legal issues. The Legal Dept. states: \u201cEU regulatory fine of 5M euros imposed for GDP",
+        "llm": true
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Yes, Globex Corp is at risk of churning. The evidence states: \u201c[Globex Corp] (2026-07-10) Globex Cor",
+        "llm": true
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Yes, there is a board escalation: \u201c[Board] (2026-07-11) Board escalation: investor wants to see Q3 n",
+        "llm": true
+      },
+      {
+        "type": "priority",
+        "score": 0.75,
+        "answer": "Your most important commitment is the [EngOncall] (2026-06-28) Production down \u2014 sev1 incident on au",
+        "llm": true
+      },
+      {
+        "type": "priority",
+        "score": 0.5,
+        "answer": "Maria Garcia from Acme Corp needs your attention today: she \u201casked us to send the updated pricing pr",
+        "llm": true
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos said he will send the contract next Monday. Based on: \u201cCarlos dijo que enviar\u00e1 el contrato el",
+        "llm": true
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "Morgan Liu presented the Nova results at the all-hands on 2026-07-02, but the presentation was later",
+        "llm": true
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "SSO is not yet ready. According to Jamie Park on 2026-07-05, \u201cSSO work is complete \u2014 pending legal r",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "The Hiring Committee has one active commitment: it will make an offer to the senior engineer candida",
+        "llm": true
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "Engineering Team\u2019s velocity is reported as \u201cfine\u201d in recent standup notes: \u201cvelocity is fine, no blo",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I don't have enough reliable evidence to answer this question.",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "You promised Priya Shah that you would send her the compliance report by June 30. Based on: \u201cI will ",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "The Globex situation involves Globex Corp threatening to cancel their contract with your organizatio",
+        "llm": true
+      },
+      {
+        "type": "cross_entity",
+        "score": 1.0,
+        "answer": "Only Orion Tech has a confirmed pricing issue, as the evidence states: \u201cOrion Tech sent the final in",
+        "llm": true
+      },
+      {
+        "type": "cross_entity",
+        "score": 0.5,
+        "answer": "Orion Tech owes you something: they sent \u201cthe final invoice at $150k \u2014 pricing dispute\u201d, indicating ",
+        "llm": true
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "relational",
+        "score": 0.5,
+        "answer": "Sam Patel is your most reliable partner, as they delivered the API integration on time\u2014fulfilling th",
+        "llm": true
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Your biggest risks are Globex Corp and Riley Quinn. Globex Corp is \u201cthreatening to cancel their cont",
+        "llm": true
+      },
+      {
+        "type": "temporal",
+        "score": 1.0,
+        "answer": "The oldest unfulfilled commitment is Avery Stone\u2019s: \u201cI will send Avery Stone the quarterly report\u201d (",
+        "llm": true
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "You called Maria Garcia from Acme Corp on Tuesday (2026-07-09) and committed to sending an updated p",
+        "llm": true
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Yes, Orion Tech changed their mind. They initially quoted $120k on 2026-06-12, then \u201crevised the quo",
+        "llm": true
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "The auth service keeps breaking. Evidence states: \u201cAuth service outage again \u2014 same root cause as la",
+        "llm": true
+      },
+      {
+        "type": "critical",
+        "score": 0.5,
+        "answer": "The most urgent thing right now is the **Globex Corp contract cancellation threat**, as it is dated ",
+        "llm": true
+      },
+      {
+        "type": "disputed",
+        "score": 0.0,
+        "answer": "No completions were challenged. The evidence states only that \u201cSSO work is complete \u2014 pending legal ",
+        "llm": true
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "SSO readiness depends on legal sign-off, as Jamie Park stated, \u201cIf legal signs off, I'll have SSO re",
+        "llm": true
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene. Based on: \"Carlos dijo que enviar\u00e1 el contra",
+        "llm": true
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "broken",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "broken",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "Overdue and broken commitments are:  \n- [Priya Shah]\u2019s compliance report, which \u201cis overdue \u2014 hasn\u2019t",
+        "llm": true
+      },
+      {
+        "type": "broken",
+        "score": 1.0,
+        "answer": "Yes, you failed to deliver the security questionnaire to Riley Quinn. Evidence #2 states, \u201cI will se",
+        "llm": true
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "Riley Quinn\u2019s security questionnaire is past due (2026-07-02), and Priya Shah\u2019s compliance report is",
+        "llm": true
+      },
+      {
+        "type": "overdue",
+        "score": 0.6666666666666666,
+        "answer": "The only unfulfilled promise is [Sam Patel] (2026-06-02) \u201cI will deliver the API integration by Marc",
+        "llm": true
+      },
+      {
+        "type": "overdue",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "overdue",
+        "score": 1.0,
+        "answer": "Overdue commitments are:  \n- [Priya Shah] (2026-06-30) \u201cCompliance report is overdue \u2014 hasn't been s",
+        "llm": true
+      },
+      {
+        "type": "at_risk",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "at_risk",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "at_risk",
+        "score": 1.0,
+        "answer": "The compliance report for Priya Shah and the security questionnaire for Riley Quinn are at risk of b",
+        "llm": true
+      },
+      {
+        "type": "at_risk",
+        "score": 0.6666666666666666,
+        "answer": "The commitments threatened are those with deadlines that have already passed relative to today\u2019s dat",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "You promised Priya Shah that you would send her the compliance report by June 30. Based on: \u201cI will ",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "You sent Avery Stone the quarterly report. The evidence states: \u201cI will send Avery Stone the quarter",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "You promised to send Riley Quinn the security questionnaire by end of week. Based on: \u201cI will send R",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Carlos said in Spanish: \u201cCarlos dijo que enviar\u00e1 el contrato el lunes que viene.\u201d  \nBased on: \u201cCarlo",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "Morgan Liu presented the Nova results at the all-hands on 2026-07-02. However, the presentation was ",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "You committed to the Hiring Committee that they \u201cwill make an offer to the senior engineer candidate",
+        "llm": true
+      },
+      {
+        "type": "direct_lookup",
+        "score": 1.0,
+        "answer": "I don't have enough reliable evidence to answer this question.",
+        "llm": true
+      },
+      {
+        "type": "relational",
+        "score": 0.3333333333333333,
+        "answer": "Priya Shah has broken a commitment: \u201cCompliance report is overdue \u2014 hasn't been sent\u201d (2026-06-30), ",
+        "llm": true
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "relational",
+        "score": 1.0,
+        "answer": "Globex Corp is unhappy, as the evidence states: \u201cGlobex Corp is threatening to cancel their contract",
+        "llm": true
+      },
+      {
+        "type": "relational",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "relational",
+        "score": 0.6666666666666666,
+        "answer": "Riley Quinn and Priya Shah have unfulfilled promises. Riley Quinn \u201cNever sent the security questionn",
+        "llm": true
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": "The longest outstanding item is Priya Shah\u2019s compliance report, which was committed to be sent by Ju",
+        "llm": true
+      },
+      {
+        "type": "temporal",
+        "score": 0.5,
+        "answer": "You committed to sending Riley Quinn the security questionnaire by end of week on May 13, 2026. The ",
+        "llm": true
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": "The oldest unkept commitment is: \u201c[Sam Patel] (2026-06-02) I will deliver the API integration by Mar",
+        "llm": true
+      },
+      {
+        "type": "temporal",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": true
+      },
+      {
+        "type": "critical",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Yes, Globex Corp is churning: \u201c[Globex Corp] (2026-07-10) Globex Corp is threatening to cancel their",
+        "llm": true
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "The board is concerned about two things: (1) reviewing the updated pricing proposal \u2014 Maria Garcia s",
+        "llm": true
+      },
+      {
+        "type": "critical",
+        "score": 1.0,
+        "answer": "Yes, there are legal threats. Globex Corp is threatening to cancel their contract \u2014 pulling out. Add",
+        "llm": true
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "abstention",
+        "score": 1.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Yes, Orion Tech\u2019s price changed. It was initially quoted at $120k (2026-06-12), revised down to $95k",
+        "llm": true
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Orion Tech\u2019s final invoice was for $150k, sent on 2026-07-07, and is noted as involving a pricing di",
+        "llm": true
+      },
+      {
+        "type": "contradiction",
+        "score": 1.0,
+        "answer": "Yes, there was a pricing dispute with Orion Tech. The evidence states: \u201c[Orion Tech] (2026-07-07) Or",
+        "llm": true
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "The recurring production issue is auth service outages. Evidence states: \u201cThird auth outage this mon",
+        "llm": true
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "The auth service keeps going wrong. Evidence states: \u201cAuth service outage again \u2014 same root cause as",
+        "llm": true
+      },
+      {
+        "type": "recurring",
+        "score": 1.0,
+        "answer": "The systemic issue is the recurring authentication (auth) outages. The evidence states: \u201cThird auth ",
+        "llm": true
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "You got the \"Weekly tech digest: 10 articles about AI you should read\". This is stated verbatim in t",
+        "llm": true
+      },
+      {
+        "type": "noise_lookup",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "noise_lookup",
+        "score": 1.0,
+        "answer": "The newsletters that came in were [TechNewsletter] on 2026-07-11 (\u201cMonthly newsletter roundup \u2014 indu",
+        "llm": true
+      },
+      {
+        "type": "priority",
+        "score": 0.75,
+        "answer": "The most urgent commitment is the [EngOncall] (2026-06-28) \u201cProduction down \u2014 sev1 incident on auth ",
+        "llm": true
+      },
+      {
+        "type": "priority",
+        "score": 0.6666666666666666,
+        "answer": "The sev1 incident on the auth service needs attention immediately, as stated in the evidence: \u201c[EngO",
+        "llm": true
+      },
+      {
+        "type": "multilingual",
+        "score": 1.0,
+        "answer": "Carlos enviar\u00e1 el contrato. Based on: \"Carlos dijo que enviar\u00e1 el contrato el lunes que viene\" [2026",
+        "llm": true
+      },
+      {
+        "type": "disputed",
+        "score": 1.0,
+        "answer": "No, the Nova presentation was not complete. Morgan Liu explicitly stated on 2026-07-03 that \u201cNova re",
+        "llm": true
+      },
+      {
+        "type": "conditional",
+        "score": 1.0,
+        "answer": "Yes, the SSO is ready conditionally: the Engineering Team (via Jamie Park) stated, \u201cIf legal signs o",
+        "llm": true
+      },
+      {
+        "type": "cross_entity",
+        "score": 0.0,
+        "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+        "llm": false
+      },
+      {
+        "type": "prepare",
+        "score": 1.0,
+        "answer": "For the board meeting, you should prepare the Q3 numbers \u2014 an investor escalation explicitly states ",
+        "llm": true
+      }
+    ]
+  }
+}
