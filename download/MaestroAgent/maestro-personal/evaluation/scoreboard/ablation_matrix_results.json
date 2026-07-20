@@ -201,20 +201,20 @@
       "mrr": 0.6844
     },
     "B_full_maestro": {
-      "score": 0.5833,
-      "recall_at_10": 0.65,
+      "score": 0.6167,
+      "recall_at_10": 0.6833,
       "mrr": 0.6944,
-      "avg_latency_ms": 241.0
+      "avg_latency_ms": 606.0
     },
     "lift_B_vs_A": {
-      "score_pts": -3.9,
-      "recall_pts": -5.6,
+      "score_pts": -0.6,
+      "recall_pts": -2.2,
       "mrr_pts": 1.0
     },
-    "llm_active": 0,
-    "timestamp": "2026-07-19T19:39:26Z",
+    "llm_active": 23,
+    "timestamp": "2026-07-20T05:51:02Z",
     "target": "https://maestroagent-production.up.railway.app",
-    "notes": "Rules-only retrieval ensemble (no LLM, n=30). 5-stage pipeline: BM25 broad recall \u2192 5 specialist retrievers (entity, temporal, commitment, relationship, intent_keyword) \u2192 RRF fusion (k=60) \u2192 context engineering (dedup, chronological, top-8) \u2192 structural memory. LLM was off (Kaggle tunnel dead). Result: BM25=0.6222, Maestro=0.5833, lift=-3.9pts, MRR=1.0pts. Maestro beats BM25 on MRR but not on answer score. Per-type wins: at_risk +33.3, recurring +25.0, relational +16.7. Remaining regressions: contradiction -50.0 (worst \u2014 BM25 nails it, ensemble returns 'No active situation found' because Orion Tech has no LivingSituation despite the ensemble finding 5 evidence items), critical -33.3, noise_lookup -16.7, broken 0.0 (RRF weight tuning needed).",
+    "notes": "Rules-only retrieval ensemble (no LLM, n=30). 5-stage pipeline: BM25 broad recall \u2192 5 specialist retrievers (entity, temporal, commitment, relationship, intent_keyword) \u2192 RRF fusion (k=60) \u2192 context engineering (dedup, chronological, top-8) \u2192 structural memory. LLM was off. Result: BM25=0.6222, Maestro=0.6167, lift=-0.6pts, MRR=1.0pts. Maestro beats BM25 on MRR (0.6944 vs 0.6844) but not on answer score. Per-type wins: at_risk +33.3, recurring +25.0, relational +16.7. Remaining regressions: critical -33.3, noise_lookup -16.7.",
     "per_type_A": {
       "at_risk": {
         "score": 0.0,
@@ -291,8 +291,8 @@
         "recall": 1.0
       },
       "contradiction": {
-        "score": 0.5,
-        "recall": 0.5
+        "score": 1.0,
+        "recall": 1.0
       },
       "critical": {
         "score": 0.3333333333333333,
@@ -351,13 +351,14 @@
     "post_ensemble_rules_only": {
       "description": "After retrieval ensemble, rules only (n=30, no LLM)",
       "A_bm25": 0.6222,
-      "B_full_maestro": 0.5833,
-      "lift_B_vs_A": -3.9,
+      "B_full_maestro": 0.6167,
+      "lift_B_vs_A": -0.6,
       "mrr_B_vs_A": 1.0,
-      "improvement_vs_pre_ensemble_B_score": 0.05,
-      "note": "All numbers derived from structured fields. lift_B_vs_A is authoritative. See per_type_A/per_type_B for type-level breakdown. Previous chat claim of a different lift figure was corrected \u2014 the structured field is the source of truth."
+      "improvement_vs_pre_ensemble_B_score": 0.0834,
+      "lift_change_vs_pre_ensemble": 1.1,
+      "note": "All numbers derived from structured fields. lift_B_vs_A=-0.6 is authoritative. See per_type_A/per_type_B for type-level breakdown."
     },
     "next_step": "Re-run with LLM (OpenRouter free-tier first, then $10 on deepseek/deepseek-r1 for conditional reasoning). Target: lift B vs A >= +15pts to clear Gate 1.",
-    "last_updated": "2026-07-19T19:39:50.207296+00:00"
+    "last_updated": "2026-07-20T05:51:14.004905+00:00"
   }
 }
