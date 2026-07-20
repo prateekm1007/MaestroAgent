@@ -749,6 +749,7 @@ def retrieve(
     as_of: str | None = None,
     from_date: str | None = None,
     include_structural: bool = True,
+    use_reranker: bool = False,
 ) -> dict[str, Any]:
     """Top-level retrieval orchestrator.
 
@@ -759,7 +760,14 @@ def retrieve(
         "structural_memory_text": str (rendered for LLM prompt),
         "fused_count": int (signals before context engineering),
         "retriever_counts": {retriever_name: count},
+        "reranked": bool (whether Stage 4 reranker was applied),
       }
+
+    Args:
+        use_reranker: If True, apply LLM-based cross-encoder reranking
+            (Stage 4) between RRF fusion and context engineering.
+            Default False for backward compatibility. Set True to
+            measure precision improvement.
     """
     from maestro_personal_shell.ask_ranker import understand_query
 
@@ -801,6 +809,24 @@ def retrieve(
     # Stage 3: RRF fusion
     fused = reciprocal_rank_fusion(retriever_outputs, final_k=20)
 
+    # Stage 3.5: LLM-based cross-encoder reranking (optional, Stage 4)
+    # Uses the "LLM-as-a-reranker" technique: scores each signal's
+    # relevance to the query via a fast LLM call, then re-sorts.
+    # Skipped by default (use_reranker=False) for backward compatibility.
+    reranked = False
+    if use_reranker and fused:
+        try:
+            from maestro_personal_shell.stage4_reranker import rerank_evidence_sync
+            fused = rerank_evidence_sync(
+                query, fused, top_k=20, max_to_score=20,
+            )
+            reranked = True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Stage 4 reranker failed, using unranked RRF output: %s", e,
+            )
+
     # Stage 4: Context engineering
     evidence = context_engineer(fused, query, top_k=STAGE4_FINAL_TOP_K)
 
@@ -820,4 +846,5 @@ def retrieve(
         "fused_count": len(fused),
         "retriever_counts": retriever_counts,
         "understanding": understanding,
+        "reranked": reranked,
     }
