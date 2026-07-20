@@ -1,8 +1,14 @@
 /**
- * LoginScreen — extracted from the original App.tsx, unchanged in logic.
+ * LoginScreen — with registration support.
  *
- * Honey-accented access-code entry. Shows the LLM provider dot at the
- * bottom and a collapsible server URL override (saved to AsyncStorage).
+ * Ports the login/register toggle pattern from web/src/components/maestro/Login.tsx.
+ * Adds:
+ *   - Email field (shown for register, optional for login)
+ *   - Toggle between "Sign In" and "Create Account"
+ *   - Calls /api/auth/register when in register mode
+ *
+ * Fixes the 4-round-old finding: zero references to /api/auth/register
+ * anywhere in mobile/src.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -18,16 +24,19 @@ import { colors, getTheme, spacing } from '../theme/colors';
 import { useAuth, useTheme } from '../contexts';
 import { LLMDot } from '../components';
 import { styles } from '../styles';
+import { login, register } from '../api/client';
 
 export default function LoginScreen() {
   const { mode } = useTheme();
   const t = getTheme(mode);
-  const { login, llmStatus, token: existingToken, setToken } = useAuth() as any;
+  const { llmStatus, token: existingToken, setToken } = useAuth() as any;
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState('http://localhost:8766');
   const [showServerConfig, setShowServerConfig] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
 
   // Load saved server URL on mount
   useEffect(() => {
@@ -37,27 +46,53 @@ export default function LoginScreen() {
   }, []);
 
   const handleLogin = async () => {
-    // Phase 0 fix (Round 67): validate empty password before attempting login.
-    // Prevents sending an empty credential to the backend + gives the user
-    // immediate haptic + error feedback.
+    // Validate inputs
     if (!password || !password.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setError(true);
+      setError('Enter your password.');
       return;
     }
+    if (isRegister && !email.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setError('Enter your email to register.');
+      return;
+    }
+
     setLoading(true);
-    setError(false);
+    setError(null);
+
     // Save server URL before login
     await AsyncStorage.setItem('maestro_host', serverUrl);
-    // Demo mode: skip auth, use a hardcoded demo token
+
     try {
-      await SecureStore.setItemAsync('maestro_token', 'demo-bypass-token')
-        .catch(() => AsyncStorage.setItem('maestro_token', 'demo-bypass-token'));
-      setToken('demo-bypass-token');
-    } catch {
-      setError(true);
+      const result = isRegister
+        ? await register(email.trim(), password)
+        : await login(password);
+
+      if (result && result.token) {
+        // Store token securely
+        await SecureStore.setItemAsync('maestro_token', result.token)
+          .catch(() => AsyncStorage.setItem('maestro_token', result.token));
+        setToken(result.token);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError(result?.message || (isRegister ? 'Registration failed' : 'Login failed'));
+      }
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const msg = err?.response?.data?.detail || err?.message || 'Network error';
+      setError(msg);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  const toggleMode = () => {
+    setIsRegister(r => !r);
+    setError(null);
+    setPassword('');
+    setEmail('');
   };
 
   return (
@@ -95,35 +130,74 @@ export default function LoginScreen() {
           <Text style={{ color: t.textSecondary, fontSize: 12 }}>{showServerConfig ? '▲ Hide' : '⚙ Server: ' + serverUrl.replace('http://', '').replace('https://', '')}</Text>
         </TouchableOpacity>
 
+        {/* Email field — shown for register, optional for login */}
+        {isRegister && (
+          <TextInput
+            style={[
+              styles.loginInput,
+              { backgroundColor: t.surface, color: t.textPrimary, borderColor: 'transparent', marginBottom: spacing.sm },
+            ]}
+            placeholder="Email (you@example.com)"
+            placeholderTextColor={t.textSecondary}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            accessibilityLabel="Email"
+            accessibilityHint="Enter your email to register"
+          />
+        )}
+
         <TextInput
           style={[
             styles.loginInput,
             { backgroundColor: t.surface, color: t.textPrimary, borderColor: error ? colors.alertRed : 'transparent' },
           ]}
-          placeholder="Demo mode — just tap ENTER"
+          placeholder={isRegister ? 'Choose a password' : 'Password (demo mode: any value)'}
           placeholderTextColor={t.textSecondary}
           value={password}
           onChangeText={setPassword}
           onSubmitEditing={handleLogin}
+          secureTextEntry
           autoCapitalize="none"
-          accessibilityLabel="Access code"
-          accessibilityHint="Demo mode — just tap ENTER to explore"
-          accessibilityRole="text"
+          accessibilityLabel="Password"
+          accessibilityHint={isRegister ? 'Choose a password for your account' : 'Enter your password'}
         />
 
+        {error && (
+          <Text style={{ color: colors.alertRed, fontSize: 13, marginTop: spacing.sm, textAlign: 'center' }} accessibilityRole="alert">
+            {error}
+          </Text>
+        )}
+
         <TouchableOpacity
-          style={[styles.loginButton, { backgroundColor: colors.yellow, opacity: loading ? 0.5 : 1 }]}
+          style={[styles.loginButton, { backgroundColor: colors.yellow, opacity: loading ? 0.5 : 1, marginTop: spacing.md }]}
           onPress={handleLogin}
-          disabled={loading}
+          disabled={loading || !password || (isRegister && !email.trim())}
           accessibilityRole="button"
-          accessibilityLabel="Log in"
-          accessibilityHint={loading ? 'Signing in' : 'Logs you into Maestro'}
+          accessibilityLabel={isRegister ? 'Create account' : 'Log in'}
+          accessibilityHint={loading ? (isRegister ? 'Creating account' : 'Signing in') : (isRegister ? 'Creates a new Maestro account' : 'Logs you into Maestro')}
         >
           {loading ? (
             <ActivityIndicator color={colors.black} />
           ) : (
-            <Text style={{ color: colors.black, fontSize: 16, fontWeight: 'bold' }}>ENTER →</Text>
+            <Text style={{ color: colors.black, fontSize: 16, fontWeight: 'bold' }}>
+              {isRegister ? 'CREATE ACCOUNT →' : 'ENTER →'}
+            </Text>
           )}
+        </TouchableOpacity>
+
+        {/* Toggle between Login and Register */}
+        <TouchableOpacity
+          onPress={toggleMode}
+          style={{ marginTop: spacing.lg, alignSelf: 'center' }}
+          accessibilityRole="button"
+          accessibilityLabel={isRegister ? 'Switch to sign in' : 'Switch to register'}
+        >
+          <Text style={{ color: t.textSecondary, fontSize: 13 }}>
+            {isRegister ? 'Already have an account? Sign in' : 'New here? Create an account'}
+          </Text>
         </TouchableOpacity>
 
         <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' }}>

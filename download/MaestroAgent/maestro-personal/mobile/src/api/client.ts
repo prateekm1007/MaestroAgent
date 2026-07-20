@@ -461,6 +461,18 @@ export async function login(password: string): Promise<LoginResult> {
   return response.data;
 }
 
+export async function register(email: string, password: string): Promise<LoginResult> {
+  // Ports the web register() pattern. Calls /api/auth/register with
+  // user_email + password. Returns the same LoginResult shape as login()
+  // (token + message). Fixes the 4-round-old finding: zero references
+  // to /api/auth/register anywhere in mobile/src.
+  const response = await api.post('/api/auth/register', {
+    user_email: email,
+    password,
+  });
+  return response.data;
+}
+
 export async function getHealth(): Promise<{ status: string; service: string }> {
   const response = await api.get('/api/health');
   return response.data;
