@@ -182,9 +182,8 @@ def get_processing_mode() -> dict[str, str]:
             else:
                 llm_egress = True
                 egress_paths.append({"path": "cloud_llm", "destination": provider, "data": "signal text for AI processing"})
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug("append failed: %s", e)
     # Push notifications ALWAYS egress (Expo API)
     egress_paths.append({
         "path": "push_notifications",

@@ -381,9 +381,8 @@ Identify any sentiment shifts or notable dynamics."""
                         "text": str(a.get("text", ""))[:100],
                     })
             return normalized
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug("return normalized failed: %s", e)
     return []
 
 

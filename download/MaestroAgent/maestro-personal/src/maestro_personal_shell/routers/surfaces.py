@@ -681,8 +681,8 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
                 score += min(age_days, 20)
                 if age_days > 7:
                     reasons.append(f"made {age_days} days ago")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("append failed: %s", e)
         # Change 5: Learning loop affects ranking — entities with high
         # dismissal rates get deprioritized (score * (1 - dismissal_rate * 0.5))
         try:
@@ -721,9 +721,8 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
             try:
                 ct = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
                 mat_context["age_days"] = (now - ct).days
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.debug("= failed: %s", e)
         materiality = await materiality_gate_v2(best_commitment, mat_context, user_email=token)
 
         try:
@@ -746,9 +745,8 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
                 evidence_available=evidence_avail,
                 candidate_output=candidate,
             )
-        except Exception:
-            pass
-
+        except Exception as e:
+            logger.debug(") failed: %s", e)
         if not materiality.get("should_speak", True):
             return TheMomentResponse(
                 has_moment=False,

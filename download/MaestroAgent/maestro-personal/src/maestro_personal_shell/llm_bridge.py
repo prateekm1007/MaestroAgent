@@ -474,8 +474,7 @@ class ZAIRouter:
             try:
                 os.unlink(output_path)
             except OSError:
-                pass
-
+                logger.debug("unlink failed: %s", e)
     def health_check(self) -> bool:
         """Quick health check — verify the z-ai CLI is installed.
 
@@ -668,9 +667,8 @@ def get_llm_router() -> Any:
             return _router
         except Exception as e:
             logger.debug("maestro_llm Ollama init failed: %s", e)
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug("debug failed: %s", e)
     # No LLM available — return None (fallback to rule-based)
     logger.warning(
         "No LLM provider available — using rule-based fallback. "
@@ -704,9 +702,8 @@ def is_llm_available() -> bool:
         from maestro_llm.router import LLMRouter as _LLMRouter
         if _LLMRouter.has_env_provider():
             return True
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug("return True failed: %s", e)
     # Check for remote Ollama tunnel — also bypass circuit breaker
     _ollama_host = os.environ.get("OLLAMA_HOST", "")
     _is_remote_ollama = (
@@ -772,8 +769,8 @@ def _get_fallback_router(primary: Any) -> Any:
             _ollama = _OllamaDirectRouter()
             if _ollama.health_check():
                 return _ollama
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("return _ollama failed: %s", e)
         # Also try maestro_llm cloud
         try:
             import sys as _sys
@@ -784,17 +781,16 @@ def _get_fallback_router(primary: Any) -> Any:
             from maestro_llm.router import LLMRouter
             if LLMRouter.has_env_provider():
                 return LLMRouter.from_env_sync()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("from_env_sync failed: %s", e)
     # If primary is Ollama, try ZAI
     elif isinstance(primary, _OllamaDirectRouter):
         try:
             zai = ZAIHTTPRouter()
             if zai.health_check():
                 return zai
-        except Exception:
-            pass
-
+        except Exception as e:
+            logger.debug("return zai failed: %s", e)
     return None
 
 
@@ -1003,8 +999,7 @@ def extract_json(text: str, expect: str = "object") -> Any | None:
         if expect == "array" and isinstance(result, list):
             return result
     except json.JSONDecodeError:
-        pass
-
+        logger.debug("return result failed: %s", e)
     return None
 
 

@@ -81,7 +81,7 @@ class PersonalGraph:
         try:
             conn.execute("ALTER TABLE graph_patterns ADD COLUMN user_email TEXT DEFAULT 'bootstrap'")
         except sqlite3.OperationalError:
-            pass
+            logger.debug("execute failed: %s", e)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS graph_edges (
                 edge_id TEXT PRIMARY KEY,

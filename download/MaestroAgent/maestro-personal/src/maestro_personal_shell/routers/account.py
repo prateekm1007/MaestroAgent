@@ -142,7 +142,7 @@ async def delete_account(token: str = Depends(verify_token_dep)):
                 conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
                 deleted_stores.append(table)
             except sqlite3.OperationalError:
-                pass
+                logger.debug("append failed: %s", e)
         # Predictions + outcomes (P0 fix: use user_email column)
         try:
             conn.execute("""
@@ -157,7 +157,7 @@ async def delete_account(token: str = Depends(verify_token_dep)):
                 conn.execute("DELETE FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',))
                 deleted_stores.append("predictions (fallback)")
             except sqlite3.OperationalError:
-                pass
+                logger.debug("append failed: %s", e)
         # Graph + devices + push_log + tokens
         for table in ("graph_entities", "graph_edges", "graph_patterns",
                       "push_log", "devices", "user_tokens"):
@@ -165,7 +165,7 @@ async def delete_account(token: str = Depends(verify_token_dep)):
                 conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
                 deleted_stores.append(table)
             except sqlite3.OperationalError:
-                pass
+                logger.debug("append failed: %s", e)
         conn.commit()
     finally:
         conn.close()
@@ -791,8 +791,8 @@ async def get_depth(token: str = Depends(verify_token_dep)):
                 counts = get_prediction_count(user_email=token)
                 if counts.get("resolved", 0) == 0:
                     is_producing = False
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("is_producing failed: %s", e)
         if is_producing:
             producing_value.append(module_name)
         else:

@@ -600,9 +600,8 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
                     confirmed = metrics.get("confirmed_count", 0)
                     if resolved > 0:
                         outcome = f"Kept {confirmed}/{resolved} like this"
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.debug("outcome failed: %s", e)
         # Coherence fix: also mark as at_risk if there's a broken/overdue
         # reported_statement for the same entity (e.g., Riley's "Never sent")
         entity_lower = c.get("entity", "").lower()

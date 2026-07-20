@@ -157,9 +157,8 @@ def get_behavior_adjustments(user_email: str, db_path: str | None = None) -> dic
         report = get_calibration_report(db_path=path, user_email=user_email)
         if report.get("brier_score") is not None:
             _brier = report["brier_score"]
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug("_brier failed: %s", e)
     conn.close()
 
     return {

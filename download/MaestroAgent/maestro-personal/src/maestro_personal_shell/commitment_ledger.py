@@ -280,8 +280,8 @@ def _transition_state_conn(
                 details={"from": from_state, "to": to_state, "signal_id": signal_id},
                 db_path=db_path,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(") failed: %s", e)
         logger.warning(
             "Rejected illegal commitment transition %s → %s for ledger %s",
             from_state, to_state, ledger_id,
@@ -306,8 +306,8 @@ def _transition_state_conn(
             details={"from": from_state, "to": to_state, "signal_id": signal_id},
             db_path=db_path,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(") failed: %s", e)
     return True
 
 

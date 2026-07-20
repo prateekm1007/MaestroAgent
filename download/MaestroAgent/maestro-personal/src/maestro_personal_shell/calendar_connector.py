@@ -186,9 +186,8 @@ class CalendarOAuthClient:
                 expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
                 if datetime.now(timezone.utc) < (expires_at - timedelta(minutes=5)):
                     return token_data.get("access_token", ""), stored_token_json
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.debug("get failed: %s", e)
         refresh_token = token_data.get("refresh_token", "")
         if not refresh_token:
             return "", stored_token_json

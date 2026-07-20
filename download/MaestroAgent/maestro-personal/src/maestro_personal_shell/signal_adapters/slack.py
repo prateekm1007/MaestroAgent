@@ -215,7 +215,6 @@ def sanitize_slack_text(text: str) -> str:
     try:
         from maestro_personal_shell.llm_bridge import sanitize_for_llm
         text = sanitize_for_llm(text)
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug("sanitize_for_llm failed: %s", e)
     return text

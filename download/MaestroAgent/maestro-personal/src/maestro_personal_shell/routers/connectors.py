@@ -207,8 +207,7 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
                 from maestro_personal_shell.github_connector import is_github_configured
                 _oauth_configured = is_github_configured()
         except ImportError:
-            pass
-
+            logger.debug("is_github_configured failed: %s", e)
         if _oauth_configured:
             raise HTTPException(
                 status_code=400,

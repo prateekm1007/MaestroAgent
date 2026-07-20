@@ -116,9 +116,8 @@ class PostgresConnection:
     def close(self):
         try:
             self._conn.close()
-        except Exception:
-            pass
-
+        except Exception as e:
+            logger.debug("close failed: %s", e)
     @property
     def row_factory(self):
         return getattr(self._conn, "row_factory", None)
@@ -157,8 +156,8 @@ def get_db_conn(db_path: str | None = None, busy_timeout: int = _DEFAULT_BUSY_TI
     conn.execute(f"PRAGMA busy_timeout = {busy_timeout}")
     try:
         conn.execute("PRAGMA journal_mode = WAL")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("execute failed: %s", e)
     return conn
 
 

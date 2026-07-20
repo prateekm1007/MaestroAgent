@@ -187,8 +187,8 @@ def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
                 }
                 try:
                     save_signal_to_db(signal, db_path=db_path, user_email="default@personal.local")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("save_signal_to_db failed: %s", e)
             logger.info("Demo seeder: also seeded for default@personal.local")
 
         # Rebuild FTS index so the new signals are searchable

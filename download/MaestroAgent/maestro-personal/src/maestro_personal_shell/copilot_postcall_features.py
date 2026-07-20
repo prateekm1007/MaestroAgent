@@ -165,9 +165,8 @@ class FollowUpEmailGenerator:
                 sigs = self._signals_for_entity(entity)
                 if len(sigs) > 5:
                     return "warm"
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.debug("_signals_for_entity check failed: %s", e)
         return "professional"
 
     def _signals_for_entity(self, entity: str) -> list:
@@ -176,8 +175,8 @@ class FollowUpEmailGenerator:
             shell = self.shell
             if hasattr(shell, "core") and shell.core and shell.core.signals:
                 return [s for s in shell.core.signals if getattr(s, "entity", "") == entity]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("getattr failed: %s", e)
         return []
 
     # --- Section builders --------------------------------------------------
@@ -298,8 +297,8 @@ class FollowUpEmailGenerator:
                              "confidence": getattr(l, "confidence", 0.5)}
                             for l in laws
                         ]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("] failed: %s", e)
         return []
 
     # --- Send-time suggestion ---------------------------------------------
@@ -389,8 +388,8 @@ class PreCallIntelPanel:
             if hasattr(shell, "core") and shell.core and shell.core.signals:
                 return [s for s in shell.core.signals
                         if getattr(s, "entity", "").lower() == entity.lower()]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("getattr failed: %s", e)
         return []
 
     def _commitments_for_entity(self, entity: str) -> list:

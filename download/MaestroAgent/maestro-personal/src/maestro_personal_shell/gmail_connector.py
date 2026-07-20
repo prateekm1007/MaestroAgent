@@ -212,9 +212,8 @@ class GmailOAuthClient:
                 if datetime.now(timezone.utc) < (expires_at - timedelta(minutes=5)):
                     # Token still valid
                     return token_data.get("access_token", ""), stored_token_json
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.debug("get failed: %s", e)
         # Token expired — refresh
         refresh_token = token_data.get("refresh_token", "")
         if not refresh_token:

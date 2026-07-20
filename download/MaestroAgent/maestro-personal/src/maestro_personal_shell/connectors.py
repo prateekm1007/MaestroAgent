@@ -574,9 +574,8 @@ class ConnectorStore:
                         "timestamp": msg.get("timestamp", now),
                         "source": msg.get("source", provider),
                     })
-                except Exception:
-                    pass
-
+                except Exception as e:
+                    logger.debug("}) failed: %s", e)
         # Update last_ingest_at + commitments_ingested
         try:
             conn = get_db_conn(self.db_path)

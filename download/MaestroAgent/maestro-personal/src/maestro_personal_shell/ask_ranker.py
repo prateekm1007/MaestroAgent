@@ -404,9 +404,8 @@ def rerank_signals(
                 ts = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
                 days_old = (datetime.now(timezone.utc) - ts).days
                 score += max(0, 10 - days_old)
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.debug("max failed: %s", e)
         scored.append((score, sig))
 
     scored.sort(key=lambda x: x[0], reverse=True)

@@ -246,9 +246,8 @@ def rank_deltas(deltas: list[dict[str, Any]], user_email: str = "bootstrap",
                     ts = ts.replace(tzinfo=timezone.utc)
                 days_old = (now - ts).days
                 recency = max(0.1, 1.0 - (days_old / 30.0))
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.debug("max failed: %s", e)
         # Factor 4: user-actionability (1.0 if user can act, 0.3 if not)
         actionability = 0.5  # default
         text_lower = str(delta.get("text", "")).lower()
@@ -374,8 +373,8 @@ def dedupe_and_cooldown(
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
                 recent_notifications[key] = dt
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("recent_notifications[key] failed: %s", e)
         sid = entry.get("signal_id", "")
         if sid:
             notified_signal_ids.add(sid)

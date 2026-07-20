@@ -1068,9 +1068,8 @@ async def trace_id_middleware(request: Request, call_next):
             latency_ms=latency_ms,
             user_email=_ue if _ue else None,
         )
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug(") failed: %s", e)
     return response
 
 # CORS — allow the mobile app (Expo Metro bundler runs on :8081/:19000) to call
@@ -1331,9 +1330,8 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
         conn.close()
         if row:
             user_email = row[0]
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug("user_email failed: %s", e)
     # Fallback: bootstrap token (disabled in production)
     if not user_email and not _is_production():
         env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
@@ -1380,9 +1378,8 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                             "unknowns": getattr(briefing, "unknowns", []),
                             "ask_prompt": getattr(briefing, "ask_prompt", ""),
                         }
-                    except Exception:
-                        pass
-
+                    except Exception as e:
+                        logger.debug("} failed: %s", e)
                 ambient_data = await get_ambient_intelligence(shell)
 
                 await websocket.send_json({
@@ -1566,14 +1563,12 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
                 await websocket.send_json({"type": "post_call", **summary})
 
     except WebSocketDisconnect:
-        pass
+        logger.debug("send_json failed: %s", e)
     except Exception as e:
         try:
             await websocket.send_json({"type": "error", "message": str(e)})
-        except Exception:
-            pass
-
-
+        except Exception as e:
+            logger.debug("send_json failed: %s", e)
 # Register the WebSocket route properly
 # P-2026-07-18 fix: /ws/copilot is also disabled (part of the /api/copilot/*
 # surface that the auditor flagged). To re-enable, uncomment the next line.
