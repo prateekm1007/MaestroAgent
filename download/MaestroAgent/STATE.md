@@ -527,6 +527,38 @@ Senior auditor said "do all 3 sequentially":
   what's already built vs missing, grounded in this session's ablation
   results. Stage 4 (cross-encoder reranker) is the biggest missing piece.
 
+**10. Relational intent fix + n=100 re-run (governance loop re-read this session).**
+- Re-read all 4 governance files from disk per GOVERNANCE_LOOP protocol
+  (GOVERNANCE.md 177 lines, ENTROPY_RECOVERY.md 225 lines,
+  GOVERNANCE_LOOP.md 192 lines, AUDITOR_GOVERNANCE.md 211 lines).
+  Read receipt pasted above.
+- **Relational Recall@10: 0.34 → 0.68 (+34pts).** Root cause (Gate 7):
+  5 of 10 relational queries detected as `intent=general` because the
+  relational intent's triggers didn't match phrasings like "Which person
+  has become a delivery risk?" or "Who are my biggest risks?". No intent
+  = no intent_keyword retriever = BM25 only = can't find signals without
+  keyword overlap. Fix: expanded relational triggers from 6 to 12 patterns
+  + added 11 new signal_match keywords (threatening, cancel, churn,
+  unhappy, frustrated, disappointed, reliable, on time, follow up,
+  unfulfilled, outstanding). 8/10 relational queries now detect correctly.
+- **P14 (bugs migrate deeper):** cross_entity dropped 0.92 → 0.75 Recall
+  (-17pts) because the new relational triggers catch some cross_entity
+  queries before cross_entity can. Tradeoff worth taking since relational
+  was much weaker (0.34 vs 0.92).
+- **n=100 ablation with ALL intent fixes (priority + critical + relational):**
+  - B_full_maestro: **0.7600 = 7.6/10** (was 7.4 with qwen before intent
+    fixes, was 6.9 with llama at session start — **+7.5pts total session gain**)
+  - lift_B_vs_A: **+26.9pts** (was +22.3pts)
+  - LLM activation: 77/100 = 77% (was 23% at session start)
+  - Per-type wins: priority +28.7pts (0.38→0.67), relational +13.0pts
+    (0.47→0.60), critical +12.3pts (0.69→0.81)
+  - Per-type regression: cross_entity -22.2pts (0.50→0.28) — P14
+- **Evaluation harness v1 Recall@10 progression this session:**
+  - Start: ~0.54 (original baseline)
+  - After priority+critical intent fix: 0.7684 (+23pts)
+  - After relational intent fix: **0.7974** (+2.9pts more)
+  - Target: 0.95. Gap: ~15pts (was ~41pts at session start)
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between

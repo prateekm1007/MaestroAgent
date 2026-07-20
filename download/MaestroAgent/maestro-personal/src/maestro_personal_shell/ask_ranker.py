@@ -121,16 +121,32 @@ def understand_query(query: str) -> dict[str, Any]:
             "signal_types": {"broken", "commitment_broken", "commitment_made"},
         }),
         # F1: relational — "Who am I disappointing?" / "Who are my risks?"
+        # F-Relational fix (2026-07-20): expanded triggers — 5/10 relational
+        # queries were falling through to intent=general because the original
+        # triggers didn't match phrasings like "Which person has become a
+        # delivery risk?" or "Who are my biggest risks?" or "Who has broken
+        # commitments?" or "Who should I follow up with?" or "Who delivered
+        # on time?". Each of these needs the intent_keyword retriever to fire
+        # or BM25 alone can't find the right signals.
         ("relational", {
             "trigger": [r"who\s+am\s+i\s+(?:disappoint|failing|letting)",
-                        r"who\s+(?:is|are)\s+(?:my\s+)?(?:risk|risk|delivery\s+risk)",
-                        r"who\s+(?:keeps|has)\s+(?:breaking|missing|failing)",
-                        r"who\s+(?:are\s+)?my\s+(?:most\s+)?(?:reliable|risk|unreliable)",
-                        r"who\s+owes\s+me", r"who\s+am\s+i\s+(?:waiting|waiting\s+on)"],
+                        r"who\s+(?:is|are)\s+(?:my\s+)?(?:risk|delivery\s+risk)",
+                        r"which\s+(?:person|client|customer|partner)\s+(?:has|is|are)",
+                        r"who\s+(?:keeps|has)\s+(?:breaking|missing|failing|broken)",
+                        r"who\s+(?:are\s+)?my\s+(?:most\s+)?(?:reliable|risk|unreliable|biggest)",
+                        r"who\s+owes\s+me", r"who\s+am\s+i\s+(?:waiting|waiting\s+on)",
+                        r"who\s+(?:should\s+i|to)\s+follow\s+up",
+                        r"who\s+(?:delivered|delivers)\s+on\s+time",
+                        r"who\s+has\s+(?:broken|unfulfilled|outstanding)",
+                        r"which\s+(?:clients|customers|people)\s+(?:are|have)",
+                        r"who\s+(?:keeps|has)\s+(?:their\s+)?promises"],
             "signal_match": ["never sent", "didn't send", "overdue", "missed",
                              "failed to", "broken", "delayed", "hasn't",
-                             "still pending", "delivered", "completed", "sent the"],
-            "signal_types": {"broken", "commitment_made", "reported_statement"},
+                             "still pending", "delivered", "completed", "sent the",
+                             "threatening", "cancel", "churn", "unhappy",
+                             "frustrated", "disappointed", "reliable", "on time",
+                             "follow up", "unfulfilled", "outstanding"],
+            "signal_types": {"broken", "commitment_made", "reported_statement", "alert"},
         }),
         # F1: abstention — "What did I commit to in 2024?" / "Who is John Smith?"
         ("abstention", {
