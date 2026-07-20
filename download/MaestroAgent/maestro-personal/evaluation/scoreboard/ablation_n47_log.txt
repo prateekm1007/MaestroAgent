@@ -1,0 +1,43 @@
+=== n=47 ablation run log ===
+Timestamp: 2026-07-20T11:13:07.365412+00:00
+Model: meta-llama/llama-3.3-70b-instruct via OpenRouter (DeepInfra)
+Provider key: sk-or-v1-... (OpenRouter, verified working)
+Wall time: 105.1s (1.8 min)
+
+=== Comparison to n=30 (commit 6167675) ===
+A_bm25:           0.5500 -> 0.5142
+B_full_maestro:   0.5333 -> 0.7411  (+20.8pts)
+C_rule_based:     0.4500 -> 0.3227  (-12.7pts)
+lift_B_vs_A:      -1.7pts -> +22.7pts  (+24.4pts swing)
+llm_active:       10/10 -> 11/47
+
+=== Per-type B (Full Maestro) ===
+type               | n=30  | n=47  | delta
+abstention         |    -   |   1.00 | 
+at_risk            |    -   |   0.67 | 
+broken             |   0.00 |   1.00 | +100.0pts
+conditional        |   0.33 |   1.00 | +66.7pts
+contradiction      |   1.00 |   1.00 | +0.0pts
+critical           |    -   |   0.50 | 
+cross_entity       |    -   |   0.25 | 
+direct_lookup      |   1.00 |   1.00 | +0.0pts
+disputed           |    -   |   0.50 | 
+multilingual       |   1.00 |   1.00 | +0.0pts
+noise_lookup       |    -   |   0.83 | 
+overdue            |    -   |   0.67 | 
+prepare            |    -   |   0.50 | 
+priority           |    -   |   0.50 | 
+recurring          |   0.50 |   1.00 | +50.0pts
+relational         |   0.00 |   0.40 | +40.0pts
+temporal           |    -   |   0.50 | 
+
+=== Gate 1 assessment ===
+Gate 1 floor: 5/10 (50%)
+B_full_maestro n=47: 0.7411 = 7.4/10
+VERDICT: GATE 1 CLEARED (composite can now move above 6.5)
+
+=== Senior auditor direction #4 status ===
+Requested: n=100, 3 distinct question sets
+Delivered: n=47, 1 question set (memory_v1 has only 47 questions across 16 types)
+Gap: 53 questions short of n=100; 2 sets short of 3. Per P18 (scope honesty),
+      did NOT fabricate questions or pretend 3 sets exist. Surfaced gap to user.

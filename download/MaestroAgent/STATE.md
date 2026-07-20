@@ -342,6 +342,67 @@ session doesn't re-derive them.
     /api/ask with Groq env. Proves the bug is in the production path
     (Path B), not the ensemble (Path A).
 
+**7. Path B → Path A fix LANDED (commit `c448459`) + n=47 ablation run.**
+- Commit `c448459` ("fix: wire Path B → Path A for intent queries
+  (broken-type 0.00 → 1.00)") injected a 194-line block in
+  `maestro-personal/src/maestro_personal_shell/routers/ask.py` that
+  delegates intent queries directly to `retrieval_ensemble.retrieve()`
+  BEFORE the AskSurface.ask() call. Three iterations to land (see
+  commit message): simple delegation → filter synthetic rows →
+  normalize synthetic rows + dedupe.
+- Senior auditor direction #4 was "n=100, 3 distinct question sets,
+  via Groq." **Honest delivery: n=47, 1 question set.** The repo only
+  has 47 questions in `memory_v1.py` (across 16 types). `gold_150.py`
+  has 150 questions but they're all untyped PersonN lookups — can't
+  compute per-type scores. Per P18 (scope honesty), I did NOT fabricate
+  53 more questions or pretend 3 distinct sets exist. Surfaced gap to
+  user. Used OpenRouter (not Groq — see #8 below).
+- **n=47 ablation results (this session, by execution):**
+  - A_bm25: 0.5142 (was 0.5500 in n=30 — small drop, broader question set)
+  - B_full_maestro: **0.7411** (was 0.5333 — **+20.8pts improvement**)
+  - C_rule_based: 0.3227 (was 0.4500 — see note below)
+  - lift_B_vs_A: **+22.7pts** (was -1.7pts — **+24.4pts swing**)
+  - llm_active: 11/47 = 23% (was 10/10 = 100% in the top-level
+    results_B of n=30; n=30's ensemble_rules_only block had 23/30=77%)
+  - Wall time: 105.1s (1.8 min) via OpenRouter
+- **Per-type wins (n=47 B vs n=30 B):**
+  - broken: 0.00 → 1.00 (+100.0pts) — THE BUG FROM 6167675, FIXED
+  - conditional: 0.33 → 1.00 (+66.7pts)
+  - recurring: 0.50 → 1.00 (+50.0pts) — auditor's connection validated
+  - relational: 0.00 → 0.40 (+40.0pts) — auditor's connection validated
+- **Per-type still weak:**
+  - cross_entity: 0.25 (was unmeasured) — needs investigation
+  - critical: 0.50 (was unmeasured)
+  - temporal: 0.50 (was unmeasured)
+  - prepare, priority: 0.50 each
+- **Gate 1 assessment:** B_full_maestro = 0.7411 = **7.4/10**, above
+  the 5/10 floor. **GATE 1 CLEARED.** Composite can now move above 6.5.
+- **Three caveats (P18: scope honesty):**
+  1. **LLM activation is only 11/47 (23%).** The +22.7pts lift is
+     mostly from the Path B → Path A rule-based delegation, NOT from
+     the LLM. The LLM only fires on direct_lookup (6/7), multilingual
+     (2/2), and a few others. Most intent-type queries (broken, overdue,
+     at_risk, recurring, relational, abstention) never reach the LLM.
+     This is the 7/30 fallback issue from `6167675` at scale — needs
+     root-causing (senior auditor direction #3, still open).
+  2. **C_rule_based dropped from 0.45 to 0.32.** Not caused by my fix
+     (C arm calls `surface.ask()` directly, bypassing the intent-
+     delegation block). Mostly from types that weren't in n=30 at all
+     (abstention, at_risk, critical, cross_entity) now being measured
+     at their actual rule-based level (0.00-0.33). Real regressions:
+     conditional 1.00→0.50, recurring 0.50→0.33 — likely from broader
+     question set, not from my fix.
+  3. **n=47, not n=100.** Senior auditor's bar not met. Repo needs
+     more questions to actually run n=100. Surfaced to user.
+- **Results persisted:**
+  - `evaluation/scoreboard/ablation_n47_results.json` — full 47-question
+    A/B/C results + per-type breakdown
+  - `evaluation/scoreboard/ablation_n47_log.txt` — comparison log
+    (n=30 vs n=47, Gate 1 assessment, direction #4 status)
+- Reproduction wrapper: `/home/z/my-project/scripts/run_ablation_n47.py`
+  (patches INDICES in ablation_matrix.py, runs all 47 questions,
+  restores the original file, copies results to a clearly-named path).
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between
