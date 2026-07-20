@@ -181,7 +181,7 @@ def _derive_analytics_from_signals(
         if cycle_time:
             try:
                 deal_cycle_times.append(float(cycle_time))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
                 logger.debug("append failed: %s", e)
         # Patterns + laws
         if sig_type == "pattern_detected" or meta.get("pattern"):
