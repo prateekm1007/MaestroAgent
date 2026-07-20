@@ -85,6 +85,63 @@ async def classify_commitment(
     """
     from maestro_personal_shell.llm_bridge import is_llm_available, llm_complete, sanitize_for_llm
 
+    # S2-05 fix: slang joke markers BEFORE the LLM path.
+    # "I promise I will become a billionaire, haha" has "haha" — skip the LLM.
+    text_lower = text.lower()
+    joke_markers = ["haha", "lol", "lmao", "rofl", "jk", "just kidding", "sike", "iykyk", "🤣", "😂"]
+    if any(marker in text_lower for marker in joke_markers):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.9,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": "rule-based: joke marker detected — not a real commitment",
+            "llm_powered": False,
+        }
+
+    # S2-05b fix (auditor): structural joke detection BEFORE the LLM path.
+    # Riddles like "Why did the chicken cross the road? I promise..." have
+    # no slang markers but are jokes by FORMAT. Don't even call the LLM
+    # for these — the LLM was classifying them as real commitments.
+    text_lower = text.lower()
+    import re as _re_joke_pre
+    riddle_patterns_pre = [
+        r'^why\s+(did|do|does|is|are|was|were)\b.*\?.*\b(promise|will|commit)\b',
+        r'^what\s+(do|does|is|are)\s+you\s+call\b.*\?.*',
+        r'^how\s+(many|much|do|does|did)\b.*\?.*',
+        r'^knock\s+knock\b.*',
+        r'^when\s+(does|do|did|is|was)\b.*\?.*',
+        r'^where\s+(does|do|did|is|was)\b.*\?.*',
+    ]
+    for pattern in riddle_patterns_pre:
+        if _re_joke_pre.search(pattern, text_lower, _re_joke_pre.DOTALL):
+            return {
+                "commitment_type": "not_a_commitment",
+                "is_commitment": False,
+                "confidence": 0.85,
+                "state": "cancelled",
+                "owner": "unknown",
+                "deadline_text": "",
+                "reasoning": "rule-based: structural joke detected (riddle pattern) — not a real commitment",
+                "llm_powered": False,
+            }
+
+    # Also catch: question mark followed by "I promise" or "I will" in the
+    # same sentence — almost always a joke setup/punchline pattern.
+    if _re_joke_pre.search(r'\?[^.]*\b(i promise|i will|i\'ll|i commit)\b', text_lower):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.8,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": "rule-based: question-then-promise pattern detected (joke setup) — not a real commitment",
+            "llm_powered": False,
+        }
+
     if not is_llm_available():
         return _rule_based_classify(text, entity)
 
@@ -331,7 +388,12 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     # contains "i promise". And `Maria said: "I will send..."` was classified
     # as explicit because it contains "i will". These are false positives.
 
-    # Joke detection — laughter markers indicate non-serious statements
+    # Joke detection — two paths:
+    # 1. Slang markers (haha, lol, etc.) — non-serious statements
+    # 2. Structural jokes (riddles, rhetorical questions) — joke by FORMAT
+    #    not by marker. Catches "Why did the chicken cross the road? I promise
+    #    it was to get to the other side." which has no slang markers but is
+    #    clearly a riddle (question-mark-led setup + punchline).
     joke_markers = ["haha", "lol", "lmao", "rofl", "jk", "just kidding", "sike", "iykyk", "🤣", "😂"]
     if any(marker in text_lower for marker in joke_markers):
         return {
@@ -342,6 +404,50 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "owner": "unknown",
             "deadline_text": "",
             "reasoning": "rule-based: joke marker detected — not a real commitment",
+            "llm_powered": False,
+        }
+
+    # Structural joke detection — riddle/rhetorical-question patterns.
+    # Catches jokes by FORMAT, not by slang. The auditor's riddle:
+    #   "Why did the chicken cross the road? I promise it was to get to the other side."
+    # has no slang markers but is clearly a riddle (question-mark-led setup
+    # + punchline containing a promise clause).
+    import re as _re_joke
+    # Pattern: sentence starts with a question word + "?" + promise clause
+    # Common riddle setups: "Why did X...", "What do you call...", "How many X..."
+    # "Knock knock...", "Why is X...", "When does X..."
+    riddle_patterns = [
+        r'^why\s+(did|do|does|is|are|was|were)\b.*\?.*\b(promise|will|commit)\b',
+        r'^what\s+(do|does|is|are)\s+you\s+call\b.*\?.*',
+        r'^how\s+(many|much|do|does|did)\b.*\?.*',
+        r'^knock\s+knock\b.*',
+        r'^when\s+(does|do|did|is|was)\b.*\?.*',
+        r'^where\s+(does|do|did|is|was)\b.*\?.*',
+    ]
+    for pattern in riddle_patterns:
+        if _re_joke.search(pattern, text_lower, _re_joke.DOTALL):
+            return {
+                "commitment_type": "not_a_commitment",
+                "is_commitment": False,
+                "confidence": 0.85,
+                "state": "cancelled",
+                "owner": "unknown",
+                "deadline_text": "",
+                "reasoning": f"rule-based: structural joke detected (riddle pattern) — not a real commitment",
+                "llm_powered": False,
+            }
+
+    # Also catch: question mark followed by "I promise" or "I will" in the
+    # same sentence — almost always a joke setup/punchline pattern.
+    if _re_joke.search(r'\?[^.]*\b(i promise|i will|i\'ll|i commit)\b', text_lower):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.8,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": "rule-based: question-then-promise pattern detected (joke setup) — not a real commitment",
             "llm_powered": False,
         }
 

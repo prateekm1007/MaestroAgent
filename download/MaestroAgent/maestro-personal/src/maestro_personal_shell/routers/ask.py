@@ -154,6 +154,10 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "customer at risk",
         # cross-entity intent
         "who has", "who have",
+        # completed intent — "what's been completed/fulfilled/done?"
+        "completed", "fulfilled", "already done", "already sent",
+        "already delivered", "what have i done", "what did i finish",
+        "what did i deliver", "what's been done",
         # noise_lookup intent (newsletters, FYI)
         "newsletter", "industry news", "fyi", "digest",
         # production incidents

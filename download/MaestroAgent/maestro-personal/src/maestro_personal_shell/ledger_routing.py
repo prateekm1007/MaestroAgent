@@ -120,6 +120,9 @@ def route_to_ledger(
         entries = get_overdue_commitments(user_email, db_path)
         entries.extend(get_broken_commitments(user_email, db_path))
         return entries
+    elif intent == "completed":
+        # For "what's been completed?" — get completed_claimed + completed_verified
+        return get_completed_commitments(user_email, db_path)
 
     # For other intents, don't route to ledger
     return None

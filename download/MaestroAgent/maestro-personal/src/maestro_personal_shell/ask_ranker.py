@@ -141,6 +141,19 @@ def understand_query(query: str) -> dict[str, Any]:
             "signal_match": [],
             "signal_types": set(),
         }),
+        # F1 fix: completed — "What's been completed?" / "What did I finish?"
+        ("completed", {
+            "trigger": [r"what.*completed", r"what.*fulfilled", r"what.*finished",
+                        r"what.*delivered", r"what.*done", r"what.*sent",
+                        r"what.*resolved", r"completed commitments",
+                        r"already completed", r"already done", r"already sent",
+                        r"what have i done", r"what have i completed",
+                        r"what did i deliver", r"what did i finish"],
+            "signal_match": ["sent the", "delivered", "completed", "finished",
+                             "shipped", "done with", "resolved", "paid",
+                             "submitted"],
+            "signal_types": {"completed_claimed", "completed_verified", "reported_statement"},
+        }),
         # F1 fix: conditional — "Is SSO ready?" / "What depends on legal?"
         ("conditional", {
             "trigger": [r"is\s+\w+\s+ready", r"what\s+depends\s+on",
@@ -371,6 +384,13 @@ def rerank_signals(
             score += 40
         if intent == "relational" and ("commitment" in sig_type or "broken" in sig_type or "reported" in sig_type):
             score += 30
+        # F1 fix: completed intent — "what's been completed/fulfilled?"
+        if intent == "completed":
+            if any(kw in sig_text for kw in ["sent the", "delivered", "completed", "finished", "shipped", "done with", "resolved", "paid", "submitted"]):
+                score += 80
+            if "completed" in sig_type or "completed" in sig_type:
+                score += 50
+
         # F1 fix: new intent type boosts
         if intent == "conditional" and ("commitment" in sig_type or "reported" in sig_type):
             score += 40
