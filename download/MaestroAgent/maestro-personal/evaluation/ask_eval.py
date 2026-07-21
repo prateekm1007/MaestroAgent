@@ -184,17 +184,48 @@ def evaluate_ask(api_module, client, auth_headers, db_path: str, user_email: str
             unsupported_claims_count += len(verification.get("unsupported_claims", []))
 
             # 3. Citation correctness: do evidence_refs contain expected_entities?
+            # Phase 1.3 Bug #6 fix (2026-07-21): use SUBSTRING match, not set
+            # membership. The original check `e.lower() in evidence_entities`
+            # tests if "alex" is a MEMBER of {"alex chen", "alex kim"} — which
+            # is False (set membership, not substring). The benchmark's
+            # expected_entities use short forms ("Alex") but the corpus stores
+            # full names ("Alex Chen"). The fix: check if the expected entity
+            # is a SUBSTRING of any evidence entity, OR any evidence entity is
+            # a substring of the expected entity (handles both directions).
             if expected:
                 citation_total += 1
                 evidence_entities = {str(r.get("entity", "")).lower() for r in evidence_refs}
-                if any(e.lower() in evidence_entities for e in expected):
+                citation_match = False
+                for e in expected:
+                    e_lower = e.lower()
+                    for ent in evidence_entities:
+                        if e_lower in ent or ent in e_lower:
+                            citation_match = True
+                            break
+                    if citation_match:
+                        break
+                if citation_match:
                     citation_correct += 1
 
             # 4. Entity isolation: forbidden_entities must NOT appear in evidence
+            # Phase 1.3 Bug #6 fix (2026-07-21): same substring-match fix as
+            # citation_correctness. The original set-membership check was too
+            # strict — "newslettercorp" would not match if the evidence entity
+            # was stored as "NewsletterCorp Inc". Use substring match in both
+            # directions for consistency.
             if forbidden:
                 entity_isolation_total += 1
                 evidence_entities = {str(r.get("entity", "")).lower() for r in evidence_refs}
-                if any(f.lower() in evidence_entities for f in forbidden):
+                isolation_violation = False
+                for f in forbidden:
+                    f_lower = f.lower()
+                    for ent in evidence_entities:
+                        if f_lower in ent or ent in f_lower:
+                            isolation_violation = True
+                            break
+                    if isolation_violation:
+                        break
+                if isolation_violation:
                     entity_isolation_violations += 1
 
             # Per-category
