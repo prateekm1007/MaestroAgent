@@ -207,6 +207,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # "I don't have enough information" because no intent pattern matched.
         "recurring production", "keeps going wrong", "systemic issue",
         "what keeps", "what pattern", "keeps happening",
+        # F-v3 fix (auditor 2026-07-21): engineering/ops phrasings from v3
+        # corpus that need intent routing. "sev1/sev2 incidents", "production
+        # down", "bugs open" — these are critical-type queries that BM25
+        # handles well but the intent_keyword retriever needs to fire on too.
+        "sev1 incident", "sev2 bug", "production down", "bugs open",
+        "most urgent incident",
     ]
     # F-IntentGate fix v2: distinguish 'broad' (generic summary) from
     # 'intent-based' (run ensemble). The previous fix added intent patterns
