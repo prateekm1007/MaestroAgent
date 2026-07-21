@@ -20,5 +20,20 @@ router = APIRouter(tags=["admin"])
 
 @router.get("/api/health")
 async def health():
-    """Health check — no auth required."""
-    return {"status": "ok", "service": "maestro-personal", "version": "1.0.0"}
+    """Health check — no auth required. Includes build canary for deploy verification."""
+    import subprocess
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL, timeout=2
+        ).decode().strip()
+    except Exception:
+        commit = "unknown"
+    return {
+        "status": "ok",
+        "service": "maestro-personal",
+        "version": "1.0.0",
+        "commit": commit,
+        "docs_disabled": True,
+        "security_headers": True,
+    }
