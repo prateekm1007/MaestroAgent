@@ -1294,3 +1294,125 @@ export async function getConnectorsAudit(token?: string): Promise<{ audit: any[]
   });
   return response.data;
 }
+
+// Route wiring fix: wire routes that exist on web but not mobile
+export async function registerPushToken(token: string, pushToken: string): Promise<{ registered: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/auth/push-token', { push_token: pushToken }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getDepth(token?: string): Promise<{ depth: any }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/depth', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function postOutcomes(outcomes: any[], token?: string): Promise<{ recorded: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/outcomes', { outcomes }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function postWhisperPush(whisper: any, token?: string): Promise<{ pushed: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/whisper/push', whisper, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function askStream(query: string, token?: string): Promise<ReadableStream> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/ask/stream', { query }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+    responseType: 'stream',
+  });
+  return response.data;
+}
+
+export async function getAgentsDashboard(token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/agents/dashboard', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getAgentsRelevant(token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/agents/relevant', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getAgentInsights(entity: string, token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get(`/api/agents/${encodeURIComponent(entity)}/insights`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getAmbient(token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/ambient', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getEveningBriefing(token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/briefing/evening', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getCommitmentLedger(token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/commitments/ledger', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function simulateCommitment(entity: string, token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/commitments/simulate', { entity }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getConsentSettings(token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/consent/settings', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function updateConsentSettings(settings: any, token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.put('/api/consent/settings', settings, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getObservabilityWhisperDecisions(token?: string): Promise<any> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/observability/whisper-decisions', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}

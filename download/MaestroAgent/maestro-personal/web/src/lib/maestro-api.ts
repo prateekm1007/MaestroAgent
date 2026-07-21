@@ -1211,3 +1211,105 @@ export async function getObservabilityTraces(limit: number = 50): Promise<{ trac
 export async function getBehaviorPatterns(): Promise<{ patterns: any[] }> {
   return maestroFetch<{ patterns: any[] }>("/api/behavior/patterns");
 }
+
+export async function postOutcomes(outcomes: any[]): Promise<{ recorded: boolean }> {
+  return maestroFetch<{ recorded: boolean }>("/api/outcomes", {
+    method: "POST",
+    body: JSON.stringify({ outcomes }),
+  });
+}
+
+export async function postWhisperPush(whisper: any): Promise<{ pushed: boolean }> {
+  return maestroFetch<{ pushed: boolean }>("/api/whisper/push", {
+    method: "POST",
+    body: JSON.stringify(whisper),
+  });
+}
+
+export async function getAgentsDashboard(): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/agents/dashboard");
+}
+
+export async function getAgentsRelevant(): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/agents/relevant");
+}
+
+export async function getAgentInsights(entity: string): Promise<{ data: any }> {
+  return maestroFetch<any>(`/api/agents/${encodeURIComponent(entity)}/insights`);
+}
+
+export async function getAmbient(): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/ambient");
+}
+
+export async function getEveningBriefing(): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/briefing/evening");
+}
+
+export async function getCommitmentLedger(): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/commitments/ledger");
+}
+
+export async function simulateCommitment(entity: string): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/commitments/simulate", {
+    method: "POST",
+    body: JSON.stringify({ entity }),
+  });
+}
+
+export async function getConsentSettings(): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/consent/settings");
+}
+
+export async function updateConsentSettings(settings: any): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/consent/settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+export async function postCopilotPostCall(data: any): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/copilot/post-call", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function postCopilotPostCallUI(data: any): Promise<{ data: any }> {
+  return maestroFetch<any>("/api/copilot/post-call-ui", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function askStream(query: string): Promise<ReadableStream> {
+  const res = await fetch("/api/ask/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  return res.body as ReadableStream;
+}
+
+export async function registerPushToken(pushToken: string): Promise<{ registered: boolean }> {
+  return maestroFetch<{ registered: boolean }>("/api/auth/push-token", {
+    method: "POST",
+    body: JSON.stringify({ push_token: pushToken }),
+  });
+}
+
+export async function getCalibrationHistory(): Promise<{ history: any[] }> {
+  return maestroFetch<{ history: any[] }>("/api/calibration/history");
+}
+
+export async function getConnectorsAudit(): Promise<{ audit: any[] }> {
+  return maestroFetch<{ audit: any[] }>("/api/connectors/audit");
+}
+
+export async function getDepth(): Promise<{ depth: any }> {
+  return maestroFetch<{ depth: any }>("/api/depth");
+}
+
+export async function getPersistedSituations(): Promise<{ situations: any[] }> {
+  return maestroFetch<{ situations: any[] }>("/api/persisted-situations");
+}
