@@ -1,0 +1,1470 @@
+{
+  "timestamp": "2026-07-21T02:00:09.506765+00:00",
+  "models": [
+    "qwen/qwen-plus",
+    "meta-llama/llama-3.3-70b-instruct",
+    "qwen/qwen3.6-flash",
+    "nvidia/nemotron-3-super-120b-a12b:free"
+  ],
+  "results": {
+    "qwen/qwen-plus": {
+      "name": "Qwen Plus",
+      "overall_avg": 0.7666666666666667,
+      "ci_low": 0.7,
+      "ci_high": 0.8341666666666667,
+      "per_type": {
+        "abstention": 0.0,
+        "at_risk": 0.8666666666666666,
+        "broken": 0.9333333333333333,
+        "conditional": 1.0,
+        "contradiction": 1.0,
+        "critical": 0.9375,
+        "cross_entity": 0.8333333333333334,
+        "direct_lookup": 0.8555555555555556,
+        "disputed": 0.6666666666666666,
+        "multilingual": 1.0,
+        "noise_lookup": 0.8333333333333334,
+        "overdue": 0.6,
+        "prepare": 0.5,
+        "priority": 0.6666666666666666,
+        "recurring": 1.0,
+        "relational": 0.7166666666666666,
+        "temporal": 0.75
+      },
+      "per_question": [
+        {
+          "idx": 0,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "You promised Alex Chen to send the pricing deck by Friday (2026-05-28). The evidence confirms you fulfilled that promise, as it states: \u201cSent the pric"
+        },
+        {
+          "idx": 1,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Maria asked for the updated pricing proposal to be sent by Friday. She stated that the procurement team needs at least 3 days to review it before the "
+        },
+        {
+          "idx": 2,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "You did not send Sam anything\u2014instead, you delivered the API integration to Sam Patel on time (2026-06-07). The evidence states: \u201cDelivered the API in"
+        },
+        {
+          "idx": 3,
+          "type": "overdue",
+          "score": 0.6666666666666666,
+          "answer": "The overdue promises are:  \n- \u201c[Priya Shah] (2026-06-30) Compliance report is overdue \u2014 hasn't been sent\u201d  \n- \u201c[Riley Quinn] (2026-07-02) Never sent t"
+        },
+        {
+          "idx": 4,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "You failed to deliver the security questionnaire (Riley Quinn, 2026-07-02: \u201cNever sent the security questionnaire \u2014 overdue\u201d) and the compliance repor"
+        },
+        {
+          "idx": 5,
+          "type": "at_risk",
+          "score": 1.0,
+          "answer": "None of the commitments are explicitly stated as \u201cat risk\u201d in the evidence. The evidence lists five commitments with due dates but provides no status "
+        },
+        {
+          "idx": 6,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "You are repeatedly disappointing Priya Shah and Riley Quinn, as both have overdue commitments: \u201cCompliance report is overdue \u2014 hasn't been sent\u201d and \u201c"
+        },
+        {
+          "idx": 7,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "Riley Quinn and Priya Shah have become delivery risks. Riley Quinn\u2019s security questionnaire was \u201cnever sent \u2014 overdue\u201d, and Priya Shah\u2019s compliance re"
+        },
+        {
+          "idx": 8,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "Only [Sam Patel] and [Alex Chen] kept their promises, based on the evidence. Sam Patel \u201cdelivered the API integration on time,\u201d and Alex Chen \u201csent th"
+        },
+        {
+          "idx": 9,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Orion Tech\u2019s pricing has varied across negotiations and documents: they initially quoted $120k for the annual contract, revised it down to $95k after "
+        },
+        {
+          "idx": 10,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Yes, Orion Tech changed their price. They initially quoted $120k (2026-06-12), revised it down to $95k after negotiation (2026-06-22), and later sent "
+        },
+        {
+          "idx": 11,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The recurring issue across meetings is overdue deliverables: \u201c[Priya Shah] (2026-06-30) Compliance report is overdue \u2014 hasn't been sent\u201d and \u201c[Riley Q"
+        },
+        {
+          "idx": 12,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The pattern is repeated production incidents tied to the auth service: three outages in one month (June 28, July 5, and July 10), with the July 5 and "
+        },
+        {
+          "idx": 13,
+          "type": "prepare",
+          "score": 0.5,
+          "answer": "You should prepare the updated pricing proposal for Maria Garcia from Acme Corp, as she \u201casked us to send the updated pricing proposal by Friday\u201d and "
+        },
+        {
+          "idx": 14,
+          "type": "temporal",
+          "score": 0.5,
+          "answer": "Last quarter (approximately Q2 2026, April\u2013June), you committed to:  \n- Sending Avery Stone the quarterly report (2026-04-27)  \n- Delivering the API i"
+        },
+        {
+          "idx": 15,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The SSO work for Jamie Park is pending legal review since at least 2026-07-05, and Jamie also noted on 2026-05-23 that SSO would be ready \u201cif legal si"
+        },
+        {
+          "idx": 16,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "You received the [TechNewsletter] (2026-07-11) \u201cMonthly newsletter roundup \u2014 industry trends\u201d and the [TechNewsletter] (2026-07-04) \u201cWeekly tech diges"
+        },
+        {
+          "idx": 17,
+          "type": "noise_lookup",
+          "score": 0.5,
+          "answer": "There is no general industry news in the evidence\u2014only internal team updates. The latest dated item is from 2026-07-03: Morgan Liu noted the Nova resu"
+        },
+        {
+          "idx": 18,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Yes, there are legal issues. The evidence states: \u201c[Legal Dept] (2026-07-10) EU regulatory fine of 5M euros imposed for GDPR violation.\u201d Additionally,"
+        },
+        {
+          "idx": 19,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Yes, Globex Corp is at risk of churning, as the evidence states: \u201cGlobex Corp is threatening to cancel their contract \u2014 pulling out.\u201d No other custome"
+        },
+        {
+          "idx": 20,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Yes, there is a board escalation: \u201c[Board] (2026-07-11) Board escalation: investor wants to see Q3 numbers before Friday meeting.\u201d  \nThis is the only "
+        },
+        {
+          "idx": 21,
+          "type": "priority",
+          "score": 0.75,
+          "answer": "The evidence does not explicitly state which commitment is *most important* \u2014 importance is subjective and not ranked in the data. However, the most s"
+        },
+        {
+          "idx": 22,
+          "type": "priority",
+          "score": 0.5,
+          "answer": "Today needs attention on: (1) sending the updated pricing proposal to Maria Garcia (Acme Corp) by Friday\u2014she emphasized the procurement team needs 3 d"
+        },
+        {
+          "idx": 23,
+          "type": "multilingual",
+          "score": 1.0,
+          "answer": "Carlos said he will send the contract next Monday. The evidence states: \u201cCarlos dijo que enviar\u00e1 el contrato el lunes que viene.\u201d  \nThe only entity su"
+        },
+        {
+          "idx": 24,
+          "type": "disputed",
+          "score": 1.0,
+          "answer": "Yes, Morgan completed the Nova presentation, as stated in evidence #2: \u201c[Morgan Liu] (2026-07-02) Presented Nova results at the all-hands.\u201d However, e"
+        },
+        {
+          "idx": 25,
+          "type": "conditional",
+          "score": 1.0,
+          "answer": "SSO is not yet ready. Evidence states: \u201cSSO work is complete \u2014 pending legal review\u201d (2026-07-05), and earlier, \u201cIf legal signs off, I'll have SSO rea"
+        },
+        {
+          "idx": 26,
+          "type": "direct_lookup",
+          "score": 0.5,
+          "answer": "The evidence provided does not mention a hiring committee at all\u2014none of the listed commitments reference hiring, recruitment, committee formation, or"
+        },
+        {
+          "idx": 27,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "Engineering velocity is described as \u201cfine\u201d in the evidence, with no blockers reported and the sprint noted as \u201con track.\u201d This assessment comes from "
+        },
+        {
+          "idx": 28,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Avery Stone is a person to whom a quarterly report is scheduled to be sent on 2026-04-27. The evidence states: \u201cI will send Avery Stone the quarterly "
+        },
+        {
+          "idx": 29,
+          "type": "direct_lookup",
+          "score": 0.5,
+          "answer": "The evidence provided does not mention Priya at all. None of the listed commitments reference Priya or any promise made to her. Therefore, based on th"
+        },
+        {
+          "idx": 30,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Globex Corp is threatening to cancel their contract and pulling out, as stated in the evidence dated 2026-07-10. The evidence explicitly says: \u201cGlobex"
+        },
+        {
+          "idx": 31,
+          "type": "cross_entity",
+          "score": 1.0,
+          "answer": "Only Orion Tech has a documented pricing issue: \u201cOrion Tech sent the final invoice at $150k \u2014 pricing dispute\u201d. The evidence also shows Orion Tech quo"
+        },
+        {
+          "idx": 32,
+          "type": "cross_entity",
+          "score": 0.5,
+          "answer": "Orion Tech owes you something: they sent a final invoice for $150k amid a pricing dispute, and their earlier quote was $120k \u2014 the discrepancy implies"
+        },
+        {
+          "idx": 33,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "You did not commit to anything in 2024, according to the evidence. All listed commitments are dated in 2026 (e.g., \u201c(2026-04-27)\u201d, \u201c(2026-05-13)\u201d, etc"
+        },
+        {
+          "idx": 34,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "There is no evidence provided about who John Smith is. The evidence list is empty. Therefore, I cannot identify or describe John Smith based on the gi"
+        },
+        {
+          "idx": 35,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "Your most reliable partner is [Sam Patel], as they \u201cDelivered the API integration on time.\u201d No other entity in the evidence is described positively in"
+        },
+        {
+          "idx": 36,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "Your biggest risks are Riley Quinn and Priya Shah, as both have overdue deliverables: Riley Quinn \u201cNever sent the security questionnaire \u2014 overdue,\u201d a"
+        },
+        {
+          "idx": 37,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The oldest unfulfilled commitment is \u201c[Avery Stone] (2026-04-27) I will send Avery Stone the quarterly report\u201d, as it has the earliest date (2026-04-2"
+        },
+        {
+          "idx": 38,
+          "type": "temporal",
+          "score": 0.5,
+          "answer": "The evidence does not specify what *you* did this week \u2014 it only reports events and commitments involving others or teams (e.g., \u201cAuth service outage\u201d"
+        },
+        {
+          "idx": 39,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Yes, Orion Tech changed their mind: they revised their quote down from $120k to $95k after negotiation. The evidence states: \u201cOrion Tech revised the q"
+        },
+        {
+          "idx": 40,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The auth service keeps breaking. Evidence states: \u201cAuth service outage again \u2014 same root cause as last week\u201d and \u201cThird auth outage this month \u2014 syste"
+        },
+        {
+          "idx": 41,
+          "type": "critical",
+          "score": 0.5,
+          "answer": "The most urgent thing is the **[EngOncall] (2026-06-28) Production down \u2014 sev1 incident on auth service**, as sev1 incidents denote critical, active o"
+        },
+        {
+          "idx": 42,
+          "type": "disputed",
+          "score": 0.0,
+          "answer": "No completions were challenged, according to the evidence. The only statement provided is: \u201c[Jamie Park] (2026-07-05) SSO work is complete \u2014 pending l"
+        },
+        {
+          "idx": 43,
+          "type": "conditional",
+          "score": 1.0,
+          "answer": "SSO readiness depends on legal, as Jamie Park states, \u201cIf legal signs off, I'll have SSO ready by Q4\u201d and later confirms SSO work is \u201cpending legal re"
+        },
+        {
+          "idx": 44,
+          "type": "multilingual",
+          "score": 1.0,
+          "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene.  \nLa \u00fanica entidad mencionada es **Carlos Ruiz**, quien emiti\u00f3 esa declaraci\u00f3n.  \nNo hay otra "
+        },
+        {
+          "idx": 45,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "There is no evidence provided about the weather. The evidence list is empty. Therefore, I cannot answer the question."
+        },
+        {
+          "idx": 46,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "There is no evidence provided about the CEO of Microsoft."
+        },
+        {
+          "idx": 47,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "You did not send the quarterly report to Avery Stone, the pricing deck to Alex Chen, the compliance report to Priya Shah, the security questionnaire t"
+        },
+        {
+          "idx": 48,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "None of the commitments listed are explicitly stated as missed, overdue, or broken in the evidence. All entries show future-dated commitments (ranging"
+        },
+        {
+          "idx": 49,
+          "type": "broken",
+          "score": 0.6666666666666666,
+          "answer": "The overdue and broken items are:  \n- Priya Shah\u2019s compliance report, which \u201cis overdue \u2014 hasn\u2019t been sent\u201d (Evidence 1).  \n- Riley Quinn\u2019s security q"
+        },
+        {
+          "idx": 50,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "Yes, you failed to deliver the security questionnaire to Riley Quinn. Evidence #1 states it was \u201cNever sent the security questionnaire \u2014 overdue,\u201d and"
+        },
+        {
+          "idx": 51,
+          "type": "overdue",
+          "score": 0.6666666666666666,
+          "answer": "The following items are past due:  \n- Riley Quinn\u2019s security questionnaire, which \u201cNever sent\u201d and is \u201coverdue\u201d (2026-07-02).  \n- Priya Shah\u2019s complia"
+        },
+        {
+          "idx": 52,
+          "type": "overdue",
+          "score": 0.6666666666666666,
+          "answer": "None of the promises listed have been confirmed as fulfilled in the evidence. All are stated as future intentions or conditional commitments: \u201cI will "
+        },
+        {
+          "idx": 53,
+          "type": "overdue",
+          "score": 0.0,
+          "answer": "You are late on sending the updated pricing proposal to Maria Garcia from Acme Corp, which was due by Friday (2026-07-09) \u2014 the evidence states she \u201ca"
+        },
+        {
+          "idx": 54,
+          "type": "overdue",
+          "score": 1.0,
+          "answer": "The overdue commitments are:  \n- [Priya Shah] (2026-06-30) Compliance report is overdue \u2014 hasn't been sent  \n- [Riley Quinn] (2026-07-02) Never sent t"
+        },
+        {
+          "idx": 55,
+          "type": "at_risk",
+          "score": 0.6666666666666666,
+          "answer": "The commitments in danger are those with deadlines that have already passed or are overdue relative to today\u2019s date (2026-05-28, inferred from the lat"
+        },
+        {
+          "idx": 56,
+          "type": "at_risk",
+          "score": 1.0,
+          "answer": "Promises that might slip are those with deadlines that have already passed or are inconsistent with stated timelines. The promise to [Sam Patel] \u201cby M"
+        },
+        {
+          "idx": 57,
+          "type": "at_risk",
+          "score": 1.0,
+          "answer": "The compliance report for Priya Shah and the security questionnaire for Riley Quinn are at risk of being missed, as both are overdue and unsent. Globe"
+        },
+        {
+          "idx": 58,
+          "type": "at_risk",
+          "score": 0.6666666666666666,
+          "answer": "None of the commitments are explicitly labeled as \u201cthreatened,\u201d \u201cat risk,\u201d \u201coverdue,\u201d or \u201cbroken\u201d in the evidence. All entries state intended future a"
+        },
+        {
+          "idx": 59,
+          "type": "direct_lookup",
+          "score": 0.5,
+          "answer": "The evidence provided does not mention Priya at all. None of the listed commitments reference Priya or any promise made to her. Therefore, based on th"
+        },
+        {
+          "idx": 60,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "You committed to sending Avery Stone the quarterly report. The evidence states: \u201c[Avery Stone] (2026-04-27) I will send Avery Stone the quarterly repo"
+        },
+        {
+          "idx": 61,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "You promised to send Riley Quinn the security questionnaire by end of week. The evidence states: \u201c[Riley Quinn] (2026-05-13) I will send Riley Quinn t"
+        },
+        {
+          "idx": 62,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The SSO work is complete but pending legal review, as stated by Jamie Park on 2026-07-05: \u201cSSO work is complete \u2014 pending legal review.\u201d Earlier, on 2"
+        },
+        {
+          "idx": 63,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Carlos said, \u201cenviar\u00e1 el contrato el lunes que viene\u201d (he will send the contract next Monday). This statement is attributed to Carlos Ruiz on 2026-07-"
+        },
+        {
+          "idx": 64,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Morgan presented the Nova results at the all-hands. The evidence states: \u201c[Morgan Liu] (2026-07-02) Presented Nova results at the all-hands\u201d. This is "
+        },
+        {
+          "idx": 65,
+          "type": "direct_lookup",
+          "score": 0.3333333333333333,
+          "answer": "None of the evidence mentions a commitment to the Hiring Committee. All listed commitments are to individuals: Avery Stone, Riley Quinn, Jamie Park, A"
+        },
+        {
+          "idx": 66,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The only evidence about VendorZ is that Alice committed to pay $1M to VendorZ by Friday, 2026-06-27. No status (e.g., overdue, fulfilled, or threatene"
+        },
+        {
+          "idx": 67,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "Riley Quinn and Priya Shah have broken commitments. Riley Quinn\u2019s security questionnaire was \u201cnever sent \u2014 overdue\u201d (2026-07-02), and Priya Shah\u2019s com"
+        },
+        {
+          "idx": 68,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "You should follow up with Riley Quinn, Priya Shah, and Globex Corp. Riley Quinn\u2019s security questionnaire is \u201cnever sent \u2014 overdue,\u201d Priya Shah\u2019s compl"
+        },
+        {
+          "idx": 69,
+          "type": "relational",
+          "score": 0.0,
+          "answer": "Only Orion Tech is indicated as unhappy, due to a \u201cpricing dispute\u201d after sending the final invoice at $150k. The evidence states: \u201cOrion Tech sent th"
+        },
+        {
+          "idx": 70,
+          "type": "relational",
+          "score": 0.5,
+          "answer": "Only Sam Patel delivered on time, as stated: \u201c[Sam Patel] (2026-06-07) Delivered the API integration on time\u201d. No other entity in the evidence is desc"
+        },
+        {
+          "idx": 71,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "Riley Quinn and Priya Shah have unfulfilled promises: Riley \u201cNever sent the security questionnaire \u2014 overdue,\u201d and Priya\u2019s \u201cCompliance report is overd"
+        },
+        {
+          "idx": 72,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The longest outstanding commitment is Avery Stone\u2019s quarterly report, due on 2026-04-27 \u2014 it is overdue and still unfulfilled. All other listed commit"
+        },
+        {
+          "idx": 73,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "You committed to sending Avery Stone the quarterly report (2026-04-27), delivering the API integration to Sam Patel by March 15 (2026-06-02), sending "
+        },
+        {
+          "idx": 74,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The oldest commitment you haven\u2019t kept is: \u201c[Avery Stone] (2026-04-27) I will send Avery Stone the quarterly report\u201d. It is the earliest-dated commitm"
+        },
+        {
+          "idx": 75,
+          "type": "temporal",
+          "score": 0.0,
+          "answer": "There is no evidence provided to determine what has been delayed the most. The evidence section is empty: \u201c(no evidence retrieved)\u201d. Therefore, no del"
+        },
+        {
+          "idx": 76,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Yes, there is a regulatory issue: \u201c[Legal Dept] (2026-07-10) EU regulatory fine of 5M euros imposed for GDPR violation.\u201d This is the only evidence dir"
+        },
+        {
+          "idx": 77,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Yes, Globex Corp is churning: \u201cGlobex Corp is threatening to cancel their contract \u2014 pulling out.\u201d No other accounts are mentioned as churning or thre"
+        },
+        {
+          "idx": 78,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "The board is concerned about reviewing Q3 financial numbers before their Friday meeting, as escalated by an investor. They are also indirectly concern"
+        },
+        {
+          "idx": 79,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Yes, there is a legal threat: \u201c[Legal Dept] (2026-07-10) EU regulatory fine of 5M euros imposed for GDPR violation\u201d \u2014 an active legal penalty, not jus"
+        },
+        {
+          "idx": 80,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "There is no evidence provided about the stock price of AAPL. The evidence retrieval returned \u201c(no evidence retrieved)\u201d. Therefore, I cannot answer the"
+        },
+        {
+          "idx": 81,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "No evidence was retrieved to answer the question about Mount Everest's height."
+        },
+        {
+          "idx": 82,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "None of the evidence shows commitments made in 2023 \u2014 all listed commitments have dates in 2026. Therefore, based on the provided evidence, there is n"
+        },
+        {
+          "idx": 83,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "There is no evidence provided about Albert Einstein. The evidence list is empty. Therefore, I cannot answer the question based on the given informatio"
+        },
+        {
+          "idx": 84,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Yes, Orion Tech\u2019s price changed multiple times: it was initially quoted at $120k, revised down to $95k, then invoiced at $150k \u2014 triggering a pricing "
+        },
+        {
+          "idx": 85,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Orion Tech's final invoice was $150k, as stated in the evidence: \u201cOrion Tech sent the final invoice at $150k \u2014 pricing dispute.\u201d This contradicts thei"
+        },
+        {
+          "idx": 86,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Yes, there was a pricing dispute with Orion Tech, as explicitly stated in the evidence: \u201c[Orion Tech] (2026-07-07) Orion Tech sent the final invoice a"
+        },
+        {
+          "idx": 87,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The recurring production issue is auth service outages, evidenced by \u201c[EngOncall] (2026-07-10) Third auth outage this month \u2014 systemic issue\u201d and \u201c[En"
+        },
+        {
+          "idx": 88,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The auth service keeps going wrong due to a recurring systemic issue\u2014evidenced by \u201cAuth service outage again \u2014 same root cause as last week\u201d and \u201cThir"
+        },
+        {
+          "idx": 89,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The systemic issue is related to repeated authentication outages, specifically the \u201cthird auth outage this month.\u201d The evidence states: \u201cThird auth ou"
+        },
+        {
+          "idx": 90,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "You got the \"Weekly tech digest: 10 articles about AI you should read\".  \nThis digest is associated with the entity [TechNewsletter] and dated 2026-07"
+        },
+        {
+          "idx": 91,
+          "type": "noise_lookup",
+          "score": 0.5,
+          "answer": "There is no evidence provided about any industry trends you read about. The evidence list is empty. Therefore, I cannot identify or describe any indus"
+        },
+        {
+          "idx": 92,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "The newsletters that came in are:  \n- [TechNewsletter] (2026-07-11) Monthly newsletter roundup \u2014 industry trends  \n- [TechNewsletter] (2026-07-04) Wee"
+        },
+        {
+          "idx": 93,
+          "type": "priority",
+          "score": 0.75,
+          "answer": "The most urgent commitment is the [EngOncall] (2026-06-28) \u201cProduction down \u2014 sev1 incident on auth service\u201d, as it is the earliest-dated and highest-"
+        },
+        {
+          "idx": 94,
+          "type": "priority",
+          "score": 0.6666666666666666,
+          "answer": "The most urgent items needing immediate attention are: the **sev1 production incident on auth service** (EngOncall, 2026-06-28), the **overdue complia"
+        },
+        {
+          "idx": 95,
+          "type": "multilingual",
+          "score": 1.0,
+          "answer": "Carlos enviar\u00e1 el contrato. Seg\u00fan el registro, \u00abCarlos dijo que enviar\u00e1 el contrato el lunes que viene\u00bb. El \u00fanico ente mencionado es Carlos Ruiz."
+        },
+        {
+          "idx": 96,
+          "type": "disputed",
+          "score": 1.0,
+          "answer": "No, the Nova presentation was not complete. Evidence #3 states explicitly: \u201cNova results presentation was incomplete \u2014 missing the Q2 data.\u201d This dire"
+        },
+        {
+          "idx": 97,
+          "type": "conditional",
+          "score": 1.0,
+          "answer": "Yes, the SSO is ready if legal approves. Evidence #2 states: \u201cSSO work is complete \u2014 pending legal review\u201d, and #1 confirms: \u201cIf legal signs off, I'll"
+        },
+        {
+          "idx": 98,
+          "type": "cross_entity",
+          "score": 1.0,
+          "answer": "Entities with compliance issues are [Priya Shah] and [EngOncall]. For [Priya Shah], the evidence states: \u201cCompliance report is overdue \u2014 hasn't been s"
+        },
+        {
+          "idx": 99,
+          "type": "prepare",
+          "score": 0.5,
+          "answer": "You should prepare the updated pricing proposal for the board meeting, as Maria Garcia from Acme Corp explicitly requested it be sent by Friday to giv"
+        }
+      ],
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.5,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        1.0,
+        0.75,
+        0.5,
+        1.0,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        0.0,
+        0.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        0.6666666666666666,
+        0.6666666666666666,
+        0.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        0.5,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.3333333333333333,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        0.0,
+        0.5,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        0.75,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.5
+      ]
+    },
+    "meta-llama/llama-3.3-70b-instruct": {
+      "name": "Llama 3.3 70B",
+      "overall_avg": 0.7933333333333333,
+      "ci_low": 0.7275,
+      "ci_high": 0.855,
+      "per_type": {
+        "abstention": 0.375,
+        "at_risk": 0.8666666666666666,
+        "broken": 0.9333333333333333,
+        "conditional": 1.0,
+        "contradiction": 1.0,
+        "critical": 0.9375,
+        "cross_entity": 0.8333333333333334,
+        "direct_lookup": 0.8333333333333334,
+        "disputed": 0.6666666666666666,
+        "multilingual": 1.0,
+        "noise_lookup": 0.8333333333333334,
+        "overdue": 0.6,
+        "prepare": 0.5,
+        "priority": 0.6666666666666666,
+        "recurring": 1.0,
+        "relational": 0.7166666666666666,
+        "temporal": 0.75
+      },
+      "per_question": [
+        {
+          "idx": 0,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "You promised Alex Chen that you would send them the pricing deck by Friday, as stated in the evidence: \"I will send Alex Chen the pricing deck by Frid"
+        },
+        {
+          "idx": 1,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Maria asked for the updated pricing proposal to be sent by Friday. According to the evidence, the entities involved are Maria Garcia and Acme Corp. Th"
+        },
+        {
+          "idx": 2,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The evidence does not explicitly state what you sent to Sam. It mentions that you will \"deliver the API integration\" to Sam Patel, but it does not say"
+        },
+        {
+          "idx": 3,
+          "type": "overdue",
+          "score": 0.6666666666666666,
+          "answer": "The promises that are now overdue are the compliance report promised by Priya Shah, as stated \"Compliance report is overdue \u2014 hasn't been sent\", and t"
+        },
+        {
+          "idx": 4,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "You failed to deliver the security questionnaire, as [Riley Quinn] stated it was \"Never sent\" and \"overdue\". Additionally, the compliance report is al"
+        },
+        {
+          "idx": 5,
+          "type": "at_risk",
+          "score": 1.0,
+          "answer": "The commitments that are at risk are those with deadlines that have passed or are near, but the evidence does not explicitly state which ones are at r"
+        },
+        {
+          "idx": 6,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "You are repeatedly disappointing Priya Shah and Riley Quinn, as they have both mentioned that you haven't sent required documents, with Priya stating "
+        },
+        {
+          "idx": 7,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "Based on the evidence, the persons who have become a delivery risk are Riley Quinn and Priya Shah. The evidence states that Riley Quinn \"Never sent th"
+        },
+        {
+          "idx": 8,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "Based on the evidence, Sam Patel is the one who kept their promise, as it is stated that they \"Delivered the API integration on time\". The other entit"
+        },
+        {
+          "idx": 9,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Orion Tech's pricing is mentioned in the evidence as $120k for the annual contract, which was later revised down to $95k after negotiation. However, a"
+        },
+        {
+          "idx": 10,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "According to the evidence, Orion Tech initially quoted $120k, then revised it down to $95k, but ultimately sent an invoice for $150k, which is mention"
+        },
+        {
+          "idx": 11,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The issue that keeps recurring across meetings is related to items being \"overdue\" or \"never sent\", as seen in the comments from Priya Shah (\"Complian"
+        },
+        {
+          "idx": 12,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The pattern seen in production incidents is a series of auth service outages, with the evidence stating \"Auth service outage again \u2014 same root cause a"
+        },
+        {
+          "idx": 13,
+          "type": "prepare",
+          "score": 0.5,
+          "answer": "To prepare for tomorrow's meeting, you should send the pricing deck to Alex Chen and the updated pricing proposal to Maria Garcia, as both are due by "
+        },
+        {
+          "idx": 14,
+          "type": "temporal",
+          "score": 0.5,
+          "answer": "Based on the evidence, the following commitments were made: \nMorgan Liu to present Nova results, \nAvery Stone to send a quarterly report, \nSam Patel t"
+        },
+        {
+          "idx": 15,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The SSO work has been pending legal review since at least 2026-07-05, as stated by Jamie Park: \"SSO work is complete \u2014 pending legal review\". Addition"
+        },
+        {
+          "idx": 16,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "You received the following newsletters: \n- [TechNewsletter] (2026-07-11) \"Monthly newsletter roundup \u2014 industry trends\"\n- [TechNewsletter] (2026-07-04"
+        },
+        {
+          "idx": 17,
+          "type": "noise_lookup",
+          "score": 0.5,
+          "answer": "The evidence does not provide general industry news, but rather internal updates and issues. Entities mentioned include EngOncall, Priya Shah, Morgan "
+        },
+        {
+          "idx": 18,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "There are legal issues, as evidenced by the \"EU regulatory fine of 5M euros imposed for GDPR violation\" and the fact that \"SSO work is complete \u2014 pend"
+        },
+        {
+          "idx": 19,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Yes, a customer is at risk of churning. The evidence states that \"Globex Corp is threatening to cancel their contract \u2014 pulling out\" ([Globex Corp], 2"
+        },
+        {
+          "idx": 20,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "There is a board escalation mentioned in the evidence: \"Board escalation: investor wants to see Q3 numbers before Friday meeting\" as stated by the Boa"
+        },
+        {
+          "idx": 21,
+          "type": "priority",
+          "score": 0.75,
+          "answer": "Your most important commitments appear to be related to a production issue, a compliance report, a security questionnaire, a GDPR violation fine, and "
+        },
+        {
+          "idx": 22,
+          "type": "priority",
+          "score": 0.5,
+          "answer": "Your attention is needed regarding the EU regulatory fine, the updated pricing proposal for Acme Corp, and the potential contract cancellation with Gl"
+        },
+        {
+          "idx": 23,
+          "type": "multilingual",
+          "score": 1.0,
+          "answer": "Carlos said that he will send the contract the following Monday, as stated in the evidence: \"Carlos dijo que enviar\u00e1 el contrato el lunes que viene\". "
+        },
+        {
+          "idx": 24,
+          "type": "disputed",
+          "score": 1.0,
+          "answer": "Morgan Liu presented the Nova results at the all-hands, as stated in the evidence: \"Presented Nova results at the all-hands\". However, the presentatio"
+        },
+        {
+          "idx": 25,
+          "type": "conditional",
+          "score": 1.0,
+          "answer": "SSO is not ready yet, as it is \"pending legal review\" according to Jamie Park on 2026-07-05. The evidence states that the \"SSO work is complete\", but "
+        },
+        {
+          "idx": 26,
+          "type": "direct_lookup",
+          "score": 0.5,
+          "answer": "The evidence does not mention the status of the hiring committee. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Ale"
+        },
+        {
+          "idx": 27,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "According to the evidence, engineering velocity is \"fine\" as stated in the team standup notes on both 2026-07-09 and 2026-07-11. The entities mentione"
+        },
+        {
+          "idx": 28,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The evidence does not provide information about who Avery Stone is, only that someone intends to send them a quarterly report. The entities mentioned "
+        },
+        {
+          "idx": 29,
+          "type": "direct_lookup",
+          "score": 0.5,
+          "answer": "The evidence does not mention any promises made to Priya. The entities mentioned are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, and Sam Patel, b"
+        },
+        {
+          "idx": 30,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The situation with Globex is that Globex Corp \"is threatening to cancel their contract \u2014 pulling out\", as stated in the evidence. The entities involve"
+        },
+        {
+          "idx": 31,
+          "type": "cross_entity",
+          "score": 1.0,
+          "answer": "The clients with pricing issues are Orion Tech and Acme Corp (specifically, Maria Garcia). The evidence states that there is a \"pricing dispute\" with "
+        },
+        {
+          "idx": 32,
+          "type": "cross_entity",
+          "score": 0.5,
+          "answer": "Based on the evidence, it is not explicitly stated that anyone owes you something. The evidence mentions a pricing dispute with Orion Tech over an inv"
+        },
+        {
+          "idx": 33,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "The evidence does not mention any commitments made in 2024. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen"
+        },
+        {
+          "idx": 34,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "You are a 'at the question' I am a 'treat the question ' I am a 't the question ' I am a 't the question ' I am a 't the question ' I am a 't the ques"
+        },
+        {
+          "idx": 35,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "Based on the evidence, the most reliable partner appears to be [Sam Patel] as they \"Delivered the API integration on time\". The other entities mention"
+        },
+        {
+          "idx": 36,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "Your biggest risks are associated with Riley Quinn and Priya Shah. The evidence states that Riley Quinn \"Never sent the security questionnaire \u2014 overd"
+        },
+        {
+          "idx": 37,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The evidence does not explicitly state which commitments are unfulfilled, but based on the information provided, the following commitments are still p"
+        },
+        {
+          "idx": 38,
+          "type": "temporal",
+          "score": 0.5,
+          "answer": "The evidence does not explicitly state what you did this week. However, it mentions various events and updates from different entities, including the "
+        },
+        {
+          "idx": 39,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "The evidence suggests that Orion Tech changed their mind, as they \"revised the quote down to $95k\" from the initial $120k. This indicates a change in "
+        },
+        {
+          "idx": 40,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The \"auth service\" keeps breaking, as evidenced by reports of an \"auth service outage\" on multiple occasions, including \"again\" and \"third auth outage"
+        },
+        {
+          "idx": 41,
+          "type": "critical",
+          "score": 0.5,
+          "answer": "The most urgent things are the production being down due to a \"sev1 incident on auth service\" and the third auth outage this month, indicating a \"syst"
+        },
+        {
+          "idx": 42,
+          "type": "disputed",
+          "score": 0.0,
+          "answer": "The evidence does not explicitly state that any completions were challenged. It mentions that the SSO work is \"complete \u2014 pending legal review\", which"
+        },
+        {
+          "idx": 43,
+          "type": "conditional",
+          "score": 1.0,
+          "answer": "SSO (Single Sign-On) depends on legal, as stated in the evidence: \"If legal signs off, I'll have SSO ready\" and \"SSO work is complete \u2014 pending legal "
+        },
+        {
+          "idx": 44,
+          "type": "multilingual",
+          "score": 1.0,
+          "answer": "Seg\u00fan la evidencia, Carlos dijo que \"enviar\u00e1 el contrato el lunes que viene\". Las entidades mencionadas son Carlos y Carlos Ruiz, aunque parece que se"
+        },
+        {
+          "idx": 45,
+          "type": "abstention",
+          "score": 1.0,
+          "answer": "There is no evidence to answer the question about the weather. The evidence retrieved is empty, with no information provided. Therefore, it is not pos"
+        },
+        {
+          "idx": 46,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "There is no evidence to answer the question. The evidence retrieved is empty, so I cannot determine who the CEO of Microsoft is. Supported entities: n"
+        },
+        {
+          "idx": 47,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "The evidence does not explicitly state what you did not send. However, it mentions commitments to send documents to Avery Stone, Alex Chen, Priya Shah"
+        },
+        {
+          "idx": 48,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "The evidence does not explicitly state which commitment was missed. However, it can be inferred that the commitment to deliver the API integration by "
+        },
+        {
+          "idx": 49,
+          "type": "broken",
+          "score": 0.6666666666666666,
+          "answer": "assistant: What's the security of the evidence (ranked by the evidence) by the 2- 3- 4- 1- 2- 0- 1- 2- 4- 0- 1- 2- 3- 0- 1- 2- 3- 0- 1- 2- 4- 0- 1- 2-"
+        },
+        {
+          "idx": 50,
+          "type": "broken",
+          "score": 1.0,
+          "answer": "According to the evidence, you failed to deliver the \"security questionnaire\" to Riley Quinn, as stated in the message \"[Riley Quinn] (2026-07-02) Nev"
+        },
+        {
+          "idx": 51,
+          "type": "overdue",
+          "score": 0.6666666666666666,
+          "answer": "The security questionnaire from Riley Quinn and the compliance report from Priya Shah are past due. The evidence states that Riley Quinn \"Never sent t"
+        },
+        {
+          "idx": 52,
+          "type": "overdue",
+          "score": 0.6666666666666666,
+          "answer": "The evidence does not explicitly state which promises haven't been fulfilled, but it does mention commitments with deadlines: Avery Stone (quarterly r"
+        },
+        {
+          "idx": 53,
+          "type": "overdue",
+          "score": 0.0,
+          "answer": "You are late on sending the updated pricing proposal to Maria Garcia from Acme Corp, which was due by Friday. The evidence states: \"Maria Garcia from "
+        },
+        {
+          "idx": 54,
+          "type": "overdue",
+          "score": 1.0,
+          "answer": "The entities with overdue commitments are Priya Shah and Riley Quinn. According to the evidence, the \"Compliance report is overdue \u2014 hasn't been sent\""
+        },
+        {
+          "idx": 55,
+          "type": "at_risk",
+          "score": 0.6666666666666666,
+          "answer": "The evidence does not explicitly state that any commitments are in danger. However, it can be inferred that the commitments to deliver the API integra"
+        },
+        {
+          "idx": 56,
+          "type": "at_risk",
+          "score": 1.0,
+          "answer": "The promises that might slip are those with deadlines that have passed or are near, specifically: the API integration to Sam Patel, which was due on \""
+        },
+        {
+          "idx": 57,
+          "type": "at_risk",
+          "score": 1.0,
+          "answer": "The compliance report and the security questionnaire are at risk of being missed, as they are described as \"overdue\" and \"hasn't been sent\" by Priya S"
+        },
+        {
+          "idx": 58,
+          "type": "at_risk",
+          "score": 0.6666666666666666,
+          "answer": "The evidence does not explicitly state which commitments are threatened. However, it can be inferred that commitments with past due dates, such as \"I "
+        },
+        {
+          "idx": 59,
+          "type": "direct_lookup",
+          "score": 0.5,
+          "answer": "The evidence does not mention any promises made to Priya. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, "
+        },
+        {
+          "idx": 60,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The evidence does not explicitly state what you sent Avery. It only mentions that you will send Avery Stone the quarterly report, as stated in the com"
+        },
+        {
+          "idx": 61,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "You promised to deliver the security questionnaire to Riley Quinn by the end of the week, as stated in the evidence: \"I will send Riley Quinn the secu"
+        },
+        {
+          "idx": 62,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The status of the SSO work is that it is \"complete \u2014 pending legal review\" as stated by Jamie Park on 2026-07-05. Initially, Jamie Park mentioned it w"
+        },
+        {
+          "idx": 63,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Carlos said \"que enviar\u00e1 el contrato el lunes que viene\", which translates to \"that he will send the contract next Monday\". The entities mentioned are"
+        },
+        {
+          "idx": 64,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "Morgan Liu presented Nova results at the all-hands. The entities mentioned are: Alex Chen, Sam Patel, Morgan Liu, and Riley Quinn. According to the ev"
+        },
+        {
+          "idx": 65,
+          "type": "direct_lookup",
+          "score": 0.0,
+          "answer": "assistant: What did I commit to the security of the world, i.e.- 1- 2- 3- 4- 5- 6- 7- 8- 9- 10- 11- 12- 13- 2- 3- 4- 5- 6- 7- 8- 9- 10, 11- 12- 13- 14"
+        },
+        {
+          "idx": 66,
+          "type": "direct_lookup",
+          "score": 1.0,
+          "answer": "The VendorZ situation is that Alice is supposed to pay $1M to VendorZ by Friday, as stated in the evidence: \"Alice will pay $1M to VendorZ by Friday\"."
+        },
+        {
+          "idx": 67,
+          "type": "relational",
+          "score": 1.0,
+          "answer": "According to the evidence, Riley Quinn and Priya Shah have broken commitments. The evidence states that Riley Quinn \"Never sent the security questionn"
+        },
+        {
+          "idx": 68,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "You should follow up with Riley Quinn, Priya Shah, and Globex Corp, as they are associated with overdue or threatened items, with evidence stating \"[R"
+        },
+        {
+          "idx": 69,
+          "type": "relational",
+          "score": 0.0,
+          "answer": "The evidence suggests that Orion Tech is unhappy due to a \"pricing dispute\" as stated in the note: \"Orion Tech sent the final invoice at $150k \u2014 prici"
+        },
+        {
+          "idx": 70,
+          "type": "relational",
+          "score": 0.5,
+          "answer": "According to the evidence, [Sam Patel] delivered on time, as stated in point 1: \"[Sam Patel] (2026-06-07) Delivered the API integration on time\". The "
+        },
+        {
+          "idx": 71,
+          "type": "relational",
+          "score": 0.6666666666666666,
+          "answer": "Riley Quinn and Priya Shah have unfulfilled promises, as the evidence states that Riley Quinn \"Never sent the security questionnaire \u2014 overdue\" and Pr"
+        },
+        {
+          "idx": 72,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The evidence does not explicitly state what has been outstanding the longest, but it does mention commitments to send reports or documents to Avery St"
+        },
+        {
+          "idx": 73,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "According to the evidence, you committed to sending Avery Stone the quarterly report, delivering the API integration by March 15 to Sam Patel, sending"
+        },
+        {
+          "idx": 74,
+          "type": "temporal",
+          "score": 1.0,
+          "answer": "The evidence does not explicitly state which commitments have been kept or not. However, it does mention specific deadlines, and based on the dates pr"
+        },
+        {
+          "idx": 75,
+          "type": "temporal",
+          "score": 0.0,
+          "answer": "There is no evidence to answer the question. The evidence retrieved is empty, so it's not possible to determine what's been delayed the most. The enti"
+        },
+        {
+          "idx": 76,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "There is a regulatory issue, as stated by [Legal Dept] on 2026-07-10: \"EU regulatory fine of 5M euros imposed for GDPR violation\". The entities involv"
+        },
+        {
+          "idx": 77,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "Globex Corp is an account that is churning, as the evidence states they are \"threatening to cancel their contract \u2014 pulling out\". The entities mention"
+        },
+        {
+          "idx": 78,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "The board is concerned about seeing the Q3 numbers before the Friday meeting, as stated in the evidence: \"Board escalation: investor wants to see Q3 n"
+        },
+        {
+          "idx": 79,
+          "type": "critical",
+          "score": 1.0,
+          "answer": "There are legal threats, as evidenced by a \"EU regulatory fine of 5M euros imposed for GDPR violation\" and Globex Corp \"is threatening to cancel their"
+        },
+        {
+          "idx": 80,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "There is no evidence to answer the question about the stock price of AAPL. The evidence explicitly states \"(no evidence retrieved)\". Therefore, the st"
+        },
+        {
+          "idx": 81,
+          "type": "abstention",
+          "score": 1.0,
+          "answer": "There is no evidence to answer the question about the height of Mount Everest. The evidence explicitly states \"(no evidence retrieved)\", which means t"
+        },
+        {
+          "idx": 82,
+          "type": "abstention",
+          "score": 0.0,
+          "answer": "The evidence does not mention any commitments made in 2023. All the commitments mentioned are dated 2026. The entities mentioned are Avery Stone, Rile"
+        },
+        {
+          "idx": 83,
+          "type": "abstention",
+          "score": 1.0,
+          "answer": "There is no evidence to answer the question about who Albert Einstein is. The evidence explicitly states \"(no evidence retrieved)\", providing no infor"
+        },
+        {
+          "idx": 84,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Yes, Orion Tech's price changed. The evidence shows that the initial quote was \"$120k\", then it was \"revised down to $95k\", and finally the \"final inv"
+        },
+        {
+          "idx": 85,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "According to the evidence, Orion Tech's final invoice was \"$150k\", as stated in the entry from 2026-07-07: \"Orion Tech sent the final invoice at $150k"
+        },
+        {
+          "idx": 86,
+          "type": "contradiction",
+          "score": 1.0,
+          "answer": "Yes, there was a pricing dispute with Orion Tech. The evidence states: \"Orion Tech sent the final invoice at $150k \u2014 pricing dispute\" ([Orion Tech], 2"
+        },
+        {
+          "idx": 87,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The recurring production issue appears to be related to authentication outages, as stated in the evidence: \"Third auth outage this month \u2014 systemic is"
+        },
+        {
+          "idx": 88,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The auth service keeps going wrong, with an \"auth service outage again\" and a \"third auth outage this month\", indicating a recurring issue. The eviden"
+        },
+        {
+          "idx": 89,
+          "type": "recurring",
+          "score": 1.0,
+          "answer": "The systemic issue is related to auth outages, as stated in the evidence: \"Third auth outage this month \u2014 systemic issue\". The entities mentioned are "
+        },
+        {
+          "idx": 90,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "1-2-3-4- 2-4-5- 2-3-4, 2-4, 2-4, 2-4, 2- 2-3- 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2-4, 2- 2"
+        },
+        {
+          "idx": 91,
+          "type": "noise_lookup",
+          "score": 0.5,
+          "answer": "There is no evidence to answer the question about industry trends you read about. The evidence retrieved is empty, with no information provided. There"
+        },
+        {
+          "idx": 92,
+          "type": "noise_lookup",
+          "score": 1.0,
+          "answer": "The following newsletters came in: [TechNewsletter] (2026-07-11) and [TechNewsletter] (2026-07-04), as well as [IndustryNews] (2026-07-08). These are "
+        },
+        {
+          "idx": 93,
+          "type": "priority",
+          "score": 0.75,
+          "answer": "The most urgent commitments appear to be related to the production issue and the board escalation. The evidence states \"Production down \u2014 sev1 inciden"
+        },
+        {
+          "idx": 94,
+          "type": "priority",
+          "score": 0.6666666666666666,
+          "answer": "The following need attention immediately: the updated pricing proposal for Maria Garcia from Acme Corp, the compliance report, and the security questi"
+        },
+        {
+          "idx": 95,
+          "type": "multilingual",
+          "score": 1.0,
+          "answer": "Seg\u00fan la evidencia, Carlos enviar\u00e1 el contrato. La evidencia dice verbatim: \"Carlos dijo que enviar\u00e1 el contrato el lunes que viene\". Las entidades me"
+        },
+        {
+          "idx": 96,
+          "type": "disputed",
+          "score": 1.0,
+          "answer": "The Nova presentation was not complete, as Morgan Liu stated on 2026-07-03 that the \"Nova results presentation was incomplete \u2014 missing the Q2 data\". "
+        },
+        {
+          "idx": 97,
+          "type": "conditional",
+          "score": 1.0,
+          "answer": "According to Jamie Park, \"If legal signs off, I'll have SSO ready by Q4\". This implies that the SSO is not yet ready, but will be once legal approval "
+        },
+        {
+          "idx": 98,
+          "type": "cross_entity",
+          "score": 1.0,
+          "answer": "The entities with compliance issues are Priya Shah, as the compliance report is \"overdue \u2014 hasn't been sent\" according to the evidence. Additionally, "
+        },
+        {
+          "idx": 99,
+          "type": "prepare",
+          "score": 0.5,
+          "answer": "To prepare for the board meeting, you should send the updated pricing proposal to Maria Garcia from Acme Corp by Friday, as she needs at least 3 days "
+        }
+      ],
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.5,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        1.0,
+        0.75,
+        0.5,
+        1.0,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        0.0,
+        0.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        0.5,
+        1.0,
+        1.0,
+        0.5,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        0.6666666666666666,
+        0.6666666666666666,
+        0.0,
+        1.0,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        0.5,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.6666666666666666,
+        0.0,
+        0.5,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.5,
+        1.0,
+        0.75,
+        0.6666666666666666,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.5
+      ]
+    }
+  },
+  "note": "partial \u2014 may not include all models"
+}
