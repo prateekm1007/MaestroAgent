@@ -1,0 +1,548 @@
+{
+  "timestamp": "2026-07-21T00:50:14.760775+00:00",
+  "models": [
+    "qwen/qwen-plus",
+    "meta-llama/llama-3.3-70b-instruct",
+    "qwen/qwen3.6-flash",
+    "nvidia/nemotron-3-super-120b-a12b:free"
+  ],
+  "results": [
+    {
+      "idx": 4,
+      "type": "broken",
+      "query": "What did I fail to deliver?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "in_evidence": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "You failed to deliver the security questionnaire (Riley Quinn, 2026-07-02: \u201cNever sent the security questionnaire \u2014 overdue\u201d) and the compliance report (Priya Shah, 2026-06-30: \u201cCompliance report is overdue \u2014 hasn't been sent\u201d). Both are explicitly stated as overdue and not sent. No other deliverabl",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "You failed to deliver the security questionnaire and the compliance report. The evidence states that the security questionnaire was \"Never sent \u2014 overdue\" and the compliance report \"hasn't been sent\" and is \"overdue\". The entities involved are Riley Quinn, associated with the security questionnaire,",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, you failed to deliver the security questionnaire, which \"Never sent \u2014 overdue,\" and the compliance report, which \"is overdue \u2014 hasn't been sent.\"",
+          "found": [
+            "security questionnaire"
+          ],
+          "missing": [
+            "Riley"
+          ]
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "You failed to deliver the security questionnaire (Riley Quinn \u201cNever sent the security questionnaire \u2014 overdue\u201d) and the compliance report (Priya Shah \u201cCompliance report is overdue \u2014 hasn't been sent\u201d). These are the items indicated as overdue or never sent in the evidence.",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        }
+      }
+    },
+    {
+      "idx": 5,
+      "type": "at_risk",
+      "query": "Which commitments are at risk?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "None of the commitments are explicitly stated as \u201cat risk\u201d in the evidence. All listed commitments include future dates and intentions (e.g., \u201cI will send\u2026\u201d), with no indication of delay, failure, or threat. Therefore, based solely on the evidence provided, no commitments are confirmed to be at risk",
+          "found": [],
+          "missing": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ]
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The commitments that are at risk are those with deadlines that have passed or are near, but the evidence does not explicitly state which ones are at risk. According to the evidence, the commitment to deliver the API integration by March 15 to Sam Patel is potentially at risk since the statement was ",
+          "found": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ],
+          "missing": []
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "The provided evidence does not indicate which commitments are at risk, as it only lists the commitments and deadlines without any status updates. The evidence mentions commitments for Avery Stone, Riley Quinn, Alex Chen, Sam Patel, and Priya Shah, but does not specify if any are overdue or threatene",
+          "found": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ],
+          "missing": []
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "We need to answer: Which commitments are at risk? The evidence includes commitments with dates. At risk likely means overdue or never sent. We need to see if any commitment is overdue relative to today? The current date is not given. The evidence includes dates: 2026-04-27, 2026-05-13, 2026-05-28, 2",
+          "found": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ],
+          "missing": []
+        }
+      }
+    },
+    {
+      "idx": 15,
+      "type": "temporal",
+      "query": "What's been pending for over a month?",
+      "expected": [
+        "Avery"
+      ],
+      "in_evidence": [
+        "Avery"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "The SSO work for Jamie Park is pending legal review since at least 2026-07-05, and Jamie also noted on 2026-05-23 that SSO would be ready \u201cif legal signs off\u201d, implying legal review has been pending since before then \u2014 over a month. The commitment to send Riley Quinn the security questionnaire \u201cby e",
+          "found": [
+            "Avery"
+          ],
+          "missing": []
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The evidence does not explicitly state what has been pending for over a month. However, it can be inferred that the SSO work's legal review, mentioned by Jamie Park on 2026-07-05, has been pending since at least 2026-05-23, when Jamie Park mentioned the need for legal sign-off. Additionally, the qua",
+          "found": [
+            "Avery"
+          ],
+          "missing": []
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, the SSO work is \"pending legal review\" for Jamie Park. The provided text does not specify that this has been pending for over a month. The relevant entities are Jamie Park, SSO work, and legal review.",
+          "found": [],
+          "missing": [
+            "Avery"
+          ]
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "We need to answer: \"What's been pending for over a month?\" Use evidence. Identify items that are pending and have been pending for over a month (i.e., date older than a month from today? We don't have today's date, but we can infer from evidence dates. The evidence entries have dates: 2026-07-05, 20",
+          "found": [],
+          "missing": [
+            "Avery"
+          ]
+        }
+      }
+    },
+    {
+      "idx": 31,
+      "type": "cross_entity",
+      "query": "Which clients have pricing issues?",
+      "expected": [
+        "Orion",
+        "Maria",
+        "Acme"
+      ],
+      "in_evidence": [
+        "Orion",
+        "Maria",
+        "Acme"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "Only Orion Tech has a documented pricing issue: \u201cOrion Tech sent the final invoice at $150k \u2014 pricing dispute\u201d. The evidence also shows Orion Tech quoted $120k for the annual contract, suggesting a $30k discrepancy. No pricing issues are indicated for Alex Chen or Maria Garcia \u2014 only pending or comp",
+          "found": [
+            "Orion",
+            "Maria"
+          ],
+          "missing": [
+            "Acme"
+          ]
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The clients with pricing issues are Orion Tech and Acme Corp (specifically, Maria Garcia). The evidence states that there is a \"pricing dispute\" with Orion Tech and that Maria Garcia from Acme Corp requested an \"updated pricing proposal\", indicating ongoing pricing discussions. Additionally, Alex Ch",
+          "found": [
+            "Orion",
+            "Maria",
+            "Acme"
+          ],
+          "missing": []
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, Orion Tech is the only client with a pricing issue, as the notes explicitly state there is a \"pricing dispute\" regarding their final invoice. No other clients are mentioned as having pricing problems.",
+          "found": [
+            "Orion"
+          ],
+          "missing": [
+            "Maria",
+            "Acme"
+          ]
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "Orion Tech has a pricing issue, as evidenced by the statement: \u201cOrion Tech sent the final invoice at $150k \u2014 pricing dispute.\u201d No other evidence in the list indicates pricing problems for any other client.",
+          "found": [
+            "Orion"
+          ],
+          "missing": [
+            "Maria",
+            "Acme"
+          ]
+        }
+      }
+    },
+    {
+      "idx": 37,
+      "type": "temporal",
+      "query": "What's the oldest unfulfilled commitment?",
+      "expected": [
+        "Avery"
+      ],
+      "in_evidence": [
+        "Avery"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "The oldest unfulfilled commitment is \u201c[Avery Stone] (2026-04-27) I will send Avery Stone the quarterly report\u201d, as it has the earliest date (2026-04-27) and no evidence indicates it has been fulfilled. All other listed commitments are either later in date or \u2014 in the case of Alex Chen\u2019s second entry",
+          "found": [
+            "Avery"
+          ],
+          "missing": []
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The evidence does not explicitly state which commitments are unfulfilled, but it does show that one commitment has been fulfilled: \"Sent the pricing deck to Alex Chen yesterday\". The other commitments are to Avery Stone, Riley Quinn, and Jamie Park, but there is no information on their current statu",
+          "found": [
+            "Avery"
+          ],
+          "missing": []
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, the oldest unfulfilled commitment is to send the quarterly report to Avery Stone, dated 2026-04-27. The text explicitly states: \"[Avery Stone] (2026-04-27) I will send Avery Stone the quarterly report\". While the evidence also tracks commitments for Riley Quinn, Jamie Park, an",
+          "found": [
+            "Avery"
+          ],
+          "missing": []
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "The oldest unfulfilled commitment is the one to **Avery Stone** (dated 2026\u201104\u2011",
+          "found": [
+            "Avery"
+          ],
+          "missing": []
+        }
+      }
+    },
+    {
+      "idx": 47,
+      "type": "broken",
+      "query": "What did I not send?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "in_evidence": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "You did not send the quarterly report to Avery Stone, the pricing deck to Alex Chen, the compliance report to Priya Shah, the security questionnaire to Riley Quinn, and the updated pricing proposal to Maria Garcia from Acme Corp. The evidence states commitments to send each of these items, but none ",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The evidence does not explicitly state what you did not send. However, it mentions several commitments to send documents, including to Avery Stone, Alex Chen, Priya Shah, and Riley Quinn, as well as an updated pricing proposal to Maria Garcia from Acme Corp. The entities mentioned are: Avery Stone, ",
+          "found": [
+            "Riley"
+          ],
+          "missing": [
+            "security questionnaire"
+          ]
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, you committed to sending the \"quarterly report,\" the \"pricing deck,\" the \"compliance report,\" the \"security questionnaire,\" and the \"updated pricing proposal.\" The provided text only lists these as pending commitments and does not confirm they have been delivered. Therefore, t",
+          "found": [
+            "security questionnaire"
+          ],
+          "missing": [
+            "Riley"
+          ]
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "The evidence only lists commitments to send items to Avery Stone, Alex Chen, Priya Shah, Riley Quinn, and Maria Garcia; it does not state that any of these (or any other) items were not sent. Therefore, there is no evidence indicating what was not sent.",
+          "found": [
+            "Riley"
+          ],
+          "missing": [
+            "security questionnaire"
+          ]
+        }
+      }
+    },
+    {
+      "idx": 48,
+      "type": "broken",
+      "query": "Which commitment did I miss?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "in_evidence": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "None of the commitments listed are marked as missed, overdue, or broken in the evidence. All entries are future-dated (2026-04-13 to 2026-06-22) and describe intended actions, with no indication that any has been missed. Therefore, based solely on the evidence provided, you did not miss any commitme",
+          "found": [],
+          "missing": [
+            "Riley",
+            "security questionnaire"
+          ]
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The evidence suggests that you may have missed the commitment to deliver the API integration by March 15, as stated in the commitment to [Sam Patel] (2026-06-02) \"I will deliver the API integration by March 15\". The entities involved are Avery Stone, Sam Patel, Alex Chen, Riley Quinn, and Morgan Liu",
+          "found": [
+            "Riley"
+          ],
+          "missing": [
+            "security questionnaire"
+          ]
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, the commitment to Sam Patel regarding the API integration is the one you missed, as it was due by March 15 but was recorded on June 2, 2026. The evidence explicitly states: \"I will deliver the API integration by March 15\". No other commitments in the provided text indicate a p",
+          "found": [],
+          "missing": [
+            "Riley",
+            "security questionnaire"
+          ]
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "We need to answer: Which commitment did I miss? The evidence list includes commitments with dates. We need to infer which one is missed (i.e., overdue). The evidence does not explicitly state any missed commitment. It just lists statements. No indication of missed. So we must say evidence does not a",
+          "found": [
+            "Riley"
+          ],
+          "missing": [
+            "security questionnaire"
+          ]
+        }
+      }
+    },
+    {
+      "idx": 49,
+      "type": "broken",
+      "query": "What's overdue and broken?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "The overdue and broken items are:  \n- Priya Shah\u2019s compliance report, which \u201cis overdue \u2014 hasn\u2019t been sent\u201d (2026-06-30).  \n- Riley Quinn\u2019s security questionnaire, which was \u201cnever sent \u2014 overdue\u201d (2026-07-02).  \n\nBoth are explicitly labeled overdue, and the entity summary confirms Priya Shah has \u201c1",
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ]
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The compliance report and the security questionnaire are overdue. According to the evidence, the compliance report \"hasn't been sent\" and the security questionnaire was \"never sent\" and is \"overdue\". The evidence also mentions that Priya Shah has \"1 broken\" commitment. The entities mentioned are Pri",
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ]
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, Priya Shah's compliance report is \"overdue \u2014 hasn't been sent\" and her entity summary explicitly notes \"1 broken\". Riley Quinn's security questionnaire is also \"overdue\" because it was \"Never sent\". Both commitments are currently at risk.",
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ]
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "[ERROR: 'choices']",
+          "found": [],
+          "missing": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ]
+        }
+      }
+    },
+    {
+      "idx": 50,
+      "type": "broken",
+      "query": "Did I fail to deliver anything to Riley?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "in_evidence": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "Yes, you failed to deliver the security questionnaire to Riley Quinn. Evidence #1 states it was \u201cNever sent the security questionnaire \u2014 overdue,\u201d and evidence #2 confirms you committed to sending it \u201cby end of week\u201d (2026-05-13), but it remains unfulfilled. The only entity mentioned in connection w",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "According to the evidence, you failed to deliver the \"security questionnaire\" to Riley Quinn, as stated in point 1: \"Never sent the security questionnaire \u2014 overdue\". This is related to your commitment in point 2: \"I will send Riley Quinn the security questionnaire by end of week\". The entities ment",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Yes, you failed to deliver the security questionnaire to Riley Quinn. The evidence confirms that you \"[Riley Quinn] (2026-07-02) Never sent the security questionnaire \u2014 overdue,\" which breaks your commitment to \"[Riley Quinn] (2026-05-13) I will send Riley Quinn the security questionnaire by end of ",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "Yes. The evidence shows that you \u201cNever sent the security questionnaire \u2014 overdue\u201d for Riley Quinn\u30101\u3011, indicating a failure to deliver that item. The only entity involved is Riley Quinn (and the security questionnaire).",
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": []
+        }
+      }
+    },
+    {
+      "idx": 55,
+      "type": "at_risk",
+      "query": "What commitments are in danger?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "in_evidence": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "models": {
+        "qwen/qwen-plus": {
+          "name": "Qwen Plus",
+          "answer": "No commitments are explicitly labeled as \u201cin danger\u201d in the evidence. However, commitments with past or imminent deadlines may be at risk if unfulfilled: \u201c[Sam Patel] (2026-06-02) I will deliver the API integration by March 15\u201d is overdue (March 15 has passed), and \u201c[Riley Quinn] (2026-05-13) I will",
+          "found": [
+            "Riley"
+          ],
+          "missing": [
+            "Avery",
+            "Priya"
+          ]
+        },
+        "meta-llama/llama-3.3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "answer": "The evidence does not explicitly state which commitments are in danger. However, it can be inferred that the commitment to deliver the API integration by March 15, as stated by Sam Patel on 2026-06-02, may be at risk since the deadline has already passed. The entities involved in the commitments are",
+          "found": [
+            "Riley",
+            "Avery"
+          ],
+          "missing": [
+            "Priya"
+          ]
+        },
+        "qwen/qwen3.6-flash": {
+          "name": "Qwen 3.6 Flash",
+          "answer": "Based on the evidence, the commitment to Sam Patel is at risk because the recorded date (2026-06-02) is after the stated deadline. The evidence states: \"[Sam Patel] (2026-06-02) I will deliver the API integration by March 15\". No other commitments in the provided list indicate they are overdue or th",
+          "found": [],
+          "missing": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ]
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 120B (free)",
+          "answer": "We need to answer: \"What commitments are in danger?\" The evidence list shows commitments with dates. No explicit mention of being overdue, at risk, etc. The question asks about commitments in danger. The evidence does not indicate any are in danger. So we must say that the evidence does not answer t",
+          "found": [
+            "Riley",
+            "Avery"
+          ],
+          "missing": [
+            "Priya"
+          ]
+        }
+      }
+    }
+  ]
+}

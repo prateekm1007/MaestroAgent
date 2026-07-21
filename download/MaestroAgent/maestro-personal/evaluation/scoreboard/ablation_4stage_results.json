@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-20T18:27:18.122161+00:00",
+  "timestamp": "2026-07-21T00:44:54.308334+00:00",
   "model": "qwen/qwen-plus",
   "reranker": "cohere",
   "question_count": 100,
@@ -1576,7 +1576,7 @@
     ]
   },
   "stage4_full": {
-    "average": 0.7583333333333333,
+    "average": 0.7616666666666667,
     "per_type": {
       "abstention": 1.0,
       "at_risk": 0.5333333333333333,
@@ -1591,7 +1591,7 @@
       "noise_lookup": 0.75,
       "overdue": 0.6666666666666666,
       "prepare": 0.75,
-      "priority": 0.6666666666666666,
+      "priority": 0.75,
       "recurring": 1.0,
       "relational": 0.5666666666666667,
       "temporal": 0.3125
@@ -1606,19 +1606,19 @@
       {
         "type": "direct_lookup",
         "score": 1.0,
-        "answer": "Maria Garcia asked for the updated pricing proposal to be sent by Friday. She stated that Acme Corp\u2019",
+        "answer": "Maria Garcia asked for the updated pricing proposal to be sent by Friday. She explained that Acme Co",
         "llm": true
       },
       {
         "type": "direct_lookup",
         "score": 1.0,
-        "answer": "You sent Sam Patel the API integration. The evidence states: \u201c[Sam Patel] (2026-06-02) I will delive",
+        "answer": "You did not send Sam anything\u2014the evidence states you will \u201cdeliver the API integration\u201d to Sam Pate",
         "llm": true
       },
       {
         "type": "overdue",
         "score": 1.0,
-        "answer": "The overdue promises are: \u201c[Priya Shah] (2026-06-30) Compliance report is overdue \u2014 hasn't been sent",
+        "answer": "The overdue promises are:  \n- [Priya Shah] (2026-06-30) Compliance report is overdue \u2014 hasn't been s",
         "llm": true
       },
       {
@@ -1630,43 +1630,43 @@
       {
         "type": "at_risk",
         "score": 1.0,
-        "answer": "No commitments are at risk based on the evidence provided. All listed deadlines (2026-04-27, 2026-05",
+        "answer": "The commitments at risk are those with deadlines that have already passed or are overdue relative to",
         "llm": true
       },
       {
         "type": "relational",
         "score": 0.6666666666666666,
-        "answer": "You are repeatedly disappointing Priya Shah and Riley Quinn. Priya Shah\u2019s compliance report is overd",
+        "answer": "You are repeatedly disappointing Priya Shah and Riley Quinn, as both have overdue commitments: \u201cComp",
         "llm": true
       },
       {
         "type": "relational",
         "score": 1.0,
-        "answer": "Priya Shah has become a delivery risk. The evidence states: \u201c(2026-06-30) Compliance report is overd",
+        "answer": "Priya Shah has become a delivery risk because the compliance report promised to her \u201cis overdue \u2014 ha",
         "llm": true
       },
       {
         "type": "relational",
         "score": 0.5,
-        "answer": "Priya Shah keeps their promises, as evidenced by the commitment: \u201cI will send Priya Shah the complia",
+        "answer": "None of the entities in the evidence are confirmed to have kept their promises. Priya Shah\u2019s commitm",
         "llm": true
       },
       {
         "type": "contradiction",
         "score": 1.0,
-        "answer": "Orion Tech\u2019s pricing is inconsistent across evidence: they initially quoted $120k for the annual con",
+        "answer": "Orion Tech\u2019s pricing is inconsistent across three documented points: they initially quoted $120k for",
         "llm": true
       },
       {
         "type": "contradiction",
         "score": 1.0,
-        "answer": "Yes, Orion Tech changed their price. They first quoted $120k (2026-06-12), then revised it down to $",
+        "answer": "Yes, Orion Tech changed their price. They initially quoted $120k (2026-06-12), revised it down to $9",
         "llm": true
       },
       {
         "type": "recurring",
         "score": 1.0,
-        "answer": "The recurring issue across meetings is overdue deliverables. Specifically, the evidence cites \u201c[Priy",
+        "answer": "The recurring issue across meetings is overdue deliverables: \u201c[Priya Shah] (2026-06-30) Compliance r",
         "llm": true
       },
       {
@@ -1684,37 +1684,37 @@
       {
         "type": "temporal",
         "score": 0.5,
-        "answer": "You committed to sending Priya Shah the compliance report by June 30 (evidence #1: \u201c[Priya Shah] (20",
+        "answer": "Last quarter, you committed to: (1) sending Priya Shah the compliance report by June 30; (2) deliver",
         "llm": true
       },
       {
         "type": "temporal",
         "score": 0.0,
-        "answer": "The security questionnaire for Riley Quinn has been pending since 2026-07-02 and is described as \u201cov",
+        "answer": "The security questionnaire from Riley Quinn (overdue, never sent) and the compliance report from Pri",
         "llm": true
       },
       {
         "type": "noise_lookup",
         "score": 1.0,
-        "answer": "You received two newsletters: \u201c[TechNewsletter] (2026-07-11) Monthly newsletter roundup \u2014 industry t",
+        "answer": "You received the following newsletters:  \n- [TechNewsletter] (2026-07-11) Monthly newsletter roundup",
         "llm": true
       },
       {
         "type": "noise_lookup",
         "score": 0.5,
-        "answer": "The latest industry news in the evidence is Morgan Liu\u2019s incomplete Nova results presentation on 202",
+        "answer": "The latest industry news from the evidence is Morgan Liu\u2019s presentation of Nova results at the all-h",
         "llm": true
       },
       {
         "type": "critical",
         "score": 1.0,
-        "answer": "Yes, there are legal issues. The Legal Dept. states: \u201cEU regulatory fine of 5M euros imposed for GDP",
+        "answer": "Yes, there are legal issues. The Legal Dept reports an \u201cEU regulatory fine of 5M euros imposed for G",
         "llm": true
       },
       {
         "type": "critical",
         "score": 1.0,
-        "answer": "Yes, Globex Corp is at risk of churning. The evidence states: \u201c[Globex Corp] (2026-07-10) Globex Cor",
+        "answer": "Yes, Globex Corp is at risk of churning, as they are \u201cthreatening to cancel their contract \u2014 pulling",
         "llm": true
       },
       {
@@ -1726,13 +1726,13 @@
       {
         "type": "priority",
         "score": 0.75,
-        "answer": "Your most important commitment is the [EngOncall] (2026-06-28) Production down \u2014 sev1 incident on au",
+        "answer": "The evidence does not explicitly rank commitments by importance, so no single \u201cmost important\u201d commi",
         "llm": true
       },
       {
         "type": "priority",
         "score": 0.5,
-        "answer": "Maria Garcia from Acme Corp needs your attention today: she \u201casked us to send the updated pricing pr",
+        "answer": "Today needs attention on: (1) sending the updated pricing proposal to Maria Garcia (Acme Corp) by Fr",
         "llm": true
       },
       {
@@ -1750,13 +1750,13 @@
       {
         "type": "conditional",
         "score": 1.0,
-        "answer": "SSO is not yet ready. According to Jamie Park on 2026-07-05, \u201cSSO work is complete \u2014 pending legal r",
+        "answer": "SSO is not yet ready, as it is \u201cpending legal review\u201d (evidence #2). Jamie Park stated on 2026-07-05",
         "llm": true
       },
       {
         "type": "direct_lookup",
         "score": 1.0,
-        "answer": "The Hiring Committee has one active commitment: it will make an offer to the senior engineer candida",
+        "answer": "The Hiring Committee has no broken, overdue, or active commitments recorded. Its only recent signal ",
         "llm": true
       },
       {
@@ -1786,13 +1786,13 @@
       {
         "type": "cross_entity",
         "score": 1.0,
-        "answer": "Only Orion Tech has a confirmed pricing issue, as the evidence states: \u201cOrion Tech sent the final in",
+        "answer": "Clients with pricing issues are Orion Tech and Acme Corp (represented by Maria Garcia). Orion Tech h",
         "llm": true
       },
       {
         "type": "cross_entity",
         "score": 0.5,
-        "answer": "Orion Tech owes you something: they sent \u201cthe final invoice at $150k \u2014 pricing dispute\u201d, indicating ",
+        "answer": "No one in the evidence owes you something directly. Orion Tech sent a $150k invoice (a pricing dispu",
         "llm": true
       },
       {
@@ -1810,31 +1810,31 @@
       {
         "type": "relational",
         "score": 0.5,
-        "answer": "Sam Patel is your most reliable partner, as they delivered the API integration on time\u2014fulfilling th",
+        "answer": "Sam Patel is your most reliable partner, as the evidence confirms they \u201cDelivered the API integratio",
         "llm": true
       },
       {
         "type": "relational",
         "score": 1.0,
-        "answer": "Your biggest risks are Globex Corp and Riley Quinn. Globex Corp is \u201cthreatening to cancel their cont",
+        "answer": "Your biggest risks are Riley Quinn, Priya Shah, and Globex Corp. Riley Quinn is at risk because the ",
         "llm": true
       },
       {
         "type": "temporal",
         "score": 1.0,
-        "answer": "The oldest unfulfilled commitment is Avery Stone\u2019s: \u201cI will send Avery Stone the quarterly report\u201d (",
+        "answer": "The oldest unfulfilled commitment is: \u201c[Avery Stone] (2026-04-27) I will send Avery Stone the quarte",
         "llm": true
       },
       {
         "type": "temporal",
         "score": 0.5,
-        "answer": "You called Maria Garcia from Acme Corp on Tuesday (2026-07-09) and committed to sending an updated p",
+        "answer": "You did not complete any of the listed commitments this week. The evidence shows pending actions: se",
         "llm": true
       },
       {
         "type": "contradiction",
         "score": 1.0,
-        "answer": "Yes, Orion Tech changed their mind. They initially quoted $120k on 2026-06-12, then \u201crevised the quo",
+        "answer": "Yes\u2014Orion Tech changed their mind, revising the quote down from $120k to $95k after negotiation. The",
         "llm": true
       },
       {
@@ -1846,19 +1846,19 @@
       {
         "type": "critical",
         "score": 0.5,
-        "answer": "The most urgent thing right now is the **Globex Corp contract cancellation threat**, as it is dated ",
+        "answer": "The most urgent thing is Globex Corp threatening to cancel their contract \u2014 \u201cpulling out\u201d \u2014 as of 20",
         "llm": true
       },
       {
         "type": "disputed",
         "score": 0.0,
-        "answer": "No completions were challenged. The evidence states only that \u201cSSO work is complete \u2014 pending legal ",
+        "answer": "No completions were challenged, according to the evidence. The only statement provided is: \u201c[Jamie P",
         "llm": true
       },
       {
         "type": "conditional",
         "score": 1.0,
-        "answer": "SSO readiness depends on legal sign-off, as Jamie Park stated, \u201cIf legal signs off, I'll have SSO re",
+        "answer": "SSO readiness depends on legal, as Jamie Park states, \u201cIf legal signs off, I'll have SSO ready by Q4",
         "llm": true
       },
       {
@@ -1894,25 +1894,25 @@
       {
         "type": "broken",
         "score": 1.0,
-        "answer": "Overdue and broken commitments are:  \n- [Priya Shah]\u2019s compliance report, which \u201cis overdue \u2014 hasn\u2019t",
+        "answer": "The overdue and broken commitments are:  \n- [Priya Shah]\u2019s compliance report, which \u201cis overdue \u2014 ha",
         "llm": true
       },
       {
         "type": "broken",
         "score": 1.0,
-        "answer": "Yes, you failed to deliver the security questionnaire to Riley Quinn. Evidence #2 states, \u201cI will se",
+        "answer": "Yes, you failed to deliver the security questionnaire to Riley Quinn. The evidence states: \u201c[Riley Q",
         "llm": true
       },
       {
         "type": "overdue",
         "score": 0.6666666666666666,
-        "answer": "Riley Quinn\u2019s security questionnaire is past due (2026-07-02), and Priya Shah\u2019s compliance report is",
+        "answer": "Two items are past due: Riley Quinn\u2019s security questionnaire, which \u201cNever sent\u201d and is \u201coverdue,\u201d a",
         "llm": true
       },
       {
         "type": "overdue",
         "score": 0.6666666666666666,
-        "answer": "The only unfulfilled promise is [Sam Patel] (2026-06-02) \u201cI will deliver the API integration by Marc",
+        "answer": "None of the promises listed have been confirmed as fulfilled in the evidence. All are stated as futu",
         "llm": true
       },
       {
@@ -1924,7 +1924,7 @@
       {
         "type": "overdue",
         "score": 1.0,
-        "answer": "Overdue commitments are:  \n- [Priya Shah] (2026-06-30) \u201cCompliance report is overdue \u2014 hasn't been s",
+        "answer": "The overdue commitments are:  \n- [Priya Shah] (2026-06-30): \u201cCompliance report is overdue \u2014 hasn't b",
         "llm": true
       },
       {
@@ -1948,7 +1948,7 @@
       {
         "type": "at_risk",
         "score": 0.6666666666666666,
-        "answer": "The commitments threatened are those with deadlines that have already passed relative to today\u2019s dat",
+        "answer": "None of the listed commitments are explicitly labeled as \u201cthreatened,\u201d \u201cat risk,\u201d \u201coverdue,\u201d or \u201cbro",
         "llm": true
       },
       {
@@ -1960,7 +1960,7 @@
       {
         "type": "direct_lookup",
         "score": 1.0,
-        "answer": "You sent Avery Stone the quarterly report. The evidence states: \u201cI will send Avery Stone the quarter",
+        "answer": "You committed to sending Avery Stone the quarterly report. The evidence states: \u201cI will send Avery S",
         "llm": true
       },
       {
@@ -1984,7 +1984,7 @@
       {
         "type": "direct_lookup",
         "score": 1.0,
-        "answer": "Morgan Liu presented the Nova results at the all-hands on 2026-07-02. However, the presentation was ",
+        "answer": "Morgan Liu presented the Nova results at the all-hands on 2026-07-02. Based on: \u201cPresented Nova resu",
         "llm": true
       },
       {
@@ -1996,13 +1996,13 @@
       {
         "type": "direct_lookup",
         "score": 1.0,
-        "answer": "I don't have enough reliable evidence to answer this question.",
+        "answer": "Alice has committed to paying $1M to VendorZ by Friday. Based on: \u201cAlice will pay $1M to VendorZ by ",
         "llm": true
       },
       {
         "type": "relational",
         "score": 0.3333333333333333,
-        "answer": "Priya Shah has broken a commitment: \u201cCompliance report is overdue \u2014 hasn't been sent\u201d (2026-06-30), ",
+        "answer": "Priya Shah has broken a commitment: \u201cCompliance report is overdue \u2014 hasn't been sent\u201d (Evidence 2), ",
         "llm": true
       },
       {
@@ -2014,7 +2014,7 @@
       {
         "type": "relational",
         "score": 1.0,
-        "answer": "Globex Corp is unhappy, as the evidence states: \u201cGlobex Corp is threatening to cancel their contract",
+        "answer": "Only Globex Corp is explicitly described as unhappy: \u201cGlobex Corp is threatening to cancel their con",
         "llm": true
       },
       {
@@ -2026,25 +2026,25 @@
       {
         "type": "relational",
         "score": 0.6666666666666666,
-        "answer": "Riley Quinn and Priya Shah have unfulfilled promises. Riley Quinn \u201cNever sent the security questionn",
+        "answer": "Riley Quinn and Priya Shah have unfulfilled promises, as both have overdue deliverables: Riley \u201cNeve",
         "llm": true
       },
       {
         "type": "temporal",
         "score": 0.0,
-        "answer": "The longest outstanding item is Priya Shah\u2019s compliance report, which was committed to be sent by Ju",
+        "answer": "The longest outstanding item is Riley Quinn\u2019s security questionnaire, which is \u201cnever sent\u201d and mark",
         "llm": true
       },
       {
         "type": "temporal",
         "score": 0.5,
-        "answer": "You committed to sending Riley Quinn the security questionnaire by end of week on May 13, 2026. The ",
+        "answer": "You committed to sending Riley Quinn the security questionnaire by end of week (2026-05-13) and send",
         "llm": true
       },
       {
         "type": "temporal",
         "score": 0.0,
-        "answer": "The oldest unkept commitment is: \u201c[Sam Patel] (2026-06-02) I will deliver the API integration by Mar",
+        "answer": "The oldest commitment you haven\u2019t kept is: \u201c[Sam Patel] (2026-06-02) I will deliver the API integrat",
         "llm": true
       },
       {
@@ -2062,19 +2062,19 @@
       {
         "type": "critical",
         "score": 1.0,
-        "answer": "Yes, Globex Corp is churning: \u201c[Globex Corp] (2026-07-10) Globex Corp is threatening to cancel their",
+        "answer": "Yes, Globex Corp is churning: \u201cGlobex Corp is threatening to cancel their contract \u2014 pulling out.\u201d N",
         "llm": true
       },
       {
         "type": "critical",
         "score": 1.0,
-        "answer": "The board is concerned about two things: (1) reviewing the updated pricing proposal \u2014 Maria Garcia s",
+        "answer": "The board is concerned about reviewing Q3 financial numbers before their Friday meeting on 2026-07-1",
         "llm": true
       },
       {
         "type": "critical",
         "score": 1.0,
-        "answer": "Yes, there are legal threats. Globex Corp is threatening to cancel their contract \u2014 pulling out. Add",
+        "answer": "Yes, there is a legal threat: \u201c[Globex Corp] (2026-07-10) Globex Corp is threatening to cancel their",
         "llm": true
       },
       {
@@ -2104,7 +2104,7 @@
       {
         "type": "contradiction",
         "score": 1.0,
-        "answer": "Yes, Orion Tech\u2019s price changed. It was initially quoted at $120k (2026-06-12), revised down to $95k",
+        "answer": "Yes, Orion Tech\u2019s price changed multiple times: it was initially quoted at $120k, revised down to $9",
         "llm": true
       },
       {
@@ -2116,31 +2116,31 @@
       {
         "type": "contradiction",
         "score": 1.0,
-        "answer": "Yes, there was a pricing dispute with Orion Tech. The evidence states: \u201c[Orion Tech] (2026-07-07) Or",
+        "answer": "Yes, there was a pricing dispute with Orion Tech, as explicitly stated in the evidence: \u201c[Orion Tech",
         "llm": true
       },
       {
         "type": "recurring",
         "score": 1.0,
-        "answer": "The recurring production issue is auth service outages. Evidence states: \u201cThird auth outage this mon",
+        "answer": "The recurring production issue is auth service outages, evidenced by \u201cThird auth outage this month \u2014",
         "llm": true
       },
       {
         "type": "recurring",
         "score": 1.0,
-        "answer": "The auth service keeps going wrong. Evidence states: \u201cAuth service outage again \u2014 same root cause as",
+        "answer": "The auth service keeps going wrong due to a recurring systemic issue. Evidence states: \u201cAuth service",
         "llm": true
       },
       {
         "type": "recurring",
         "score": 1.0,
-        "answer": "The systemic issue is the recurring authentication (auth) outages. The evidence states: \u201cThird auth ",
+        "answer": "The systemic issue is a recurring authentication outage, as evidenced by the statement: \u201cThird auth ",
         "llm": true
       },
       {
         "type": "noise_lookup",
         "score": 1.0,
-        "answer": "You got the \"Weekly tech digest: 10 articles about AI you should read\". This is stated verbatim in t",
+        "answer": "You received the \"Weekly tech digest: 10 articles about AI you should read\".  \nThis digest is associ",
         "llm": true
       },
       {
@@ -2152,19 +2152,19 @@
       {
         "type": "noise_lookup",
         "score": 1.0,
-        "answer": "The newsletters that came in were [TechNewsletter] on 2026-07-11 (\u201cMonthly newsletter roundup \u2014 indu",
+        "answer": "The newsletters that came in are:  \n- [TechNewsletter] (2026-07-11) Monthly newsletter roundup \u2014 ind",
         "llm": true
       },
       {
         "type": "priority",
         "score": 0.75,
-        "answer": "The most urgent commitment is the [EngOncall] (2026-06-28) \u201cProduction down \u2014 sev1 incident on auth ",
+        "answer": "The most urgent commitment is [Globex Corp] (2026-07-10), as they are \u201cthreatening to cancel their c",
         "llm": true
       },
       {
         "type": "priority",
-        "score": 0.6666666666666666,
-        "answer": "The sev1 incident on the auth service needs attention immediately, as stated in the evidence: \u201c[EngO",
+        "score": 1.0,
+        "answer": "The following need immediate attention:  \n- [Maria Garcia]\u2019s updated pricing proposal, due by Friday",
         "llm": true
       },
       {
@@ -2176,13 +2176,13 @@
       {
         "type": "disputed",
         "score": 1.0,
-        "answer": "No, the Nova presentation was not complete. Morgan Liu explicitly stated on 2026-07-03 that \u201cNova re",
+        "answer": "No, the Nova presentation was not complete. The evidence states: \u201cNova results presentation was inco",
         "llm": true
       },
       {
         "type": "conditional",
         "score": 1.0,
-        "answer": "Yes, the SSO is ready conditionally: the Engineering Team (via Jamie Park) stated, \u201cIf legal signs o",
+        "answer": "Yes, the SSO is ready conditionally: the Engineering Team (via Jamie Park) stated \u201cSSO work is compl",
         "llm": true
       },
       {
@@ -2194,7 +2194,7 @@
       {
         "type": "prepare",
         "score": 1.0,
-        "answer": "For the board meeting, you should prepare the Q3 numbers \u2014 an investor escalation explicitly states ",
+        "answer": "For the board meeting, you should prepare the Q3 numbers \u2014 an investor explicitly requested them bef",
         "llm": true
       }
     ]
