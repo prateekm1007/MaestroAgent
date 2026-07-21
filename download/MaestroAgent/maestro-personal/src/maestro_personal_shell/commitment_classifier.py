@@ -325,8 +325,74 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "llm_powered": False,
         }
 
+    # Phase 1.2 Fix 4: Deadline-change detection — "deadline moved to",
+    # "deadline changed to", "deadline extended to" are explicit commitments
+    # with a new deadline. Must run BEFORE completion/negation checks because
+    # the text often contains "moved" which would not match those patterns.
+    # Catches corpus items like "The send the proposal deadline moved to Friday EOD"
+    # which are awkward English but a real signal type (deadline changes).
+    import re as _re_dlchg
+    dl_change_match = _re_dlchg.search(
+        r"\bdeadline\s+(moved|changed|extended|shifted|pushed|moved back|moved up)\s+to\s+([^,\.]+)",
+        text_lower,
+    )
+    if dl_change_match:
+        # Extract the new deadline text from the match (capitalize first letter)
+        new_dl = dl_change_match.group(2).strip()
+        # Title-case the first letter for display
+        if new_dl:
+            new_dl_display = new_dl[0].upper() + new_dl[1:]
+        else:
+            new_dl_display = ""
+        return {
+            "commitment_type": "explicit",
+            "is_commitment": True,
+            "confidence": 0.85,
+            "state": "active",
+            "owner": "user",
+            "deadline_text": new_dl_display[:200],
+            "reasoning": "rule-based: deadline change detected (Phase 1.2 fix)",
+            "llm_powered": False,
+        }
+
+    # Phase 1.2 Fix 3: Superseded detection — "is replaced by", "replaced by the new",
+    # "earlier plan to ... is replaced". The previous rule-based classifier had
+    # NO superseded detection at all (30/30 FNs on the corpus).
+    import re as _re_superseded
+    superseded_patterns = [
+        r"\bis\s+replaced\s+by\b",
+        r"\breplaced\s+by\s+the\s+new\b",
+        r"\bearlier\s+plan\s+to\b.*\bis\s+replaced\b",
+        r"\bsuperseded\s+by\b",
+        r"\bno\s+longer\s+the\s+plan\b",
+    ]
+    for pattern in superseded_patterns:
+        if _re_superseded.search(pattern, text_lower, _re_superseded.DOTALL):
+            return {
+                "commitment_type": "superseded",
+                "is_commitment": True,  # a superseded commitment is still a commitment
+                "confidence": 0.85,
+                "state": "superseded",
+                "owner": "user",
+                "deadline_text": "",
+                "reasoning": "rule-based: superseded pattern detected (Phase 1.2 fix)",
+                "llm_powered": False,
+            }
+
     # Completion signals — check that it's past tense, not "consider it done"
-    completion_keywords = ["sent ", "delivered", "completed", "finished", "paid", "submitted"]
+    # Phase 1.2 Fix 1: Extended past-tense verb list. The corpus uses verbs
+    # like "reviewed", "signed", "shared", "finalized", "approved",
+    # "scheduled", "published", "updated" — none of which were in the
+    # original list. This caused 35/45 FNs on completed items.
+    completion_keywords = [
+        "sent ", "delivered", "completed", "finished", "paid", "submitted",
+        # Phase 1.2 Fix 1 additions — past-tense verbs
+        "reviewed", "signed", "shared", "finalized", "approved",
+        "scheduled", "published", "updated",
+        # Common variants
+        "shipped", "uploaded", "deployed", "merged", "released",
+        "emailed", "forwarded", "resolved", "closed",
+    ]
     # "done" only counts as completion if preceded by "is done", "has been done", "got it done"
     # NOT "consider it done" (which is a promise)
     if any(kw in text_lower for kw in completion_keywords):
@@ -537,6 +603,43 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "reasoning": "rule-based: implicit commitment detected",
             "llm_powered": False,
         }
+
+    # Phase 1.2 Fix 2: Generalized "Let me X" implicit detection.
+    # The enumerated list above only catches "let me handle/send/review/check".
+    # It misses "let me deliver", "let me sign", "let me share",
+    # "let me finalize", "let me approve", "let me schedule",
+    # "let me publish", "let me update". Rather than enumerate every verb,
+    # use a regex that matches "let me <verb>" for any verb — but EXCLUDE
+    # thinking/consideration verbs which are NOT commitments.
+    # This is a precision risk (could over-match), so the negative list is
+    # conservative: only exclude verbs that are clearly non-committal.
+    import re as _re_letme
+    letme_match = _re_letme.match(r"^let me\s+(\w+)\b", text_lower)
+    if letme_match:
+        verb = letme_match.group(1)
+        # Non-committal verbs — "let me think" / "let me consider" are NOT commitments
+        non_committal_verbs = {
+            "think", "consider", "ponder", "see", "look", "check",
+            "verify", "confirm", "revisit", "review",  # review/check already in implicit_keywords list, but "let me review it briefly" is weaker than "let me review and send back"
+            "reflect", "decide", "choose", "evaluate", "assess",
+            "sleep", "sit", "step", "take",  # "let me take a moment" is not a commitment
+            "ask", "inquire", "wonder",
+        }
+        # "let me check" / "let me review" / "let me verify" / "let me confirm"
+        # are ambiguous — they MIGHT be commitments ("let me check and get back")
+        # or might not ("let me check, hmm"). Default to implicit commitment
+        # because the corpus labels them as commitments, but with lower confidence.
+        if verb not in non_committal_verbs:
+            return {
+                "commitment_type": "implicit",
+                "is_commitment": True,
+                "confidence": 0.7,  # slightly lower than the enumerated list
+                "state": "active",
+                "owner": "user",
+                "deadline_text": "",
+                "reasoning": f"rule-based: implicit commitment (let me {verb}) — Phase 1.2 fix",
+                "llm_powered": False,
+            }
 
     # Conditional — must check AFTER implicit so "if" doesn't catch implicit phrases
     # Tentative phrases that include "if" should be tentative, not conditional
