@@ -106,6 +106,80 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
     query_lower = req.query.lower().strip()
 
+    # Phase R3 fix (2026-07-21): ledger-state query for completion questions.
+    #
+    # ROOT CAUSE (P1 — verified by execution):
+    # "What commitments have been completed?" and "Are any commitments completed?"
+    # returned contradictory answers because Ask searched signal TEXT for the
+    # word "completed" — but the completion state is in the LEDGER, not in
+    # signal text. The signal says "Maria confirmed she received" (no "completed"
+    # keyword), but the ledger has state=completed_claimed.
+    #
+    # FIX: for completion-related queries, check the commitment ledger directly
+    # and return a consistent answer BEFORE the retrieval/LLM path runs.
+    # This ensures both phrasings ("What completed?" vs "Are any completed?")
+    # return the same answer.
+    _COMPLETION_QUERY_MARKERS = [
+        "completed", "done", "finished", "delivered", "resolved",
+        "already done", "been completed", "any completed",
+    ]
+    if any(m in query_lower for m in _COMPLETION_QUERY_MARKERS):
+        try:
+            from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+            _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+            init_ledger_table(_db_path)
+            _entries = get_ledger_entries(token, _db_path)
+            _resolved = [e for e in _entries if e.get("state") in ("completed_claimed", "completed_verified")]
+            _cancelled = [e for e in _entries if e.get("state") == "cancelled"]
+            if _resolved or _cancelled:
+                _lines = []
+                if _resolved:
+                    _lines.append(f"Yes — {len(_resolved)} commitment(s) have been completed:")
+                    for e in _resolved[:10]:
+                        _action = e.get("action", "") or e.get("description", "") or "Unknown"
+                        _entity = e.get("entity", "?")
+                        _lines.append(f'  • {_action[:80]} → {_entity}')
+                if _cancelled:
+                    _lines.append(f"\n{len(_cancelled)} commitment(s) cancelled:")
+                    for e in _cancelled[:5]:
+                        _action = e.get("action", "") or e.get("description", "") or "Unknown"
+                        _entity = e.get("entity", "?")
+                        _lines.append(f'  • {_action[:80]} → {_entity}')
+                _ledger_evidence = []
+                for e in (_resolved + _cancelled)[:5]:
+                    _ledger_evidence.append({
+                        "text": e.get("action", "") or e.get("description", ""),
+                        "entity": e.get("entity", ""),
+                        "timestamp": e.get("updated_at", e.get("created_at", "")),
+                        "signal_id": e.get("signal_id", ""),
+                        "source_type": "ledger",
+                    })
+                logger.info("Ledger-state query answered from ledger: %d resolved, %d cancelled",
+                            len(_resolved), len(_cancelled))
+                return AskResponse(
+                    answer="\n".join(_lines),
+                    query=req.query,
+                    source_sentence=_resolved[0].get("action", "") if _resolved else "",
+                    source_entity=_resolved[0].get("entity", "") if _resolved else "",
+                    source_timestamp="",
+                    situation_state="",
+                    evidence_refs=_ledger_evidence,
+                    confidence=0.95,
+                    counterevidence=[],
+                    unknowns=[],
+                    as_of=str(as_of or ""),
+                    decision_boundary="",
+                    perspectives=[],
+                    reasoning_chain=[],
+                    calibration_note="Answered from commitment ledger (state: completed/cancelled).",
+                    consequence_paths=[],
+                    llm_active=False,
+                    llm_provider="none",
+                    intelligence_source="ledger",
+                )
+        except Exception as e:
+            logger.debug("Ledger-state query failed (non-fatal, falling through): %s", e)
+
     # Skip the gate for genuinely broad queries that don't name a specific
     # entity ("what's going on?", "what changed?", "how many commitments?").
     # But "what did i promise elon musk?" is NOT broad — it names a specific
