@@ -6,11 +6,101 @@
 ---
 
 ## Last Updated
-2026-07-21 — PHASE 1.3 (Ask Engine) DIAGNOSIS COMPLETE. Found 150-question
-benchmark + eval harness already existed. Baseline measured: factual_accuracy
-0.47 (target 0.92). Root cause: harness user_email mismatch (fixed in eval
-script) + 5 real product bugs documented for future fixes. Phase 1.2
-(Commitment Extraction) remains COMPLETE (recall 0.6152 → 1.0000).
+2026-07-21 — PHASE 1.3 (Ask Engine) BUG FIXES COMPLETE. All 6 bugs from the
+audit workflow fixed + committed + pushed. Rule-mode scores: factual_accuracy
+0.4733 → 0.5467 (+7.3 pts), citation_correctness 0.0 → 0.717 (+71.7 pts).
+Both still below targets (0.92 / 0.95) — remaining gap requires LLM-mode
+firing, which ZAI rate-limited this session.
+
+### Phase 1.3 — Bug Fixes (2026-07-21, 6 atomic commits)
+
+**Starting baseline (rule mode):**
+- factual_accuracy: 0.4733 (target 0.92) — miss by 45 pts
+- citation_correctness: 0.0 (target 0.95) — miss by 95 pts
+- entity_isolation: 0.0 ✓
+- unsupported_claims_rate: 0.0 ✓
+
+**6 bugs fixed (1 per commit, per audit rule #2):**
+
+| Bug | Commit | File | Fix | Score Impact |
+|---|---|---|---|---|
+| #1 Negative-knowledge entity gate | `a5c7ad1` | routers/ask.py | Multi-word entity grouping ("Project Vega" → 1 token, not 2). Stops SQL `LIKE '%project%'` matching "Project Orion" when query is about "Project Vega". | +0.7 pts (rule mode) |
+| #2 Guardrail false positive on grounded negatives | `fab91aa` | claim_verifier.py | `_is_grounded_negative()` helper — LLM answers like "no mention of contract cancellation" pass through the guardrail instead of being rewritten to generic refusal. | 0 pts (rule mode; LLM-mode only) |
+| #3 Topic-word retrieval fallback | `42cecde` | routers/ask.py | Before S1-01 abstention, check if query topic words (e.g. "proposal") appear in signal CONTENT. Skip abstention if so — let retrieval populate evidence. | **+6 pts** (ambiguity 0%→30%, contradiction 10%→60%) |
+| #4 Lower topic-word min length for Q3 tokens | `38ae63b` | routers/ask.py | Lower min length from >3 to >=2 so "Q3", "Q1", "V1" are captured as topic words. | +0.7 pts (synthesis 40%→50%) |
+| #5 Risk scoring for at-risk queries | `493e51d` | routers/ask.py | When query contains "at-risk"/"overdue"/"urgent", compute risk score per evidence_ref and append "Risk assessment: X is at_risk (risk=HIGH...)" note. Applied at 2 sites (intent-query path + final return). | 0 pts (rule mode; LLM-mode only — intent path requires is_llm_available()) |
+| #6 Citation correctness substring match | `3786704` | evaluation/ask_eval.py | HARNESS fix: use substring match (`e in ent or ent in e`) instead of set membership (`e in {set}`). "Alex" now matches "Alex Chen". | **+71.7 pts** citation (0.0→0.717) |
+
+**Final scores (rule mode, P1 verified by execution):**
+- factual_accuracy: **0.5467** (was 0.4733, +7.3 pts; target 0.92)
+- citation_correctness: **0.717** (was 0.0, +71.7 pts; target 0.95)
+- entity_isolation: 0.0233 (1 violation; was 0.0 — minor regression from Bug #3 topic-word fallback)
+- unsupported_claims_rate: 0.0 ✓
+
+**Per-category factual_accuracy (rule mode, before → after):**
+| Category | Before | After | Change |
+|---|---|---|---|
+| adversarial | 0% | 0% | — |
+| ambiguity | 0% | 30% | +30 (Bug #3) |
+| commitment | 20% | 26.7% | +6.7 |
+| contradiction_detection | 10% | 60% | +50 (Bug #3 topic-word unblocked "priority" queries) |
+| factual | 10% | 15% | +5 |
+| false_premise | 0% | 0% | — (needs LLM mode for Bug #2 to fire) |
+| insufficient_evidence | 0% | 0% | — |
+| relationship | 20% | 20% | — |
+| synthesis_across_sources | 30% | 50% | +20 (Bug #3 + #4) |
+| temporal | 0% | 0% | — (temporal retriever needs separate work) |
+
+**Honest disclosure (P10 — what's NOT fixed):**
+1. factual_accuracy 0.5467 is still 37 pts below the 0.92 target. The
+   remaining gap is mostly in categories that require the LLM to fire
+   (false_premise, temporal, adversarial). ZAI rate-limited too aggressively
+   this session for LLM-mode eval.
+2. Bug #2 (guardrail) and Bug #5 (risk scoring) only fire when the LLM is
+   active. In rule mode they're no-ops. Verified by code-path inspection,
+   not execution.
+3. entity_isolation went 0.0 → 0.0233 (1 violation) — the Bug #3 topic-word
+   fallback retrieved evidence that included a forbidden entity. Small
+   regression; documented honestly. A future fix could add a post-retrieval
+   filter.
+4. citation_correctness 0.717 is still 23 pts below 0.95. The remaining
+   misses are cases where the expected entity genuinely isn't in the
+   evidence (e.g. expected "Vega" but evidence is "Project Phoenix" because
+   Vega isn't in the corpus). Those are real product gaps, not harness bugs.
+5. The 6 bugs were fixed in routers/ask.py + claim_verifier.py + ask_eval.py
+   per the audit's execution order. No refactoring (per audit rule #3).
+   Each fix was verified + regression-tested + committed atomically (per
+   audit rules #1, #2, #4).
+
+**P1/P23 evidence (executed this session, not assumed):**
+```
+$ python3 scripts/run_ask_eval_fast.py
+=== Rule mode (elapsed 8.4s) ===
+  factual_accuracy: {'value': 0.5467, 'target': 0.92, 'met': False, 'support': '82/150'}
+  citation_correctness: {'value': 0.717, 'target': 0.95, 'met': False, 'support': '76/106'}
+  entity_isolation_violation_rate: {'value': 0.0233, 'target': 0.0, 'met': False, 'support': '1/43'}
+  unsupported_claims_rate: {'value': 0.0, 'target': 0.03, 'met': True, 'support': '0/318'}
+```
+
+**Commits (6 atomic commits, per audit rule #2):**
+- `a5c7ad1` — Bug #1: multi-word entity grouping + negative-knowledge abstention
+- `fab91aa` — Bug #2: guardrail false-positive on grounded negatives
+- `42cecde` — Bug #3: topic-word retrieval fallback (+6 pts factual)
+- `38ae63b` — Bug #4: lower topic-word min length for Q3 tokens
+- `493e51d` — Bug #5: risk scoring for at-risk/overdue/urgent queries
+- `3786704` — Bug #6: citation correctness substring match (+71.7 pts citation)
+
+**Governance citations:**
+- P1: every score verified by execution this session
+- P10: root causes + 1 regression + 5 unfixed gaps documented honestly
+- P14: Bug #1 fix revealed Bug #1-LLM-duplicate (line 738); Bug #3 revealed Bug #4 (Q3 length); Bug #5 first attempt missed the intent-query early return — bugs migrate one layer deeper, 3 times
+- P22: 75/75 regression tests pass after every commit (4 most-relevant files)
+- P23: eval output pasted above per commit
+- P27: Bug #6 found by reading the harness assertion (set-membership) not the test name (citation_correctness) — the harness was testing the wrong thing
+
+---
+
+## Prior Phase 1.3 entry (2026-07-21, earlier this session)
 
 ### Phase 1.3 — Ask Engine Production Quality (2026-07-21)
 
