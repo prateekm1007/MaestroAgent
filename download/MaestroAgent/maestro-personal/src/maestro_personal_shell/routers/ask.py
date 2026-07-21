@@ -355,8 +355,15 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 "over", "under", "tell", "me", "please",
             })
             _query_tokens = _re.findall(r'\b[a-zA-Z][a-zA-Z0-9]+\b', query_lower)
+            # Phase 1.3 Bug #4 fix (2026-07-21): lower min length from >3 to >=2
+            # so short meaningful tokens like 'Q3', 'Q1', 'V1' are captured.
+            # The regex already requires [a-zA-Z][a-zA-Z0-9]+ (letter + 1+ alnum),
+            # so 2-char tokens are always letter+digit (e.g. 'q3') or letter+letter.
+            # All 2-letter English stopwords (is, it, we, he, etc.) are in the
+            # stopword list above. This fixes synthesis queries like
+            # "What's the overall status of Q3?" where 'Q3' is the key token.
             _topic_words = {w for w in _query_tokens
-                            if len(w) > 3 and w not in _topic_stopwords}
+                            if len(w) >= 2 and w not in _topic_stopwords}
             _topic_word_match = False
             if _topic_words:
                 try:
