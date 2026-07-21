@@ -736,6 +736,32 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
             common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I", "Which", "Whose", "Whom"}
             entities = [w for w in words if w not in common_words]
+            # Phase 1.3 Bug #1 fix (2026-07-21): multi-word entity grouping
+            # for the LLM path too. The rule-path extraction at line ~1098 was
+            # fixed separately. This duplicates the logic here because the LLM
+            # path runs FIRST and its entities feed the F-S1b-a multi-entity
+            # structural-answer path (the source of the "Is Project Vega"
+            # returning Orion+Phoenix bug).
+            _mw_entities_llm = []
+            _mw_re_llm = _re.findall(r'\b(?:[A-Z][a-zA-Z0-9_]+\s+){1,4}[A-Z][a-zA-Z0-9_]+\b', req.query)
+            for _mw in _mw_re_llm:
+                _mw_words = _mw.split()
+                # Filter: only keep multi-word groups where AT LEAST ONE word
+                # is non-common (so "Is Project Vega" stays because Project/Vega
+                # are non-common; but "Is The" would be dropped)
+                if any(w not in common_words for w in _mw_words):
+                    # Strip leading common words from the multi-word entity
+                    # e.g. "Is Project Vega" → "Project Vega"
+                    _stripped = _mw_words[:]
+                    while _stripped and _stripped[0] in common_words:
+                        _stripped.pop(0)
+                    if len(_stripped) >= 2:
+                        _mw_entities_llm.append(" ".join(_stripped))
+            _consumed_llm = set()
+            for _mw in _mw_entities_llm:
+                _consumed_llm.update(_mw.split())
+            _single_llm = [w for w in entities if w not in _consumed_llm]
+            entities = _mw_entities_llm + _single_llm
             # F-S1a fix (auditor): use word-boundary regex instead of
             # bidirectional substring. Substring 'alex' matches 'alexander';
             # 'sam' matches 'sample'. Word-boundary only matches complete words.
@@ -1094,6 +1120,46 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
     common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I", "Which", "Whose", "Whom"}
     entities = [w for w in words if w not in common_words]
+
+    # Phase 1.3 Bug #1 fix (2026-07-21): multi-word entity grouping +
+    # negative-knowledge abstention.
+    #
+    # ROOT CAUSE (verified by execution, not assumption):
+    # Query "Is Project Vega still a priority?" extracted entities = ["Project",
+    # "Vega"] as TWO separate tokens. The downstream SQL check used
+    # `lower(entity) LIKE '%project%'` which matched "Project Orion" and
+    # "Project Phoenix" in the corpus (because both contain the word "project").
+    # `queried_exists` became True → no abstention → fell through to keyword
+    # search on "priority" → returned Orion+Phoenix evidence as if it were
+    # about Vega. Negative-knowledge failure.
+    #
+    # FIX: group consecutive capitalized words into a SINGLE multi-word entity.
+    # "Project Vega" → one entity token "Project Vega". Then the SQL check
+    # matches on the full string, not just one word — so "Project Vega" does
+    # NOT match "Project Orion" or "Project Phoenix".
+    #
+    # This is the roadmap Phase 1.3 Done-When: "What did I promise Elon Musk?"
+    # → "No commitments found for Elon Musk." — negative knowledge.
+    _multiword_entities = []
+    _multiword_re = _re.findall(r'\b(?:[A-Z][a-zA-Z0-9_]+\s+){1,4}[A-Z][a-zA-Z0-9_]+\b', req.query)
+    for _mw in _multiword_re:
+        # Only keep multi-word groups where at least one word is non-common
+        _mw_words = _mw.split()
+        if any(w not in common_words for w in _mw_words):
+            # Strip leading common words from the multi-word entity
+            # e.g. "Is Project Vega" → "Project Vega"
+            _stripped = _mw_words[:]
+            while _stripped and _stripped[0] in common_words:
+                _stripped.pop(0)
+            if len(_stripped) >= 2:
+                _multiword_entities.append(" ".join(_stripped))
+    # Merge: prefer multi-word entities, fall back to single-word entities
+    # for any capitalized word NOT already part of a multi-word entity
+    _consumed_words = set()
+    for _mw in _multiword_entities:
+        _consumed_words.update(_mw.split())
+    _single_word_entities = [w for w in entities if w not in _consumed_words]
+    entities = _multiword_entities + _single_word_entities
 
     situations = shell.detect_situations()
     for entity in entities:
