@@ -1,111 +1,76 @@
 # MaestroAgent
 
-**The Organizational Judgment System.**
-
-Foundation models generate intelligence. Maestro institutionalizes judgment.
+**Maestro — Personal Intelligence.** Remembers what you promised, surfaces what changed, and tells you what to do next — with provenance.
 
 ---
 
 ## What is in this repo
 
-This repo is a curated product repository. There is exactly one live product:
+This repo contains exactly one live product: **Maestro Personal**, a personal commitment intelligence system.
 
 ### The live app
 
 | Component | Location | Stack |
 |---|---|---|
-| **Frontend** | `download/MaestroAgent/app.html` + `static/app.js` + `static/app.css` | Vanilla JS, compiled Tailwind CSS, no CDN |
-| **Backend** | `download/MaestroAgent/backend/maestro_oem/` + `backend/maestro_api/` | Python, FastAPI, SQLite |
+| **Frontend** | `download/MaestroAgent/maestro-personal/web/` | Next.js 16, React, TypeScript, Tailwind CSS, shadcn/ui |
+| **Backend** | `download/MaestroAgent/maestro-personal/src/maestro_personal_shell/` | Python, FastAPI, SQLite |
+| **Mobile** | `download/MaestroAgent/maestro-personal/mobile/` | Expo React Native |
 
-The backend serves `app.html` at `/`. That is the product. Everything else in
-this repo is either infrastructure, tests, or deprecated.
+The frontend is a Next.js app that proxies `/api/*` to the FastAPI backend via `next.config.ts` rewrites. The backend serves the API on port 8766 (local) or Railway's PORT (production).
 
-### How to run it
+### Live deployment
+
+| Service | URL | Purpose |
+|---|---|---|
+| Frontend | `https://web-production-d5c26.up.railway.app/` | Next.js web app |
+| Backend | `https://maestroagent-production.up.railway.app/` | FastAPI REST API |
+
+Login with password `maestro-demo` to see demo data.
+
+### How to run locally
 
 ```bash
-cd download/MaestroAgent
-pip install -e backend/
-python -m maestro_api.main  # serves on http://localhost:8000
+# Terminal 1 — backend (API on port 8766)
+cd download/MaestroAgent/maestro-personal
+pip install -e ".[dev]"
+PYTHONPATH=src MAESTRO_PERSONAL_TOKEN=maestro-demo MAESTRO_DEMO_MODE=1 \
+  python -m maestro_personal_shell.api
+
+# Terminal 2 — web app (UI on port 3000)
+cd download/MaestroAgent/maestro-personal/web
+npm install
+npm run dev
 ```
 
-The OEM is seeded with a demo dataset (acme-corp + 3 enterprise customers)
-so the product is evaluable without OAuth credentials. Set
-`MAESTRO_DEMO_SEED=false` to start with an empty OEM.
+Open http://localhost:3000. Login with password `maestro-demo`.
+
+### Key features
+
+- **Ask**: Evidence-backed Q&A with provenance (signal IDs, timestamps, confidence, unknowns)
+- **Commitments**: Automatic commitment extraction with lifecycle tracking (active → resolved → cancelled)
+- **Prepare**: Pre-meeting intelligence with contradiction detection
+- **What Changed**: Meaningful delta detection (not activity summaries)
+- **Synthetic Inbox**: 20 categorized demo emails to experience the full lifecycle without OAuth
+- **Multi-turn conversation**: Session-based follow-up questions with entity context
+
+### Architecture
+
+```
+Signals (Gmail, Calendar, manual entry, synthetic inbox)
+    ↓
+Commitment Classifier (15 types, lifecycle states)
+    ↓
+Commitment Ledger (state machine: active → completed → cancelled)
+    ↓
+5-Stage Retrieval (BM25 → specialists → RRF → Cohere rerank → LLM grounding)
+    ↓
+Ask / Dashboard / Prepare / What Changed / Ambient
+```
 
 ### Deprecated code
 
-The `_deprecated/` folder contains abandoned frontends and a Node.js backend
-from earlier iterations. They are kept for reference but are NOT the product:
+The old `app.html` (vanilla JS frontend) and enterprise surfaces (Executive Cognition Center, Organizational Pulse) are **no longer the product**. The current product is the personal-focused Next.js app described above.
 
-- `_deprecated/desktop/` — Tauri + React (abandoned Jun 25)
-- `_deprecated/frontend/` — Vite + React (abandoned Jun 25)
-- `_deprecated/frontend-next/` — Next.js (stalled Jun 28)
-- `_deprecated/v6-production/` — Next.js + Prisma + Redis (stalled Jun 28)
-- `_deprecated/realtime-server/` — Node.js backend (duplicate connectors, abandoned)
-- `_deprecated/app-mock.html`, `app-v6.html`, `app-v7.html` — old mockups
+### Governance
 
-**Do not run anything in `_deprecated/`.** It is not maintained, not tested,
-and not the product.
-
----
-
-## Architecture
-
-```
-Signals (GitHub, Jira, Slack, Confluence, Gmail, Customer/CRM)
-    ↓
-ExecutionSignals (normalized)
-    ↓
-LearningObjects (evidence units)
-    ↓
-Patterns (regularities across LOs)
-    ↓
-OrganizationalLaws (validated patterns)
-    ↓
-DecisionEngine (recommendations with evidence)
-    ↓
-OEM Surfaces (Executive Cognition, Customer Judgment, Simulator, etc.)
-```
-
-Every recommendation is evidence-backed. Every confidence value is explainable.
-The learning loop is closed: predictions auto-create, auto-resolve, and
-auto-calibrate.
-
-See `download/MaestroAgent/docs/ARCHITECTURE.md` for the full design.
-
----
-
-## Security
-
-- **KMS:** The local file-based KMS is for development only. In production,
-  set `KMS_PROVIDER=aws` and `KMS_MASTER_KEY_ID=<arn>`. The server refuses to
-  start in production (`NODE_ENV=production`) with the local provider.
-- **Auth:** OIDC (Azure AD, Okta, Google, Auth0, Supabase), SAML 2.0, SCIM 2.0,
-  RBAC (5 roles, 13 permissions), MFA, HttpOnly cookies with rotating refresh
-  tokens.
-- **Hardening:** CSRF, CSP, HSTS, rate limiting, tenant isolation, AES-256-GCM
-  encryption, key rotation, tamper-evident audit, session expiry, SOC2 monitoring.
-
-See `download/MaestroAgent/docs/THREAT_MODEL.md` and
-`download/MaestroAgent/docs/PEN_TEST_CHECKLIST.md`.
-
----
-
-## Tests
-
-```bash
-cd download/MaestroAgent
-python -m pytest backend/maestro_oem/tests/ backend/maestro_api/tests/ backend/maestro_auth/tests/
-```
-
-837+ tests pass on a clean clone. The learning loop verification:
-
-```bash
-python scripts/verify_loop_closed.py
-```
-
----
-
-## License
-
-See `download/MaestroAgent/LICENSE`.
+The repo includes governance files (`GOVERNANCE.md`, `ENTROPY_RECOVERY.md`, `AUDITOR_GOVERNANCE.md`) that define the development protocol: execute before claiming, read assertions not names, and never trust a claim without reproduction.

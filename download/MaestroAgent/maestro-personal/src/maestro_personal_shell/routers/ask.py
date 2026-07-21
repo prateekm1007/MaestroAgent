@@ -18,10 +18,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ask", tags=["ask"])
 
 # P0-3: In-memory session store for multi-turn conversations.
-# Keyed by session_id, stores the last Q+A + source_entity.
+# Keyed by session_id, stores up to 5 turns of Q+A history.
 # TTL: 30 minutes (cleared on server restart — acceptable for single-user beta).
-_ask_sessions: dict[str, str] = {}
+# Format: list of {"q": query, "a": answer_snippet, "entity": entity}
+_ask_sessions: dict[str, list[dict[str, str]]] = {}
 _SESSION_TTL_SECONDS = 1800
+_MAX_SESSION_TURNS = 5
 
 
 async def verify_token_dep(authorization: str = Header(None)) -> str:
@@ -52,25 +54,28 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     from maestro_personal_shell.temporal_query import parse_temporal_query
 
     # P0-3: Multi-turn conversation memory
-    # Store prior Q&A in an in-memory dict keyed by session_id.
+    # Store up to 5 turns of Q&A history per session_id.
     # On follow-up queries, extract the prior ENTITY so follow-up questions
     # like "When is it due?" can resolve to the right entity.
-    # S1-1 fix (auditor): previously appended the full prior context string
-    # to the query, which broke entity detection (the entity gate saw words
-    # from the prior Q&A, not just the follow-up). Now we extract the prior
-    # entity and use it only when the follow-up query doesn't name one.
+    # The full conversation history is also available for LLM context.
+    # S1-1 fix (auditor): only augment the query with the prior entity,
+    # don't append the full prior context (breaks entity detection).
     _prior_context = ""
     _prior_entity = ""
+    _conversation_history = ""
     if req.session_id:
-        _prior_context = _ask_sessions.get(req.session_id, "")
-        if _prior_context:
-            # Extract the entity from the prior context string
-            # Format: "Q: {query} → A: {answer} (entity: {entity})"
-            import re as _re_session
-            entity_match = _re_session.search(r'entity:\s*([^\)]+)', _prior_context)
-            if entity_match:
-                _prior_entity = entity_match.group(1).strip()
-            logger.info("Multi-turn: session=%s, prior entity=%s", req.session_id, _prior_entity[:50])
+        session_turns = _ask_sessions.get(req.session_id, [])
+        if session_turns:
+            # Get the most recent turn's entity for follow-up augmentation
+            last_turn = session_turns[-1]
+            _prior_entity = last_turn.get("entity", "")
+            # Build conversation history string for LLM context (up to 5 turns)
+            history_parts = []
+            for turn in session_turns[-_MAX_SESSION_TURNS:]:
+                history_parts.append(f"Q: {turn.get('q', '')}\nA: {turn.get('a', '')[:150]}")
+            _conversation_history = "\n\n".join(history_parts)
+            logger.info("Multi-turn: session=%s, %d prior turns, last entity=%s",
+                        req.session_id, len(session_turns), _prior_entity[:50])
 
     temporal = parse_temporal_query(req.query)
     from_date = None
@@ -2098,11 +2103,18 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         logger.debug("Ask audit log failed (non-fatal): %s", e)
 
     # P0-3: Save session context for multi-turn follow-ups
+    # Store up to 5 turns of Q+A history so follow-up questions have context.
     if req.session_id:
-        _ask_sessions[req.session_id] = (
-            f"Q: {req.query} → A: {str(verified_answer)[:200]} "
-            f"(entity: {source_entity})"
-        )
+        turns = _ask_sessions.get(req.session_id, [])
+        turns.append({
+            "q": req.query,
+            "a": str(verified_answer)[:200],
+            "entity": source_entity,
+        })
+        # Keep only the last N turns
+        if len(turns) > _MAX_SESSION_TURNS:
+            turns = turns[-_MAX_SESSION_TURNS:]
+        _ask_sessions[req.session_id] = turns
 
     # Phase 0 fix (Round 67): when the answer IS an abstention ("I don't have
     # enough information"), confidence MUST be 0.0. The auditor found the
