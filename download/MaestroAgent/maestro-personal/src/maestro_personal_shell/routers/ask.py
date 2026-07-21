@@ -204,6 +204,19 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "show me all", "show me every", "all of them",
         "all my commitments", "every commitment",
         "what did i promise all", "what did i promise every",
+        # Session 10 fix (2026-07-21): natural language commitment queries
+        # from the external audit. These are the MOST COMMON ways a user
+        # asks about their commitments — they MUST be treated as broad queries.
+        "what are my open commitments", "open commitments",
+        "what is unresolved", "what's unresolved",
+        "who needs attention", "who needs my attention",
+        "what needs attention", "what needs my attention",
+        "what's still open", "what is still open",
+        "what's outstanding", "what is outstanding",
+        "what do i owe", "what do i still owe",
+        "what's pending", "what is pending",
+        "what's due", "what is due", "what's overdue", "what is overdue",
+        "what did i promise",  # without naming a specific entity
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
 
@@ -2186,6 +2199,16 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "newsletter", "marketing", "fyi", "digest",
         "notification", "blog", "social",
     )
+    # Session 10 fix (S1 #2): joke/non-commitment signal filter.
+    # The auditor found "Haha, I promise I will conquer Mars tomorrow!"
+    # appearing as evidence in Maria query results. The classifier marks
+    # it as not_a_commitment, but the retriever still returns it because
+    # it matches "promise". Fix: filter evidence_refs whose text contains
+    # joke markers (same markers the classifier uses).
+    _JOKE_MARKERS = (
+        "haha", "lol", "lmao", "rofl", "jk", "just kidding",
+        "sike", "iykyk", "🤣", "😂",
+    )
     def _filter_noise_entities(refs):
         if not refs:
             return refs
@@ -2196,6 +2219,10 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 continue
             ent = (r.get("entity", "") or "").lower()
             if any(m in ent for m in _NOISE_ENTITY_MARKERS):
+                continue
+            # Filter joke signals from evidence
+            ref_text = (r.get("text", "") or "").lower()
+            if any(m in ref_text for m in _JOKE_MARKERS):
                 continue
             filtered.append(r)
         return filtered
