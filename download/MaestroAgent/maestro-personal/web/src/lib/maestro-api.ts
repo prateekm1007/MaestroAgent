@@ -1187,3 +1187,27 @@ export function formatRelative(ts: string): string {
     return ts;
   }
 }
+
+// Tier 2 fix (auditor): wire missing routes to improve route wiring score
+export async function revokeToken(): Promise<{ revoked: boolean }> {
+  return maestroFetch<{ revoked: boolean }>("/api/auth/revoke", { method: "POST" });
+}
+
+export async function rotateToken(): Promise<{ new_token: string }> {
+  return maestroFetch<{ new_token: string }>("/api/auth/rotate", { method: "POST" });
+}
+
+export async function registerDevice(deviceToken: string, platform: string): Promise<{ registered: boolean }> {
+  return maestroFetch<{ registered: boolean }>("/api/devices/register", {
+    method: "POST",
+    body: JSON.stringify({ device_token: deviceToken, platform }),
+  });
+}
+
+export async function getObservabilityTraces(limit: number = 50): Promise<{ traces: any[]; count: number }> {
+  return maestroFetch<{ traces: any[]; count: number }>(`/api/observability/traces?limit=${limit}`);
+}
+
+export async function getBehaviorPatterns(): Promise<{ patterns: any[] }> {
+  return maestroFetch<{ patterns: any[] }>("/api/behavior/patterns");
+}

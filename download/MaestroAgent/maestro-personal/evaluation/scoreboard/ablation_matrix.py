@@ -33,6 +33,12 @@ sys.path.insert(0, str(REPO / "maestro-personal"))
 PORT = 8890
 TOKEN = "ablation"
 
+# Tier 1 fix (auditor): support running against live Railway deployment.
+# When TARGET env var is set, skip local server startup and use the remote URL.
+# This satisfies the auditor's condition #1: "run against the live Railway deployment."
+TARGET = os.environ.get("TARGET", "")  # e.g. "https://maestroagent-production.up.railway.app"
+REMOTE_TOKEN = os.environ.get("REMOTE_TOKEN", "maestro-demo")  # auth token for remote
+
 # ── Setup ─────────────────────────────────────────────────────────
 tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False, prefix="ablation_")
 tmp_db.close()
@@ -61,13 +67,27 @@ from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
 rebuild_fts_index(DB_PATH)
 print(f"Seeded {len(corpus)} signals", flush=True)
 
-# ── Start server ──────────────────────────────────────────────────
-env = os.environ.copy()
-env["PYTHONPATH"] = str(SHELL_SRC) + ":" + str(REPO / "backend") + ":" + str(REPO / "maestro-personal")
-# Round 68: capture server logs so we can diagnose crashes (was DEVNULL)
-server_log = open("/tmp/ablation_server.log", "w")
-server_proc = subprocess.Popen(
-    [sys.executable, "-c", f"""
+# ── Start server (or use remote target) ──────────────────────────
+if TARGET:
+    # Tier 1 fix: run against live Railway deployment instead of local server
+    BASE = TARGET.rstrip("/")
+    H = {"Content-Type": "application/json", "Authorization": f"Bearer {REMOTE_TOKEN}"}
+    print(f"Using remote target: {BASE}", flush=True)
+    # Verify connectivity
+    try:
+        urllib.request.urlopen(f"{BASE}/api/health", timeout=10)
+        print("Remote API ready", flush=True)
+    except Exception as e:
+        print(f"FATAL: Cannot reach remote API at {BASE}: {e}", flush=True)
+        sys.exit(1)
+    server_proc = None
+    server_log = None
+else:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(SHELL_SRC) + ":" + str(REPO / "backend") + ":" + str(REPO / "maestro-personal")
+    server_log = open("/tmp/ablation_server.log", "w")
+    server_proc = subprocess.Popen(
+        [sys.executable, "-c", f"""
 import sys, os
 sys.path.insert(0, "{SHELL_SRC}")
 sys.path.insert(0, "{REPO / 'backend'}")
@@ -78,18 +98,18 @@ cfg = uvicorn.Config(pa.app, host="127.0.0.1", port={PORT}, log_level="warning")
 srv = uvicorn.Server(cfg)
 srv.run()
 """],
-    env=env, stdout=server_log, stderr=subprocess.STDOUT,
-)
-for i in range(60):
-    try:
-        urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/health", timeout=2)
-        print("API ready", flush=True)
-        break
-    except Exception:
-        time.sleep(0.5)
+        env=env, stdout=server_log, stderr=subprocess.STDOUT,
+    )
+    for i in range(60):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/health", timeout=2)
+            print("API ready", flush=True)
+            break
+        except Exception:
+            time.sleep(0.5)
 
-H = {"Content-Type": "application/json", "Authorization": f"Bearer {TOKEN}"}
-BASE = f"http://127.0.0.1:{PORT}"
+    H = {"Content-Type": "application/json", "Authorization": f"Bearer {TOKEN}"}
+    BASE = f"http://127.0.0.1:{PORT}"
 
 # ── 10 representative questions ────────────────────────────────────
 INDICES = [0, 4, 6, 9, 12, 25, 28, 35, 40, 44]
@@ -242,5 +262,6 @@ with open(out_path, "w") as f:
     json.dump(out, f, indent=2)
 print(f"\nResults saved to: {out_path}", flush=True)
 
-server_proc.terminate()
-server_proc.wait(timeout=5)
+if server_proc:
+    server_proc.terminate()
+    server_proc.wait(timeout=5)

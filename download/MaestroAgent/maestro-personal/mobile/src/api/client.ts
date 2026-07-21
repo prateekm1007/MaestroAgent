@@ -1229,3 +1229,68 @@ export async function getAnalyticsFlywheel(
   });
   return response.data;
 }
+
+// Tier 2 fix (auditor): wire missing routes to improve route wiring score
+export async function revokeToken(token?: string): Promise<{ revoked: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/auth/revoke', {}, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function rotateToken(token?: string): Promise<{ new_token: string }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/auth/rotate', {}, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function registerDevice(deviceToken: string, platform: string, token?: string): Promise<{ registered: boolean }> {
+  const t = await resolveToken(token);
+  const response = await api.post('/api/devices/register', { device_token: deviceToken, platform }, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getObservabilityTraces(limit: number = 50, token?: string): Promise<{ traces: any[]; count: number }> {
+  const t = await resolveToken(token);
+  const response = await api.get(`/api/observability/traces?limit=${limit}`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getBehaviorPatterns(token?: string): Promise<{ patterns: any[] }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/behavior/patterns', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getCalibrationHistory(token?: string): Promise<{ history: any[] }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/calibration/history', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getPersistedSituations(token?: string): Promise<{ situations: any[] }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/persisted-situations', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
+
+export async function getConnectorsAudit(token?: string): Promise<{ audit: any[] }> {
+  const t = await resolveToken(token);
+  const response = await api.get('/api/connectors/audit', {
+    headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+  });
+  return response.data;
+}
