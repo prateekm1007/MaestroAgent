@@ -148,6 +148,123 @@ def parse_temporal_query(query: str) -> dict[str, Any]:
                 "has_temporal_ref": True,
             }
 
+    # Phase 1.3 Block A2 fix (2026-07-21): additional temporal patterns.
+    #
+    # ROOT CAUSE (verified by execution): the benchmark's 20 temporal
+    # questions use 7 patterns. 4 were handled (last quarter/month/week,
+    # last N days). 3 were missing: "the first week", "recently",
+    # "N months ago". Each missing pattern caused the temporal ref to be
+    # ignored, so retrieval didn't apply a date filter — and the answer
+    # either abstained or returned wrong-period evidence.
+    #
+    # FIX: add the 3 missing patterns. "first week" = first 7 days of
+    # current month. "recently" = last 14 days (generous). "N months ago"
+    # = a 1-month window N months back.
+
+    # "the first week" — first 7 days of the current month
+    if "first week" in query_lower:
+        from_date = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+        to_date = from_date + timedelta(days=7)
+        return {
+            "from_date": from_date.isoformat(),
+            "to_date": to_date.isoformat(),
+            "time_range_description": "first week",
+            "has_temporal_ref": True,
+        }
+
+    # "recently" — last 14 days (generous window)
+    if "recently" in query_lower or "recent" in query_lower:
+        from_date = now - timedelta(days=14)
+        return {
+            "from_date": from_date.isoformat(),
+            "to_date": now.isoformat(),
+            "time_range_description": "recently",
+            "has_temporal_ref": True,
+        }
+
+    # "N months ago" / "N days ago" / "N weeks ago" — a 1-unit window
+    # N units back. E.g. "2 months ago" = the month that was 2 months ago.
+    ago_match = re.search(r'(\d+)\s+(day|week|month|year)s?\s+ago', query_lower)
+    if ago_match:
+        n = int(ago_match.group(1))
+        unit = ago_match.group(2)
+        if unit == "day":
+            # N days ago = a 1-day window N days back
+            target = now - timedelta(days=n)
+            from_date = datetime(target.year, target.month, target.day, tzinfo=timezone.utc)
+            to_date = from_date + timedelta(days=1)
+        elif unit == "week":
+            target = now - timedelta(weeks=n)
+            from_date = target - timedelta(days=target.weekday())  # Monday of that week
+            to_date = from_date + timedelta(days=7)
+        elif unit == "month":
+            # N months ago = that entire month
+            target_month = now.month - n
+            target_year = now.year
+            while target_month <= 0:
+                target_month += 12
+                target_year -= 1
+            from_date = datetime(target_year, target_month, 1, tzinfo=timezone.utc)
+            if target_month == 12:
+                to_date = datetime(target_year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+            else:
+                to_date = datetime(target_year, target_month + 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+        elif unit == "year":
+            target_year = now.year - n
+            from_date = datetime(target_year, 1, 1, tzinfo=timezone.utc)
+            to_date = datetime(target_year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        else:
+            from_date = now - timedelta(days=30)
+            to_date = now
+        return {
+            "from_date": from_date.isoformat(),
+            "to_date": to_date.isoformat(),
+            "time_range_description": f"{n} {unit}s ago",
+            "has_temporal_ref": True,
+        }
+
+    # "since <weekday>" — e.g. "since Tuesday" = from last Tuesday to now
+    weekday_match = re.search(r'since\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)', query_lower)
+    if weekday_match:
+        day_name = weekday_match.group(1)
+        days_of_week = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        target_weekday = days_of_week.index(day_name)
+        days_back = (now.weekday() - target_weekday) % 7
+        if days_back == 0:
+            days_back = 7  # last occurrence, not today
+        from_date = now - timedelta(days=days_back)
+        return {
+            "from_date": from_date.isoformat(),
+            "to_date": now.isoformat(),
+            "time_range_description": f"since {day_name}",
+            "has_temporal_ref": True,
+        }
+
+    # "before Q3" / "before Q1" etc — quarter boundaries
+    before_q_match = re.search(r'before\s+q([1-4])', query_lower)
+    if before_q_match:
+        q_num = int(before_q_match.group(1))
+        quarter_month = {1: 1, 2: 4, 3: 7, 4: 10}[q_num]
+        to_date = datetime(now.year, quarter_month, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+        return {
+            "from_date": None,
+            "to_date": to_date.isoformat(),
+            "time_range_description": f"before Q{q_num}",
+            "has_temporal_ref": True,
+        }
+
+    # "after <event>" — can't parse event dates, but mark as temporal ref
+    # so retrieval knows to consider temporal context. Use a generous
+    # window (last 90 days).
+    if re.search(r'\bafter\s+(the\s+)?(meeting|call|sync|standup|review)', query_lower):
+        from_date = now - timedelta(days=90)
+        return {
+            "from_date": from_date.isoformat(),
+            "to_date": now.isoformat(),
+            "time_range_description": "after meeting (last 90d)",
+            "has_temporal_ref": True,
+        }
+
     # No temporal reference found
     return {
         "from_date": None,
