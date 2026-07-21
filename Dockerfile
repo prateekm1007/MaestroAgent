@@ -3,7 +3,9 @@
 FROM python:3.12-slim
 
 # Cache-bust: force Docker to invalidate cached layers and pick up latest code
-ARG CACHE_BUST=2026-07-21-session10
+# MUST be consumed in a RUN command — Docker only invalidates cache for USED ARGs
+ARG CACHE_BUST=force-rebuild-session10
+RUN echo "Cache bust: $CACHE_BUST"
 
 WORKDIR /app
 
