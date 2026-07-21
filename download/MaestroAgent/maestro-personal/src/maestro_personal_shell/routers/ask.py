@@ -323,34 +323,90 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 break
 
         if not _query_mentions_known_entity and known_entities_lower:
-            # The query doesn't mention any known entity — return clean refusal
-            logger.info(
-                "S1-01 evidence isolation gate: query '%s' doesn't match any "
-                "known entity %s — returning clean refusal (no evidence dump)",
-                req.query[:80], list(known_entities_lower)[:5],
-            )
-            return AskResponse(
-                answer="I don't have enough information to answer that question. "
-                       "No matching signals were found in your stored data.",
-                query=req.query,
-                source_sentence="",
-                source_entity="",
-                source_timestamp="",
-                situation_state="",
-                evidence_refs=[],
-                confidence=0.0,
-                counterevidence=[],
-                unknowns=["No evidence found for this query."],
-                as_of=str(as_of or ""),
-                decision_boundary="",
-                perspectives=[],
-                reasoning_chain=[],
-                calibration_note="",
-                consequence_paths=[],
-                llm_active=False,
-                llm_provider="none",
-                intelligence_source="rules",
-            )
+            # Phase 1.3 Bug #3 fix (2026-07-21): topic-word fallback.
+            #
+            # ROOT CAUSE (verified by execution):
+            # Query "What about the proposal?" has no capitalized entity, so
+            # _query_mentions_known_entity stays False. The S1-01 gate
+            # abstains immediately — even though "proposal" appears in 3+
+            # signal TEXTS. The gate only checks entity-name overlap, not
+            # content-word overlap. This blocks legitimate topic-word
+            # queries like "What about the proposal?", "Tell me about the
+            # contract", "What's the budget status?".
+            #
+            # FIX: before abstaining, do a topic-word search. Extract
+            # content words (non-stopwords, len > 3) from the query and
+            # check if ANY appears in any signal's text content. If so,
+            # skip the S1-01 abstention — the query is a valid topic query,
+            # not an off-topic philosophical question. The downstream
+            # retrieval at line ~1229 will populate evidence_refs from
+            # the topic-word matches.
+            _topic_stopwords = frozenset({
+                "a", "an", "the", "is", "are", "was", "were", "be", "been",
+                "do", "does", "did", "have", "has", "had", "will", "would",
+                "should", "can", "could", "may", "might", "must",
+                "i", "you", "he", "she", "it", "we", "they", "me", "him",
+                "my", "your", "his", "its", "our", "their",
+                "this", "that", "these", "those", "there", "here",
+                "what", "when", "where", "which", "who", "whom", "whose",
+                "why", "how", "of", "in", "on", "at", "to", "for", "with",
+                "from", "by", "about", "and", "or", "but", "not", "if",
+                "then", "else", "so", "than", "as", "up", "out", "into",
+                "over", "under", "tell", "me", "please",
+            })
+            _query_tokens = _re.findall(r'\b[a-zA-Z][a-zA-Z0-9]+\b', query_lower)
+            _topic_words = {w for w in _query_tokens
+                            if len(w) > 3 and w not in _topic_stopwords}
+            _topic_word_match = False
+            if _topic_words:
+                try:
+                    _all_sigs_for_topic = load_signals_from_db(user_email=token, limit=500)
+                    for sig in _all_sigs_for_topic:
+                        if isinstance(sig, dict):
+                            _sig_text = (sig.get("text", "") or "").lower()
+                            if any(tw in _sig_text for tw in _topic_words):
+                                _topic_word_match = True
+                                break
+                except Exception as _e:
+                    logger.debug("Topic-word search failed: %s", _e)
+            if _topic_word_match:
+                # Topic word found in signal content — skip the S1-01 abstention.
+                # The query is a valid topic query (e.g. "What about the proposal?").
+                # Fall through to the normal retrieval path.
+                logger.info(
+                    "Phase 1.3 Bug #3: query '%s' has no named entity but topic "
+                    "words %s match signal content — skipping S1-01 abstention",
+                    req.query[:80], list(_topic_words)[:5],
+                )
+            else:
+                # The query doesn't mention any known entity — return clean refusal
+                logger.info(
+                    "S1-01 evidence isolation gate: query '%s' doesn't match any "
+                    "known entity %s — returning clean refusal (no evidence dump)",
+                    req.query[:80], list(known_entities_lower)[:5],
+                )
+                return AskResponse(
+                    answer="I don't have enough information to answer that question. "
+                           "No matching signals were found in your stored data.",
+                    query=req.query,
+                    source_sentence="",
+                    source_entity="",
+                    source_timestamp="",
+                    situation_state="",
+                    evidence_refs=[],
+                    confidence=0.0,
+                    counterevidence=[],
+                    unknowns=["No evidence found for this query."],
+                    as_of=str(as_of or ""),
+                    decision_boundary="",
+                    perspectives=[],
+                    reasoning_chain=[],
+                    calibration_note="",
+                    consequence_paths=[],
+                    llm_active=False,
+                    llm_provider="none",
+                    intelligence_source="rules",
+                )
 
     # Broad query handler: for queries like "what is going on?" or
     # "what did I promise?" (without naming a specific entity), return
