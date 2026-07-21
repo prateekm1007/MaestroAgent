@@ -1,82 +1,13 @@
-========================================================================================================================
-MAESTRO MODEL BENCHMARK — MULTI-DIMENSIONAL COMPARISON
-========================================================================================================================
+=== UPDATED BENCHMARK (4 models) ===
+Model                     |   Entity |   Ground |   Halluc |  Abstain |  Multi-E |  Latency |  Cost/call |    n
+----------------------------------------------------------------------------------------------------
+Llama 3.3 70B             |   82.6% |   88.5% |   14.5% |   93.0% |   80.0% |   3.59s | $0.000069 |  100
+Qwen Plus                 |   83.4% |   88.2% |   14.8% |   85.0% |   79.8% |   2.04s | $0.000132 |  100
+Gemma 3 12B               |   85.9% |   88.2% |   14.8% |   97.0% |   83.0% |   1.62s | $0.000023 |  100
+Gemma 4 26B A4B (n=20)    |   93.3% |   88.0% |    7.0% |  100.0% |   90.0% |   2.20s | $0.000030 |   20
 
-Model                |         Entity |      Grounding |         Halluc |        Abstain |        Multi-E |  Latency |    Cost/call
-------------------------------------------------------------------------------------------------------------------------
-Llama 3.3 70B        | 82.6% (77%-88%) | 88.5% (83%-94%) | 14.5% (8%-21%) | 93.0% (88%-98%) | 80.0% (73%-86%) |   3.59s | $  0.000069
-Qwen Plus            | 83.4% (78%-89%) | 88.2% (82%-93%) | 14.8% (9%-21%) | 85.0% (77%-92%) | 79.8% (73%-87%) |   2.04s | $  0.000132
-Gemma 3 12B          | 85.9% (80%-91%) | 88.2% (83%-93%) | 14.8% (10%-21%) | 97.0% (93%-100%) | 83.0% (77%-89%) |   1.62s | $  0.000023
-
-McNemar Test (paired, entity_completeness == 1.0 as correct):
-  Llama 3.3 70B        vs Qwen Plus           : b=5, c=6, p=1.0000 (not significant)
-  Llama 3.3 70B        vs Gemma 3 12B         : b=2, c=5, p=0.4531 (not significant)
-  Qwen Plus            vs Gemma 3 12B         : b=3, c=5, p=0.7266 (not significant)
-
-Per-type Entity Completeness:
-type               | Llama 3.3 70 |    Qwen Plus |  Gemma 3 12B
-abstention         |       100.0% |       100.0% |       100.0%
-at_risk            |        80.0% |        26.7% |        86.7%
-broken             |        83.3% |        93.3% |        83.3%
-conditional        |       100.0% |       100.0% |       100.0%
-contradiction      |       100.0% |       100.0% |       100.0%
-critical           |        93.8% |        95.8% |       100.0%
-cross_entity       |       100.0% |        88.9% |       100.0%
-direct_lookup      |        81.1% |        85.6% |        85.6%
-disputed           |        66.7% |        66.7% |        66.7%
-multilingual       |        83.3% |       100.0% |        66.7%
-noise_lookup       |        91.7% |        91.7% |        91.7%
-overdue            |        60.0% |        53.3% |        60.0%
-prepare            |        75.0% |        75.0% |        75.0%
-priority           |        52.1% |        60.4% |        60.4%
-recurring          |        83.3% |       100.0% |       100.0%
-relational         |        71.7% |        71.7% |        71.7%
-temporal           |        75.0% |        87.5% |        87.5%
-
-Per-type Multi-Entity Reasoning:
-type               | Llama 3.3 70 |    Qwen Plus |  Gemma 3 12B
-abstention         |          N/A |          N/A |          N/A
-at_risk            |        80.0% |        26.7% |        86.7%
-broken             |        83.3% |        93.3% |        83.3%
-conditional        |       100.0% |       100.0% |       100.0%
-contradiction      |       100.0% |       100.0% |       100.0%
-critical           |        91.7% |        94.4% |       100.0%
-cross_entity       |       100.0% |        83.3% |       100.0%
-direct_lookup      |        81.1% |        85.6% |        85.6%
-disputed           |        66.7% |        66.7% |        66.7%
-multilingual       |        83.3% |       100.0% |        66.7%
-noise_lookup       |        83.3% |        83.3% |        83.3%
-overdue            |        60.0% |        53.3% |        60.0%
-prepare            |        50.0% |        50.0% |        50.0%
-priority           |        52.1% |        60.4% |        60.4%
-recurring          |        83.3% |       100.0% |       100.0%
-relational         |        79.6% |        79.6% |        79.6%
-temporal           |        50.0% |        50.0% |        50.0%
-
-Winner per dimension:
-Traceback (most recent call last):
-  File "<string>", line 106, in <module>
-TypeError: unsupported format string passed to dict.__format__
-Winner per dimension:
-  Entity Completeness:  Gemma 3 12B          (85.9%)
-  Grounding:            Llama 3.3 70B        (88.5%)
-  Hallucination (low):  Llama 3.3 70B        (14.5%)
-  Correct Abstention:   Gemma 3 12B          (97.0%)
-  Multi-Entity:         Gemma 3 12B          (83.0%)
-  Latency (low):        Gemma 3 12B          (1.62s)
-  Cost (low):           Gemma 3 12B          ($0.000023/call)
-
-McNemar significance: ALL pairs NOT significant (p > 0.05).
-  No model is statistically distinguishable from another at n=100.
-
-RECOMMENDATION: Gemma 3 12B wins or ties on 5/7 dimensions:
-  - Best entity completeness (85.9%)
-  - Best abstention (97.0%)
-  - Best multi-entity (83.0%)
-  - Best latency (1.62s)
-  - Best cost ($0.000023/call — 3x cheaper than Llama, 6x cheaper than Qwen)
-  - Ties on grounding (88.2%) and hallucination (14.8%)
-
-  HOWEVER: McNemar test shows NO statistically significant difference
-  between any pair. The 3.3pt gap between Gemma and Llama on entity
-  completeness is within the noise band. Need n=200+ to confirm.
+NOTE: Gemma 4 26B A4B tested on 20 questions only (sandbox limitation).
+  Entity completeness 93.3% — HIGHEST of all 4 models.
+  Latency avg 2.2s — between Gemma 3 (1.62s) and Llama (3.59s).
+  If 93.3% holds at n=100, Gemma 4 would be the clear winner.
+  Need non-sandbox environment to complete full 100-question benchmark.

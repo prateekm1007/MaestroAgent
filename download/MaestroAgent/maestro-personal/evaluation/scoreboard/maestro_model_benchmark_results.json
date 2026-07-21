@@ -6096,6 +6096,49 @@
         }
       ],
       "n_questions": 100
+    },
+    "google/gemma-4-26b-a4b-it": {
+      "name": "Gemma 4 26B A4B (n=20)",
+      "summary": {
+        "entity_completeness": {
+          "avg": 0.933,
+          "ci_low": 0.85,
+          "ci_high": 1.0,
+          "n": 20
+        },
+        "grounding": {
+          "avg": 0.88,
+          "ci_low": 0.75,
+          "ci_high": 0.97,
+          "n": 20
+        },
+        "hallucination": {
+          "avg": 0.07,
+          "ci_low": 0.0,
+          "ci_high": 0.15,
+          "n": 20
+        },
+        "correct_abstention": {
+          "avg": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 4
+        },
+        "multi_entity": {
+          "avg": 0.9,
+          "ci_low": 0.78,
+          "ci_high": 1.0,
+          "n": 15
+        },
+        "latency_avg": 2.2,
+        "latency_p95": 5.6,
+        "cost_total": 0.0006,
+        "cost_avg": 3e-05
+      },
+      "per_type": {},
+      "per_question": [],
+      "n_questions": 20,
+      "note": "Only 20 questions completed \u2014 sandbox process kept dying. Entity completeness 93.3% (vs Gemma 3 12B 85.9% on full 100). Latency avg 2.2s (range 0.7-5.6s)."
     }
   }
 }
