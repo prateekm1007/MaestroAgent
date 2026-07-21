@@ -517,6 +517,47 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "llm_powered": False,
         }
 
+    # Phase R1 fix (2026-07-21): completion-evidence detection.
+    #
+    # ROOT CAUSE (P1 — verified by execution):
+    # "Maria confirmed she received the pricing proposal" was classified as
+    # third_party_report (active) because "confirmed" is in the quote_patterns
+    # list (line ~524). This meant match_closure never fired — the signal was
+    # treated as a report of an active commitment, not as completion evidence.
+    # Result: Maria's commitment stayed "overdue" forever, even though the
+    # system HAD the delivery confirmation. This is the audit's F1 finding.
+    #
+    # FIX: detect completion-evidence phrases BEFORE the third_party_report
+    # check. These are signals where someone confirms receipt/acknowledges
+    # delivery — they close existing commitments, they don't create new ones.
+    # Must run BEFORE the quote_patterns check so "confirmed received" isn't
+    # misrouted to third_party_report.
+    _completion_evidence_patterns = [
+        r"confirmed\s+(she|he|they|i)?\s*(received|got|have)",
+        r"(she|he|they|i)\s+confirmed\s+(receipt|receiving|delivery)",
+        r"received\s+(the|your|my)\s+\w+",
+        r"got\s+it\b",
+        r"thanks\s+(for|—|-)",  # "thanks for the proposal" = receipt confirmed
+        r"thank\s+you\s+(for|—|-)",
+        r"got\s+(the|your)\s+\w+",  # "got the proposal"
+        r"has\s+been\s+(received|delivered|completed)",
+        r"successfully\s+(received|delivered|completed)",
+        r"acknowledged\s+(receipt|receiving)",
+    ]
+    import re as _re_comp
+    for _pattern in _completion_evidence_patterns:
+        if _re_comp.search(_pattern, text_lower):
+            return {
+                "commitment_type": "completed",
+                "is_commitment": True,
+                "confidence": 0.8,
+                "state": "completed_claimed",
+                "owner": "unknown",
+                "deadline_text": "",
+                "reasoning": f"rule-based: completion evidence detected (pattern: {_pattern[:40]})",
+                "llm_powered": False,
+            }
+
     # Quote / third-party report detection — "X said:", "X says:", "X wrote:"
     # indicates the user is REPORTING someone else's promise, not making their own
     quote_patterns = [
