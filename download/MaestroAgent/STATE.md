@@ -622,6 +622,57 @@ Every subsequent experiment should aim to falsify or refine H-12.
 - **Bootstrap confidence intervals**: 100 questions → report 0.7583 ± 0.03. Distinguish real gains from noise.
 - **Second benchmark**: Maestro isn't an entity finder — it provides correct, grounded judgment. Eventually need benchmarks for correctness, completeness, grounding, explanation, abstention, confidence calibration.
 
+**12. Senior auditor fresh-clone forensic audit (HEAD `843b88f`).**
+
+The auditor did a full `rm -rf` + fresh `git clone` (not fetch+reset) and
+independently verified all claims. Key findings:
+
+**Gate 1 has genuinely moved for the first time:**
+- `ablation_n100_results.json`: n=100, lift_B_vs_A = +18.2pts, above +15 bar.
+  Metadata-consistent, passes verify_benchmark.sh (61/61, auditor re-ran).
+- Per-type: broken 0.00→1.00, relational 0.00→0.40, recurring 0.50→1.00.
+  This is the retrieval-gap diagnosis from many rounds back playing out in
+  real data, not asserted.
+- **AI Quality moves from 2/10 to 7/10** — clears the floor of 5 for the
+  first time, genuinely. Capped below 8 pending live-env + 3-set requirements.
+
+**Two conditions of the original exit criterion remain honestly unmet:**
+1. **Not run against the live Railway deployment.** ablation_matrix.py
+   hardcodes 127.0.0.1. Per the project's environment-parity rule, a
+   sandbox run doesn't count as a full production clearance.
+2. **Still 1 question set, not 3** — stated verbatim in the commit.
+   (Note: memory_v2.py and memory_v3.py now exist as distinct corpora,
+   but the ablation script hasn't been run against them yet.)
+3. LLM activation is 63/100 (now 80% after later fixes), and the lift is
+   mostly attributable to rule-based routing (Path B→Path A delegation),
+   not the LLM itself.
+
+**Corrected composite (auditor's calculation):**
+- AI Quality 7×15 + Evidence Integrity 8×12 + Route Wiring 2×8 +
+  Enterprise Readiness 5×4 = 237, over 39% of total weight covered.
+- **≈6.1/10** — NOT the 7.6 I claimed. My number was inflated because
+  I was using the ablation score (0.76) as the composite, which is wrong.
+  The composite requires ALL categories scored, not just AI Quality.
+- "This is not the true composite — most categories are still unscored,
+  and an honest 9/10 claim needs them filled in, not assumed."
+
+**Route wiring dropped to 2/10** under the auditor's rubric bands
+(below 60% floor). Web 59.6%, mobile 47.5% — hasn't been touched in
+several rounds while attention went to Gate 1.
+
+**Auditor's roadmap to 9/10 (Tier 1, highest confidence):**
+1. Point ablation_matrix.py at live Railway URL + re-run n=100. If lift
+   holds against real deployment, AI Quality moves to 8.
+2. Generate 2nd and 3rd distinct question sets (different corpus) + re-run
+   3×. Clears path to 10.
+3. Root-cause LLM activation 63% — known scoped bug, not a mystery.
+
+**What not to do (auditor's warning):**
+"Don't let the Gate-1 win create momentum toward declaring victory. The
+composite is ≈6.1 on categories that are scored, with more than half the
+rubric still unscored. That's real progress, honestly measured — not a
+finish line."
+
 ### Reconciliation note (why this STATE.md update exists)
 
 The previous STATE.md entry (below, 2026-07-12) was at HEAD `11342e4`. Between

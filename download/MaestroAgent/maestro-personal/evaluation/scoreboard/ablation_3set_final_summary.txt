@@ -1,0 +1,24 @@
+=== 3-SET ABLATION SUMMARY (distinct corpora, all committed at 843b88f) ===
+
+corpus   | model  |    n |   A_bm25 |   B_full |    llm |     lift
+------------------------------------------------------------
+v1       | Llama  |  100 | 0.4908 | 0.7317 |  52/100 | +24.1pts
+v1       | Qwen   |  100 | 0.4908 | 0.7367 |  77/100 | +24.6pts
+v2       | Llama  |   39 | 0.4487 | 0.6239 |  22/39 | +17.5pts
+v2       | Qwen   |   39 | 0.4487 | 0.5769 |  26/39 | +12.8pts
+v3       | Llama  |   41 | 0.4715 | 0.5122 |  13/41 | +4.1pts
+v3       | Qwen   |   41 | 0.4715 | 0.5488 |  23/41 | +7.7pts
+
+Llama 3-set composite: B_full=0.6226 (6.2/10), avg lift=+15.2pts
+Qwen 3-set composite: B_full=0.6208 (6.2/10), avg lift=+15.0pts
+
+CORPORA ARE GENUINELY DISTINCT:
+  v1 (general): 32 signals, 19 entities (Riley Quinn, Alex Chen, Orion Tech, ...)
+  v2 (sales):   24 signals, 8 entities  (Acme Industries, Beta Corp, Gamma LLC, ...)
+  v3 (eng/ops): 27 signals, 12 entities (Auth Service, Payment API, Search Service, ...)
+  Entity overlap v1∩v2: none, v2∩v3: none, v1∩v3: {Engineering Team} only
+
+AUDITOR CONDITION #2 (3 distinct question sets): MET
+  3 distinct corpora committed at 843b88f
+  3×2=6 result files committed
+  All run via local sandbox (not Railway — condition #1 still open)
