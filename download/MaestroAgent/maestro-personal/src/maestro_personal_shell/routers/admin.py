@@ -21,6 +21,8 @@ router = APIRouter(tags=["admin"])
 @router.get("/api/health")
 async def health():
     """Health check — no auth required. Includes build canary for deploy verification."""
+    # Try git first (works locally), fall back to build-time env var (works in Docker)
+    commit = "unknown"
     import subprocess
     try:
         commit = subprocess.check_output(
@@ -28,12 +30,13 @@ async def health():
             stderr=subprocess.DEVNULL, timeout=2
         ).decode().strip()
     except Exception:
-        commit = "unknown"
+        commit = os.environ.get("MAESTRO_BUILD_COMMIT", "unknown")
     return {
         "status": "ok",
         "service": "maestro-personal",
-        "version": "10.0.0-session10",
+        "version": "11.0.0-session10-final",
         "commit": commit,
         "docs_disabled": True,
         "security_headers": True,
+        "build_time": os.environ.get("MAESTRO_BUILD_TIME", "unknown"),
     }

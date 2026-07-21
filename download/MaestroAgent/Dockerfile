@@ -31,6 +31,10 @@ COPY backend/maestro_verify/            ./src/maestro_verify/
 # Also install sqlalchemy explicitly (maestro_db/maestro_api need it)
 RUN pip install --no-cache-dir "." "sqlalchemy>=2.0"
 
+# Embed build-time canary (auditor F-NEW-2: version string must be unforgeable)
+ENV MAESTRO_BUILD_TIME="2026-07-22-session10-final"
+ENV MAESTRO_BUILD_COMMIT="806a1c3"
+
 # Environment — MUST match the proven working config
 ENV PYTHONPATH=/app/src
 ENV MAESTRO_PERSONAL_ENV=dev
