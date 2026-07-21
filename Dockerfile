@@ -1,21 +1,25 @@
-# Railway production Dockerfile — placed at repo root so Railway can find it
-# Build context = repo root, so paths are relative to /
+# Railway production Dockerfile — Session 10 forced rebuild
+# Changed structure to bust all Docker layer cache
 FROM python:3.12-slim
-
-# Cache-bust: force Docker to invalidate cached layers and pick up latest code
-# MUST be consumed in a RUN command — Docker only invalidates cache for USED ARGs
-ARG CACHE_BUST=force-rebuild-session10
-RUN echo "Cache bust: $CACHE_BUST"
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ libffi-dev libssl-dev \
+    gcc g++ libffi-dev libssl-dev git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy from download/MaestroAgent/ (the actual app directory)
+# Session 10 marker — if this line changes, all subsequent layers rebuild
+RUN echo "Session 10 forced rebuild $(date)"
+
+# Copy ALL source code at once (different COPY instruction = different cache key)
 COPY download/MaestroAgent/maestro-personal/pyproject.toml download/MaestroAgent/maestro-personal/README.md ./
 COPY download/MaestroAgent/maestro-personal/src/ ./src/
+
+# Verify the new files are actually present in the build
+RUN ls -la /app/src/maestro_personal_shell/routers/inbox.py && \
+    grep -c "inbox" /app/src/maestro_personal_shell/api.py && \
+    grep -c "open commitments" /app/src/maestro_personal_shell/routers/ask.py && \
+    echo "All Session 10 files verified present in build"
 
 # Copy backend maestro_* packages
 COPY download/MaestroAgent/backend/maestro_cognitive_council/ ./src/maestro_cognitive_council/
