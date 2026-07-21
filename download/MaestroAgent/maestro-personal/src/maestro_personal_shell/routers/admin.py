@@ -32,7 +32,7 @@ async def health():
     return {
         "status": "ok",
         "service": "maestro-personal",
-        "version": "1.0.0",
+        "version": "10.0.0-session10",
         "commit": commit,
         "docs_disabled": True,
         "security_headers": True,
