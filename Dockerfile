@@ -2,6 +2,9 @@
 # Build context = repo root, so paths are relative to /
 FROM python:3.12-slim
 
+# Cache-bust: force Docker to invalidate cached layers and pick up latest code
+ARG CACHE_BUST=2026-07-21-session10
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
