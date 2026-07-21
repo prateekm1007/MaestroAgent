@@ -1,0 +1,319 @@
+{
+  "timestamp": "2026-07-21T01:09:35.158770+00:00",
+  "model": "qwen/qwen-plus",
+  "raw_found": 7,
+  "struct_found": 8,
+  "results": [
+    {
+      "idx": 3,
+      "type": "overdue",
+      "query": "Which promises are now overdue?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "raw_found": [
+        "Riley",
+        "Priya"
+      ],
+      "raw_all": false,
+      "raw_answer": "The overdue promises are:  \n- Priya Shah\u2019s commitment to send the compliance report by June 30, 2026 (evidence #1, #3).  \n- Riley Quinn\u2019s commitment to send the security questionnaire by end of week (evidence #2, #5).  \n\nBoth are explicitly labeled \u201coverdue\u201d in the evidence. No other promises are st",
+      "struct_found": [
+        "Riley",
+        "Priya"
+      ],
+      "struct_all": false,
+      "struct_answer": "The overdue promises are:  \n- \u201cI will send Priya Shah the compliance report by June 30\u201d (overdue as of June 30, 2026).  \n- \u201cI will send Riley Quinn the security questionnaire by end of week\u201d (overdue as of July 2, 2026, with evidence stating \u201cNever sent\u2026 overdue\u201d).  \n\nEntities with overdue promises:"
+    },
+    {
+      "idx": 4,
+      "type": "broken",
+      "query": "What did I fail to deliver?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "raw_found": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "raw_all": true,
+      "raw_answer": "You failed to deliver the security questionnaire (Riley Quinn, 2026-07-02) and the compliance report (Priya Shah, 2026-06-30), both of which are overdue and never sent. No other deliverables in the evidence are marked as failed or overdue. The API integration (Sam Patel) was successfully delivered o",
+      "struct_found": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "struct_all": true,
+      "struct_answer": "You failed to deliver the security questionnaire for Riley Quinn and the compliance report for Priya Shah \u2014 both are explicitly marked as overdue and not sent. Sam Patel\u2019s API integration was delivered on time, so no failure there. The evidence identifies Riley Quinn and Priya Shah as the entities f"
+    },
+    {
+      "idx": 5,
+      "type": "at_risk",
+      "query": "Which commitments are at risk?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "raw_found": [],
+      "raw_all": false,
+      "raw_answer": "None of the commitments are explicitly stated as \u201cat risk\u201d in the evidence. The evidence lists five commitments with due dates, but no status indicators (e.g., overdue, delayed, unfulfilled, or threatened). Therefore, based solely on the provided information, no commitments are confirmed to be at ri",
+      "struct_found": [],
+      "struct_all": false,
+      "struct_answer": "None of the commitments are indicated as at risk in the evidence. The data shows only commitment-making signals with future timestamps, and no overdue, broken, or threatened status is reported for any entity. Therefore, no commitments are at risk based on the provided information."
+    },
+    {
+      "idx": 6,
+      "type": "relational",
+      "query": "Who am I repeatedly disappointing?",
+      "expected": [
+        "Riley",
+        "Avery",
+        "Priya"
+      ],
+      "raw_found": [
+        "Riley",
+        "Priya"
+      ],
+      "raw_all": false,
+      "raw_answer": "You are repeatedly disappointing Priya Shah and Riley Quinn, as both have overdue deliverables tied to you: Priya\u2019s compliance report hasn\u2019t been sent, and Riley\u2019s security questionnaire was never sent. Both are explicitly marked as \u201coverdue,\u201d indicating repeated failure to meet commitments. Jamie P",
+      "struct_found": [
+        "Riley",
+        "Priya"
+      ],
+      "struct_all": false,
+      "struct_answer": "You are repeatedly disappointing Priya Shah and Riley Quinn. Both have \u201cat_risk\u201d status indicators tied to overdue deliverables: Priya Shah\u2019s compliance report hasn\u2019t been sent (overdue as of 2026-06-30), and Riley Quinn\u2019s security questionnaire was never sent and is overdue (as of 2026-07-02). Jami"
+    },
+    {
+      "idx": 7,
+      "type": "relational",
+      "query": "Which person has become a delivery risk?",
+      "expected": [
+        "Riley",
+        "Priya"
+      ],
+      "raw_found": [
+        "Riley",
+        "Priya"
+      ],
+      "raw_all": true,
+      "raw_answer": "Riley Quinn and Priya Shah have become delivery risks. Riley Quinn\u2019s security questionnaire was never sent and is overdue (2026-07-02), and Priya Shah\u2019s compliance report is also overdue and hasn\u2019t been sent (2026-06-30). Sam Patel, Alex Chen, and the commitment to send Riley Quinn the questionnaire",
+      "struct_found": [
+        "Riley",
+        "Priya"
+      ],
+      "struct_all": true,
+      "struct_answer": "Riley Quinn and Priya Shah have become delivery risks. The evidence shows both have \u201cat_risk\u201d status indicators: Riley Quinn due to the security questionnaire \u201cnever sent \u2014 overdue,\u201d and Priya Shah due to the \u201ccompliance report is overdue \u2014 hasn't been sent.\u201d Sam Patel and Alex Chen have no at-risk "
+    },
+    {
+      "idx": 8,
+      "type": "relational",
+      "query": "Who keeps their promises?",
+      "expected": [
+        "Alex",
+        "Sam"
+      ],
+      "raw_found": [
+        "Alex",
+        "Sam"
+      ],
+      "raw_all": true,
+      "raw_answer": "Only [Sam Patel] and [Alex Chen] kept their promises, based on the evidence: Sam delivered the API integration on time, and Alex sent the pricing deck as stated. Riley Quinn and Priya Shah both have overdue items, and Riley\u2019s earlier commitment to send the security questionnaire was not fulfilled. N",
+      "struct_found": [
+        "Alex",
+        "Sam"
+      ],
+      "struct_all": true,
+      "struct_answer": "Sam Patel and Alex Chen are the only entities with evidence of fulfilled promises: Sam Patel \u201cdelivered the API integration on time,\u201d and Alex Chen \u201csent the pricing deck\u2026 yesterday.\u201d Riley Quinn and Priya Shah both have \u201cat_risk\u201d status indicators (\u201cnever sent,\u201d \u201coverdue\u201d), so they do not keep thei"
+    },
+    {
+      "idx": 15,
+      "type": "temporal",
+      "query": "What's been pending for over a month?",
+      "expected": [
+        "Avery"
+      ],
+      "raw_found": [
+        "Avery"
+      ],
+      "raw_all": true,
+      "raw_answer": "The quarterly report for Avery Stone (due 2026-04-27) and the security questionnaire for Riley Quinn (due end of week of 2026-05-13) are both pending for over a month. As of today (2026-07-15), neither delivery is confirmed in the evidence. Jamie Park\u2019s SSO work is pending legal review (2026-07-05),",
+      "struct_found": [
+        "Avery"
+      ],
+      "struct_all": true,
+      "struct_answer": "The following commitments have been pending for over a month:  \n- **Jamie Park**: SSO work is \u201cpending legal review\u201d as of 2026-07-05, and the original commitment was made on 2026-05-23 \u2014 over a month ago.  \n- **Avery Stone**: The commitment to send the quarterly report was made on 2026-04-27, and n"
+    },
+    {
+      "idx": 21,
+      "type": "priority",
+      "query": "What's my most important commitment?",
+      "expected": [
+        "Riley",
+        "Globex",
+        "Avery",
+        "Priya"
+      ],
+      "raw_found": [
+        "Riley",
+        "Globex",
+        "Priya"
+      ],
+      "raw_all": false,
+      "raw_answer": "The evidence does not explicitly state which commitment is *most important*, nor does it rank commitments by importance. However, the most severe consequence cited is the **EU regulatory fine of 5M euros** imposed on [Legal Dept] for a GDPR violation (2026-07-10), which indicates a high-stakes, lega",
+      "struct_found": [
+        "Riley",
+        "Globex",
+        "Priya"
+      ],
+      "struct_all": false,
+      "struct_answer": "The evidence does not specify a ranking or priority (e.g., \u201cmost important\u201d) among commitments \u2014 it only indicates which entities are at risk or associated with urgent issues. All entities with \u201cat_risk\u201d indicators or critical incidents are: **Priya Shah**, **Riley Quinn**, **Globex Corp**, **EngOnc"
+    },
+    {
+      "idx": 22,
+      "type": "priority",
+      "query": "What needs my attention today?",
+      "expected": [
+        "Riley",
+        "Globex",
+        "EngOncall",
+        "regulatory"
+      ],
+      "raw_found": [
+        "Globex",
+        "regulatory"
+      ],
+      "raw_all": false,
+      "raw_answer": "Today needs attention on: (1) sending the updated pricing proposal to Maria Garcia (Acme Corp) by Friday\u2014she emphasized the procurement team needs 3 days to review before their board meeting next Wednesday; (2) addressing Globex Corp\u2019s threat to cancel their contract; and (3) preparing Q3 numbers fo",
+      "struct_found": [
+        "Globex",
+        "regulatory"
+      ],
+      "struct_all": false,
+      "struct_answer": "Today\u2019s urgent items needing your attention are:  \n- **Maria Garcia** (deadline: send updated pricing proposal by Friday \u2014 today is likely Friday, given her Tuesday call and 3-day review window before next week\u2019s board meeting);  \n- **Globex Corp** (explicitly \u201cat risk\u201d \u2014 threatening to cancel their"
+    },
+    {
+      "idx": 31,
+      "type": "cross_entity",
+      "query": "Which clients have pricing issues?",
+      "expected": [
+        "Orion",
+        "Maria",
+        "Acme"
+      ],
+      "raw_found": [
+        "Orion",
+        "Maria"
+      ],
+      "raw_all": false,
+      "raw_answer": "Only Orion Tech has a documented pricing issue \u2014 specifically, a pricing dispute tied to a $150k final invoice. The evidence shows no pricing issues for Alex Chen (pricing deck was sent as planned) or Maria Garcia (only a pending request for an updated proposal, not a dispute or error). Therefore, t",
+      "struct_found": [
+        "Orion",
+        "Maria",
+        "Acme"
+      ],
+      "struct_all": true,
+      "struct_answer": "Orion Tech has a pricing issue, as evidenced by a reported pricing dispute over a $150k final invoice versus a $120k quoted annual contract. Maria Garcia (from Acme Corp) is associated with a pending request for an updated pricing proposal, indicating unresolved pricing discussions. Alex Chen is not"
+    },
+    {
+      "idx": 35,
+      "type": "relational",
+      "query": "Who are my most reliable partners?",
+      "expected": [
+        "Alex",
+        "Sam"
+      ],
+      "raw_found": [
+        "Alex",
+        "Sam"
+      ],
+      "raw_all": true,
+      "raw_answer": "Based on the evidence, **Sam Patel** is the only partner explicitly described as reliable \u2014 they delivered the API integration on time. No other partners are described positively; Riley Quinn and Priya Shah have overdue deliverables, and Alex Chen\u2019s mention only confirms receipt of a document (not a",
+      "struct_found": [
+        "Alex",
+        "Sam"
+      ],
+      "struct_all": true,
+      "struct_answer": "Based on the evidence, the only entity with a *positive, fulfilled action* is **Sam Patel**, who \u201cDelivered the API integration on time\u201d. No other entity has evidence of reliability\u2014Riley Quinn and Priya Shah are explicitly marked \u201cat_risk\u201d, and Alex Chen\u2019s signal only confirms receipt of a document"
+    },
+    {
+      "idx": 36,
+      "type": "relational",
+      "query": "Who are my biggest risks?",
+      "expected": [
+        "Riley",
+        "Globex",
+        "Priya"
+      ],
+      "raw_found": [
+        "Riley",
+        "Priya"
+      ],
+      "raw_all": false,
+      "raw_answer": "Your biggest risks are Riley Quinn and Priya Shah, as both have overdue deliverables: Riley Quinn\u2019s security questionnaire was never sent (overdue since 2026-07-02), and Priya Shah\u2019s compliance report is overdue and hasn\u2019t been sent (since 2026-06-30). Sam Patel, Alex Chen, and the earlier commitmen",
+      "struct_found": [
+        "Riley",
+        "Priya"
+      ],
+      "struct_all": false,
+      "struct_answer": "Your biggest risks are Riley Quinn and Priya Shah. Both have explicit \u201cat_risk\u201d status indicators: Riley Quinn\u2019s security questionnaire is \u201cnever sent \u2014 overdue\u201d (2026-07-02), and Priya Shah\u2019s compliance report is \u201coverdue \u2014 hasn\u2019t been sent\u201d (2026-06-30). Sam Patel and Alex Chen have no risk indica"
+    },
+    {
+      "idx": 37,
+      "type": "temporal",
+      "query": "What's the oldest unfulfilled commitment?",
+      "expected": [
+        "Avery"
+      ],
+      "raw_found": [
+        "Avery"
+      ],
+      "raw_all": true,
+      "raw_answer": "The oldest unfulfilled commitment is the one to Avery Stone, dated 2026-04-27: \u201cI will send Avery Stone the quarterly report.\u201d All other listed commitments are dated later (2026-05-13 onward), and the second commitment to Alex Chen (2026-05-30) explicitly states the pricing deck was sent, so it is f",
+      "struct_found": [
+        "Avery"
+      ],
+      "struct_all": true,
+      "struct_answer": "The oldest unfulfilled commitment is to Avery Stone, dated 2026-04-27 (\"I will send Avery Stone the quarterly report\"). No evidence indicates it has been fulfilled. All other commitments are newer: Riley Quinn (2026-05-13), Jamie Park (2026-05-23), and Alex Chen (2026-05-28, but reported as sent on "
+    },
+    {
+      "idx": 47,
+      "type": "broken",
+      "query": "What did I not send?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "raw_found": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "raw_all": true,
+      "raw_answer": "You did not send the quarterly report to Avery Stone, the pricing deck to Alex Chen, the compliance report to Priya Shah, the security questionnaire to Riley Quinn, and the updated pricing proposal to Maria Garcia. All five items are commitments with deadlines that have either passed or are imminent",
+      "struct_found": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "struct_all": true,
+      "struct_answer": "You did not send the quarterly report to Avery Stone, the pricing deck to Alex Chen, the compliance report to Priya Shah, the security questionnaire to Riley Quinn, and the updated pricing proposal to Maria Garcia. All five commitments were made or requested but there is no evidence in the data that"
+    },
+    {
+      "idx": 48,
+      "type": "broken",
+      "query": "Which commitment did I miss?",
+      "expected": [
+        "Riley",
+        "security questionnaire"
+      ],
+      "raw_found": [
+        "Riley"
+      ],
+      "raw_all": false,
+      "raw_answer": "None of the commitments listed are explicitly stated as missed, overdue, or broken. The evidence only shows scheduled commitments with future dates (all in 2026) and deadlines (e.g., \u201cby March 15\u201d, \u201cby Friday\u201d, \u201cby end of week\u201d), but no status indicators like \u201coverdue\u201d, \u201cnot sent\u201d, or \u201cmissed\u201d. Ther",
+      "struct_found": [],
+      "struct_all": false,
+      "struct_answer": "The evidence shows five commitments made, but none indicate any were missed, overdue, or broken\u2014there is no signal of failure or delay. All entries only contain `\"type\": \"commitment_made\"` and no follow-up status (e.g., \u201cnot sent\u201d, \u201coverdue\u201d, or \u201cmissed\u201d). Therefore, based solely on the provided evi"
+    }
+  ]
+}

@@ -586,6 +586,30 @@ Evidence for H-12:
 
 Every subsequent experiment should aim to falsify or refine H-12.
 
+**H-12 cross-model experiment results (commit `57bfb0a`):**
+- Ran 10 failed questions × 4 models with identical evidence + prompt.
+- Llama 3.3 70B: 60% all-found, 0% none-found. Qwen Plus: 50% / 20%.
+  Nemotron: 40% / 20%. Qwen Flash: 30% / 30%.
+- 0/10 questions had ALL models fail.
+- **Corrected conclusion (per senior reviewer):** "Model choice has a
+  measurable effect on grounding quality under the current architecture
+  and evidence representation." This does NOT prove architecture is no
+  longer limiting. Architecture could still improve dramatically by
+  supplying cleaner evidence, structured entities, chronological ordering,
+  or entity summaries. The experiment demonstrates model quality is a
+  significant contributor — it does not rule out additional gains from
+  improving evidence representation or retrieval architecture.
+- **Sample size caveat (per reviewer):** 10 questions is a diagnostic
+  set, not enough to conclude one model is generally superior. A 10-point
+  difference over 10 questions may not be statistically meaningful. Need
+  100-200 questions, stratified by intent, with confidence intervals
+  before changing the default model.
+- **Reranker conclusion corrected:** "Reranker adds nothing" is WRONG.
+  The correct statement is "The current answer-quality benchmark cannot
+  detect reranking improvements." Until the benchmark incorporates
+  ranking-sensitive metrics (MRR, Precision@1, NDCG), we cannot fully
+  assess the reranker's value.
+
 **Reviewer's revised priorities (superseding previous):**
 1. **Diagnose WHY the LLM chooses the wrong entity** — highest-leverage unknown.
    Test hypotheses: A (too much evidence), B (not chronological), C (prompt lacks selection constraints), D (not grounded).
