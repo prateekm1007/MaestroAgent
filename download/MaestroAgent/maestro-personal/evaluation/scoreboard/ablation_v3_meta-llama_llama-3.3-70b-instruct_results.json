@@ -1,11 +1,11 @@
 {
   "A_bm25": 0.4715,
-  "B_full_maestro": 0.5122,
+  "B_full_maestro": 0.6098,
   "C_rule_based": 0.4065,
-  "lift_B_vs_A": 4.1,
-  "lift_B_vs_C": 10.6,
+  "lift_B_vs_A": 13.8,
+  "lift_B_vs_C": 20.3,
   "lift_C_vs_A": -6.5,
-  "llm_active": 13,
+  "llm_active": 24,
   "total_questions": 41,
   "results_A": [
     {
@@ -218,10 +218,10 @@
     {
       "type": "direct_lookup",
       "score": 1.0,
-      "answer": "Based on the evidence: Auth Service \u2014 \"Production down \u2014 auth service sev1 incident\" (recorded 2026-",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.4
+      "answer": "The auth service status is reported as having a \"Production down \u2014 auth service sev1 incident\" on 20",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.9
     },
     {
       "type": "direct_lookup",
@@ -242,18 +242,18 @@
     {
       "type": "direct_lookup",
       "score": 1.0,
-      "answer": "The search service issue is related to high latency, which has not been investigated. Based on the e",
+      "answer": "**Regarding: What's the search service issue?**\n\n**Search Service: I will investigate the search ser",
       "llm": true,
-      "conf": 1.0,
-      "elapsed": 18.4
+      "conf": 0.6,
+      "elapsed": 15.5
     },
     {
       "type": "direct_lookup",
       "score": 1.0,
-      "answer": "**Regarding: Did I ship the mobile app?**\n\n**Mobile App: I will ship the mobile app release by Wedne",
+      "answer": "Based on the evidence, you promised to ship the mobile app release by Wednesday, as stated in the me",
       "llm": true,
       "conf": 0.5,
-      "elapsed": 16.1
+      "elapsed": 8.2
     },
     {
       "type": "direct_lookup",
@@ -269,23 +269,23 @@
       "answer": "I don't have enough information to answer that question. No signals found for entity: SOC2.",
       "llm": true,
       "conf": 0.0,
-      "elapsed": 13.9
+      "elapsed": 8.2
     },
     {
       "type": "broken",
       "score": 0.5,
-      "answer": "Based on the evidence: Payment API \u2014 \"Payment API deployment failed \u2014 rolled back\" (recorded 2026-07",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
+      "answer": "You failed to deliver the SOC2 audit, which is stated as \"overdue \u2014 hasn't been started\" and the Pay",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.1
     },
     {
       "type": "broken",
       "score": 0.6666666666666666,
-      "answer": "Based on the evidence: Security Audit \u2014 \"I will complete the SOC2 audit by end of quarter\" (recorded",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
+      "answer": "The evidence does not explicitly state that any commitments are broken. It only lists commitments wi",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.9
     },
     {
       "type": "broken",
@@ -298,18 +298,18 @@
     {
       "type": "overdue",
       "score": 0.5,
-      "answer": "The Security Audit and Search Service have overdue promises. According to the evidence, the \"SOC2 au",
+      "answer": "The promises that are now overdue are the SOC2 audit, which \"hasn't been started\" and is \"overdue\", ",
       "llm": true,
       "conf": 0.7,
-      "elapsed": 2.3
+      "elapsed": 1.9
     },
     {
       "type": "overdue",
       "score": 1.0,
-      "answer": "Based on the evidence: Security Audit \u2014 \"SOC2 audit overdue \u2014 hasn't been started\" (recorded 2026-07",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
+      "answer": "The SOC2 audit is past due, as it \"hasn't been started\" and is described as \"overdue\". Additionally,",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.8
     },
     {
       "type": "overdue",
@@ -322,10 +322,10 @@
     {
       "type": "at_risk",
       "score": 0.5,
-      "answer": "The [Security Audit] commitment is at risk because the evidence does not provide a specific end date",
+      "answer": "The evidence does not explicitly state which commitments are at risk. However, commitments with appr",
       "llm": true,
       "conf": 0.7,
-      "elapsed": 3.6
+      "elapsed": 1.3
     },
     {
       "type": "at_risk",
@@ -338,10 +338,10 @@
     {
       "type": "relational",
       "score": 1.0,
-      "answer": "Based on the evidence: Security Audit \u2014 \"SOC2 audit overdue \u2014 hasn't been started\" (recorded 2026-07",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
+      "answer": "Based on the evidence, you may be disappointing the entities associated with the following: \n- the S",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 3.8
     },
     {
       "type": "relational",
@@ -362,10 +362,10 @@
     {
       "type": "relational",
       "score": 1.0,
-      "answer": "Based on the evidence: Search Service \u2014 \"I will investigate the search service latency by Monday\" (r",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
+      "answer": "The entities that have broken commitments are: Search Service, Security Audit, and Payment API. Acco",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 1.5
     },
     {
       "type": "contradiction",
@@ -394,36 +394,36 @@
     {
       "type": "recurring",
       "score": 0.0,
-      "answer": "Based on the evidence: Security Audit \u2014 \"SOC2 audit overdue \u2014 hasn't been started\" (recorded 2026-07",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
-    },
-    {
-      "type": "recurring",
-      "score": 1.0,
-      "answer": "Auth Service keeps having issues, with the evidence stating \"Third auth service outage this month \u2014 ",
+      "answer": "The SOC2 audit is what keeps recurring, as indicated by it being \"overdue\" which implies it is a rec",
       "llm": true,
       "conf": 0.7,
-      "elapsed": 2.1
+      "elapsed": 1.8
     },
     {
       "type": "recurring",
-      "score": 0.0,
-      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
-      "llm": false,
-      "conf": 0.0,
-      "elapsed": 0.0
-    },
-    {
-      "type": "critical",
       "score": 1.0,
-      "answer": "Auth Service has a sev1 incident, as stated in the evidence: \"auth service sev1 incident\" with the d",
+      "answer": "The issue that keeps happening is the auth service outage, with the evidence stating it's the \"Third",
       "llm": true,
       "conf": 0.7,
       "elapsed": 2.0
     },
     {
+      "type": "recurring",
+      "score": 1.0,
+      "answer": "The systemic issue is mentioned in relation to the \"Third auth service outage this month\" by [Auth S",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 4.4
+    },
+    {
+      "type": "critical",
+      "score": 1.0,
+      "answer": "Yes, there are sev1 incidents. The evidence mentions a \"sev1 incident\" on 2026-06-21 related to the ",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 6.6
+    },
+    {
       "type": "critical",
       "score": 1.0,
       "answer": "Based on the evidence: Auth Service \u2014 \"Production down \u2014 auth service sev1 incident\" (recorded 2026-",
@@ -433,67 +433,67 @@
     },
     {
       "type": "critical",
-      "score": 0.5,
-      "answer": "Based on the evidence: Auth Service \u2014 \"Production down \u2014 auth service sev1 incident\" (recorded 2026-",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
+      "score": 1.0,
+      "answer": "The most urgent incident is the \"Production down \u2014 auth service sev1 incident\" from [Auth Service] o",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.1
     },
     {
       "type": "critical",
-      "score": 0.0,
-      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
-      "llm": false,
-      "conf": 0.0,
-      "elapsed": 0.0
-    },
-    {
-      "type": "temporal",
-      "score": 0.0,
-      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
-      "llm": false,
-      "conf": 0.0,
-      "elapsed": 0.0
-    },
-    {
-      "type": "temporal",
-      "score": 0.0,
-      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
-      "llm": false,
-      "conf": 0.0,
-      "elapsed": 0.0
-    },
-    {
-      "type": "temporal",
-      "score": 0.0,
-      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
-      "llm": true,
-      "conf": 0.0,
-      "elapsed": 7.4
-    },
-    {
-      "type": "priority",
-      "score": 0.5,
-      "answer": "Auth Service is the most relevant entity, and according to the evidence, it's experiencing a \"sev1 i",
+      "score": 1.0,
+      "answer": "There is at least one sev2 bug open, as evidenced by the bug report from 2026-07-17: \"Customer repor",
       "llm": true,
       "conf": 0.7,
-      "elapsed": 1.5
+      "elapsed": 1.8
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": false,
+      "conf": 0.0,
+      "elapsed": 0.0
+    },
+    {
+      "type": "temporal",
+      "score": 0.0,
+      "answer": "I don't have enough information to answer that question. No matching signals were found in your stor",
+      "llm": true,
+      "conf": 0.0,
+      "elapsed": 8.2
     },
     {
       "type": "priority",
-      "score": 0.0,
-      "answer": "Based on the evidence: Tech Debt \u2014 \"Tech debt in the checkout flow \u2014 needs refactoring\" (recorded 20",
-      "llm": false,
-      "conf": 0.6,
-      "elapsed": 8.0
+      "score": 1.0,
+      "answer": "The most urgent thing is the auth service issue, as it has caused multiple outages, with the evidenc",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.2
+    },
+    {
+      "type": "priority",
+      "score": 1.0,
+      "answer": "The following entities need your attention: Tech Debt, Auth Service, Payment API, and Security Audit",
+      "llm": true,
+      "conf": 0.7,
+      "elapsed": 2.5
     },
     {
       "type": "noise_lookup",
       "score": 1.0,
-      "answer": "You received the [EngNewsletter] on two occasions, with the messages: \n\"Weekly engineering digest: 8",
+      "answer": "You received the following newsletters: \n- [EngNewsletter] (2026-07-15) Weekly engineering digest: 8",
       "llm": true,
       "conf": 0.7,
-      "elapsed": 1.3
+      "elapsed": 3.7
     },
     {
       "type": "noise_lookup",
@@ -530,10 +530,10 @@
     {
       "type": "cross_entity",
       "score": 1.0,
-      "answer": "Auth Service has outages, as stated in the evidence: \"Production down \u2014 auth service sev1 incident\" ",
+      "answer": "The services with outages are: Auth Service. According to the evidence, there were two incidents: \"P",
       "llm": true,
       "conf": 0.7,
-      "elapsed": 1.8
+      "elapsed": 1.6
     },
     {
       "type": "cross_entity",
@@ -718,7 +718,7 @@
     {
       "type": "noise_lookup",
       "score": 0.0,
-      "answer": "**Recent changes for Auth Service:**\n  \u2022 Production down \u2014 auth service sev1 incident (2026-06-20T13"
+      "answer": "**Recent changes for Auth Service:**\n  \u2022 Production down \u2014 auth service sev1 incident (2026-06-21T08"
     },
     {
       "type": "noise_lookup",

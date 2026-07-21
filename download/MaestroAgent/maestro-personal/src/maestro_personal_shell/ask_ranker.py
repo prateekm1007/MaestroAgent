@@ -260,16 +260,27 @@ def understand_query(query: str) -> dict[str, Any]:
             "signal_types": {"newsletter", "fyi", "notification", "reported_statement"},
         }),
         # Existing intents
+        # F-v3 fix (auditor 2026-07-21): 'promise' and 'owe' are too broad —
+        # they catch direct_lookup queries like "What did I promise for the
+        # payment API?" which should go through entity-matching, not the
+        # commitment intent. Fixed by requiring lifecycle keywords:
+        # 'promise' only triggers if preceded by 'broken', 'missed', 'overdue'
+        # or followed by 'commitments?' (plural = asking about the category).
+        # 'what did i promise' is kept because it's explicitly asking about
+        # promises (but it's a direct_lookup that the entity gate handles).
         ("commitment", {
-            "trigger": [r"commit", r"promise", r"owe", r"pledge", r"guarantee",
-                        r"what\s+did\s+i\s+(?:promise|commit|say)"],
+            "trigger": [r"commitments?\s*(?:are|have|did)",
+                        r"what\s+did\s+i\s+(?:promise|commit|say)\s+(?!for\s+the\b)",  # "What did I promise Alex?" but NOT "What did I promise for the X?"
+                        r"what\s+commitments",
+                        r"how\s+many\s+commitments",
+                        r"all\s+(?:my\s+)?commitments"],
             "signal_match": ["will send", "will deliver", "i'll", "i will",
                              "commitment", "promise", "pledge"],
             "signal_types": {"commitment_made"},
         }),
         ("contradiction", {
             "trigger": [r"contradict", r"conflict", r"still\s+a\s+priority",
-                        r"did.*deliver", r"what\s+happened", r"change.*mind",
+                        r"did.*deliver", r"change.*mind",
                         r"what.*pricing", r"did.*change"],
             "signal_match": ["quoted", "revised", "changed", "different",
                              "but", "however", "actually", "instead"],
