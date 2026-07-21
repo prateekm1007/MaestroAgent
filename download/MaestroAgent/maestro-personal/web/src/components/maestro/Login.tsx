@@ -24,12 +24,20 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
   const [isRegister, setIsRegister] = useState(false);
 
   // Restore server URL on mount
+  // Default to window.location.origin (the current production URL) so users
+  // don't see "localhost:8766" placeholder and think the product is broken.
+  // The serverUrl field is optional — API calls use relative /api/* paths
+  // proxied by Next.js rewrites. This field is for advanced users who want
+  // to connect to a different backend.
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(SERVER_KEY);
       if (saved) {
         setServerUrl(saved);
         setShowServer(true);
+      } else {
+        // Default to the current origin (production URL or localhost in dev)
+        setServerUrl(window.location.origin);
       }
     } catch {
       /* ignore */
@@ -130,7 +138,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
                 {showServer && (
                   <Input
                     type="url"
-                    placeholder="http://localhost:8766"
+                    placeholder="auto-detected (advanced)"
                     value={serverUrl}
                     onChange={(e) => saveServerUrl(e.target.value)}
                     className="mt-2 h-9 text-xs bg-input/40 border-border/60"
