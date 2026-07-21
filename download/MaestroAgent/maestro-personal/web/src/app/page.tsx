@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   CalendarClock,
   CheckCircle,
+  Inbox,
   LayoutDashboard,
   LogOut,
   Search,
@@ -28,14 +29,16 @@ import { Agents } from "@/components/maestro/Agents";
 import { Prepare } from "@/components/maestro/Prepare";
 import { SessionExpiredDialog } from "@/components/maestro/SessionExpiredDialog";
 import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
+import { SyntheticInbox } from "@/components/maestro/SyntheticInbox";
 
-type View = "dashboard" | "ask" | "commitments" | "prepare" | "agents" | "settings";
+type View = "dashboard" | "ask" | "commitments" | "prepare" | "agents" | "inbox" | "settings";
 
 const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "ask", label: "Ask", icon: Search },
   { id: "commitments", label: "Commitments", icon: CheckCircle },
   { id: "prepare", label: "Prepare", icon: CalendarClock },
+  { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "agents", label: "Agents", icon: Users },
   { id: "settings", label: "More", icon: SettingsIcon },
 ];
@@ -213,6 +216,7 @@ export default function Home() {
             />
           )}
           {view === "prepare" && <Prepare />}
+          {view === "inbox" && <SyntheticInbox />}
           {view === "agents" && <Agents />}
           {view === "settings" && <Settings />}
         </main>

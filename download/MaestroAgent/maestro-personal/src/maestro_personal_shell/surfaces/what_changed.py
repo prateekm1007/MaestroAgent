@@ -91,10 +91,27 @@ class WhatChangedSurface:
                                                    "personal.commitment")
                 if is_commitment_type:
                     if sig_entity_lower in completion_entities:
-                        # This commitment was completed — skip it
+                        # Phase R5 (Session 9): surface resolution events instead
+                        # of silently skipping. When a commitment is completed,
+                        # that IS a meaningful change the user should see.
+                        deltas.append({
+                            "entity": getattr(signal, "entity", ""),
+                            "text": f"✅ Delivered: {getattr(signal, 'text', '')[:80]}",
+                            "type": "resolved",
+                            "timestamp": sig_time,
+                            "signal_id": getattr(signal, "signal_id", ""),
+                            "is_meaningful": True,
+                        })
                         continue
                     if sig_entity_lower in cancellation_entities:
-                        # This commitment was cancelled — skip it
+                        deltas.append({
+                            "entity": getattr(signal, "entity", ""),
+                            "text": f"❌ Cancelled: {getattr(signal, 'text', '')[:80]}",
+                            "type": "cancelled",
+                            "timestamp": sig_time,
+                            "signal_id": getattr(signal, "signal_id", ""),
+                            "is_meaningful": True,
+                        })
                         continue
 
                 deltas.append({

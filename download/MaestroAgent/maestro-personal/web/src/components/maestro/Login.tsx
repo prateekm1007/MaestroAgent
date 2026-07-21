@@ -122,30 +122,9 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
         <Card className="border-border/60 surface-elevated bg-card">
           <CardContent className="pt-6 space-y-5">
             <form onSubmit={submit} className="space-y-4">
-              {/* Server URL — collapsible */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowServer((s) => !s)}
-                  className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Server className="size-3.5" />
-                    Server URL
-                  </span>
-                  {showServer ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                </button>
-                {showServer && (
-                  <Input
-                    type="url"
-                    placeholder="auto-detected (advanced)"
-                    value={serverUrl}
-                    onChange={(e) => saveServerUrl(e.target.value)}
-                    className="mt-2 h-9 text-xs bg-input/40 border-border/60"
-                    disabled={busy}
-                  />
-                )}
-              </div>
+              {/* Server URL field removed (Session 9) — API calls use relative
+                  /api/* paths proxied by Next.js rewrites. The field was
+                  cosmetic and confused users. Auth is auto-detected. */}
 
               {/* Email field — shown for register, optional for login */}
               {isRegister && (
