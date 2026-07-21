@@ -6,9 +6,116 @@
 ---
 
 ## Last Updated
-2026-07-21 — PHASE 1.2 (Commitment Extraction Engine) COMPLETE. New coder
-onboarded, governance loop honored, baseline measured, 4 classifier fixes
-applied, targets met, no regressions.
+2026-07-21 — PHASE 1.3 (Ask Engine) DIAGNOSIS COMPLETE. Found 150-question
+benchmark + eval harness already existed. Baseline measured: factual_accuracy
+0.47 (target 0.92). Root cause: harness user_email mismatch (fixed in eval
+script) + 5 real product bugs documented for future fixes. Phase 1.2
+(Commitment Extraction) remains COMPLETE (recall 0.6152 → 1.0000).
+
+### Phase 1.3 — Ask Engine Production Quality (2026-07-21)
+
+**Discovery (P27 applied):** Repo already had a 150-question Ask benchmark
+(`evaluation/ask_benchmark_150.py`) — 3x the roadmap's 50Q target — across
+10 categories (factual, temporal, relationship, commitment, ambiguity,
+insufficient_evidence, false_premise, adversarial, contradiction_detection,
+synthesis_across_sources). Plus a full eval harness (`evaluation/ask_eval.py`)
+with metrics: factual_accuracy (target ≥0.92), unsupported_claims_rate
+(target ≤0.03), citation_correctness (target ≥0.95), entity_isolation
+(target =0.0).
+
+**Baseline (rule mode + LLM mode):**
+- factual_accuracy: **0.4733** (target 0.92) ✗ — missing by 45 points
+- unsupported_claims_rate: 0.0 ✓ (target ≤0.03)
+- citation_correctness: **0.0** (target 0.95) ✗ — missing by 95 points
+- entity_isolation_violation_rate: 0.0 ✓
+- LLM fired on 38/150 questions (ZAI rate-limited on the rest)
+
+**Root cause #1 (HARNESS BUG — fixed in eval script):**
+The eval seeded signals under `user_email="ask-eval"` but the test client
+logged in with `password="ask-eval"` which mints a token for
+`user_email="default@personal.local"` (per the login flow's
+`_ALLOWED_DEMO_IDENTITIES` allowlist). The seeded signals were invisible
+to the authenticated user. Fix: seed under `"default@personal.local"` in
+`scripts/run_ask_eval_baseline.py`. This is NOT a product bug — it's an
+eval-harness wiring bug. After the fix, evidence_count went 0 → 2 for
+factual queries.
+
+**Root cause #2 — 5 real product bugs found (NOT fixed this session):**
+Per-category diagnosis (1 sample question per category, P1 verified by
+execution):
+
+| Category | Sample question | Failure mode | Bug |
+|---|---|---|---|
+| contradiction_detection | "Is Project Vega still a priority?" | Returns Project Orion + Phoenix evidence (Vega not in corpus) | Negative-knowledge failure: should abstain "No commitments found for Vega" but returns wrong-entity evidence |
+| ambiguity | "What about the proposal?" | Abstains despite "proposal" in 4+ signals | Entity gate doesn't recognize "proposal" as a topic, only as a keyword |
+| synthesis_across_sources | "What's the overall status of Q3?" | Abstains despite Q3-tagged signals in corpus | Retriever doesn't surface Q3-tagged signals for synthesis queries |
+| commitment (at-risk) | "What is Alex's most at-risk commitment?" | Returns same generic multi-entity answer | Rule path doesn't compute risk; just lists all matching entities |
+| false_premise | "Did Maria cancel the contract?" | LLM correctly says "no mention of contract being canceled" but guardrail rewrites to generic refusal | LLM output guardrail false-positive on "I don't have enough information" phrasing |
+
+**Honest scope disclosure (P10):** Phase 1.3 is a multi-week effort per
+the roadmap (Week 4–5). The 5 bugs above are real but fixing them properly
+requires careful tracing through the 1917-line `routers/ask.py` — too risky
+to rush under session time pressure. Documented here for the next coder.
+
+**What WAS done this session:**
+- Verified the 150Q benchmark + harness exist (P27)
+- Found + fixed the eval-harness user_email mismatch (root cause #1)
+- Diagnosed all 10 categories with sample questions (root cause #2)
+- Confirmed no regressions from Phase 1.2 (75/75 tests pass on the 4 most
+  relevant test files: test_commitment_lifecycle_50, test_classifier_wiring,
+  test_ask_ranker_integration, test_audit_f2_f3_ask_and_token)
+- All artifacts under `/home/z/my-project/{scripts,download}/`
+
+**What's NOT done (honest):**
+- The 5 product bugs in `routers/ask.py` are NOT fixed
+- factual_accuracy is still 0.47 (target 0.92)
+- citation_correctness is still 0.0 (target 0.95)
+- The 50-question test suite from the roadmap is technically met (we have
+  150Q) but the pass rate is 47%, not >90%
+
+**Recommended next steps for Phase 1.3 (in priority order):**
+1. Fix the negative-knowledge bug (contradiction_detection): when entity
+   gate extracts an entity that doesn't exist in the corpus, abstain with
+   "No commitments found for {entity}" — don't fall through to LLM/rule
+   path that returns wrong-entity evidence. This is the roadmap's explicit
+   "negative knowledge" Done-When.
+2. Fix the ambiguity bug: when the query has no entity but has a topic
+   word (e.g. "proposal", "contract", "budget"), treat the topic word as
+   a search key and retrieve signals containing it.
+3. Fix the guardrail false-positive on "I don't have enough information"
+   phrasing (false_premise category). The LLM's correct refusal is being
+   rewritten to a generic refusal.
+4. Fix the at-risk commitment ranking (commitment category). The rule
+   path needs to compute risk = f(overdue_days, deadline_proximity).
+5. Fix the synthesis_across_sources retrieval (Q3-tagged signals).
+
+**P1/P23 evidence (executed this session, not assumed):**
+```
+$ python3 /home/z/my-project/scripts/run_ask_eval_baseline.py
+=== Mode: llm ===
+  total questions: 150
+  llm_split: {'llm_active': 38, 'rule_fallback': 112}
+  factual_accuracy: {'value': 0.4733, 'target': 0.92, 'met': False, 'support': '71/150'}
+  citation_correctness: {'value': 0.0, 'target': 0.95, 'met': False, 'support': '0/106'}
+  per-category factual_correct rate:
+    factual: 15.0%    temporal: 0.0%     relationship: 20.0%
+    commitment: 20.0% ambiguity: 0.0%    insufficient_evidence: 0.0%
+    false_premise: 0.0% adversarial: 0.0% contradiction_detection: 10.0%
+    synthesis_across_sources: 30.0%
+```
+
+**Governance citations:**
+- P1 (claim not true until executed) — every number above is from this session's execution
+- P10 (root cause documented) — 1 harness bug + 5 product bugs identified with repro
+- P14 (bugs migrate one layer deeper) — found 150Q benchmark before building a competing 50Q suite
+- P22 (regression = production path) — 75/75 tests pass on relevant files
+- P23 (commit cites executed output) — eval output pasted above
+- P27 (read assertions, not names) — read ask_eval.py return shape before assuming fields
+
+---
+
+## Prior Phase 1.2 entry (2026-07-21, earlier this session)
+
 
 > **HEAD:** `ddd774d` on `main` (was `8ff6b92` at 2026-07-20 handoff).
 > `ddd774d` = `7fec9eb` + 1 commit (the handoff doc itself); no code changes
