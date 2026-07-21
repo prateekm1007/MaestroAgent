@@ -803,6 +803,28 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     except Exception as _e_int:
                         logger.debug("Intent-query risk scoring failed (non-blocking): %s", _e_int)
 
+                # Phase 1.3 Block A1 fix (2026-07-21): entity isolation filter
+                # for the intent-query path. Same logic as the final-return filter
+                # at line ~2106 — removes evidence_refs whose entity contains
+                # noise markers (newsletter, marketing, fyi, digest, etc.).
+                # This is the P0 fix per audit rule #10: entity isolation
+                # violations must be zero. Without this filter, "What commitments
+                # are still active?" returns NewsletterCorp evidence.
+                _NOISE_ENTITY_MARKERS_INT = (
+                    "newsletter", "marketing", "fyi", "digest",
+                    "notification", "blog", "social",
+                )
+                _filtered_intent_refs = []
+                for _r_int_filt in intent_evidence_refs:
+                    if not isinstance(_r_int_filt, dict):
+                        _filtered_intent_refs.append(_r_int_filt)
+                        continue
+                    _ent_int_filt = (_r_int_filt.get("entity", "") or "").lower()
+                    if any(_m in _ent_int_filt for _m in _NOISE_ENTITY_MARKERS_INT):
+                        continue
+                    _filtered_intent_refs.append(_r_int_filt)
+                intent_evidence_refs = _filtered_intent_refs
+
                 return AskResponse(
                     answer=final_intent_answer,
                     query=req.query,
@@ -2065,6 +2087,57 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 verified_answer = str(verified_answer) + _risk_note
         except Exception as _e:
             logger.debug("Risk scoring failed (non-blocking): %s", _e)
+
+    # Phase 1.3 Block A1 fix (2026-07-21): entity isolation filter.
+    #
+    # ROOT CAUSE (P1 — verified by execution):
+    # The benchmark question "What commitments are still active?" returned
+    # evidence_refs containing entity "NewsletterCorp" — which the benchmark
+    # marks as forbidden (a marketing/newsletter entity that shouldn't appear
+    # in commitment queries). The retrieval returned it because NewsletterCorp
+    # has 7 signals in the corpus, all of type "commitment_made" (the corpus
+    # generator labels them that way). The existing noise_types filter at
+    # line ~1916 only checks signal_TYPE, not entity name.
+    #
+    # This is security-adjacent (audit rule #10: entity isolation violations
+    # are P0). In production, the equivalent is tenant isolation — but the
+    # same filter applies: noise/non-commitment entities should not appear
+    # in commitment-query evidence.
+    #
+    # FIX: filter evidence_refs to remove any whose entity contains noise
+    # markers (newsletter, marketing, fyi, digest, notification, blog,
+    # social). Apply at both return sites (intent-query early return +
+    # final return).
+    _NOISE_ENTITY_MARKERS = (
+        "newsletter", "marketing", "fyi", "digest",
+        "notification", "blog", "social",
+    )
+    def _filter_noise_entities(refs):
+        if not refs:
+            return refs
+        filtered = []
+        for r in refs:
+            if not isinstance(r, dict):
+                filtered.append(r)
+                continue
+            ent = (r.get("entity", "") or "").lower()
+            if any(m in ent for m in _NOISE_ENTITY_MARKERS):
+                continue
+            filtered.append(r)
+        return filtered
+    evidence_refs = _filter_noise_entities(evidence_refs)
+    # If filtering removed ALL evidence, abstain (don't return answer with
+    # no evidence — that would be ungrounded)
+    if not evidence_refs and not _abstention_triggered and verified_answer and "No matching signals" not in str(verified_answer):
+        # We had evidence but it was all noise — abstain honestly
+        verified_answer = (
+            "I don't have enough information to answer that question. "
+            "No matching signals were found in your stored data."
+        )
+        source_sentence = ""
+        source_entity = ""
+        source_timestamp = ""
+        verification["confidence"] = 0.0
 
     return AskResponse(
         answer=str(verified_answer),
