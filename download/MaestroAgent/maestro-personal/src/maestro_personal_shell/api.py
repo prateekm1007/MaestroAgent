@@ -917,7 +917,7 @@ async def lifespan(app: FastAPI):
 # production mode. The previous code exposed the full API schema to
 # unauthenticated callers — reconnaissance gift. Now docs are only
 # available in dev mode.
-_prod = _is_production()
+_prod = _is_production() or os.environ.get("RAILWAY_SERVICE_ID") is not None
 app = FastAPI(
     title="Maestro Personal API",
     description="HTTP API for Maestro Personal v1 — wraps the PersonalShell (Core via Python)",
@@ -927,6 +927,16 @@ app = FastAPI(
     redoc_url=None if _prod else "/redoc",
     openapi_url=None if _prod else "/openapi.json",
 )
+
+# Security fix: add standard security headers
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 
 # ---------------------------------------------------------------------------
 # Phase 1: Rate limiting (security P0)
