@@ -217,6 +217,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "what's pending", "what is pending",
         "what's due", "what is due", "what's overdue", "what is overdue",
         "what did i promise",  # without naming a specific entity
+        # Session 10 fix (auditor F11): "Summarize all my emails" was blocked
+        # by the entity gate because it didn't match any broad/intent pattern.
+        "summarize all", "summarize my", "summarize everything",
+        "what should i do today", "what should i do",
+        "what do i need to do", "what do i need to do today",
+        "what's on my plate", "what is on my plate",
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
 
@@ -511,6 +517,38 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     if _is_broad_query and not _is_intent_query:
         try:
             all_sigs = load_signals_from_db(user_email=token, limit=50)
+
+            # Session 10 fix (auditor F10): apply temporal filter when the
+            # query has a temporal reference ("What changed since Tuesday?").
+            # The temporal parser already set from_date/as_of above, but the
+            # broad query handler was ignoring them and returning ALL signals.
+            if from_date:
+                from datetime import datetime as _dt_filter, timezone as _tz_filter
+                try:
+                    from_dt = _dt_filter.fromisoformat(from_date.replace("Z", "+00:00"))
+                    if from_dt.tzinfo is None:
+                        from_dt = from_dt.replace(tzinfo=_tz_filter.utc)
+                    filtered_sigs = []
+                    for sig in all_sigs:
+                        if not isinstance(sig, dict):
+                            continue
+                        sig_ts = sig.get("timestamp", "")
+                        if not sig_ts:
+                            continue
+                        try:
+                            sig_dt = _dt_filter.fromisoformat(str(sig_ts).replace("Z", "+00:00"))
+                            if sig_dt.tzinfo is None:
+                                sig_dt = sig_dt.replace(tzinfo=_tz_filter.utc)
+                            if sig_dt >= from_dt:
+                                filtered_sigs.append(sig)
+                        except Exception:
+                            filtered_sigs.append(sig)  # keep if can't parse
+                    all_sigs = filtered_sigs
+                    logger.info("Temporal filter applied: from_date=%s → %d signals after filtering",
+                                from_date[:10], len(all_sigs))
+                except Exception as e:
+                    logger.debug("Temporal filter failed (non-fatal): %s", e)
+
             if all_sigs:
                 # Build a summary grouped by entity
                 entity_map = {}
