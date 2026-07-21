@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-07-21T03:36:23.649902+00:00",
+  "timestamp": "2026-07-21T04:56:39.042626+00:00",
   "models": [
     "meta-llama/llama-3.3-70b-instruct",
     "qwen/qwen-plus",
     "google/gemma-3-12b-it",
-    "deepseek/deepseek-r1-0528"
+    "google/gemma-4-26b-a4b-it"
   ],
   "results": {
     "meta-llama/llama-3.3-70b-instruct": {
@@ -6098,47 +6098,2034 @@
       "n_questions": 100
     },
     "google/gemma-4-26b-a4b-it": {
-      "name": "Gemma 4 26B A4B (n=20)",
+      "name": "Gemma 4 26B A4B",
       "summary": {
         "entity_completeness": {
-          "avg": 0.933,
-          "ci_low": 0.85,
-          "ci_high": 1.0,
-          "n": 20
+          "avg": 0.8383333333333333,
+          "ci_low": 0.7791666666666667,
+          "ci_high": 0.8916666666666667,
+          "n": 100
         },
         "grounding": {
-          "avg": 0.88,
-          "ci_low": 0.75,
-          "ci_high": 0.97,
-          "n": 20
+          "avg": 0.8816666666666667,
+          "ci_low": 0.8233333333333333,
+          "ci_high": 0.93,
+          "n": 100
         },
         "hallucination": {
-          "avg": 0.07,
-          "ci_low": 0.0,
-          "ci_high": 0.15,
-          "n": 20
+          "avg": 0.16833333333333333,
+          "ci_low": 0.10833333333333334,
+          "ci_high": 0.235,
+          "n": 100
         },
         "correct_abstention": {
-          "avg": 1.0,
-          "ci_low": 1.0,
-          "ci_high": 1.0,
-          "n": 4
+          "avg": 0.95,
+          "ci_low": 0.91,
+          "ci_high": 0.99,
+          "n": 100
         },
         "multi_entity": {
-          "avg": 0.9,
-          "ci_low": 0.78,
-          "ci_high": 1.0,
-          "n": 15
+          "avg": 0.8160173160173161,
+          "ci_low": 0.7521645021645021,
+          "ci_high": 0.8798701298701299,
+          "n": 77
         },
-        "latency_avg": 2.2,
-        "latency_p95": 5.6,
-        "cost_total": 0.0006,
-        "cost_avg": 3e-05
+        "temporal": {
+          "avg": 0.75,
+          "ci_low": 0.375,
+          "ci_high": 1.0,
+          "n": 8
+        },
+        "latency_avg": 3.0512246227264406,
+        "latency_p95": 9.731348276138306,
+        "cost_total": 0.00411807,
+        "cost_avg": 4.11807e-05
       },
-      "per_type": {},
-      "per_question": [],
-      "n_questions": 20,
-      "note": "Only 20 questions completed \u2014 sandbox process kept dying. Entity completeness 93.3% (vs Gemma 3 12B 85.9% on full 100). Latency avg 2.2s (range 0.7-5.6s)."
+      "per_type": {
+        "direct_lookup": {
+          "entity_completeness": 0.8555555555555556,
+          "multi_entity": 0.8555555555555556
+        },
+        "overdue": {
+          "entity_completeness": 0.5333333333333333,
+          "multi_entity": 0.5333333333333333
+        },
+        "broken": {
+          "entity_completeness": 0.8333333333333334,
+          "multi_entity": 0.8333333333333334
+        },
+        "at_risk": {
+          "entity_completeness": 0.6666666666666666,
+          "multi_entity": 0.6666666666666666
+        },
+        "relational": {
+          "entity_completeness": 0.7166666666666666,
+          "multi_entity": 0.7962962962962963
+        },
+        "contradiction": {
+          "entity_completeness": 1.0,
+          "multi_entity": 1.0
+        },
+        "recurring": {
+          "entity_completeness": 1.0,
+          "multi_entity": 1.0
+        },
+        "prepare": {
+          "entity_completeness": 0.75,
+          "multi_entity": 0.5
+        },
+        "temporal": {
+          "entity_completeness": 0.75,
+          "multi_entity": 0.5
+        },
+        "noise_lookup": {
+          "entity_completeness": 0.9166666666666666,
+          "multi_entity": 0.8333333333333334
+        },
+        "critical": {
+          "entity_completeness": 1.0,
+          "multi_entity": 1.0
+        },
+        "priority": {
+          "entity_completeness": 0.5416666666666666,
+          "multi_entity": 0.5416666666666666
+        },
+        "multilingual": {
+          "entity_completeness": 0.8333333333333334,
+          "multi_entity": 0.8333333333333334
+        },
+        "disputed": {
+          "entity_completeness": 0.6666666666666666,
+          "multi_entity": 0.6666666666666666
+        },
+        "conditional": {
+          "entity_completeness": 1.0,
+          "multi_entity": 1.0
+        },
+        "cross_entity": {
+          "entity_completeness": 1.0,
+          "multi_entity": 1.0
+        },
+        "abstention": {
+          "entity_completeness": 1.0
+        }
+      },
+      "per_question": [
+        {
+          "idx": 0,
+          "type": "direct_lookup",
+          "answer": "You promised to send Alex Chen the pricing deck by Friday. The entities supported by the evidence are Avery Stone, Riley Quinn, Jamie Park, and Alex Chen.",
+          "latency": 3.68,
+          "cost": 3.009e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Alex",
+            "pricing deck"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 1,
+          "type": "direct_lookup",
+          "answer": "Maria Garcia asked for the updated pricing proposal to be sent by Friday. The entities supported by the evidence are Maria Garcia and Acme Corp.",
+          "latency": 1.67,
+          "cost": 2.541e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Maria",
+            "pricing proposal",
+            "Friday"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 2,
+          "type": "direct_lookup",
+          "answer": "You delivered the API integration to Sam Patel. The entities supported by the evidence are Avery Stone, Riley Quinn, Alex Chen, and Sam Patel.",
+          "latency": 1.26,
+          "cost": 3.225e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.5,
+          "hallucination": 0.5,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Sam",
+            "API integration"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 3,
+          "type": "overdue",
+          "answer": "The overdue promises are the compliance report for Priya Shah and the security questionnaire for Riley Quinn.\n\nEntities: Priya Shah, Riley Quinn.",
+          "latency": 1.27,
+          "cost": 5.41e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 4,
+          "type": "broken",
+          "answer": "You failed to deliver the security questionnaire, which Riley Quinn never sent and is now overdue. Additionally, the compliance report from Priya Shah is overdue and hasn't been sent.\n\nEntities: Sam P",
+          "latency": 10.23,
+          "cost": 5.599e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.5,
+          "hallucination": 0.5,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 5,
+          "type": "at_risk",
+          "answer": "The commitment to deliver the API integration to Sam Patel is at risk because the deadline of March 15 has passed relative to the commitment date of 2026-06-02. The entities supported by the evidence ",
+          "latency": 9.73,
+          "cost": 6.786e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 6,
+          "type": "relational",
+          "answer": "You are repeatedly disappointing Priya Shah, whose compliance report is overdue and hasn't been sent, and Riley Quinn, who never sent the security questionnaire. The entities supported by the evidence",
+          "latency": 2.49,
+          "cost": 4.001e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 0.5,
+          "hallucination": 0.5,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 7,
+          "type": "relational",
+          "answer": "Riley Quinn and Priya Shah have become delivery risks because their respective security questionnaire and compliance report are overdue.\n\nEntities: Riley Quinn, Priya Shah, Sam Patel, Alex Chen.",
+          "latency": 1.35,
+          "cost": 4.2e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 8,
+          "type": "relational",
+          "answer": "Sam Patel kept their promise by delivering the API integration on time, and Alex Chen sent the pricing deck. Riley Quinn and Priya Shah have not kept their promises as their respective tasks are overd",
+          "latency": 2.45,
+          "cost": 4.108e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.5,
+          "hallucination": 0.5,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Alex",
+            "Sam"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 9,
+          "type": "contradiction",
+          "answer": "Orion Tech quoted $120k for the annual contract, which was later revised down to $95k after negotiation. However, Orion Tech sent a final invoice for $150k, resulting in a pricing dispute.\n\nEntities: ",
+          "latency": 2.99,
+          "cost": 4.289e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Orion",
+            "$120k",
+            "$95k",
+            "$150k"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 10,
+          "type": "contradiction",
+          "answer": "Yes, Orion Tech changed their price multiple times. They initially quoted $120k, revised the quote down to $95k after negotiation, and finally sent an invoice for $150k, which resulted in a pricing di",
+          "latency": 2.26,
+          "cost": 6.157e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Orion",
+            "$120k",
+            "$95k",
+            "$150k"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 11,
+          "type": "recurring",
+          "answer": "The third auth outage this month is identified as a systemic issue. The entities mentioned in the evidence are Priya Shah, Riley Quinn, Maria Garcia, Acme Corp, EngOncall, and Globex Corp.",
+          "latency": 3.12,
+          "cost": 6.204e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "auth",
+            "outage",
+            "EngOncall"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 12,
+          "type": "recurring",
+          "answer": "There is a pattern of recurring outages involving the auth service, including a sev1 incident on 2026-06-28 and subsequent outages on 2026-07-05 and 2026-07-10. These incidents are described as having",
+          "latency": 1.37,
+          "cost": 6.657e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "auth",
+            "outage"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 13,
+          "type": "prepare",
+          "answer": "The provided evidence does not contain information regarding what you should prepare for tomorrow's meeting. The entities mentioned in the evidence are Alex Chen, VendorZ, Alice, Jamie Park, Hiring Co",
+          "latency": 3.5,
+          "cost": 4.076e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 14,
+          "type": "temporal",
+          "answer": "The evidence does not provide information regarding what you committed to last quarter. The provided commitments are dated between April and June 2026.\n\nEntities: Morgan Liu, Avery Stone, Sam Patel, P",
+          "latency": 1.91,
+          "cost": 3.893e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": 1.0,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 15,
+          "type": "temporal",
+          "answer": "The evidence does not provide information regarding how long any specific task has been pending. Therefore, it cannot be determined what has been pending for over a month.\n\nEntities: Jamie Park, Avery",
+          "latency": 2.51,
+          "cost": 3.522e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": 1.0,
+          "found": [
+            "Avery"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 16,
+          "type": "noise_lookup",
+          "answer": "You received the [TechNewsletter] (Monthly newsletter roundup and Weekly tech digest) and the [IndustryNews] (FYI: competitor raised Series B). The entities supported by the evidence are [TechNewslett",
+          "latency": 3.63,
+          "cost": 4.001e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [
+            "TechNewsletter"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 17,
+          "type": "noise_lookup",
+          "answer": "I am sorry, but the provided evidence does not contain information regarding the latest industry news. The evidence only contains internal updates regarding EngOncall, Priya Shah, Morgan Liu, and Rile",
+          "latency": 5.37,
+          "cost": 3.216e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 18,
+          "type": "critical",
+          "answer": "Yes, there is an EU regulatory fine of 5M euros imposed for a GDPR violation. Additionally, SSO work is currently pending legal review.\n\nEntities: Legal Dept, EU, Jamie Park, Globex Corp.",
+          "latency": 1.03,
+          "cost": 5.435e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "regulatory fine",
+            "GDPR"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 19,
+          "type": "critical",
+          "answer": "Yes, Globex Corp is at risk of churning as they are threatening to cancel their contract and pull out.\n\nEntities: Globex Corp.",
+          "latency": 5.47,
+          "cost": 2.988e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [
+            "Globex"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 20,
+          "type": "critical",
+          "answer": "Yes, there is a board escalation stating that an investor wants to see Q3 numbers before the Friday meeting.\n\nEntities: [Board], investor.",
+          "latency": 1.66,
+          "cost": 5.343e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Board",
+            "investor"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 21,
+          "type": "priority",
+          "answer": "The provided evidence does not specify which commitment is the most important. The entities mentioned are [EngOncall], [Priya Shah], [Riley Quinn], [Legal Dept], and [Globex Corp].",
+          "latency": 5.35,
+          "cost": 3.318e-05,
+          "entity_completeness": 0.75,
+          "grounding": 0.3333333333333333,
+          "hallucination": 0.6666666666666667,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.75,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Globex",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 22,
+          "type": "priority",
+          "answer": "The evidence indicates that Globex Corp is threatening to cancel their contract. Additionally, Maria Garcia from Acme Corp requested an updated pricing proposal by Friday to allow the procurement team",
+          "latency": 3.22,
+          "cost": 4.578e-05,
+          "entity_completeness": 0.25,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.25,
+          "temporal": null,
+          "found": [
+            "Globex"
+          ],
+          "missing": [
+            "Riley",
+            "EngOncall",
+            "regulatory"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 23,
+          "type": "multilingual",
+          "answer": "Carlos Ruiz said that he will send the contract next Monday. The entity supported by the evidence is Carlos Ruiz.",
+          "latency": 1.61,
+          "cost": 3.301e-05,
+          "entity_completeness": 0.5,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Carlos"
+          ],
+          "missing": [
+            "contrato"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 24,
+          "type": "disputed",
+          "answer": "No, Morgan Liu did not complete the Nova presentation, as the Nova results presentation was incomplete and missing the Q2 data. The entities supported by the evidence are Morgan Liu and Jamie Park.",
+          "latency": 1.25,
+          "cost": 4.01e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.6666666666666666,
+          "hallucination": 0.33333333333333337,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Morgan",
+            "Nova",
+            "incomplete"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 25,
+          "type": "conditional",
+          "answer": "SSO work is complete, but it is currently pending legal review. Jamie Park previously stated that SSO would be ready by Q4 if legal signs off.\n\nEntities: Jamie Park, legal.",
+          "latency": 2.59,
+          "cost": 2.682e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.6666666666666666,
+          "hallucination": 0.33333333333333337,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Jamie",
+            "SSO",
+            "pending legal"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 26,
+          "type": "direct_lookup",
+          "answer": "The provided evidence does not contain information regarding the status of the hiring committee. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, and Sam Pat",
+          "latency": 1.92,
+          "cost": 5.811e-05,
+          "entity_completeness": 0.5,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Hiring Committee"
+          ],
+          "missing": [
+            "offer"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 27,
+          "type": "noise_lookup",
+          "answer": "Velocity is fine, with no blockers reported and the sprint on track. The entities supported by the evidence are the Hiring Committee and the Engineering Team.",
+          "latency": 1.48,
+          "cost": 3.52e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "velocity",
+            "fine"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 28,
+          "type": "direct_lookup",
+          "answer": "The provided evidence does not contain information regarding who Avery Stone is. The evidence only mentions that a quarterly report will be sent to Avery Stone on 2026-04-27.",
+          "latency": 2.6,
+          "cost": 3.907e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Avery",
+            "quarterly report"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 29,
+          "type": "direct_lookup",
+          "answer": "The provided evidence does not contain any information regarding a promise made to Priya. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, and Sam Patel.",
+          "latency": 5.17,
+          "cost": 3.225e-05,
+          "entity_completeness": 0.5,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Priya"
+          ],
+          "missing": [
+            "compliance report"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 30,
+          "type": "direct_lookup",
+          "answer": "Globex Corp is threatening to cancel their contract by pulling out. The entity involved is Globex Corp.",
+          "latency": 1.13,
+          "cost": 2.67e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Globex",
+            "cancel",
+            "threatening"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 31,
+          "type": "cross_entity",
+          "answer": "Orion Tech has a pricing dispute regarding a final invoice of $150k. The entities mentioned in the evidence are Orion Tech, Alex Chen, and Maria Garcia from Acme Corp.",
+          "latency": 0.89,
+          "cost": 6.162e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Orion",
+            "Maria",
+            "Acme"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 32,
+          "type": "cross_entity",
+          "answer": "The provided evidence does not contain information regarding who owes you something. The entities mentioned in the evidence are Orion Tech, Alex Chen, and Morgan Liu.",
+          "latency": 1.54,
+          "cost": 5.105e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 33,
+          "type": "abstention",
+          "answer": "The provided evidence does not contain any commitments made in 2024. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, and Sam Patel.",
+          "latency": 2.32,
+          "cost": 3.663e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 0.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 34,
+          "type": "abstention",
+          "answer": "The provided evidence does not contain information regarding who John Smith is. Therefore, I cannot answer this question.",
+          "latency": 11.97,
+          "cost": 2.31e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": true
+        },
+        {
+          "idx": 35,
+          "type": "relational",
+          "answer": "Based on the evidence, Sam Patel is the most reliable partner as they delivered the API integration on time. The other entities mentioned are Riley Quinn, Priya Shah, and Alex Chen.",
+          "latency": 1.35,
+          "cost": 5.024e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.5,
+          "hallucination": 0.5,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Alex",
+            "Sam"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 36,
+          "type": "relational",
+          "answer": "Your biggest risks are Riley Quinn, who never sent the security questionnaire and is overdue, and Priya Shah, whose compliance report is overdue and hasn't been sent.\n\nEntities: Riley Quinn, Priya Sha",
+          "latency": 1.32,
+          "cost": 5.491e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Globex"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 37,
+          "type": "temporal",
+          "answer": "The oldest unfulfilled commitment is to send Avery Stone the quarterly report on 2026-04-27. The entities supported by the evidence are Avery Stone, Riley Quinn, Jamie Park, and Alex Chen.",
+          "latency": 3.0,
+          "cost": 3.489e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": 1.0,
+          "found": [
+            "Avery"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 38,
+          "type": "temporal",
+          "answer": "I am sorry, but the provided evidence does not contain information regarding your specific actions this week. The evidence mentions an Auth service outage, team standup notes, a security questionnaire",
+          "latency": 8.84,
+          "cost": 4.146e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": 1.0,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 39,
+          "type": "contradiction",
+          "answer": "Orion Tech changed their mind by revising their quote from $120k down to $95k after negotiation. The entities involved are Orion Tech.",
+          "latency": 2.55,
+          "cost": 2.499e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [
+            "Orion"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 40,
+          "type": "recurring",
+          "answer": "The auth service keeps breaking due to a systemic issue. This has resulted in three outages this month, with the most recent occurring on 2026-07-05.\n\nEntities: Auth service, EngOncall.",
+          "latency": 1.68,
+          "cost": 3.248e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "auth",
+            "outage"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 41,
+          "type": "critical",
+          "answer": "The most urgent issues include a production sev1 incident on the auth service and a third systemic auth outage this month, both reported by EngOncall. Additionally, Globex Corp is threatening to cance",
+          "latency": 3.43,
+          "cost": 6.751e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 42,
+          "type": "disputed",
+          "answer": "The provided evidence does not state whether any completions were challenged. The only information available is that Jamie Park's SSO work is complete, pending legal review.\n\nEntities: Jamie Park",
+          "latency": 10.62,
+          "cost": 2.616e-05,
+          "entity_completeness": 0.0,
+          "grounding": 1.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.0,
+          "temporal": null,
+          "found": [],
+          "missing": [
+            "Morgan",
+            "Nova"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 43,
+          "type": "conditional",
+          "answer": "SSO readiness and completion depend on legal sign-off and review. The entities supported by the evidence are Jamie Park and Legal Dept.",
+          "latency": 1.47,
+          "cost": 4.232e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.5,
+          "hallucination": 0.5,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Jamie",
+            "SSO"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 44,
+          "type": "multilingual",
+          "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene. Las entidades mencionadas son Carlos Ruiz.",
+          "latency": 3.56,
+          "cost": 3.544e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Carlos",
+            "contrato"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 45,
+          "type": "abstention",
+          "answer": "I am sorry, but the provided evidence does not contain information regarding the weather.",
+          "latency": 2.62,
+          "cost": 1.563e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 0.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 46,
+          "type": "abstention",
+          "answer": "The provided evidence does not contain information regarding the CEO of Microsoft. Therefore, I cannot answer this question.",
+          "latency": 10.89,
+          "cost": 3.051e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": true
+        },
+        {
+          "idx": 47,
+          "type": "broken",
+          "answer": "The provided evidence does not state which items were not sent. It only lists commitments to send a quarterly report to Avery Stone, a pricing deck to Alex Chen, a compliance report to Priya Shah, a s",
+          "latency": 2.36,
+          "cost": 7.656e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 48,
+          "type": "broken",
+          "answer": "The evidence does not state which commitment was missed. The entities mentioned are Avery Stone, Sam Patel, Alex Chen, Riley Quinn, and Morgan Liu.",
+          "latency": 7.98,
+          "cost": 2.937e-05,
+          "entity_completeness": 0.5,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Riley"
+          ],
+          "missing": [
+            "security questionnaire"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 49,
+          "type": "broken",
+          "answer": "The compliance report for Priya Shah is overdue because it hasn't been sent, and the security questionnaire for Riley Quinn is overdue as it was never sent. The entities supported by the evidence are ",
+          "latency": 1.44,
+          "cost": 3.847e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 50,
+          "type": "broken",
+          "answer": "Yes, you failed to deliver the security questionnaire to Riley Quinn, as it is noted as overdue and never sent. The entities supported by the evidence are Riley Quinn, Priya Shah, and Sam Patel.",
+          "latency": 1.58,
+          "cost": 5.761e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 51,
+          "type": "overdue",
+          "answer": "The security questionnaire for Riley Quinn is overdue because it was never sent. Additionally, the compliance report for Priya Shah is overdue and hasn't been sent.\n\nEntities: Riley Quinn, Priya Shah.",
+          "latency": 2.71,
+          "cost": 2.969e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 0.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 52,
+          "type": "overdue",
+          "answer": "The evidence does not state which promises haven't been fulfilled, as it only lists upcoming commitments and their scheduled dates. The entities mentioned are Avery Stone, Riley Quinn, Jamie Park, Ale",
+          "latency": 3.13,
+          "cost": 3.435e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Avery"
+          ],
+          "missing": [
+            "Priya"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 53,
+          "type": "overdue",
+          "answer": "The provided evidence does not contain information regarding any late or overdue items. The entities mentioned are Engineering Team, Maria Garcia, Acme Corp, Jamie Park, and EngOncall.",
+          "latency": 1.34,
+          "cost": 4.57e-05,
+          "entity_completeness": 0.0,
+          "grounding": 1.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.0,
+          "temporal": null,
+          "found": [],
+          "missing": [
+            "Riley",
+            "Priya"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 54,
+          "type": "overdue",
+          "answer": "The overdue commitments are the compliance report for Priya Shah and the security questionnaire for Riley Quinn.\n\nEntities: Priya Shah, Riley Quinn.",
+          "latency": 1.18,
+          "cost": 4.796e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 55,
+          "type": "at_risk",
+          "answer": "The provided evidence does not contain information regarding which commitments are in danger, overdue, or at risk. The entities mentioned are Avery Stone, Sam Patel, Alex Chen, Riley Quinn, and Morgan",
+          "latency": 4.85,
+          "cost": 3.267e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Avery"
+          ],
+          "missing": [
+            "Priya"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 56,
+          "type": "at_risk",
+          "answer": "The promise to deliver the API integration to Sam Patel might slip, as the commitment date of March 15 has passed relative to the June 2, 2026, record date. The entities involved are Sam Patel.",
+          "latency": 1.84,
+          "cost": 3.886e-05,
+          "entity_completeness": 0.0,
+          "grounding": 1.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.0,
+          "temporal": null,
+          "found": [],
+          "missing": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 57,
+          "type": "at_risk",
+          "answer": "The compliance report for Priya Shah is overdue and hasn't been sent, and Riley Quinn never sent the security questionnaire, which is also overdue. Additionally, Globex Corp is threatening to cancel t",
+          "latency": 1.76,
+          "cost": 6.03e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 58,
+          "type": "at_risk",
+          "answer": "The commitment by Sam Patel to deliver the API integration by March 15 is threatened, as the commitment date of 2026-06-02 is after the deadline. The entities supported by the evidence are Avery Stone",
+          "latency": 2.36,
+          "cost": 5.06e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Avery"
+          ],
+          "missing": [
+            "Priya"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 59,
+          "type": "direct_lookup",
+          "answer": "The provided evidence does not contain any information regarding a promise made to Priya. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, and Sam Patel.",
+          "latency": 1.68,
+          "cost": 4.39e-05,
+          "entity_completeness": 0.5,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Priya"
+          ],
+          "missing": [
+            "compliance report"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 60,
+          "type": "direct_lookup",
+          "answer": "The evidence does not state what you have already sent to Avery Stone; it only contains a commitment to send Avery Stone the quarterly report by 2026-04-27.\n\nEntities: Avery Stone.",
+          "latency": 9.34,
+          "cost": 6.416e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Avery",
+            "quarterly report"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 61,
+          "type": "direct_lookup",
+          "answer": "You promised to send Riley Quinn the security questionnaire by the end of the week. The entities supported by the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, and Sam Patel.",
+          "latency": 4.31,
+          "cost": 3.276e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "security questionnaire"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 62,
+          "type": "direct_lookup",
+          "answer": "The SSO work is complete, though it is currently pending legal review. The entities involved are Jamie Park and legal.",
+          "latency": 0.93,
+          "cost": 3.477e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.6666666666666666,
+          "hallucination": 0.33333333333333337,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Jamie",
+            "SSO",
+            "legal"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 63,
+          "type": "direct_lookup",
+          "answer": "Carlos dijo que enviar\u00e1 el contrato el lunes que viene. The entities supported by the evidence are Carlos Ruiz.",
+          "latency": 1.16,
+          "cost": 2.67e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Carlos",
+            "contrato"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 64,
+          "type": "direct_lookup",
+          "answer": "Morgan Liu presented the Nova results at the all-hands. The entities supported by the evidence are Alex Chen, Sam Patel, Morgan Liu, and Riley Quinn.",
+          "latency": 1.11,
+          "cost": 4.248e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.5,
+          "hallucination": 0.5,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Morgan",
+            "Nova"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 65,
+          "type": "direct_lookup",
+          "answer": "The provided evidence does not contain any information regarding commitments made to the Hiring Committee. The entities mentioned in the evidence are Avery Stone, Riley Quinn, Jamie Park, Alex Chen, a",
+          "latency": 1.39,
+          "cost": 4.45e-05,
+          "entity_completeness": 0.3333333333333333,
+          "grounding": 0.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.3333333333333333,
+          "temporal": null,
+          "found": [
+            "Hiring Committee"
+          ],
+          "missing": [
+            "offer",
+            "senior engineer"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 66,
+          "type": "direct_lookup",
+          "answer": "Alice has a commitment to pay $1M to VendorZ by Friday, dated 2026-06-27. The entities involved are Alice and VendorZ.",
+          "latency": 1.3,
+          "cost": 3.083e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Alice",
+            "VendorZ",
+            "$1M"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 67,
+          "type": "relational",
+          "answer": "Riley Quinn and Priya Shah have broken commitments, as the security questionnaire and compliance report are both overdue and have not been sent.\n\nEntities: Riley Quinn, Priya Shah, Avery Stone.",
+          "latency": 1.83,
+          "cost": 5.667e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Avery",
+            "Priya"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 68,
+          "type": "relational",
+          "answer": "You should follow up with Riley Quinn, who never sent the overdue security questionnaire, and Priya Shah, whose compliance report is overdue and hasn't been sent. Additionally, you should address Glob",
+          "latency": 2.0,
+          "cost": 5.22e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 0.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 69,
+          "type": "relational",
+          "answer": "The evidence does not state which clients are unhappy. The only entity mentioned in relation to a conflict is Orion Tech, which is involved in a pricing dispute.\n\nEntities: Orion Tech, Alex Chen, Morg",
+          "latency": 1.87,
+          "cost": 4.61e-05,
+          "entity_completeness": 0.0,
+          "grounding": 1.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [
+            "Globex"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 70,
+          "type": "relational",
+          "answer": "Sam Patel delivered the API integration on time. The entities supported by the evidence are Sam Patel, Riley Quinn, Priya Shah, and Globex Corp.",
+          "latency": 2.33,
+          "cost": 4.089e-05,
+          "entity_completeness": 0.5,
+          "grounding": 0.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Sam"
+          ],
+          "missing": [
+            "Alex"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 71,
+          "type": "relational",
+          "answer": "Riley Quinn, Priya Shah, and Globex Corp have unfulfilled promises. Riley Quinn never sent the security questionnaire, Priya Shah's compliance report is overdue, and Globex Corp is threatening to canc",
+          "latency": 1.59,
+          "cost": 5.304e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 0.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "Riley",
+            "Priya"
+          ],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 72,
+          "type": "temporal",
+          "answer": "The commitment to send Avery Stone the quarterly report is the longest outstanding, with a date of 2026-04-27. The entities supported by the evidence are Avery Stone, Riley Quinn, Jamie Park, and Alex",
+          "latency": 2.65,
+          "cost": 3.615e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": 1.0,
+          "found": [
+            "Avery"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 73,
+          "type": "temporal",
+          "answer": "The evidence does not provide information regarding commitments made months ago. The provided commitments are dated between 2026-04-27 and 2026-06-22. The entities mentioned are Avery Stone, Sam Patel",
+          "latency": 5.38,
+          "cost": 4.005e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": 1.0,
+          "found": [
+            "Avery",
+            "Riley"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 74,
+          "type": "temporal",
+          "answer": "The oldest unkept commitment is to deliver the API integration by March 15, which is currently overdue. The entities involved are Sam Patel.",
+          "latency": 1.54,
+          "cost": 4.965e-05,
+          "entity_completeness": 0.0,
+          "grounding": 1.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": 0.0,
+          "found": [],
+          "missing": [
+            "Avery"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 75,
+          "type": "temporal",
+          "answer": "The provided evidence does not contain any information to answer this question.",
+          "latency": 1.8,
+          "cost": 1.659e-05,
+          "entity_completeness": 0.0,
+          "grounding": 1.0,
+          "hallucination": 1.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.0,
+          "temporal": 0.0,
+          "found": [],
+          "missing": [
+            "Avery",
+            "Riley"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 76,
+          "type": "critical",
+          "answer": "Yes, an EU regulatory fine of 5M euros was imposed for a GDPR violation. The entities involved are [Legal Dept].",
+          "latency": 3.32,
+          "cost": 3.179e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "regulatory fine",
+            "GDPR"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 77,
+          "type": "critical",
+          "answer": "Yes, Globex Corp is threatening to cancel their contract and is pulling out. The entities supported by the evidence are Globex Corp.",
+          "latency": 2.36,
+          "cost": 4.976e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Globex",
+            "cancel"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 78,
+          "type": "critical",
+          "answer": "The board is concerned about an investor wanting to see Q3 numbers before the Friday meeting. The entities mentioned are the Board and an investor.",
+          "latency": 1.16,
+          "cost": 4.041e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Board",
+            "Q3",
+            "investor"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 79,
+          "type": "critical",
+          "answer": "Yes, Globex Corp is threatening to cancel their contract and pull out. Additionally, the Legal Dept reported an EU regulatory fine of 5M euros imposed for a GDPR violation.\n\nEntities: [Legal Dept], [J",
+          "latency": 2.9,
+          "cost": 4.97e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "regulatory fine",
+            "GDPR"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 80,
+          "type": "abstention",
+          "answer": "The provided evidence does not contain information regarding the stock price of AAPL. Therefore, I cannot answer this question.",
+          "latency": 1.43,
+          "cost": 3.183e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": true
+        },
+        {
+          "idx": 81,
+          "type": "abstention",
+          "answer": "I am sorry, but the provided evidence does not contain information regarding the height of Mount Everest.",
+          "latency": 1.03,
+          "cost": 2.958e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 0.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 82,
+          "type": "abstention",
+          "answer": "The provided evidence does not contain any information regarding commitments made in 2023. The listed commitments are dated in 2026.",
+          "latency": 6.89,
+          "cost": 2.997e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 0.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 83,
+          "type": "abstention",
+          "answer": "I am sorry, but the provided evidence does not contain information about who Albert Einstein is. Therefore, I cannot answer your question.",
+          "latency": 1.27,
+          "cost": 2.201e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [],
+          "missing": [],
+          "is_abstention": true
+        },
+        {
+          "idx": 84,
+          "type": "contradiction",
+          "answer": "Yes, Orion Tech's price changed multiple times. The quote was initially $120k, revised down to $95k after negotiation, and finally invoiced at $150k, resulting in a pricing dispute.\n\nEntities: Orion T",
+          "latency": 1.4,
+          "cost": 4.34e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Orion",
+            "$120k",
+            "$95k",
+            "$150k"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 85,
+          "type": "contradiction",
+          "answer": "Orion Tech's final invoice was $150k, which resulted in a pricing dispute. The entities supported by the evidence are Orion Tech.",
+          "latency": 0.94,
+          "cost": 4.33e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Orion",
+            "$150k"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 86,
+          "type": "contradiction",
+          "answer": "Yes, there was a pricing dispute with Orion Tech. The evidence shows Orion Tech sent a final invoice for $150k, which was noted as a pricing dispute.\n\nEntities: Alex Chen, Orion Tech.",
+          "latency": 3.06,
+          "cost": 4.65e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Orion",
+            "$150k",
+            "pricing dispute"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 87,
+          "type": "recurring",
+          "answer": "The recurring production issue is a systemic problem involving the third auth outage this month. The evidence also notes a previous sev1 incident on the auth service.\n\nEntities: EngOncall, Globex Corp",
+          "latency": 1.73,
+          "cost": 5.555e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "auth",
+            "outage"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 88,
+          "type": "recurring",
+          "answer": "The recurring issue is an auth service outage, which has occurred three times this month. These outages are described as a systemic issue with the same root cause as the previous week. The entities in",
+          "latency": 1.7,
+          "cost": 4.536e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "auth",
+            "outage"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 89,
+          "type": "recurring",
+          "answer": "The systemic issue is the third auth outage occurring this month. The entities involved are [EngOncall].",
+          "latency": 0.84,
+          "cost": 2.404e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "auth",
+            "systemic"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 90,
+          "type": "noise_lookup",
+          "answer": "You received the [TechNewsletter] weekly tech digest on 2026-07-04, which contained 10 articles about AI.",
+          "latency": 7.46,
+          "cost": 2.289e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "TechNewsletter",
+            "digest"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 91,
+          "type": "noise_lookup",
+          "answer": "The provided evidence does not contain information regarding industry trends. Therefore, I cannot answer this question.",
+          "latency": 7.01,
+          "cost": 1.674e-05,
+          "entity_completeness": 0.5,
+          "grounding": 0.0,
+          "hallucination": 0.0,
+          "correct_abstention": 0.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "industry trends"
+          ],
+          "missing": [
+            "TechNewsletter"
+          ],
+          "is_abstention": true
+        },
+        {
+          "idx": 92,
+          "type": "noise_lookup",
+          "answer": "The newsletters that came in are the Monthly newsletter roundup \u2014 industry trends and the Weekly tech digest: 10 articles about AI you should read. The entities supported by the evidence are [TechNews",
+          "latency": 2.78,
+          "cost": 3.426e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": null,
+          "temporal": null,
+          "found": [
+            "TechNewsletter"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 93,
+          "type": "priority",
+          "answer": "The evidence does not explicitly define which commitment is the \"most urgent.\" The provided commitments involve the Legal Dept, EngOncall, Globex Corp, and the Board.",
+          "latency": 2.82,
+          "cost": 3.105e-05,
+          "entity_completeness": 0.5,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Globex",
+            "EngOncall"
+          ],
+          "missing": [
+            "Riley",
+            "regulatory"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 94,
+          "type": "priority",
+          "answer": "Immediate attention is required for the production down sev1 incident on the auth service, the overdue compliance report, and the overdue security questionnaire that was never sent. Additionally, a 5M",
+          "latency": 5.3,
+          "cost": 4.666e-05,
+          "entity_completeness": 0.6666666666666666,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.6666666666666666,
+          "temporal": null,
+          "found": [
+            "regulatory fine",
+            "EngOncall"
+          ],
+          "missing": [
+            "Globex"
+          ],
+          "is_abstention": false
+        },
+        {
+          "idx": 95,
+          "type": "multilingual",
+          "answer": "Carlos Ruiz enviar\u00e1 el contrato el lunes que viene.\n\nEntities: Carlos Ruiz.",
+          "latency": 4.07,
+          "cost": 1.782e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Carlos",
+            "contrato"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 96,
+          "type": "disputed",
+          "answer": "No, the Nova results presentation was incomplete because it was missing the Q2 data. The entities supported by the evidence are Morgan Liu and Nova.",
+          "latency": 2.12,
+          "cost": 4.59e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.6666666666666666,
+          "hallucination": 0.33333333333333337,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Morgan",
+            "Nova",
+            "incomplete"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 97,
+          "type": "conditional",
+          "answer": "Yes, Jamie Park stated that if legal signs off, the SSO will be ready by Q4. Additionally, Jamie Park noted on 2026-07-05 that SSO work is complete, pending legal review. The entities mentioned are Ja",
+          "latency": 1.24,
+          "cost": 4.702e-05,
+          "entity_completeness": 1.0,
+          "grounding": 0.6666666666666666,
+          "hallucination": 0.33333333333333337,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Jamie",
+            "SSO",
+            "legal"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 98,
+          "type": "cross_entity",
+          "answer": "Priya Shah has compliance issues because the compliance report is overdue and hasn't been sent.\n\nEntities: Priya Shah",
+          "latency": 1.15,
+          "cost": 4.01e-05,
+          "entity_completeness": 1.0,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 1.0,
+          "temporal": null,
+          "found": [
+            "Priya",
+            "compliance"
+          ],
+          "missing": [],
+          "is_abstention": false
+        },
+        {
+          "idx": 99,
+          "type": "prepare",
+          "answer": "The evidence does not state what you should prepare for the board meeting. It only mentions that Maria Garcia from Acme Corp requested an updated pricing proposal by Friday because the procurement tea",
+          "latency": 3.09,
+          "cost": 7.309e-05,
+          "entity_completeness": 0.5,
+          "grounding": 1.0,
+          "hallucination": 0.0,
+          "correct_abstention": 1.0,
+          "multi_entity": 0.5,
+          "temporal": null,
+          "found": [
+            "Board"
+          ],
+          "missing": [
+            "Q3"
+          ],
+          "is_abstention": false
+        }
+      ],
+      "n_questions": 100
     }
   }
 }

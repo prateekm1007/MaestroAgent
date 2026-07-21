@@ -1,13 +1,25 @@
-=== UPDATED BENCHMARK (4 models) ===
-Model                     |   Entity |   Ground |   Halluc |  Abstain |  Multi-E |  Latency |  Cost/call |    n
-----------------------------------------------------------------------------------------------------
-Llama 3.3 70B             |   82.6% |   88.5% |   14.5% |   93.0% |   80.0% |   3.59s | $0.000069 |  100
-Qwen Plus                 |   83.4% |   88.2% |   14.8% |   85.0% |   79.8% |   2.04s | $0.000132 |  100
-Gemma 3 12B               |   85.9% |   88.2% |   14.8% |   97.0% |   83.0% |   1.62s | $0.000023 |  100
-Gemma 4 26B A4B (n=20)    |   93.3% |   88.0% |    7.0% |  100.0% |   90.0% |   2.20s | $0.000030 |   20
+=== FULL 4-MODEL BENCHMARK (100 questions each) ===
 
-NOTE: Gemma 4 26B A4B tested on 20 questions only (sandbox limitation).
-  Entity completeness 93.3% — HIGHEST of all 4 models.
-  Latency avg 2.2s — between Gemma 3 (1.62s) and Llama (3.59s).
-  If 93.3% holds at n=100, Gemma 4 would be the clear winner.
-  Need non-sandbox environment to complete full 100-question benchmark.
+Model                     |         Entity |         Ground |         Halluc |        Abstain |        Multi-E |  Latency |    Cost/call
+------------------------------------------------------------------------------------------------------------------------
+Llama 3.3 70B             | 82.6% (77%-88%) | 88.5% (83%-94%) | 14.5% (8%-21%) | 93.0% (88%-98%) | 80.0% (73%-86%) |   3.59s | $  0.000069
+Qwen Plus                 | 83.4% (78%-89%) | 88.2% (82%-93%) | 14.8% (9%-21%) | 85.0% (77%-92%) | 79.8% (73%-87%) |   2.04s | $  0.000132
+Gemma 3 12B               | 85.9% (80%-91%) | 88.2% (83%-93%) | 14.8% (10%-21%) | 97.0% (93%-100%) | 83.0% (77%-89%) |   1.62s | $  0.000023
+Gemma 4 26B A4B           | 83.8% (78%-89%) | 88.2% (82%-93%) | 16.8% (11%-24%) | 95.0% (91%-99%) | 81.6% (75%-88%) |   3.05s | $  0.000041
+
+McNemar Test (entity_completeness == 1.0):
+  Llama 3.3 70B             vs Qwen Plus                : b=5, c=6, p=1.0000 (not significant)
+  Llama 3.3 70B             vs Gemma 3 12B              : b=2, c=5, p=0.4531 (not significant)
+  Llama 3.3 70B             vs Gemma 4 26B A4B          : b=4, c=5, p=1.0000 (not significant)
+  Qwen Plus                 vs Gemma 3 12B              : b=3, c=5, p=0.7266 (not significant)
+  Qwen Plus                 vs Gemma 4 26B A4B          : b=3, c=3, p=1.0000 (not significant)
+  Gemma 3 12B               vs Gemma 4 26B A4B          : b=3, c=1, p=0.6250 (not significant)
+
+Winner per dimension:
+  Entity Completeness      : Gemma 3 12B               (85.9%)
+  Grounding                : Llama 3.3 70B             (88.5%)
+  Hallucination (low)      : Llama 3.3 70B             (14.5%)
+  Correct Abstention       : Gemma 3 12B               (97.0%)
+  Multi-Entity             : Gemma 3 12B               (83.0%)
+  Latency (low)            : Gemma 3 12B               (1.62s)
+  Cost (low)               : Gemma 3 12B               ($0.000023/call)
