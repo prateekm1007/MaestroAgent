@@ -987,6 +987,7 @@ from maestro_personal_shell.routers import (
     connectors as _connectors_router,
     account as _account_router,
     surfaces as _surfaces_router,
+    inbox as _inbox_router,
 )
 app.include_router(_auth_router.router)
 app.include_router(_ask_router.router)
@@ -1002,6 +1003,7 @@ app.include_router(_signals_router.router)
 app.include_router(_connectors_router.router)
 app.include_router(_account_router.router)
 app.include_router(_surfaces_router.router)
+app.include_router(_inbox_router.router)
 
 # Phase 11: Trace ID middleware — every request gets a trace ID.
 # The trace ID is propagated to all surfaces and audit log entries.
