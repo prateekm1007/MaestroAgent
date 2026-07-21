@@ -70,6 +70,85 @@ def _extract_entities(text: str) -> set[str]:
     return {w for w in words if len(w) > 2}
 
 
+# Phase 1.3 Bug #2 fix: markers for a grounded negative answer.
+# An answer using these phrases is asserting that something is ABSENT from
+# evidence — that's a valid grounded finding, not an unsupported claim.
+_GROUNDED_NEGATIVE_MARKERS = [
+    "no mention", "not found", "no record", "no evidence",
+    "did not", "does not appear", "no signal", "no information",
+    "not in the", "not present", "absent from", "no indication",
+    "cannot find", "could not find", "no documented",
+]
+
+
+def _is_grounded_negative(
+    answer: str,
+    evidence_refs: list[dict[str, Any]],
+    source_sentence: str = "",
+) -> bool:
+    """Phase 1.3 Bug #2 fix: detect grounded-negative LLM answers.
+
+    A grounded negative is an LLM answer that:
+      1. Uses negative markers (no mention, not found, no record, etc.)
+         indicating the LLM is asserting something is ABSENT from evidence.
+      2. References at least one entity/topic that ALSO appears in evidence,
+         proving the LLM looked at the evidence (not hallucinated).
+
+    Example:
+      Query: "Did Maria cancel the contract?"
+      LLM answer: "There is no mention of a contract being canceled. The
+      evidence only shows Maria Garcia reviewing a hiring scorecard."
+      → has "no mention" (negative marker) + "Maria Garcia" appears in both
+        answer AND evidence → grounded negative → pass through.
+
+    Returns True if the answer is a grounded negative (should pass through
+    the guardrail without flagging claims as unsupported).
+    """
+    if not answer:
+        return False
+    answer_lower = answer.lower()
+
+    # Condition 1: must contain a negative marker
+    has_negative = any(m in answer_lower for m in _GROUNDED_NEGATIVE_MARKERS)
+    if not has_negative:
+        return False
+
+    # Condition 2: must reference at least one entity that appears in evidence
+    # (proves the LLM grounded its answer in the evidence, not hallucinated)
+    answer_entities = _extract_entities(answer)
+    if not answer_entities:
+        # Fall back to keyword overlap if no entities (some answers use only
+        # common nouns like "contract", "scorecard")
+        answer_keywords = _extract_keywords(answer)
+        if not answer_keywords:
+            return False
+        evidence_keywords: set[str] = set()
+        for ref in evidence_refs:
+            ref_text = ref.get("text", "") or ""
+            if ref_text:
+                evidence_keywords |= _extract_keywords(ref_text)
+        if source_sentence:
+            evidence_keywords |= _extract_keywords(source_sentence)
+        # Require at least 1 content-word overlap with evidence
+        return bool(answer_keywords & evidence_keywords)
+
+    # Has entities — check overlap with evidence entities
+    evidence_entities: set[str] = set()
+    for ref in evidence_refs:
+        ref_entity = ref.get("entity", "") or ""
+        if ref_entity:
+            evidence_entities.add(ref_entity)
+            evidence_entities |= _extract_entities(ref_entity)
+        ref_text = ref.get("text", "") or ""
+        if ref_text:
+            evidence_entities |= _extract_entities(ref_text)
+    if source_sentence:
+        evidence_entities |= _extract_entities(source_sentence)
+
+    # At least one answer entity must appear in evidence
+    return any(ent in evidence_entities for ent in answer_entities)
+
+
 def verify_claims(
     answer: str,
     evidence_refs: list[dict[str, Any]],
@@ -92,6 +171,38 @@ def verify_claims(
             "unsupported_claims": [],
             "counterevidence": [],
             "confidence": 0.0,
+            "all_claims_supported": True,
+        }
+
+    # Phase 1.3 Bug #2 fix (2026-07-21): grounded-negative pass-through.
+    #
+    # ROOT CAUSE (verified by execution):
+    # LLM answer to "Did Maria cancel the contract?" was correctly:
+    #   "There is no mention of a contract being canceled in the available
+    #    signals. The evidence only shows Maria Garcia reviewing a hiring
+    #    scorecard."
+    # The claim_verifier flagged this as unsupported because:
+    #   - claim keywords {contract, canceled, mention, available, signals}
+    #   - evidence keywords {maria, garcia, reviewing, hiring, scorecard}
+    #   - no overlap → unsupported → guardrail rewrites to generic refusal
+    # This is a FALSE POSITIVE: the LLM correctly identified that the user's
+    # asked-about topic (contract cancellation) is ABSENT from evidence. That
+    # IS a grounded answer — it just uses negative framing.
+    #
+    # FIX: detect grounded negatives and pass them through. A grounded
+    # negative is an answer that:
+    #   1. References at least one entity/topic that ALSO appears in evidence
+    #      (proving the LLM looked at the evidence, not hallucinated)
+    #   2. Uses negative markers (no mention, not found, no record, did not,
+    #      does not appear, no evidence, no signal)
+    # When both conditions are met, the answer is grounded — pass it through
+    # without flagging claims as unsupported.
+    if _is_grounded_negative(answer, evidence_refs, source_sentence):
+        return {
+            "verified_answer": answer,
+            "unsupported_claims": [],
+            "counterevidence": [],
+            "confidence": 0.8,  # high confidence — grounded negative
             "all_claims_supported": True,
         }
 
