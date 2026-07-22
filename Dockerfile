@@ -2,6 +2,7 @@
 FROM python:3.12-slim AS builder
 
 WORKDIR /build
+ARG CACHEBUST=1784694185
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libffi-dev libssl-dev && rm -rf /var/lib/apt/lists/*
 
