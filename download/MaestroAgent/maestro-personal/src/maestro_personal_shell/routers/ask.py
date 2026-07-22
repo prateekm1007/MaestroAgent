@@ -1693,6 +1693,13 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                         len(_matched), query_entities[:2])
                             # Skip the abstention — we found the entity's signals
                             has_specific_entity = False  # treat as found
+                            # Update the pseudo-situation to use the CORRECT entity
+                            # (the one from the DB lookup, not from the ensemble)
+                            matching_situation = _PseudoSituation(
+                                entity=_matched[0].get("entity", "unknown"),
+                                title=f"Query about {_matched[0].get('entity', 'unknown')}",
+                                state="observing",
+                            )
                     except Exception as e:
                         logger.debug("R-02: direct entity lookup failed: %s", e)
 
