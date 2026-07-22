@@ -2648,7 +2648,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     evidence_refs = _filter_noise_entities(evidence_refs)
     # R-02 fix: if entity filtering found zero matches, force abstention.
     # Do not return unfiltered evidence for entity-specific queries.
-    if _entity_filter_attempted and _entity_matched_count == 0:
+    # BUT: skip this if the LLM already generated an answer using the
+    # direct DB lookup (R-02 v3). The LLM evidence_refs_for_llm may have
+    # found the entity's signals even when the user-visible evidence_refs
+    # didn't. If llm_answer_used is True, the LLM had evidence and generated
+    # an answer — don't override it with abstention.
+    if _entity_filter_attempted and _entity_matched_count == 0 and not llm_answer_used:
         verified_answer = (
             f"I don't have enough information to answer that question. "
             f"No evidence found for: {', '.join(_query_entities)}."
@@ -2659,6 +2664,19 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         evidence_refs = []
         verification["confidence"] = 0.0
         _abstention_triggered = True
+    elif _entity_filter_attempted and _entity_matched_count == 0 and llm_answer_used:
+        # The LLM found evidence via direct DB lookup. Populate the
+        # user-visible evidence_refs from the LLM evidence so the
+        # response includes provenance.
+        logger.info("R-02: entity filter found 0 in raw_refs, but LLM had evidence — keeping LLM answer")
+        if not evidence_refs and source_sentence:
+            evidence_refs = [{
+                "text": source_sentence,
+                "entity": source_entity,
+                "timestamp": source_timestamp,
+                "signal_id": "",
+                "source_type": "manual",
+            }]
     # If filtering removed ALL evidence, abstain (don't return answer with
     # no evidence — that would be ungrounded)
     elif not evidence_refs and not _abstention_triggered and verified_answer and "No matching signals" not in str(verified_answer):
