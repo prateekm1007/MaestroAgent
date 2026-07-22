@@ -121,8 +121,16 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
         _NON_COMMITMENT_CATEGORIES = {"fyi", "newsletter", "notification", "billing", "security_alert"}
         _is_non_commitment_category = _category.lower() in _NON_COMMITMENT_CATEGORIES
 
-        # 3. Reject if no action was extracted (can't be a commitment without an action)
+        # 3. Reject if no action was extracted — BUT only for non-commitment types.
+        # The classifier sometimes returns is_commitment=True with an empty action
+        # field for explicit commitments (e.g. "I will send the Q3 budget proposal
+        # by Friday EOD"). In that case, derive the action from the signal text.
         _has_no_action = not _action or not _action.strip()
+        if _has_no_action and _is_commitment and _ctype in ("explicit", "implicit", "conditional"):
+            # Derive action from the signal text (first 100 chars)
+            _action = email["body"][:100].strip()
+            classification["action"] = _action
+            _has_no_action = not _action
 
         if _is_automated_sender:
             _admission_reject_reason = f"automated sender '{_entity}' — not a person making a commitment"
@@ -130,9 +138,8 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
             _admission_reject_reason = f"category '{_category}' — not a commitment"
         elif not _is_commitment or _ctype == "not_a_commitment":
             _admission_reject_reason = f"classifier: not_a_commitment (type={_ctype})"
-        elif _has_no_action and _ctype != "tentative":
-            # Tentative items may not have a clean action, but explicit/implicit
-            # commitments must have one.
+        elif _has_no_action and _ctype not in ("tentative", "explicit", "implicit", "conditional"):
+            # Only reject for missing action if the type isn't a recognized commitment type
             _admission_reject_reason = "no actionable obligation extracted"
 
         if _admission_reject_reason:

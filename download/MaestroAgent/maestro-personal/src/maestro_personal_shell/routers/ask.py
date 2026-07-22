@@ -1554,6 +1554,41 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 query_entities = [e for e in query_entities if e not in common_words]
                 has_specific_entity = len(query_entities) > 0
 
+                # R-02 fix: before abstaining for "no evidence", do a direct
+                # DB lookup for the queried entity. The retrieval ensemble may
+                # have missed the signal (e.g. David's coffee message doesn't
+                # contain commitment keywords, so BM25 won't retrieve it).
+                # If the entity EXISTS in the user's data, load its signals
+                # directly so the LLM can answer "Did X make a commitment?"
+                # correctly (e.g. "No, David did not make a firm commitment.
+                # He tentatively mentioned...").
+                if has_specific_entity:
+                    try:
+                        _entity_signals = load_signals_from_db(user_email=token, limit=50)
+                        _matched = []
+                        _qe_lowered = {e.lower() for e in query_entities}
+                        for sig in _entity_signals:
+                            if isinstance(sig, dict):
+                                sig_entity = str(sig.get("entity", "")).lower()
+                                if any(qe in sig_entity or sig_entity in qe for qe in _qe_lowered):
+                                    _matched.append({
+                                        "text": sig.get("text", ""),
+                                        "entity": sig.get("entity", ""),
+                                        "timestamp": str(sig.get("timestamp", "")),
+                                        "signal_id": sig.get("signal_id", ""),
+                                        "source_type": "manual",
+                                    })
+                        if _matched:
+                            evidence_refs_for_llm = _matched[:5]
+                            if not source_sent:
+                                source_sent = _matched[0].get("text", "")
+                            logger.info("R-02: direct DB lookup found %d signals for entity %s",
+                                        len(_matched), query_entities[:2])
+                            # Skip the abstention — we found the entity's signals
+                            has_specific_entity = False  # treat as found
+                    except Exception as e:
+                        logger.debug("R-02: direct entity lookup failed: %s", e)
+
                 if has_specific_entity:
                     # Specific entity query with no match — DO NOT dump all signals.
                     # Return a clean refusal with no evidence.
