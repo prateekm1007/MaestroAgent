@@ -2668,8 +2668,22 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # The LLM found evidence via direct DB lookup. Populate the
         # user-visible evidence_refs from the LLM evidence so the
         # response includes provenance.
+        # R-02 v5: filter the user-visible evidence_refs to ONLY include
+        # signals matching the queried entity. The reviewer found that
+        # unrelated signals (Jamie, Maria, Priya) were still in the
+        # evidence_refs list even though the answer was about David.
         logger.info("R-02: entity filter found 0 in raw_refs, but LLM had evidence — keeping LLM answer")
-        if not evidence_refs and source_sentence:
+        # Re-filter evidence_refs to only include entity-matched signals
+        _entity_matched_refs = []
+        for ref in evidence_refs:
+            if isinstance(ref, dict):
+                ref_entity = str(ref.get("entity", "")).lower()
+                if any(qe in ref_entity or ref_entity in qe for qe in _query_entities):
+                    _entity_matched_refs.append(ref)
+        if _entity_matched_refs:
+            evidence_refs = _entity_matched_refs
+        elif source_sentence:
+            # Fallback: at least include the source_sentence as evidence
             evidence_refs = [{
                 "text": source_sentence,
                 "entity": source_entity,
@@ -2677,6 +2691,8 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 "signal_id": "",
                 "source_type": "manual",
             }]
+        else:
+            evidence_refs = []
     # If filtering removed ALL evidence, abstain (don't return answer with
     # no evidence — that would be ungrounded)
     elif not evidence_refs and not _abstention_triggered and verified_answer and "No matching signals" not in str(verified_answer):
