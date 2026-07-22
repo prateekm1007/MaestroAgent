@@ -93,9 +93,16 @@ def _fuzzy_match(a: str, b: str, threshold: float = 0.85) -> bool:
         remainder = norm_b[len(norm_a):].strip()
         if not remainder or remainder in _CORPORATE_SUFFIXES:
             return True
+        # Allow first-name match: "alex" matches "alex chen" if "alex"
+        # is a complete word (followed by space) in "alex chen"
+        if norm_b[len(norm_a):len(norm_a)+1] == " ":
+            return True
     if norm_b in norm_a:
         remainder = norm_a[len(norm_b):].strip()
         if not remainder or remainder in _CORPORATE_SUFFIXES:
+            return True
+        # Allow first-name match in the other direction too
+        if norm_a[len(norm_b):len(norm_b)+1] == " ":
             return True
     # Levenshtein-based similarity
     max_len = max(len(norm_a), len(norm_b))
