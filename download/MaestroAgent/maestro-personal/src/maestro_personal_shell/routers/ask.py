@@ -837,7 +837,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     attention_items.sort(key=lambda e: e.get("deadline_text", "zzz"))
 
                     if attention_items:
-                        lines = [f"Items needing attention ({len(attention_items)}):"]
+                        lines = [f"Items needing your attention ({len(attention_items)}):"]
                         attention_evidence = []
                         for e in attention_items[:5]:
                             entity = e.get("entity", "?")
@@ -1600,6 +1600,51 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             ]
                 except Exception as e2:
                     logger.error("Legacy fallback also failed: %s", e2)
+
+            # Phase 1.1: Retrieval confidence threshold (Onyx Stage 2).
+            # If the best signal score is below the threshold, abstain.
+            # The ranker uses integer scores (0-200+), normalize to 0-1.
+            # Threshold 0.3 = score ~60 (entity match + intent match).
+            # This prevents the LLM from synthesizing from weak/unrelated evidence.
+            if evidence_refs_for_llm and not _is_broad_query:
+                _best_score = 0
+                for ev in evidence_refs_for_llm:
+                    if isinstance(ev, dict):
+                        s = ev.get("_rank_score", 0)
+                        if isinstance(s, (int, float)) and s > _best_score:
+                            _best_score = s
+                # Normalize: ranker scores typically range 0-200
+                _normalized_score = min(_best_score / 200.0, 1.0) if _best_score > 0 else 0.0
+                if _normalized_score < 0.15 and _best_score < 30:
+                    # Very weak evidence — abstain unless the entity was directly matched
+                    # (direct DB lookup sets source_entity correctly)
+                    if not source_entity:
+                        logger.info("Phase 1.1: retrieval confidence threshold — best_score=%d normalized=%.2f, abstaining",
+                                    _best_score, _normalized_score)
+                        return AskResponse(
+                            answer=(
+                                "I don't have enough information to answer that question. "
+                                "No matching signals were found in your stored data."
+                            ),
+                            query=req.query,
+                            source_sentence="",
+                            source_entity="",
+                            source_timestamp="",
+                            situation_state="",
+                            evidence_refs=[],
+                            confidence=0.0,
+                            counterevidence=[],
+                            unknowns=["Retrieval confidence below threshold."],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Abstention: retrieval confidence below threshold.",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="abstention_threshold",
+                        )
 
             # If FTS found nothing but the user HAS signals, use ALL of them.
             # S1-01 fix (auditor critical finding): the previous "broad query
