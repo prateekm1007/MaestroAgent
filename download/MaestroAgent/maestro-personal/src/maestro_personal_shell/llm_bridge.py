@@ -17,10 +17,13 @@ def _resolve_backend_dir() -> str:
     """Resolve the backend directory path — works in both source-repo and Docker layouts."""
     import pathlib
     _file = pathlib.Path(__file__).resolve()
-    # Source repo: .../src/maestro_personal_shell/llm_bridge.py → parents[3] = .../ → backend/
-    if len(_file.parents) > 3 and (_file.parent.parent).exists():
-        return str(_file.parent.parent)
+    # Source repo: .../src/maestro_personal_shell/llm_bridge.py → parents[3]/backend/
+    if len(_file.parents) > 3:
+        _backend = _file.parent.parent.parent.parent / "backend"
+        if _backend.exists() and (_backend / "maestro_llm").exists():
+            return str(_backend)
     # Docker: /app/src/maestro_personal_shell/llm_bridge.py → parents[1] = /app/src/
+    # maestro_llm is at /app/src/maestro_llm/ (copied alongside maestro_personal_shell)
     return str(_file.parent.parent)
 
 
