@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from maestro_personal_shell.connectors.base import BaseConnector
+from maestro_personal_shell.connector_arch.base import BaseConnector
 
 logger = logging.getLogger(__name__)
 
