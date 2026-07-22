@@ -620,6 +620,7 @@ async def llm_status(token: str = Depends(verify_token_dep)):
     """Verify whether the Cognitive Council is LLM-powered or rule-based."""
     from maestro_personal_shell.llm_bridge import (
         is_llm_available, get_llm_router, get_llm_provider_name, probe_provider,
+        _LLM_IMPORT_ERROR,
     )
     configured = is_llm_available()
     router_obj = get_llm_router() if configured else None
@@ -628,7 +629,14 @@ async def llm_status(token: str = Depends(verify_token_dep)):
     verified = probe.get("verified", False)
     active = configured and verified
 
+    # P0: router_loaded distinguishes "module imported" from "module failed to import".
+    # This is the R2-killer: a dummy API key makes available=false, but router_loaded
+    # stays true. If maestro_db is missing, router_loaded=false with the import error.
+    router_loaded = _LLM_IMPORT_ERROR is None
+
     return {
+        "router_loaded": router_loaded,
+        "import_error": _LLM_IMPORT_ERROR,
         "configured": configured,
         "verified": verified,
         "active": active,

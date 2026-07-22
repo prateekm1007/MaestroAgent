@@ -14,6 +14,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 def _resolve_backend_dir() -> str:
     """Resolve the backend directory path — works in both source-repo and Docker layouts."""
     import pathlib
@@ -26,6 +27,23 @@ def _resolve_backend_dir() -> str:
     # Docker: /app/src/maestro_personal_shell/llm_bridge.py → parents[1] = /app/src/
     # maestro_llm is at /app/src/maestro_llm/ (copied alongside maestro_personal_shell)
     return str(_file.parent.parent)
+
+
+# P0: Capture the LLM import status at module load time.
+# This distinguishes "the router module imported successfully" (router_loaded=True)
+# from "the router module failed to import" (router_loaded=False, import_error=...).
+# The smoke test asserts router_loaded=True to catch R2-class failures where
+# docker build succeeds but the container silently falls back to rules mode.
+_LLM_IMPORT_ERROR: str | None = None
+try:
+    _backend_dir = _resolve_backend_dir()
+    if _backend_dir not in sys.path:
+        sys.path.insert(0, _backend_dir)
+    from maestro_llm.router import LLMRouter as _LLMRouter  # noqa: F401
+    _LLM_IMPORT_ERROR = None
+except Exception as _e:
+    _LLM_IMPORT_ERROR = f"{type(_e).__name__}: {_e}"
+    logger.error("LLM router import FAILED at module load: %s", _LLM_IMPORT_ERROR)
 
 
 

@@ -69,28 +69,28 @@ jobs:
           REG=$(curl -sf -X POST http://localhost:8766/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{"user_email":"smoke@test.com","password":"smoke-test-pass","name":"Smoke"}')
-          TOKEN=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+          TOKEN=$(echo "$REG" | python3 -c "import sys,json; d=json.load(sys.stdin); t=d.get('token',''); assert t, f'No token in register response: {d}'; print(t)")
 
-          if [ -z "$TOKEN" ]; then
-            echo "Registration failed — checking if LLM import crashed the app"
-            docker logs smoke 2>&1 | grep -iE "ImportError|ModuleNotFound|is_llm|No LLM" | tail -10
-            docker rm -f smoke > /dev/null
-            exit 1
-          fi
-
-          # Check that the LLM status endpoint is reachable (not 500)
-          LLM_CODE=$(curl -s -o /tmp/llm_status.json -w '%{http_code}' \
-            http://localhost:8766/api/llm-status \
+          # Check that the LLM router LOADED (not just that the endpoint answered 200).
+          # A dummy API key makes available=false, but router_loaded stays true.
+          # If maestro_db is missing, router_loaded=false with the import error.
+          # This is the R2-killer: it catches silent import failures that docker build misses.
+          LLM_STATUS=$(curl -sf http://localhost:8766/api/llm-status \
             -H "Authorization: Bearer $TOKEN")
 
-          if [ "$LLM_CODE" != "200" ]; then
-            echo "LLM status returned $LLM_CODE — router failed to import (R2-class failure)"
-            docker logs smoke 2>&1 | grep -iE "ImportError|ModuleNotFound|is_llm|No LLM|error" | tail -10
-            docker rm -f smoke > /dev/null
-            exit 1
-          fi
+          echo "$LLM_STATUS" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+router_loaded = d.get('router_loaded', False)
+import_error = d.get('import_error', 'unknown')
+assert router_loaded is True, \
+    f'R2-class failure — LLM router did not import: {import_error}'
+print(f'  router_loaded: True')
+print(f'  configured: {d.get(\"configured\", False)}')
+print(f'  provider: {d.get(\"provider\", \"none\")}')
+print('LLM router loaded OK (provider reachability not required for smoke)')
+"
 
-          echo "LLM status endpoint returned 200 — router imported successfully"
           echo "Runtime smoke test PASSED"
 
           docker rm -f smoke > /dev/null
