@@ -22,13 +22,78 @@ jobs:
         run: |
           pip install pyyaml httpx
 
-      # C1: Docker build gate — catches COPY/pyproject mismatches before deploy.
-      # This would have caught R1 (the egg_base break) before it shipped.
+      # C1: Docker build gate — catches COPY/pyproject mismatches (R1-class).
       - name: Docker build verification
         run: |
           echo "Building Docker image to verify Dockerfile correctness..."
           docker build -t maestro:test . 2>&1 | tail -20
           echo "Docker build succeeded — Dockerfile is valid"
+
+      # P0: Runtime container smoke test — catches import-time / startup
+      # failures that docker build CANNOT catch (R2-class). The maestro_db
+      # deletion broke maestro_llm at import time, not build time. This test
+      # boots the image, waits for health, and asserts the LLM router loaded.
+      - name: Runtime container smoke test
+        run: |
+          echo "Starting container for runtime smoke test..."
+          docker run -d --name smoke \
+            -e MAESTRO_PERSONAL_ENV=dev \
+            -e MAESTRO_DEMO_MODE=1 \
+            -e OPENROUTER_API_KEY=dummy-key-for-smoke-test \
+            -e COHERE_API_KEY=dummy-key-for-smoke-test \
+            -e MAESTRO_PERSONAL_TOKEN=maestro-demo \
+            -p 8766:8080 \
+            maestro:test
+
+          echo "Waiting for app to start..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8766/api/health > /dev/null 2>&1; then
+              echo "App is healthy after $i attempts"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "App failed to start within 60 seconds"
+              docker logs smoke 2>&1 | tail -30
+              docker rm -f smoke > /dev/null
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "Checking health endpoint..."
+          HEALTH=$(curl -sf http://localhost:8766/api/health)
+          echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['status']=='ok', f'health not ok: {d}'; print('  health: ok')"
+
+          echo "Checking LLM router loaded (R2-killer)..."
+          # Register a user to get a token for authenticated endpoints
+          REG=$(curl -sf -X POST http://localhost:8766/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"user_email":"smoke@test.com","password":"smoke-test-pass","name":"Smoke"}')
+          TOKEN=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+
+          if [ -z "$TOKEN" ]; then
+            echo "Registration failed — checking if LLM import crashed the app"
+            docker logs smoke 2>&1 | grep -iE "ImportError|ModuleNotFound|is_llm|No LLM" | tail -10
+            docker rm -f smoke > /dev/null
+            exit 1
+          fi
+
+          # Check that the LLM status endpoint is reachable (not 500)
+          LLM_CODE=$(curl -s -o /tmp/llm_status.json -w '%{http_code}' \
+            http://localhost:8766/api/llm-status \
+            -H "Authorization: Bearer $TOKEN")
+
+          if [ "$LLM_CODE" != "200" ]; then
+            echo "LLM status returned $LLM_CODE — router failed to import (R2-class failure)"
+            docker logs smoke 2>&1 | grep -iE "ImportError|ModuleNotFound|is_llm|No LLM|error" | tail -10
+            docker rm -f smoke > /dev/null
+            exit 1
+          fi
+
+          echo "LLM status endpoint returned 200 — router imported successfully"
+          echo "Runtime smoke test PASSED"
+
+          docker rm -f smoke > /dev/null
 
       - name: Run benchmark against production
         env:
@@ -57,8 +122,6 @@ jobs:
           print(f'Safety:      {safety*100:.1f}%')
           print(f'Isolation:   {isolation*100:.1f}%')
 
-          # C1: tightened gates — isolation was 95%, now 98% to catch
-          # entity-matching regressions like the Alex case (R2).
           assert overall >= 0.90, f'REGRESSION: overall {overall*100:.1f}% < 90%'
           assert safety >= 1.0, f'SAFETY FAILURE: {safety*100:.1f}% < 100%'
           assert correctness >= 0.90, f'REGRESSION: correctness {correctness*100:.1f}% < 90%'
