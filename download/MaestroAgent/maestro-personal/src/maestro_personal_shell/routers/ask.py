@@ -566,6 +566,87 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 except Exception as e:
                     logger.debug("Temporal filter failed (non-fatal): %s", e)
 
+            # F-06 fix (auditor S2): broad commitment queries should return a
+            # commitment-aware answer, not a raw signal inventory. Check the
+            # commitment ledger first and build a structured summary.
+            _COMMITMENT_BROAD_MARKERS = [
+                "what are my commitments", "what are my open commitments",
+                "my commitments", "what commitments", "commitments",
+                "what needs attention", "what needs my attention",
+                "what is unresolved", "what's unresolved",
+                "what's outstanding", "what is outstanding",
+                "what's pending", "what is pending",
+                "what's due", "what is due",
+                "what should i do", "what do i need to do",
+                "show me all commitments", "list all commitments",
+                "all my commitments", "every commitment",
+            ]
+            _is_commitment_broad = any(m in query_lower for m in _COMMITMENT_BROAD_MARKERS)
+
+            if _is_commitment_broad:
+                # Try ledger first
+                try:
+                    from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    init_ledger_table(_db_path)
+                    _entries = get_ledger_entries(token, _db_path)
+                    if _entries:
+                        active = [e for e in _entries if e.get("state") in ("active", "at_risk", "candidate")]
+                        completed = [e for e in _entries if "completed" in e.get("state", "")]
+                        cancelled = [e for e in _entries if e.get("state") == "cancelled"]
+
+                        ledger_lines = []
+                        ledger_evidence = []
+                        if active:
+                            ledger_lines.append(f"Active commitments ({len(active)}):")
+                            for e in active[:5]:
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+                                ledger_evidence.append({
+                                    "text": e.get("evidence_quote", ""),
+                                    "entity": e.get("entity", ""),
+                                    "timestamp": e.get("updated_at", ""),
+                                    "signal_id": e.get("signal_id", ""),
+                                    "source_type": "ledger",
+                                })
+                        if completed:
+                            ledger_lines.append(f"\nCompleted ({len(completed)}):")
+                            for e in completed[:3]:
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+                        if cancelled:
+                            ledger_lines.append(f"\nCancelled ({len(cancelled)}):")
+                            for e in cancelled[:3]:
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+
+                        answer = "\n".join(ledger_lines)
+                        logger.info("F-06: broad commitment query answered from ledger (%d active, %d completed, %d cancelled)",
+                                    len(active), len(completed), len(cancelled))
+                        return AskResponse(
+                            answer=answer,
+                            query=req.query,
+                            source_sentence=ledger_evidence[0]["text"] if ledger_evidence else "",
+                            source_entity=ledger_evidence[0]["entity"] if ledger_evidence else "",
+                            source_timestamp=ledger_evidence[0]["timestamp"] if ledger_evidence else "",
+                            situation_state="",
+                            evidence_refs=ledger_evidence[:5],
+                            confidence=0.8,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Answered from commitment ledger.",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                except Exception as e:
+                    logger.debug("F-06: ledger query failed, falling through to signal summary: %s", e)
+
             if all_sigs:
                 # Build a summary grouped by entity
                 entity_map = {}
@@ -1341,6 +1422,40 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     state="observing",
                 )
                 logger.info("P11 fix: created pseudo-situation for LLM (entity=%s)", matching_situation.entity)
+
+            # F-04 fix (auditor S1 — cross-entity attribution hallucination):
+            # When the query names a specific entity ("Did David make a
+            # commitment?"), the retrieval ensemble returns evidence matching
+            # query KEYWORDS ("commitment"), not filtered by the queried entity.
+            # This caused Maria's budget proposal to be passed to the LLM as
+            # evidence "about David Kim" — the LLM then attributed Maria's
+            # commitment to David.
+            #
+            # FIX: when the query names a specific entity, filter evidence_refs_for_llm
+            # and source_sent to ONLY include signals whose entity matches the
+            # queried entity. The LLM must never receive evidence about a
+            # different entity than the one the user asked about.
+            if evidence_refs_for_llm and entities:
+                _entity_lowered = {e.lower() for e in entities}
+                _filtered_evidence = []
+                for ev in evidence_refs_for_llm:
+                    ev_entity = str(ev.get("entity", "")).lower()
+                    if any(e in ev_entity or ev_entity in e for e in _entity_lowered):
+                        _filtered_evidence.append(ev)
+                if _filtered_evidence:
+                    evidence_refs_for_llm = _filtered_evidence
+                    # Re-set source_sent to the first entity-matched evidence
+                    source_sent = _filtered_evidence[0].get("text", source_sent)
+                    logger.info("F-04 fix: filtered evidence to %d refs matching entity %s",
+                                len(evidence_refs_for_llm), entities[:2])
+                else:
+                    # No evidence matches the queried entity — don't send
+                    # unrelated evidence to the LLM. This prevents the
+                    # cross-entity attribution hallucination.
+                    logger.info("F-04 fix: no evidence matches entity %s — clearing evidence to prevent hallucination",
+                                entities[:2])
+                    evidence_refs_for_llm = []
+                    source_sent = ""
 
             if matching_situation:
                 state_val = str(getattr(matching_situation, "state", getattr(matching_situation, "operational_state", "unknown")))

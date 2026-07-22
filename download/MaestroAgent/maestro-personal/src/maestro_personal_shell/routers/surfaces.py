@@ -555,9 +555,61 @@ async def get_briefing(token: str = Depends(verify_token_dep)):
         briefing = core.briefing_bridge.generate_morning_briefing(
             user_email="personal", org_id="personal",
         )
+
+        # F-07 fix (auditor S2 — briefing prioritizes ambiguous content):
+        # Filter noise + tentative content from top_situation. The morning
+        # briefing was promoting David Kim's "Maybe we can grab coffee" as
+        # the top situation. Tentative/social content should never be the
+        # top briefing item.
+        top_situation = getattr(briefing, "top_situation", None)
+        if top_situation:
+            top_entity = str(getattr(top_situation, "entity", "") or
+                           (top_situation.get("entity", "") if isinstance(top_situation, dict) else "")).lower()
+            top_title = str(getattr(top_situation, "title", "") or
+                           (top_situation.get("title", "") if isinstance(top_situation, dict) else "")).lower()
+            is_noise = False
+            for sig in shell.oem_state.signals:
+                sig_entity = str(getattr(sig, "entity", "")).lower()
+                sig_type = str(getattr(sig, "signal_type", "") or
+                             getattr(getattr(sig, "type", ""), "value", "")).lower()
+                sig_text = str(getattr(sig, "text", "")).lower()
+                if sig_entity == top_entity:
+                    # Check for noise signal types
+                    if sig_type in (
+                        "newsletter", "fyi", "notification", "notification_digest",
+                        "blog", "social", "marketing", "announcement",
+                    ):
+                        is_noise = True
+                        break
+                    # F-07 fix: check for tentative/hedging language in the signal text
+                    tentative_markers = [
+                        "maybe", "might", "possibly", "don't count on",
+                        "not sure", "try to", "i hope", "hopefully",
+                        "i'd like to", "i wish i could", "no promises",
+                        "can't guarantee", "might be able", "i'll try",
+                        "i'll see", "we'll see", "i'll let you know",
+                    ]
+                    if any(marker in sig_text for marker in tentative_markers):
+                        is_noise = True
+                        break
+            if not is_noise:
+                noise_name_patterns = ("newsletter", "news corp", "digest", "fyi", "notification")
+                if any(pat in top_entity for pat in noise_name_patterns):
+                    is_noise = True
+            # Also check the title directly for tentative language
+            if not is_noise:
+                tentative_in_title = [
+                    "maybe", "might", "possibly", "i'll let you know",
+                    "don't count on", "tentative",
+                ]
+                if any(marker in top_title for marker in tentative_in_title):
+                    is_noise = True
+            if is_noise:
+                top_situation = None
+
         return BriefingResponse(
             greeting=getattr(briefing, "greeting", ""),
-            top_situation=getattr(briefing, "top_situation", None),
+            top_situation=top_situation,
             material_changes=getattr(briefing, "material_changes", []) or [],
             unknowns=getattr(briefing, "unknowns", []) or [],
             disputes=getattr(briefing, "disputes", []) or [],

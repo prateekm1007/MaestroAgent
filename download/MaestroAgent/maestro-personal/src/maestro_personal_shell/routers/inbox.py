@@ -49,13 +49,15 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
     """Receive a synthetic email — ingests it as a signal, triggering commitment extraction."""
     from maestro_personal_shell.synthetic_inbox import get_email_by_id
     from maestro_personal_shell.api import save_signal_to_db
+    from maestro_personal_shell.commitment_classifier import classify_commitment
+    from maestro_personal_shell.commitment_ledger import upsert_ledger_entry, init_ledger_table
     import os
     from pathlib import Path
-    
+
     email = get_email_by_id(email_id)
     if not email:
         raise HTTPException(status_code=404, detail=f"Email {email_id} not found")
-    
+
     # Ingest the email body as a signal (triggers classification + closure matching)
     db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
     signal = {
@@ -66,19 +68,50 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
         "timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
         "metadata": {"source": "synthetic_inbox", "email_id": email_id, "category": email["category"]},
     }
-    
+
     try:
         save_signal_to_db(signal, db_path=db_path, user_email=token)
     except Exception as e:
         logger.error(f"Failed to ingest synthetic email {email_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to ingest: {e}")
-    
+
+    # F-02 fix (auditor S1): actually run the commitment classifier and write
+    # to the commitment ledger. The previous code saved the signal but never
+    # populated the ledger — so /api/inbox/synthetic/status showed 0 commitments
+    # even after ingesting all 20 emails.
+    ledger_result = None
+    try:
+        init_ledger_table(db_path)
+        classification = await classify_commitment(
+            text=email["body"],
+            entity=email["from_name"],
+        )
+        ledger_result = upsert_ledger_entry(
+            classification=classification,
+            signal=signal,
+            user_email=token,
+            db_path=db_path,
+        )
+        if ledger_result:
+            logger.info("F-02: ledger entry created for %s (type=%s, state=%s)",
+                        email["from_name"],
+                        classification.get("commitment_type", "?"),
+                        classification.get("state", "?"))
+        else:
+            logger.info("F-02: signal %s classified as not_a_commitment — no ledger entry",
+                        email_id)
+    except Exception as e:
+        logger.error("F-02: classifier/ledger failed for %s: %s", email_id, e)
+
     return {
         "status": "received",
         "email_id": email_id,
         "category": email["category"],
         "expected_effect": email["expected_effect"],
         "signal_id": signal["signal_id"],
+        "ledger_entry_created": ledger_result is not None,
+        "commitment_type": classification.get("commitment_type", "not_a_commitment") if ledger_result else None,
+        "commitment_state": classification.get("state", None) if ledger_result else None,
         "message": f"Email from {email['from_name']} ingested. Check the Dashboard to see what Maestro detected.",
     }
 

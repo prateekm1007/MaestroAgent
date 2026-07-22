@@ -88,11 +88,32 @@ async def list_connectors(
     from maestro_personal_shell.connectors import ConnectorStore
     store = ConnectorStore()
     all_connectors = store.list_connectors(token)
+
+    # F-08 fix (auditor S2): be explicit about demo mode. If Gmail OAuth
+    # is not configured, say so clearly in the response instead of implying
+    # it should work. This prevents evaluators from wasting time trying to
+    # connect Gmail when the OAuth credentials aren't set up.
+    _demo_notice = None
+    try:
+        from maestro_personal_shell.gmail_connector import is_gmail_configured
+        if not is_gmail_configured():
+            _demo_notice = (
+                "Gmail OAuth is not configured in this deployment. "
+                "The synthetic inbox (/api/inbox/synthetic) is available "
+                "for demo purposes. To enable real Gmail, set "
+                "GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET environment variables."
+            )
+    except ImportError:
+        _demo_notice = "Gmail connector module not available in this build."
+
     if experimental:
-        return {"connectors": all_connectors}
+        return {"connectors": all_connectors, "demo_notice": _demo_notice}
     # Demo surface: only Gmail + Calendar
     _DEMO_CONNECTORS = {"gmail", "calendar"}
-    return {"connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS]}
+    return {
+        "connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS],
+        "demo_notice": _demo_notice,
+    }
 
 
 # ---------------------------------------------------------------------------
