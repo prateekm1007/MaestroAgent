@@ -13,6 +13,8 @@ Wiring: api.py calls `app.include_router(admin.router)` to mount these.
 """
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter
 
 router = APIRouter(tags=["admin"])
@@ -21,22 +23,16 @@ router = APIRouter(tags=["admin"])
 @router.get("/api/health")
 async def health():
     """Health check — no auth required. Includes build canary for deploy verification."""
-    # Try git first (works locally), fall back to build-time env var (works in Docker)
-    commit = "unknown"
-    import subprocess
-    try:
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL, timeout=2
-        ).decode().strip()
-    except Exception:
-        commit = os.environ.get("MAESTRO_BUILD_COMMIT", "unknown")
+    # Use MAESTRO_BUILD_COMMIT env var (set in Dockerfile at build time).
+    # Do NOT call subprocess git — git is not installed in python:3.12-slim
+    # and the subprocess call causes FileNotFoundError → 500 error →
+    # Railway healthcheck failure → deploy stuck.
     return {
         "status": "ok",
         "service": "maestro-personal",
         "version": "11.0.0-session10-final",
-        "commit": commit,
+        "commit": os.environ.get("MAESTRO_BUILD_COMMIT", "unknown"),
+        "build_time": os.environ.get("MAESTRO_BUILD_TIME", "unknown"),
         "docs_disabled": True,
         "security_headers": True,
-        "build_time": os.environ.get("MAESTRO_BUILD_TIME", "unknown"),
     }
