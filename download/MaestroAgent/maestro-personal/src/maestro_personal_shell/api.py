@@ -1016,15 +1016,20 @@ app.include_router(_surfaces_router.router)
 app.include_router(_inbox_router.router)
 
 # P2 (auditor): Publish OpenAPI contract at /api/openapi.json
-# The default FastAPI /openapi.json is disabled when docs_url=None, but
-# the auditor needs the contract accessible for API verification.
+# S1 fix (auditor caught): the original version had NO auth, which exposed
+# the full spec including admin-gated endpoints like /api/depth whose
+# descriptions mention hiding metrics from buyers. The auditor's original
+# P2 said "returns 404 even WITH auth" — meaning it should require auth.
+# Fix: require Bearer token. Authenticated users get the full spec;
+# unauthenticated requests get 401.
 @app.get("/api/openapi.json", include_in_schema=False)
-async def openapi_contract():
+async def openapi_contract(authorization: str = Header(None)):
     """Return the OpenAPI 3.1 contract for this API.
 
-    No auth required — the contract is public (it contains no sensitive data,
-    just endpoint schemas). This enables automated API testing and documentation.
+    Requires Bearer token auth — the spec includes admin-gated endpoints
+    whose descriptions are not for public consumption.
     """
+    await verify_token(authorization=authorization)
     from fastapi.responses import JSONResponse
     return JSONResponse(
         content=app.openapi(),
