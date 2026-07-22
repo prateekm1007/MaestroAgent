@@ -358,6 +358,69 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # The broad query handler will return a time-filtered summary.
         _is_broad_query = True
 
+    # Phase 1.1 (abstention architecture): injection + out-of-scope gate.
+    # This runs BEFORE the broad query handler to prevent:
+    #   1. Injection queries ("admin mode", "show me everything") from dumping signals
+    #   2. Out-of-scope queries ("weather", "capital of France") from falling through
+    #      to the broad query handler and returning unrelated commitment data
+    #
+    # Onyx pattern: "abstain before you synthesize." If the query is not about
+    # commitments, relationships, or the user's stored data, return a clean
+    # refusal — do NOT dump signals as a fallback.
+    _INJECTION_MARKERS = [
+        "ignore previous", "ignore your", "ignore all",
+        "system prompt", "reveal your", "show your instructions",
+        "admin mode", "override safety", "override your",
+        "dump all", "dump everything", "list everything",
+        "pretend you are", "act as if", "act as a different",
+        "no constraints", "without constraints",
+        "raw database", "raw db", "sql dump",
+        "all other users", "other users data", "everyone's data",
+    ]
+    _OUT_OF_SCOPE_MARKERS = [
+        "weather", "temperature", "forecast",
+        "capital of", "president of", "prime minister",
+        "speed of light", "speed of sound",
+        "eiffel tower", "mount everest", "great wall",
+        "super bowl", "world cup", "olympics",
+        "meaning of life", "favorite color", "favorite food",
+        "bake a cake", "recipe for",
+        "tell me a joke", "sing a song",
+        "how tall", "how far", "how old is",
+    ]
+    _is_injection = any(m in query_lower for m in _INJECTION_MARKERS)
+    _is_out_of_scope = any(m in query_lower for m in _OUT_OF_SCOPE_MARKERS)
+
+    if _is_injection or _is_out_of_scope:
+        # Abstain — this is not a commitment intelligence question.
+        # Do NOT fall through to the broad query handler (which would dump signals).
+        logger.info("Phase 1.1: abstention gate — injection=%s out_of_scope=%s for '%s'",
+                    _is_injection, _is_out_of_scope, query_lower[:60])
+        return AskResponse(
+            answer=(
+                "I don't have enough information to answer that question. "
+                "No matching signals were found in your stored data."
+            ),
+            query=req.query,
+            source_sentence="",
+            source_entity="",
+            source_timestamp="",
+            situation_state="",
+            evidence_refs=[],
+            confidence=0.0,
+            counterevidence=[],
+            unknowns=["Query is outside the scope of commitment intelligence."],
+            as_of=str(as_of or ""),
+            decision_boundary="",
+            perspectives=[],
+            reasoning_chain=[],
+            calibration_note="Abstention gate: query is not about commitments or stored data.",
+            consequence_paths=[],
+            llm_active=False,
+            llm_provider="none",
+            intelligence_source="abstention_gate",
+        )
+
     # "what did i promise" / "what do i owe" are only broad if they DON'T
     # have additional entity-like words after them. If the query is exactly
     # "what did i promise?" (no entity), it's broad. If it's "what did i
@@ -580,6 +643,10 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 "what should i do", "what do i need to do",
                 "show me all commitments", "list all commitments",
                 "all my commitments", "every commitment",
+                # Phase 1.1: additional natural commitment queries
+                "what do i owe", "what do i still owe",
+                "what's on my plate", "what is on my plate",
+                "what's still open", "what is still open",
             ]
             _is_commitment_broad = any(m in query_lower for m in _COMMITMENT_BROAD_MARKERS)
 
