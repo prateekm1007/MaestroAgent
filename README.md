@@ -30,11 +30,11 @@ The product UI is the Next.js app at the Frontend URL above.
 The following are **not** the product and are not deployed or maintained.
 They remain in the repo for historical reference only:
 
-- `app.html` — old vanilla-JS frontend (replaced by the Next.js app)
-- `maestro_api/` — old enterprise API (replaced by `maestro_personal_shell`)
-- `maestro_oem/` — old enterprise OEM engine (replaced by `maestro_personal_shell`)
-- OEM surfaces (Executive Cognition Center, Organizational Pulse, Nerve agents)
-- "The Organizational Judgment System" — old product name (now "Maestro Personal")
+- The old vanilla-JS frontend HTML file (replaced by the Next.js app)
+- The old enterprise API module (replaced by `maestro_personal_shell`)
+- The old enterprise OEM engine module (replaced by `maestro_personal_shell`)
+- Enterprise surfaces (Executive Cognition Center, Organizational Pulse, Nerve agents)
+- The old enterprise product name (now "Maestro Personal")
 
 The current product is `maestro_personal_shell` + the Next.js frontend.
 
