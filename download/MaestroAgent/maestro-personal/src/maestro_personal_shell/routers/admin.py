@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 router = APIRouter(tags=["admin"])
 
@@ -21,13 +22,22 @@ _BUILT = os.environ.get("MAESTRO_BUILD_TIME", "unknown")
 
 @router.get("/api/health")
 async def health():
-    """Health check — no auth required. Returns deterministic build identity."""
-    return {
-        "status": "ok",
-        "service": "maestro-personal",
-        "version": _VERSION,
-        "commit": _COMMIT,
-        "build_time": _BUILT,
-        "docs_disabled": True,
-        "security_headers": True,
-    }
+    """Health check — no auth required. Returns deterministic build identity.
+
+    Uses JSONResponse with Cache-Control: no-store to prevent Railway's
+    edge proxy from caching the response and serving stale version strings.
+    """
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "service": "maestro-personal",
+            "version": _VERSION,
+            "commit": _COMMIT,
+            "docs_disabled": True,
+            "security_headers": True,
+            "build_time": _BUILT,
+        },
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        },
+    )
