@@ -2134,6 +2134,9 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 answer = f"Based on the evidence: {source_entity} — \"{source_sentence[:200]}\""
                                 verification["confidence"] = 0.6
                                 llm_answer_used = False  # use rule-based answer instead
+                                _post_llm_fallback_used = True  # prevent R-02 abstention from overriding
+                                # Also update _entity_matched_count so the R-02 abstention doesn't fire
+                                _entity_matched_count = 1
                                 logger.info("Post-LLM fallback: found %d signals for entity %s via direct DB lookup",
                                             len(_matched_fallback), entities[:2])
                         except Exception as e:
