@@ -1654,6 +1654,33 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     evidence_refs_for_llm = []
                     source_sent = ""
 
+                    # R-02 fix v3: the ensemble returned evidence but none
+                    # matched the queried entity. Do a direct DB lookup by
+                    # entity name — the signal may exist but not have been
+                    # retrieved (e.g. David's coffee message has no commitment
+                    # keywords, so BM25 misses it).
+                    try:
+                        _entity_signals = load_signals_from_db(user_email=token, limit=50)
+                        _matched = []
+                        for sig in _entity_signals:
+                            if isinstance(sig, dict):
+                                sig_entity = str(sig.get("entity", "")).lower()
+                                if any(e in sig_entity or sig_entity in e for e in _entity_lowered):
+                                    _matched.append({
+                                        "text": sig.get("text", ""),
+                                        "entity": sig.get("entity", ""),
+                                        "timestamp": str(sig.get("timestamp", "")),
+                                        "signal_id": sig.get("signal_id", ""),
+                                        "source_type": "manual",
+                                    })
+                        if _matched:
+                            evidence_refs_for_llm = _matched[:5]
+                            source_sent = _matched[0].get("text", "")
+                            logger.info("R-02 v3: direct DB lookup found %d signals for entity %s",
+                                        len(_matched), entities[:2])
+                    except Exception as e:
+                        logger.debug("R-02 v3: direct entity lookup failed: %s", e)
+
             if matching_situation:
                 state_val = str(getattr(matching_situation, "state", getattr(matching_situation, "operational_state", "unknown")))
                 if hasattr(state_val, "value"):
