@@ -20,6 +20,8 @@ COPY download/MaestroAgent/backend/maestro_cognitive_council/ \
      ./src/maestro_cognitive_council/
 COPY download/MaestroAgent/backend/maestro_llm/ \
      ./src/maestro_llm/
+COPY download/MaestroAgent/backend/maestro_db/ \
+     ./src/maestro_db/
 COPY download/MaestroAgent/backend/maestro_nerve/ \
      ./src/maestro_nerve/
 COPY download/MaestroAgent/backend/maestro_oem/ \

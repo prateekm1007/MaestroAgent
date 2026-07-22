@@ -622,7 +622,7 @@ def is_llm_available() -> bool:
                     logger.warning("  %s is set (len=%d)", k, len(os.environ.get(k, "")))
     except ImportError as e:
         logger.error("is_llm_available: failed to import maestro_llm.router: %s", e)
-        logger.error("  _backend_dir=%s, sys.path=%s", _resolve_backend_dir(), sys.path[:5])
+        logger.error("  _backend_dir=%s, sys.path=%s", _resolve_backend_dir(), _sys.path[:5])
     except Exception as e:
         logger.error("is_llm_available: unexpected error: %s", e)
     # Check for remote Ollama tunnel — also bypass circuit breaker
