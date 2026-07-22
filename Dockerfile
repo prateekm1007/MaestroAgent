@@ -38,10 +38,15 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 # Copy source
 COPY --from=builder /build/ ./
 
-# Build identity — single source of truth
+# Build identity — single source of truth.
+# R-traceability fix (reviewer): the commit SHA is now injected at build time
+# via BUILD_COMMIT arg. This ensures /api/health always reports the actual
+# deployed commit, not a stale hardcoded value.
+ARG BUILD_COMMIT=unknown
+ARG BUILD_TIME=unknown
 ENV MAESTRO_VERSION="12.0.0-audit-ready"
-ENV MAESTRO_BUILD_COMMIT="d629818"
-ENV MAESTRO_BUILD_TIME="2026-07-22T05:07:00Z"
+ENV MAESTRO_BUILD_COMMIT=$BUILD_COMMIT
+ENV MAESTRO_BUILD_TIME=$BUILD_TIME
 ENV PYTHONPATH=/app/src
 ENV MAESTRO_PERSONAL_ENV=production
 

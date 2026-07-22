@@ -28,6 +28,69 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["surfaces"])
 
+# R-03 fix (reviewer S2): structural tentativeness filter.
+# Tentative content ("maybe", "I'll let you know", "don't count on it") must
+# be excluded from briefing unknowns, material_changes, cannot_decide_yet,
+# and other commitment-tracking surfaces — not just from top_situation.
+# A tentative statement is not a commitment and should not generate
+# follow-up questions like "Was the commitment to X fulfilled?"
+_TENTATIVE_MARKERS = [
+    "maybe", "might", "possibly", "don't count on", "not sure",
+    "try to", "i hope", "hopefully", "i'd like to", "i wish i could",
+    "no promises", "can't guarantee", "might be able", "i'll try",
+    "i'll see", "we'll see", "i'll let you know", "tentative",
+]
+
+
+def _is_tentative_text(text: str) -> bool:
+    """Check if text contains tentative/hedging language."""
+    if not text:
+        return False
+    text_lower = str(text).lower()
+    return any(marker in text_lower for marker in _TENTATIVE_MARKERS)
+
+
+def _filter_tentative_from_list(items: list, shell: Any) -> list:
+    """Filter tentative content from a list of briefing items.
+
+    Each item can be a dict (with 'entity', 'title', 'text') or an object
+    with attributes. We check the entity's signals for tentative language
+    and exclude items whose source signal is tentative.
+    """
+    if not items:
+        return items
+    filtered = []
+    for item in items:
+        # Extract text to check
+        if isinstance(item, dict):
+            item_text = str(item.get("text", "") or item.get("title", "") or item.get("action", ""))
+            item_entity = str(item.get("entity", ""))
+        else:
+            item_text = str(getattr(item, "text", "") or getattr(item, "title", "") or getattr(item, "action", ""))
+            item_entity = str(getattr(item, "entity", ""))
+
+        # Check the item text itself for tentative language
+        if _is_tentative_text(item_text):
+            logger.info("R-03: filtered tentative item from briefing: %s", item_text[:80])
+            continue
+
+        # Check the source signal for this entity
+        if shell and item_entity:
+            for sig in shell.oem_state.signals:
+                sig_entity = str(getattr(sig, "entity", "")).lower()
+                if sig_entity == item_entity.lower():
+                    sig_text = str(getattr(sig, "text", ""))
+                    if _is_tentative_text(sig_text):
+                        logger.info("R-03: filtered briefing item for entity %s — source signal is tentative",
+                                    item_entity)
+                        item = None
+                        break
+            if item is None:
+                continue
+
+        filtered.append(item)
+    return filtered
+
 
 # ---------------------------------------------------------------------------
 # verify_token lazy proxy
@@ -610,11 +673,11 @@ async def get_briefing(token: str = Depends(verify_token_dep)):
         return BriefingResponse(
             greeting=getattr(briefing, "greeting", ""),
             top_situation=top_situation,
-            material_changes=getattr(briefing, "material_changes", []) or [],
-            unknowns=getattr(briefing, "unknowns", []) or [],
+            material_changes=_filter_tentative_from_list(getattr(briefing, "material_changes", []) or [], shell),
+            unknowns=_filter_tentative_from_list(getattr(briefing, "unknowns", []) or [], shell),
             disputes=getattr(briefing, "disputes", []) or [],
             can_decide_now=getattr(briefing, "can_decide_now", []) or [],
-            cannot_decide_yet=getattr(briefing, "cannot_decide_yet", []) or [],
+            cannot_decide_yet=_filter_tentative_from_list(getattr(briefing, "cannot_decide_yet", []) or [], shell),
             why_boundary=getattr(briefing, "why_boundary", ""),
             next_step=getattr(briefing, "next_step", ""),
             belief=getattr(briefing, "belief", ""),

@@ -647,6 +647,168 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 except Exception as e:
                     logger.debug("F-06: ledger query failed, falling through to signal summary: %s", e)
 
+            # R-04 fix (reviewer S2): "What changed since X?" should compare
+            # state before and after X — return created, resolved, cancelled,
+            # deadline-shifted items. Not a raw signal inventory.
+            _CHANGE_QUERY_MARKERS = [
+                "what changed", "what's changed", "what has changed",
+                "what changed since", "what's changed since",
+                "what happened since", "what's new since",
+                "what's new", "what is new",
+            ]
+            _is_change_query = any(m in query_lower for m in _CHANGE_QUERY_MARKERS)
+
+            if _is_change_query and from_date:
+                # Use the ledger to identify state changes since from_date
+                try:
+                    from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    init_ledger_table(_db_path)
+                    _entries = get_ledger_entries(token, _db_path)
+
+                    # Filter to entries updated since from_date
+                    from datetime import datetime as _dt_r4, timezone as _tz_r4
+                    from_dt = _dt_r4.fromisoformat(from_date.replace("Z", "+00:00"))
+                    if from_dt.tzinfo is None:
+                        from_dt = from_dt.replace(tzinfo=_tz_r4.utc)
+
+                    recent_changes = []
+                    change_evidence = []
+                    for e in _entries:
+                        updated = e.get("updated_at", "")
+                        if not updated:
+                            continue
+                        try:
+                            upd_dt = _dt_r4.fromisoformat(str(updated).replace("Z", "+00:00"))
+                            if upd_dt.tzinfo is None:
+                                upd_dt = upd_dt.replace(tzinfo=_tz_r4.utc)
+                            if upd_dt >= from_dt:
+                                state = e.get("state", "")
+                                entity = e.get("entity", "?")
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                recent_changes.append(f"  • {entity}: {action[:80]} [{state}]")
+                                change_evidence.append({
+                                    "text": e.get("evidence_quote", ""),
+                                    "entity": entity,
+                                    "timestamp": updated,
+                                    "signal_id": e.get("signal_id", ""),
+                                    "source_type": "ledger",
+                                })
+                        except Exception:
+                            continue
+
+                    if recent_changes:
+                        answer = f"Changes since {from_date[:10]}:\n" + "\n".join(recent_changes[:10])
+                        logger.info("R-04: change query answered from ledger (%d changes since %s)",
+                                    len(recent_changes), from_date[:10])
+                        return AskResponse(
+                            answer=answer,
+                            query=req.query,
+                            source_sentence=change_evidence[0]["text"] if change_evidence else "",
+                            source_entity=change_evidence[0]["entity"] if change_evidence else "",
+                            source_timestamp=change_evidence[0]["timestamp"] if change_evidence else "",
+                            situation_state="",
+                            evidence_refs=change_evidence[:5],
+                            confidence=0.8,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Answered from commitment ledger (state changes).",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                    else:
+                        return AskResponse(
+                            answer=f"No commitment changes since {from_date[:10]}.",
+                            query=req.query,
+                            source_sentence="",
+                            source_entity="",
+                            source_timestamp="",
+                            situation_state="",
+                            evidence_refs=[],
+                            confidence=0.7,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="No ledger changes in the requested time window.",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                except Exception as e:
+                    logger.debug("R-04: change query failed, falling through: %s", e)
+
+            # R-04 fix: "What needs attention?" should rank unresolved, user-owned,
+            # at-risk items only — not dump all active/completed/cancelled.
+            _ATTENTION_QUERY_MARKERS = [
+                "what needs attention", "what needs my attention",
+                "what should i do", "what do i need to do",
+                "what's urgent", "what is urgent",
+                "what's at risk", "what is at risk",
+            ]
+            _is_attention_query = any(m in query_lower for m in _ATTENTION_QUERY_MARKERS)
+
+            if _is_attention_query:
+                try:
+                    from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    init_ledger_table(_db_path)
+                    _entries = get_ledger_entries(token, _db_path)
+
+                    # Only active + at-risk items, not completed/cancelled
+                    attention_items = [e for e in _entries if e.get("state") in ("active", "at_risk")]
+                    # Sort by deadline proximity if available
+                    attention_items.sort(key=lambda e: e.get("deadline_text", "zzz"))
+
+                    if attention_items:
+                        lines = [f"Items needing attention ({len(attention_items)}):"]
+                        attention_evidence = []
+                        for e in attention_items[:5]:
+                            entity = e.get("entity", "?")
+                            action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                            deadline = e.get("deadline_text", "")
+                            deadline_str = f" (due: {deadline})" if deadline else ""
+                            lines.append(f"  • {entity}: {action[:80]}{deadline_str}")
+                            attention_evidence.append({
+                                "text": e.get("evidence_quote", ""),
+                                "entity": entity,
+                                "timestamp": e.get("updated_at", ""),
+                                "signal_id": e.get("signal_id", ""),
+                                "source_type": "ledger",
+                            })
+                        return AskResponse(
+                            answer="\n".join(lines),
+                            query=req.query,
+                            source_sentence=attention_evidence[0]["text"] if attention_evidence else "",
+                            source_entity=attention_evidence[0]["entity"] if attention_evidence else "",
+                            source_timestamp=attention_evidence[0]["timestamp"] if attention_evidence else "",
+                            situation_state="",
+                            evidence_refs=attention_evidence[:5],
+                            confidence=0.8,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Ranked from commitment ledger (active/at-risk only).",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                except Exception as e:
+                    logger.debug("R-04: attention query failed, falling through: %s", e)
+
             if all_sigs:
                 # Build a summary grouped by entity
                 entity_map = {}
@@ -1470,7 +1632,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         situation=matching_situation,
                         source_sentence=source_sent,
                         situation_state=state_str,
-                        evidence_refs=evidence_refs_for_llm or getattr(result, "evidence_refs", None),
+                        evidence_refs=evidence_refs_for_llm,
                     )
                 )
     except Exception as e:
@@ -1488,6 +1650,13 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     _common = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
     _query_entities = {w.lower() for w in _query_words if w not in _common}
 
+    # R-02 fix (reviewer S2): track whether entity filtering was attempted
+    # but found zero matches. This is distinct from "no entity in query".
+    # When entity filtering finds zero matches, we must NOT fall back to
+    # unfiltered evidence — that reintroduces the cross-entity hallucination.
+    _entity_filter_attempted = bool(_query_entities)
+    _entity_matched_count = 0
+
     for ref in raw_refs[:5]:
         if len(evidence_refs) >= 3:
             break
@@ -1495,6 +1664,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             ref_entity = str(ref.get("entity", "")).lower()
             if _query_entities and not any(qe in ref_entity or ref_entity in qe for qe in _query_entities):
                 continue
+            _entity_matched_count += 1
             evidence_refs.append({
                 "text": ref.get("text", ""),
                 "entity": ref.get("entity", ""),
@@ -1511,6 +1681,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     if _query_entities and not any(qe in sig_entity or sig_entity in qe for qe in _query_entities):
                         found = True
                         break
+                    _entity_matched_count += 1
                     evidence_refs.append({
                         "text": getattr(sig, "text", ""),
                         "entity": getattr(sig, "entity", ""),
@@ -1521,13 +1692,22 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     found = True
                     break
             if not found:
-                evidence_refs.append({
-                    "text": str(ref),
-                    "entity": "",
-                    "timestamp": "",
-                    "signal_id": "",
-                    "source_type": "manual",
-                })
+                # R-02: only append un-matched refs if no entity filter is active
+                if not _query_entities:
+                    evidence_refs.append({
+                        "text": str(ref),
+                        "entity": "",
+                        "timestamp": "",
+                        "signal_id": "",
+                        "source_type": "manual",
+                    })
+
+    # R-02: if entity filtering was attempted but found zero matches,
+    # return a clean "no evidence for this entity" result — do NOT
+    # fall back to unfiltered evidence.
+    if _entity_filter_attempted and _entity_matched_count == 0:
+        logger.info("R-02: entity filter found 0 matches for %s — returning clean refusal",
+                    list(_query_entities)[:3])
 
     words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
     common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I", "Which", "Whose", "Whom"}
@@ -2404,9 +2584,22 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             filtered.append(r)
         return filtered
     evidence_refs = _filter_noise_entities(evidence_refs)
+    # R-02 fix: if entity filtering found zero matches, force abstention.
+    # Do not return unfiltered evidence for entity-specific queries.
+    if _entity_filter_attempted and _entity_matched_count == 0:
+        verified_answer = (
+            f"I don't have enough information to answer that question. "
+            f"No evidence found for: {', '.join(_query_entities)}."
+        )
+        source_sentence = ""
+        source_entity = ""
+        source_timestamp = ""
+        evidence_refs = []
+        verification["confidence"] = 0.0
+        _abstention_triggered = True
     # If filtering removed ALL evidence, abstain (don't return answer with
     # no evidence — that would be ungrounded)
-    if not evidence_refs and not _abstention_triggered and verified_answer and "No matching signals" not in str(verified_answer):
+    elif not evidence_refs and not _abstention_triggered and verified_answer and "No matching signals" not in str(verified_answer):
         # We had evidence but it was all noise — abstain honestly
         verified_answer = (
             "I don't have enough information to answer that question. "
