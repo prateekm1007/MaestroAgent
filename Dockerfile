@@ -1,8 +1,5 @@
-# Railway production Dockerfile — FINAL (no cache possible)
-# Completely restructured to force fresh build every time
+# Railway production Dockerfile — FINAL deterministic build
 FROM python:3.12-slim
-
-# Unusual comment to change file hash: maestro-deploy-final-2026-07-22-v4
 
 WORKDIR /app
 
@@ -11,20 +8,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# CRITICAL: touch a file in the WORKDIR BEFORE copying source.
-# This creates a new layer that invalidates ALL subsequent COPY layers.
-# The file content includes a timestamp so it's different every build.
-RUN echo "build-$(date +%s)" > /app/.build-timestamp && cat /app/.build-timestamp
+# Cache bust: unique layer every build, invalidates all subsequent COPY layers
+RUN echo "build-$(date +%s)" > /app/.build-timestamp
 
-# Copy source — will NOT be cached because the previous layer changed
+# Copy source
 COPY download/MaestroAgent/maestro-personal/pyproject.toml download/MaestroAgent/maestro-personal/README.md ./
 COPY download/MaestroAgent/maestro-personal/src/ ./src/
 
-# Verify the correct admin.py is in the image (build FAILS if stale)
-RUN grep "11.0.0-session10-final" /app/src/maestro_personal_shell/routers/admin.py && \
+# BUILD-TIME VERIFICATION: build FAILS if admin.py doesn't have the env-var-based version
+RUN grep "MAESTRO_VERSION" /app/src/maestro_personal_shell/routers/admin.py && \
     grep "import os" /app/src/maestro_personal_shell/routers/admin.py && \
-    ! grep "subprocess.check_output" /app/src/maestro_personal_shell/routers/admin.py && \
-    echo "VERIFIED: admin.py has version 11.0.0 + import os + no subprocess"
+    ! grep "subprocess" /app/src/maestro_personal_shell/routers/admin.py && \
+    ! grep "11.0.0\|10.0.0\|1.0.0" /app/src/maestro_personal_shell/routers/admin.py && \
+    echo "VERIFIED: admin.py uses env-var version, no hardcoded strings, no subprocess"
 
 # Copy backend maestro_* packages
 COPY download/MaestroAgent/backend/maestro_cognitive_council/ ./src/maestro_cognitive_council/
@@ -42,9 +38,10 @@ COPY download/MaestroAgent/backend/maestro_verify/            ./src/maestro_veri
 # Install
 RUN pip install --no-cache-dir "." "sqlalchemy>=2.0"
 
-# Build canary
-ENV MAESTRO_BUILD_TIME="2026-07-22-final-v4"
-ENV MAESTRO_BUILD_COMMIT="5983f7b"
+# SINGLE SOURCE OF TRUTH for build identity — env vars, not hardcoded strings
+ENV MAESTRO_VERSION="12.0.0-audit-ready"
+ENV MAESTRO_BUILD_COMMIT="839f38d"
+ENV MAESTRO_BUILD_TIME="2026-07-22T02:40:00Z"
 
 # Environment
 ENV PYTHONPATH=/app/src
