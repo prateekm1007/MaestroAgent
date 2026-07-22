@@ -1416,6 +1416,10 @@ async def llm_complete(
 
     S3: Uses response caching for identical prompts to avoid redundant calls.
 
+    Phase 5.2: Retry with exponential backoff (3 attempts: 0s, 1s, 2s).
+    If all retries fail, try fallback router. If that also fails, return None
+    (caller falls back to rules-based response).
+
     S4: The caller is responsible for sanitizing user-controlled text
     via sanitize_for_llm() before passing it as `user`. The system
     prompt is trusted (not sanitized).
@@ -1434,57 +1438,68 @@ async def llm_complete(
         logger.debug("LLM cache hit — returning cached response")
         return cached
 
-    try:
-        # S3: enforce latency budget — don't let the UI hang
-        response = await asyncio.wait_for(
-            router.complete(
-                system=system,
-                user=user,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            ),
-            timeout=LLM_LATENCY_BUDGET_SECONDS,
-        )
-        result = response.text
+    # Phase 5.2: retry with exponential backoff
+    max_retries = 3
+    backoff_seconds = [0, 1, 2]  # 0s, 1s, 2s
 
-        # S4: validate output before returning
-        result = validate_llm_output(result)
-        if result is None:
-            return None
+    for attempt in range(max_retries):
+        if backoff_seconds[attempt] > 0:
+            logger.info("LLM retry attempt %d/%d after %ds backoff", attempt + 1, max_retries, backoff_seconds[attempt])
+            await asyncio.sleep(backoff_seconds[attempt])
 
-        # Cache the response (S3)
-        _cache_put(cache_key, result)
+        try:
+            # S3: enforce latency budget — don't let the UI hang
+            response = await asyncio.wait_for(
+                router.complete(
+                    system=system,
+                    user=user,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                ),
+                timeout=LLM_LATENCY_BUDGET_SECONDS,
+            )
+            result = response.text
 
-        return result
-    except Exception as e:
-        logger.debug("LLM complete failed with %s: %s — trying fallback", type(router).__name__, e)
+            # S4: validate output before returning
+            result = validate_llm_output(result)
+            if result is None:
+                if attempt < max_retries - 1:
+                    continue
+                return None
 
-        # Round 68 fix: if the primary router failed (e.g. ZAI rate-limited),
-        # try the NEXT available provider before giving up. This is what makes
-        # the LLM actually active when ZAI hits its 30/10min rate limit —
-        # without this, every Ask silently falls back to rules.
-        fallback = _get_fallback_router(router)
-        if fallback and fallback is not router:
-            try:
-                response = await asyncio.wait_for(
-                    fallback.complete(
-                        system=system,
-                        user=user,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                    ),
-                    timeout=LLM_LATENCY_BUDGET_SECONDS,
-                )
-                result = response.text
-                result = validate_llm_output(result)
-                if result is not None:
-                    _cache_put(cache_key, result)
-                    logger.info("LLM fallback to %s succeeded", type(fallback).__name__)
-                    return result
-            except Exception as e2:
-                logger.debug("LLM fallback also failed: %s", e2)
+            # Cache the response (S3)
+            _cache_put(cache_key, result)
 
-        return None
+            return result
+        except Exception as e:
+            logger.debug("LLM complete attempt %d failed with %s: %s", attempt + 1, type(router).__name__, e)
+            if attempt < max_retries - 1:
+                continue
+
+            # All retries exhausted — try fallback router
+            logger.debug("LLM complete failed after %d retries — trying fallback", max_retries)
+            fallback = _get_fallback_router(router)
+            if fallback and fallback is not router:
+                try:
+                    response = await asyncio.wait_for(
+                        fallback.complete(
+                            system=system,
+                            user=user,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                        ),
+                        timeout=LLM_LATENCY_BUDGET_SECONDS,
+                    )
+                    result = response.text
+                    result = validate_llm_output(result)
+                    if result is not None:
+                        _cache_put(cache_key, result)
+                        logger.info("LLM fallback to %s succeeded", type(fallback).__name__)
+                        return result
+                except Exception as e2:
+                    logger.debug("LLM fallback also failed: %s", e2)
+
+    return None
 
 
 async def llm_complete_streaming(
