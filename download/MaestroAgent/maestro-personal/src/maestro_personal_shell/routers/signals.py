@@ -1,8 +1,4 @@
-"""Signals router — signal CRUD + ingest endpoints.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — same paths, same response schemas, same sanitization stack.
-"""
+"""Signals router — signal CRUD + ingest endpoints."""
 from __future__ import annotations
 
 import html as _html
@@ -87,14 +83,7 @@ async def get_situations(token: str = Depends(verify_token_dep)):
 
 @router.post("/signals", response_model=SignalResponse)
 async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep)):
-    """Create a new personal signal (manual entry for v1).
-
-    F4 fix: sanitizes signal text against prompt injection BEFORE storing.
-    S4 fix: classifies commitment type + lifecycle state on ingest using
-            the LLM-powered commitment_classifier. The classification is
-            stored in metadata and used by Commitments/The Moment to filter
-            non-commitments (tentative/proposal/request) from active commitments.
-    """
+    """Create a new personal signal (manual entry for v1)."""
     from maestro_personal_shell.api import (
         save_signal_to_db,
         load_signals_from_db,
@@ -496,15 +485,7 @@ async def correct_signal(
     action: str = "dismiss",
     token: str = Depends(verify_token_dep),
 ):
-    """Correct or dismiss a signal (F7 fix).
-
-    Actions:
-    - 'dismiss': mark signal as dismissed (removes from Moment/Commitments/Ask)
-    - 'complete': mark signal as completed (closes the commitment)
-    - 'cancel': mark signal as cancelled
-
-    The correction persists in the database.
-    """
+    """Correct or dismiss a signal (F7 fix)."""
     import sqlite3
     import json as _json
     from maestro_personal_shell.db_util import get_db_conn

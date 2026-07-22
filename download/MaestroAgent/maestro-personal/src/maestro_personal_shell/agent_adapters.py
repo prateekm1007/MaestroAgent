@@ -1,27 +1,4 @@
-"""
-Personal adapter layer for Nerve agents.
-
-Per CEO Phase 3+ directive: build personal-mode adapters for the
-enterprise engines that Nerve agents depend on. Same pattern as
-_apply_personal_preparation_triggers — post-process/adapt in the shell,
-don't modify the agents.
-
-The problem: agents call BaseAgent._commitment_escalation_engine() etc.
-which return enterprise engines that check for SignalType.CUSTOMER_COMMITMENT_MADE
-(an enum). Personal signals use "commitment_made" (a string). The engines
-find 0 commitments → agents produce 0 insights.
-
-The fix: PersonalAgentAdapter wraps each agent and monkey-patches its
-engine factory methods to return personal-mode adapters that:
-  1. Read PersonalSignal objects (duck-typed)
-  2. Match on string signal types (not enum)
-  3. Produce the data structures agents expect (CommitmentEscalation, etc.)
-
-Usage:
-    adapter = PersonalAgentAdapter(shell)
-    adapter.adapt_agent(agent)  # patches the agent's engine factories
-    insights = agent.generate_insights(ctx)  # now produces real insights
-"""
+"""Personal adapter layer for Nerve agents."""
 
 from __future__ import annotations
 

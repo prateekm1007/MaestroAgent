@@ -1,46 +1,4 @@
-"""
-Slack OAuth2 connector — real Slack API integration (Phase C).
-
-Same pattern as gmail_connector.py (Phase B):
-  - SlackOAuthClient: OAuth2 authorization code flow + token refresh
-  - SlackAPIClient: Slack Web API calls (conversations.history, im.history, chat.postMessage)
-  - SlackIngester: pulls DMs + channel mentions, extracts commitments
-
-OAuth2 flow:
-  1. User clicks "Connect Slack" in the UI
-  2. Backend generates authorization URL with scopes:
-     - channels:read (list public channels)
-     - groups:read (list private channels the user is in)
-     - im:read (DMs)
-     - im:history (DM message history)
-     - chat:write (send messages)
-  3. User grants access on Slack's consent screen
-  4. Slack redirects to /api/connectors/slack/oauth/callback with a code
-  5. Backend exchanges code for access token
-  6. Token stored encrypted in ConnectorStore (existing infrastructure)
-  7. Ingestion uses the access token to call conversations.history() + im.history()
-  8. Send uses chat.postMessage()
-
-Configuration (env vars):
-  - MAESTRO_SLACK_CLIENT_ID: Slack app client ID
-  - MAESTRO_SLACK_CLIENT_SECRET: Slack app client secret
-  - MAESTRO_SLACK_REDIRECT_URI: OAuth2 redirect URI
-
-When these are NOT set, the connector falls back to MOCK_INGESTION_DATA
-and the UI shows "OAuth not configured" — so the app still works in demo
-mode without real credentials.
-
-Commitment extraction:
-  - Pulls DMs from last 30 days (configurable)
-  - For each message, extracts the plain text
-  - Runs keyword commitment detection on the text
-  - If a commitment is detected, ingests as a signal with:
-      entity = sender name
-      text = the commitment text
-      signal_type = commitment_made
-      timestamp = message timestamp
-      source = slack:dm or slack:channel
-"""
+"""Slack OAuth2 connector — real Slack API integration (Phase C)."""
 
 from __future__ import annotations
 

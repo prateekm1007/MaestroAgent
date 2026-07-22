@@ -1,25 +1,4 @@
-"""
-LLM Output Guardrail — Phase 7: verify LLM output is safe.
-
-The roadmap (ROAD_TO_9_OF_10_AFTER_395558A.md Phase 7) requires:
-  - every factual claim grounded
-  - no source instruction following
-  - no system prompt leakage
-  - no cross-user/source leakage
-
-This module checks LLM-generated output against these 4 guardrails.
-It's a rule-based post-filter that runs AFTER the LLM generates a
-response but BEFORE it reaches the user.
-
-When a guardrail is violated, the output is either:
-  - Redacted (for system prompt leakage)
-  - Replaced with a safe fallback (for source instruction following)
-  - Flagged (for ungrounded claims — the claim verifier handles removal)
-  - Blocked (for cross-user leakage — the response is discarded)
-
-The guardrail is conservative: it only acts on clear violations.
-Borderline cases pass through to avoid false positives.
-"""
+"""LLM Output Guardrail — Phase 7: verify LLM output is safe."""
 
 from __future__ import annotations
 
@@ -193,18 +172,7 @@ def check_cross_user_leakage(text: str, current_user_email: str = "") -> dict[st
 
 def check_factual_grounding(text: str, evidence_refs: list[dict[str, Any]],
                             source_sentence: str = "") -> dict[str, Any]:
-    """Check that every factual claim in the text is grounded in evidence.
-
-    This wraps the Phase 5 claim_verifier. Claims not supported by any
-    evidence are flagged as 'ungrounded'.
-
-    Returns:
-    {
-        "all_grounded": bool,
-        "ungrounded_claims": list[str],
-        "grounded_text": str,  # text with ungrounded claims removed
-    }
-    """
+    """Check that every factual claim in the text is grounded in evidence."""
     from maestro_personal_shell.claim_verifier import verify_claims
     result = verify_claims(text, evidence_refs, source_sentence)
     return {
@@ -224,16 +192,7 @@ def apply_output_guardrail(
     source_sentence: str = "",
     current_user_email: str = "",
 ) -> dict[str, Any]:
-    """Run all 4 Phase 7 guardrails on LLM output.
-
-    Returns:
-    {
-        "safe": bool,  # True if output passed all guardrails
-        "output": str,  # the (possibly redacted/replaced) output
-        "violations": list[str],  # which guardrails were violated
-        "details": dict,  # per-guardrail details
-    }
-    """
+    """Run all 4 Phase 7 guardrails on LLM output."""
     if not text:
         return {"safe": True, "output": "", "violations": [], "details": {}}
 

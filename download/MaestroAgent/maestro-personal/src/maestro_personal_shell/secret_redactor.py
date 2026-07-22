@@ -1,13 +1,4 @@
-"""Secret/OTP redaction utility — shared between ingestion and Ask output.
-
-P0-Audit fixes (2026-07-18):
-- P0-3: Ingestion redactor scrubs OTPs, API keys, and secret values before storing
-- P0-5: Output redactor scrubs the same patterns from Ask answers (defense in depth)
-
-Even if ingestion redaction misses something (e.g., existing signals in the DB
-from before the fix), the output redactor catches it before the answer reaches
-the user.
-"""
+"""Secret/OTP redaction utility — shared between ingestion and Ask output."""
 import re
 from typing import Any
 

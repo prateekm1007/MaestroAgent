@@ -1,18 +1,4 @@
-"""
-PersonalShell — the thin shell that calls the existing Python Core directly.
-
-Per the revised roadmap and auditor's verified-feasible finding:
-direct Python API, NOT HTTP. The shell builds a SituationEngine with
-the personal OEM state and delegates to Core methods.
-
-This is NOT a dilution. The shell adds:
-  - PersonalOemState (personal signals, not enterprise demo seed)
-  - PersonalSalienceConfig (personal signal types, not enterprise types)
-  - 4 surface wrappers (Prepare, Commitments, Ask, What Changed)
-
-The shell does NOT reimplement any Core capability. Every intelligence
-function calls the Core module that already has it.
-"""
+"""PersonalShell — the thin shell that calls the existing Python Core directly."""
 
 from __future__ import annotations
 
@@ -83,16 +69,7 @@ class PersonalShell:
 
     @property
     def nerve(self) -> Any:
-        """NerveWiring — exposes all Nerve agents to the shell.
-
-        Per CEO Phase 3 directive: replace template perspectives with
-        real Nerve agent insights. Each agent reads .signals from
-        PersonalOemState and generates AgentInsight objects.
-
-        Usage:
-            shell.nerve.get_perspectives_for_entity("Alex")
-            shell.nerve.get_insights()
-        """
+        """NerveWiring — exposes all Nerve agents to the shell."""
         if not hasattr(self, '_nerve_wiring') or self._nerve_wiring is None:
             from maestro_personal_shell.nerve_wiring import NerveWiring
             self._nerve_wiring = NerveWiring(shell=self)
@@ -100,15 +77,7 @@ class PersonalShell:
 
     @property
     def situation_engine(self) -> Any:
-        """Lazy-init the SituationEngine with personal salience config applied.
-
-        Per auditor's verified finding: _is_high_salience_signal has
-        hardcoded enterprise types. We do NOT modify Core. Instead, we
-        monkey-patch the engine's _is_high_salience_signal method to
-        also accept personal signal types. This is the config-parameter
-        approach the auditor recommended, applied via method wrapping
-        because Core doesn't yet accept a config parameter.
-        """
+        """Lazy-init the SituationEngine with personal salience config applied."""
         if self._situation_engine is None:
             from maestro_cognitive_council.situation_engine import SituationEngine
 
@@ -344,20 +313,7 @@ class PersonalShell:
         return deltas[0] if deltas else None
 
     def detect_stale_commitments(self, days_threshold: int = 2) -> list[Any]:
-        """Detect commitments with no follow-up signal for N days.
-
-        This is the absence-detection mechanism the auditor identified
-        as missing from Core (Day 12 "no action" checkpoint). The shell
-        builds it without modifying Core.
-
-        F4 fix (independent audit): a follow-up signal only resets staleness
-        if it's a CLOSURE signal (completion/cancellation/dismissal). The
-        previous code treated ANY follow-up signal — including unrelated
-        "team standup notes" or "monthly newsletter" — as closing the
-        commitment, so a 90-day-old promise showed days_stale=0 just because
-        someone mentioned the entity in passing. Now only explicit closure
-        signals reset the clock.
-        """
+        """Detect commitments with no follow-up signal for N days."""
         from datetime import datetime, timezone, timedelta
 
         now = datetime.now(timezone.utc)

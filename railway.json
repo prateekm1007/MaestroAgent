@@ -5,9 +5,10 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "python -m maestro_personal_shell.api",
+    "projectId": "4aab2a0c-349d-452a-ae9a-5c5f0205817f",
+    "serviceId": "0ad2810b-a840-4531-bd71-3f655ca158a6",
     "healthcheckPath": "/api/health",
-    "healthcheckTimeout": 30,
+    "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }

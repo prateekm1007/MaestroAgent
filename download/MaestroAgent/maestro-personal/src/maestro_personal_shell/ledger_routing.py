@@ -1,21 +1,4 @@
-"""
-Ledger-first routing for overdue/commitment queries.
-
-Phase 1.2 of Roadmap to 9/10:
-  'Route overdue questions to structured ledger state before semantic
-   retrieval. FTS may retrieve evidence, but it must not determine
-   overdue status.'
-
-This module queries the commitment ledger directly for:
-  - overdue: entries in 'at_risk' state
-  - broken: entries in 'disputed' state or with broken keywords
-  - completed: entries in 'completed_claimed' or 'completed_verified'
-  - active: entries in 'active' or 'at_risk' state
-
-The Ask endpoint calls these BEFORE FTS retrieval so the ledger — not
-FTS keyword matching — determines which commitments are overdue/broken.
-FTS still provides the evidence text, but the ledger provides the state.
-"""
+"""Ledger-first routing for overdue/commitment queries."""
 from __future__ import annotations
 
 import logging
@@ -29,12 +12,7 @@ def get_overdue_commitments(
     db_path: str,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
-    """Get commitments in 'at_risk' state (overdue) from the ledger.
-
-    Phase 1.2: this is the AUTHORITATIVE source for overdue status.
-    FTS retrieval may provide evidence text, but the ledger determines
-    WHICH commitments are overdue — not keyword matching.
-    """
+    """Get commitments in 'at_risk' state (overdue) from the ledger."""
     from maestro_personal_shell.commitment_ledger import get_ledger_entries
     return get_ledger_entries(user_email, db_path, state="at_risk", limit=limit)
 
@@ -86,16 +64,7 @@ def route_to_ledger(
     user_email: str,
     db_path: str,
 ) -> list[dict[str, Any]] | None:
-    """Route an intent to the appropriate ledger query.
-
-    Phase 1.2: for overdue/broken/commitment/relational intents, query
-    the ledger FIRST. Returns ledger entries (with state, action, entity,
-    deadline) or None if the intent doesn't route to the ledger.
-
-    The caller (Ask endpoint) uses these entries as the PRIMARY evidence
-    for the LLM. FTS retrieval augments with raw signal text, but the
-    ledger's state field is authoritative for overdue/broken/active status.
-    """
+    """Route an intent to the appropriate ledger query."""
     if intent == "overdue":
         entries = get_overdue_commitments(user_email, db_path)
         # Also include active commitments that might be stale

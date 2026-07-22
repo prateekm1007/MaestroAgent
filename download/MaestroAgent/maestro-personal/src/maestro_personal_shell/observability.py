@@ -1,28 +1,4 @@
-"""
-Phase 11 Observability — trace IDs, whisper decision logging, full audit events.
-
-The roadmap requires:
-  - Full audit events (not just mutations — surface reads too)
-  - Trace IDs (request tracing across surfaces)
-  - Whisper decision logging (why did the system whisper or stay silent?)
-
-This module provides:
-  1. Trace ID generation + middleware — every request gets a trace ID
-     (from X-Request-ID header or auto-generated). The trace ID is
-     propagated to all audit log entries and surface interactions.
-
-  2. Whisper decision log — records WHY the system whispered or stayed
-     silent: materiality score, transition type, threshold, entity,
-     surface, and the reasoning.
-
-  3. Surface interaction log — records every surface read (Ask,
-     Commitments, Prepare, What Changed, The Moment, Copilot) with
-     the trace ID, surface name, entity, latency, and result summary.
-
-  4. /api/observability/trace — query all events for a given trace ID.
-
-All logging is rule-based — no LLM needed.
-"""
+"""Phase 11 Observability — trace IDs, whisper decision logging, full audit events."""
 
 from __future__ import annotations
 
@@ -174,16 +150,7 @@ def log_whisper_decision(
     candidate_output: str = "",
     db_path: str | None = None,
 ) -> None:
-    """Log a whisper decision — WHY did the system whisper or stay silent?
-
-    Per auditor deep analysis (AUDIT-CORE-DEEP-ANALYSIS):
-    - evidence_available: what signals were available at decision time
-      (without this, can't distinguish 'no evidence' from 'gate suppressed')
-    - candidate_output: what the system WOULD have said if it whispered
-      (the counterfactual — essential for 'why didn't Maestro alert me?')
-
-    This is the key observability event for Trusted Silence.
-    """
+    """Log a whisper decision — WHY did the system whisper or stay silent?"""
     log_trace_event(
         event_type="whisper_decision",
         surface=surface,
@@ -348,11 +315,7 @@ def detect_over_suppression(
     has_evidence: bool,
     in_meeting_context: bool = False,
 ) -> str | None:
-    """Detect over-suppression: silence when evidence + context warrant a whisper.
-
-    Per auditor: the Core detects 'auto-disagreement collapse'. The Personal
-    equivalent is 'materiality gate over-suppression'.
-    """
+    """Detect over-suppression: silence when evidence + context warrant a whisper."""
     if should_whisper:
         return None
     if not has_evidence:

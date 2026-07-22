@@ -105,24 +105,13 @@ def _get_db():
 
 
 def _hash_token(token: str) -> str:
-    """Hash a token with SHA-256 for secure storage.
-
-    P1-4 fix: tokens are stored as SHA-256 hashes, not plaintext. This
-    ensures that if the database is compromised, the tokens cannot be
-    used directly. The hash is computed once at creation time and stored;
-    at verification time, the incoming token is hashed and compared.
-    """
+    """Hash a token with SHA-256 for secure storage."""
     import hashlib
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def _init_auth_db():
-    """Initialize auth table for per-user tokens.
-
-    P1-4 fix: the token column stores SHA-256 hashes, not plaintext.
-    The schema is backward-compatible (same column name) but the value
-    is now a 64-char hex hash.
-    """
+    """Initialize auth table for per-user tokens."""
     conn = get_db_conn(_get_db())
     conn.execute("""
         CREATE TABLE IF NOT EXISTS user_tokens (
@@ -155,11 +144,7 @@ def _init_auth_db():
 
 
 def _create_user_token(user_email: str) -> str:
-    """Create a per-user token (F1 fix). Persisted in SQLite.
-
-    P1-4 fix: stores SHA-256 hash of the token, not the plaintext.
-    Returns the plaintext token to the caller (only chance to see it).
-    """
+    """Create a per-user token (F1 fix). Persisted in SQLite."""
     _init_auth_db()
     token = secrets.token_urlsafe(32)
     token_hash = _hash_token(token)
@@ -175,10 +160,7 @@ def _create_user_token(user_email: str) -> str:
 
 
 def _verify_user_token(token: str) -> str | None:
-    """Check if token is a valid per-user token. Returns user_email or None.
-
-    P1-4 fix: hashes the incoming token and looks up the hash.
-    """
+    """Check if token is a valid per-user token. Returns user_email or None."""
     _init_auth_db()
     token_hash = _hash_token(token)
     conn = get_db_conn(_get_db())
@@ -217,11 +199,7 @@ def _revoke_all_user_tokens(user_email: str) -> int:
 
 
 async def verify_token(authorization: str = Header(None)) -> str:
-    """Verify bearer token. Returns the user_email if valid.
-
-    F1 fix: accepts per-user tokens (from /api/auth/login) and the
-    shared bootstrap token (AUTH_TOKEN from env, for backward compat).
-    """
+    """Verify bearer token. Returns the user_email if valid."""
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
     if not authorization.startswith("Bearer "):
@@ -352,16 +330,7 @@ def init_db(db_path: str | None = None) -> None:
 
 def load_signals_from_db(db_path: str | None = None, user_email: str | None = None,
                          limit: int | None = None) -> list[dict[str, Any]]:
-    """Load signals from SQLite, ordered by timestamp.
-
-    Phase 1 fix: when user_email is provided, only load that user's signals.
-    When user_email is None, load all (backward compat / admin only).
-
-    Audit fix #5: add limit parameter for pre-filtering. The auditor found
-    Ask latency grows O(n) from 3ms (100 signals) to 102ms (500 signals)
-    because build_shell loads ALL signals. Callers can now pass limit to
-    cap the number loaded (most recent first for recency-biased retrieval).
-    """
+    """Load signals from SQLite, ordered by timestamp."""
     # P1-3 fix: use get_db_conn for busy_timeout + WAL mode
     from maestro_personal_shell.db_util import get_db_conn
     if db_path is None:
@@ -395,16 +364,7 @@ def load_signals_from_db(db_path: str | None = None, user_email: str | None = No
 
 
 def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_email: str = "bootstrap") -> bool:
-    """Save a signal to SQLite.
-
-    Returns True if the signal was newly inserted, False if it was deduped
-    (skipped because an identical signal exists within the last hour).
-
-    Phase 1 fix: stores user_email with each signal for per-user isolation.
-    Phase 1.3 fix: also indexes the signal in FTS5 for semantic retrieval.
-    Audit fix #7: content-hash dedup — if a signal with the same entity +
-    text + user_email already exists (within 1 hour), skip the insert.
-    """
+    """Save a signal to SQLite."""
     import hashlib
 
     # Audit fix #7: dedup by content hash within time window
@@ -461,15 +421,7 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
 
 
 def clear_signals_db(db_path: str | None = None, user_email: str | None = None) -> None:
-    """Clear signals from SQLite.
-
-    F1 CRITICAL FIX: when user_email is provided, only deletes THAT user's
-    signals. When user_email is None, deletes all (test-only).
-
-    The old version ran `DELETE FROM signals` with no WHERE clause — any
-    authenticated user calling DELETE /api/account would destroy EVERY
-    user's data. This is now scoped to the caller.
-    """
+    """Clear signals from SQLite."""
     if db_path is None:
         db_path = _db_path()
     conn = get_db_conn(db_path)
@@ -535,17 +487,7 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
-    """The masterpiece Ask response — the truth, sourced, with full depth.
-
-    Not a summary. Not a paraphrase. The exact sentence from the source,
-    with provenance you can tap to verify. PLUS: judgment, perspectives,
-    decision boundary, and reasoning trace from the full Core engine.
-
-    Phase 5: added counterevidence, unknowns, confidence, as_of fields
-    per the roadmap answer schema. The claim verifier populates
-    counterevidence (claims not supported by evidence) and the answer
-    confidence is calibrated from evidence quality.
-    """
+    """The masterpiece Ask response — the truth, sourced, with full depth."""
     answer: str
     query: str
     source_sentence: str = ""
@@ -657,14 +599,7 @@ class PrepareResponse(BaseModel):
 
 async def build_shell_async(user_email: str | None = None, as_of: str | None = None,
                              signal_limit: int | None = None, from_date: str | None = None):
-    """Async wrapper for build_shell — runs blocking DB I/O in a thread.
-
-    Audit fix #3: sqlite3 is synchronous. Calling it directly in async
-    endpoints blocks the event loop. This wrapper offloads to a thread
-    via asyncio.to_thread(), allowing concurrent requests to proceed.
-
-    P1-1 fix: from_date parameter added for temporal lower bound filtering.
-    """
+    """Async wrapper for build_shell — runs blocking DB I/O in a thread."""
     import asyncio
     return await asyncio.to_thread(
         build_shell, user_email=user_email, as_of=as_of, signal_limit=signal_limit,
@@ -674,30 +609,7 @@ async def build_shell_async(user_email: str | None = None, as_of: str | None = N
 
 def build_shell(user_email: str | None = None, as_of: str | None = None,
                 signal_limit: int | None = None, from_date: str | None = None):
-    """Build a PersonalShell with signals loaded from SQLite.
-
-    Phase 1 fix: when user_email is provided, only load that user's signals.
-    This enforces per-user data isolation.
-
-    Temporal fix: when as_of is provided (ISO datetime string), only load
-    signals with timestamp <= as_of. This prevents future evidence from
-    appearing in past output (temporal leakage = 0).
-
-    P1-1 fix: when from_date is provided (ISO datetime string), only load
-    signals with timestamp >= from_date. This is the temporal LOWER bound
-    that was missing — queries like "What did I commit to last quarter?"
-    set as_of to the quarter end but never filtered out signals from
-    before the quarter start. Now both bounds are enforced.
-
-    Audit fix #5: signal_limit caps the number of signals loaded (most
-    recent first). This prevents O(n) latency growth at scale. Default
-    is None (load all) for backward compat; callers should pass a limit
-    for performance-critical paths (e.g., Ask = 500, Whisper = 200).
-
-    This is the bridge between persistence (SQLite) and intelligence
-    (Core via PersonalShell). The shell does NOT persist — persistence
-    is the API layer's job.
-    """
+    """Build a PersonalShell with signals loaded from SQLite."""
     import sys
     import pathlib
 
@@ -706,7 +618,17 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
     if str(personal_src) not in sys.path:
         sys.path.insert(0, str(personal_src))
 
-    backend_dir = pathlib.Path(__file__).resolve().parents[3] / "backend"
+    # Find backend dir — robust to both source-repo and Docker layouts.
+    # Source repo: /repo/download/MaestroAgent/maestro-personal/src/maestro_personal_shell/api.py
+    #   parents[3] = download → parents[3]/backend = download/backend ✓
+    # Docker: /app/maestro_personal_shell/api.py
+    #   parents[1] = /app → parents[1]/backend = /app/backend ✓
+    #   (parents[3] would IndexError because Docker layout is flat)
+    _file_path = pathlib.Path(__file__).resolve()
+    if len(_file_path.parents) > 3:
+        backend_dir = _file_path.parents[3] / "backend"
+    else:
+        backend_dir = _file_path.parents[1] / "backend"
     if str(backend_dir) not in sys.path:
         sys.path.insert(0, str(backend_dir))
 
@@ -921,7 +843,7 @@ _prod = _is_production() or os.environ.get("RAILWAY_SERVICE_ID") is not None
 app = FastAPI(
     title="Maestro Personal API",
     description="HTTP API for Maestro Personal v1 — wraps the PersonalShell (Core via Python)",
-    version="1.0.0",
+    version="12.0.0-audit-ready",
     lifespan=lifespan,
     docs_url=None if _prod else "/docs",
     redoc_url=None if _prod else "/redoc",
@@ -1005,6 +927,56 @@ app.include_router(_account_router.router)
 app.include_router(_surfaces_router.router)
 app.include_router(_inbox_router.router)
 
+# P2 (auditor): Publish OpenAPI contract at /api/openapi.json
+# S1 fix (auditor caught): the original version had NO auth, which exposed
+# the full spec including admin-gated endpoints like /api/depth whose
+# descriptions mention hiding metrics from buyers. The auditor's original
+# P2 said "returns 404 even WITH auth" — meaning it should require auth.
+# Fix: require Bearer token. Authenticated users get the full spec;
+# unauthenticated requests get 401.
+@app.get("/api/openapi.json", include_in_schema=False)
+async def openapi_contract(authorization: str = Header(None)):
+    """Return the OpenAPI 3.1 contract for this API.
+
+    Requires Bearer token auth — the spec includes admin-gated endpoints
+    whose descriptions are not for public consumption.
+    """
+    await verify_token(authorization=authorization)
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content=app.openapi(),
+        headers={"Cache-Control": "no-store"},
+    )
+
+# S3 fix (auditor): API root must never be a bare 404.
+# The backend is a pure API; the UI lives on a different host.
+# A human who types the backend URL into a browser should get a service
+# descriptor that points them at the UI + contract, not {"detail":"Not Found"}.
+_FRONTEND_URL = os.environ.get(
+    "MAESTRO_FRONTEND_URL",
+    "https://web-production-d5c26.up.railway.app",
+)
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """API root — service descriptor. Points humans at the UI + contract."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content={
+            "service": "maestro-personal",
+            "kind": "api",
+            "version": os.environ.get("MAESTRO_VERSION", "0.0.0-unknown"),
+            "commit": os.environ.get("MAESTRO_BUILD_COMMIT", "unknown"),
+            "ui": _FRONTEND_URL,
+            "links": {
+                "health": "/api/health",
+                "openapi": "/api/openapi.json",
+            },
+            "note": "This is the API backend. The product UI is at the 'ui' URL.",
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
 # Phase 11: Trace ID middleware — every request gets a trace ID.
 # The trace ID is propagated to all surfaces and audit log entries.
 from maestro_personal_shell.observability import (
@@ -1021,15 +993,7 @@ from maestro_personal_shell.observability import (
 
 @app.middleware("http")
 async def trace_id_middleware(request: Request, call_next):
-    """Phase 11: assign a trace ID to every request and log the interaction.
-
-    S3 fix: resolve user_email in the MIDDLEWARE (before call_next), not
-    after. The old code read get_user_email() AFTER call_next returned,
-    but verify_token sets the contextvar inside the endpoint's child
-    context — contextvars don't propagate child→parent, so the middleware
-    always saw "unknown". Fix: resolve the token here and store on
-    request.state, which DOES survive the context boundary.
-    """
+    """Phase 11: assign a trace ID to every request and log the interaction."""
     # Get or generate trace ID
     trace_id = request.headers.get("X-Request-ID") or generate_trace_id()
     set_trace_id(trace_id)
@@ -1137,14 +1101,7 @@ def _get_real_calibration(user_email: str = "") -> str:
 
 
 class _PseudoSituation:
-    """Minimal situation object for LLM answer generation.
-
-    P11 fix: when detect_situations() returns nothing (e.g., bulk-seeded
-    signals without classifier metadata), we create a pseudo-situation
-    from the ranker's top evidence so the LLM is still called. Without
-    this, the LLM path is gated on matching_situation being non-None,
-    and llm_active=0 even when /api/llm-status reports active=True.
-    """
+    """Minimal situation object for LLM answer generation."""
     def __init__(self, entity: str, title: str, state: str = "observing"):
         self.entity = entity
         self.title = title
@@ -1259,23 +1216,7 @@ def _filter_noise_from_material_changes(changes: list, signals: list) -> list:
 
 # Real WebSocket handler — registered via add_api_websocket_route below
 async def websocket_copilot_handler(websocket: "WebSocket"):
-    """Handle WebSocket connection for real-time copilot.
-
-    Phase 1.1 fix (auditor P0): the previous auth used
-    `subprotocols=["bearer:<token>"]` but `:` (0x3A) is INVALID in a
-    WebSocket subprotocol token per RFC 6455 §4.1. Real browsers reject
-    the connection before it starts.
-
-    Fixed auth (two valid options):
-      Option A (preferred): subprotocol + first-message auth
-        Client: websocket.connect(url, subprotocols=["maestro-auth"])
-        Then first message: {"type": "auth", "token": "<bearer>"}
-      Option B (backward compat): subprotocol with dot separator
-        Client: websocket.connect(url, subprotocols=["bearer.<token>"])
-
-    Both are accepted. The `:` form is rejected (it never worked in
-    browsers anyway — the previous "audit fix #8" was theater).
-    """
+    """Handle WebSocket connection for real-time copilot."""
     from fastapi import WebSocket, WebSocketDisconnect
     from maestro_personal_shell.copilot_live import (
         process_transcript_chunk,
@@ -1608,17 +1549,7 @@ def _compute_commitment_confidence(
     calibration_note: str,
     days_stale: int = 0,
 ) -> float:
-    """Compute real per-item confidence for a commitment.
-
-    F5 fix: replaces the flat 0.5/0.0 confidence with a real calculation
-    based on:
-    - Classification confidence (from commitment_classifier)
-    - Calibration history (Brier score)
-    - Staleness (older = less confident it'll be kept)
-    - Evidence quality (classification type)
-
-    Returns a float 0.0-1.0.
-    """
+    """Compute real per-item confidence for a commitment."""
     confidence = 0.5  # base
 
     # 1. Use classification confidence if available
@@ -1672,18 +1603,7 @@ def _compute_commitment_confidence(
 
 
 def _detect_completion(signals: list) -> dict[str, str]:
-    """Detect completed commitments from signals.
-
-    F2 fix + auditor fix: completion detection must be:
-    1. Signal-specific (not entity-wide) — "Proposal sent" only closes
-       the proposal commitment, not ALL commitments for that entity.
-    2. Negation-aware — "I never sent" must NOT trigger completion.
-    3. Topic-aware — match completion to the original commitment by
-       keyword overlap (proposal→proposal, invoice→invoice, etc.)
-
-    Returns dict of signal_id → 'completed' for signals that indicate
-    completion of a prior commitment.
-    """
+    """Detect completed commitments from signals."""
     # Negation patterns — if these appear, it's NOT a completion
     negation_patterns = [
         "never sent", "didn't send", "did not send", "haven't sent",
@@ -1735,16 +1655,7 @@ def _detect_completion(signals: list) -> dict[str, str]:
 
 
 def _filter_completed_commitments(commitments: list[dict], signals: list) -> list[dict]:
-    """Filter out completed commitments (F2 fix + auditor fix).
-
-    Auditor fix: completion must be signal-specific, not entity-wide.
-    "Proposal sent" should only close the proposal commitment for that
-    entity, not ALL commitments for that entity.
-
-    Matches completion signals to commitments by:
-    1. Same entity
-    2. Keyword overlap (the completion text mentions the commitment topic)
-    """
+    """Filter out completed commitments (F2 fix + auditor fix)."""
     completed_signal_ids = _detect_completion(signals)
 
     # Build a map of entity → list of completion signal texts
@@ -1925,16 +1836,7 @@ def _filter_corrected_signals(signals: list) -> list:
 
 
 def _filter_dismissed_commitments(commitments: list[dict], signals: list) -> list[dict]:
-    """Filter out dismissed commitments by signal_id (auditor fix).
-
-    The auditor found that dismissing a signal didn't remove it from
-    Commitments or The Moment. Root cause: _filter_corrected_signals
-    was passed to _filter_completed_commitments (which filters by entity
-    completion, not by dismissed status).
-
-    This function filters by signal_id: if a commitment's signal_id
-    matches a dismissed signal, it's removed.
-    """
+    """Filter out dismissed commitments by signal_id (auditor fix)."""
     # Build set of dismissed signal_ids
     dismissed_ids = set()
     for sig in signals:

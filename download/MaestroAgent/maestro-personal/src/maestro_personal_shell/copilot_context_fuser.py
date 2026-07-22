@@ -597,12 +597,7 @@ Provide a whisper for this moment. Output ONLY valid JSON."""
         stale_commitments: list[dict],
         suggestions: list[dict],
     ) -> tuple[bool, str]:
-        """Evaluate materiality using v2 gate (learns from user dismissals).
-
-        P11 fix: this method delegates to materiality_gate_v2 which uses
-        user behavior patterns to adjust thresholds. Falls back to the
-        v1 rule-based logic if v2 is unavailable.
-        """
+        """Evaluate materiality using v2 gate (learns from user dismissals)."""
         # First check the v1 hard rules (high-severity always speaks)
         high_severity = [c for c in contradictions if c.get("severity") == "high"]
         if high_severity:

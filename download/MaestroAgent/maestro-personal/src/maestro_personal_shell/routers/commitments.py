@@ -1,14 +1,4 @@
-"""Commitments router — commitments surface + lifecycle helpers.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — same paths, same response schemas, same filters.
-
-This module owns the commitment-filter helpers (_filter_completed_commitments,
-_filter_dismissed_commitments, _filter_non_commitments_by_classification,
-_filter_corrected_signals, _compute_commitment_confidence, _detect_completion).
-api.py re-exports them for backward compatibility with tests that import
-them via `from maestro_personal_shell.api import _detect_completion`.
-"""
+"""Commitments router — commitments surface + lifecycle helpers."""
 from __future__ import annotations
 
 import logging
@@ -58,16 +48,7 @@ def _filter_corrected_signals(signals: list) -> list:
 
 
 def _filter_dismissed_commitments(commitments: list[dict], signals: list) -> list[dict]:
-    """Filter out dismissed commitments by signal_id (auditor fix).
-
-    The auditor found that dismissing a signal didn't remove it from
-    Commitments or The Moment. Root cause: _filter_corrected_signals
-    was passed to _filter_completed_commitments (which filters by entity
-    completion, not by dismissed status).
-
-    This function filters by signal_id: if a commitment's signal_id
-    matches a dismissed signal, it's removed.
-    """
+    """Filter out dismissed commitments by signal_id."""
     # Build set of dismissed signal_ids
     dismissed_ids = set()
     for sig in signals:
@@ -95,18 +76,7 @@ def _filter_dismissed_commitments(commitments: list[dict], signals: list) -> lis
 
 
 def _detect_completion(signals: list) -> dict[str, str]:
-    """Detect completed commitments from signals.
-
-    F2 fix + auditor fix: completion detection must be:
-    1. Signal-specific (not entity-wide) — "Proposal sent" only closes
-       the proposal commitment, not ALL commitments for that entity.
-    2. Negation-aware — "I never sent" must NOT trigger completion.
-    3. Topic-aware — match completion to the original commitment by
-       keyword overlap (proposal→proposal, invoice→invoice, etc.)
-
-    Returns dict of signal_id → 'completed' for signals that indicate
-    completion of a prior commitment.
-    """
+    """Detect completed commitments from signals."""
     # Negation patterns — if these appear, it's NOT a completion
     negation_patterns = [
         "never sent", "didn't send", "did not send", "haven't sent",
@@ -158,7 +128,7 @@ def _detect_completion(signals: list) -> dict[str, str]:
 
 
 def _detect_cancellation(signals: list) -> dict[str, str]:
-    """Detect cancelled commitments from signals (S2-07 fix).
+    """Detect cancelled commitments from signals.
 
     Cancellation is different from completion:
     - Completion: "sent", "delivered", "done" (the commitment was fulfilled)
@@ -207,23 +177,7 @@ def _detect_cancellation(signals: list) -> dict[str, str]:
 
 
 def _filter_completed_commitments(commitments: list[dict], signals: list) -> list[dict]:
-    """Filter out completed AND cancelled commitments (F2 fix + auditor fix + S2-07 fix).
-
-    S2-07 fix: previously, only completion signals (sent, delivered, etc.)
-    filtered commitments. Cancellation signals ("never mind", "we don't
-    need this", "cancelled") were not handled, so cancelled commitments
-    still showed in /api/commitments as active. This caused a canonical
-    state inconsistency: What Changed removed the cancelled commitment,
-    but /api/commitments still listed it.
-
-    Auditor fix: completion must be signal-specific, not entity-wide.
-    "Proposal sent" should only close the proposal commitment for that
-    entity, not ALL commitments for that entity.
-
-    Matches completion/cancellation signals to commitments by:
-    1. Same entity
-    2. Keyword overlap (the completion/cancellation text mentions the commitment topic)
-    """
+    """Filter out completed AND cancelled commitments."""
     completed_signal_ids = _detect_completion(signals)
 
     # S2-07 fix: also detect cancellation signals
@@ -466,17 +420,7 @@ def _compute_commitment_confidence(
     calibration_note: str,
     days_stale: int = 0,
 ) -> float:
-    """Compute real per-item confidence for a commitment.
-
-    F5 fix: replaces the flat 0.5/0.0 confidence with a real calculation
-    based on:
-    - Classification confidence (from commitment_classifier)
-    - Calibration history (Brier score)
-    - Staleness (older = less confident it'll be kept)
-    - Evidence quality (classification type)
-
-    Returns a float 0.0-1.0.
-    """
+    """Compute real per-item confidence for a commitment."""
     confidence = 0.5  # base
 
     # 1. Use classification confidence if available
@@ -637,14 +581,7 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
 
 @router.get("/the-one", response_model=CommitmentsMasterpieceResponse)
 async def get_the_one_commitment(token: str = Depends(verify_token_dep)):
-    """The one commitment at risk today — not a list of 47.
-
-    The masterpiece Commitments: returns ONE primary commitment (the
-    most at-risk) + the rest as secondary. The inevitability: you know
-    what you owe without scrolling.
-
-    Phase 4: reads from the canonical WorldModel so all surfaces agree.
-    """
+    """The one commitment at risk today — not a list of 47."""
     from maestro_personal_shell.api import build_shell
 
     shell = build_shell(user_email=token)
@@ -716,19 +653,7 @@ async def get_commitments_ledger(
     limit: int = 100,
     token: str = Depends(verify_token_dep),
 ):
-    """Read the normalized commitments ledger (Phase 3).
-
-    Returns persisted commitment entries with their lifecycle state,
-    owner, recipient, action, deadline, and confidence. This is the
-    source of truth for commitment lifecycle — the signals table holds
-    raw observations; the ledger holds the normalized commitments.
-
-    Filters:
-      - state: filter by lifecycle state (candidate/active/at_risk/
-        completed_claimed/completed_verified/disputed/cancelled/
-        superseded/tombstoned)
-      - entity: filter by entity name (exact match)
-    """
+    """Read the normalized commitments ledger."""
     import os
     from pathlib import Path as _P
     _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
@@ -743,13 +668,7 @@ async def transition_commitment(
     to_state: str,
     token: str = Depends(verify_token_dep),
 ):
-    """Transition a commitment to a new lifecycle state (Phase 3).
-
-    The transition must be legal per the state machine. Illegal
-    transitions are rejected (400) AND audit-logged as
-    'rejected_transition'. Legal transitions are applied AND
-    audit-logged as 'commitment_transition'.
-    """
+    """Transition a commitment to a new lifecycle state."""
     import os
     from pathlib import Path as _P
     _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))

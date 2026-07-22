@@ -1,27 +1,4 @@
-"""
-Phase 6 material transitions + ranking system.
-
-The roadmap (ROAD_TO_9_OF_10_AFTER_395558A.md Phase 6) requires:
-  1. Promote materiality gate into the canonical world model.
-  2. Define material transitions:
-     - new high-consequence commitment
-     - deadline moved
-     - commitment completed
-     - completion disputed
-     - unresolved dependency appeared
-     - relationship sentiment materially worsened
-     - stale but strategically important relationship
-     - risk resolved (should stop surfacing)
-  3. Rank by: consequence, novelty, recency, user-actionability,
-     deadline proximity, relationship importance, correction/dismissal history.
-  4. Add dedupe and cooldowns.
-
-This module provides:
-  - MATERIAL_TRANSITIONS: the 8 transition types with scoring weights.
-  - classify_transition(): determines which transition a delta represents.
-  - rank_deltas(): ranks deltas by the 7 factors.
-  - dedupe_and_cooldown(): filters out already-notified + cooldown-gated items.
-"""
+"""Phase 6 material transitions + ranking system."""
 
 from __future__ import annotations
 

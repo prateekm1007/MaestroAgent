@@ -1,21 +1,4 @@
-"""
-Semantic retrieval — FTS5-backed BM25 ranking for signals.
-
-Phase 1.3 fix: replaces the raw `SELECT * FROM signals` dump with
-semantic retrieval. The LLM now receives only the signals relevant
-to the query/situation, not every signal in the database.
-
-Uses SQLite FTS5 (Full-Text Search 5) which is built into Python's
-sqlite3 module — no external vector DB or embedding service needed.
-FTS5 provides BM25 ranking, which is the standard relevance ranking
-algorithm used by search engines.
-
-Benefits:
-1. Solves context-window bloat — only relevant signals sent to LLM
-2. Solves temporal relevance — most relevant signals ranked first
-3. Reduces LLM latency — smaller context = faster generation
-4. Improves factual accuracy — LLM grounds in relevant evidence, not noise
-"""
+"""Semantic retrieval — FTS5-backed BM25 ranking for signals."""
 
 from __future__ import annotations
 
@@ -214,20 +197,7 @@ def semantic_search(
     limit: int = 10,
     db_path: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Search signals by semantic relevance using BM25 ranking.
-
-    This is the core Phase 1.3 function. Instead of loading ALL signals,
-    it retrieves only the signals most relevant to the query, ranked by
-    BM25 (the standard search-engine relevance algorithm).
-
-    Args:
-        query: The search query (e.g., "What did AcmeCorp commit to?")
-        user_email: If provided, only search this user's signals (isolation)
-        limit: Maximum number of results (default 10)
-        db_path: Database path
-
-    Returns: List of signal dicts, ranked by relevance (most relevant first)
-    """
+    """Search signals by semantic relevance using BM25 ranking."""
     path = db_path or _get_db_path()
     init_fts_index(path)
 
@@ -325,28 +295,7 @@ def get_relevant_signals(
     as_of: str | None = None,
     from_date: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Get signals relevant to a query or entity.
-
-    This is the function build_shell and Ask should call instead of
-    load_signals_from_db(). It returns only the signals that are
-    semantically relevant to the current context.
-
-    If FTS5 is unavailable, falls back to entity-prefix matching (still
-    better than loading all signals).
-
-    Args:
-        query_or_entity: The query string or entity name to search for
-        user_email: If provided, only return this user's signals
-        limit: Maximum results
-        as_of: If provided (ISO datetime), only return signals with
-               timestamp <= as_of (prevents temporal leakage)
-        from_date: If provided (ISO datetime), only return signals with
-                   timestamp >= from_date (P1-1 fix: temporal lower bound).
-                   "What did I commit to last quarter?" uses from_date to
-                   exclude signals from before the quarter start.
-
-    Returns: List of relevant signal dicts, ranked by relevance
-    """
+    """Get signals relevant to a query or entity."""
     if not query_or_entity or not query_or_entity.strip():
         return []
 

@@ -1,11 +1,4 @@
-"""Connectors router — OAuth2 connector management + draft approval flow.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — same paths, same request/response schemas, same audit logging.
-
-The real moat: passive signal ingestion + commitment-aware drafting.
-Drafts NEVER auto-send — every draft requires explicit human approval.
-"""
+"""Connectors router — OAuth2 connector management + draft approval flow."""
 from __future__ import annotations
 
 import json
@@ -77,22 +70,36 @@ async def list_connectors(
     experimental: bool = False,
     token: str = Depends(verify_token_dep),
 ):
-    """List all available connectors with the user's connection state.
-
-    P-2026-07-18 fix (auditor roadmap §2.1): by default, only show Gmail and
-    Google Calendar — the two connectors that are actually configured for real
-    OAuth. Slack, GitHub, Work Email, WhatsApp, Facebook, Instagram, Twitter
-    are hidden unless ?experimental=true is passed. This prevents the demo
-    from implying promises we can't keep (10 connectors listed, only 2 work).
-    """
+    """List all available connectors with the user's connection state."""
     from maestro_personal_shell.connectors import ConnectorStore
     store = ConnectorStore()
     all_connectors = store.list_connectors(token)
+
+    # F-08 fix (auditor S2): be explicit about demo mode. If Gmail OAuth
+    # is not configured, say so clearly in the response instead of implying
+    # it should work. This prevents evaluators from wasting time trying to
+    # connect Gmail when the OAuth credentials aren't set up.
+    _demo_notice = None
+    try:
+        from maestro_personal_shell.gmail_connector import is_gmail_configured
+        if not is_gmail_configured():
+            _demo_notice = (
+                "Gmail OAuth is not configured in this deployment. "
+                "The synthetic inbox (/api/inbox/synthetic) is available "
+                "for demo purposes. To enable real Gmail, set "
+                "GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET environment variables."
+            )
+    except ImportError:
+        _demo_notice = "Gmail connector module not available in this build."
+
     if experimental:
-        return {"connectors": all_connectors}
+        return {"connectors": all_connectors, "demo_notice": _demo_notice}
     # Demo surface: only Gmail + Calendar
     _DEMO_CONNECTORS = {"gmail", "calendar"}
-    return {"connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS]}
+    return {
+        "connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS],
+        "demo_notice": _demo_notice,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -103,18 +110,7 @@ async def list_connectors(
 @router.post("/connectors/{provider}/connect")
 @rate_limit("10/minute")  # P0-6: OAuth flow initiation — cap at 10/min per IP (anti-spam)
 async def connect_provider(request: Request, provider: str, req: ConnectorConnectRequest | None = None, token: str = Depends(verify_token_dep)):
-    """Connect a provider (stores OAuth token encrypted).
-
-    For Gmail/Slack/Calendar/GitHub: if OAuth is configured (CLIENT_ID set),
-    this endpoint returns the authorization URL — the user visits it, grants
-    access, and the provider redirects to /api/connectors/<provider>/oauth/callback
-    which completes the connection. If OAuth is NOT configured, stores the
-    provided oauth_token directly (demo mode).
-
-    P0-2 fix: the body is now optional. Callers may POST with no body at
-    all to initiate the OAuth flow — the previous version returned 422
-    because `provider` was a required body field (despite being in the URL).
-    """
+    """Connect a provider (stores OAuth token encrypted)."""
     req = req or ConnectorConnectRequest()
     from maestro_personal_shell.connectors import ConnectorStore
     store = ConnectorStore()
@@ -527,12 +523,7 @@ async def connector_audit_log(token: str = Depends(verify_token_dep), limit: int
 
 @router.post("/drafts")
 async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_token_dep)):
-    """Create a pending draft for user approval (template formatter — P13 disclosure).
-
-    NOTE (P13): This endpoint takes caller-supplied commitment_text + evidence_refs.
-    It is a TEMPLATE FORMATTER, not the real capability. For the real capability
-    (deriving commitment + evidence from signal history), use POST /api/drafts/auto.
-    """
+    """Create a pending draft for user approval."""
     from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
     store = ConnectorStore()
     gen = ConnectorDraftGenerator(shell=None)

@@ -1,41 +1,4 @@
-"""
-Connectors module — OAuth2 connector management + draft approval flow.
-
-This is the real moat: passive signal ingestion from Gmail, Slack, GitHub,
-etc. + commitment-aware draft generation with a human approval gate.
-
-Architecture:
-  - ConnectorStore: SQLite-backed storage for connector state + OAuth tokens
-    (tokens stored encrypted-at-rest via Fernet when available, plaintext
-    fallback for dev environments without a key)
-  - DraftStore: SQLite-backed storage for pending drafts (email/message)
-    with approval states: pending / approved / denied / used_as_draft
-  - IngestionEngine: pulls messages from connectors, extracts commitments
-    using the existing commitment_classifier, ingests as signals
-  - DraftGenerator: generates commitment-aware drafts using the existing
-    FollowUpEmailGenerator, with platform-specific formatting
-
-Supported connectors (Phase 1-3):
-  - gmail: OAuth2, read inbox + send via Gmail API
-  - slack: OAuth2, read DMs + send via Slack Web API
-  - github: OAuth2, read assigned issues/PRs + comment via REST API
-  - calendar: OAuth2, read-only (Google Calendar)
-  - whatsapp: Phase F — stub for now
-  - facebook: Phase F — stub for now
-  - instagram: Phase F — stub for now
-  - twitter: Phase F — stub for now
-
-Security:
-  - OAuth tokens stored encrypted-at-rest (Fernet symmetric encryption)
-  - Per-connector revocation (disconnect one without affecting others)
-  - Audit log of every access (connector.connect, connector.ingest,
-    draft.approve, draft.deny, draft.send)
-  - Data minimization: extract commitments, don't store raw message bodies
-    (only entity, text, timestamp — the signal)
-
-The approval flow (approve / deny / use draft) is the trust mechanism.
-Maestro NEVER auto-sends. Every draft requires explicit human approval.
-"""
+"""Connectors module — OAuth2 connector management + draft approval flow."""
 
 from __future__ import annotations
 
@@ -53,15 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def _run_async_in_thread(coro):
-    """Run an async coroutine from sync code without conflicting with a running event loop.
-
-    P11 fix (wiring): ``generate_auto_draft`` is sync but needs to call async
-    functions (``fetch_user_sent_emails``, ``generate_intelligent_draft``).
-    Calling ``asyncio.run`` directly inside FastAPI's already-running loop
-    raises ``RuntimeError: This event loop is already running`` — which silently
-    fell back to the template, so the intelligent-draft feature was 0% wired.
-    Running the coroutine in a worker thread with its own loop isolates it.
-    """
+    """Run an async coroutine from sync code without conflicting with a running event loop."""
     import asyncio
     import threading
     holder: dict[str, Any] = {}
@@ -606,17 +561,7 @@ class ConnectorStore:
         }
 
     def _fetch_messages(self, user_email: str, provider: str) -> list[dict[str, Any]]:
-        """Fetch messages from the provider.
-
-        For Gmail: calls the real Gmail API using stored OAuth tokens (Phase B).
-        For other providers: returns MOCK_INGESTION_DATA (Phase C-F).
-
-        If Gmail OAuth is not configured (no MAESTRO_GMAIL_CLIENT_ID), falls
-        back to MOCK_INGESTION_DATA so the app still works in demo mode.
-
-        When real ingestion runs, the stored token may be refreshed — the
-        updated token is persisted via update_stored_token().
-        """
+        """Fetch messages from the provider."""
         state = self.get_connector_state(user_email, provider)
         if not state or not state["connected"]:
             return []
@@ -976,13 +921,7 @@ class ConnectorStore:
         }
 
     def _send_via_gmail(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
-        """Send a draft via the real Gmail API (Phase B).
-
-        Returns: (sent_message_id, error_message)
-          - On success: (gmail_message_id, "")
-          - On failure: ("", error_description)
-          - If OAuth not configured: returns error (fail-closed)
-        """
+        """Send a draft via the real Gmail API (Phase B)."""
         try:
             from maestro_personal_shell.gmail_connector import (
                 is_gmail_configured,
@@ -1018,13 +957,7 @@ class ConnectorStore:
         return result.get("id", ""), ""
 
     def _send_via_slack(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
-        """Send a draft via the real Slack API (Phase C).
-
-        Returns: (sent_message_id, error_message)
-          - On success: (slack_ts, "")
-          - On failure: ("", error_description)
-          - If OAuth not configured: returns error (fail-closed)
-        """
+        """Send a draft via the real Slack API (Phase C)."""
         try:
             from maestro_personal_shell.slack_connector import (
                 is_slack_configured,
@@ -1059,16 +992,7 @@ class ConnectorStore:
         return result.get("ts", ""), ""
 
     def _send_via_github(self, user_email: str, draft: dict[str, Any]) -> tuple[str, str]:
-        """Send a draft via the real GitHub API (Phase D).
-
-        Posts a comment on the issue/PR specified by the draft recipient.
-        The recipient format is "owner/repo#123" or "owner/repo/issues/123".
-
-        Returns: (sent_message_id, error_message)
-          - On success: (github_comment_id, "")
-          - On failure: ("", error_description)
-          - If OAuth not configured: returns error (fail-closed)
-        """
+        """Send a draft via the real GitHub API (Phase D)."""
         try:
             from maestro_personal_shell.github_connector import (
                 is_github_configured,
@@ -1358,15 +1282,7 @@ class ConnectorDraftGenerator:
         commitment: dict[str, Any],
         evidence_refs: list[dict] | None = None,
     ) -> dict[str, Any]:
-        """Generate a draft for the given commitment + provider (template formatter).
-
-        NOTE (P13): This is a TEMPLATE FORMATTER. The caller supplies the commitment
-        and evidence. For the real capability (deriving from signal history), use
-        generate_auto_draft() instead.
-
-        Returns: {subject, body, commitment_ref, evidence_refs, provider, recipient,
-                  derived: False}
-        """
+        """Generate a draft for the given commitment + provider (template formatter)."""
         evidence_refs = evidence_refs or []
         commitment_text = commitment.get("text", "")
         entity = commitment.get("entity", recipient)

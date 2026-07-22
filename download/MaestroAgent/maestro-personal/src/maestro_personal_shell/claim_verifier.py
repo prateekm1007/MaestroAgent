@@ -1,30 +1,4 @@
-"""
-Claim Verifier — Phase 5: removes unsupported statements from Ask answers.
-
-The roadmap (ROAD_TO_9_OF_10_AFTER_395558A.md Phase 5) requires:
-  - Ask unsupported claims <= 3%
-  - Citation correctness >= 95%
-
-The claim verifier examines the LLM-generated answer and checks each
-factual claim against the evidence_refs. Claims not supported by any
-evidence are flagged as 'unsupported' and moved to counterevidence (or
-removed, depending on mode). This prevents hallucinated statements from
-reaching the user.
-
-How it works:
-  1. Split the answer into sentences (claims).
-  2. For each claim, check if any evidence_refs text supports it:
-     - Exact entity match: the claim mentions an entity from evidence.
-     - Keyword overlap: the claim shares content words with evidence.
-     - Negation check: the claim contradicts evidence (counterevidence).
-  3. Claims with no supporting evidence are 'unsupported'.
-  4. The verified answer removes unsupported claims (or marks them).
-  5. Counterevidence is collected separately.
-
-This is a rule-based verifier (no LLM needed). It's conservative — it
-only removes claims that have ZERO overlap with any evidence. Claims
-with partial overlap are kept (the LLM may be paraphrasing).
-"""
+"""Claim Verifier — Phase 5: removes unsupported statements from Ask answers."""
 
 from __future__ import annotations
 
@@ -86,24 +60,7 @@ def _is_grounded_negative(
     evidence_refs: list[dict[str, Any]],
     source_sentence: str = "",
 ) -> bool:
-    """Phase 1.3 Bug #2 fix: detect grounded-negative LLM answers.
-
-    A grounded negative is an LLM answer that:
-      1. Uses negative markers (no mention, not found, no record, etc.)
-         indicating the LLM is asserting something is ABSENT from evidence.
-      2. References at least one entity/topic that ALSO appears in evidence,
-         proving the LLM looked at the evidence (not hallucinated).
-
-    Example:
-      Query: "Did Maria cancel the contract?"
-      LLM answer: "There is no mention of a contract being canceled. The
-      evidence only shows Maria Garcia reviewing a hiring scorecard."
-      → has "no mention" (negative marker) + "Maria Garcia" appears in both
-        answer AND evidence → grounded negative → pass through.
-
-    Returns True if the answer is a grounded negative (should pass through
-    the guardrail without flagging claims as unsupported).
-    """
+    """Phase 1.3 Bug #2 fix: detect grounded-negative LLM answers."""
     if not answer:
         return False
     answer_lower = answer.lower()

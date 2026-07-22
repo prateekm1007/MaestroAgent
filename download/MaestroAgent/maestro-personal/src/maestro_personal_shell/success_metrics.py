@@ -136,22 +136,7 @@ def _compute_commitment_metrics(path: str, user_email: str) -> dict[str, Any]:
 
 
 def _compute_silence_accuracy(path: str, user_email: str) -> dict[str, Any]:
-    """Compute silence accuracy from behavior patterns.
-
-    P1-Audit-F6 fix: the old metric was `1 - dismissal_rate`, which is NOT
-    silence quality — it's just the inverse of dismissal rate. A system that
-    never speaks gets 1.0 (perfect) despite potentially missing critical
-    events. The auditor found this metric was invalid.
-
-    The honest fix: `silence_accuracy` is now `None` when there's
-    insufficient data (no behaviors), and the metric is explicitly labeled
-    as `dismissal_rate` (not "accuracy"). True silence quality requires a
-    labeled benchmark (critical events that should/shouldn't interrupt),
-    which is not available from behavior patterns alone.
-
-    The `silence_quality` field is reserved for future benchmark-based
-    measurement; it's `None` until a labeled evaluation is run.
-    """
+    """Compute silence accuracy from behavior patterns."""
     try:
         from maestro_personal_shell.learning_loop_v2 import get_behavior_patterns
         patterns = get_behavior_patterns(user_email=user_email, db_path=path)

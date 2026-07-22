@@ -1,52 +1,4 @@
-"""
-Retrieval Ensemble — multi-stage hybrid retrieval with Reciprocal Rank Fusion.
-
-Architectural response to the auditor's Phase 1-4 diagnosis:
-  "You do not have an LLM problem. You have a retrieval architecture problem."
-  BM25 = 0.55, Rules = 0.45, LLM = 0.40 → the LLM was reasoning over noise.
-
-Pipeline:
-  Question
-     │
-     ▼
-  Stage 1: BM25 broad recall (top 50 candidates via FTS5)
-     │
-     ▼
-  Stage 2: Specialized retrievers in parallel (each returns top 20)
-     ├── Entity retriever      (signals where entity matches)
-     ├── Temporal retriever    (signals within time window)
-     ├── Commitment retriever  (ledger entries: overdue/broken/active)
-     ├── Relationship retriever(graph traversal from mentioned entities)
-     └── Intent keyword retriever (signals whose text contains intent keywords)
-     │
-     ▼
-  Stage 3: Reciprocal Rank Fusion (RRF) — merge all retriever outputs
-     │
-     ▼
-  Stage 4: Context engineering — dedup, chronological, top-K (8)
-     │
-     ▼
-  Stage 5: Structural memory — JSON representation of entity state
-     │
-     ▼
-  LLM (Stage 6, in llm_bridge.py)
-
-Why this design:
-- BM25 is an excellent lexical retriever. We use it as Stage 1 (broad recall),
-  NOT as the sole retriever. The auditor was right: do not try to replace BM25.
-- Specialized retrievers excel where BM25 is weak:
-    * Entity retriever  → "What did I promise Maria?" (proper noun match)
-    * Temporal retriever → "What changed since Tuesday?" (time filter)
-    * Commitment retriever → "Which promises are overdue?" (state filter)
-    * Relationship retriever → "Who am I disappointing?" (graph traversal)
-    * Intent keyword retriever → "What did I fail to deliver?" (semantic intent)
-- RRF is robust because it requires no score calibration across retrievers.
-  Score 1/(60+rank) is the standard RRF weight (k=60, Cormack et al. 2009).
-- Context engineering (dedup, chronological, top-K) reduces LLM context noise.
-  Open models degrade sharply when given irrelevant evidence.
-- Structural memory shifts reasoning burden from the LLM to the system:
-  instead of "here are 8 text chunks", send "here is Maria's commitment state".
-"""
+"""Retrieval Ensemble — multi-stage hybrid retrieval with Reciprocal Rank Fusion."""
 from __future__ import annotations
 
 import logging
@@ -385,11 +337,7 @@ def specialist_intent_keyword_retriever(
     intent_keywords: list[str],
     limit: int = STAGE2_SPECIALIST_DEPTH,
 ) -> list[dict[str, Any]]:
-    """Specialist: intent-keyword match.
-
-    Excels at: "What did I fail to deliver?" — the auditor's case study.
-    BM25 matches "fail" against signal text, but no signal contains "fail".
-    """
+    """Specialist: intent-keyword match."""
     if not intent_keywords or intent == "general":
         return []
 

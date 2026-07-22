@@ -1,44 +1,4 @@
-"""
-GitHub OAuth2 connector — real GitHub API integration (Phase D).
-
-Same pattern as gmail_connector.py (Phase B) and slack_connector.py (Phase C):
-  - GitHubOAuthClient: OAuth2 authorization code flow + token refresh
-  - GitHubAPIClient: GitHub REST API calls (issues, PRs, comments)
-  - GitHubIngester: pulls assigned issues/PRs, extracts action items
-
-OAuth2 flow:
-  1. User clicks "Connect GitHub" in the UI
-  2. Backend generates authorization URL with scopes:
-     - repo (read issues/PRs + post comments)
-     - user (read user profile)
-  3. User grants access on GitHub's consent screen
-  4. GitHub redirects to /api/connectors/github/oauth/callback with a code
-  5. Backend exchanges code for access token
-  6. Token stored encrypted in ConnectorStore
-  7. Ingestion uses the access token to call:
-       GET /issues?filter=assigned&state=open  (assigned issues)
-       GET /pulls?state=open  (open PRs in owned repos)
-  8. Send uses POST /repos/{owner}/{repo}/issues/{number}/comments
-
-Configuration (env vars):
-  - MAESTRO_GITHUB_CLIENT_ID: GitHub OAuth app client ID
-  - MAESTRO_GITHUB_CLIENT_SECRET: GitHub OAuth app client secret
-  - MAESTRO_GITHUB_REDIRECT_URI: OAuth2 redirect URI
-
-When NOT set, falls back to MOCK_INGESTION_DATA — demo mode.
-
-Action item extraction:
-  - Pulls assigned issues (open) from last 30 days
-  - For each issue, extracts the body + comments
-  - Runs keyword action-item detection ("needs to", "should", "must",
-    "TODO", "action item", "follow up")
-  - Ingests as signals with:
-      entity = repo name (e.g., "prateekm1007/MaestroAgent")
-      text = the action item text
-      signal_type = commitment_made (if "I will") or reported_statement
-      timestamp = issue/PR timestamp
-      source = github:issue or github:pr
-"""
+"""GitHub OAuth2 connector — real GitHub API integration (Phase D)."""
 
 from __future__ import annotations
 

@@ -1,19 +1,4 @@
-"""
-Entity Resolution Service — normalizes entity aliases to canonical names.
-
-F3 fix: the same counterparty shows up as "Acme Corp" (manual entry),
-"client" (Gmail header), "AcmeCorp" (no space), "acme" (lowercase) —
-creating disjoint situations for one relationship.
-
-This service normalizes entities using:
-1. Exact match normalization (case, whitespace, punctuation)
-2. Alias mapping (user-configurable: "client" → "AcmeCorp")
-3. Fuzzy matching (Levenshtein distance for near-misses)
-4. LLM-powered resolution (when available, for novel aliases)
-
-The resolved canonical entity is stored in signal metadata so all
-surfaces read from the same world model.
-"""
+"""Entity Resolution Service — normalizes entity aliases to canonical names."""
 
 from __future__ import annotations
 
@@ -89,16 +74,7 @@ def _levenshtein(a: str, b: str) -> int:
 
 
 def _fuzzy_match(a: str, b: str, threshold: float = 0.85) -> bool:
-    """Check if two strings are similar enough to be the same entity.
-
-    P1-1 fix: the substring check was too aggressive. "Alex" was matching
-    "Alexa" because "alex" is a substring of "alexa" — two DIFFERENT names
-    that share a prefix were being collapsed into one entity. The fix:
-    only treat a substring match as a match when the remainder (the part
-    of the longer string after the shorter one ends) is a known corporate
-    suffix (corp, inc, ltd, etc.) or empty. This allows "Acme" → "AcmeCorp"
-    (remainder = "corp") while rejecting "Alex" → "Alexa" (remainder = "a").
-    """
+    """Check if two strings are similar enough to be the same entity."""
     if not a or not b:
         return False
     norm_a = _normalize(a)
@@ -117,9 +93,16 @@ def _fuzzy_match(a: str, b: str, threshold: float = 0.85) -> bool:
         remainder = norm_b[len(norm_a):].strip()
         if not remainder or remainder in _CORPORATE_SUFFIXES:
             return True
+        # Allow first-name match: "alex" matches "alex chen" if "alex"
+        # is a complete word (followed by space) in "alex chen"
+        if norm_b[len(norm_a):len(norm_a)+1] == " ":
+            return True
     if norm_b in norm_a:
         remainder = norm_a[len(norm_b):].strip()
         if not remainder or remainder in _CORPORATE_SUFFIXES:
+            return True
+        # Allow first-name match in the other direction too
+        if norm_a[len(norm_b):len(norm_b)+1] == " ":
             return True
     # Levenshtein-based similarity
     max_len = max(len(norm_a), len(norm_b))
@@ -155,25 +138,7 @@ def resolve_entity(
     known_entities: list[str] | None = None,
     db_path: str | None = None,
 ) -> str:
-    """Resolve an entity name to its canonical form.
-
-    F3 fix: normalizes "Acme Corp", "client", "AcmeCorp", "acme" to a
-    single canonical entity so they don't create disjoint situations.
-
-    Resolution order:
-    1. Check user-configured alias table
-    2. Exact normalized match against known entities
-    3. Fuzzy match against known entities (Levenshtein)
-    4. Return the normalized input as the canonical form
-
-    Args:
-        entity: The raw entity name to resolve
-        user_email: User scope for alias lookup
-        known_entities: List of canonical entities already in the system
-        db_path: Database path
-
-    Returns: The canonical entity name
-    """
+    """Resolve an entity name to its canonical form."""
     if not entity or not entity.strip():
         return entity or ""
 

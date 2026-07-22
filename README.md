@@ -1,111 +1,90 @@
-# MaestroAgent
+# Maestro Personal
 
-**The Organizational Judgment System.**
+**Personal commitment intelligence.**
 
-Foundation models generate intelligence. Maestro institutionalizes judgment.
-
----
-
-## What is in this repo
-
-This repo is a curated product repository. There is exactly one live product:
-
-### The live app
-
-| Component | Location | Stack |
-|---|---|---|
-| **Frontend** | `download/MaestroAgent/app.html` + `static/app.js` + `static/app.css` | Vanilla JS, compiled Tailwind CSS, no CDN |
-| **Backend** | `download/MaestroAgent/backend/maestro_oem/` + `backend/maestro_api/` | Python, FastAPI, SQLite |
-
-The backend serves `app.html` at `/`. That is the product. Everything else in
-this repo is either infrastructure, tests, or deprecated.
-
-### How to run it
-
-```bash
-cd download/MaestroAgent
-pip install -e backend/
-python -m maestro_api.main  # serves on http://localhost:8000
-```
-
-The OEM is seeded with a demo dataset (acme-corp + 3 enterprise customers)
-so the product is evaluable without OAuth credentials. Set
-`MAESTRO_DEMO_SEED=false` to start with an empty OEM.
-
-### Deprecated code
-
-The `_deprecated/` folder contains abandoned frontends and a Node.js backend
-from earlier iterations. They are kept for reference but are NOT the product:
-
-- `_deprecated/desktop/` — Tauri + React (abandoned Jun 25)
-- `_deprecated/frontend/` — Vite + React (abandoned Jun 25)
-- `_deprecated/frontend-next/` — Next.js (stalled Jun 28)
-- `_deprecated/v6-production/` — Next.js + Prisma + Redis (stalled Jun 28)
-- `_deprecated/realtime-server/` — Node.js backend (duplicate connectors, abandoned)
-- `_deprecated/app-mock.html`, `app-v6.html`, `app-v7.html` — old mockups
-
-**Do not run anything in `_deprecated/`.** It is not maintained, not tested,
-and not the product.
+Maestro remembers what you promised, surfaces what changed,
+and tells you what to do next — with provenance.
 
 ---
+
+## Live Product
+
+| Component | URL |
+|---|---|
+| Backend API | https://maestroagent-production.up.railway.app |
+| Frontend UI | https://web-production-d5c26.up.railway.app |
+| Health | https://maestroagent-production.up.railway.app/api/health |
+| OpenAPI | https://maestroagent-production.up.railway.app/api/openapi.json |
+
+The backend root (`/`) returns a JSON service descriptor pointing to the UI.
+The product UI is the Next.js app at the Frontend URL above.
+
+## Stack
+
+- **Backend:** `maestro_personal_shell` — Python, FastAPI, SQLite, OpenRouter LLM (Gemma 3 12B)
+- **Frontend:** Next.js 16, React, TypeScript, Tailwind CSS, shadcn/ui
+- **Deploy:** Railway (Docker)
+
+## Not the product (deprecated)
+
+The following are **not** the product and are not deployed or maintained.
+They remain in the repo for historical reference only:
+
+- The old vanilla-JS frontend HTML file (replaced by the Next.js app)
+- The old enterprise API module (replaced by `maestro_personal_shell`)
+- The old enterprise OEM engine module (replaced by `maestro_personal_shell`)
+- Enterprise surfaces (Executive Cognition Center, Organizational Pulse, Nerve agents)
+- The old enterprise product name (now "Maestro Personal")
+
+The current product is `maestro_personal_shell` + the Next.js frontend.
 
 ## Architecture
 
 ```
-Signals (GitHub, Jira, Slack, Confluence, Gmail, Customer/CRM)
-    ↓
-ExecutionSignals (normalized)
-    ↓
-LearningObjects (evidence units)
-    ↓
-Patterns (regularities across LOs)
-    ↓
-OrganizationalLaws (validated patterns)
-    ↓
-DecisionEngine (recommendations with evidence)
-    ↓
-OEM Surfaces (Executive Cognition, Customer Judgment, Simulator, etc.)
+maestro-personal/
+├── src/maestro_personal_shell/
+│   ├── api.py              # FastAPI app
+│   ├── routers/
+│   │   ├── admin.py        # Health + version canary
+│   │   ├── ask.py          # Evidence-backed Q&A
+│   │   ├── auth.py         # Register + login
+│   │   ├── inbox.py        # Synthetic inbox
+│   │   └── ...
+│   └── ...
+├── web/                    # Next.js frontend
+├── pyproject.toml
+└── Dockerfile
 ```
 
-Every recommendation is evidence-backed. Every confidence value is explainable.
-The learning loop is closed: predictions auto-create, auto-resolve, and
-auto-calibrate.
+## API
 
-See `download/MaestroAgent/docs/ARCHITECTURE.md` for the full design.
+- `POST /api/auth/register` — create account
+- `POST /api/auth/login` — get JWT token
+- `POST /api/ask` — evidence-backed question answering
+- `GET /api/inbox/synthetic` — 20 demo emails, 6 categories
+- `POST /api/inbox/synthetic/{id}/receive` — ingest email as signal
+- `GET /api/commitments` — commitment ledger
+- `GET /api/health` — version canary + build identity
+- `GET /api/openapi.json` — OpenAPI 3.1 contract
 
----
-
-## Security
-
-- **KMS:** The local file-based KMS is for development only. In production,
-  set `KMS_PROVIDER=aws` and `KMS_MASTER_KEY_ID=<arn>`. The server refuses to
-  start in production (`NODE_ENV=production`) with the local provider.
-- **Auth:** OIDC (Azure AD, Okta, Google, Auth0, Supabase), SAML 2.0, SCIM 2.0,
-  RBAC (5 roles, 13 permissions), MFA, HttpOnly cookies with rotating refresh
-  tokens.
-- **Hardening:** CSRF, CSP, HSTS, rate limiting, tenant isolation, AES-256-GCM
-  encryption, key rotation, tamper-evident audit, session expiry, SOC2 monitoring.
-
-See `download/MaestroAgent/docs/THREAT_MODEL.md` and
-`download/MaestroAgent/docs/PEN_TEST_CHECKLIST.md`.
-
----
-
-## Tests
+## Local Development
 
 ```bash
-cd download/MaestroAgent
-python -m pytest backend/maestro_oem/tests/ backend/maestro_api/tests/ backend/maestro_auth/tests/
+cd download/MaestroAgent/maestro-personal
+pip install -e ".[dev]"
+PYTHONPATH=src MAESTRO_PERSONAL_TOKEN=maestro-demo MAESTRO_DEMO_MODE=1 \
+  python -m maestro_personal_shell.api
 ```
 
-837+ tests pass on a clean clone. The learning loop verification:
+Backend runs on http://localhost:8766.
 
-```bash
-python scripts/verify_loop_closed.py
-```
+## Key Features
 
----
+- **Ask**: Evidence-backed Q&A with provenance (signal IDs, timestamps, confidence, unknowns)
+- **Commitments**: Automatic commitment extraction with lifecycle tracking (active → completed → cancelled)
+- **Multi-turn conversation**: Session-based follow-up questions with entity context
+- **Synthetic Inbox**: 20 categorized demo emails to experience the full lifecycle without OAuth
 
-## License
+## Governance
 
-See `download/MaestroAgent/LICENSE`.
+The repo includes governance files (`GOVERNANCE.md`, `ENTROPY_RECOVERY.md`, `AUDITOR_GOVERNANCE.md`) that define the development protocol: execute before claiming, read assertions not names, and never trust a claim without reproduction.

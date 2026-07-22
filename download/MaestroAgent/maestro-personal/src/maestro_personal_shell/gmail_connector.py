@@ -1,47 +1,4 @@
-"""
-Gmail OAuth2 connector — real Gmail API integration (Phase B).
-
-This module implements the real Gmail ingestion + send that replaces the
-MOCK_INGESTION_DATA stub in connectors.py.
-
-Architecture:
-  - GmailOAuthClient: handles OAuth2 authorization code flow + token refresh
-  - GmailIngester: pulls messages from Gmail, extracts commitments using
-    the existing commitment_classifier
-  - GmailSender: sends approved drafts via the Gmail API
-
-OAuth2 flow:
-  1. User clicks "Connect Gmail" in the UI
-  2. Backend generates authorization URL with scopes:
-     - https://www.googleapis.com/auth/gmail.readonly
-     - https://www.googleapis.com/auth/gmail.send
-  3. User grants access on Google's consent screen
-  4. Google redirects to /api/connectors/gmail/oauth/callback with a code
-  5. Backend exchanges code for access + refresh tokens
-  6. Tokens stored encrypted in ConnectorStore (existing infrastructure)
-  7. Ingestion uses the access token to call gmail.users().messages().list()
-  8. When access token expires, refresh token is used automatically
-
-Configuration (env vars):
-  - MAESTRO_GMAIL_CLIENT_ID: Google OAuth2 client ID
-  - MAESTRO_GMAIL_CLIENT_SECRET: Google OAuth2 client secret
-  - MAESTRO_GMAIL_REDIRECT_URI: OAuth2 redirect URI (default: /api/connectors/gmail/oauth/callback)
-
-When these are NOT set, the connector falls back to MOCK_INGESTION_DATA
-and the UI shows "OAuth not configured" — so the app still works in demo
-mode without real credentials.
-
-Commitment extraction:
-  - Pulls messages from last 30 days (configurable)
-  - For each message, extracts the plain text body
-  - Runs the existing commitment_classifier on the body
-  - If a commitment is detected, ingests as a signal with:
-      entity = sender or recipient name
-      text = the commitment text
-      signal_type = commitment_made
-      timestamp = message date
-      source = gmail:inbox or gmail:sent
-"""
+"""Gmail OAuth2 connector — real Gmail API integration (Phase B)."""
 
 from __future__ import annotations
 

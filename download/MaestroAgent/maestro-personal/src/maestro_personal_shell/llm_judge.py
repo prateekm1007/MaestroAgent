@@ -1,23 +1,4 @@
-"""
-LLM-as-a-Judge test pipeline — deterministic evaluation of intelligence quality.
-
-Phase 5.1 fix: replaces mock-based "test theater" with real LLM evaluation.
-Instead of mocking llm_complete and asserting it was called, this module
-uses the LLM to evaluate whether the system's outputs are actually good.
-
-The judge evaluates:
-1. Factual accuracy — does the answer match the evidence?
-2. Citation correctness — does the answer cite the right source?
-3. Calibration — is the confidence appropriate given evidence quality?
-4. Materiality — did the system correctly decide to speak or stay silent?
-5. Commitment classification — did it correctly classify the commitment type?
-
-Each evaluation returns a score (0.0-1.0) and reasoning. Tests can
-assert on the score threshold rather than mocking internals.
-
-When no LLM is available, the judge skips (the test skips, not fails).
-This means CI in clean environments still passes.
-"""
+"""LLM-as-a-Judge test pipeline — deterministic evaluation of intelligence quality."""
 
 from __future__ import annotations
 

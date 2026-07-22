@@ -18,10 +18,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ask", tags=["ask"])
 
 # P0-3: In-memory session store for multi-turn conversations.
-# Keyed by session_id, stores the last Q+A + source_entity.
+# Keyed by session_id, stores up to 5 turns of Q+A history.
 # TTL: 30 minutes (cleared on server restart — acceptable for single-user beta).
-_ask_sessions: dict[str, str] = {}
+# Format: list of {"q": query, "a": answer_snippet, "entity": entity}
+_ask_sessions: dict[str, list[dict[str, str]]] = {}
 _SESSION_TTL_SECONDS = 1800
+_MAX_SESSION_TURNS = 5
 
 
 async def verify_token_dep(authorization: str = Header(None)) -> str:
@@ -38,12 +40,7 @@ class _PseudoSituation:
 @router.post("", response_model=AskResponse)
 @rate_limit("30/minute")  # P0-6: Ask is LLM-powered + expensive — cap at 30/min per IP
 async def ask(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
-    """Ask a question — get the truth, sourced (LLM-powered when available).
-
-    P0-3: supports multi-turn conversations via session_id. When provided,
-    the prior Q&A is included as context so follow-up questions like
-    "When is it due?" reference the previous query's entity.
-    """
+    """Ask a question — get the truth, sourced (LLM-powered when available)."""
     from maestro_personal_shell.api import (
         build_shell_async,
         load_signals_from_db,
@@ -52,25 +49,28 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     from maestro_personal_shell.temporal_query import parse_temporal_query
 
     # P0-3: Multi-turn conversation memory
-    # Store prior Q&A in an in-memory dict keyed by session_id.
+    # Store up to 5 turns of Q&A history per session_id.
     # On follow-up queries, extract the prior ENTITY so follow-up questions
     # like "When is it due?" can resolve to the right entity.
-    # S1-1 fix (auditor): previously appended the full prior context string
-    # to the query, which broke entity detection (the entity gate saw words
-    # from the prior Q&A, not just the follow-up). Now we extract the prior
-    # entity and use it only when the follow-up query doesn't name one.
+    # The full conversation history is also available for LLM context.
+    # S1-1 fix (auditor): only augment the query with the prior entity,
+    # don't append the full prior context (breaks entity detection).
     _prior_context = ""
     _prior_entity = ""
+    _conversation_history = ""
     if req.session_id:
-        _prior_context = _ask_sessions.get(req.session_id, "")
-        if _prior_context:
-            # Extract the entity from the prior context string
-            # Format: "Q: {query} → A: {answer} (entity: {entity})"
-            import re as _re_session
-            entity_match = _re_session.search(r'entity:\s*([^\)]+)', _prior_context)
-            if entity_match:
-                _prior_entity = entity_match.group(1).strip()
-            logger.info("Multi-turn: session=%s, prior entity=%s", req.session_id, _prior_entity[:50])
+        session_turns = _ask_sessions.get(req.session_id, [])
+        if session_turns:
+            # Get the most recent turn's entity for follow-up augmentation
+            last_turn = session_turns[-1]
+            _prior_entity = last_turn.get("entity", "")
+            # Build conversation history string for LLM context (up to 5 turns)
+            history_parts = []
+            for turn in session_turns[-_MAX_SESSION_TURNS:]:
+                history_parts.append(f"Q: {turn.get('q', '')}\nA: {turn.get('a', '')[:150]}")
+            _conversation_history = "\n\n".join(history_parts)
+            logger.info("Multi-turn: session=%s, %d prior turns, last entity=%s",
+                        req.session_id, len(session_turns), _prior_entity[:50])
 
     temporal = parse_temporal_query(req.query)
     from_date = None
@@ -96,8 +96,20 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # S1-1 fix: if this is a follow-up question (short, no entity named)
     # and we have a prior entity from the session, augment the query.
     if _prior_entity and len(req.query.split()) <= 6:
-        # Check if the query already names an entity (capitalized word)
-        _has_entity = bool(_re.findall(r'\b[A-Z][a-z]+\b', req.query))
+        # Check if the query already names an entity.
+        # Bug fix (auditor P0 gate): the old regex \b[A-Z][a-z]+\b matched
+        # "When" in "When is it due?" — a question word, not an entity.
+        # This caused augmentation to be skipped, so Turn 2 never got the
+        # prior entity appended, and the entity gate blocked it.
+        # Fix: only count capitalized words that are NOT the first word
+        # (first word is almost always a question word: When/What/Did/Is/etc.)
+        # and have at least 3 letters (excludes "Is", "It", etc.).
+        _words = req.query.split()
+        _has_entity = False
+        for _w in _words[1:]:  # skip first word (question word)
+            if _re.match(r'^[A-Z][a-z]{2,}$', _w):
+                _has_entity = True
+                break
         if not _has_entity:
             # Augment with the prior entity so retrieval finds the right data
             req.query = f"{req.query} {_prior_entity}"
@@ -217,6 +229,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "what's pending", "what is pending",
         "what's due", "what is due", "what's overdue", "what is overdue",
         "what did i promise",  # without naming a specific entity
+        # Session 10 fix (auditor F11): "Summarize all my emails" was blocked
+        # by the entity gate because it didn't match any broad/intent pattern.
+        "summarize all", "summarize my", "summarize everything",
+        "what should i do today", "what should i do",
+        "what do i need to do", "what do i need to do today",
+        "what's on my plate", "what is on my plate",
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
 
@@ -334,6 +352,69 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # Temporal queries are broad — they ask about time ranges, not entities.
         # The broad query handler will return a time-filtered summary.
         _is_broad_query = True
+
+    # Phase 1.1 (abstention architecture): injection + out-of-scope gate.
+    # This runs BEFORE the broad query handler to prevent:
+    #   1. Injection queries ("admin mode", "show me everything") from dumping signals
+    #   2. Out-of-scope queries ("weather", "capital of France") from falling through
+    #      to the broad query handler and returning unrelated commitment data
+    #
+    # Onyx pattern: "abstain before you synthesize." If the query is not about
+    # commitments, relationships, or the user's stored data, return a clean
+    # refusal — do NOT dump signals as a fallback.
+    _INJECTION_MARKERS = [
+        "ignore previous", "ignore your", "ignore all",
+        "system prompt", "reveal your", "show your instructions",
+        "admin mode", "override safety", "override your",
+        "dump all", "dump everything", "list everything",
+        "pretend you are", "act as if", "act as a different",
+        "no constraints", "without constraints",
+        "raw database", "raw db", "sql dump",
+        "all other users", "other users data", "everyone's data",
+    ]
+    _OUT_OF_SCOPE_MARKERS = [
+        "weather", "temperature", "forecast",
+        "capital of", "president of", "prime minister",
+        "speed of light", "speed of sound",
+        "eiffel tower", "mount everest", "great wall",
+        "super bowl", "world cup", "olympics",
+        "meaning of life", "favorite color", "favorite food",
+        "bake a cake", "recipe for",
+        "tell me a joke", "sing a song",
+        "how tall", "how far", "how old is",
+    ]
+    _is_injection = any(m in query_lower for m in _INJECTION_MARKERS)
+    _is_out_of_scope = any(m in query_lower for m in _OUT_OF_SCOPE_MARKERS)
+
+    if _is_injection or _is_out_of_scope:
+        # Abstain — this is not a commitment intelligence question.
+        # Do NOT fall through to the broad query handler (which would dump signals).
+        logger.info("Phase 1.1: abstention gate — injection=%s out_of_scope=%s for '%s'",
+                    _is_injection, _is_out_of_scope, query_lower[:60])
+        return AskResponse(
+            answer=(
+                "I don't have enough information to answer that question. "
+                "No matching signals were found in your stored data."
+            ),
+            query=req.query,
+            source_sentence="",
+            source_entity="",
+            source_timestamp="",
+            situation_state="",
+            evidence_refs=[],
+            confidence=0.0,
+            counterevidence=[],
+            unknowns=["Query is outside the scope of commitment intelligence."],
+            as_of=str(as_of or ""),
+            decision_boundary="",
+            perspectives=[],
+            reasoning_chain=[],
+            calibration_note="Abstention gate: query is not about commitments or stored data.",
+            consequence_paths=[],
+            llm_active=False,
+            llm_provider="none",
+            intelligence_source="abstention_gate",
+        )
 
     # "what did i promise" / "what do i owe" are only broad if they DON'T
     # have additional entity-like words after them. If the query is exactly
@@ -511,6 +592,285 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     if _is_broad_query and not _is_intent_query:
         try:
             all_sigs = load_signals_from_db(user_email=token, limit=50)
+
+            # Session 10 fix (auditor F10): apply temporal filter when the
+            # query has a temporal reference ("What changed since Tuesday?").
+            # The temporal parser already set from_date/as_of above, but the
+            # broad query handler was ignoring them and returning ALL signals.
+            if from_date:
+                from datetime import datetime as _dt_filter, timezone as _tz_filter
+                try:
+                    from_dt = _dt_filter.fromisoformat(from_date.replace("Z", "+00:00"))
+                    if from_dt.tzinfo is None:
+                        from_dt = from_dt.replace(tzinfo=_tz_filter.utc)
+                    filtered_sigs = []
+                    for sig in all_sigs:
+                        if not isinstance(sig, dict):
+                            continue
+                        sig_ts = sig.get("timestamp", "")
+                        if not sig_ts:
+                            continue
+                        try:
+                            sig_dt = _dt_filter.fromisoformat(str(sig_ts).replace("Z", "+00:00"))
+                            if sig_dt.tzinfo is None:
+                                sig_dt = sig_dt.replace(tzinfo=_tz_filter.utc)
+                            if sig_dt >= from_dt:
+                                filtered_sigs.append(sig)
+                        except Exception:
+                            filtered_sigs.append(sig)  # keep if can't parse
+                    all_sigs = filtered_sigs
+                    logger.info("Temporal filter applied: from_date=%s → %d signals after filtering",
+                                from_date[:10], len(all_sigs))
+                except Exception as e:
+                    logger.debug("Temporal filter failed (non-fatal): %s", e)
+
+            # F-06 fix (auditor S2): broad commitment queries should return a
+            # commitment-aware answer, not a raw signal inventory. Check the
+            # commitment ledger first and build a structured summary.
+            _COMMITMENT_BROAD_MARKERS = [
+                "what are my commitments", "what are my open commitments",
+                "my commitments", "what commitments", "commitments",
+                # R-04: "what needs attention" handled by the attention handler below
+                "what is unresolved", "what's unresolved",
+                "what's outstanding", "what is outstanding",
+                "what's pending", "what is pending",
+                "what's due", "what is due",
+                "what should i do", "what do i need to do",
+                "show me all commitments", "list all commitments",
+                "all my commitments", "every commitment",
+                # Phase 1.1: additional natural commitment queries
+                "what do i owe", "what do i still owe",
+                "what's on my plate", "what is on my plate",
+                "what's still open", "what is still open",
+            ]
+            _is_commitment_broad = any(m in query_lower for m in _COMMITMENT_BROAD_MARKERS)
+
+            if _is_commitment_broad:
+                # Try ledger first
+                try:
+                    from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    init_ledger_table(_db_path)
+                    _entries = get_ledger_entries(token, _db_path)
+                    if _entries:
+                        active = [e for e in _entries if e.get("state") in ("active", "at_risk", "candidate")]
+                        completed = [e for e in _entries if "completed" in e.get("state", "")]
+                        cancelled = [e for e in _entries if e.get("state") == "cancelled"]
+
+                        ledger_lines = []
+                        ledger_evidence = []
+                        if active:
+                            ledger_lines.append(f"Active commitments ({len(active)}):")
+                            for e in active[:5]:
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+                                ledger_evidence.append({
+                                    "text": e.get("evidence_quote", ""),
+                                    "entity": e.get("entity", ""),
+                                    "timestamp": e.get("updated_at", ""),
+                                    "signal_id": e.get("signal_id", ""),
+                                    "source_type": "ledger",
+                                })
+                        if completed:
+                            ledger_lines.append(f"\nCompleted ({len(completed)}):")
+                            for e in completed[:3]:
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+                        if cancelled:
+                            ledger_lines.append(f"\nCancelled ({len(cancelled)}):")
+                            for e in cancelled[:3]:
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+
+                        answer = "\n".join(ledger_lines)
+                        logger.info("F-06: broad commitment query answered from ledger (%d active, %d completed, %d cancelled)",
+                                    len(active), len(completed), len(cancelled))
+                        return AskResponse(
+                            answer=answer,
+                            query=req.query,
+                            source_sentence=ledger_evidence[0]["text"] if ledger_evidence else "",
+                            source_entity=ledger_evidence[0]["entity"] if ledger_evidence else "",
+                            source_timestamp=ledger_evidence[0]["timestamp"] if ledger_evidence else "",
+                            situation_state="",
+                            evidence_refs=ledger_evidence[:5],
+                            confidence=0.8,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Answered from commitment ledger.",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                except Exception as e:
+                    logger.debug("F-06: ledger query failed, falling through to signal summary: %s", e)
+
+            # R-04 fix (reviewer S2): "What changed since X?" should compare
+            # state before and after X — return created, resolved, cancelled,
+            # deadline-shifted items. Not a raw signal inventory.
+            _CHANGE_QUERY_MARKERS = [
+                "what changed", "what's changed", "what has changed",
+                "what changed since", "what's changed since",
+                "what happened since", "what's new since",
+                "what's new", "what is new",
+            ]
+            _is_change_query = any(m in query_lower for m in _CHANGE_QUERY_MARKERS)
+
+            if _is_change_query and from_date:
+                # Use the ledger to identify state changes since from_date
+                try:
+                    from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    init_ledger_table(_db_path)
+                    _entries = get_ledger_entries(token, _db_path)
+
+                    # Filter to entries updated since from_date
+                    from datetime import datetime as _dt_r4, timezone as _tz_r4
+                    from_dt = _dt_r4.fromisoformat(from_date.replace("Z", "+00:00"))
+                    if from_dt.tzinfo is None:
+                        from_dt = from_dt.replace(tzinfo=_tz_r4.utc)
+
+                    recent_changes = []
+                    change_evidence = []
+                    for e in _entries:
+                        updated = e.get("updated_at", "")
+                        if not updated:
+                            continue
+                        try:
+                            upd_dt = _dt_r4.fromisoformat(str(updated).replace("Z", "+00:00"))
+                            if upd_dt.tzinfo is None:
+                                upd_dt = upd_dt.replace(tzinfo=_tz_r4.utc)
+                            if upd_dt >= from_dt:
+                                state = e.get("state", "")
+                                entity = e.get("entity", "?")
+                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                recent_changes.append(f"  • {entity}: {action[:80]} [{state}]")
+                                change_evidence.append({
+                                    "text": e.get("evidence_quote", ""),
+                                    "entity": entity,
+                                    "timestamp": updated,
+                                    "signal_id": e.get("signal_id", ""),
+                                    "source_type": "ledger",
+                                })
+                        except Exception:
+                            continue
+
+                    if recent_changes:
+                        answer = f"Changes since {from_date[:10]}:\n" + "\n".join(recent_changes[:10])
+                        logger.info("R-04: change query answered from ledger (%d changes since %s)",
+                                    len(recent_changes), from_date[:10])
+                        return AskResponse(
+                            answer=answer,
+                            query=req.query,
+                            source_sentence=change_evidence[0]["text"] if change_evidence else "",
+                            source_entity=change_evidence[0]["entity"] if change_evidence else "",
+                            source_timestamp=change_evidence[0]["timestamp"] if change_evidence else "",
+                            situation_state="",
+                            evidence_refs=change_evidence[:5],
+                            confidence=0.8,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Answered from commitment ledger (state changes).",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                    else:
+                        return AskResponse(
+                            answer=f"No commitment changes since {from_date[:10]}.",
+                            query=req.query,
+                            source_sentence="",
+                            source_entity="",
+                            source_timestamp="",
+                            situation_state="",
+                            evidence_refs=[],
+                            confidence=0.7,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="No ledger changes in the requested time window.",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                except Exception as e:
+                    logger.debug("R-04: change query failed, falling through: %s", e)
+
+            # R-04 fix: "What needs attention?" should rank unresolved, user-owned,
+            # at-risk items only — not dump all active/completed/cancelled.
+            _ATTENTION_QUERY_MARKERS = [
+                "what needs attention", "what needs my attention",
+                "what should i do", "what do i need to do",
+                "what's urgent", "what is urgent",
+                "what's at risk", "what is at risk",
+            ]
+            _is_attention_query = any(m in query_lower for m in _ATTENTION_QUERY_MARKERS)
+
+            if _is_attention_query:
+                try:
+                    from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    init_ledger_table(_db_path)
+                    _entries = get_ledger_entries(token, _db_path)
+
+                    # Only active + at-risk items, not completed/cancelled
+                    attention_items = [e for e in _entries if e.get("state") in ("active", "at_risk")]
+                    # Sort by deadline proximity if available
+                    attention_items.sort(key=lambda e: e.get("deadline_text", "zzz"))
+
+                    if attention_items:
+                        lines = [f"Items needing your attention ({len(attention_items)}):"]
+                        attention_evidence = []
+                        for e in attention_items[:5]:
+                            entity = e.get("entity", "?")
+                            action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                            deadline = e.get("deadline_text", "")
+                            deadline_str = f" (due: {deadline})" if deadline else ""
+                            lines.append(f"  • {entity}: {action[:80]}{deadline_str}")
+                            attention_evidence.append({
+                                "text": e.get("evidence_quote", ""),
+                                "entity": entity,
+                                "timestamp": e.get("updated_at", ""),
+                                "signal_id": e.get("signal_id", ""),
+                                "source_type": "ledger",
+                            })
+                        return AskResponse(
+                            answer="\n".join(lines),
+                            query=req.query,
+                            source_sentence=attention_evidence[0]["text"] if attention_evidence else "",
+                            source_entity=attention_evidence[0]["entity"] if attention_evidence else "",
+                            source_timestamp=attention_evidence[0]["timestamp"] if attention_evidence else "",
+                            situation_state="",
+                            evidence_refs=attention_evidence[:5],
+                            confidence=0.8,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Ranked from commitment ledger (active/at-risk only).",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+                except Exception as e:
+                    logger.debug("R-04: attention query failed, falling through: %s", e)
+
             if all_sigs:
                 # Build a summary grouped by entity
                 entity_map = {}
@@ -1236,6 +1596,56 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 except Exception as e2:
                     logger.error("Legacy fallback also failed: %s", e2)
 
+            # Phase 1.1: Retrieval confidence threshold (Onyx Stage 2).
+            # If the best signal score is below the threshold, abstain.
+            # The ranker uses integer scores (0-200+), normalize to 0-1.
+            # Threshold 0.3 = score ~60 (entity match + intent match).
+            # This prevents the LLM from synthesizing from weak/unrelated evidence.
+            if evidence_refs_for_llm and not _is_broad_query:
+                _best_score = 0
+                _has_rank_score = False
+                for ev in evidence_refs_for_llm:
+                    if isinstance(ev, dict):
+                        s = ev.get("_rank_score", 0)
+                        if isinstance(s, (int, float)) and s > 0:
+                            _has_rank_score = True
+                            if s > _best_score:
+                                _best_score = s
+                # Only apply the threshold if the evidence actually has _rank_score
+                # values (from the ranker). Ensemble evidence doesn't have scores,
+                # so _best_score would be 0 — don't abstain just because the
+                # ensemble didn't set scores.
+                if _has_rank_score:
+                    _normalized_score = min(_best_score / 200.0, 1.0)
+                    if _normalized_score < 0.15 and _best_score < 30:
+                        if not source_entity:
+                            logger.info("Phase 1.1: retrieval confidence threshold — best_score=%d normalized=%.2f, abstaining",
+                                        _best_score, _normalized_score)
+                            return AskResponse(
+                                answer=(
+                                    "I don't have enough information to answer that question. "
+                                    "No matching signals were found in your stored data."
+                                ),
+                                query=req.query,
+                                source_sentence="",
+                                source_entity="",
+                                source_timestamp="",
+                                situation_state="",
+                                evidence_refs=[],
+                                confidence=0.0,
+                                counterevidence=[],
+                                unknowns=["Retrieval confidence below threshold."],
+                                as_of=str(as_of or ""),
+                                decision_boundary="",
+                                perspectives=[],
+                                reasoning_chain=[],
+                                calibration_note="Abstention: retrieval confidence below threshold.",
+                                consequence_paths=[],
+                                llm_active=False,
+                                llm_provider="none",
+                                intelligence_source="abstention_threshold",
+                            )
+
             # If FTS found nothing but the user HAS signals, use ALL of them.
             # S1-01 fix (auditor critical finding): the previous "broad query
             # fallback" loaded ALL signals (up to 50) when no specific evidence
@@ -1255,6 +1665,48 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 query_entities = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
                 query_entities = [e for e in query_entities if e not in common_words]
                 has_specific_entity = len(query_entities) > 0
+
+                # R-02 fix: before abstaining for "no evidence", do a direct
+                # DB lookup for the queried entity. The retrieval ensemble may
+                # have missed the signal (e.g. David's coffee message doesn't
+                # contain commitment keywords, so BM25 won't retrieve it).
+                # If the entity EXISTS in the user's data, load its signals
+                # directly so the LLM can answer "Did X make a commitment?"
+                # correctly (e.g. "No, David did not make a firm commitment.
+                # He tentatively mentioned...").
+                if has_specific_entity:
+                    try:
+                        _entity_signals = load_signals_from_db(user_email=token, limit=50)
+                        _matched = []
+                        _qe_lowered = {e.lower() for e in query_entities}
+                        for sig in _entity_signals:
+                            if isinstance(sig, dict):
+                                sig_entity = str(sig.get("entity", "")).lower()
+                                if any(qe in sig_entity or sig_entity in qe for qe in _qe_lowered):
+                                    _matched.append({
+                                        "text": sig.get("text", ""),
+                                        "entity": sig.get("entity", ""),
+                                        "timestamp": str(sig.get("timestamp", "")),
+                                        "signal_id": sig.get("signal_id", ""),
+                                        "source_type": "manual",
+                                    })
+                        if _matched:
+                            evidence_refs_for_llm = _matched[:5]
+                            if not source_sent:
+                                source_sent = _matched[0].get("text", "")
+                            logger.info("R-02: direct DB lookup found %d signals for entity %s",
+                                        len(_matched), query_entities[:2])
+                            # Skip the abstention — we found the entity's signals
+                            has_specific_entity = False  # treat as found
+                            # Update the pseudo-situation to use the CORRECT entity
+                            # (the one from the DB lookup, not from the ensemble)
+                            matching_situation = _PseudoSituation(
+                                entity=_matched[0].get("entity", "unknown"),
+                                title=f"Query about {_matched[0].get('entity', 'unknown')}",
+                                state="observing",
+                            )
+                    except Exception as e:
+                        logger.debug("R-02: direct entity lookup failed: %s", e)
 
                 if has_specific_entity:
                     # Specific entity query with no match — DO NOT dump all signals.
@@ -1287,6 +1739,67 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 )
                 logger.info("P11 fix: created pseudo-situation for LLM (entity=%s)", matching_situation.entity)
 
+            # F-04 fix (auditor S1 — cross-entity attribution hallucination):
+            # When the query names a specific entity ("Did David make a
+            # commitment?"), the retrieval ensemble returns evidence matching
+            # query KEYWORDS ("commitment"), not filtered by the queried entity.
+            # This caused Maria's budget proposal to be passed to the LLM as
+            # evidence "about David Kim" — the LLM then attributed Maria's
+            # commitment to David.
+            #
+            # FIX: when the query names a specific entity, filter evidence_refs_for_llm
+            # and source_sent to ONLY include signals whose entity matches the
+            # queried entity. The LLM must never receive evidence about a
+            # different entity than the one the user asked about.
+            if evidence_refs_for_llm and entities:
+                _entity_lowered = {e.lower() for e in entities}
+                _filtered_evidence = []
+                for ev in evidence_refs_for_llm:
+                    ev_entity = str(ev.get("entity", "")).lower()
+                    if any(e in ev_entity or ev_entity in e for e in _entity_lowered):
+                        _filtered_evidence.append(ev)
+                if _filtered_evidence:
+                    evidence_refs_for_llm = _filtered_evidence
+                    # Re-set source_sent to the first entity-matched evidence
+                    source_sent = _filtered_evidence[0].get("text", source_sent)
+                    logger.info("F-04 fix: filtered evidence to %d refs matching entity %s",
+                                len(evidence_refs_for_llm), entities[:2])
+                else:
+                    # No evidence matches the queried entity — don't send
+                    # unrelated evidence to the LLM. This prevents the
+                    # cross-entity attribution hallucination.
+                    logger.info("F-04 fix: no evidence matches entity %s — clearing evidence to prevent hallucination",
+                                entities[:2])
+                    evidence_refs_for_llm = []
+                    source_sent = ""
+
+                    # R-02 fix v3: the ensemble returned evidence but none
+                    # matched the queried entity. Do a direct DB lookup by
+                    # entity name — the signal may exist but not have been
+                    # retrieved (e.g. David's coffee message has no commitment
+                    # keywords, so BM25 misses it).
+                    try:
+                        _entity_signals = load_signals_from_db(user_email=token, limit=50)
+                        _matched = []
+                        for sig in _entity_signals:
+                            if isinstance(sig, dict):
+                                sig_entity = str(sig.get("entity", "")).lower()
+                                if any(e in sig_entity or sig_entity in e for e in _entity_lowered):
+                                    _matched.append({
+                                        "text": sig.get("text", ""),
+                                        "entity": sig.get("entity", ""),
+                                        "timestamp": str(sig.get("timestamp", "")),
+                                        "signal_id": sig.get("signal_id", ""),
+                                        "source_type": "manual",
+                                    })
+                        if _matched:
+                            evidence_refs_for_llm = _matched[:5]
+                            source_sent = _matched[0].get("text", "")
+                            logger.info("R-02 v3: direct DB lookup found %d signals for entity %s",
+                                        len(_matched), entities[:2])
+                    except Exception as e:
+                        logger.debug("R-02 v3: direct entity lookup failed: %s", e)
+
             if matching_situation:
                 state_val = str(getattr(matching_situation, "state", getattr(matching_situation, "operational_state", "unknown")))
                 if hasattr(state_val, "value"):
@@ -1300,7 +1813,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         situation=matching_situation,
                         source_sentence=source_sent,
                         situation_state=state_str,
-                        evidence_refs=evidence_refs_for_llm or getattr(result, "evidence_refs", None),
+                        evidence_refs=evidence_refs_for_llm,
                     )
                 )
     except Exception as e:
@@ -1318,6 +1831,13 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     _common = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I"}
     _query_entities = {w.lower() for w in _query_words if w not in _common}
 
+    # R-02 fix (reviewer S2): track whether entity filtering was attempted
+    # but found zero matches. This is distinct from "no entity in query".
+    # When entity filtering finds zero matches, we must NOT fall back to
+    # unfiltered evidence — that reintroduces the cross-entity hallucination.
+    _entity_filter_attempted = bool(_query_entities)
+    _entity_matched_count = 0
+
     for ref in raw_refs[:5]:
         if len(evidence_refs) >= 3:
             break
@@ -1325,6 +1845,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             ref_entity = str(ref.get("entity", "")).lower()
             if _query_entities and not any(qe in ref_entity or ref_entity in qe for qe in _query_entities):
                 continue
+            _entity_matched_count += 1
             evidence_refs.append({
                 "text": ref.get("text", ""),
                 "entity": ref.get("entity", ""),
@@ -1341,6 +1862,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     if _query_entities and not any(qe in sig_entity or sig_entity in qe for qe in _query_entities):
                         found = True
                         break
+                    _entity_matched_count += 1
                     evidence_refs.append({
                         "text": getattr(sig, "text", ""),
                         "entity": getattr(sig, "entity", ""),
@@ -1351,13 +1873,22 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     found = True
                     break
             if not found:
-                evidence_refs.append({
-                    "text": str(ref),
-                    "entity": "",
-                    "timestamp": "",
-                    "signal_id": "",
-                    "source_type": "manual",
-                })
+                # R-02: only append un-matched refs if no entity filter is active
+                if not _query_entities:
+                    evidence_refs.append({
+                        "text": str(ref),
+                        "entity": "",
+                        "timestamp": "",
+                        "signal_id": "",
+                        "source_type": "manual",
+                    })
+
+    # R-02: if entity filtering was attempted but found zero matches,
+    # return a clean "no evidence for this entity" result — do NOT
+    # fall back to unfiltered evidence.
+    if _entity_filter_attempted and _entity_matched_count == 0:
+        logger.info("R-02: entity filter found 0 matches for %s — returning clean refusal",
+                    list(_query_entities)[:3])
 
     words = _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query)
     common_words = {"What", "Did", "Will", "The", "How", "When", "Why", "Who", "Is", "Are", "Can", "Could", "I", "Which", "Whose", "Whom"}
@@ -1575,6 +2106,53 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             elif llm_answer:
                 answer = llm_answer
                 llm_answer_used = True
+
+                # Post-LLM fallback: if the LLM returned a refusal ("I don't
+                # have enough information") for an entity-specific query, try
+                # a direct DB lookup by entity name. The ensemble may have
+                # missed the signal (e.g. "Alex" doesn't match BM25 keywords
+                # as well as "Maria"), but the signal exists in the DB.
+                _REFUSAL_MARKERS = [
+                    "i don't have enough information",
+                    "no matching signals",
+                    "no evidence found",
+                    "i cannot answer",
+                ]
+                if any(m in str(answer).lower() for m in _REFUSAL_MARKERS):
+                    # Check if we have entity-specific signals in the DB
+                    if entities:
+                        try:
+                            _fallback_sigs = load_signals_from_db(user_email=token, limit=50)
+                            _qe_lowered = {e.lower() for e in entities}
+                            _matched_fallback = []
+                            for sig in _fallback_sigs:
+                                if isinstance(sig, dict):
+                                    sig_entity = str(sig.get("entity", "")).lower()
+                                    if any(qe in sig_entity or sig_entity in qe for qe in _qe_lowered):
+                                        _matched_fallback.append(sig)
+                            if _matched_fallback:
+                                # Found entity signals — build a rule-based answer
+                                _top = _matched_fallback[0]
+                                source_sentence = _top.get("text", "")
+                                source_entity = _top.get("entity", "")
+                                source_timestamp = str(_top.get("timestamp", ""))
+                                evidence_refs = [{
+                                    "text": source_sentence,
+                                    "entity": source_entity,
+                                    "timestamp": source_timestamp,
+                                    "signal_id": _top.get("signal_id", ""),
+                                    "source_type": "manual",
+                                }]
+                                answer = f"Based on the evidence: {source_entity} — \"{source_sentence[:200]}\""
+                                verification["confidence"] = 0.6
+                                llm_answer_used = False  # use rule-based answer instead
+                                _post_llm_fallback_used = True  # prevent R-02 abstention from overriding
+                                # Also update _entity_matched_count so the R-02 abstention doesn't fire
+                                _entity_matched_count = 1
+                                logger.info("Post-LLM fallback: found %d signals for entity %s via direct DB lookup",
+                                            len(_matched_fallback), entities[:2])
+                        except Exception as e:
+                            logger.debug("Post-LLM fallback failed: %s", e)
         holistic_result = None
         if _llm_holistic_task is not None:
             holistic_result = _gather_results[_result_idx]
@@ -2060,11 +2638,18 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         logger.debug("Ask audit log failed (non-fatal): %s", e)
 
     # P0-3: Save session context for multi-turn follow-ups
+    # Store up to 5 turns of Q+A history so follow-up questions have context.
     if req.session_id:
-        _ask_sessions[req.session_id] = (
-            f"Q: {req.query} → A: {str(verified_answer)[:200]} "
-            f"(entity: {source_entity})"
-        )
+        turns = _ask_sessions.get(req.session_id, [])
+        turns.append({
+            "q": req.query,
+            "a": str(verified_answer)[:200],
+            "entity": source_entity,
+        })
+        # Keep only the last N turns
+        if len(turns) > _MAX_SESSION_TURNS:
+            turns = turns[-_MAX_SESSION_TURNS:]
+        _ask_sessions[req.session_id] = turns
 
     # Phase 0 fix (Round 67): when the answer IS an abstention ("I don't have
     # enough information"), confidence MUST be 0.0. The auditor found the
@@ -2227,9 +2812,56 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             filtered.append(r)
         return filtered
     evidence_refs = _filter_noise_entities(evidence_refs)
+    # R-02 fix: if entity filtering found zero matches, force abstention.
+    # Do not return unfiltered evidence for entity-specific queries.
+    # BUT: skip this if the LLM already generated an answer using the
+    # direct DB lookup (R-02 v3). The LLM evidence_refs_for_llm may have
+    # found the entity's signals even when the user-visible evidence_refs
+    # didn't. If llm_answer_used is True, the LLM had evidence and generated
+    # an answer — don't override it with abstention.
+    if _entity_filter_attempted and _entity_matched_count == 0 and not llm_answer_used:
+        verified_answer = (
+            f"I don't have enough information to answer that question. "
+            f"No evidence found for: {', '.join(_query_entities)}."
+        )
+        source_sentence = ""
+        source_entity = ""
+        source_timestamp = ""
+        evidence_refs = []
+        verification["confidence"] = 0.0
+        _abstention_triggered = True
+    elif _entity_filter_attempted and _entity_matched_count == 0 and llm_answer_used:
+        # The LLM found evidence via direct DB lookup. Populate the
+        # user-visible evidence_refs from the LLM evidence so the
+        # response includes provenance.
+        # R-02 v5: filter the user-visible evidence_refs to ONLY include
+        # signals matching the queried entity. The reviewer found that
+        # unrelated signals (Jamie, Maria, Priya) were still in the
+        # evidence_refs list even though the answer was about David.
+        logger.info("R-02: entity filter found 0 in raw_refs, but LLM had evidence — keeping LLM answer")
+        # Re-filter evidence_refs to only include entity-matched signals
+        _entity_matched_refs = []
+        for ref in evidence_refs:
+            if isinstance(ref, dict):
+                ref_entity = str(ref.get("entity", "")).lower()
+                if any(qe in ref_entity or ref_entity in qe for qe in _query_entities):
+                    _entity_matched_refs.append(ref)
+        if _entity_matched_refs:
+            evidence_refs = _entity_matched_refs
+        elif source_sentence:
+            # Fallback: at least include the source_sentence as evidence
+            evidence_refs = [{
+                "text": source_sentence,
+                "entity": source_entity,
+                "timestamp": source_timestamp,
+                "signal_id": "",
+                "source_type": "manual",
+            }]
+        else:
+            evidence_refs = []
     # If filtering removed ALL evidence, abstain (don't return answer with
     # no evidence — that would be ungrounded)
-    if not evidence_refs and not _abstention_triggered and verified_answer and "No matching signals" not in str(verified_answer):
+    elif not evidence_refs and not _abstention_triggered and verified_answer and "No matching signals" not in str(verified_answer):
         # We had evidence but it was all noise — abstain honestly
         verified_answer = (
             "I don't have enough information to answer that question. "

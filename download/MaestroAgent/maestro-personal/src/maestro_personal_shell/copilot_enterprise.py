@@ -1,40 +1,4 @@
-"""
-Phase 7 — Enterprise features: Playbook Engine + Shadow Mode.
-
-Implements two auditor-flagged enterprise gaps (25/30 → 27/30):
-
-1. PlaybookEngine — deploy custom talk tracks and objection templates
-   live during calls. Unlike Cluely's generic playbooks, Maestro's
-   playbooks are ORGANIZATIONAL — they learn from every call and
-   improve over time.
-
-   A playbook is a JSON document that defines:
-   - name: human-readable label
-   - triggers: keywords/regexes that activate this playbook
-   - talk_tracks: suggested talking points (cited with evidence_refs)
-   - objection_responses: {objection_type: response_template}
-   - learned_responses: populated from past successful calls
-
-   The engine matches the live transcript against active playbooks and
-   surfaces the relevant talk tracks + objection responses. After each
-   call, the engine records which responses were used and whether the
-   call outcome was positive, then promotes high-confidence responses
-   to "learned_responses" (the org-law feedback loop).
-
-2. ShadowMode — managers observe reps' live calls without interrupting.
-   Suggestions are tagged with the manager's annotations.
-
-   Shadow mode:
-   - Requires 'copilot.shadow' permission
-   - Receives the same transcript stream as the rep
-   - Does NOT send suggestions to the rep (manager sees them privately)
-   - Manager can add coaching notes stored alongside the call record
-   - After the call, manager reviews the rep's performance + leaves
-     feedback that feeds the learning loop
-
-Storage: playbooks + shadow coaching notes are stored in a SQLite
-table `copilot_enterprise` (created lazily on first use).
-"""
+"""Phase 7 — Enterprise features: Playbook Engine + Shadow Mode."""
 
 from __future__ import annotations
 

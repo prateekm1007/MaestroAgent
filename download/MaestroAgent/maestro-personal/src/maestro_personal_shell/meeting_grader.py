@@ -1,24 +1,4 @@
-"""
-Personal-shell wrapper for the MeetingGrader (Phase 16).
-
-P11 fix (wiring): the enterprise MeetingGrader was built + tested (14
-tests pass) but never wired into the personal shell — the actual product
-the mobile app uses. The personal shell had no meeting grading: no
-effectiveness score, no action item extraction, no follow-up tracking.
-
-This module DERIVES meeting data from the user's stored evidence (signal
-history) — per P13, the caller does NOT supply the transcript or metrics.
-The grader inspects meeting_context signals + their metadata to extract:
-  - transcript text (from the signal's text field)
-  - duration (from metadata.duration_minutes)
-  - talk ratio balance (from metadata.talk_ratio_balance)
-  - sentiment score (from metadata.sentiment_score)
-  - participants (from metadata.participants)
-
-Then grades the meeting on 4 factors (30% action items, 30% sentiment,
-20% participation, 20% duration) → A-F letter grade with transparent
-factor breakdown. Allows user override.
-"""
+"""Personal-shell wrapper for the MeetingGrader."""
 from __future__ import annotations
 
 import logging

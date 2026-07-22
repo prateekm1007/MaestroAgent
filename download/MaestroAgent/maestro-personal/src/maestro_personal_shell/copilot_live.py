@@ -1,15 +1,4 @@
-"""
-Phase 4+5: Cluely-class live copilot + ambient intelligence.
-
-Phase 4: CopilotSituationBridge.on_transcript_chunk() for real-time
-call intelligence + post_call_summary() for after-call follow-up.
-
-Phase 5: CalendarAwarenessEngine + SentimentPatternEngine for ambient
-intelligence between calls.
-
-These are API endpoints that the mobile app calls during/after meetings
-and that run in the background for ambient awareness.
-"""
+"""Phase 4+5: Cluely-class live copilot + ambient intelligence."""
 
 from __future__ import annotations
 
@@ -32,22 +21,7 @@ def process_transcript_chunk(
     speaker: str = "",
     entity: str = "",
 ) -> dict[str, Any]:
-    """Process a transcript chunk during a live call.
-
-    Calls Core's CopilotSituationBridge.on_transcript_chunk().
-    Updates the Situation's operational state in real-time:
-      - First chunk: → ACTION_IN_PROGRESS
-      - Commitment keywords detected: add to commitment_refs
-      - Unknown resolution: resolve unknowns
-
-    P1-Audit-2.1 fix: also detect commitments in the transcript text
-    using rule-based future-tense verb detection. The auditor found
-    commitments_detected was always empty. Fix: scan for "will", "I'll",
-    "need to", "have to", "going to", "promise", "commit" patterns and
-    extract the commitment text + deadline.
-
-    Returns: dict with state_transitions, new_commitments, suggestions.
-    """
+    """Process a transcript chunk during a live call."""
     import re as _re
     core = shell.core
 
@@ -448,21 +422,7 @@ def get_talk_ratio_coaching(
     shell: Any,
     segments: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Get talk ratio coaching from Core's TalkRatioCoach.
-
-    Processes speech segments (speaker + duration) and returns:
-      - talk_ratio: your % vs their %
-      - interruptions: detected
-      - coaching: specific feedback
-      - confidence_label: calibration status
-
-    P1-Audit-2.3 fix: the Core's TalkRatioCoach expects segments with
-    duration_ms. If segments don't have duration_ms, we compute it
-    from the start/end timestamps. If neither exists, we count each
-    segment as equal duration (1 unit). The auditor found talk ratio
-    reported 0% despite 28s of speech — this was because segments
-    had no duration_ms and the coach silently returned 0.
-    """
+    """Get talk ratio coaching from Core's TalkRatioCoach."""
     try:
         from maestro_oem.talk_ratio_coach import TalkRatioCoach, SpeechSegment
         coach = TalkRatioCoach()

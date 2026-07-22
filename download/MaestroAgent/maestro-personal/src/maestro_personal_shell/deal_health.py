@@ -1,23 +1,4 @@
-"""
-Personal-shell wrapper for the DealHealthEngine (Phase 11).
-
-P11 fix (wiring): the enterprise DealHealthEngine was built + tested (13
-tests pass) but never wired into the personal shell — the actual product
-the mobile app uses. The personal shell had no deal health scoring: no
-live momentum, no risk factors, no calibration gate.
-
-This module DERIVES deal health from the user's stored evidence (signal
-history) — per P13, the caller does NOT supply the score or its inputs.
-The engine inspects signals for an entity and computes a weighted score:
-  - Commitment health (35%): open vs overdue vs kept
-  - Sentiment trends (25%): from recent sentiment patterns
-  - Relationship dynamics (20%): interaction frequency + engagement
-  - Historical patterns (20%): win/loss rate for similar deals
-
-The engine expects OEM signal objects with .metadata, .type, .timestamp.
-We build a shim that converts the personal shell's signal dicts into
-objects with those attributes.
-"""
+"""Personal-shell wrapper for the DealHealthEngine."""
 from __future__ import annotations
 
 import logging

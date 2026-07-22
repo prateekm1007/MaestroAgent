@@ -35,13 +35,7 @@ def _get_db_path() -> str:
 
 
 def init_outcome_db(db_path: str | None = None) -> None:
-    """Initialize prediction + outcome tables.
-
-    P0 fix (auditor finding B): add user_email column to predictions for
-    tenant isolation. Without this, Alice's resolved predictions affect
-    Bob's calibration (Brier score). The column is added with ALTER TABLE
-    migration for existing DBs.
-    """
+    """Initialize prediction + outcome tables."""
     path = db_path or _get_db_path()
     conn = get_db_conn(path)
     conn.execute("""
@@ -209,16 +203,7 @@ def get_calibration_report(
     db_path: str | None = None,
     user_email: str | None = None,
 ) -> dict[str, Any]:
-    """Get the Brier score + calibration report.
-
-    P0 fix (auditor finding B): filter by user_email so Alice's resolved
-    predictions don't affect Bob's Brier score. When user_email is None,
-    falls back to all predictions (backward compat / admin mode).
-
-    When there are >= 10 resolved predictions, returns a real Brier score
-    and 10-bucket calibration. When < 10, returns 'Insufficient calibration
-    history' (honest P25).
-    """
+    """Get the Brier score + calibration report."""
     path = db_path or _get_db_path()
     init_outcome_db(path)
 
@@ -495,18 +480,7 @@ Based on this history, calibrate your confidence in current predictions. If you'
 
 
 def get_corrections_context_for_llm(db_path: str | None = None, user_email: str | None = None) -> str:
-    """Build a corrections context string for injection into LLM system prompts.
-
-    Phase 2.2 fix: the roadmap requires that the LLM queries past user
-    corrections before generating judgments. This function retrieves all
-    dismissed/cancelled/corrected signals and builds a context string
-    that tells the LLM what the user has previously rejected.
-
-    This closes the correction-persistence loop: when the user dismisses
-    something, the LLM sees it and avoids repeating the mistake.
-
-    Returns an empty string if there are no corrections (Day 1).
-    """
+    """Build a corrections context string for injection into LLM system prompts."""
     path = db_path or _get_db_path()
     init_outcome_db(path)
 

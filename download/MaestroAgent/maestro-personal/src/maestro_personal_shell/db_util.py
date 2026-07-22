@@ -1,18 +1,4 @@
-"""
-Database connection helper — P1-3 fix + Phase 8 Postgres support.
-
-Provides a shared get_db_conn() function that creates database connections
-with proper configuration. Supports both SQLite (default) and PostgreSQL
-(via MAESTRO_DATABASE_URL env var).
-
-SQLite: busy_timeout=5000ms, WAL mode, prevents 'database is locked' errors.
-PostgreSQL: connection pooling, automatic reconnection, SSL support.
-
-Database selection:
-  - If MAESTRO_DATABASE_URL is set (e.g., postgresql://user:pass@host:5432/db),
-    PostgreSQL is used.
-  - Otherwise, SQLite is used (default, for local/dev mode).
-"""
+"""Database connection helper — P1-3 fix + Phase 8 Postgres support."""
 
 from __future__ import annotations
 
@@ -33,19 +19,7 @@ def _get_database_url() -> str | None:
 
 
 def default_sqlite_path() -> str:
-    """Return the canonical SQLite path — matches api.py's DB_PATH resolution.
-
-    P0-5 fix (audit 2026-07-15): multiple modules (notification_scheduler,
-    retention_enforcer, routers/auth) were defaulting to the relative path
-    `"personal.db"` when MAESTRO_PERSONAL_DB was unset, while api.py uses
-    an ABSOLUTE path under the package directory. This caused the scheduler
-    to open a different DB file than the rest of the app — manifesting as
-    "no such table: signals" on every backend boot.
-
-    Every module that needs the SQLite path MUST use this helper (or read
-    MAESTRO_PERSONAL_DB and fall back to this) to guarantee a single
-    source of truth.
-    """
+    """Return the canonical SQLite path — matches api.py's DB_PATH resolution."""
     env = os.environ.get("MAESTRO_PERSONAL_DB")
     if env:
         return env

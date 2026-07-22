@@ -1,27 +1,4 @@
-"""
-Personal-shell wrapper for the AdvancedAnalyticsEngine (Phase 20).
-
-P11 fix (wiring): the enterprise AdvancedAnalyticsEngine was built +
-tested (20 tests pass) but never wired into the personal shell — the
-actual product the mobile app uses. The personal shell had no trend
-analysis, no org learning metrics, no flywheel proof.
-
-This is the MASTER GATE phase. It proves the flywheel is compounding:
-  - Brier score improvement (predictions getting more accurate)
-  - Law promotion rate (patterns becoming validated laws)
-  - Deal cycle time trends (getting faster or slower)
-  - Meeting effectiveness trends (grades improving or declining)
-  - Commitment kept/broken ratio (improving or declining)
-
-This module DERIVES analytics from the user's stored evidence (signal
-history) — per P13, the caller does NOT supply the metrics. The engine
-inspects signals to extract:
-  - Commitments (kept vs broken) → commitment_kept_rate
-  - Meeting signals → meeting_grade_average (via MeetingGrader)
-  - Deal cycle times (from metadata.cycle_time_days)
-  - Brier scores (from calibration_primitives)
-  - Patterns + laws (from signal metadata)
-"""
+"""Personal-shell wrapper for the AdvancedAnalyticsEngine."""
 from __future__ import annotations
 
 import logging

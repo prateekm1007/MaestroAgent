@@ -1,14 +1,4 @@
-"""Auth router — login, revoke, rotate.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — same paths, same request/response schemas, same token store.
-
-verify_token + the per-user token store helpers (_init_auth_db,
-_create_user_token, _revoke_user_token, _revoke_all_user_tokens)
-stay in api.py because verify_token is shared across every router
-and the helpers are used by both verify_token and these endpoints.
-This router imports them.
-"""
+"""Auth router — login, revoke, rotate."""
 from __future__ import annotations
 
 import os
@@ -49,18 +39,7 @@ async def verify_token_dep(authorization: str = Header(None)) -> str:
 
 
 def _maybe_login_decorator():
-    """Return a decorator that applies the login rate limit lazily.
-
-    P0-6 audit fix (2026-07-15): the previous version had `except Exception: pass`
-    which SILENTLY SWALLOWED RateLimitExceeded — meaning login rate limiting was
-    NEVER actually enforced in production. The shared rate_limit decorator in
-    rate_limit.py correctly lets RateLimitExceeded propagate so FastAPI's
-    exception handler can convert it to a 429.
-
-    This wrapper now delegates to rate_limit("10/minute") for consistency.
-    Kept as a thin shim so existing decorators on /login and /register don't
-    need to change.
-    """
+    """Return a decorator that applies the login rate limit lazily."""
     from maestro_personal_shell.rate_limit import rate_limit as _rate_limit
     return _rate_limit("10/minute")
 
@@ -73,30 +52,7 @@ def _maybe_login_decorator():
 @router.post("/login", response_model=LoginResponse)
 @_maybe_login_decorator()
 async def login(request: Request, req: LoginRequest):
-    """Login — returns a bearer token.
-
-    P1 fix: passwordless email login removed. The login now requires
-    either:
-    1. The MAESTRO_PERSONAL_TOKEN env var (single-user local mode) —
-       the caller must provide it as the password. No email-based login.
-    2. A per-user token that was previously created via _create_user_token.
-       But tokens are never created without the setup password.
-
-    In dev mode (MAESTRO_PERSONAL_ENV not 'production'):
-    - Bootstrap token works with password=AUTH_TOKEN (backward compat for tests)
-    - Email-only login is REJECTED
-
-    In production mode:
-    - Only per-user tokens work (no bootstrap)
-    - Login requires password validation against user store (future)
-
-    This closes the P0-2 passwordless login vulnerability.
-
-    P-2026-07-18 fix (auditor S3 finding): accept both `user_email` and
-    `email` fields. Previously, sending `email` was silently ignored and
-    the login defaulted to "default@personal.local" — confusing first-touch
-    UX for API clients who guess the field name.
-    """
+    """Login — returns a bearer token."""
     from maestro_personal_shell.api import (
         _is_production,
         AUTH_TOKEN,
@@ -278,14 +234,7 @@ def _verify_password(password: str, stored: str) -> bool:
 @router.post("/register", response_model=RegisterResponse)
 @_maybe_login_decorator()
 async def register(request: Request, req: RegisterRequest):
-    """Register a new account with email + password.
-
-    Phase 2: Real account lifecycle. Creates a user account with
-    a hashed password (PBKDF2-SHA256, 100k iterations). Returns
-    a bearer token immediately after registration.
-
-    Rate limited: 3 registrations per hour per IP.
-    """
+    """Register a new account with email + password."""
     from maestro_personal_shell.db_util import get_db_conn
     import os
 
@@ -342,15 +291,7 @@ async def register(request: Request, req: RegisterRequest):
 
 @router.post("/revoke")
 async def revoke_token(token: str = Depends(verify_token_dep)):
-    """Revoke the current token (P1-4 fix).
-
-    The caller's bearer token (from the Authorization header) is revoked.
-    After this call, the token can no longer be used for authentication.
-    The user must log in again to get a new token.
-
-    This is the standard 'logout' endpoint — it ensures that even if the
-    token is intercepted, it becomes useless after revocation.
-    """
+    """Revoke the current token (P1-4 fix)."""
     from maestro_personal_shell.api import _revoke_all_user_tokens
     # `token` here is the user_email returned by verify_token.
     # Revoke ALL tokens for this user_email — this is actually more secure
@@ -365,14 +306,7 @@ async def revoke_token(token: str = Depends(verify_token_dep)):
 
 @router.post("/rotate")
 async def rotate_token(token: str = Depends(verify_token_dep)):
-    """Rotate the current token (P1-4 fix).
-
-    Issues a new token and revokes ALL old tokens for the user. This is
-    the standard token rotation flow — call this periodically to limit
-    the window of opportunity for a compromised token.
-
-    Returns the new token. The old token(s) are immediately invalid.
-    """
+    """Rotate the current token (P1-4 fix)."""
     from maestro_personal_shell.api import _revoke_all_user_tokens, _create_user_token
     # Revoke all existing tokens for this user
     old_count = _revoke_all_user_tokens(token)

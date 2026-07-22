@@ -294,13 +294,7 @@ class PersonalGraph:
         return resolved
 
     def get_completion_rate(self, entity_name: str, user_email: str | None = None) -> float | None:
-        """Get the historical completion rate for an entity (user-scoped).
-
-        P1-Audit-F5 fix: returns None when there are 0 resolved edges, NOT 0.5.
-        The auditor found that a 0.5 default with zero resolutions produces
-        fake "moderate risk" advice. None signals "insufficient data" so
-        callers can display "unknown" instead of a fabricated percentage.
-        """
+        """Get the historical completion rate for an entity (user-scoped)."""
         ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
         conn = get_db_conn(self._db_path)
@@ -319,11 +313,7 @@ class PersonalGraph:
         return hits / len(rows)
 
     def get_entity_summary(self, entity_name: str, user_email: str | None = None) -> dict[str, Any]:
-        """Get a summary of an entity's history (user-scoped).
-
-        F3c fix (auditor round 2): when exact match fails, try word-boundary
-        partial match (same rules as threads endpoint) so Graph and Threads
-        can't disagree on "Alex" vs "Alex Chen"."""
+        """Get a summary of an entity's history (user-scoped)."""
         import re as _re_graph
         ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
@@ -421,13 +411,7 @@ class PersonalGraph:
         }
 
     def predict_risk(self, entity_name: str, topic: str = "", user_email: str | None = None) -> dict[str, Any]:
-        """Predict the risk of a new commitment (user-scoped).
-
-        P0 fix (auditor finding A): if the entity doesn't exist for this user,
-        return exists=false instead of a generic 'medium' risk. This prevents
-        side-channel information leakage (an attacker can probe entity names
-        and get generic risk data for entities they shouldn't know about).
-        """
+        """Predict the risk of a new commitment (user-scoped)."""
         ue = user_email or self._user_email
         entity_id = entity_name.lower().strip()
 

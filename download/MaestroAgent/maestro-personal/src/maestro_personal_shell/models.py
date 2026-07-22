@@ -1,12 +1,4 @@
-"""Pydantic models for the Maestro Personal API.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — these are the same models, just in their own file so api.py
-stays small.
-
-Tests and other modules that imported models from `maestro_personal_shell.api`
-continue to work because api.py re-exports every model defined here.
-"""
+"""Pydantic models for the Maestro Personal API."""
 from __future__ import annotations
 
 from typing import Any
@@ -75,17 +67,7 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
-    """The masterpiece Ask response — the truth, sourced, with full depth.
-
-    Not a summary. Not a paraphrase. The exact sentence from the source,
-    with provenance you can tap to verify. PLUS: judgment, perspectives,
-    decision boundary, and reasoning trace from the full Core engine.
-
-    Phase 5: added counterevidence, unknowns, confidence, as_of fields
-    per the roadmap answer schema. The claim verifier populates
-    counterevidence (claims not supported by evidence) and the answer
-    confidence is calibrated from evidence quality.
-    """
+    """The masterpiece Ask response — the truth, sourced, with full depth."""
     answer: str
     query: str
     source_sentence: str = ""
