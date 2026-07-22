@@ -25,7 +25,7 @@ RUN grep "MAESTRO_VERSION" /build/maestro_personal_shell/routers/admin.py && \
 # pyproject.toml, but listing them here guarantees the install layer hash changes
 # when the build-arg changes (CACHEBUST echoed into the layer).
 RUN echo "CACHEBUST=${CACHEBUST:-unset}" && \
-    pip install --no-cache-dir "." "sqlalchemy>=2.0" "email-validator>=2.0" "slowapi>=0.1.9"
+    pip install --no-cache-dir "." "sqlalchemy>=2.0" "email-validator>=2.0" "slowapi>=0.1.9" "google-api-python-client>=2.100.0" "google-auth-oauthlib>=1.1.0" "google-auth-httplib2>=0.2.0"
 
 # Final stage — fresh image, no cache possible
 FROM python:3.12-slim

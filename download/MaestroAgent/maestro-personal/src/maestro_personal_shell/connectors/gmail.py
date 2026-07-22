@@ -1,16 +1,12 @@
 """Gmail connector with OAuth token refresh — adapted from Onyx.
 
-Onyx's Gmail connector pattern:
+Implements the Onyx connector pattern:
   1. Check token expiry before each API call
   2. Refresh token if expired (via Google OAuth2)
-  3. Use Gmail API's historyId for delta sync (not full re-fetch)
+  3. Use Gmail API for email fetch + delta sync
   4. Transform emails to Signal objects with commitment extraction
 
-This implementation provides the structure. The actual Gmail API calls
-require google-api-python-client and google-auth, which are not yet
-in pyproject.toml. The connector works in "stub mode" until those
-dependencies are added — it returns empty lists, which is safe for
-the demo environment.
+Requires google-api-python-client and google-auth-oauthlib (added to pyproject.toml).
 """
 from __future__ import annotations
 
@@ -19,9 +15,20 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from maestro_personal_shell.connectors.base import BaseConnector, SyncPoint
+import httpx
+
+from maestro_personal_shell.connectors.base import BaseConnector
 
 logger = logging.getLogger(__name__)
+
+# Gmail OAuth scopes — readonly + modify for draft sending
+GMAIL_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.modify",
+]
+
+# Google OAuth endpoints
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 
 class GmailConnector(BaseConnector):
@@ -59,7 +66,7 @@ class GmailConnector(BaseConnector):
         expiry_str = credentials.get("expiry")
         if expiry_str:
             try:
-                self._token_expiry = datetime.fromisoformat(expiry_str)
+                self._token_expiry = datetime.fromisoformat(str(expiry_str))
             except (ValueError, TypeError):
                 self._token_expiry = None
 
@@ -73,101 +80,310 @@ class GmailConnector(BaseConnector):
         """Check if the connector has the required environment configuration."""
         return bool(self.client_id and self.client_secret)
 
+    def _token_needs_refresh(self) -> bool:
+        """Check if the access token is expired or about to expire (within 5 min)."""
+        if not self._token_expiry:
+            return True
+        now = datetime.now(timezone.utc)
+        # Refresh if token expires in the next 5 minutes
+        if self._token_expiry.tzinfo is None:
+            self._token_expiry = self._token_expiry.replace(tzinfo=timezone.utc)
+        return self._token_expiry <= now.replace(microsecond=0) + __import__("datetime").timedelta(minutes=5)
+
     def _refresh_token_if_expired(self) -> None:
         """Check token expiry before each API call (Onyx pattern).
 
         If the access token is expired or about to expire, refresh it
         using the refresh token via Google's OAuth2 token endpoint.
-
-        TODO: Implement actual token refresh via httpx POST to
-        https://oauth2.googleapis.com/token with grant_type=refresh_token.
-        For now, this is a no-op stub.
         """
-        if not self._token_expiry:
+        if not self.refresh_token:
             return
 
-        now = datetime.now(timezone.utc)
-        # Refresh if token expires in the next 5 minutes
-        if self._token_expiry <= now:
-            logger.info("GmailConnector: access token expired, refreshing...")
-            # TODO: Implement token refresh
-            # POST https://oauth2.googleapis.com/token
-            # Body: client_id, client_secret, refresh_token, grant_type=refresh_token
-            # Parse response: access_token, expires_in
-            # Update self.access_token and self._token_expiry
-            # Persist new token via connector store
-            pass
+        if not self._token_needs_refresh():
+            return
+
+        if not self._is_configured():
+            return
+
+        logger.info("GmailConnector: access token expired, refreshing...")
+        try:
+            resp = httpx.post(
+                GOOGLE_TOKEN_URL,
+                data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "refresh_token": self.refresh_token,
+                    "grant_type": "refresh_token",
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            tokens = resp.json()
+
+            self.access_token = tokens["access_token"]
+            from datetime import timedelta
+            self._token_expiry = datetime.now(timezone.utc) + timedelta(seconds=tokens.get("expires_in", 3600))
+
+            logger.info("GmailConnector: token refreshed successfully, expires at %s", self._token_expiry)
+
+            # TODO: persist the new token to the connector store
+            # so it survives across requests
+
+        except Exception as e:
+            logger.error("GmailConnector: token refresh failed: %s", e)
+            raise
+
+    def _get_gmail_service(self):
+        """Build and return a Gmail API service object.
+
+        Uses googleapiclient.discovery.build with OAuth2Credentials.
+        """
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+
+        if not self.access_token:
+            raise RuntimeError("GmailConnector: no access token. Call load_credentials() first.")
+
+        creds = Credentials(
+            token=self.access_token,
+            refresh_token=self.refresh_token,
+            token_uri=GOOGLE_TOKEN_URL,
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            scopes=GMAIL_SCOPES,
+        )
+
+        service = build("gmail", "v1", credentials=creds, static_discovery=False)
+        return service
 
     def load_from_state(self) -> list[dict[str, Any]]:
         """Bulk load all emails (initial sync).
 
-        Fetches all emails from the user's Gmail account and transforms
-        them into Signal objects. This is called on first connection.
-
-        TODO: Implement using Gmail API:
-        1. List all messages (paginated)
-        2. Fetch each message's metadata + body
-        3. Transform to Signal dict with entity extraction
-        4. Run commitment classifier on each
+        Fetches all emails from the user's Gmail inbox and transforms
+        them into Signal objects. Called on first connection.
 
         Returns:
-            List of signal dicts (empty in stub mode)
+            List of signal dicts ready for save_signal_to_db()
         """
         if not self._is_configured():
             logger.info("GmailConnector.load_from_state: stub mode (not configured)")
             return []
 
+        if not self.access_token:
+            logger.warning("GmailConnector.load_from_state: no access token")
+            return []
+
         self._refresh_token_if_expired()
 
-        # TODO: Implement actual Gmail API fetch
-        # from googleapiclient.discovery import build
-        # service = build('gmail', 'v1', credentials=...)
-        # results = service.users().messages().list(userId='me').execute()
-        # ...
+        try:
+            service = self._get_gmail_service()
 
-        logger.info("GmailConnector.load_from_state: not yet implemented (stub)")
-        return []
+            # List all messages (paginated)
+            signals: list[dict[str, Any]] = []
+            page_token = None
+            count = 0
+            max_results = 500  # cap initial sync
+
+            while count < max_results:
+                list_args: dict[str, Any] = {"userId": "me", "maxResults": min(100, max_results - count)}
+                if page_token:
+                    list_args["pageToken"] = page_token
+
+                results = service.users().messages().list(**list_args).execute()
+                messages = results.get("messages", [])
+
+                if not messages:
+                    break
+
+                for msg_meta in messages:
+                    msg = service.users().messages().get(
+                        userId="me", id=msg_meta["id"], format="full"
+                    ).execute()
+
+                    signal = self._transform_message_to_signal(msg)
+                    if signal:
+                        signals.append(signal)
+                        count += 1
+
+                    if count >= max_results:
+                        break
+
+                page_token = results.get("nextPageToken")
+                if not page_token:
+                    break
+
+            logger.info("GmailConnector.load_from_state: fetched %d emails", len(signals))
+            return signals
+
+        except Exception as e:
+            logger.error("GmailConnector.load_from_state failed: %s", e)
+            return []
 
     def poll_source(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
         """Incremental sync — fetch emails modified since last poll.
 
-        Uses Gmail's historyId for delta sync (more efficient than
-        re-listing all messages). The historyId is stored in the SyncPoint.
+        Uses Gmail's query parameter `after:` to filter by timestamp.
 
         Args:
             start: fetch emails modified after this time
             end: fetch emails modified before this time
 
         Returns:
-            List of new/modified signals (empty in stub mode)
+            List of new/modified signals
         """
         if not self._is_configured():
             logger.info("GmailConnector.poll_source: stub mode (not configured)")
             return []
 
+        if not self.access_token:
+            logger.warning("GmailConnector.poll_source: no access token")
+            return []
+
         self._refresh_token_if_expired()
 
-        # TODO: Implement delta sync using Gmail historyId
-        # service.users().history().list(userId='me', startHistoryId=...).execute()
+        try:
+            service = self._get_gmail_service()
 
-        logger.info("GmailConnector.poll_source: not yet implemented (stub)")
-        return []
+            # Gmail query: after:<timestamp> filters emails newer than the timestamp
+            query = f"after:{int(start.timestamp())}"
+            results = service.users().messages().list(
+                userId="me", q=query, maxResults=100
+            ).execute()
+
+            signals: list[dict[str, Any]] = []
+            for msg_meta in results.get("messages", []):
+                msg = service.users().messages().get(
+                    userId="me", id=msg_meta["id"], format="full"
+                ).execute()
+
+                signal = self._transform_message_to_signal(msg)
+                if signal:
+                    signals.append(signal)
+
+            logger.info("GmailConnector.poll_source: fetched %d new emails since %s",
+                        len(signals), start.isoformat())
+            return signals
+
+        except Exception as e:
+            logger.error("GmailConnector.poll_source failed: %s", e)
+            return []
 
     def slim_check(self) -> list[str]:
         """Return IDs of all Gmail messages that still exist (for pruning).
 
-        TODO: Implement by listing all message IDs and comparing against
-        stored signals. Messages that no longer exist in Gmail should be
-        marked as deleted in the signal store.
-
-        Returns:
-            List of Gmail message IDs (empty in stub mode)
+        Lists all message IDs so the caller can compare against stored
+        signals and mark deleted ones.
         """
-        if not self._is_configured():
+        if not self._is_configured() or not self.access_token:
             return []
 
-        # TODO: Implement
-        return []
+        self._refresh_token_if_expired()
+
+        try:
+            service = self._get_gmail_service()
+            message_ids: list[str] = []
+            page_token = None
+
+            while True:
+                list_args: dict[str, Any] = {"userId": "me", "maxResults": 500}
+                if page_token:
+                    list_args["pageToken"] = page_token
+
+                results = service.users().messages().list(**list_args).execute()
+                for msg in results.get("messages", []):
+                    message_ids.append(msg["id"])
+
+                page_token = results.get("nextPageToken")
+                if not page_token:
+                    break
+
+            return message_ids
+
+        except Exception as e:
+            logger.error("GmailConnector.slim_check failed: %s", e)
+            return []
+
+    def _transform_message_to_signal(self, msg: dict) -> dict[str, Any] | None:
+        """Transform a Gmail API message dict to a Maestro signal dict.
+
+        Extracts: sender (entity), subject + body (text), timestamp,
+        and message ID (signal_id).
+        """
+        try:
+            headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+            from_header = headers.get("From", "unknown")
+            subject = headers.get("Subject", "")
+            date_header = headers.get("Date", "")
+
+            # Extract body text
+            body = self._extract_body(msg.get("payload", {}))
+
+            # Parse timestamp from internalDate (epoch millis)
+            internal_date = msg.get("internalDate", "")
+            if internal_date:
+                timestamp = datetime.fromtimestamp(
+                    int(internal_date) / 1000, tz=timezone.utc
+                ).isoformat()
+            else:
+                timestamp = datetime.now(timezone.utc).isoformat()
+
+            # Build the signal text: subject + body snippet
+            text = f"{subject} — {body[:500]}" if subject else body[:500]
+
+            # Extract entity name from From header
+            # "Maria Garcia <maria@example.com>" → "Maria Garcia"
+            entity = from_header
+            if "<" in from_header:
+                entity = from_header.split("<")[0].strip().strip('"')
+            elif "@" in from_header:
+                entity = from_header.split("@")[0].strip()
+
+            return {
+                "signal_id": f"gmail_{msg['id']}",
+                "entity": entity or "unknown",
+                "text": text,
+                "signal_type": "email",
+                "timestamp": timestamp,
+                "metadata": {
+                    "source": "gmail",
+                    "message_id": msg["id"],
+                    "from": from_header,
+                    "subject": subject,
+                    "date": date_header,
+                },
+            }
+        except Exception as e:
+            logger.debug("GmailConnector: failed to transform message: %s", e)
+            return None
+
+    def _extract_body(self, payload: dict) -> str:
+        """Extract plain text body from a Gmail message payload.
+
+        Gmail messages have a nested parts structure. This recursively
+        searches for text/plain parts and concatenates them.
+        """
+        import base64
+
+        body = ""
+
+        # Check if this part has a body
+        if "body" in payload and payload["body"].get("data"):
+            data = payload["body"]["data"]
+            mime_type = payload.get("mimeType", "")
+            if mime_type == "text/plain":
+                try:
+                    decoded = base64.urlsafe_b64decode(data + "===").decode("utf-8", errors="replace")
+                    body += decoded
+                except Exception:
+                    pass
+
+        # Recursively check parts
+        for part in payload.get("parts", []):
+            body += self._extract_body(part)
+            if len(body) > 2000:  # cap body length
+                break
+
+        return body
 
     def get_authorization_url(self, redirect_uri: str, state: str) -> str:
         """Get the OAuth authorization URL for the Gmail consent flow.
@@ -185,23 +401,13 @@ class GmailConnector(BaseConnector):
                 "and MAESTRO_GMAIL_CLIENT_SECRET environment variables."
             )
 
-        scopes = [
-            "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/gmail.modify",
-        ]
-
-        # Build Google OAuth2 authorization URL
-        # https://accounts.google.com/o/oauth2/v2/auth?
-        #   client_id=...&redirect_uri=...&response_type=code&
-        #   scope=...&access_type=offline&prompt=consent&state=...
-
-        from urllib.parse import urlencode, quote
+        from urllib.parse import urlencode
 
         params = {
             "client_id": self.client_id,
             "redirect_uri": redirect_uri,
             "response_type": "code",
-            "scope": " ".join(scopes),
+            "scope": " ".join(GMAIL_SCOPES),
             "access_type": "offline",
             "prompt": "consent",
             "state": state,
@@ -220,25 +426,34 @@ class GmailConnector(BaseConnector):
 
         Returns:
             Dict with access_token, refresh_token, expiry
-
-        TODO: Implement using httpx POST to https://oauth2.googleapis.com/token
         """
         if not self._is_configured():
             raise RuntimeError("GmailConnector not configured.")
 
-        # TODO: Implement token exchange
-        # resp = httpx.post("https://oauth2.googleapis.com/token", data={
-        #     "client_id": self.client_id,
-        #     "client_secret": self.client_secret,
-        #     "code": code,
-        #     "grant_type": "authorization_code",
-        #     "redirect_uri": redirect_uri,
-        # })
-        # tokens = resp.json()
-        # return {
-        #     "access_token": tokens["access_token"],
-        #     "refresh_token": tokens.get("refresh_token"),
-        #     "expiry": datetime.now(timezone.utc) + timedelta(seconds=tokens["expires_in"]),
-        # }
+        resp = httpx.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirect_uri,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        tokens = resp.json()
 
-        raise NotImplementedError("Token exchange not yet implemented")
+        from datetime import timedelta
+        expiry = datetime.now(timezone.utc) + timedelta(seconds=tokens.get("expires_in", 3600))
+
+        # Store the tokens in this connector instance
+        self.access_token = tokens["access_token"]
+        self.refresh_token = tokens.get("refresh_token", self.refresh_token)
+        self._token_expiry = expiry
+
+        return {
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens.get("refresh_token"),
+            "expiry": expiry.isoformat(),
+        }
