@@ -26,8 +26,8 @@ COPY download/MaestroAgent/backend/maestro_oem/ \
      ./src/maestro_oem/
 
 # Verify admin.py is correct (build FAILS if stale)
-RUN grep "MAESTRO_VERSION" /build/maestro_personal_shell/routers/admin.py && \
-    grep "import os" /build/maestro_personal_shell/routers/admin.py && \
+RUN grep "MAESTRO_VERSION" /build/src/maestro_personal_shell/routers/admin.py && \
+    grep "import os" /build/src/maestro_personal_shell/routers/admin.py && \
     echo "VERIFIED"
 
 # Install into the build stage.
