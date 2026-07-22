@@ -101,8 +101,20 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # S1-1 fix: if this is a follow-up question (short, no entity named)
     # and we have a prior entity from the session, augment the query.
     if _prior_entity and len(req.query.split()) <= 6:
-        # Check if the query already names an entity (capitalized word)
-        _has_entity = bool(_re.findall(r'\b[A-Z][a-z]+\b', req.query))
+        # Check if the query already names an entity.
+        # Bug fix (auditor P0 gate): the old regex \b[A-Z][a-z]+\b matched
+        # "When" in "When is it due?" — a question word, not an entity.
+        # This caused augmentation to be skipped, so Turn 2 never got the
+        # prior entity appended, and the entity gate blocked it.
+        # Fix: only count capitalized words that are NOT the first word
+        # (first word is almost always a question word: When/What/Did/Is/etc.)
+        # and have at least 3 letters (excludes "Is", "It", etc.).
+        _words = req.query.split()
+        _has_entity = False
+        for _w in _words[1:]:  # skip first word (question word)
+            if _re.match(r'^[A-Z][a-z]{2,}$', _w):
+                _has_entity = True
+                break
         if not _has_entity:
             # Augment with the prior entity so retrieval finds the right data
             req.query = f"{req.query} {_prior_entity}"
