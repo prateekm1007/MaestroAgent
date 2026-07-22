@@ -8,18 +8,22 @@ ARG CACHEBUST
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libffi-dev libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# Single COPY of source. Only copy the 4 backend modules that are actually
-# imported by maestro_personal_shell (verified via grep). The other 6
-# (maestro_api, maestro_plugins, maestro_db, maestro_memory, maestro_verify,
-# maestro_auth) are dead weight — not imported, not needed in production.
+# Copy source. The maestro-personal/src/ goes to /build/src/ (for pip install).
+# The 4 used backend modules go to /build/src/ too (PYTHONPATH=/app/src at runtime).
+# The other 6 backend modules are NOT copied (dead weight).
 COPY download/MaestroAgent/maestro-personal/pyproject.toml \
      download/MaestroAgent/maestro-personal/README.md \
-     download/MaestroAgent/maestro-personal/src/ \
-     download/MaestroAgent/backend/maestro_cognitive_council/ \
-     download/MaestroAgent/backend/maestro_llm/ \
-     download/MaestroAgent/backend/maestro_nerve/ \
-     download/MaestroAgent/backend/maestro_oem/ \
      ./
+COPY download/MaestroAgent/maestro-personal/src/ \
+     ./src/
+COPY download/MaestroAgent/backend/maestro_cognitive_council/ \
+     ./src/maestro_cognitive_council/
+COPY download/MaestroAgent/backend/maestro_llm/ \
+     ./src/maestro_llm/
+COPY download/MaestroAgent/backend/maestro_nerve/ \
+     ./src/maestro_nerve/
+COPY download/MaestroAgent/backend/maestro_oem/ \
+     ./src/maestro_oem/
 
 # Verify admin.py is correct (build FAILS if stale)
 RUN grep "MAESTRO_VERSION" /build/maestro_personal_shell/routers/admin.py && \
