@@ -706,7 +706,17 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
     if str(personal_src) not in sys.path:
         sys.path.insert(0, str(personal_src))
 
-    backend_dir = pathlib.Path(__file__).resolve().parents[3] / "backend"
+    # Find backend dir — robust to both source-repo and Docker layouts.
+    # Source repo: /repo/download/MaestroAgent/maestro-personal/src/maestro_personal_shell/api.py
+    #   parents[3] = download → parents[3]/backend = download/backend ✓
+    # Docker: /app/maestro_personal_shell/api.py
+    #   parents[1] = /app → parents[1]/backend = /app/backend ✓
+    #   (parents[3] would IndexError because Docker layout is flat)
+    _file_path = pathlib.Path(__file__).resolve()
+    if len(_file_path.parents) > 3:
+        backend_dir = _file_path.parents[3] / "backend"
+    else:
+        backend_dir = _file_path.parents[1] / "backend"
     if str(backend_dir) not in sys.path:
         sys.path.insert(0, str(backend_dir))
 
