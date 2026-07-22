@@ -2,7 +2,7 @@
 
 Single source of truth for build identity. Version is read from
 MAESTRO_VERSION env var (set in Dockerfile at build time).
-No hardcoded version strings. No git subprocess. No pyproject.toml import.
+No hardcoded version strings. No git calls. No pyproject import.
 """
 from __future__ import annotations
 
