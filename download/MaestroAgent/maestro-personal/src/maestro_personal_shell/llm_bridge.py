@@ -604,16 +604,27 @@ def is_llm_available() -> bool:
     """Check if an LLM provider is available."""
     # Check for cloud provider FIRST — bypass circuit breaker entirely
     try:
+        # PYTHONPATH=/app/src already makes maestro_llm importable in Docker.
+        # In source repo, _resolve_backend_dir() adds the backend dir to sys.path.
         import sys as _sys
-        import pathlib as _pathlib
         _backend_dir = _resolve_backend_dir()
         if _backend_dir not in _sys.path:
             _sys.path.insert(0, _backend_dir)
         from maestro_llm.router import LLMRouter as _LLMRouter
         if _LLMRouter.has_env_provider():
+            logger.info("LLM available: env provider detected via maestro_llm")
             return True
+        else:
+            logger.warning("maestro_llm imported but has_env_provider()=False. Checking env vars...")
+            for k in ["GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+                       "OPENROUTER_API_KEY", "XAI_API_KEY", "GEMINI_API_KEY", "DEEPSEEK_API_KEY"]:
+                if os.environ.get(k):
+                    logger.warning("  %s is set (len=%d)", k, len(os.environ.get(k, "")))
+    except ImportError as e:
+        logger.error("is_llm_available: failed to import maestro_llm.router: %s", e)
+        logger.error("  _backend_dir=%s, sys.path=%s", _resolve_backend_dir(), sys.path[:5])
     except Exception as e:
-        logger.debug("return True failed: %s", e)
+        logger.error("is_llm_available: unexpected error: %s", e)
     # Check for remote Ollama tunnel — also bypass circuit breaker
     _ollama_host = os.environ.get("OLLAMA_HOST", "")
     _is_remote_ollama = (
