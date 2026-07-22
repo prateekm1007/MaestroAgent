@@ -9,6 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# CACHE BUST: this ARG is consumed by the RUN below, which forces Docker
+# to invalidate the cache for this layer AND all subsequent layers (including
+# COPY src/). Without this, Railway caches the COPY src/ layer and serves
+# stale admin.py code even when the source has changed.
+ARG CACHEBUST=force-rebuild-2026-07-22
+RUN echo "Build cache: $CACHEBUST"
+
 # Copy maestro-personal source (build context = repo root)
 COPY download/MaestroAgent/maestro-personal/pyproject.toml download/MaestroAgent/maestro-personal/README.md ./
 COPY download/MaestroAgent/maestro-personal/src/ ./src/
@@ -30,8 +37,8 @@ COPY download/MaestroAgent/backend/maestro_verify/            ./src/maestro_veri
 RUN pip install --no-cache-dir "." "sqlalchemy>=2.0"
 
 # Embed build-time canary (unforgeable version string)
-ENV MAESTRO_BUILD_TIME="2026-07-22-final-v2"
-ENV MAESTRO_BUILD_COMMIT="08d5f1f"
+ENV MAESTRO_BUILD_TIME="2026-07-22-final-v3"
+ENV MAESTRO_BUILD_COMMIT="bd32619"
 
 # Environment
 ENV PYTHONPATH=/app/src
