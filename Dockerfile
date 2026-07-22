@@ -1,8 +1,10 @@
-# Railway production — completely restructured to break cache
+# Railway production — cache-busts on every deploy via CACHEBUST build-arg
 FROM python:3.12-slim AS builder
 
 WORKDIR /build
-ARG CACHEBUST=1784694695
+# CACHEBUST must be USED in a RUN command to actually invalidate the layer.
+# Declaring ARG without using it does nothing — that was the prior bug.
+ARG CACHEBUST
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libffi-dev libssl-dev && rm -rf /var/lib/apt/lists/*
 
@@ -18,8 +20,12 @@ RUN grep "MAESTRO_VERSION" /build/maestro_personal_shell/routers/admin.py && \
     grep "import os" /build/maestro_personal_shell/routers/admin.py && \
     echo "VERIFIED"
 
-# Install into the build stage
-RUN pip install --no-cache-dir "." "sqlalchemy>=2.0"
+# Install into the build stage.
+# Explicit email-validator + slowapi are belt-and-suspenders: they're already in
+# pyproject.toml, but listing them here guarantees the install layer hash changes
+# when the build-arg changes (CACHEBUST echoed into the layer).
+RUN echo "CACHEBUST=${CACHEBUST:-unset}" && \
+    pip install --no-cache-dir "." "sqlalchemy>=2.0" "email-validator>=2.0" "slowapi>=0.1.9"
 
 # Final stage — fresh image, no cache possible
 FROM python:3.12-slim
@@ -34,8 +40,8 @@ COPY --from=builder /build/ ./
 
 # Build identity — single source of truth
 ENV MAESTRO_VERSION="12.0.0-audit-ready"
-ENV MAESTRO_BUILD_COMMIT="061ba6c"
-ENV MAESTRO_BUILD_TIME="2026-07-22T03:30:00Z"
+ENV MAESTRO_BUILD_COMMIT="d629818"
+ENV MAESTRO_BUILD_TIME="2026-07-22T05:07:00Z"
 ENV PYTHONPATH=/app/src
 ENV MAESTRO_PERSONAL_ENV=dev
 
