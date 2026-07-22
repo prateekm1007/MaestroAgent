@@ -635,7 +635,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             _COMMITMENT_BROAD_MARKERS = [
                 "what are my commitments", "what are my open commitments",
                 "my commitments", "what commitments", "commitments",
-                "what needs attention", "what needs my attention",
+                # R-04: "what needs attention" handled by the attention handler below
                 "what is unresolved", "what's unresolved",
                 "what's outstanding", "what is outstanding",
                 "what's pending", "what is pending",
