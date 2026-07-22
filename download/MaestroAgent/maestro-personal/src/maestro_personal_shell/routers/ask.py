@@ -2094,6 +2094,50 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             elif llm_answer:
                 answer = llm_answer
                 llm_answer_used = True
+
+                # Post-LLM fallback: if the LLM returned a refusal ("I don't
+                # have enough information") for an entity-specific query, try
+                # a direct DB lookup by entity name. The ensemble may have
+                # missed the signal (e.g. "Alex" doesn't match BM25 keywords
+                # as well as "Maria"), but the signal exists in the DB.
+                _REFUSAL_MARKERS = [
+                    "i don't have enough information",
+                    "no matching signals",
+                    "no evidence found",
+                    "i cannot answer",
+                ]
+                if any(m in str(answer).lower() for m in _REFUSAL_MARKERS):
+                    # Check if we have entity-specific signals in the DB
+                    if entities:
+                        try:
+                            _fallback_sigs = load_signals_from_db(user_email=token, limit=50)
+                            _qe_lowered = {e.lower() for e in entities}
+                            _matched_fallback = []
+                            for sig in _fallback_sigs:
+                                if isinstance(sig, dict):
+                                    sig_entity = str(sig.get("entity", "")).lower()
+                                    if any(qe in sig_entity or sig_entity in qe for qe in _qe_lowered):
+                                        _matched_fallback.append(sig)
+                            if _matched_fallback:
+                                # Found entity signals — build a rule-based answer
+                                _top = _matched_fallback[0]
+                                source_sentence = _top.get("text", "")
+                                source_entity = _top.get("entity", "")
+                                source_timestamp = str(_top.get("timestamp", ""))
+                                evidence_refs = [{
+                                    "text": source_sentence,
+                                    "entity": source_entity,
+                                    "timestamp": source_timestamp,
+                                    "signal_id": _top.get("signal_id", ""),
+                                    "source_type": "manual",
+                                }]
+                                answer = f"Based on the evidence: {source_entity} — \"{source_sentence[:200]}\""
+                                verification["confidence"] = 0.6
+                                llm_answer_used = False  # use rule-based answer instead
+                                logger.info("Post-LLM fallback: found %d signals for entity %s via direct DB lookup",
+                                            len(_matched_fallback), entities[:2])
+                        except Exception as e:
+                            logger.debug("Post-LLM fallback failed: %s", e)
         holistic_result = None
         if _llm_holistic_task is not None:
             holistic_result = _gather_results[_result_idx]
