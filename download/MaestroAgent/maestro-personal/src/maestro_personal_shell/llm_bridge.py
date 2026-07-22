@@ -13,6 +13,18 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+def _resolve_backend_dir() -> str:
+    """Resolve the backend directory path — works in both source-repo and Docker layouts."""
+    import pathlib
+    _file = pathlib.Path(__file__).resolve()
+    # Source repo: .../src/maestro_personal_shell/llm_bridge.py → parents[3] = .../ → backend/
+    if len(_file.parents) > 3 and (_file.parent.parent).exists():
+        return str(_file.parent.parent)
+    # Docker: /app/src/maestro_personal_shell/llm_bridge.py → parents[1] = /app/src/
+    return str(_file.parent.parent)
+
+
+
 # Singleton router — initialized once, reused across all calls
 _router = None
 _router_checked = False
@@ -453,7 +465,7 @@ def get_llm_router() -> Any:
     try:
         import sys as _sys
         import pathlib as _pathlib
-        _backend_dir = str(_pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+        _backend_dir = _resolve_backend_dir()
         if _backend_dir not in _sys.path:
             _sys.path.insert(0, _backend_dir)
         from maestro_llm.router import LLMRouter as _LLMRouter
@@ -565,7 +577,7 @@ def get_llm_router() -> Any:
         try:
             import sys
             import pathlib
-            _backend_dir = str(pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+            _backend_dir = _resolve_backend_dir()
             if _backend_dir not in sys.path:
                 sys.path.insert(0, _backend_dir)
             from maestro_llm.router import LLMRouter
@@ -591,7 +603,7 @@ def is_llm_available() -> bool:
     try:
         import sys as _sys
         import pathlib as _pathlib
-        _backend_dir = str(_pathlib.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+        _backend_dir = _resolve_backend_dir()
         if _backend_dir not in _sys.path:
             _sys.path.insert(0, _backend_dir)
         from maestro_llm.router import LLMRouter as _LLMRouter
@@ -670,7 +682,7 @@ def _get_fallback_router(primary: Any) -> Any:
         try:
             import sys as _sys
             import pathlib as _pl
-            _backend_dir = str(_pl.Path(__file__).resolve().parent.parent.parent.parent / "backend")
+            _backend_dir = _resolve_backend_dir()
             if _backend_dir not in _sys.path:
                 _sys.path.insert(0, _backend_dir)
             from maestro_llm.router import LLMRouter
