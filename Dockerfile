@@ -30,8 +30,8 @@ COPY download/MaestroAgent/backend/maestro_verify/            ./src/maestro_veri
 RUN pip install --no-cache-dir "." "sqlalchemy>=2.0"
 
 # Embed build-time canary (unforgeable version string)
-ENV MAESTRO_BUILD_TIME="2026-07-22-session10-final"
-ENV MAESTRO_BUILD_COMMIT="fffb0f5"
+ENV MAESTRO_BUILD_TIME="2026-07-22-final-v2"
+ENV MAESTRO_BUILD_COMMIT="08d5f1f"
 
 # Environment
 ENV PYTHONPATH=/app/src
