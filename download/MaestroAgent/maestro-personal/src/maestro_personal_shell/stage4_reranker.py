@@ -1,33 +1,5 @@
 #!/usr/bin/env python3
-"""
-stage4_reranker.py — LLM-based cross-encoder reranker for Stage 4.
-
-Implements the "LLM-as-a-reranker" technique: uses the LLM to score
-each evidence chunk's relevance to the query, then re-sorts by score.
-
-Why LLM-based instead of a true cross-encoder (bge-reranker-v2-m3):
-  - No hosted cross-encoder endpoint available via OpenRouter
-  - No local Ollama in this sandbox to run bge-reranker
-  - The LLM-as-a-reranker technique is well-established and works with
-    existing infrastructure (qwen-plus via OpenRouter)
-  - Trade-off: slower (1 LLM call per chunk) but uses existing infra
-
-How it works:
-  1. Takes the top-N RRF-fused evidence (e.g., 20 signals)
-  2. For each signal, calls the LLM with: "Rate the relevance of this
-     passage to the query on a scale of 0-10. Return ONLY the number."
-  3. Re-sorts signals by LLM score (descending)
-  4. Returns the top-K (e.g., 8) highest-scored signals
-
-Cost estimate:
-  - 20 signals × 1 LLM call each = 20 calls per query
-  - At $0.0000068/call (qwen-plus) = $0.00014 per query
-  - 100 questions = $0.014 total (effectively free)
-
-Usage (integrated into retrieval_ensemble.py):
-  from maestro_personal_shell.stage4_reranker import rerank_evidence
-  reranked = await rerank_evidence(query, fused_evidence, top_k=8)
-"""
+"""stage4_reranker.py — LLM-based cross-encoder reranker for Stage 4."""
 from __future__ import annotations
 import asyncio
 import logging

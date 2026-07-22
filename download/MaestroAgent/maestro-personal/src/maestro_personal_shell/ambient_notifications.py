@@ -1,32 +1,4 @@
-"""
-Personal-shell wrapper for the AmbientNotificationEngine (Phase 19).
-
-P11 fix (wiring): the enterprise backend has a fully-tested
-AmbientNotificationEngine (19 tests pass) but it was never wired into
-the personal shell — the actual product the mobile app uses. The personal
-shell's notification_scheduler.py only sent basic stale-commitment pushes;
-it had no context-aware timing, no DND, no fatigue prevention, no
-priority filtering.
-
-This module DERIVES notifications from the user's stored evidence
-(signal history + push tokens) — per P13, the caller does NOT supply
-the notification content. The engine inspects:
-
-  1. Overdue commitments (commitment_made signals past their implied due date)
-  2. Stale relationships (no signal for an entity in N days)
-  3. Preparation gaps (meeting soon + no prep signals)
-  4. Daily digest (meeting count + overdue count + at-risk count)
-
-Then applies the AmbientNotificationEngine's context-aware filtering:
-  - Quiet hours (8pm-8am): only CRITICAL shows
-  - In-call: only CRITICAL shows
-  - DND active: only CRITICAL shows
-  - Focus mode: only CRITICAL + HIGH show
-  - Fatigue prevention: max 5/hour, max 30/day
-
-The output is a list of visible notifications ready for the mobile app
-to display (or for the background scheduler to push via Expo).
-"""
+"""Personal-shell wrapper for the AmbientNotificationEngine."""
 from __future__ import annotations
 
 import logging

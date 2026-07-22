@@ -160,19 +160,7 @@ def _extract_entity_from_headers(headers: dict[str, str], user_email: str = "me"
 
 
 def detect_commitments_in_text(text: str) -> list[dict[str, str]]:
-    """Detect commitment patterns in text using CORE's classifier.
-
-    Per auditor finding (caabb7f dilution): this function MUST call Core's
-    should_treat_as_commitment + classify_transcript_chunk, NOT reimplement
-    commitment detection with regex. The regex patterns are now used ONLY
-    for sentence splitting (to extract the commitment text after Core
-    confirms it IS a commitment), not for commitment detection itself.
-
-    Returns a list of dicts with:
-      - text: the commitment text
-      - claim_type: Core's classification (commitment, proposal, etc.)
-      - deadline: extracted deadline (if any)
-    """
+    """Detect commitment patterns in text using CORE's classifier."""
     # Call CORE's classifier — do NOT reimplement
     from maestro_cognitive_council.audit_safety import (
         classify_transcript_chunk,

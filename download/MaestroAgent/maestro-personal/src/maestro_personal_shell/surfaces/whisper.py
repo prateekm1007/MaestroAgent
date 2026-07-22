@@ -72,22 +72,7 @@ class WhisperSurface:
         return whispers
 
     def _detect_critical_signal_whispers(self) -> list[dict[str, Any]]:
-        """Detect whispers for critical signals — escalations, churn, legal, board.
-
-        P0 fix (auditor finding #1): Whisper critical recall was 0% because
-        the WhisperSurface only detected stale commitments, meeting prep, and
-        deadline approaches. It did NOT detect critical signals like
-        "customer threatening to churn" or "board escalation". This method
-        scans recent signals for critical keywords and generates high-priority
-        whispers.
-
-        Critical keywords (from the Phase 6 silence_benchmark_100):
-          - churn/escalation/threatening/cancel account
-          - board escalation/emergency
-          - legal/lawsuit/compliance/regulatory
-          - deadline missed/overdue/past due
-          - breach/security incident
-        """
+        """Detect whispers for critical signals — escalations, churn, legal, board."""
         whispers = []
         now = datetime.now(timezone.utc)
         recent_window = now - timedelta(hours=48)  # only whisper about recent critical signals
@@ -276,19 +261,7 @@ class WhisperSurface:
         return whispers
 
     def should_whisper_now(self) -> bool:
-        """Restraint gate: should we whisper right now?
-
-        Per auditor finding (caabb7f dilution): this method MUST call
-        Core's DeliveryGovernor.decide() for each situation, NOT use its
-        own priority logic. Core's governor has the verified opportunity-
-        cost model (recently_surfaced suppression + should_surface check)
-        that prevents nagging. The priority check below is a FALLBACK
-        only for whispers that don't map to a situation (e.g., stale
-        commitments that haven't formed a situation yet).
-
-        Per break-test dimension 7 (Restraint): Whisper must NOT fire
-        when nothing deserves attention.
-        """
+        """Restraint gate: should we whisper right now?"""
         # Call CORE's DeliveryGovernor for each detected situation
         try:
             from maestro_cognitive_council.delivery_governor import DeliveryGovernor, DeliveryRoute

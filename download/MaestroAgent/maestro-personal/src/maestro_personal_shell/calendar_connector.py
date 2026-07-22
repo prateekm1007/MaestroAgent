@@ -1,44 +1,4 @@
-"""
-Google Calendar OAuth2 connector — real Calendar API integration (Phase E).
-
-Read-only connector: pulls upcoming meetings, ingests as signals, feeds
-into the Pre-call Intelligence Panel (built in Phase A).
-
-NO send capability (Calendar is read-only by design). No draft generation.
-This connector exists solely to complete the meeting intelligence loop:
-  Calendar (BEFORE) → Copilot (DURING) → Gmail/Slack (AFTER)
-
-Architecture (same pattern as gmail_connector.py):
-  - CalendarOAuthClient: OAuth2 authorization code flow + token refresh
-  - CalendarAPIClient: Calendar REST API calls (events.list)
-  - CalendarIngester: pulls upcoming events, extracts participants + context
-
-OAuth2 flow:
-  1. User clicks "Connect Calendar" in the UI
-  2. Backend generates authorization URL with scope:
-     - https://www.googleapis.com/auth/calendar.readonly
-  3. User grants access on Google's consent screen
-  4. Google redirects to /api/connectors/calendar/oauth/callback
-  5. Backend exchanges code for access + refresh tokens
-  6. Tokens stored encrypted in ConnectorStore
-  7. Ingestion uses the access token to call calendar.events().list()
-  8. Each upcoming event becomes a signal with:
-      entity = each attendee name
-      text = "Meeting with {attendees} at {time} — {summary}"
-      signal_type = reported_statement
-      timestamp = event start time
-      source = calendar:upcoming
-
-The pre-call intel panel then uses these signals to surface what matters
-for the upcoming meeting (forgotten commitments, open questions, etc.).
-
-Configuration (env vars):
-  - MAESTRO_CALENDAR_CLIENT_ID: Google OAuth2 client ID
-  - MAESTRO_CALENDAR_CLIENT_SECRET: Google OAuth2 client secret
-  - MAESTRO_CALENDAR_REDIRECT_URI: OAuth2 redirect URI
-
-When NOT set, falls back to MOCK_INGESTION_DATA — demo mode.
-"""
+"""Google Calendar OAuth2 connector — real Calendar API integration (Phase E)."""
 
 from __future__ import annotations
 

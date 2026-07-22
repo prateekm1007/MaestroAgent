@@ -1,37 +1,4 @@
-"""
-Canonical World Model — Phase 4: Cross-Surface Coherence.
-
-The roadmap (ROAD_TO_9_OF_10_AFTER_395558A.md Phase 4) requires:
-  1. PersonalWorldModel as the canonical read model.
-  2. Surfaces must NOT independently recompute state from raw signals.
-  3. Canonical state includes: entities, relationships, situations,
-     commitments, material changes, beliefs, unknowns, disputes,
-     corrections, outcomes, tombstones.
-  4. Cross-surface invariant tests.
-
-This module is the SINGLE source of truth for a request. Every surface
-endpoint (Commitments, The Moment, Prepare, Ask, What Changed, Copilot)
-calls build_world_model() once and reads from it. This eliminates
-cross-surface contradictions by construction — if Commitments says a
-commitment is completed, The Moment, Ask, Prepare, and What Changed all
-read the same `is_completed(entity)` answer from the WorldModel.
-
-The WorldModel is computed once per request and cached. Within a single
-request, all surfaces see the same state. Across requests, the state is
-recomputed (because signals may have changed).
-
-Phase 4 additions (over the original P24 fix):
-  - Disputes: canonical set of disputed entities/commitments (from ledger)
-  - Corrections: canonical set of corrected signal_ids (from metadata)
-  - Outcomes: canonical set of resolved predictions (from outcome_tracker)
-  - Tombstones: canonical set of tombstoned/superseded commitments (from ledger)
-  - Beliefs: canonical derived beliefs (from situations + commitments)
-  - Unknowns: canonical open questions (from stale + at-risk commitments)
-  - Material changes: canonical recent deltas (from What Changed surface)
-  - Relationships: canonical entity graph (from personal_graph)
-  - Ledger integration: reads commitment lifecycle state from the Phase 3
-    commitments_ledger table, not just from signal metadata.
-"""
+"""Canonical World Model — Phase 4: Cross-Surface Coherence."""
 
 from __future__ import annotations
 
@@ -53,14 +20,7 @@ def _get_db_path() -> str:
 
 
 class WorldModel:
-    """Canonical world-model state for a single request.
-
-    All surfaces read from this object instead of independently recomputing.
-    This ensures cross-surface coherence (P24, Phase 4).
-
-    Every property is computed once (lazy) and cached for the request lifetime.
-    The cache is per-WorldModel-instance, so each request gets a fresh model.
-    """
+    """Canonical world-model state for a single request."""
 
     def __init__(self, shell: Any, user_email: str = "bootstrap"):
         self._shell = shell
@@ -186,11 +146,7 @@ class WorldModel:
 
     @property
     def corrected_signal_ids(self) -> set[str]:
-        """Phase 4: set of signal_ids that have been corrected (any correction action).
-
-        This is the superset of dismissed + cancelled + completed + disputed +
-        superseded — any signal whose metadata has a 'correction' key.
-        """
+        """Phase 4: set of signal_ids that have been corrected (any correction action)."""
         if self._corrected_signal_ids is not None:
             return self._corrected_signal_ids
 
@@ -292,10 +248,7 @@ class WorldModel:
 
     @property
     def relationships(self) -> list[dict]:
-        """Phase 4: canonical entity relationships (from personal graph).
-
-        Each relationship is {source, target, type, confidence}.
-        """
+        """Phase 4: canonical entity relationships (from personal graph)."""
         if self._relationships is not None:
             return self._relationships
         try:
@@ -313,15 +266,7 @@ class WorldModel:
 
     @property
     def beliefs(self) -> list[dict]:
-        """Phase 4: canonical derived beliefs.
-
-        A belief is a derived statement about the world:
-        - "Alex is reliable" (from outcome history)
-        - "The proposal is overdue" (from stale commitments)
-        - "The contract is disputed" (from disputed ledger entries)
-
-        Each belief is {entity, belief, evidence, confidence}.
-        """
+        """Phase 4: canonical derived beliefs."""
         if self._beliefs is not None:
             return self._beliefs
 
@@ -360,15 +305,7 @@ class WorldModel:
 
     @property
     def unknowns(self) -> list[dict]:
-        """Phase 4: canonical open questions / unknowns.
-
-        An unknown is something we don't yet know:
-        - Will a stale commitment be fulfilled? (stale + not completed)
-        - Will a disputed commitment be resolved?
-        - Is an at-risk commitment going to miss?
-
-        Each unknown is {entity, question, why}.
-        """
+        """Phase 4: canonical open questions / unknowns."""
         if self._unknowns is not None:
             return self._unknowns
 
@@ -398,11 +335,7 @@ class WorldModel:
 
     @property
     def material_changes(self) -> list[dict]:
-        """Phase 4: canonical material changes (recent deltas).
-
-        Derived from the What Changed surface — but computed once here so
-        all surfaces agree on what changed.
-        """
+        """Phase 4: canonical material changes (recent deltas)."""
         if self._material_changes is not None:
             return self._material_changes
         try:
@@ -484,11 +417,7 @@ class WorldModel:
         return None
 
     def get_commitment_state(self, signal_id: str) -> str:
-        """Phase 4: get the lifecycle state of a commitment.
-
-        Returns the ledger state if available, else 'active' (default).
-        This is the canonical state answer for all surfaces.
-        """
+        """Phase 4: get the lifecycle state of a commitment."""
         entry = self.get_ledger_entry(signal_id)
         if entry:
             return str(entry.get("state", "active"))
@@ -520,7 +449,7 @@ class WorldModel:
         return None
 
     # ------------------------------------------------------------------
-    # Cross-surface invariant helpers (Phase 4)
+    # Cross-surface invariant helpers
     # ------------------------------------------------------------------
 
     def surface_answer_for_entity(self, entity: str) -> dict:
@@ -587,9 +516,5 @@ class WorldModel:
 
 
 def build_world_model(shell: Any, user_email: str = "bootstrap") -> WorldModel:
-    """Build a canonical world model for a single request.
-
-    All surfaces should call this instead of independently recomputing state.
-    This ensures cross-surface coherence (P24, Phase 4).
-    """
+    """Build a canonical world model for a single request."""
     return WorldModel(shell=shell, user_email=user_email)

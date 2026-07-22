@@ -420,17 +420,7 @@ def _compute_commitment_confidence(
     calibration_note: str,
     days_stale: int = 0,
 ) -> float:
-    """Compute real per-item confidence for a commitment.
-
-    F5 fix: replaces the flat 0.5/0.0 confidence with a real calculation
-    based on:
-    - Classification confidence (from commitment_classifier)
-    - Calibration history (Brier score)
-    - Staleness (older = less confident it'll be kept)
-    - Evidence quality (classification type)
-
-    Returns a float 0.0-1.0.
-    """
+    """Compute real per-item confidence for a commitment."""
     confidence = 0.5  # base
 
     # 1. Use classification confidence if available

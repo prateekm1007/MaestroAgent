@@ -1,20 +1,4 @@
-"""
-Ask ranking pipeline — multi-stage retrieval and ranking for Ask.
-
-Phase 2: Fix Ask ranking so the right situation/evidence is selected.
-
-The auditor found that Ask often selected the wrong situation (Alex Chen
-by volume) even when the question was about Maria, Priya, or Project Vega.
-
-This module implements a multi-stage pipeline:
-1. Query understanding — extract entities, time constraints, intent
-2. Candidate retrieval — FTS5 + entity graph + temporal window
-3. Reranking — exact entity match, alias match, temporal fit, commitment relevance
-4. Answer synthesis — only from selected evidence, with provenance
-
-The reranking ensures that when you ask about "Priya", you get Priya's
-signals — not Alex Chen's just because Alex has more signals.
-"""
+"""Ask ranking pipeline — multi-stage retrieval and ranking for Ask."""
 
 from __future__ import annotations
 
@@ -27,24 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def understand_query(query: str) -> dict[str, Any]:
-    """Stage 1: Understand the query.
-
-    Extracts:
-    - entity_mentions: capitalized words that aren't common words
-    - time_constraints: "last quarter", "last week", etc.
-    - intent: commitment, contradiction, preparation, risk, silence, temporal,
-              broken, overdue, relational, abstention
-    - mentioned_topics: project names, technical terms
-    - intent_keywords: keywords associated with the detected intent
-      (used by rerank_signals for specialized retrieval)
-
-    F1 fix (Phase 3.1): expanded intent detection with broken/overdue/
-    relational/abstention intents. Each intent triggers specialized
-    retrieval logic in rerank_signals — e.g., "What did I fail to
-    deliver?" (broken intent) boosts signals containing "never sent",
-    "didn't deliver", "overdue", etc., instead of keyword-matching
-    "fail" against the signal text (which never matches).
-    """
+    """Stage 1: Understand the query."""
     query_lower = query.lower()
 
     # Extract entity mentions (capitalized words, excluding common words)
@@ -362,22 +329,7 @@ def rerank_signals(
     signals: list[dict[str, Any]],
     query_understanding: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Stage 3: Rerank signals by relevance to the query.
-
-    Scoring factors:
-    - Exact entity match: +100 (signal entity matches query entity)
-    - Partial entity match: +50 (entity name contains query entity)
-    - Topic match: +30 (signal text mentions query topic)
-    - Intent match: +20 (signal type matches query intent)
-    - Intent keyword match: +80 (signal text contains intent-specific keywords)
-      [F1 fix: this is the key change — "What did I fail to deliver?"
-      now boosts signals containing "never sent", "didn't deliver", etc.]
-    - Recency: +10 * (1 / (days_old + 1))
-    - Noise penalty: -10000 (newsletter, FYI, notification)
-    - Temporal fit: +20 if within the time constraint window
-
-    Returns signals sorted by score (highest first).
-    """
+    """Stage 3: Rerank signals by relevance to the query."""
     if not signals:
         return []
 
@@ -501,17 +453,7 @@ def select_top_evidence(
     max_count: int = 5,
     min_score: int = -50,
 ) -> list[dict[str, Any]]:
-    """Stage 4: Select the top N evidence items, filtering out noise.
-
-    Only returns signals with score >= min_score (filters out pure noise).
-
-    F1 fix (independent audit): the previous version documented min_score
-    filtering but never applied it — it just sliced [:max_count]. That's a
-    P11 (wiring) violation: the filter existed in the signature but wasn't
-    wired into the return path. Result: noise signals with very negative
-    scores still appeared in top_evidence when there weren't enough real
-    matches, and the Ask answer would synthesize from newsletter noise.
-    """
+    """Stage 4: Select the top N evidence items, filtering out noise."""
     filtered = [sig for sig in ranked_signals if sig.get("_rank_score", 0) >= min_score]
     return filtered[:max_count]
 
@@ -520,28 +462,7 @@ def aggregate_by_entity(
     signals: list[dict[str, Any]],
     intent: str = "general",
 ) -> list[dict[str, Any]]:
-    """Group signals by entity and compute per-entity summary.
-
-    F1 fix (Phase 3.2): for relational/overdue/broken intents, the LLM
-    needs entity-level context — not just top-5 signals. "Who am I
-    disappointing?" requires seeing Riley (1 broken), Avery (1 stale),
-    Priya (1 overdue) as distinct entities, not 5 random signals.
-
-    Returns entities sorted by the metric relevant to the intent:
-      - broken/overdue/relational/risk → broken_count DESC, then stale
-      - commitment → commitment_count DESC
-      - general → total_signals DESC
-
-    Each entity dict contains:
-      - entity: name
-      - total_signals: count
-      - commitment_count: commitments made
-      - broken_count: signals with broken keywords
-      - completed_count: signals with completion keywords
-      - stale_count: commitments with no follow-up (approximated)
-      - top_signals: top 2 signals for this entity (for LLM context)
-      - risk_score: broken_count * 3 + stale_count * 2 + commitment_count
-    """
+    """Group signals by entity and compute per-entity summary."""
     if not signals:
         return []
 

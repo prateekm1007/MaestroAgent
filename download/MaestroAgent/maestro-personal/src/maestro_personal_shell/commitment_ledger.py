@@ -1,42 +1,4 @@
-"""
-Commitment Ledger — the normalized, persistent store of commitments.
-
-Phase 3 of the Road-to-9/10. The roadmap requires:
-  1. A 500-item labeled corpus (13 categories).
-  2. Structured extraction schema (owner, recipient, action, deadline).
-  3. Full lifecycle state machine (candidate → active → at_risk →
-     completed_claimed → completed_verified → disputed → cancelled →
-     superseded → tombstoned).
-  4. Closure matching by topic/action/recipient, not entity only.
-  5. Dispute handling (completed but incomplete / late / denied / changed).
-  6. Corrections propagate to all surfaces.
-
-This module owns the schema + state machine + persistence + closure
-matching + correction propagation. It does NOT re-implement commitment
-*classification* — that stays in commitment_classifier.py (which calls
-Core's classify_transcript_chunk per the no-dilution guard). The ledger
-persists the classifier's output and enforces lifecycle invariants.
-
-Design notes
-------------
-- The ledger is a SEPARATE table from `signals`. A signal is a raw
-  observation; a ledger entry is the normalized commitment derived from
-  one or more signals. One signal can produce at most one ledger entry
-  (1:1 via signal_id FK), but a ledger entry can be superseded by a
-  newer one (superseded_by FK).
-- Every state transition is audit-logged via audit_trust.log_data_access
-  BEFORE the write (P20: log before destructive op). Illegal transitions
-  are rejected and logged as 'rejected_transition'.
-- Closure matching uses (entity + action-keyword overlap + recipient)
-  so "Sent the proposal" closes "I'll send the proposal by Friday" even
-  though the texts differ. This is the roadmap's requirement #4.
-- Correction propagation invalidates downstream artifacts by deleting
-  the signal from FTS and marking the ledger entry cancelled/tombstoned;
-  the next build_shell() call re-derives situations/predictions/graph
-  from the corrected signal set. We prove no stale artifacts remain by
-  re-running detect_situations() and asserting the corrected entity no
-  longer appears.
-"""
+"""Commitment Ledger — the normalized, persistent store of commitments."""
 
 from __future__ import annotations
 

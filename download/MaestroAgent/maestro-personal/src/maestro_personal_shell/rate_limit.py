@@ -1,29 +1,4 @@
-"""Shared rate-limit decorator — P0-6 audit fix (2026-07-15).
-
-The auditor found that 12 rapid requests to /api/ask all returned 200,
-because the only limit in place was the app-wide default of 200/minute.
-That is far too lax for expensive endpoints (LLM calls, OAuth flows,
-account creation).
-
-This module exposes `rate_limit(limit_str)` — a lazy decorator that
-applies the slowapi limit at CALL time (not import time). The lazy
-lookup is critical for test isolation: when a test reloads the api
-module, the Limiter is recreated, and any decorator that captured the
-old Limiter at import time would be stale.
-
-Usage:
-
-    from maestro_personal_shell.rate_limit import rate_limit
-
-    @router.post("/expensive")
-    @rate_limit("30/minute")
-    async def expensive_endpoint(...):
-        ...
-
-If slowapi is not installed (dev mode), the decorator is a no-op —
-the endpoint runs without rate limiting. This matches the existing
-behavior of `_maybe_login_decorator` in routers/auth.py.
-"""
+"""Shared rate-limit decorator — P0-6 audit fix (2026-07-15)."""
 from __future__ import annotations
 
 import functools
@@ -34,30 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def rate_limit(limit_str: str) -> Callable:
-    """Return a decorator that applies a slowapi rate limit lazily.
-
-    Args:
-        limit_str: slowapi limit string, e.g. "30/minute", "5/hour".
-
-    Returns:
-        A decorator that wraps async endpoint handlers.
-
-    IMPORTANT: RateLimitExceeded MUST propagate — do NOT catch it. The
-    FastAPI exception handler registered in api.py converts it to a 429
-    response. Catching it here would silently bypass the rate limit.
-
-    Test mode: when MAESTRO_TEST_MODE=1, the limit is bypassed entirely
-    so the test suite can make rapid requests without tripping 429s.
-
-    Round 68 fix (2026-07-18): the previous implementation re-decorated
-    the function on EVERY call (`_lim.limit(limit_str)(func)` inside the
-    wrapper). This created a new slowapi decorator instance per request,
-    which confused the internal counter — a "10/minute" limit triggered
-    at request 5 instead of 11 (the auditor caught this). Now: the
-    decorated function is created ONCE (on first call) and cached. The
-    lazy lookup still works (the Limiter is looked up at call time, not
-    import time, so test-isolation reloads still get the current Limiter).
-    """
+    """Return a decorator that applies a slowapi rate limit lazily."""
     def decorator(func: Callable) -> Callable:
         _decorated_cache = None
 

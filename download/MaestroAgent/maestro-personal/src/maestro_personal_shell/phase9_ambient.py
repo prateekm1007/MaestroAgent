@@ -1,30 +1,4 @@
-"""
-Personal-shell wrapper for Phase 9 ambient engines:
-  - CalendarAwarenessEngine (calendar_awareness.py)
-  - CommitmentEscalationEngine (commitment_escalation.py)
-
-P11 fix (wiring): both enterprise engines were built + tested (16 tests
-pass) but never wired into the personal shell — the actual product the
-mobile app uses. The personal shell had a calendar connector (OAuth) but
-didn't USE calendar data for ambient intelligence, and had no commitment
-escalation (no failure prediction, no nudges, no health scoring).
-
-This module DERIVES intelligence from the user's stored evidence
-(signal history) — per P13, the caller does NOT supply the conclusion.
-
-  Calendar awareness:
-    - DERIVES meeting context from calendar events + signal history
-    - Detects preparation gaps (meeting soon + no prep signals)
-    - Generates talking points (each with evidence — anti-Cluely)
-    - Identifies risks + opportunities
-    - Detects meeting clusters ("3 entity meetings this week")
-
-  Commitment escalation:
-    - DERIVES commitment health from signal history
-    - Predicts failure from historical patterns
-    - Generates escalation levels (NONE / SOON / OVERDUE / CRITICAL)
-    - Produces nudge text + channel + draft for each escalation
-"""
+"""Personal-shell wrapper for Phase 9 ambient engines:"""
 from __future__ import annotations
 
 import logging

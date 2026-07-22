@@ -40,12 +40,7 @@ class _PseudoSituation:
 @router.post("", response_model=AskResponse)
 @rate_limit("30/minute")  # P0-6: Ask is LLM-powered + expensive — cap at 30/min per IP
 async def ask(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
-    """Ask a question — get the truth, sourced (LLM-powered when available).
-
-    P0-3: supports multi-turn conversations via session_id. When provided,
-    the prior Q&A is included as context so follow-up questions like
-    "When is it due?" reference the previous query's entity.
-    """
+    """Ask a question — get the truth, sourced (LLM-powered when available)."""
     from maestro_personal_shell.api import (
         build_shell_async,
         load_signals_from_db,

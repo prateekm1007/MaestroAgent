@@ -1,21 +1,4 @@
-"""
-Phase 9 behavior change — past outcomes change future behavior.
-
-The roadmap requires:
-  Learning behavior-change rate >= 70% controlled scenarios
-
-Past outcomes should measurably change:
-  - ranking (entities with poor track record ranked lower)
-  - interruption threshold (unreliable entities interrupted sooner)
-  - recommendation wording (calibrated confidence shown)
-  - confidence (adjusted by Brier score)
-  - suppression (repeatedly dismissed patterns suppressed)
-
-This module reads resolved predictions + outcomes and produces behavior
-adjustments that callers apply to future interactions.
-
-Rule-based — no LLM needed.
-"""
+"""Phase 9 behavior change — past outcomes change future behavior."""
 
 from __future__ import annotations
 

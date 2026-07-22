@@ -1,28 +1,4 @@
-"""Demo data seeder — P0-3 fix (audit V5 2026-07-15).
-
-The audit found that the first-run experience is empty — "watching quietly"
-with zero data until manual signals are added. This makes the product feel
-dead on arrival.
-
-This module seeds a realistic demo corpus on first launch (when the DB has
-zero signals). The corpus includes:
-  - 3 people with active commitments
-  - 1 stale commitment (triggers Whisper)
-  - 1 completed commitment
-  - 1 critical signal (triggers Whisper)
-  - Realistic timestamps (recent, so they appear in The Moment)
-
-The seeder is idempotent — it only runs when the signals table is empty.
-It assigns all demo signals to the 'bootstrap' user (the default for
-shared-token mode). Real users who register get their own empty state
-and won't see demo data.
-
-Usage (called from api.py lifespan):
-    from maestro_personal_shell.demo_seeder import seed_demo_data_if_empty
-    seeded = seed_demo_data_if_empty()
-    if seeded:
-        logger.info("Demo data seeded (%d signals)", seeded)
-"""
+"""Demo data seeder — P0-3 fix (audit V5 2026-07-15)."""
 from __future__ import annotations
 
 import logging

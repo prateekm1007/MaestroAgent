@@ -1,20 +1,4 @@
-"""
-Materiality Gate — LLM-powered Trusted Silence evaluation.
-
-Phase 3.1 fix: replaces the hardcoded `evidence_count < 3` rule with
-an LLM-evaluated materiality gate. Instead of "speak if evidence >= 3",
-the LLM evaluates whether this situation genuinely deserves the user's
-attention right now.
-
-The gate uses a dual-pass evaluation:
-  Pass 1: Is this a genuine state change or just activity?
-  Pass 2: Does it deserve interruption right now?
-
-When no LLM is available, falls back to the rule-based scoring (the
-old behavior). This means the product works in BOTH modes:
-- With LLM: genuine semantic materiality evaluation
-- Without LLM: rule-based heuristic (the fallback)
-"""
+"""Materiality Gate — LLM-powered Trusted Silence evaluation."""
 
 from __future__ import annotations
 
@@ -28,22 +12,7 @@ async def evaluate_materiality(
     commitment: dict[str, Any],
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Evaluate whether a commitment deserves the user's attention right now.
-
-    Phase 3.1: This is the LLM-powered Trusted Silence gate. Instead of
-    hardcoded rules (evidence_count < 3), the LLM evaluates:
-    1. Is this a genuine material change (not just activity)?
-    2. Does it deserve interruption right now, or can it wait?
-    3. What is the materiality score (0.0-1.0)?
-
-    Returns:
-    {
-        "should_speak": True | False,
-        "materiality_score": 0.0-1.0,
-        "reasoning": "Why this does/doesn't deserve attention",
-        "urgency": "critical" | "high" | "medium" | "low",
-    }
-    """
+    """Evaluate whether a commitment deserves the user's attention right now."""
     from maestro_personal_shell.llm_bridge import is_llm_available, llm_complete, sanitize_for_llm
 
     # Fallback: rule-based materiality (when no LLM)

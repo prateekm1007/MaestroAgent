@@ -46,16 +46,7 @@ def _send_push_notification(push_token: str, title: str, body: str, data: dict) 
 
 
 def _resolve_db_path() -> str:
-    """Resolve the DB path using the SAME logic as api.py.
-
-    P0-5 fix (audit 2026-07-15): the previous default `"personal.db"`
-    was RELATIVE TO CWD, while api.py uses an ABSOLUTE path under the
-    package directory. When the auditor ran `uvicorn` from the repo
-    root, the scheduler opened a different DB file than the rest of
-    the app — causing the "no such table: signals" startup error.
-
-    This function now mirrors api.py's resolution exactly.
-    """
+    """Resolve the DB path using the SAME logic as api.py."""
     env = os.environ.get("MAESTRO_PERSONAL_DB")
     if env:
         return env
@@ -64,12 +55,7 @@ def _resolve_db_path() -> str:
 
 
 def ensure_scheduler_tables(db) -> None:
-    """P0-5 fix: idempotently create the tables the scheduler queries.
-
-    Even if init_db() in api.py runs first, calling this ensures the
-    scheduler never crashes on a missing table — including in tests
-    that bypass the full app lifespan.
-    """
+    """P0-5 fix: idempotently create the tables the scheduler queries."""
     db.execute("""
         CREATE TABLE IF NOT EXISTS signals (
             signal_id TEXT PRIMARY KEY,
@@ -166,13 +152,7 @@ async def check_stale_commitments():
 
 
 async def notification_loop(interval_seconds: int = 3600):
-    """Background loop — checks every hour.
-
-    P11 fix (Phase 19 wiring): now calls BOTH the legacy stale-commitment
-    check AND the new smart-notification engine (ambient_notifications).
-    The smart engine adds context-aware filtering, DND, fatigue prevention,
-    and generates overdue/stale-relationship/digest notifications.
-    """
+    """Background loop — checks every hour."""
     logger.info("Notification scheduler loop started (interval=%ds)", interval_seconds)
     while True:
         try:

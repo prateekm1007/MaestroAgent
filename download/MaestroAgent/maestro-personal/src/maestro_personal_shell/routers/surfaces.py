@@ -1,13 +1,4 @@
-"""Surfaces router — the heavy "surface" endpoints.
-
-Extracted from api.py during the Phase 8 router split. These endpoints
-(briefing, the-moment, what-changed, prepare, whisper) are listed in the
-task spec as belonging to the account grouping, but their combined size
-(~630 lines) would push account.py over the 800-line limit. They live
-here in surfaces.py and mount at the same /api prefix.
-
-No behavior changes — same paths, same response schemas, same filters.
-"""
+"""Surfaces router — the heavy "surface" endpoints."""
 from __future__ import annotations
 
 import logging
@@ -109,14 +100,7 @@ async def verify_token_dep(authorization: str = Header(None)) -> str:
 
 
 class BriefingResponse(BaseModel):
-    """The masterpiece briefing — Situation-centric, not agent-centric.
-
-    P-2026-07-18 fix (auditor roadmap §2.4): empty aspirational fields are
-    now omitted from the JSON response (exclude_none=True). Empty strings
-    and empty arrays are converted to None before serialization so they
-    don't appear on the wire. A professional buyer should never see
-    `belief: ""` or `can_decide_now: []` — either populate them or omit them.
-    """
+    """The masterpiece briefing — Situation-centric, not agent-centric."""
     greeting: str = ""
     top_situation: dict[str, Any] | None = None
     material_changes: list[str] | None = None

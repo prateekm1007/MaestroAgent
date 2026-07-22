@@ -1,22 +1,4 @@
-"""
-Personal-shell wrapper for the CrossMeetingThreadBuilder (Phase 14).
-
-P11 fix (wiring): the enterprise CrossMeetingThreadBuilder was built +
-tested (13 tests pass) but never wired into the personal shell — the
-actual product the mobile app uses. The personal shell had no
-cross-meeting threading: meetings were stored as isolated signals with
-no way to link "this continues the Q3 renewal discussion from Oct 15".
-
-This is the "institutional memory" moat — the thing Cluely can't do.
-It connects meetings into a coherent narrative by entity + topic,
-tracks decisions across meetings, and surfaces topic evolution.
-
-This module DERIVES meeting summaries from the user's stored evidence
-(signal history) — per P13, the caller does NOT supply the meetings.
-The builder inspects meeting_scheduled / meeting_context signals +
-their related commitment_made / decision signals, then groups them
-into threads by entity + topic overlap.
-"""
+"""Personal-shell wrapper for the CrossMeetingThreadBuilder."""
 from __future__ import annotations
 
 import logging
@@ -317,24 +299,7 @@ def get_threads_for_entity(
     entity: str,
     db_path: str = "",
 ) -> list[dict[str, Any]]:
-    """Get all threads for a specific entity.
-
-    F3a fix (auditor P24 cross-surface coherence): when the enterprise
-    CrossMeetingThreadBuilder is unavailable, fall back to deriving threads
-    from the signal store directly. This ensures /api/threads/{entity}
-    returns data that agrees with /api/graph/entity/{entity} — both derive
-    from the same signal store.
-
-    The fallback builds a simple thread per entity: one "thread" containing
-    all signals for that entity, sorted by timestamp, with a topic derived
-    from the first commitment signal. This isn't as sophisticated as the
-    enterprise builder (which tracks topic evolution and decision chains),
-    but it ensures the three surfaces (Ask, Graph, Threads) agree on what
-    entities exist and what their history is.
-
-    F3b fix: case-insensitive entity matching. Previously exact-match only;
-    now matches on lowercased entity name, same as the graph endpoint.
-    """
+    """Get all threads for a specific entity."""
     # Try the enterprise builder first
     threads = get_cross_meeting_threads(user_email, entity_filter=entity, db_path=db_path)
     if threads:

@@ -1,35 +1,4 @@
-"""
-Phase 5 P2 — Post-call polish features.
-
-Implements three auditor-flagged gaps (22/30 → 25/30):
-
-1. FollowUpEmailGenerator — commitment-aware follow-up email drafts
-   that cite specific signals from the user's organizational memory.
-   Unlike Cluely's generic drafts, Maestro's drafts:
-   - Reference each commitment made during the call (with actor)
-   - Cite relevant laws/patterns from the user's historical data
-   - Track commitment lifecycle (made → kept/broken)
-   - Adapt tone to the conversation (formal / warm / direct)
-
-2. PreCallIntelPanel — surfaces 3 things that matter for THIS meeting:
-   - Forgotten (oldest open commitment for this entity)
-   - Open question (unanswered follow-up from this entity)
-   - Contradiction (recent signal that conflicts with a prior signal)
-   Plus talk-track suggestions derived from the user's organizational laws.
-
-3. PostCallSummaryUI — full-screen post-call modal payload:
-   - Hero card (title, duration, participant count, chunk count)
-   - Key stats grid (commitments, objections, suggestions, talk ratio)
-   - Commitments tracked (with Day X/Y countdown + dedup status)
-   - Objections raised (with response pattern + action required)
-   - Draft follow-up email (cites specific commitments + patterns)
-   - What Maestro learned (new signals, pattern data points, law threshold)
-
-All three modules are pure-Python (no LLM dependency for v1) so they
-work in the dogfood environment without an LLM bridge. When an LLM
-bridge IS available, the FollowUpEmailGenerator and PreCallIntelPanel
-use it to polish their outputs.
-"""
+"""Phase 5 P2 — Post-call polish features."""
 
 from __future__ import annotations
 

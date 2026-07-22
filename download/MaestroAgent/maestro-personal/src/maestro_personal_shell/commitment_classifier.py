@@ -1,27 +1,4 @@
-"""
-Commitment Classifier — LLM-powered state-machine tracking.
-
-Phase 3.2 fix: replaces single-prompt commitment extraction with a
-lifecycle engine. The LLM classifies commitments as:
-- explicit: "I will send the proposal by Friday"
-- implicit: "You'll have the revised numbers?" / "Let me take that"
-- conditional: "If legal signs off, I'll send it"
-- tentative: "Maybe I can send it next week, but don't count on it"
-- proposal: "We should deliver by Friday" (not a promise)
-- request: "Can you get me the numbers before IC?"
-- third_party_report: "He said he will"
-- negation: "I won't be able to send it"
-- disputed: completion challenged ("we got it but it's missing the appendix")
-- completed: "Sent the proposal yesterday"
-- cancelled: "Never mind, we don't need this"
-- superseded: replaced by a newer commitment
-
-This classification drives the commitment lifecycle:
-  candidate → active → at_risk → completed_claimed → completed_verified
-           → disputed → cancelled → superseded → tombstoned
-
-When no LLM is available, falls back to rule-based classification.
-"""
+"""Commitment Classifier — LLM-powered state-machine tracking."""
 
 from __future__ import annotations
 
@@ -67,22 +44,7 @@ async def classify_commitment(
     entity: str = "",
     context: str = "",
 ) -> dict[str, Any]:
-    """Classify a signal text as a commitment type.
-
-    Phase 3.2: Uses LLM to classify the commitment type, which drives
-    the lifecycle state machine. Falls back to rule-based when no LLM.
-
-    Returns:
-    {
-        "commitment_type": "explicit" | "implicit" | ...,
-        "is_commitment": True | False,
-        "confidence": 0.0-1.0,
-        "state": "active" | "completed" | "cancelled" | ...,
-        "owner": "user" | "other" | "unknown",
-        "deadline_text": "",
-        "reasoning": "",
-    }
-    """
+    """Classify a signal text as a commitment type."""
     from maestro_personal_shell.llm_bridge import is_llm_available, llm_complete, sanitize_for_llm
 
     # S2-05 fix: slang joke markers BEFORE the LLM path.

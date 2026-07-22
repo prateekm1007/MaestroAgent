@@ -39,18 +39,7 @@ async def verify_token_dep(authorization: str = Header(None)) -> str:
 
 
 def _maybe_login_decorator():
-    """Return a decorator that applies the login rate limit lazily.
-
-    P0-6 audit fix (2026-07-15): the previous version had `except Exception: pass`
-    which SILENTLY SWALLOWED RateLimitExceeded — meaning login rate limiting was
-    NEVER actually enforced in production. The shared rate_limit decorator in
-    rate_limit.py correctly lets RateLimitExceeded propagate so FastAPI's
-    exception handler can convert it to a 429.
-
-    This wrapper now delegates to rate_limit("10/minute") for consistency.
-    Kept as a thin shim so existing decorators on /login and /register don't
-    need to change.
-    """
+    """Return a decorator that applies the login rate limit lazily."""
     from maestro_personal_shell.rate_limit import rate_limit as _rate_limit
     return _rate_limit("10/minute")
 
@@ -302,15 +291,7 @@ async def register(request: Request, req: RegisterRequest):
 
 @router.post("/revoke")
 async def revoke_token(token: str = Depends(verify_token_dep)):
-    """Revoke the current token (P1-4 fix).
-
-    The caller's bearer token (from the Authorization header) is revoked.
-    After this call, the token can no longer be used for authentication.
-    The user must log in again to get a new token.
-
-    This is the standard 'logout' endpoint — it ensures that even if the
-    token is intercepted, it becomes useless after revocation.
-    """
+    """Revoke the current token (P1-4 fix)."""
     from maestro_personal_shell.api import _revoke_all_user_tokens
     # `token` here is the user_email returned by verify_token.
     # Revoke ALL tokens for this user_email — this is actually more secure
@@ -325,14 +306,7 @@ async def revoke_token(token: str = Depends(verify_token_dep)):
 
 @router.post("/rotate")
 async def rotate_token(token: str = Depends(verify_token_dep)):
-    """Rotate the current token (P1-4 fix).
-
-    Issues a new token and revokes ALL old tokens for the user. This is
-    the standard token rotation flow — call this periodically to limit
-    the window of opportunity for a compromised token.
-
-    Returns the new token. The old token(s) are immediately invalid.
-    """
+    """Rotate the current token (P1-4 fix)."""
     from maestro_personal_shell.api import _revoke_all_user_tokens, _create_user_token
     # Revoke all existing tokens for this user
     old_count = _revoke_all_user_tokens(token)

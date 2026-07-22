@@ -1,14 +1,4 @@
-"""
-Nerve wiring — exposes all Nerve agents to the Personal shell.
-
-Per CEO Phase 3 directive: replace template perspectives with real
-Nerve agent insights. Each agent reads .signals from PersonalOemState
-(duck-typed, same pattern as Core) and generates AgentInsight objects
-with title, body, confidence, evidence_chain, recommended_action.
-
-14 of 17 agents are personal-applicable (3 excluded: Security,
-Support, Partnerships — enterprise-only).
-"""
+"""Nerve wiring — exposes all Nerve agents to the Personal shell."""
 
 from __future__ import annotations
 
@@ -151,24 +141,7 @@ class NerveWiring:
         return list(self._agents.keys())
 
     def get_insights(self, org_id: str = "personal", situation_text: str = "") -> list[dict[str, Any]]:
-        """Generate insights from dynamically selected agents.
-
-        Directive 4 / P11 fix: instead of running all 8 agents on every
-        situation, dynamically select only the agents relevant to the
-        situation's content. This reduces latency and improves precision.
-
-        If situation_text is provided, uses select_relevant_agents() to
-        pick the top 3 agents. If not provided, runs all (backward compat).
-
-        Returns a list of insight dicts with:
-          - agent: which agent produced it
-          - title: short headline
-          - body: 1-3 sentence explanation
-          - confidence: 0.0-1.0
-          - evidence_chain: list of evidence dicts
-          - recommended_action: concrete next step
-          - priority: high/medium/low
-        """
+        """Generate insights from dynamically selected agents."""
         self._init_agents()
         from maestro_nerve.base_agent import AgentContext
 
@@ -235,12 +208,7 @@ class NerveWiring:
         return all_insights
 
     def get_insights_for_entity(self, entity: str, org_id: str = "personal") -> list[dict[str, Any]]:
-        """Get insights filtered to a specific entity.
-
-        P11 fix: passes the entity name as situation_text so dynamic
-        agent selection triggers — only agents relevant to this entity
-        run, not all 8.
-        """
+        """Get insights filtered to a specific entity."""
         all_insights = self.get_insights(org_id, situation_text=entity)
         entity_lower = entity.lower()
 

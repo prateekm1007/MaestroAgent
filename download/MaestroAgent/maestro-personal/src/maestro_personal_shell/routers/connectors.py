@@ -110,18 +110,7 @@ async def list_connectors(
 @router.post("/connectors/{provider}/connect")
 @rate_limit("10/minute")  # P0-6: OAuth flow initiation — cap at 10/min per IP (anti-spam)
 async def connect_provider(request: Request, provider: str, req: ConnectorConnectRequest | None = None, token: str = Depends(verify_token_dep)):
-    """Connect a provider (stores OAuth token encrypted).
-
-    For Gmail/Slack/Calendar/GitHub: if OAuth is configured (CLIENT_ID set),
-    this endpoint returns the authorization URL — the user visits it, grants
-    access, and the provider redirects to /api/connectors/<provider>/oauth/callback
-    which completes the connection. If OAuth is NOT configured, stores the
-    provided oauth_token directly (demo mode).
-
-    P0-2 fix: the body is now optional. Callers may POST with no body at
-    all to initiate the OAuth flow — the previous version returned 422
-    because `provider` was a required body field (despite being in the URL).
-    """
+    """Connect a provider (stores OAuth token encrypted)."""
     req = req or ConnectorConnectRequest()
     from maestro_personal_shell.connectors import ConnectorStore
     store = ConnectorStore()

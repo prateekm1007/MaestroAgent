@@ -1,14 +1,4 @@
-"""
-PersonalSalienceConfig — personal signal types for the salience gate.
-
-Per auditor's verified finding: Core's _is_high_salience_signal checks
-enterprise types (commitment_made, decision.proposed, org.reorganization).
-Personal needs different types. The shell wraps the method (see shell.py)
-to also accept personal types. This config defines them.
-
-This is NOT a Core modification. It is a config the shell applies at
-runtime via method wrapping. Core stays enterprise-compatible.
-"""
+"""PersonalSalienceConfig — personal signal types for the salience gate."""
 
 from __future__ import annotations
 
