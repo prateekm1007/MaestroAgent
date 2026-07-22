@@ -8,11 +8,17 @@ ARG CACHEBUST
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ libffi-dev libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# Single COPY of ALL source at once (different structure = different cache key)
+# Single COPY of source. Only copy the 4 backend modules that are actually
+# imported by maestro_personal_shell (verified via grep). The other 6
+# (maestro_api, maestro_plugins, maestro_db, maestro_memory, maestro_verify,
+# maestro_auth) are dead weight — not imported, not needed in production.
 COPY download/MaestroAgent/maestro-personal/pyproject.toml \
      download/MaestroAgent/maestro-personal/README.md \
      download/MaestroAgent/maestro-personal/src/ \
-     download/MaestroAgent/backend/ \
+     download/MaestroAgent/backend/maestro_cognitive_council/ \
+     download/MaestroAgent/backend/maestro_llm/ \
+     download/MaestroAgent/backend/maestro_nerve/ \
+     download/MaestroAgent/backend/maestro_oem/ \
      ./
 
 # Verify admin.py is correct (build FAILS if stale)
