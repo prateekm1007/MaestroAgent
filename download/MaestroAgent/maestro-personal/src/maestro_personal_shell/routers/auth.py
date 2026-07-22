@@ -1,14 +1,4 @@
-"""Auth router — login, revoke, rotate.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — same paths, same request/response schemas, same token store.
-
-verify_token + the per-user token store helpers (_init_auth_db,
-_create_user_token, _revoke_user_token, _revoke_all_user_tokens)
-stay in api.py because verify_token is shared across every router
-and the helpers are used by both verify_token and these endpoints.
-This router imports them.
-"""
+"""Auth router — login, revoke, rotate."""
 from __future__ import annotations
 
 import os
@@ -73,30 +63,7 @@ def _maybe_login_decorator():
 @router.post("/login", response_model=LoginResponse)
 @_maybe_login_decorator()
 async def login(request: Request, req: LoginRequest):
-    """Login — returns a bearer token.
-
-    P1 fix: passwordless email login removed. The login now requires
-    either:
-    1. The MAESTRO_PERSONAL_TOKEN env var (single-user local mode) —
-       the caller must provide it as the password. No email-based login.
-    2. A per-user token that was previously created via _create_user_token.
-       But tokens are never created without the setup password.
-
-    In dev mode (MAESTRO_PERSONAL_ENV not 'production'):
-    - Bootstrap token works with password=AUTH_TOKEN (backward compat for tests)
-    - Email-only login is REJECTED
-
-    In production mode:
-    - Only per-user tokens work (no bootstrap)
-    - Login requires password validation against user store (future)
-
-    This closes the P0-2 passwordless login vulnerability.
-
-    P-2026-07-18 fix (auditor S3 finding): accept both `user_email` and
-    `email` fields. Previously, sending `email` was silently ignored and
-    the login defaulted to "default@personal.local" — confusing first-touch
-    UX for API clients who guess the field name.
-    """
+    """Login — returns a bearer token."""
     from maestro_personal_shell.api import (
         _is_production,
         AUTH_TOKEN,
@@ -278,14 +245,7 @@ def _verify_password(password: str, stored: str) -> bool:
 @router.post("/register", response_model=RegisterResponse)
 @_maybe_login_decorator()
 async def register(request: Request, req: RegisterRequest):
-    """Register a new account with email + password.
-
-    Phase 2: Real account lifecycle. Creates a user account with
-    a hashed password (PBKDF2-SHA256, 100k iterations). Returns
-    a bearer token immediately after registration.
-
-    Rate limited: 3 registrations per hour per IP.
-    """
+    """Register a new account with email + password."""
     from maestro_personal_shell.db_util import get_db_conn
     import os
 

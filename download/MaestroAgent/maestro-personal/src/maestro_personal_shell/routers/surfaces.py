@@ -459,24 +459,7 @@ _ALWAYS_WHISPER_PRIORITIES = frozenset({"critical", "high"})
 
 
 def _should_whisper_rule_based(w: dict) -> bool | None:
-    """Rule-based early-exit for the whisper materiality gate.
-
-    Returns:
-        True  — always whisper (skip LLM gate)
-        False — never whisper (skip LLM gate)
-        None  — borderline, let LLM gate decide
-
-    F6 guard: critical_signal whispers ALWAYS fire (emergencies never
-    suppressed). All other types go through the gate so the learning
-    loop can learn from dismissals.
-
-    Phase 0 fix (Round 67): medium-priority whispers (stale_commitment,
-    broken_commitment, deadline_approaching) now return None instead of
-    True. This restores the LLM-gate handoff — the materiality_gate_v2
-    is called for these whispers so the learning loop can consume
-    dismissal feedback. The prior code auto-approved them, which meant
-    the gate was never called (the F5 test failure).
-    """
+    """Rule-based early-exit for the whisper materiality gate."""
     w_type = w.get("type", "")
     w_priority = str(w.get("priority", "")).lower()
 
@@ -936,7 +919,7 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
 
 
 # ---------------------------------------------------------------------------
-# GET /notifications/smart — context-aware ambient notifications (Phase 19)
+# GET /notifications/smart — context-aware ambient notifications
 # ---------------------------------------------------------------------------
 
 
@@ -959,21 +942,7 @@ async def get_smart_notifications(
     req: SmartNotificationRequest,
     token: str = Depends(verify_token_dep),
 ):
-    """Get context-aware ambient notifications for the current user.
-
-    P11 fix (wiring): the enterprise AmbientNotificationEngine was built
-    and tested (19 tests) but never wired into the personal shell — the
-    actual product the mobile app uses. This endpoint is the production
-    entry point.
-
-    P13: notifications are DERIVED from the user's signal history
-    (overdue commitments, stale relationships, daily digest). The caller
-    supplies only CONTEXT (in-call, DND, focus mode) — not the content.
-
-    Returns:
-      list of notifications with: notification_id, type, priority,
-      title, body, action_url, action_label, created_at, metadata
-    """
+    """Get context-aware ambient notifications for the current user."""
     from maestro_personal_shell.ambient_notifications import (
         get_smart_notifications as _get_smart,
         ENTERPRISE_ENGINE_AVAILABLE,
@@ -1018,20 +987,7 @@ async def get_calendar_awareness_endpoint(
     req: CalendarAwarenessRequest,
     token: str = Depends(verify_token_dep),
 ):
-    """Get calendar awareness for upcoming meetings (Phase 9).
-
-    P11 fix (wiring): the enterprise CalendarAwarenessEngine was built +
-    tested (16 tests) but never wired into the personal shell. This
-    endpoint is the production entry point.
-
-    P13: meeting context is DERIVED from the user's signal history
-    (commitments, talking points, risks, opportunities). The caller
-    supplies only the time horizon.
-
-    Returns:
-      list of meeting context dicts with talking_points, risks,
-      opportunities, open_commitments, overdue_commitments.
-    """
+    """Get calendar awareness for upcoming meetings."""
     from maestro_personal_shell.phase9_ambient import (
         get_calendar_awareness as _get_awareness,
         ENTERPRISE_ENGINES_AVAILABLE,
@@ -1054,22 +1010,7 @@ async def get_calendar_awareness_endpoint(
 async def get_commitment_escalations_endpoint(
     token: str = Depends(verify_token_dep),
 ):
-    """Get commitment escalations for the current user (Phase 9).
-
-    P11 fix (wiring): the enterprise CommitmentEscalationEngine was built
-    + tested but never wired into the personal shell. This endpoint is
-    the production entry point.
-
-    P13: commitments are DERIVED from the user's signal history — the
-    caller supplies nothing but the auth token.
-
-    Returns:
-      list of escalation dicts sorted by severity (CRITICAL first):
-        commitment_id, commitment_text, entity, health,
-        escalation_level, days_until_due, days_overdue,
-        nudge_text, nudge_channel, nudge_draft,
-        failure_probability, failure_reason, related_commitments
-    """
+    """Get commitment escalations for the current user."""
     from maestro_personal_shell.phase9_ambient import (
         get_commitment_escalations as _get_escalations,
         ENTERPRISE_ENGINES_AVAILABLE,
@@ -1109,22 +1050,7 @@ async def get_threads_endpoint(
     req: ThreadRequest,
     token: str = Depends(verify_token_dep),
 ):
-    """Get cross-meeting threads linking related meetings by entity + topic.
-
-    P11 fix (wiring): the enterprise CrossMeetingThreadBuilder was built
-    + tested (13 tests) but never wired into the personal shell. This
-    endpoint is the production entry point.
-
-    P13: meeting summaries are DERIVED from the user's signal history
-    (meeting_scheduled + commitment_made + decision signals). The caller
-    supplies only an optional entity filter.
-
-    Returns:
-      list of thread dicts, each with:
-        thread_id, entity, topic, meeting_count, meetings,
-        confidence, confidence_level, requires_confirmation,
-        topic_evolution, decision_chain
-    """
+    """Get cross-meeting threads linking related meetings by entity + topic."""
     from maestro_personal_shell.cross_meeting_threads import (
         get_cross_meeting_threads as _get_threads,
         ENTERPRISE_THREAD_BUILDER_AVAILABLE,
@@ -1221,22 +1147,7 @@ class MeetingOverrideRequest(BaseModel):
 async def get_all_meeting_grades_endpoint(
     token: str = Depends(verify_token_dep),
 ):
-    """Get grades for all meetings for the current user (Phase 16).
-
-    P11 fix (wiring): the enterprise MeetingGrader was built + tested
-    (14 tests) but never wired into the personal shell. This endpoint
-    is the production entry point.
-
-    P13: meeting data is DERIVED from the user's signal history
-    (transcript, duration, talk ratio, sentiment, participants). The
-    caller supplies nothing but the auth token.
-
-    Returns:
-      list of grade reports sorted by score (highest first), each with:
-        grade, effective_grade, score, factors, action_items,
-        action_item_completion_rate, follow_ups_pending, follow_ups_completed,
-        confidence_label, meeting_id, entity, title
-    """
+    """Get grades for all meetings for the current user."""
     from maestro_personal_shell.meeting_grader import (
         grade_all_meetings as _grade_all,
         ENTERPRISE_GRADER_AVAILABLE,
@@ -1291,12 +1202,7 @@ async def override_meeting_grade_endpoint(
     req: MeetingOverrideRequest,
     token: str = Depends(verify_token_dep),
 ):
-    """Override the computed grade for a meeting (Phase 16).
-
-    The user can adjust the grade based on intuition. The override is
-    transparent (recorded as user_override in the report). The computed
-    grade is still visible for comparison.
-    """
+    """Override the computed grade for a meeting."""
     from maestro_personal_shell.meeting_grader import (
         set_user_override as _override,
         ENTERPRISE_GRADER_AVAILABLE,
@@ -1324,21 +1230,7 @@ async def override_meeting_grade_endpoint(
 async def get_all_deal_health_endpoint(
     token: str = Depends(verify_token_dep),
 ):
-    """Get deal health scores for all entities (Phase 11).
-
-    P11 fix (wiring): the enterprise DealHealthEngine was built + tested
-    (13 tests) but never wired into the personal shell. This endpoint
-    is the production entry point.
-
-    P13: scores are DERIVED from the user's signal history. The caller
-    supplies nothing but the auth token.
-
-    Returns:
-      list of deal health dicts sorted by score (highest first), each with:
-        entity, score, status, momentum, confidence_label,
-        calibration_denominator, risk_factors, positive_indicators,
-        score_history, compounding_adjustments
-    """
+    """Get deal health scores for all entities."""
     from maestro_personal_shell.deal_health import (
         get_deal_health_for_all_entities as _get_all,
         ENTERPRISE_DEAL_HEALTH_AVAILABLE,
@@ -1398,21 +1290,7 @@ async def get_deal_health_endpoint(
 async def get_analytics_endpoint(
     token: str = Depends(verify_token_dep),
 ):
-    """Get the organizational learning report (Phase 20).
-
-    P11 fix (wiring): the enterprise AdvancedAnalyticsEngine was built +
-    tested (20 tests) but never wired into the personal shell. This
-    endpoint is the production entry point.
-
-    P13: the report is DERIVED from the user's signal history. The caller
-    supplies nothing but the auth token.
-
-    Returns:
-      org learning report with: trends, team_performance, laws_validated,
-      laws_candidate, patterns_detected, brier_score, commitment_kept_rate,
-      commitment_broken_rate, meeting_grade_average, deal_cycle_time_days,
-      flywheel_summary
-    """
+    """Get the organizational learning report."""
     from maestro_personal_shell.advanced_analytics import (
         get_analytics_report as _get_report,
         ENTERPRISE_ANALYTICS_AVAILABLE,

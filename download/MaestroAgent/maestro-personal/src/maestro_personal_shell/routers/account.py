@@ -1,14 +1,4 @@
-"""Account + insight router — account, export, privacy, audit, calibration,
-metrics, llm-status, depth, graph, behavior, agents, briefing, the-moment,
-what-changed, prepare, whisper.
-
-Extracted from api.py during the Phase 8 router split. No behavior changes.
-The heavy "surface" endpoints (briefing, the-moment, what-changed, prepare,
-whisper) live in routers/surfaces.py and are mounted via this module so the
-task's account.py grouping is preserved. Lighter endpoints (account/export/
-privacy/audit/calibration/metrics/llm-status/depth/graph/behavior/agents/
-predictions/outcomes/devices/observability) live here directly.
-"""
+"""Account + insight router — account, export, privacy, audit, calibration,"""
 from __future__ import annotations
 
 import logging
@@ -294,14 +284,7 @@ async def list_agents(
     experimental: bool = False,
     token: str = Depends(verify_token_dep),
 ):
-    """List all wired Nerve agents.
-
-    P-2026-07-18 fix (auditor roadmap §2.2): by default, only show 3 agents
-    (Sales, Customer Success, Chief of Staff) — the ones with demoable
-    insights. The other 5 (Product, Engineering, Strategy, Communications,
-    Finance) are hidden unless ?experimental=true. Eight agents with no
-    insights is a red flag; three agents with real insights is a feature.
-    """
+    """List all wired Nerve agents."""
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     nerve = shell.nerve
@@ -322,11 +305,7 @@ async def agent_dashboard(
     text: str = "",
     experimental: bool = False,
 ):
-    """Unified dashboard view: all insights from all agents.
-
-    P-2026-07-18 fix (auditor roadmap §2.2): filter to 3 demo agents by
-    default. Pass ?experimental=true to see all 8.
-    """
+    """Unified dashboard view: all insights from all agents."""
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     nerve = shell.nerve
@@ -743,17 +722,7 @@ async def debug_llm(token: str = Depends(verify_token_dep)):
 
 @router.get("/depth")
 async def get_depth(token: str = Depends(verify_token_dep)):
-    """Show which Core modules are wired to Personal (honest: producing_value vs placeholder).
-
-    P-2026-07-18 fix (auditor roadmap §2.3): this endpoint is now gated behind
-    an admin token. Self-honesty is a governance practice, not a buyer-facing
-    surface. A Fortune 100 evaluator should never see "producing_value_pct: 57"
-    in their browser. The data still exists internally to guide development;
-    it's just not publicly accessible.
-
-    To access: set MAESTRO_ADMIN_TOKEN env var and pass it as the password
-    in the Authorization header (Bearer <admin_token>).
-    """
+    """Show which Core modules are wired to Personal."""
     import os as _os
     admin_token = _os.environ.get("MAESTRO_ADMIN_TOKEN", "")
     # If no admin token is configured, return 404 (endpoint doesn't exist publicly)

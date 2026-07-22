@@ -1,11 +1,4 @@
-"""Connectors router — OAuth2 connector management + draft approval flow.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — same paths, same request/response schemas, same audit logging.
-
-The real moat: passive signal ingestion + commitment-aware drafting.
-Drafts NEVER auto-send — every draft requires explicit human approval.
-"""
+"""Connectors router — OAuth2 connector management + draft approval flow."""
 from __future__ import annotations
 
 import json
@@ -77,14 +70,7 @@ async def list_connectors(
     experimental: bool = False,
     token: str = Depends(verify_token_dep),
 ):
-    """List all available connectors with the user's connection state.
-
-    P-2026-07-18 fix (auditor roadmap §2.1): by default, only show Gmail and
-    Google Calendar — the two connectors that are actually configured for real
-    OAuth. Slack, GitHub, Work Email, WhatsApp, Facebook, Instagram, Twitter
-    are hidden unless ?experimental=true is passed. This prevents the demo
-    from implying promises we can't keep (10 connectors listed, only 2 work).
-    """
+    """List all available connectors with the user's connection state."""
     from maestro_personal_shell.connectors import ConnectorStore
     store = ConnectorStore()
     all_connectors = store.list_connectors(token)
@@ -548,12 +534,7 @@ async def connector_audit_log(token: str = Depends(verify_token_dep), limit: int
 
 @router.post("/drafts")
 async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_token_dep)):
-    """Create a pending draft for user approval (template formatter — P13 disclosure).
-
-    NOTE (P13): This endpoint takes caller-supplied commitment_text + evidence_refs.
-    It is a TEMPLATE FORMATTER, not the real capability. For the real capability
-    (deriving commitment + evidence from signal history), use POST /api/drafts/auto.
-    """
+    """Create a pending draft for user approval."""
     from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
     store = ConnectorStore()
     gen = ConnectorDraftGenerator(shell=None)

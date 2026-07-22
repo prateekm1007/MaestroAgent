@@ -1,13 +1,4 @@
-"""Copilot router — live-call intelligence, playbooks, shadow mode.
-
-Extracted from api.py during the Phase 8 router split. No behavior
-changes — same paths, same request/response schemas, same auth.
-
-The WebSocket handler (/ws/copilot) stays in api.py because it uses
-internal state and `app.add_api_websocket_route` directly (not a
-router decorator). The REST endpoints here all use the same
-verify_token dependency as the inline versions did.
-"""
+"""Copilot router — live-call intelligence, playbooks, shadow mode."""
 from __future__ import annotations
 
 import logging
@@ -133,18 +124,7 @@ class NegotiationRequest(BaseModel):
 
 @router.post("/transcript")
 async def process_transcript(req: TranscriptChunkRequest, token: str = Depends(verify_token_dep)):
-    """Process a transcript chunk during a live call.
-
-    Phase 4: Cluely-class real-time intelligence. Calls Core's
-    CopilotSituationBridge.on_transcript_chunk(). Updates the Situation's
-    operational state in real-time, detects new commitments, resolves unknowns.
-
-    Phase 8 fix: call detect_situations() before passing situation_id to
-    the copilot bridge. Without this, the situation engine is empty and
-    get_situation() returns None.
-
-    P1-Audit-F10 fix: auto-bind situation_id from entity when not provided.
-    """
+    """Process a transcript chunk during a live call."""
     from maestro_personal_shell.copilot_live import process_transcript_chunk
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
@@ -265,10 +245,7 @@ async def transcribe_audio_endpoint(
 
 @router.post("/post-call")
 async def post_call_summary(req: PostCallSummaryRequest, token: str = Depends(verify_token_dep)):
-    """Generate a post-call summary after the meeting ends.
-
-    Phase 4: calls Core's CopilotSituationBridge.post_call_summary().
-    """
+    """Generate a post-call summary after the meeting ends."""
     from maestro_personal_shell.copilot_live import generate_post_call_summary
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
@@ -288,11 +265,7 @@ async def post_call_summary(req: PostCallSummaryRequest, token: str = Depends(ve
 
 @router.post("/follow-up-email")
 async def generate_follow_up_email(req: FollowUpEmailRequest, token: str = Depends(verify_token_dep)):
-    """Generate a commitment-aware follow-up email draft.
-
-    Phase 5 P2: cites specific commitments + org laws. Adapts tone to
-    the conversation.
-    """
+    """Generate a commitment-aware follow-up email draft."""
     from maestro_personal_shell.copilot_postcall_features import FollowUpEmailGenerator
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
