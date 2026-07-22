@@ -1031,6 +1031,35 @@ async def openapi_contract():
         headers={"Cache-Control": "no-store"},
     )
 
+# S3 fix (auditor): API root must never be a bare 404.
+# The backend is a pure API; the UI lives on a different host.
+# A human who types the backend URL into a browser should get a service
+# descriptor that points them at the UI + contract, not {"detail":"Not Found"}.
+_FRONTEND_URL = os.environ.get(
+    "MAESTRO_FRONTEND_URL",
+    "https://web-production-d5c26.up.railway.app",
+)
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """API root — service descriptor. Points humans at the UI + contract."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content={
+            "service": "maestro-personal",
+            "kind": "api",
+            "version": os.environ.get("MAESTRO_VERSION", "0.0.0-unknown"),
+            "commit": os.environ.get("MAESTRO_BUILD_COMMIT", "unknown"),
+            "ui": _FRONTEND_URL,
+            "links": {
+                "health": "/api/health",
+                "openapi": "/api/openapi.json",
+            },
+            "note": "This is the API backend. The product UI is at the 'ui' URL.",
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
 # Phase 11: Trace ID middleware — every request gets a trace ID.
 # The trace ID is propagated to all surfaces and audit log entries.
 from maestro_personal_shell.observability import (

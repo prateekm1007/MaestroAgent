@@ -12,14 +12,31 @@ and tells you what to do next — with provenance.
 | Component | URL |
 |---|---|
 | Backend API | https://maestroagent-production.up.railway.app |
+| Frontend UI | https://web-production-d5c26.up.railway.app |
 | Health | https://maestroagent-production.up.railway.app/api/health |
 | OpenAPI | https://maestroagent-production.up.railway.app/api/openapi.json |
 
+The backend root (`/`) returns a JSON service descriptor pointing to the UI.
+The product UI is the Next.js app at the Frontend URL above.
+
 ## Stack
 
-- **Backend:** Python, FastAPI, SQLite, OpenRouter LLM (Gemma 3 12B)
+- **Backend:** `maestro_personal_shell` — Python, FastAPI, SQLite, OpenRouter LLM (Gemma 3 12B)
 - **Frontend:** Next.js 16, React, TypeScript, Tailwind CSS, shadcn/ui
 - **Deploy:** Railway (Docker)
+
+## Not the product (deprecated)
+
+The following are **not** the product and are not deployed or maintained.
+They remain in the repo for historical reference only:
+
+- `app.html` — old vanilla-JS frontend (replaced by the Next.js app)
+- `maestro_api/` — old enterprise API (replaced by `maestro_personal_shell`)
+- `maestro_oem/` — old enterprise OEM engine (replaced by `maestro_personal_shell`)
+- OEM surfaces (Executive Cognition Center, Organizational Pulse, Nerve agents)
+- "The Organizational Judgment System" — old product name (now "Maestro Personal")
+
+The current product is `maestro_personal_shell` + the Next.js frontend.
 
 ## Architecture
 
