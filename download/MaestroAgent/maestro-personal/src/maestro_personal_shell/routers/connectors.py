@@ -349,28 +349,30 @@ async def gmail_oauth_callback(
         raise HTTPException(status_code=400, detail="Gmail OAuth not configured")
 
     user_email = _extract_user_email(state)
+    logger.info("[gmail-callback] state_user=%r", user_email)
     oauth_client = GmailOAuthClient()
     token_data = oauth_client.exchange_code_for_tokens(code)
 
     if "error" in token_data:
+        logger.error("[gmail-callback] token exchange failed for user=%r: %s", user_email, token_data['error'])
         raise HTTPException(status_code=400, detail=f"Token exchange failed: {token_data['error']}")
 
     token_json = json.dumps(token_data)
     store = ConnectorStore()
     result = store.connect(user_email, "gmail", token_json)
     if "error" in result:
+        logger.error("[gmail-callback] store.connect failed for user=%r: %s", user_email, result["error"])
         return _oauth_response(request, "gmail", user_email, success=False, error=result["error"])
 
+    logger.info("[gmail-callback] tokens stored for user=%r", user_email)
+
     # Sync-on-connect: immediately ingest recent emails after OAuth success.
-    # The previous code stored tokens but NEVER fetched emails — so "connected"
-    # was cosmetic. Now we pull the inbox right after the token is stored.
-    # This runs synchronously (acceptable for a one-time initial sync of 50 emails).
     ingest_result = None
     try:
         from maestro_personal_shell.api import build_shell
         shell = build_shell(user_email=user_email)
         ingest_result = store.ingest(user_email, "gmail", shell=shell)
-        logger.info("Gmail sync-on-connect: %s", ingest_result)
+        logger.info("[gmail-callback] ingest for user=%r: %s", user_email, ingest_result)
     except Exception as e:
         logger.error("Gmail sync-on-connect failed (non-fatal — tokens stored): %s", e)
         ingest_result = {"error": str(e)}
