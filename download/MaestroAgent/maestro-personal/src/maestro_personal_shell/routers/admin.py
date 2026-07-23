@@ -168,3 +168,87 @@ async def purge_demo_data_get(token: str = ""):
         }
     finally:
         db.close()
+
+
+@router.get("/api/admin/migrate-encryption")
+async def migrate_encryption(token: str = ""):
+    """FORENSIC-002 P0 FIX: migrate dev:base64 tokens to Fernet encryption.
+
+    Reads all stored connector tokens, re-encrypts any that start with 'dev:'
+    (old format) to Fernet (new format). Transition-safe: _decrypt() handles
+    both formats, so this can run without breaking existing connections.
+
+    Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level).
+    """
+    import sqlite3
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from maestro_personal_shell.connectors import ConnectorStore
+    from fastapi import HTTPException
+    import os
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    # Check if encryption key is set
+    enc_key = os.environ.get("MAESTRO_ENCRYPTION_KEY", "")
+    if not enc_key:
+        raise HTTPException(
+            status_code=400,
+            detail="MAESTRO_ENCRYPTION_KEY not set — cannot migrate to Fernet"
+        )
+
+    store = ConnectorStore()
+    db_path = default_sqlite_path()
+    db = get_db_conn(db_path)
+    db.row_factory = sqlite3.Row
+
+    try:
+        rows = db.execute(
+            "SELECT user_email, provider, token FROM connectors WHERE connected = 1 AND token != ''"
+        ).fetchall()
+
+        migrated = 0
+        skipped = 0
+        failed = 0
+        details = []
+
+        for row in rows:
+            stored_token = row["token"]
+            if stored_token.startswith("dev:"):
+                # Old format — decrypt (strip dev:) and re-encrypt with Fernet
+                plaintext = store._decrypt(stored_token)
+                new_encrypted = store._encrypt(plaintext)
+                if new_encrypted and not new_encrypted.startswith("dev:"):
+                    db.execute(
+                        "UPDATE connectors SET token = ? WHERE user_email = ? AND provider = ?",
+                        (new_encrypted, row["user_email"], row["provider"]),
+                    )
+                    migrated += 1
+                    details.append(f"  {row['user_email']}/{row['provider']}: dev: → Fernet ✓")
+                else:
+                    failed += 1
+                    details.append(f"  {row['user_email']}/{row['provider']}: migration FAILED (still dev:)")
+            else:
+                # Already Fernet-encrypted (or unknown format) — skip
+                skipped += 1
+
+        db.commit()
+
+        # Verify: check no tokens start with dev: anymore
+        remaining_dev = db.execute(
+            "SELECT COUNT(*) FROM connectors WHERE token LIKE 'dev:%'"
+        ).fetchone()[0]
+
+        return {
+            "action": "migrate_encryption",
+            "tokens_found": len(rows),
+            "migrated_to_fernet": migrated,
+            "already_fernet": skipped,
+            "failed": failed,
+            "dev_tokens_remaining": remaining_dev,
+            "details": details,
+            "governance": "FORENSIC-002 P0 fix — credentials re-encrypted from dev:base64 to Fernet",
+        }
+    finally:
+        db.close()

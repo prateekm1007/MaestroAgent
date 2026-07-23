@@ -1,8 +1,11 @@
 """Connectors router — OAuth2 connector management + draft approval flow."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -14,6 +17,73 @@ from maestro_personal_shell.rate_limit import rate_limit
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["connectors"])
+
+
+# ---------------------------------------------------------------------------
+# FORENSIC-003 P2 FIX: HMAC-signed OAuth state (CSRF protection)
+# ---------------------------------------------------------------------------
+
+def _get_oauth_signing_key() -> str:
+    """Get the signing key for OAuth state HMAC.
+
+    Uses MAESTRO_PERSONAL_TOKEN as the signing key (already a secret on Railway).
+    If not set, falls back to a derived key from MAESTRO_ENCRYPTION_KEY.
+    """
+    return os.environ.get("MAESTRO_PERSONAL_TOKEN", "") or os.environ.get("MAESTRO_ENCRYPTION_KEY", "")
+
+
+def _sign_oauth_state(user_email: str, connector: str = "") -> str:
+    """Create an HMAC-signed OAuth state parameter.
+
+    Format: user=<email>;connector=<connector>;sig=<hmac_hex>
+    The signature prevents CSRF — an attacker can't forge a valid state
+    without the server's signing key.
+    """
+    key = _get_oauth_signing_key().encode()
+    payload = f"user={user_email};connector={connector}"
+    sig = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()[:16]
+    return f"{payload};sig={sig}"
+
+
+def _validate_oauth_state(state: str) -> tuple[str, str]:
+    """Validate the HMAC signature on the OAuth state.
+
+    Returns (user_email, connector) if valid.
+    Raises HTTPException(403) if the signature is invalid or missing.
+    """
+    if ";sig=" not in state:
+        # Legacy unsigned state — reject for security (FORENSIC-003)
+        # But allow during transition if no signing key is set
+        key = _get_oauth_signing_key()
+        if not key:
+            # No signing key — fall back to legacy parsing (unsafe but functional)
+            user_email = _extract_user_email(state)
+            connector = "calendar" if "connector=calendar" in state else ""
+            return user_email, connector
+        raise HTTPException(
+            status_code=403,
+            detail="OAuth state missing signature — possible CSRF attack. Re-connect the connector."
+        )
+
+    # Split state into payload and signature
+    parts = state.rsplit(";sig=", 1)
+    payload = parts[0]
+    provided_sig = parts[1]
+
+    # Recompute the expected signature
+    key = _get_oauth_signing_key().encode()
+    expected_sig = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()[:16]
+
+    if not hmac.compare_digest(provided_sig, expected_sig):
+        raise HTTPException(
+            status_code=403,
+            detail="OAuth state signature invalid — possible CSRF attack."
+        )
+
+    # Extract user_email and connector from the validated payload
+    user_email = _extract_user_email(payload)
+    connector = "calendar" if "connector=calendar" in payload else ""
+    return user_email, connector
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +207,7 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
             from maestro_personal_shell.gmail_connector import is_gmail_configured, GmailOAuthClient
             if is_gmail_configured():
                 oauth_client = GmailOAuthClient()
-                state = f"user={token}"  # carry user identity through the OAuth flow
+                state = _sign_oauth_state(token)  # FORENSIC-003: HMAC-signed state
                 auth_url = oauth_client.get_authorization_url(state=state)
                 return {"oauth_required": True, "authorization_url": auth_url}
         except ImportError:
@@ -163,7 +233,7 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
             from maestro_personal_shell.calendar_connector import is_calendar_configured, CalendarOAuthClient
             if is_calendar_configured():
                 oauth_client = CalendarOAuthClient()
-                state = f"user={token};connector=calendar"
+                state = _sign_oauth_state(token, connector="calendar")  # FORENSIC-003: HMAC-signed
                 auth_url = oauth_client.get_authorization_url(state=state)
                 return {"oauth_required": True, "authorization_url": auth_url}
         except ImportError:
@@ -451,6 +521,7 @@ async def gmail_oauth_callback(
 
     # Single-callback dispatch: check if this is a Calendar OAuth callback
     if "connector=calendar" in state:
+        user_email, _ = _validate_oauth_state(state)  # FORENSIC-003: validate HMAC
         return await _handle_calendar_callback(request, code, state)
 
     from maestro_personal_shell.connectors import ConnectorStore
@@ -459,7 +530,7 @@ async def gmail_oauth_callback(
     if not is_gmail_configured():
         raise HTTPException(status_code=400, detail="Gmail OAuth not configured")
 
-    user_email = _extract_user_email(state)
+    user_email, _ = _validate_oauth_state(state)  # FORENSIC-003: validate HMAC
     logger.info("[gmail-callback] state_user=%r", user_email)
     oauth_client = GmailOAuthClient()
     token_data = oauth_client.exchange_code_for_tokens(code)
@@ -499,7 +570,7 @@ async def _handle_calendar_callback(request: Request, code: str, state: str):
     if not is_calendar_configured():
         raise HTTPException(status_code=400, detail="Calendar OAuth not configured")
 
-    user_email = _extract_user_email(state)
+    user_email, _ = _validate_oauth_state(state)  # FORENSIC-003: validate HMAC
     logger.info("[calendar-callback via gmail] state_user=%r", user_email)
 
     oauth_client = CalendarOAuthClient()
