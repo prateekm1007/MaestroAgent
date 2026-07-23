@@ -391,13 +391,33 @@ class GmailIngester:
         try:
             import asyncio
             from maestro_personal_shell.intelligent_ingestion import extract_signals_intelligently
-            commitments = asyncio.run(extract_signals_intelligently(
-                message_text=body,
-                entity=entity,
-                source=source,
-                timestamp=timestamp,
-            ))
-        except Exception:
+            # Bug 2 fix: properly await the coroutine. The previous code used
+            # asyncio.run() inside a sync method, which caused:
+            #   RuntimeWarning: coroutine 'extract_signals_intelligently' was never awaited
+            # The coroutine was created but never executed, so the LLM extraction
+            # never ran — only the keyword fallback fired.
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're inside an async context — use asyncio.ensure_future
+                # and block with asyncio.run_coroutine_threadsafe
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, extract_signals_intelligently(
+                        message_text=body,
+                        entity=entity,
+                        source=source,
+                        timestamp=timestamp,
+                    ))
+                    commitments = future.result(timeout=30)
+            else:
+                commitments = asyncio.run(extract_signals_intelligently(
+                    message_text=body,
+                    entity=entity,
+                    source=source,
+                    timestamp=timestamp,
+                ))
+        except Exception as e:
+            logger.warning("Intelligent ingestion failed, using keyword fallback: %s", e)
             # Fallback: use keyword detection if intelligent ingestion fails
             commitments = self._keyword_commitment_detection(body, entity, timestamp)
 

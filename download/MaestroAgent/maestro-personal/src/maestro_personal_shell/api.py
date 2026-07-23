@@ -328,6 +328,21 @@ def init_db(db_path: str | None = None) -> None:
     conn.close()
 
 
+def _parse_signal_row(row) -> dict[str, Any]:
+    """Parse a SQLite signal row into a dict with parsed metadata."""
+    d = dict(row)
+    # Parse metadata from JSON string to dict
+    meta_raw = d.get("metadata", "{}")
+    if isinstance(meta_raw, str):
+        try:
+            d["metadata"] = json.loads(meta_raw) if meta_raw else {}
+        except (json.JSONDecodeError, TypeError):
+            d["metadata"] = {}
+    elif meta_raw is None:
+        d["metadata"] = {}
+    return d
+
+
 def load_signals_from_db(db_path: str | None = None, user_email: str | None = None,
                          limit: int | None = None) -> list[dict[str, Any]]:
     """Load signals from SQLite, ordered by timestamp."""
@@ -360,7 +375,7 @@ def load_signals_from_db(db_path: str | None = None, user_email: str | None = No
                 "SELECT * FROM signals ORDER BY timestamp ASC"
             ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_parse_signal_row(r) for r in rows]
 
 
 def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_email: str = "bootstrap") -> bool:

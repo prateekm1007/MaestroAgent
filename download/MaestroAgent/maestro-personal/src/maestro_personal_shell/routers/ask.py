@@ -17,6 +17,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ask", tags=["ask"])
 
+def _signal_source(sig_or_ref: dict) -> str:
+    """Extract the source from a signal/ref's metadata."""
+    meta = sig_or_ref.get("metadata", {})
+    if isinstance(meta, str):
+        try:
+            import json as _json
+            meta = _json.loads(meta) if meta else {}
+        except Exception:
+            meta = {}
+    if isinstance(meta, dict):
+        src = meta.get("source", meta.get("provider", ""))
+        if src:
+            return src
+    # Fall back to signal_id prefix
+    sid = str(sig_or_ref.get("signal_id", ""))
+    if sid.startswith("conn_gmail"):
+        return "gmail"
+    if sid.startswith("conn_slack"):
+        return "slack"
+    if sid.startswith("synthetic"):
+        return "synthetic"
+    return "manual"
+
+
+
 # P0-3: In-memory session store for multi-turn conversations.
 # Keyed by session_id, stores up to 5 turns of Q+A history.
 # TTL: 30 minutes (cleared on server restart — acceptable for single-user beta).
@@ -2871,6 +2896,19 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         source_entity = ""
         source_timestamp = ""
         verification["confidence"] = 0.0
+
+    # Bug 1 fix: propagate source from signal_id to evidence_ref source_type
+    for ref in evidence_refs:
+        if isinstance(ref, dict):
+            sid = str(ref.get("signal_id", ""))
+            if sid.startswith("conn_gmail"):
+                ref["source_type"] = "gmail"
+            elif sid.startswith("conn_slack"):
+                ref["source_type"] = "slack"
+            elif sid.startswith("synthetic"):
+                ref["source_type"] = "synthetic"
+            elif sid.startswith("demo_"):
+                ref["source_type"] = "synthetic"
 
     return AskResponse(
         answer=str(verified_answer),
