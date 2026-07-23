@@ -1126,30 +1126,34 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 #   3. Retires consistency-trust gap (same entity per phrasing)
                 #
                 # If the query contains a possessive ("Alex's thing") or an
-                # implicit reference ("Alex thing"), resolve the first name
-                # to its canonical entity ("Alex" → "Alex Chen") using the
-                # user's signal store, then FILTER evidence to only that
-                # entity. This prevents the LLM from stochastically picking
-                # a different entity (e.g., Maria Garcia) when synthesizing.
+                # implicit reference ("Alex thing"), resolve the first name(s)
+                # to canonical entities ("Alex" → "Alex Chen") using the user's
+                # signal store, then FILTER evidence to only those entities.
+                # This prevents the LLM from stochastically picking a different
+                # entity (e.g., Maria Garcia) when synthesizing.
+                #
+                # Multi-entity support (edge case #2): "Maria and Alex's things"
+                # resolves to BOTH Maria Garcia and Alex Chen, and filters to
+                # their union — not just the first possessive.
                 try:
                     from maestro_personal_shell.entity_resolver import (
-                        resolve_possessive_to_canonical,
-                        filter_evidence_to_entity,
+                        resolve_possessives_to_canonical_set,
+                        filter_evidence_to_entities,
                     )
                     _all_user_signals = shell.oem_state.signals if hasattr(shell, "oem_state") else []
-                    _canonical_entity = resolve_possessive_to_canonical(
+                    _canonical_entities = resolve_possessives_to_canonical_set(
                         req.query,
                         _all_user_signals,
                         user_email=token,
                         db_path=_db,
                     )
-                    if _canonical_entity:
+                    if _canonical_entities:
                         _pre_filter_count = len(real_evidence)
-                        real_evidence = filter_evidence_to_entity(real_evidence, _canonical_entity)
+                        real_evidence = filter_evidence_to_entities(real_evidence, _canonical_entities)
                         logger.info(
-                            "Possessive resolution: query=%r → canonical_entity=%r, "
+                            "Possessive resolution: query=%r → canonical_entities=%r, "
                             "evidence filtered %d → %d",
-                            req.query[:80], _canonical_entity,
+                            req.query[:80], _canonical_entities,
                             _pre_filter_count, len(real_evidence),
                         )
                 except Exception as _e_poss:

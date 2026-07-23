@@ -329,3 +329,98 @@ def filter_evidence_to_entity(
         or str(ev.get("entity", "")).lower() in canon_lower
     ]
     return filtered if filtered else evidence  # don't return empty; fall back
+
+
+# ---------------------------------------------------------------------------
+# Multi-entity possessive support (edge case #2 — union, not first-only)
+# ---------------------------------------------------------------------------
+
+
+def extract_all_possessive_entities(query: str) -> list[str]:
+    """Extract ALL possessive/implicit entity names from a query.
+
+    Handles multi-entity possessives like "Maria and Alex's things" —
+    extracts both "Maria" (bare name before "and") and "Alex" (possessive).
+    Also handles "Alex's and Maria's things" (both possessive).
+
+    Returns a list of first names (may be empty if no possessives).
+    """
+    if not query:
+        return []
+    names: list[str] = []
+    # Find all possessive forms ("Alex's", "Maria's")
+    for m in _POSSESSIVE_RE.finditer(query):
+        names.append(m.group(1))
+    # Find bare-name-before-thing forms ("Alex thing")
+    for m in _BARE_NAME_BEFORE_THING_RE.finditer(query):
+        name = m.group(1)
+        if name not in names:
+            names.append(name)
+    # Also handle "Maria and Alex's" — the "Maria" before "and" is a bare
+    # name that's implicitly possessive in context. Look for the pattern:
+    # "Name1 and Name2's" → both are possessive.
+    conjunctive = re.compile(
+        r"\b([A-Z][a-z]+)\s+(?:and|&|,)\s+([A-Z][a-z]+)'s\b"
+    )
+    for m in conjunctive.finditer(query):
+        name1 = m.group(1)
+        if name1 not in names:
+            names.append(name1)
+    return names
+
+
+def resolve_possessives_to_canonical_set(
+    query: str,
+    signals: list[Any],
+    user_email: str = "bootstrap",
+    db_path: str | None = None,
+) -> list[str]:
+    """Resolve ALL possessive entities in a query to their canonical forms.
+
+    Multi-entity version of resolve_possessive_to_canonical. Handles
+    "Maria and Alex's things" → ["Maria Garcia", "Alex Chen"].
+
+    Returns a list of canonical entity names (may be empty if no
+    possessives or none resolve).
+    """
+    first_names = extract_all_possessive_entities(query)
+    if not first_names:
+        return []
+    canonicals: list[str] = []
+    for first_name in first_names:
+        try:
+            canonical = resolve_entity_with_signals(
+                first_name, signals, user_email=user_email, db_path=db_path,
+            )
+            canonicals.append(canonical or first_name)
+        except Exception as e:
+            logger.debug("Possessive resolution for %r failed: %s", first_name, e)
+            canonicals.append(first_name)
+    return canonicals
+
+
+def filter_evidence_to_entities(
+    evidence: list[dict[str, Any]],
+    canonical_entities: list[str],
+) -> list[dict[str, Any]]:
+    """Filter evidence to rows matching ANY of the canonical entities (union).
+
+    Multi-entity version of filter_evidence_to_entity. For "Maria and Alex's
+    things", keeps evidence for Maria OR Alex, drops everyone else.
+
+    Falls back to unfiltered evidence if no matches (don't over-abstain).
+    """
+    if not canonical_entities or not evidence:
+        return evidence
+    canon_lowers = [c.lower() for c in canonical_entities if c]
+    if not canon_lowers:
+        return evidence
+    filtered = []
+    for ev in evidence:
+        ev_entity_lower = str(ev.get("entity", "")).lower()
+        if any(
+            c in ev_entity_lower or ev_entity_lower in c
+            for c in canon_lowers
+        ):
+            filtered.append(ev)
+    return filtered if filtered else evidence  # don't return empty; fall back

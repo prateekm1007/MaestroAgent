@@ -144,6 +144,106 @@ def test_determinism():
     return all_same
 
 
+def test_no_match_lowercase_possessive():
+    """Edge case #1a: lowercase possessive (\"the project's status\") — no extraction, no over-abstention.
+
+    The regex requires [A-Z][a-z]+ so lowercase possessives don't match.
+    The filter is skipped entirely, evidence stays intact. This prevents
+    spurious abstention on generic possessives like \"the project's status\".
+    """
+    print("\n[6a] No-match: lowercase possessive (\"the project's status\")")
+    query = "the project's status — what's the latest?"
+    extracted = extract_possessive_entity(query)
+    canonical = resolve_possessive_to_canonical(query, SYNTHETIC_SIGNALS)
+    mixed_evidence = [
+        {"entity": "Alex Chen", "text": "auth module", "signal_id": "s1"},
+        {"entity": "Maria Garcia", "text": "Q3 budget", "signal_id": "s2"},
+    ]
+    # canonical should be None (no regex match) → filter skipped
+    if canonical is None:
+        # Filter skipped — evidence intact
+        ok = len(mixed_evidence) == 2
+        print(f"  extracted: {extracted!r}, canonical: {canonical!r}")
+        print(f"  filter skipped (canonical is None) → {len(mixed_evidence)} evidence rows intact")
+        print(f"  {'✓ PASS — no over-abstention' if ok else '✗ FAIL'}")
+        return ok
+    else:
+        # Shouldn't happen, but check the fallback
+        filtered = filter_evidence_to_entity(mixed_evidence, canonical)
+        ok = len(filtered) == len(mixed_evidence)  # fallback should preserve all
+        print(f"  extracted: {extracted!r}, canonical: {canonical!r}")
+        print(f"  filter fell back to unfiltered → {len(filtered)} rows (was {len(mixed_evidence)})")
+        print(f"  {'✓ PASS — fallback preserved evidence' if ok else '✗ FAIL — over-filtered'}")
+        return ok
+
+
+def test_no_match_capitalized_unresolvable():
+    """Edge case #1b: capitalized possessive that doesn't resolve (\"Elon's stuff\" with no Elon).
+
+    \"Elon\" is extracted but doesn't match any known entity. The resolver
+    returns the bare name \"Elon\", the filter finds no matches, and the
+    fallback returns ALL evidence (don't over-abstain). This is the
+    over-abstention mirror of Alex's-thing — we must NOT force abstention
+    when the possessive names an unknown entity.
+    """
+    print("\n[6b] No-match: capitalized unresolvable (\"Elon's stuff\" with no Elon in signals)")
+    query = "Elon's stuff — what did I promise?"
+    extracted = extract_possessive_entity(query)
+    canonical = resolve_possessive_to_canonical(query, SYNTHETIC_SIGNALS)
+    mixed_evidence = [
+        {"entity": "Alex Chen", "text": "auth module", "signal_id": "s1"},
+        {"entity": "Maria Garcia", "text": "Q3 budget", "signal_id": "s2"},
+    ]
+    filtered = filter_evidence_to_entity(mixed_evidence, canonical or "")
+    # Fallback should preserve ALL evidence (no matches → return original)
+    ok = len(filtered) == len(mixed_evidence)
+    print(f"  extracted: {extracted!r}, canonical: {canonical!r}")
+    print(f"  filter result: {len(filtered)} rows (was {len(mixed_evidence)})")
+    print(f"  entities preserved: {[ev['entity'] for ev in filtered]}")
+    print(f"  {'✓ PASS — no over-abstention (fallback preserved evidence)' if ok else '✗ FAIL — over-filtered to nothing'}")
+    return ok
+
+
+def test_multi_entity_possessive():
+    """Edge case #2: multi-entity possessive (\"Maria and Alex's things\") — UNION, not first-only.
+
+    The resolver now extracts ALL possessive entities and filters to their
+    union. \"Maria and Alex's things\" resolves to BOTH Maria Garcia AND
+    Alex Chen, keeping evidence for both.
+    """
+    print("\n[7] Multi-entity possessive (\"Maria and Alex's things\") — UNION")
+    from maestro_personal_shell.entity_resolver import (
+        extract_all_possessive_entities,
+        resolve_possessives_to_canonical_set,
+        filter_evidence_to_entities,
+    )
+    query = "Maria and Alex's things — what did I promise?"
+    extracted = extract_all_possessive_entities(query)
+    canonicals = resolve_possessives_to_canonical_set(query, SYNTHETIC_SIGNALS)
+    mixed_evidence = [
+        {"entity": "Maria Garcia", "text": "Q3 budget", "signal_id": "s2"},
+        {"entity": "Alex Chen", "text": "auth module", "signal_id": "s1"},
+        {"entity": "Jamie Lee", "text": "design mockups", "signal_id": "s3"},
+    ]
+    filtered = filter_evidence_to_entities(mixed_evidence, canonicals)
+
+    print(f"  query: {query!r}")
+    print(f"  extracted (all possessives): {extracted!r}")
+    print(f"  canonicals: {canonicals!r}")
+    print(f"  pre-filter entities: {[ev['entity'] for ev in mixed_evidence]}")
+    print(f"  post-filter entities: {[ev['entity'] for ev in filtered]}")
+
+    # After filtering: Maria + Alex kept, Jamie dropped
+    has_maria = any("maria" in str(ev.get("entity", "")).lower() for ev in filtered)
+    has_alex = any("alex" in str(ev.get("entity", "")).lower() for ev in filtered)
+    no_jamie = all("jamie" not in str(ev.get("entity", "")).lower() for ev in filtered)
+
+    ok = has_maria and has_alex and no_jamie
+    print(f"  Maria kept: {has_maria}, Alex kept: {has_alex}, Jamie dropped: {no_jamie}")
+    print(f"  {'✓ PASS — union filter keeps both Maria and Alex' if ok else '✗ FAIL'}")
+    return ok
+
+
 def main():
     print("=" * 72)
     print("THREE-BENEFIT FIX: Deterministic possessive entity resolution")
@@ -155,6 +255,9 @@ def main():
         "Consistency": test_consistency(),
         "Evidence filter (Alex's-thing)": test_evidence_filter(),
         "Determinism (CI flakiness)": test_determinism(),
+        "No-match lowercase (no over-abstain)": test_no_match_lowercase_possessive(),
+        "No-match unresolvable (no over-abstain)": test_no_match_capitalized_unresolvable(),
+        "Multi-entity possessive (documented)": test_multi_entity_possessive(),
     }
 
     print(f"\n{'='*72}")
@@ -162,7 +265,7 @@ def main():
     print(f"{'='*72}")
     all_pass = True
     for name, ok in results.items():
-        print(f"  {name:35s} {'✓ PASS' if ok else '✗ FAIL'}")
+        print(f"  {name:45s} {'✓ PASS' if ok else '✗ FAIL'}")
         if not ok:
             all_pass = False
     print()
@@ -171,6 +274,8 @@ def main():
         print("  1. Alex's-thing resolves to Alex Chen (not Maria Garcia)")
         print("  2. Same result every run (no LLM stochasticity)")
         print("  3. Possessive + explicit phrasings resolve to same entity")
+        print("  4. No-match possessives don't over-abstain (fallback preserves evidence)")
+        print("  5. Multi-entity possessives resolve to UNION (not first-only)")
     else:
         print("AT LEAST ONE TEST FAILED — fix needed.")
     sys.exit(0 if all_pass else 1)
