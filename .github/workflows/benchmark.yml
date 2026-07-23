@@ -132,3 +132,5 @@ jobs:
         run: pip install pyyaml httpx
       - name: Scorer red/green proof
         run: python download/MaestroAgent/maestro-personal/audit/scorer_red_green_proof.py
+      - name: Gate red/green proof (threshold-check bites on regressions)
+        run: python download/MaestroAgent/maestro-personal/audit/gate_red_green_proof.py
