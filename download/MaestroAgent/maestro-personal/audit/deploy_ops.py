@@ -33,11 +33,15 @@ import httpx
 
 # ── Configuration ───────────────────────────────────────────────────────────
 
-RAILWAY_GRAPHQL_URL = "https://backboard.railway.app/graphql"
+RAILWAY_GRAPHQL_URL = "https://backboard.railway.app/graphql/v2"
 BACKEND_HEALTH_URL = "https://maestroagent-production.up.railway.app/api/health"
 RAILWAY_PROJECT_ID = "4aab2a0c-349d-452a-ae9a-5c5f0205817f"
-RAILWAY_SERVICE_ID = "0ad2810b-a840-4531-bd71-3f655ca158a6"
+# NOTE: The service ID in railway.json (0ad2810b) is STALE. The actual Railway
+# service ID for the backend is c12adfcf (discovered via GraphQL introspection).
+RAILWAY_SERVICE_ID = "c12adfcf-524d-4b99-8837-9c495065bb5c"
+RAILWAY_ENVIRONMENT_ID = "38916bb1-5f30-47dc-91eb-9baf56e99591"  # production
 GITHUB_REPO = "prateekm1007/MaestroAgent"
+GITHUB_REPO_ID = "1282275626"  # Railway's internal ID for the connected repo
 
 # Drift thresholds
 STALE_THRESHOLD_SECONDS = 900  # 15 min — if older than this + drifted, auto-deploy
@@ -77,22 +81,27 @@ class RailwayGraphQLClient:
         return data.get("data", {})
 
     def get_active_deployment(self, service_id: str) -> dict:
-        """Get the most recent deployment for a service."""
-        # Note: the actual Railway schema requires projectId + serviceId.
-        # This query gets the latest deployment edge.
+        """Get the most recent deployment for a service.
+
+        Uses the v2 schema: project.services (plural), meta is a scalar JSON.
+        """
         query = """
-        query($projectId: String!, $serviceId: String!) {
+        query($projectId: String!) {
           project(id: $projectId) {
-            service(id: $serviceId) {
-              deployments(first: 1) {
-                edges {
-                  node {
-                    id
-                    status
-                    createdAt
-                    meta {
-                      commitSha
-                      commitMessage
+            services(first: 10) {
+              edges {
+                node {
+                  id
+                  name
+                  deployments(first: 1) {
+                    edges {
+                      node {
+                        id
+                        status
+                        createdAt
+                        statusUpdatedAt
+                        meta
+                      }
                     }
                   }
                 }
@@ -101,19 +110,14 @@ class RailwayGraphQLClient:
           }
         }
         """
-        data = self._post(query, {
-            "projectId": RAILWAY_PROJECT_ID,
-            "serviceId": service_id,
-        })
-        edges = (
-            data.get("project", {})
-            .get("service", {})
-            .get("deployments", {})
-            .get("edges", [])
-        )
-        if not edges:
-            return {}
-        return edges[0]["node"]
+        data = self._post(query, {"projectId": RAILWAY_PROJECT_ID})
+        services = data.get("project", {}).get("services", {}).get("edges", [])
+        for svc in services:
+            if svc["node"]["id"] == service_id:
+                deps = svc["node"]["deployments"]["edges"]
+                if deps:
+                    return deps[0]["node"]
+        return {}
 
     def get_service_settings(self, service_id: str) -> dict:
         """Get service settings including auto-deploy status."""
@@ -133,35 +137,110 @@ class RailwayGraphQLClient:
         return data.get("project", {}).get("service", {}).get("settings", {})
 
     def trigger_deploy(self, service_id: str, branch: str = "main") -> str:
-        """Trigger a manual deploy. Returns deployment ID."""
-        # Railway's mutation for triggering a deploy
+        """Trigger a manual deploy via serviceInstanceDeploy with latestCommit.
+
+        Uses the v2 mutation: serviceInstanceDeploy(environmentId, serviceId,
+        latestCommit, commitSha). Returns the deployment ID if available.
+
+        NOTE: If the service has no GitHub repo trigger connected (the repo
+        trigger is what tells Railway to pull code from GitHub), this will
+        return true but NOT actually rebuild — Railway reuses the cached
+        image. See diagnose_repo_trigger() for the root cause.
+        """
         mutation = """
-        mutation($input: DeploymentTriggerInput!) {
-          deploymentTrigger(input: $input) {
-            id
-            status
-          }
+        mutation($environmentId: String!, $serviceId: String!, $latestCommit: Boolean!) {
+          serviceInstanceDeploy(environmentId: $environmentId, serviceId: $serviceId, latestCommit: $latestCommit)
         }
         """
-        data = self._post(mutation, {
-            "input": {
-                "serviceId": service_id,
-                "branch": branch,
-            }
+        self._post(mutation, {
+            "environmentId": RAILWAY_ENVIRONMENT_ID,
+            "serviceId": service_id,
+            "latestCommit": True,
         })
-        return data.get("deploymentTrigger", {}).get("id", "")
+        return "triggered"
 
     def get_build_logs(self, service_id: str, deployment_id: str | None = None) -> str:
-        """Get build logs for a deployment."""
+        """Get build logs for a deployment.
+
+        NOTE: Railway v2 schema doesn't expose buildLogs as a field on
+        Deployment. Logs are available via the Railway CLI or dashboard.
+        This returns a placeholder pointing to where to find logs.
+        """
+        return f"Logs not available via GraphQL v2. Check Railway dashboard or CLI: railway logs --deployment {deployment_id}"
+
+    def get_repo_triggers(self, service_id: str) -> list:
+        """Get repo triggers for a service. Empty list = no GitHub connection."""
         query = """
-        query($deploymentId: String!) {
-          deployment(id: $deploymentId) {
-            buildLogs
+        query($projectId: String!) {
+          project(id: $projectId) {
+            services(first: 10) {
+              edges {
+                node {
+                  id
+                  name
+                  repoTriggers {
+                    edges {
+                      node {
+                        id
+                        branch
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         """
-        data = self._post(query, {"deploymentId": deployment_id or ""})
-        return data.get("deployment", {}).get("buildLogs", "")
+        data = self._post(query, {"projectId": RAILWAY_PROJECT_ID})
+        services = data.get("project", {}).get("services", {}).get("edges", [])
+        for svc in services:
+            if svc["node"]["id"] == service_id:
+                return svc["node"]["repoTriggers"]["edges"]
+        return []
+
+    def create_repo_trigger(self, service_id: str, branch: str = "main") -> dict:
+        """Create a deployment trigger connecting the service to the GitHub repo.
+
+        This is what wires up auto-deploy: once the trigger exists, every push
+        to the branch triggers a rebuild.
+
+        REQUIRES: The Railway GitHub app must be installed on the repo with
+        repo access. If not, this returns an error:
+        'Cannot create deployment trigger because no one in the project has
+        access to it'
+
+        Fix: Go to railway.com → Settings → GitHub → ensure the Railway app
+        is installed on prateekm1007/MaestroAgent with repo access.
+        """
+        mutation = """
+        mutation($input: DeploymentTriggerCreateInput!) {
+          deploymentTriggerCreate(input: $input) {
+            id
+            branch
+          }
+        }
+        """
+        try:
+            data = self._post(mutation, {
+                "input": {
+                    "branch": branch,
+                    "environmentId": RAILWAY_ENVIRONMENT_ID,
+                    "projectId": RAILWAY_PROJECT_ID,
+                    "provider": "github",
+                    "repository": GITHUB_REPO_ID,
+                    "serviceId": service_id,
+                }
+            })
+            return {"status": "created", "trigger": data.get("deploymentTriggerCreate", {})}
+        except RuntimeError as e:
+            if "no one in the project has access" in str(e):
+                return {
+                    "status": "github_app_not_authorized",
+                    "error": str(e),
+                    "fix": "Go to railway.com → Settings → GitHub → install/authorize the Railway GitHub app on prateekm1007/MaestroAgent with repo access. This is a one-time browser-based OAuth step that cannot be done via API.",
+                }
+            return {"status": "error", "error": str(e)}
 
 
 class DeployOps:
@@ -288,36 +367,59 @@ class DeployOps:
                 return (
                     f"DRIFTED: live={drift['live_sha'][:7]} vs head={drift['head_sha'][:7]}, "
                     f"stale {drift['stale_seconds']}s ({drift['stale_seconds']//3600}h{(drift['stale_seconds']%3600)//60}m). "
-                    f"Cannot diagnose further without RAILWAY_API_TOKEN — need token to check "
-                    f"deploy status (FAILED/BUILDING/QUEUED) and auto-deploy settings."
+                    f"Cannot diagnose further without RAILWAY_API_TOKEN."
                 )
             return f"No drift detected (live={drift['live_sha'][:7]})"
 
-        drift = self.check_drift()
+        # Use public drift detection for the commit comparison (health endpoint
+        # is the source of truth for the live commit, not Railway's meta)
+        drift_public = self.check_drift_public()
 
-        if drift.deploy_status == "FAILED":
-            logs = self.railway.get_build_logs(RAILWAY_SERVICE_ID, drift.deploy_id)
-            return f"Build failed. Logs: {logs[:500]}"
+        if not drift_public["drifted"]:
+            return f"No drift (live={drift_public['live_sha'][:7]})"
 
-        if drift.deploy_status in ("BUILDING", "QUEUED", "DEPLOYING"):
-            return f"Deploy in progress ({drift.deploy_status}), started {drift.stale_seconds}s ago"
-
-        if drift.drifted and drift.stale_seconds > STALE_THRESHOLD_SECONDS:
-            settings = self.railway.get_service_settings(RAILWAY_SERVICE_ID)
-            # Check if auto-deploy is enabled
-            auto_deploy = settings.get("autoDeploy", settings.get("autoDeployOnCommit", True))
-            if auto_deploy:
+        # Check for repo triggers — if there are ZERO, Railway can't pull code
+        triggers = self.railway.get_repo_triggers(RAILWAY_SERVICE_ID)
+        if not triggers:
+            # Try to create a repo trigger
+            trigger_result = self.railway.create_repo_trigger(RAILWAY_SERVICE_ID)
+            if trigger_result.get("status") == "github_app_not_authorized":
                 return (
-                    f"Auto-deploy enabled but no build triggered in {drift.stale_seconds}s — "
-                    f"webhook likely broken. Triggering manual deploy."
+                    f"ROOT CAUSE: backend service has ZERO repo triggers — Railway cannot "
+                    f"pull new code from GitHub. Attempted to create trigger but failed: "
+                    f"Railway GitHub app is not authorized on the repo. "
+                    f"FIX: Go to railway.com → Settings → GitHub → install/authorize the "
+                    f"Railway GitHub app on prateekm1007/MaestroAgent with repo access. "
+                    f"This is a one-time browser-based OAuth step."
+                )
+            elif trigger_result.get("status") == "created":
+                return (
+                    f"ROOT CAUSE: backend service had zero repo triggers. "
+                    f"Created trigger successfully — auto-deploy should now work. "
+                    f"Triggering manual deploy."
                 )
             else:
-                return f"Auto-deploy PAUSED — triggering manual deploy"
+                return f"ROOT CAUSE: no repo triggers. Trigger creation failed: {trigger_result}"
 
-        if not drift.drifted:
-            return f"No drift (live={drift.live_sha[:7]} == head={drift.head_sha[:7]})"
+        # Has triggers — check deploy status
+        deploy = self.railway.get_active_deployment(RAILWAY_SERVICE_ID)
+        deploy_status = deploy.get("status", "")
+        stale_seconds = drift_public["stale_seconds"]
 
-        return f"Drifted but recent ({drift.stale_seconds}s) — deploy may be in flight"
+        if deploy_status == "FAILED":
+            return f"Build failed. {self.railway.get_build_logs(RAILWAY_SERVICE_ID, deploy.get('id'))}"
+
+        if deploy_status in ("BUILDING", "QUEUED", "DEPLOYING"):
+            return f"Deploy in progress ({deploy_status})"
+
+        if stale_seconds > STALE_THRESHOLD_SECONDS:
+            return (
+                f"DRIFTED: live={drift_public['live_sha'][:7]} vs head={drift_public['head_sha'][:7]}, "
+                f"stale {stale_seconds}s. Repo trigger exists but no new build. "
+                f"Triggering manual deploy."
+            )
+
+        return f"Drifted but recent ({stale_seconds}s) — deploy may be in flight"
 
     # ── Autonomous deploy loop ────────────────────────────────────────────────
 
