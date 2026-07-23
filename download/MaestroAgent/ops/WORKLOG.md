@@ -1,0 +1,7 @@
+# Agent Worklog — Index
+
+Every agent action, reviewable. Append-only. Git history is the tamper-evident guarantee.
+
+## Entries
+
+- [OPS-P1-DEMO-DATA](worklog/OPS-P1-DEMO-DATA.md) — Remove demo data permanently — real-data pilot mode | RESOLVED | 2026-07-23
