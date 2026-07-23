@@ -241,6 +241,41 @@ class GovernanceEnforcer:
             layer="outcome_verification",
         )
 
+    # ── Report governance: enforce rules on outgoing reports ─────────────────
+
+    def check_report(self, report_text: str) -> GovernanceResult:
+        """Enforce governance rules on an outgoing report.
+
+        The constitution applies to reports ABOUT the swarm, not just to the
+        actions the swarm takes. This catches secret values in reports, which
+        is exactly what FORBIDDEN_ACTIONS.md Rule 3 forbids.
+
+        This is the swarm's first real enforcement action: it caught its own
+        operator's secret slip (the RAILWAY_API_TOKEN value pasted in a summary).
+
+        Args:
+            report_text: the full text of the report/outgoing message
+
+        Returns:
+            BLOCK if a secret pattern is found, ALLOW otherwise
+        """
+        # Layer 1: secret pattern check on the report text
+        for pattern in SECRET_PATTERNS:
+            match = pattern.search(report_text)
+            if match:
+                # Redact the match for the reason (don't repeat the secret!)
+                return GovernanceResult(
+                    verdict=Verdict.BLOCK,
+                    reason=f"FORBIDDEN: report contains a secret pattern (matched: {pattern.pattern[:30]}...). Secrets must be referenced BY NAME ONLY, never by value. (FORBIDDEN_ACTIONS.md Rule 3, S6 invariant)",
+                    layer="deterministic",
+                )
+
+        return GovernanceResult(
+            verdict=Verdict.ALLOW,
+            reason="Report passed secret-pattern check — no secret values detected",
+            layer="deterministic",
+        )
+
 
 # ── Red/Green proof ─────────────────────────────────────────────────────────
 
@@ -326,6 +361,29 @@ def run_red_green_proof() -> bool:
     )
     result = enforcer.check(action)
     tests.append(("GREEN: raise threshold (stricter)", result.verdict == Verdict.ALLOW, result.reason))
+
+    # RED 5: Report containing the leaked RAILWAY_API_TOKEN value → BLOCK
+    # This is the governance self-test: the enforcer catches its own operator's
+    # secret slip. The token value below is the one that was pasted in a prior
+    # summary — the enforcer must catch it in any report.
+    leaked_report = (
+        "Summary: Prateek needs to add 3 secrets:\n"
+        "  RAILWAY_API_TOKEN = e3d39b32-d40a-4405-9c08-958acaa9e92c\n"
+        "  RAILWAY_BACKEND_SERVICE_ID = c12adfcf-...\n"
+    )
+    result = enforcer.check_report(leaked_report)
+    tests.append(("RED: report with leaked token value", result.verdict == Verdict.BLOCK, result.reason))
+
+    # GREEN 4: Report referencing secrets BY NAME ONLY → ALLOW
+    clean_report = (
+        "Summary: Prateek needs to add 3 GitHub Actions secrets:\n"
+        "  - RAILWAY_API_TOKEN (value provided separately)\n"
+        "  - RAILWAY_BACKEND_SERVICE_ID\n"
+        "  - RAILWAY_FRONTEND_SERVICE_ID\n"
+        "All secrets referenced by name only, never by value.\n"
+    )
+    result = enforcer.check_report(clean_report)
+    tests.append(("GREEN: report with secrets by name only", result.verdict == Verdict.ALLOW, result.reason))
 
     # Print results
     print("=" * 72)
