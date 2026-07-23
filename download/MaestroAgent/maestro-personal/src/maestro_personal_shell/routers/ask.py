@@ -15,6 +15,29 @@ from maestro_personal_shell.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)
 
+def _source_from_signal(sig_or_ref: dict) -> str:
+    """Extract source from a signal/ref's metadata or signal_id prefix."""
+    # Try metadata first (the proper path)
+    meta = sig_or_ref.get("metadata", {})
+    if isinstance(meta, str):
+        try:
+            import json as _json
+            meta = _json.loads(meta) if meta else {}
+        except Exception:
+            meta = {}
+    if isinstance(meta, dict) and meta.get("source"):
+        return meta["source"]
+    # Fallback: signal_id prefix (conn_gmail_* → gmail)
+    sid = str(sig_or_ref.get("signal_id", ""))
+    if sid.startswith("conn_gmail"):
+        return "gmail"
+    if sid.startswith("conn_slack"):
+        return "slack"
+    if sid.startswith("synthetic") or sid.startswith("demo_"):
+        return "synthetic"
+    return "manual"
+
+
 router = APIRouter(prefix="/api/ask", tags=["ask"])
 
 def _signal_source(sig_or_ref: dict) -> str:
@@ -40,18 +63,6 @@ def _signal_source(sig_or_ref: dict) -> str:
         return "synthetic"
     return "manual"
 
-def _fix_source_types(evidence_refs: list) -> list:
-    """Fix source_type in evidence_refs based on signal_id prefix."""
-    for ref in evidence_refs:
-        if isinstance(ref, dict):
-            sid = str(ref.get("signal_id", ""))
-            if sid.startswith("conn_gmail"):
-                ref["source_type"] = "gmail"
-            elif sid.startswith("conn_slack"):
-                ref["source_type"] = "slack"
-            elif sid.startswith("synthetic") or sid.startswith("demo_"):
-                ref["source_type"] = "synthetic"
-    return evidence_refs
 
 
 
@@ -208,7 +219,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     })
                 logger.info("Ledger-state query answered from ledger: %d resolved, %d cancelled",
                             len(_resolved), len(_cancelled))
-                evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
                 return AskResponse(
                     answer="\n".join(_lines),
                     query=req.query,
@@ -432,7 +442,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # Do NOT fall through to the broad query handler (which would dump signals).
         logger.info("Phase 1.1: abstention gate — injection=%s out_of_scope=%s for '%s'",
                     _is_injection, _is_out_of_scope, query_lower[:60])
-        evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
         return AskResponse(
             answer=(
                 "I don't have enough information to answer that question. "
@@ -602,7 +611,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     "known entity %s — returning clean refusal (no evidence dump)",
                     req.query[:80], list(known_entities_lower)[:5],
                 )
-                evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
                 return AskResponse(
                     answer="I don't have enough information to answer that question. "
                            "No matching signals were found in your stored data.",
@@ -728,7 +736,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         answer = "\n".join(ledger_lines)
                         logger.info("F-06: broad commitment query answered from ledger (%d active, %d completed, %d cancelled)",
                                     len(active), len(completed), len(cancelled))
-                        evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
                         return AskResponse(
                             answer=answer,
                             query=req.query,
@@ -807,7 +814,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         answer = f"Changes since {from_date[:10]}:\n" + "\n".join(recent_changes[:10])
                         logger.info("R-04: change query answered from ledger (%d changes since %s)",
                                     len(recent_changes), from_date[:10])
-                        evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
                         return AskResponse(
                             answer=answer,
                             query=req.query,
@@ -830,7 +836,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             intelligence_source="ledger",
                         )
                     else:
-                        evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
                         return AskResponse(
                             answer=f"No commitment changes since {from_date[:10]}.",
                             query=req.query,
@@ -893,7 +898,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 "signal_id": e.get("signal_id", ""),
                                 "source_type": "ledger",
                             })
-                        evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
                         return AskResponse(
                             answer="\n".join(lines),
                             query=req.query,
@@ -951,7 +955,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 logger.info("Broad query '%s' → summary of %d signals across %d entities",
                             req.query[:50], len(all_sigs), len(entity_map))
 
-                evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
 
                 return AskResponse(
                     answer=answer,
@@ -1321,7 +1324,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     _filtered_intent_refs.append(_r_int_filt)
                 intent_evidence_refs = _filtered_intent_refs
 
-                evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
 
                 return AskResponse(
                     answer=final_intent_answer,
@@ -1521,7 +1523,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
                         combined_answer = 'You made the following commitments:\n' + '\n'.join(answer_parts)
 
-                    evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
 
                     return AskResponse(
                         answer=combined_answer,
@@ -1674,7 +1675,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         if not source_entity:
                             logger.info("Phase 1.1: retrieval confidence threshold — best_score=%d normalized=%.2f, abstaining",
                                         _best_score, _normalized_score)
-                            evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
                             return AskResponse(
                                 answer=(
                                     "I don't have enough information to answer that question. "
@@ -2939,8 +2939,17 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             elif sid.startswith("demo_"):
                 ref["source_type"] = "synthetic"
 
-    evidence_refs = _fix_source_types(evidence_refs)
-    evidence_refs = _fix_source_types(evidence_refs) if evidence_refs else evidence_refs
+    # Fix source_type from signal_id prefix (one place, not 12)
+    for _ref in evidence_refs:
+        if isinstance(_ref, dict):
+            _sid = str(_ref.get("signal_id", ""))
+            if _sid.startswith("conn_gmail"):
+                _ref["source_type"] = "gmail"
+            elif _sid.startswith("conn_slack"):
+                _ref["source_type"] = "slack"
+            elif _sid.startswith("synthetic") or _sid.startswith("demo_"):
+                _ref["source_type"] = "synthetic"
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,
