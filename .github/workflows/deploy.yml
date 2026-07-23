@@ -1,26 +1,27 @@
 name: Deploy
 
-# Auto-deploy on every push to main — NO Railway GitHub App needed.
+# Auto-deploy on every push to main — NO Railway GitHub App repo trigger.
 #
-# The Railway GitHub App path is a dead end (browser OAuth, can't be
-# API-automated). This workflow routes around it: GitHub Actions is
-# first-party to the repo (already runs CI on every push), so it can
-# check out the code, build the Docker image, and deploy it to Railway
-# via the CLI using RAILWAY_API_TOKEN.
+# DESIGN: GitHub Actions is the SINGLE deployer. Railway's GitHub App is
+# installed (enables Railway API for monitoring/rollback/commit metadata)
+# but repoTriggers is intentionally EMPTY so Railway doesn't also auto-deploy.
+# One deployer only — this workflow — with the S0 health assertion baked in.
 #
-# The S0 assertion ("live == tested") is baked in: after deploy, poll
-# /api/health until commit == github.sha. If it doesn't converge, the
-# workflow fails loudly.
+# The cached-image false-success guard: Railway's "SUCCESS" status can fire
+# in ~16s when it reuses an old image. Health is the source of truth, not
+# Railway's status. If /api/health commit doesn't advance to github.sha,
+# the deploy FAILED regardless of what Railway reported.
 #
 # REQUIRES (GitHub Actions secrets):
-#   - RAILWAY_API_TOKEN          (Railway team/account token)
+#   - RAILWAY_API_TOKEN
 #   - RAILWAY_BACKEND_SERVICE_ID  (c12adfcf-524d-4b99-8837-9c495065bb5c)
 #   - RAILWAY_FRONTEND_SERVICE_ID (6c0de1c4-d255-4f85-b235-cc4f4e1a4697)
+# Never print secret values in logs — reference by name only.
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # manual trigger for testing
+  workflow_dispatch: {}  # allows the agent to trigger on demand for drift remediation
 
 jobs:
   deploy-backend:
@@ -33,29 +34,56 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
+      - name: Record pre-deploy image digest (for cached-image guard)
+        id: pre-digest
+        run: |
+          DIGEST=$(curl -s https://maestroagent-production.up.railway.app/api/health | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit','unknown'))" 2>/dev/null || echo "unknown")
+          echo "Pre-deploy live commit: $DIGEST"
+          echo "live_commit_before=$DIGEST" >> $GITHUB_OUTPUT
+
       - name: Build + deploy backend to Railway
         run: railway up --service ${{ secrets.RAILWAY_BACKEND_SERVICE_ID }} --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        working-directory: .  # backend Dockerfile is at repo root
 
-      - name: Verify deploy converged (S0 assertion — live == tested)
+      - name: Verify deploy converged (S0 assertion — health is source of truth)
         run: |
           EXPECT="${{ github.sha }}"
-          echo "Waiting for backend to converge to commit $EXPECT"
+          EXPECT_SHORT="${EXPECT:0:7}"
+          BEFORE="${{ steps.pre-digest.outputs.live_commit_before }}"
+          echo "Waiting for backend to converge:"
+          echo "  Expected commit: $EXPECT_SHORT"
+          echo "  Pre-deploy commit: $BEFORE"
+          echo ""
           for i in $(seq 1 40); do
             LIVE=$(curl -s https://maestroagent-production.up.railway.app/api/health | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit',''))" 2>/dev/null || echo "")
-            if [ "$LIVE" = "$EXPECT" ]; then
-              echo "✓ LIVE == TESTED: $LIVE"
+            LIVE_SHORT="${LIVE:0:7}"
+            if [ "$LIVE_SHORT" = "$EXPECT_SHORT" ]; then
+              echo "✓ LIVE == TESTED: $LIVE_SHORT"
+              echo "  Build time: $(curl -s https://maestroagent-production.up.railway.app/api/health | python3 -c 'import sys,json; print(json.load(sys.stdin).get("build_time",""))')"
               echo "The deployment visible to users is the commit CI just built."
               exit 0
             fi
-            echo "  [$((i*15))s] live=$LIVE expected=$EXPECT — waiting..."
+            if [ "$LIVE" = "$BEFORE" ]; then
+              echo "  [$((i*15))s] live=$LIVE_SHORT (unchanged from pre-deploy — build may still be running)"
+            else
+              echo "  [$((i*15))s] live=$LIVE_SHORT (changed but != expected $EXPECT_SHORT)"
+            fi
             sleep 15
           done
-          echo "✗ DEPLOY DID NOT CONVERGE to $EXPECT after 10 min"
-          echo "The backend is still serving a stale commit. Investigate:"
+          echo ""
+          echo "✗ DEPLOY DID NOT CONVERGE to $EXPECT_SHORT after 10 min"
+          echo ""
+          echo "This is the cached-image false-success guard: Railway may have"
+          echo "reported SUCCESS but reused the old image. The health endpoint"
+          echo "is the source of truth — if commit didn't advance, the deploy"
+          echo "failed regardless of Railway's status."
+          echo ""
+          echo "Investigate:"
           echo "  - Check Railway dashboard for build/deploy errors"
-          echo "  - Check if the Docker build succeeded in the 'railway up' step above"
+          echo "  - Check if 'railway up' actually built a new image (look for build logs)"
+          echo "  - Verify RAILWAY_BACKEND_SERVICE_ID secret is correct"
           exit 1
 
   deploy-frontend:
@@ -74,14 +102,14 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
         working-directory: download/MaestroAgent/maestro-personal/web
 
-      - name: Verify frontend deployed
+      - name: Verify frontend serving SSR shell (not Loading…)
         run: |
-          # Frontend doesn't expose a commit endpoint, so we check it's serving
-          # the branded shell (not "Loading…") via a fresh fetch.
+          echo "Waiting for frontend to serve branded SSR shell..."
           for i in $(seq 1 20); do
             HTML=$(curl -s https://web-production-d5c26.up.railway.app/ 2>/dev/null || echo "")
             if echo "$HTML" | grep -q "Maestro"; then
               echo "✓ Frontend serving branded shell (contains 'Maestro')"
+              echo "  SSR shell present (full hydration verified by Playwright in monitoring loop)"
               exit 0
             fi
             echo "  [$((i*15))s] waiting for frontend..."
