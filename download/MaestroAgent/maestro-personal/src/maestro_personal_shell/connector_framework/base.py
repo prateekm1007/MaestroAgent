@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from maestro_personal_shell.connectors import Signal
+from maestro_personal_shell.connector_framework import Signal
 
 logger = logging.getLogger(__name__)
 

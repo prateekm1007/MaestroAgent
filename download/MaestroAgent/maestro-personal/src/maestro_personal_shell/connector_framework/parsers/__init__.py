@@ -14,7 +14,7 @@ import re
 import logging
 from typing import Callable
 
-from maestro_personal_shell.connectors import Signal
+from maestro_personal_shell.connector_framework import Signal
 
 logger = logging.getLogger(__name__)
 
@@ -64,18 +64,18 @@ def parse_email_signal(signal: Signal) -> list[Signal]:
 
 # Import all parsers to register them
 try:
-    from maestro_personal_shell.connectors.parsers import amazon  # noqa: F401
+    from maestro_personal_shell.connector_framework.parsers import amazon  # noqa: F401
 except ImportError:
     pass
 try:
-    from maestro_personal_shell.connectors.parsers import linkedin_mail  # noqa: F401
+    from maestro_personal_shell.connector_framework.parsers import linkedin_mail  # noqa: F401
 except ImportError:
     pass
 try:
-    from maestro_personal_shell.connectors.parsers import instagram_mail  # noqa: F401
+    from maestro_personal_shell.connector_framework.parsers import instagram_mail  # noqa: F401
 except ImportError:
     pass
 try:
-    from maestro_personal_shell.connectors.parsers import facebook_mail  # noqa: F401
+    from maestro_personal_shell.connector_framework.parsers import facebook_mail  # noqa: F401
 except ImportError:
     pass

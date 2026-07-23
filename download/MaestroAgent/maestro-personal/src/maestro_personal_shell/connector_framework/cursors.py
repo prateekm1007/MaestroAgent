@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from maestro_personal_shell.connectors.base import SyncCursor
+from maestro_personal_shell.connector_framework.base import SyncCursor
 
 logger = logging.getLogger(__name__)
 

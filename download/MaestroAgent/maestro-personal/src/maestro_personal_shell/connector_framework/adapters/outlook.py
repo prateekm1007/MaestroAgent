@@ -19,9 +19,9 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from maestro_personal_shell.connectors import Signal
-from maestro_personal_shell.connectors.base import BaseConnector, SyncCursor
-from maestro_personal_shell.connectors.registry import register_adapter
+from maestro_personal_shell.connector_framework import Signal
+from maestro_personal_shell.connector_framework.base import BaseConnector, SyncCursor
+from maestro_personal_shell.connector_framework.registry import register_adapter
 
 logger = logging.getLogger(__name__)
 

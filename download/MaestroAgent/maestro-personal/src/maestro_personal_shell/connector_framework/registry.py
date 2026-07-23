@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Type
 
-from maestro_personal_shell.connectors.base import BaseConnector
+from maestro_personal_shell.connector_framework.base import BaseConnector
 
 _REGISTRY: dict[str, Type[BaseConnector]] = {}
 

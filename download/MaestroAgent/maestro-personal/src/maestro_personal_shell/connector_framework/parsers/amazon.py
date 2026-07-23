@@ -10,8 +10,8 @@ import re
 import logging
 from datetime import datetime, timedelta, timezone
 
-from maestro_personal_shell.connectors import Signal
-from maestro_personal_shell.connectors.parsers import register_parser
+from maestro_personal_shell.connector_framework import Signal
+from maestro_personal_shell.connector_framework.parsers import register_parser
 
 logger = logging.getLogger(__name__)
 
