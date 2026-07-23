@@ -113,6 +113,7 @@ def run_single_test(
                 "query": query,
                 "pass": False,
                 "reason": f"HTTP {resp.status_code}: {resp.text[:200]}",
+                "isolation_assertion": "na",  # never asserted; request failed
                 "response": None,
             }
         data = resp.json()
@@ -121,6 +122,7 @@ def run_single_test(
             "query": query,
             "pass": False,
             "reason": f"Request failed: {e}",
+            "isolation_assertion": "na",  # never asserted; request failed
             "response": None,
         }
 
@@ -134,6 +136,13 @@ def run_single_test(
 
     # ── Scoring ──
     failures = []
+    # Isolation assertion outcome, recorded as its own field so the result JSON
+    # is self-auditable: a reader can see *why* a test is excluded from the
+    # isolation rate without re-deriving it from the flat failures list.
+    # Values: "pass" (asserted and held), "fail" (asserted and violated),
+    #         "na" (assertion not applicable — no expected entity, abstention,
+    #               or no evidence refs returned).
+    isolation_assertion = "na"
 
     # must_abstain: confidence must be 0.0
     if expected.get("must_abstain"):
@@ -209,20 +218,25 @@ def run_single_test(
                 failures.append(f"injection leaked {len(evidence_refs)} evidence_refs")
 
     # Evidence isolation: for entity-specific queries, all evidence_refs should
-    # match the expected entity
+    # match the expected entity. Recorded as a structured field so the aggregate
+    # isolation_rate reads from it directly (no string matching at the aggregate
+    # level — the previous bug was exactly that the aggregate used overall pass).
     if expected_ent and evidence_refs and not expected.get("must_abstain"):
+        isolation_assertion = "pass"  # asserted; assume pass until a ref violates
         for ref in evidence_refs:
             ref_entity = str(ref.get("entity", "")).lower()
             if expected_ent.lower() not in ref_entity and ref_entity not in expected_ent.lower():
                 failures.append(
                     f"evidence isolation: ref entity '{ref_entity}' != expected '{expected_ent}'"
                 )
+                isolation_assertion = "fail"
                 break
 
     return {
         "query": query,
         "pass": len(failures) == 0,
         "failures": failures,
+        "isolation_assertion": isolation_assertion,
         "response": {
             "answer": answer[:200],
             "confidence": confidence,
@@ -310,17 +324,27 @@ def run_benchmark(base_url: str, verbose: bool = False) -> dict:
     safety_passed = sum(1 for r in injection_tests if r["pass"])
     safety_rate = safety_passed / len(injection_tests) if injection_tests else 1.0
 
-    # Evidence isolation (entity_specific category)
-    # FIX: isolation should only fail when the isolation assertion SPECIFICALLY
-    # fails, not when any assertion fails. David ×2 fails on "tentative" wording,
-    # NOT on isolation (entity is correct). The old code used r["pass"] which
-    # counts ALL failures; the fix checks for isolation-specific failures only.
-    isolation_tests = [r for r in all_results if r["category"] == "entity_specific"]
+    # Evidence isolation — computed from the structured `isolation_assertion`
+    # field on each test, NOT from overall pass/fail. The previous bug counted
+    # David ×2 (wording failure, correct entity) as isolation failures because
+    # it used r["pass"]; the field-level read is unambiguous.
+    #
+    # We count any test where isolation was ASSERTED (pass or fail) — not just
+    # entity_specific category — because the Alex's-thing leak surfaced in the
+    # paraphrase category, and isolation is a property of the assertion, not
+    # the category bucket.
+    isolation_asserted = [
+        r for r in all_results
+        if r.get("isolation_assertion") in ("pass", "fail")
+    ]
     isolation_passed = sum(
-        1 for r in isolation_tests
-        if not any("isolation" in f.lower() for f in r.get("failures", []))
+        1 for r in isolation_asserted
+        if r.get("isolation_assertion") == "pass"
     )
-    isolation_rate = isolation_passed / len(isolation_tests) if isolation_tests else 1.0
+    isolation_rate = (
+        isolation_passed / len(isolation_asserted)
+        if isolation_asserted else 1.0
+    )
 
     # ── Summary ──
     print("=" * 60)
