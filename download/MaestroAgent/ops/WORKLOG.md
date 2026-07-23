@@ -12,3 +12,4 @@ Every agent action, reviewable. Append-only. Git history is the tamper-evident g
 - [SWARM-WHOLE-APP-DEBUG](worklog/SWARM-WHOLE-APP-DEBUG.md) — Multi-swarm whole-app debug — 5 teams, inter-leader coordination | COMPLETED | 2026-07-23
 - [SWARM-WHOLE-APP-DEBUG](worklog/SWARM-WHOLE-APP-DEBUG.md) — Multi-swarm whole-app debug — 5 teams, inter-leader coordination | COMPLETED | 2026-07-23
 - [FORENSIC-AUDIT-20260723](worklog/FORENSIC-AUDIT-20260723.md) — k3-powered forensic audit — whole-app sweep | COMPLETED | 2026-07-23
+- [FORENSIC-AUDIT-20260723](worklog/FORENSIC-AUDIT-20260723.md) — k3-powered forensic audit — whole-app sweep | COMPLETED | 2026-07-23
