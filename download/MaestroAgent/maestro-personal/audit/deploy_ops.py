@@ -423,8 +423,56 @@ class DeployOps:
 
     # ── Autonomous deploy loop ────────────────────────────────────────────────
 
+    def trigger_github_actions_deploy(self) -> dict:
+        """Trigger the deploy.yml GitHub Actions workflow via the GitHub API.
+
+        This is the FIRST-PARTY deploy path that bypasses the Railway GitHub
+        App entirely. GitHub Actions is already connected to the repo (CI
+        workflows run on every push), so it can build the Docker image and
+        deploy via `railway up` using RAILWAY_API_TOKEN.
+
+        REQUIRES: GITHUB_TOKEN with repo:write scope (to trigger workflows).
+        The deploy.yml workflow itself needs RAILWAY_API_TOKEN + service IDs
+        as repo secrets.
+
+        Returns: {status, workflow_run_url or error}
+        """
+        if not self.github_token:
+            return {
+                "status": "no_github_token",
+                "message": "GITHUB_TOKEN not set — cannot trigger workflow_dispatch",
+            }
+        try:
+            # Trigger the deploy workflow via workflow_dispatch
+            resp = httpx.post(
+                f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/deploy.yml/dispatches",
+                headers={
+                    "Authorization": f"Bearer {self.github_token}",
+                    "Accept": "application/vnd.github+json",
+                },
+                json={"ref": "main"},
+                timeout=15,
+            )
+            if resp.status_code == 204:
+                return {
+                    "status": "triggered",
+                    "message": "deploy.yml workflow triggered via workflow_dispatch",
+                    "monitor_url": f"https://github.com/{GITHUB_REPO}/actions/workflows/deploy.yml",
+                }
+            else:
+                return {
+                    "status": "trigger_failed",
+                    "status_code": resp.status_code,
+                    "body": resp.text[:200],
+                }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
     def ensure_deployed(self) -> dict:
         """The full autonomous loop: detect drift → diagnose → deploy → verify.
+
+        Uses the GitHub Actions deploy path (first-party, no Railway GitHub
+        App needed). Falls back to Railway API if GitHub Actions unavailable.
 
         Returns a result dict with status and details. No human intervention.
         """
@@ -442,62 +490,70 @@ class DeployOps:
         diagnosis = self.diagnose_stall()
         print(f"[deploy_ops] Drift detected: {diagnosis}")
 
-        # Step 3: Trigger deploy (NEEDS RAILWAY_API_TOKEN)
+        # Step 3: Trigger deploy via GitHub Actions (first-party path)
+        print(f"[deploy_ops] Triggering GitHub Actions deploy (bypasses Railway GitHub App)...")
+        gh_result = self.trigger_github_actions_deploy()
+
+        if gh_result["status"] == "triggered":
+            print(f"[deploy_ops] ✓ {gh_result['message']}")
+            print(f"[deploy_ops] Monitor: {gh_result['monitor_url']}")
+
+            # Step 4: Poll /api/health until live == HEAD (S0 assertion, bounded)
+            head_sha = drift_public["head_sha"]
+            print(f"[deploy_ops] Polling /api/health until commit == {head_sha[:7]}...")
+            start = time.time()
+            while time.time() - start < POLL_TIMEOUT_SECONDS:
+                time.sleep(POLL_INTERVAL_SECONDS)
+                health = self.get_live_health()
+                live_sha = health.get("commit", "")
+                elapsed = int(time.time() - start)
+                print(f"  [{elapsed}s] live={live_sha[:7]} expected={head_sha[:7]}")
+                if live_sha.lower().startswith(head_sha[:7].lower()):
+                    return {
+                        "status": "deployed_and_verified",
+                        "live_sha": live_sha,
+                        "head_sha": head_sha,
+                        "build_time": health.get("build_time"),
+                        "deploy_method": "github_actions",
+                        "message": "Deploy successful via GitHub Actions, live == HEAD",
+                    }
+            return {
+                "status": "deploy_timeout",
+                "head_sha": head_sha,
+                "message": f"Deploy did not converge within {POLL_TIMEOUT_SECONDS}s. Check: {gh_result['monitor_url']}",
+            }
+
+        # GitHub Actions trigger failed — fall back to Railway API if available
+        if gh_result["status"] == "no_github_token":
+            print(f"[deploy_ops] No GITHUB_TOKEN — falling back to Railway API deploy...")
+        else:
+            print(f"[deploy_ops] GitHub Actions trigger failed: {gh_result}")
+
         if not self.railway:
             return {
-                "status": "cannot_trigger_without_token",
+                "status": "cannot_trigger",
                 "diagnosis": diagnosis,
+                "github_actions_result": gh_result,
                 "live_sha": drift_public["live_sha"],
                 "head_sha": drift_public["head_sha"],
                 "stale_seconds": drift_public["stale_seconds"],
-                "action_needed": "Add RAILWAY_API_TOKEN to environment so deploy_ops can trigger deploys autonomously",
+                "action_needed": "Add GITHUB_TOKEN (with repo:write) or RAILWAY_API_TOKEN to enable autonomous deploy",
             }
 
-        # Check for build failure — don't redeploy if the build is broken
-        if "Build failed" in diagnosis:
-            return {
-                "status": "build_failed",
-                "diagnosis": diagnosis,
-                "action": "escalate_to_coder — fix the build error before redeploying",
-            }
-
-        # Trigger manual deploy
+        # Fallback: Railway API deploy (may reuse cached image if no repo trigger)
         try:
             deploy_id = self.railway.trigger_deploy(RAILWAY_SERVICE_ID, branch="main")
-            print(f"[deploy_ops] Deploy triggered: {deploy_id}")
+            print(f"[deploy_ops] Railway deploy triggered: {deploy_id}")
         except Exception as e:
             return {
                 "status": "trigger_failed",
                 "diagnosis": diagnosis,
+                "github_actions_result": gh_result,
                 "error": str(e),
             }
 
-        # Step 4: Poll until complete (bounded timeout)
-        print(f"[deploy_ops] Polling deploy status every {POLL_INTERVAL_SECONDS}s (max {POLL_TIMEOUT_SECONDS}s)...")
-        start = time.time()
-        while time.time() - start < POLL_TIMEOUT_SECONDS:
-            time.sleep(POLL_INTERVAL_SECONDS)
-            deploy = self.railway.get_active_deployment(RAILWAY_SERVICE_ID)
-            status = deploy.get("status", "")
-            print(f"  [{int(time.time()-start)}s] status={status}")
-            if status == "SUCCESS":
-                break
-            if status == "FAILED":
-                logs = self.railway.get_build_logs(RAILWAY_SERVICE_ID, deploy.get("id"))
-                return {
-                    "status": "deploy_failed",
-                    "diagnosis": diagnosis,
-                    "logs": logs[:500],
-                }
-        else:
-            return {
-                "status": "deploy_timeout",
-                "deploy_id": deploy_id,
-                "message": f"Deploy did not complete within {POLL_TIMEOUT_SECONDS}s",
-            }
-
-        # Step 5: Verify health (fresh fetch, live-claim rule)
-        time.sleep(5)  # give the new deployment a moment to start serving
+        # Step 5: Verify health
+        time.sleep(5)
         health = self.get_live_health()
         live_sha = health.get("commit", "")
         head_sha = drift_public["head_sha"]
@@ -508,14 +564,16 @@ class DeployOps:
                 "live_sha": live_sha,
                 "head_sha": head_sha,
                 "build_time": health.get("build_time"),
-                "message": "Deploy successful, live == HEAD",
+                "deploy_method": "railway_api",
+                "message": "Deploy successful via Railway API, live == HEAD",
             }
         else:
             return {
                 "status": "deploy_verified_mismatch",
                 "health_commit": live_sha,
                 "expected": head_sha,
-                "message": "Deploy reported SUCCESS but /api/health still shows old commit — possible edge-cache or deploy-swap delay",
+                "diagnosis": diagnosis,
+                "message": "Deploy triggered but /api/health still shows old commit — Railway may have reused cached image (no repo trigger to pull new code)",
             }
 
 
