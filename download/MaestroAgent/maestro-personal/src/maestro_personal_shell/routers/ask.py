@@ -286,6 +286,17 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         "what should i do today", "what should i do",
         "what do i need to do", "what do i need to do today",
         "what's on my plate", "what is on my plate",
+        # Auditor re-tally: broad/meta/quantified queries that the entity gate
+        # was short-circuiting. These are "big picture" questions the product
+        # MUST answer — they're the core value, not edge cases.
+        "status of every", "status of all",
+        "every person", "all my people", "everyone i'm",
+        "miss any deadline", "miss.*deadline", "going to miss",
+        "summary of my work", "summary of my",
+        "how reliable am i", "how reliable",
+        "what patterns", "patterns do you see",
+        "what's the status of", "what is the status of",
+        "work life", "my commitments to everyone",
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
 
