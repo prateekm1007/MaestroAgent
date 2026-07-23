@@ -63,14 +63,43 @@ def stage1_bm25_recall(
 # ---------------------------------------------------------------------------
 
 def _load_all_signals(user_email: str, limit: int = 500, db_path: str | None = None) -> list[dict[str, Any]]:
-    """Load raw signals (up to limit) for this user, for specialist filtering."""
+    """Load raw signals (up to limit) for this user, for specialist filtering.
+
+    Trust gap #2 fix: filter out dismissed/corrected signals so they don't
+    surface in Ask evidence via specialist retrievers. The BM25/FTS retriever
+    already excludes them (propagate_correction calls delete_signal_from_fts),
+    but specialist retrievers load ALL signals and didn't filter corrections,
+    creating a partial write-only correction path. Now we exclude any signal
+    whose metadata.status is dismissed/completed/cancelled OR whose
+    metadata.correction is set (dismiss/cancel/complete/dispute/supersede).
+    """
     from maestro_personal_shell.api import load_signals_from_db
     try:
         kwargs = {"user_email": user_email, "limit": limit}
         if db_path:
             kwargs["db_path"] = db_path
         sigs = load_signals_from_db(**kwargs)
-        return [s for s in sigs if isinstance(s, dict)]
+        dismissed_statuses = {"dismissed", "completed", "cancelled"}
+        dismissed_corrections = {"dismiss", "cancel", "complete", "dispute", "supersede"}
+        filtered = []
+        for s in sigs:
+            if not isinstance(s, dict):
+                continue
+            meta = s.get("metadata")
+            if isinstance(meta, str):
+                try:
+                    import json as _json
+                    meta = _json.loads(meta)
+                except Exception:
+                    meta = {}
+            if not isinstance(meta, dict):
+                meta = {}
+            status = str(meta.get("status", "")).lower()
+            correction = str(meta.get("correction", "")).lower()
+            if status in dismissed_statuses or correction in dismissed_corrections:
+                continue
+            filtered.append(s)
+        return filtered
     except Exception as e:
         logger.debug("load_signals_from_db failed: %s", e)
         return []

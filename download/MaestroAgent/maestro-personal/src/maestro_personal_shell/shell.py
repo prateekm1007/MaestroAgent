@@ -172,13 +172,46 @@ class PersonalShell:
         This prevents the system from using its own outputs as evidence
         (circular reasoning) and ensures only verified signals feed
         into judgments, briefings, and whispers.
+
+        Trust gap #2 fix: also filter out dismissed/corrected signals.
+        A user who corrects/dismisses a signal expects it to stop
+        surfacing in Ask evidence. The FTS removal in propagate_correction
+        covers the BM25 retriever, but signals loaded directly (e.g., via
+        specialist retrievers or shell.oem_state.signals) could still
+        reach the LLM. This filter is the last line of defense before
+        the LLM synthesizes an answer.
         """
         try:
             from maestro_cognitive_council.epistemic_barrier import filter_evidence_signals
-            return filter_evidence_signals(signals)
+            filtered = filter_evidence_signals(signals)
         except Exception as e:
             logger.debug("EpistemicBarrier filter failed: %s", e)
-            return signals  # fail open (return all) if barrier unavailable
+            filtered = signals  # fail open (return all) if barrier unavailable
+
+        # Trust gap #2: exclude dismissed/corrected signals
+        import json as _json
+        dismissed_statuses = {"dismissed", "completed", "cancelled"}
+        dismissed_corrections = {"dismiss", "cancel", "complete", "dispute", "supersede"}
+        result = []
+        for s in filtered:
+            meta = None
+            if isinstance(s, dict):
+                meta = s.get("metadata")
+            else:
+                meta = getattr(s, "metadata", None)
+            if isinstance(meta, str):
+                try:
+                    meta = _json.loads(meta)
+                except Exception:
+                    meta = {}
+            if not isinstance(meta, dict):
+                meta = {}
+            status = str(meta.get("status", "")).lower()
+            correction = str(meta.get("correction", "")).lower()
+            if status in dismissed_statuses or correction in dismissed_corrections:
+                continue
+            result.append(s)
+        return result
 
     def apply_acl_restrictions(
         self,
