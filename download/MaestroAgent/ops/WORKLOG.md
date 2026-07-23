@@ -11,3 +11,4 @@ Every agent action, reviewable. Append-only. Git history is the tamper-evident g
 - [OPS-001](worklog/OPS-001.md) — Backend deploy stall — live commit behind HEAD, Railway shows SUCCESS but image  | RESOLVED | 2026-07-23
 - [SWARM-WHOLE-APP-DEBUG](worklog/SWARM-WHOLE-APP-DEBUG.md) — Multi-swarm whole-app debug — 5 teams, inter-leader coordination | COMPLETED | 2026-07-23
 - [SWARM-WHOLE-APP-DEBUG](worklog/SWARM-WHOLE-APP-DEBUG.md) — Multi-swarm whole-app debug — 5 teams, inter-leader coordination | COMPLETED | 2026-07-23
+- [FORENSIC-AUDIT-20260723](worklog/FORENSIC-AUDIT-20260723.md) — k3-powered forensic audit — whole-app sweep | COMPLETED | 2026-07-23
