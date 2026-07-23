@@ -18,10 +18,13 @@ import {
   Twitter,
   Unlink,
   Zap,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -42,6 +45,7 @@ const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: string }>
   calendar: Calendar,
   chat: MessageSquare,
   social: Facebook,
+  briefcase: Briefcase,
 };
 
 export function Connectors() {
@@ -52,6 +56,13 @@ export function Connectors() {
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<DraftWithMeta | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [showWorkEmailForm, setShowWorkEmailForm] = useState(false);
+  const [workEmailForm, setWorkEmailForm] = useState({
+    host: "",
+    port: "993",
+    username: "",
+    password: "",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,6 +135,46 @@ export function Connectors() {
       toast({ title: "Connect failed", description: "Unexpected response from server.", variant: "destructive" });
     } catch (e: any) {
       toast({ title: "Connect failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setBusyProvider(null);
+    }
+  }
+
+  // Work Email (IMAP) connect — direct credentials, NOT OAuth.
+  // The password is type="password" (masked), submitted over HTTPS,
+  // and NOT persisted in client state after submission (cleared on success).
+  async function handleWorkEmailConnect() {
+    setBusyProvider("work_email");
+    try {
+      const credJson = JSON.stringify({
+        host: workEmailForm.host,
+        port: parseInt(workEmailForm.port) || 993,
+        username: workEmailForm.username,
+        password: workEmailForm.password,
+      });
+
+      const { data, live } = await maestroApi.connectProvider("work_email", credJson);
+      if (!live) {
+        toast({ title: "Backend unreachable", variant: "destructive" });
+        return;
+      }
+
+      if (data?.connected) {
+        toast({
+          title: "Work email connected",
+          description: `${workEmailForm.username} — ${data.ingested || 0} messages ingested`,
+        });
+        // CLEAR the password from client state immediately — no persistence
+        setWorkEmailForm({ host: "", port: "993", username: "", password: "" });
+        setShowWorkEmailForm(false);
+        await load();
+      } else {
+        toast({ title: "Connect failed", description: "Unexpected response", variant: "destructive" });
+      }
+    } catch (e: any) {
+      // The backend returns honest errors: "IMAP connection failed: check app password"
+      const detail = e?.message || e?.detail || "Connection failed";
+      toast({ title: "Work email connect failed", description: detail, variant: "destructive" });
     } finally {
       setBusyProvider(null);
     }
@@ -250,7 +301,13 @@ export function Connectors() {
                 key={connector.provider}
                 connector={connector}
                 busy={busyProvider === connector.provider}
-                onConnect={() => handleConnect(connector.provider)}
+                onConnect={() => {
+                  if (connector.provider === "work_email") {
+                    setShowWorkEmailForm(true);
+                  } else {
+                    handleConnect(connector.provider);
+                  }
+                }}
                 onDisconnect={() => handleDisconnect(connector.provider)}
                 onIngest={() => handleIngest(connector.provider)}
               />
@@ -258,6 +315,92 @@ export function Connectors() {
           )}
         </div>
       </div>
+
+      {/* Work Email (IMAP) Form — credential entry, masked, no client persistence */}
+      {showWorkEmailForm && (
+        <Card className="border-border/60">
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Briefcase className="size-4" />
+                <span className="text-sm font-semibold">Connect Work Email (IMAP)</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowWorkEmailForm(false);
+                  setWorkEmailForm({ host: "", port: "993", username: "", password: "" });
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="imap-host" className="text-xs">IMAP Host</Label>
+                <Input
+                  id="imap-host"
+                  placeholder="imap.gmail.com"
+                  value={workEmailForm.host}
+                  onChange={(e) => setWorkEmailForm({ ...workEmailForm, host: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="imap-port" className="text-xs">Port</Label>
+                <Input
+                  id="imap-port"
+                  type="number"
+                  placeholder="993"
+                  value={workEmailForm.port}
+                  onChange={(e) => setWorkEmailForm({ ...workEmailForm, port: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="imap-username" className="text-xs">Work Email</Label>
+                <Input
+                  id="imap-username"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={workEmailForm.username}
+                  onChange={(e) => setWorkEmailForm({ ...workEmailForm, username: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="imap-password" className="text-xs">App Password</Label>
+                <Input
+                  id="imap-password"
+                  type="password"
+                  placeholder="••••••••••••"
+                  value={workEmailForm.password}
+                  onChange={(e) => setWorkEmailForm({ ...workEmailForm, password: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <ShieldCheck className="size-3.5" />
+              <span>
+                Credentials are encrypted at rest and transmitted over HTTPS.
+                The app password is never logged and never stored in your browser.
+              </span>
+            </div>
+            <Button
+              onClick={handleWorkEmailConnect}
+              disabled={!workEmailForm.host || !workEmailForm.username || !workEmailForm.password || busyProvider === "work_email"}
+              className="w-full"
+            >
+              {busyProvider === "work_email" ? (
+                <>
+                  <Loader2 className="size-4 animate-spin mr-2" />
+                  Verifying connection…
+                </>
+              ) : (
+                "Connect & Verify"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Social Connectors */}
       <div>

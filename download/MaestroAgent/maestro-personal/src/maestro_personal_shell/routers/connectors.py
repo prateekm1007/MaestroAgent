@@ -214,6 +214,71 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
                 ),
             )
 
+    # Phase F: Work Email (IMAP) — direct credentials, NOT OAuth.
+    # The user provides their work email + app password + IMAP host.
+    # We VERIFY the connection works before storing — no fake "connected".
+    if provider == "work_email":
+        if not req.oauth_token:
+            raise HTTPException(
+                status_code=400,
+                detail="Work email requires IMAP credentials (host, port, username, app_password).",
+            )
+        try:
+            cred_data = json.loads(req.oauth_token)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid credential format — expected JSON with host, username, app_password.",
+            )
+
+        host = cred_data.get("host", "")
+        port = cred_data.get("port", 993)
+        username = cred_data.get("username", "")
+        password = cred_data.get("password", "") or cred_data.get("app_password", "")
+
+        if not host or not username or not password:
+            raise HTTPException(
+                status_code=400,
+                detail="Work email requires host, username, and app_password.",
+            )
+
+        # VERIFY the IMAP connection actually works before storing.
+        # This is the critical honesty fix: no fake "connected" if the
+        # credentials don't actually authenticate.
+        try:
+            import imaplib
+            conn = imaplib.IMAP4_SSL(host, port)
+            conn.login(username, password)
+            conn.select("INBOX")
+            conn.logout()
+        except imaplib.IMAP4.error as e:
+            raise HTTPException(
+                status_code=401,
+                detail=f"IMAP connection failed: {e}. Check app password / enable IMAP / 2FA settings.",
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"IMAP connection error: {e}. Check host and port.",
+            )
+
+        # Connection verified — store the credentials (encrypted via ConnectorStore)
+        # The password is NEVER logged. ConnectorStore._encrypt() handles encryption.
+        result = store.connect(token, provider, req.oauth_token)
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        # Trigger initial ingest
+        try:
+            shell = build_shell(user_email=token)
+            ingest_result = store.ingest(token, "work_email", shell=shell)
+            result["ingested"] = ingest_result.get("ingested", 0)
+        except Exception as e:
+            logger.warning("Work email initial ingest failed (non-fatal): %s", e)
+            result["ingested"] = 0
+
+        return result
+
     # P0 honesty fix: if no OAuth is configured AND no oauth_token is provided,
     # we must NOT return connected: True. No demo-mode fallback — fail closed.
     if not req.oauth_token:
