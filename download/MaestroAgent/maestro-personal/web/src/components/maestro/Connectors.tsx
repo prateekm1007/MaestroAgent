@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   type Connector,
+  type ConnectResponse,
   type Draft,
   maestroApi,
 } from "@/lib/maestro-api";
@@ -76,13 +77,51 @@ export function Connectors() {
   async function handleConnect(provider: string) {
     setBusyProvider(provider);
     try {
-      const { live } = await maestroApi.connectProvider(provider);
+      const { data, live } = await maestroApi.connectProvider(provider);
       if (!live) {
         toast({ title: "Backend unreachable", description: "Could not connect provider.", variant: "destructive" });
         return;
       }
-      toast({ title: "Connected", description: `${provider} is now connected.` });
-      await load();
+
+      // If the backend says OAuth is required, open the Google consent screen.
+      // This is the 1-click OAuth flow: click → Google consent → connected.
+      if (data?.oauth_required && data?.authorization_url) {
+        // Open Google's OAuth consent page in a popup
+        const popup = window.open(data.authorization_url, "gmail-oauth", "width=500,height=700");
+
+        // Poll for the popup to close (user completed or cancelled)
+        const pollInterval = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(pollInterval);
+            // Re-fetch connector status from the server — NOT optimistic
+            load().then(() => {
+              // After re-fetch, check if the connector is now connected
+              // The toast fires ONLY after the server confirms connection
+              setTimeout(() => {
+                const gmailConn = connectors.find((c) => c.provider === provider);
+                if (gmailConn?.connected) {
+                  toast({ title: "Connected", description: `${provider} is now connected.` });
+                }
+              }, 100);
+            });
+            setBusyProvider(null);
+          }
+        }, 500);
+
+        // Also set a timeout to stop polling after 5 minutes
+        setTimeout(() => clearInterval(pollInterval), 300000);
+        return;
+      }
+
+      // If already connected (backend returned connected: true without OAuth)
+      if (data?.connected) {
+        toast({ title: "Connected", description: `${provider} is now connected.` });
+        await load();
+        return;
+      }
+
+      // If neither OAuth nor connected, something unexpected happened
+      toast({ title: "Connect failed", description: "Unexpected response from server.", variant: "destructive" });
     } catch (e: any) {
       toast({ title: "Connect failed", description: e?.message || "Unknown error", variant: "destructive" });
     } finally {

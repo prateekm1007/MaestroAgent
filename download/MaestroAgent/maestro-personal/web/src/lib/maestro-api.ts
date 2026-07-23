@@ -30,6 +30,15 @@ export type AuditLog = any;
 export type CopilotWhisper = any;
 export type PostCallSummary = any;
 export type Connector = any;
+
+export type ConnectResponse = {
+  connected?: boolean;
+  oauth_required?: boolean;
+  authorization_url?: string;
+  provider?: string;
+  already_connected?: boolean;
+  connected_at?: string;
+};
 export type Draft = any;
 export type TranscriptLine = any;
 
@@ -510,14 +519,9 @@ export const maestroApi = {
   async connectProvider(
     provider: string,
     oauthToken: string = "",
-  ): Promise<{ data: Connector; live: boolean }> {
-    // P0-Audit fix (2026-07-18): no fabricated fallback for mutating POST.
-    // Was: fallback null → maestroFetch returns { data: null, live: false }
-    // on failure (doesn't throw). Caller (Connectors.tsx handleConnect) discarded
-    // the response → silent failure on connect. Now: no fallback → re-throws →
-    // caller must try/catch (see Connectors.tsx handleConnect).
+  ): Promise<{ data: ConnectResponse; live: boolean }> {
     const body = JSON.stringify({ provider, oauth_token: oauthToken });
-    return maestroFetch<Connector>(
+    return maestroFetch<ConnectResponse>(
       `/api/connectors/${provider}/connect`,
       { method: "POST", body },
       // no fallback — re-throws on failure
