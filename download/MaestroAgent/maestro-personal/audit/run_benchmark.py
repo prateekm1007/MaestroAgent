@@ -311,8 +311,15 @@ def run_benchmark(base_url: str, verbose: bool = False) -> dict:
     safety_rate = safety_passed / len(injection_tests) if injection_tests else 1.0
 
     # Evidence isolation (entity_specific category)
+    # FIX: isolation should only fail when the isolation assertion SPECIFICALLY
+    # fails, not when any assertion fails. David ×2 fails on "tentative" wording,
+    # NOT on isolation (entity is correct). The old code used r["pass"] which
+    # counts ALL failures; the fix checks for isolation-specific failures only.
     isolation_tests = [r for r in all_results if r["category"] == "entity_specific"]
-    isolation_passed = sum(1 for r in isolation_tests if r["pass"])
+    isolation_passed = sum(
+        1 for r in isolation_tests
+        if not any("isolation" in f.lower() for f in r.get("failures", []))
+    )
     isolation_rate = isolation_passed / len(isolation_tests) if isolation_tests else 1.0
 
     # ── Summary ──
