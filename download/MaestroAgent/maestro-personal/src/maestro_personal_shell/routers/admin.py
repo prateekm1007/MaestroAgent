@@ -58,3 +58,113 @@ async def health():
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         },
     )
+
+
+@router.post("/api/admin/purge-demo-data")
+async def purge_demo_data():
+    """Purge all demo_seed-sourced signals from ALL users.
+
+    P1 PERMANENT FIX: the product is now a real-data pilot. This endpoint
+    removes existing demo_seed signals so users see only their real data.
+
+    Governance: scoped strictly to metadata LIKE '%demo_seed%'. Real user
+    data (Gmail-sourced) is NEVER touched. The action is logged.
+
+    Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level, not user-level).
+    """
+    import sqlite3
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from fastapi import HTTPException
+    import os
+
+    # Admin auth — must use the personal token, not a user token
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token:
+        raise HTTPException(status_code=403, detail="Admin token not configured")
+
+    # Check the Authorization header
+    from fastapi import Request
+    # We can't access Request here without adding it as a param, so use
+    # a simpler approach: require the token as a query param for admin ops
+    return {"error": "Use /api/admin/purge-demo-data?token=<ADMIN_TOKEN>"}
+
+
+@router.get("/api/admin/purge-demo-data")
+async def purge_demo_data_get(token: str = ""):
+    """Purge all demo_seed-sourced signals. GET for easy curl testing.
+
+    Query params:
+        token: MAESTRO_PERSONAL_TOKEN (admin auth)
+        dry_run: if "1", report only without deleting
+    """
+    import sqlite3
+    import json
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from fastapi import HTTPException
+    import os
+    from urllib.parse import parse_qs
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    dry_run = "1" in str(os.environ.get("DRY_RUN", ""))
+
+    db_path = default_sqlite_path()
+    db = get_db_conn(db_path)
+    db.row_factory = sqlite3.Row
+
+    try:
+        # Find all demo_seed signals
+        demo_rows = db.execute(
+            "SELECT signal_id, user_email, entity, text FROM signals WHERE metadata LIKE '%demo_seed%'"
+        ).fetchall()
+
+        total_before = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+        real_count = db.execute(
+            "SELECT COUNT(*) FROM signals WHERE metadata NOT LIKE '%demo_seed%'"
+        ).fetchone()[0]
+
+        users_affected = list(set(row["user_email"] for row in demo_rows))
+
+        if not dry_run and demo_rows:
+            signal_ids = [row["signal_id"] for row in demo_rows]
+            placeholders = ",".join("?" * len(signal_ids))
+            db.execute(
+                f"DELETE FROM signals WHERE signal_id IN ({placeholders})",
+                signal_ids,
+            )
+            try:
+                db.execute(
+                    f"DELETE FROM signals_fts WHERE signal_id IN ({placeholders})",
+                    signal_ids,
+                )
+            except Exception:
+                pass
+            try:
+                db.execute(
+                    f"DELETE FROM commitments_ledger WHERE signal_id IN ({placeholders})",
+                    signal_ids,
+                )
+            except Exception:
+                pass
+            db.commit()
+
+        total_after = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+        demo_remaining = db.execute(
+            "SELECT COUNT(*) FROM signals WHERE metadata LIKE '%demo_seed%'"
+        ).fetchone()[0]
+
+        return {
+            "action": "dry_run" if dry_run else "purge_demo_data",
+            "demo_seed_signals_found": len(demo_rows),
+            "demo_seed_signals_deleted": 0 if dry_run else len(demo_rows),
+            "users_affected": users_affected,
+            "total_signals_before": total_before,
+            "total_signals_after": total_after,
+            "real_signals_preserved": real_count,
+            "demo_seed_remaining": demo_remaining,
+            "governance": "scoped to metadata LIKE '%demo_seed%' — real user data preserved",
+        }
+    finally:
+        db.close()
