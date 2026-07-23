@@ -777,24 +777,27 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("FTS5 initialization failed (semantic search disabled): %s", e)
 
-    # P0-3 fix (audit V5 2026-07-15): seed demo data on first launch.
-    # The audit found that the first-run experience is empty — "watching
-    # quietly" with zero data. This seeds a realistic demo corpus (8 signals
-    # covering commitments, completions, stale items, and a critical event)
-    # so the product feels alive on first launch. Only runs when the DB has
-    # zero signals for the bootstrap user. Real registered users get their
-    # P0 fix: gate demo seeding behind non-test mode to prevent test contamination.
-    # When MAESTRO_TEST_MODE=1, tests manage their own data — demo seeding
-    # injects 9 unexpected signals into the bootstrap user, breaking count-based
-    # assertions in ~17 tests.
-    if os.environ.get("MAESTRO_TEST_MODE") != "1":
+    # P1 PERMANENT FIX (anti-entropy): demo seeding KILLED for real users.
+    # The product is now a real-data pilot. Demo data masquerading as real
+    # is exactly the entropy the swarm was built to end. Real users connect
+    # their own Gmail and see their own commitments — zero synthetic data.
+    #
+    # The benchmark's test users (benchmark-*@example.com) seed their own
+    # synthetic corpus via /api/inbox/synthetic/, NOT via demo_seed. So
+    # killing this path does NOT affect the benchmark.
+    #
+    # If demo data is needed for a specific demo/demo-mode user, set
+    # MAESTRO_DEMO_SEED=1 in the environment. Otherwise: no demo data, ever.
+    if os.environ.get("MAESTRO_DEMO_SEED") == "1" and os.environ.get("MAESTRO_TEST_MODE") != "1":
         try:
             from maestro_personal_shell.demo_seeder import seed_demo_data_if_empty
             seeded = seed_demo_data_if_empty()
             if seeded > 0:
-                logger.info("Demo data seeded: %d signals (first-launch experience)", seeded)
+                logger.info("Demo data seeded (MAESTRO_DEMO_SEED=1): %d signals", seeded)
         except Exception as e:
             logger.warning("Demo data seeding failed (non-fatal): %s", e)
+    else:
+        logger.info("Demo seeding DISABLED — real-data pilot mode (MAESTRO_DEMO_SEED not set)")
 
     logger.info("Maestro Personal API starting on port %d", API_PORT)
     logger.info("DB path: %s", DB_PATH)
