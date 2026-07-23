@@ -350,7 +350,22 @@ class ConnectorStore:
         return result
 
     def _is_oauth_configured(self, provider: str) -> bool:
-        """Check if real OAuth credentials are in env."""
+        """Check if real OAuth credentials are in env.
+
+        For Calendar, uses is_calendar_configured() which falls back to
+        the Gmail OAuth client (same Google OAuth client serves both APIs).
+        For work_email, IMAP doesn't use OAuth (it uses direct credentials).
+        """
+        if provider == "calendar":
+            try:
+                from maestro_personal_shell.calendar_connector import is_calendar_configured
+                return is_calendar_configured()
+            except ImportError:
+                return False
+        if provider == "work_email":
+            # Work email uses IMAP (direct credentials), not OAuth.
+            # It's always "configured" — the user provides their own creds.
+            return True
         client_id = os.environ.get(f"MAESTRO_{provider.upper()}_CLIENT_ID", "")
         return bool(client_id) or SUPPORTED_CONNECTORS.get(provider, {}).get("oauth_configured", False)
 
@@ -708,6 +723,91 @@ class ConnectorStore:
                 return []
             except Exception as e:
                 logger.warning(f"GitHub ingestion failed: {e}")
+                return []
+
+        # Phase F: real Work Email (IMAP) ingestion
+        if provider == "work_email":
+            try:
+                stored_token = self.get_stored_token(user_email, "work_email")
+                if not stored_token:
+                    logger.info("Work email not connected — returning empty")
+                    return []
+
+                # Parse the stored credentials (decrypted by get_stored_token)
+                try:
+                    cred_data = json.loads(stored_token)
+                except Exception:
+                    logger.warning("Work email: invalid credential format")
+                    return []
+
+                host = cred_data.get("host", "")
+                port = cred_data.get("port", 993)
+                username = cred_data.get("username", "")
+                password = cred_data.get("password", "") or cred_data.get("app_password", "")
+
+                if not host or not username or not password:
+                    return []
+
+                # Use the IMAPAdapter from the connector framework
+                import imaplib
+                import email as email_mod
+                from email import policy
+                import re as _re
+
+                signals = []
+                conn = imaplib.IMAP4_SSL(host, port)
+                conn.login(username, password)
+                conn.select("INBOX")
+
+                # Fetch last 50 messages
+                _, data = conn.uid("search", None, "ALL")
+                uids = data[0].split()[-50:] if data[0] else []
+
+                for uid in uids:
+                    _, msg_data = conn.uid("fetch", uid, "(RFC822)")
+                    if msg_data and msg_data[0]:
+                        raw = msg_data[0][1]
+                        msg = email_mod.message_from_bytes(raw, policy=policy.default)
+
+                        from_header = str(msg.get("From", "unknown"))
+                        subject = str(msg.get("Subject", ""))
+
+                        # Extract body
+                        body = ""
+                        if msg.is_multipart():
+                            for part in msg.walk():
+                                if part.get_content_type() == "text/plain":
+                                    body = part.get_content()
+                                    body = _re.sub(r"<[^>]+>", "", str(body))[:500]
+                                    break
+                        else:
+                            body = msg.get_content()
+                            body = _re.sub(r"<[^>]+>", "", str(body))[:500]
+
+                        entity = from_header
+                        if "<" in from_header:
+                            entity = from_header.split("<")[0].strip().strip('"')
+
+                        text = f"{subject} — {body}" if subject else body
+
+                        signals.append({
+                            "entity": entity,
+                            "text": text,
+                            "signal_type": "email_received",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "metadata": {
+                                "source": "imap",
+                                "from": from_header,
+                                "subject": subject,
+                                "uid": uid.decode(),
+                            },
+                        })
+
+                conn.logout()
+                logger.info("Work email (IMAP) ingestion: %d signals", len(signals))
+                return signals
+            except Exception as e:
+                logger.warning(f"Work email (IMAP) ingestion failed: {e}")
                 return []
 
         # Other providers — not yet implemented (Phase F: WhatsApp, etc.)
