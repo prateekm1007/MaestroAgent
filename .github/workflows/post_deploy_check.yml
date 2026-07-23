@@ -6,39 +6,50 @@ name: Post-deploy integrity check
 # Both halves are required — without this, a perfect CI gate on commit X can
 # go green while a different commit Y is what a user hits, because the deploy
 # mechanism is decoupled from the test and /health.commit is not platform-
-# sourced (proven by repo grep: zero RAILWAY_GIT_COMMIT matches).
+# sourced (proven by repo grep: zero RAILWAY_GIT_COMMIT_SHA references).
 #
 # Wire them together as one pipeline stage:
 #   CI-gate-on-image  →  deploy  →  this post-deploy assertion
 #
-# This job triggers on deployment completion (not on push) so it runs AFTER
-# Railway has finished deploying.
+# TRIGGER SCOPING (gotcha #1, pre-empted):
+#   - workflow_run only fires from workflows on the default branch, so PR-
+#     triggered benchmark runs do NOT trigger this job. Good — there's no
+#     deploy on a PR, so asserting "live SHA == HEAD" on a PR would fail
+#     spuriously.
+#   - types: [completed] fires for BOTH success and failure of the benchmark.
+#     We only want to assert live==tested when the benchmark PASSED. So the
+#     job-level `if` filters to conclusion == 'success'. (A failed benchmark
+#     means the commit wasn't green, so there's nothing to assert about the
+#     deploy — the gate already blocked it.)
+#   - branches: [main] further scopes to benchmark runs on main.
 
 on:
   workflow_run:
     workflows: ["Benchmark"]
     types: [completed]
     branches: [main]
-  # Also allow manual trigger for debugging
   workflow_dispatch:
 
 jobs:
   assert-live-equals-tested:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Only run when the benchmark workflow SUCCEEDED. A failed benchmark
+    # means the commit wasn't green — no deploy assertion to make.
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: pip install httpx
 
-      - name: Assert live deployment SHA matches tested SHA
+      - name: Assert live deployment SHA matches tested SHA (with deploy-converge polling)
         env:
-          # Railway API token with read access to the project.
-          # Must be set as a GitHub secret.
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
           RAILWAY_PROJECT_ID: 4aab2a0c-349d-452a-ae9a-5c5f0205817f
           RAILWAY_SERVICE_ID: 0ad2810b-a840-4531-bd71-3f655ca158a6
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           python3 - <<'PYEOF'
           import os, sys, httpx, json, time
@@ -46,6 +57,8 @@ jobs:
           token = os.environ.get("RAILWAY_API_TOKEN")
           project_id = os.environ.get("RAILWAY_PROJECT_ID")
           service_id = os.environ.get("RAILWAY_SERVICE_ID")
+          gh_token = os.environ.get("GH_TOKEN")
+          gh_repo = os.environ.get("GH_REPO")
 
           if not token:
               print("ERROR: RAILWAY_API_TOKEN secret not set.")
@@ -53,7 +66,23 @@ jobs:
               print("Value: a Railway team/account API token with project read access.")
               sys.exit(1)
 
-          # ── Query Railway GraphQL for the active deployment ────────────
+          # ── Get the HEAD commit of main (what CI just tested) ──────────
+          head_resp = httpx.get(
+              f"https://api.github.com/repos/{gh_repo}/commits/main",
+              headers={"Authorization": f"Bearer {gh_token}"},
+              timeout=30,
+          )
+          if head_resp.status_code != 200:
+              print(f"GitHub API error fetching HEAD: {head_resp.status_code}")
+              sys.exit(1)
+          head_sha = head_resp.json().get("sha", "")
+          if not head_sha:
+              print("ERROR: could not resolve HEAD of main.")
+              sys.exit(1)
+          print(f"HEAD of main (CI-tested SHA): {head_sha}")
+          print()
+
+          # ── Railway GraphQL query for the active deployment ────────────
           # We deliberately do NOT read /api/health.commit — that field is
           # not platform-sourced (proven by repo grep: zero
           # RAILWAY_GIT_COMMIT_SHA references). The platform's own deployment
@@ -79,64 +108,82 @@ jobs:
             }
           }
           """
-          resp = httpx.post(
-              "https://backboard.railway.app/graphql",
-              json={"query": query, "variables": {"projectId": project_id, "serviceId": service_id}},
-              headers={"Authorization": f"Bearer {token}"},
-              timeout=30,
-          )
-          if resp.status_code != 200:
-              print(f"Railway API error: {resp.status_code} {resp.text[:200]}")
-              sys.exit(1)
 
-          data = resp.json()
-          edges = data.get("data", {}).get("project", {}).get("service", {}).get("deployments", {}).get("edges", [])
-          if not edges:
-              print("ERROR: no deployments found for this service.")
-              sys.exit(1)
+          def query_railway():
+              resp = httpx.post(
+                  "https://backboard.railway.app/graphql",
+                  json={"query": query, "variables": {"projectId": project_id, "serviceId": service_id}},
+                  headers={"Authorization": f"Bearer {token}"},
+                  timeout=30,
+              )
+              if resp.status_code != 200:
+                  return None, f"Railway API error: {resp.status_code} {resp.text[:200]}"
+              data = resp.json()
+              edges = data.get("data", {}).get("project", {}).get("service", {}).get("deployments", {}).get("edges", [])
+              if not edges:
+                  return None, "no deployments found for this service"
+              node = edges[0]["node"]
+              return node, None
 
-          deploy = edges[0]["node"]
-          live_sha = deploy.get("meta", {}).get("commitSha", "")
-          live_status = deploy.get("status", "")
-          live_msg = deploy.get("meta", {}).get("commitMessage", "")
-
-          print(f"Live deployment:")
-          print(f"  status:      {live_status}")
-          print(f"  commitSha:   {live_sha}")
-          print(f"  commitMsg:   {live_msg[:80]}")
-          print()
-
-          # ── Get the HEAD commit of main (what CI just tested) ──────────
-          head_resp = httpx.get(
-              "https://api.github.com/repos/${{ github.repository }}/commits/main",
-              headers={"Authorization": f"Bearer ${{ secrets.GITHUB_TOKEN }}"},
-              timeout=30,
-          )
-          if head_resp.status_code != 200:
-              print(f"GitHub API error: {head_resp.status_code}")
-              sys.exit(1)
-          head_sha = head_resp.json().get("sha", "")
-          print(f"HEAD of main: {head_sha}")
-          print()
-
-          # ── The assertion: live SHA must match HEAD of main ────────────
-          # (CI runs on push to main, so the tested SHA == HEAD of main at
-          # test time. If deploy hasn't caught up yet, this will be red —
-          # which is the correct signal: "tested green" but "live is stale.")
+          # ── POLL with bounded timeout (gotcha #2, pre-empted) ───────────
+          # Railway deploy is async — when this job fires right after the
+          # benchmark completes, the deploy may NOT have finished yet. The
+          # active deployment's commitSha would still be the OLD commit, and
+          # a one-shot assertion would false-fail.
           #
-          # We compare short SHAs (first 7 chars) since Railway may truncate.
-          if live_sha.lower().startswith(head_sha[:7].lower()):
-              print(f"✓ LIVE == TESTED: {live_sha[:7]} == {head_sha[:7]}")
-              print("The deployment visible to users is the commit CI tested green.")
-              sys.exit(0)
-          else:
-              print(f"✗ LIVE != TESTED: live={live_sha[:7]} vs tested={head_sha[:7]}")
-              print()
-              print("MISMATCH: the live deployment does not match the commit CI tested.")
-              print("This means 'tested green' does NOT imply 'live green' — the deploy")
-              print("may be stale, in-flight, or pointing at a different commit.")
-              print()
-              print("If a deploy is currently in flight, re-run this job in a few minutes.")
-              print("If the mismatch persists, investigate the Railway deploy pipeline.")
-              sys.exit(1)
+          # Poll every 15s up to 5min. We're waiting for either:
+          #   (a) live_sha matches head_sha → SUCCESS, return
+          #   (b) timeout (5min) → FAIL with clear "deploy didn't converge" msg
+          #
+          # The deploy-complete webhook would be cleaner, but polling-with-
+          # timeout is simpler and bounded.
+          POLL_INTERVAL = 15        # seconds
+          POLL_TIMEOUT = 5 * 60     # 5 minutes
+          start = time.time()
+          last_status = None
+          last_sha = None
+
+          while time.time() - start < POLL_TIMEOUT:
+              node, err = query_railway()
+              if err:
+                  print(f"  poll error: {err}")
+                  time.sleep(POLL_INTERVAL)
+                  continue
+
+              live_sha = node.get("meta", {}).get("commitSha", "")
+              live_status = node.get("status", "")
+              live_msg = node.get("meta", {}).get("commitMessage", "")[:80]
+
+              if live_sha != last_sha or live_status != last_status:
+                  print(f"  [{int(time.time()-start)}s] status={live_status} sha={live_sha[:7]} msg={live_msg}")
+                  last_sha = live_sha
+                  last_status = live_status
+
+              if live_sha and live_sha.lower().startswith(head_sha[:7].lower()):
+                  elapsed = int(time.time() - start)
+                  print()
+                  print(f"✓ LIVE == TESTED: {live_sha[:7]} == {head_sha[:7]} (converged in {elapsed}s)")
+                  print("The deployment visible to users is the commit CI tested green.")
+                  print()
+                  print(f"  live status:  {live_status}")
+                  print(f"  live sha:     {live_sha}")
+                  print(f"  live msg:     {live_msg}")
+                  sys.exit(0)
+
+              time.sleep(POLL_INTERVAL)
+
+          # ── Timeout — deploy did not converge ───────────────────────────
+          elapsed = int(time.time() - start)
+          print()
+          print(f"✗ TIMEOUT after {elapsed}s: Railway deploy did not converge to {head_sha[:7]}")
+          print()
+          print(f"  last live sha:     {last_sha}")
+          print(f"  last live status:  {last_status}")
+          print(f"  expected sha:      {head_sha}")
+          print()
+          print("The deploy is either still in flight, failed, or pointing at a different commit.")
+          print("'Tested green' does NOT imply 'live green' — investigate the Railway deploy pipeline.")
+          print()
+          print("If a deploy was in flight, re-run this job (workflow_dispatch) in a few minutes.")
+          sys.exit(1)
           PYEOF
