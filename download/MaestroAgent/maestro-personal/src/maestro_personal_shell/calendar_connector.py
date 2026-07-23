@@ -25,13 +25,35 @@ CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/ev
 
 
 def _get_calendar_config() -> dict[str, str]:
-    """Get Calendar OAuth2 config from env."""
+    """Get Calendar OAuth2 config from env.
+
+    Falls back to the Gmail OAuth client (same Google OAuth client can serve
+    both Gmail and Calendar APIs — just needs the calendar.readonly scope
+    added to the OAuth consent screen in Google Cloud Console).
+
+    Priority:
+      1. MAESTRO_CALENDAR_CLIENT_ID/SECRET (dedicated Calendar creds)
+      2. MAESTRO_GMAIL_CLIENT_ID/SECRET (reuse Gmail client — the common path)
+    """
+    # Try dedicated Calendar credentials first
+    client_id = os.environ.get("MAESTRO_CALENDAR_CLIENT_ID", "")
+    client_secret = os.environ.get("MAESTRO_CALENDAR_CLIENT_SECRET", "")
+
+    # Fall back to Gmail credentials (same Google OAuth client)
+    if not client_id:
+        client_id = os.environ.get("MAESTRO_GMAIL_CLIENT_ID", "")
+        client_secret = os.environ.get("MAESTRO_GMAIL_CLIENT_SECRET", "")
+
     return {
-        "client_id": os.environ.get("MAESTRO_CALENDAR_CLIENT_ID", ""),
-        "client_secret": os.environ.get("MAESTRO_CALENDAR_CLIENT_SECRET", ""),
+        "client_id": client_id,
+        "client_secret": client_secret,
         "redirect_uri": os.environ.get(
             "MAESTRO_CALENDAR_REDIRECT_URI",
-            "http://localhost:8766/api/connectors/calendar/oauth/callback",
+            # Reuse the Gmail redirect URI if Calendar-specific one not set
+            os.environ.get(
+                "MAESTRO_GMAIL_REDIRECT_URI",
+                "http://localhost:8766/api/connectors/calendar/oauth/callback",
+            ),
         ),
     }
 
