@@ -80,11 +80,18 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
     }
     setBusy(true);
     setError(null);
-    // Login: if no email provided, defaults to 'bootstrap' (demo data user).
-    // Register: requires email + password.
+    // P1 PERMANENT FIX: email is REQUIRED for login (no demo path).
+    // The "leave blank for demo" path logged users in as default@personal.local,
+    // showing that user's Gmail data (which looked like demo data). Real-data
+    // pilot mode means every user logs in with their own email.
+    if (!email.trim()) {
+      setError("Enter your email to login.");
+      setBusy(false);
+      return;
+    }
     const result = isRegister
       ? await register(email.trim(), password)
-      : await login(password, email.trim() || undefined);
+      : await login(password, email.trim());
     setBusy(false);
     if (result.ok) {
       onLoggedIn(result.demo);
@@ -126,57 +133,29 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
                   /api/* paths proxied by Next.js rewrites. The field was
                   cosmetic and confused users. Auth is auto-detected. */}
 
-              {/* Email field — shown for register, optional for login */}
-              {isRegister && (
-                <div className="space-y-2">
-                  <label
-                    htmlFor="email"
-                    className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
-                  >
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-9 h-11 bg-input/40 border-border/60"
-                      disabled={busy}
-                    />
-                  </div>
+              {/* Email — REQUIRED for both login and register (no demo path) */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="email"
+                  className="text-xs font-medium text-muted-foreground uppercase tracking-wider"
+                >
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-9 h-11 bg-input/40 border-border/60"
+                    disabled={busy}
+                    required
+                  />
                 </div>
-              )}
-
-              {/* Optional email for login (defaults to 'bootstrap' if left blank) */}
-              {!isRegister && (
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowServer((s) => !s)}
-                    className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Mail className="size-3.5" />
-                      Email (optional — leave blank for demo)
-                    </span>
-                    {showServer ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                  </button>
-                  {showServer && (
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="mt-2 h-9 text-xs bg-input/40 border-border/60"
-                      disabled={busy}
-                    />
-                  )}
-                </div>
-              )}
+              </div>
 
               <div className="space-y-2">
                 <label
@@ -210,7 +189,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
                 type="submit"
                 size="lg"
                 className="w-full h-11 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                disabled={busy || !password || (isRegister && !email.trim())}
+                disabled={busy || !password || !email.trim()}
               >
                 {busy ? (
                   <>
