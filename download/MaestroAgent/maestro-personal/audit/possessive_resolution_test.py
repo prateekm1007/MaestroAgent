@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""Unit test for deterministic possessive entity resolution.
+
+Tests the three-benefit fix:
+  1. "Alex's thing" → resolves to "Alex Chen" (not Maria Garcia)
+  2. Deterministic — same result every time (no LLM stochasticity)
+  3. Consistency — "Alex's thing" and "What did Alex promise?" resolve
+     to the same canonical entity
+"""
+from __future__ import annotations
+import sys
+from pathlib import Path
+
+SRC = Path(__file__).resolve().parents[1] / "src"
+sys.path.insert(0, str(SRC))
+
+from maestro_personal_shell.entity_resolver import (
+    extract_possessive_entity,
+    resolve_possessive_to_canonical,
+    filter_evidence_to_entity,
+)
+
+
+# Synthetic signals simulating the benchmark corpus
+SYNTHETIC_SIGNALS = [
+    {"entity": "Alex Chen", "text": "review the auth module", "signal_id": "s1"},
+    {"entity": "Maria Garcia", "text": "Q3 budget proposal", "signal_id": "s2"},
+    {"entity": "Jamie Lee", "text": "design mockups", "signal_id": "s3"},
+    {"entity": "David Kim", "text": "coffee next week, tentative", "signal_id": "s4"},
+    {"entity": "Priya Patel", "text": "CI pipeline", "signal_id": "s5"},
+    {"entity": "Sam Rivera", "text": "roadmap", "signal_id": "s6"},
+]
+
+
+def test_extraction():
+    """extract_possessive_entity finds the first name in possessive queries."""
+    print("\n[1] extract_possessive_entity")
+    cases = [
+        ("Alex's thing — what did I promise?", "Alex"),
+        ("What did Maria promise?", None),  # no possessive
+        ("Jamie's stuff", "Jamie"),
+        ("Sam's situation", "Sam"),
+        ("What did I promise Maria and Elon?", None),  # no possessive
+    ]
+    all_pass = True
+    for query, expected in cases:
+        result = extract_possessive_entity(query)
+        ok = result == expected
+        status = "✓" if ok else "✗"
+        print(f"  {status} {query!r:50s} → {result!r} (expected {expected!r})")
+        if not ok:
+            all_pass = False
+    return all_pass
+
+
+def test_resolution():
+    """resolve_possessive_to_canonical resolves first name to full entity."""
+    print("\n[2] resolve_possessive_to_canonical")
+    cases = [
+        ("Alex's thing — what did I promise?", "Alex Chen"),
+        ("Maria's stuff", "Maria Garcia"),
+        ("Jamie's situation", "Jamie Lee"),
+        ("David's matter", "David Kim"),
+        ("Priya's item", "Priya Patel"),
+        ("Sam's thing", "Sam Rivera"),
+    ]
+    all_pass = True
+    for query, expected in cases:
+        result = resolve_possessive_to_canonical(query, SYNTHETIC_SIGNALS)
+        ok = result == expected
+        status = "✓" if ok else "✗"
+        print(f"  {status} {query!r:45s} → {result!r} (expected {expected!r})")
+        if not ok:
+            all_pass = False
+    return all_pass
+
+
+def test_consistency():
+    """Same entity regardless of phrasing (consistency-trust gap)."""
+    print("\n[3] Consistency — possessive vs explicit both resolve to same entity")
+    queries_possessive = [
+        "Alex's thing — what did I promise?",
+        "Maria's stuff",
+        "Jamie's situation",
+    ]
+    queries_explicit = [
+        "What did Alex promise?",
+        "What did Maria promise?",
+        "What did Jamie promise?",
+    ]
+    all_pass = True
+    for qp, qe in zip(queries_possessive, queries_explicit):
+        # Possessive path uses resolve_possessive_to_canonical
+        canon_poss = resolve_possessive_to_canonical(qp, SYNTHETIC_SIGNALS)
+        # Explicit path: extract "Alex" from "What did Alex promise?" and resolve
+        import re
+        m = re.search(r'\b([A-Z][a-z]+)\b', qe.replace("What", "").replace("Did", ""))
+        first_name = m.group(1) if m else None
+        canon_expl = None
+        if first_name:
+            from maestro_personal_shell.entity_resolver import resolve_entity_with_signals
+            canon_expl = resolve_entity_with_signals(first_name, SYNTHETIC_SIGNALS)
+        ok = canon_poss == canon_expl
+        status = "✓" if ok else "✗"
+        print(f"  {status} possessive={canon_poss!r:20s} explicit={canon_expl!r:20s} {'MATCH' if ok else 'MISMATCH'}")
+        if not ok:
+            all_pass = False
+    return all_pass
+
+
+def test_evidence_filter():
+    """filter_evidence_to_entity excludes wrong-entity evidence (Alex's-thing fix)."""
+    print("\n[4] filter_evidence_to_entity — Alex's-thing must NOT return Maria's evidence")
+    # Simulate what the ensemble might return: Maria's evidence ranked higher
+    mixed_evidence = [
+        {"entity": "Maria Garcia", "text": "Q3 budget proposal", "signal_id": "s2"},
+        {"entity": "Alex Chen", "text": "review the auth module", "signal_id": "s1"},
+        {"entity": "Jamie Lee", "text": "design mockups", "signal_id": "s3"},
+    ]
+    canonical = resolve_possessive_to_canonical("Alex's thing", SYNTHETIC_SIGNALS)
+    filtered = filter_evidence_to_entity(mixed_evidence, canonical)
+
+    # After filtering, ALL evidence should be for Alex Chen
+    all_alex = all("alex chen" in str(ev.get("entity", "")).lower() for ev in filtered)
+    no_maria = all("maria" not in str(ev.get("entity", "")).lower() for ev in filtered)
+
+    print(f"  canonical entity: {canonical!r}")
+    print(f"  pre-filter entities: {[ev['entity'] for ev in mixed_evidence]}")
+    print(f"  post-filter entities: {[ev['entity'] for ev in filtered]}")
+    print(f"  all evidence is Alex Chen: {all_alex} {'✓' if all_alex else '✗'}")
+    print(f"  no Maria Garcia evidence:  {no_maria} {'✓' if no_maria else '✗'}")
+    return all_alex and no_maria
+
+
+def test_determinism():
+    """Same result every time (CI flakiness fix)."""
+    print("\n[5] Determinism — same query resolves identically across 10 runs")
+    query = "Alex's thing — what did I promise?"
+    results = [resolve_possessive_to_canonical(query, SYNTHETIC_SIGNALS) for _ in range(10)]
+    all_same = len(set(results)) == 1
+    print(f"  10 runs of {query!r}:")
+    print(f"  results: {set(results)}")
+    print(f"  all identical: {all_same} {'✓' if all_same else '✗'}")
+    return all_same
+
+
+def main():
+    print("=" * 72)
+    print("THREE-BENEFIT FIX: Deterministic possessive entity resolution")
+    print("=" * 72)
+
+    results = {
+        "Extraction": test_extraction(),
+        "Resolution": test_resolution(),
+        "Consistency": test_consistency(),
+        "Evidence filter (Alex's-thing)": test_evidence_filter(),
+        "Determinism (CI flakiness)": test_determinism(),
+    }
+
+    print(f"\n{'='*72}")
+    print("VERDICT")
+    print(f"{'='*72}")
+    all_pass = True
+    for name, ok in results.items():
+        print(f"  {name:35s} {'✓ PASS' if ok else '✗ FAIL'}")
+        if not ok:
+            all_pass = False
+    print()
+    if all_pass:
+        print("ALL TESTS PASS — the three-benefit fix is working:")
+        print("  1. Alex's-thing resolves to Alex Chen (not Maria Garcia)")
+        print("  2. Same result every run (no LLM stochasticity)")
+        print("  3. Possessive + explicit phrasings resolve to same entity")
+    else:
+        print("AT LEAST ONE TEST FAILED — fix needed.")
+    sys.exit(0 if all_pass else 1)
+
+
+if __name__ == "__main__":
+    main()

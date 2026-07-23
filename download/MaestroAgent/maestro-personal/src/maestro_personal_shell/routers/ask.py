@@ -1119,6 +1119,42 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     deduped_evidence.append(ev)
                 real_evidence = deduped_evidence
 
+                # ── Deterministic possessive entity resolution ──────────────
+                # Trust gap #4 / Alex's-thing fix (three benefits):
+                #   1. Retires Alex's-thing product leak (wrong entity returned)
+                #   2. Retires CI LLM-flakiness (entity no longer stochastic)
+                #   3. Retires consistency-trust gap (same entity per phrasing)
+                #
+                # If the query contains a possessive ("Alex's thing") or an
+                # implicit reference ("Alex thing"), resolve the first name
+                # to its canonical entity ("Alex" → "Alex Chen") using the
+                # user's signal store, then FILTER evidence to only that
+                # entity. This prevents the LLM from stochastically picking
+                # a different entity (e.g., Maria Garcia) when synthesizing.
+                try:
+                    from maestro_personal_shell.entity_resolver import (
+                        resolve_possessive_to_canonical,
+                        filter_evidence_to_entity,
+                    )
+                    _all_user_signals = shell.oem_state.signals if hasattr(shell, "oem_state") else []
+                    _canonical_entity = resolve_possessive_to_canonical(
+                        req.query,
+                        _all_user_signals,
+                        user_email=token,
+                        db_path=_db,
+                    )
+                    if _canonical_entity:
+                        _pre_filter_count = len(real_evidence)
+                        real_evidence = filter_evidence_to_entity(real_evidence, _canonical_entity)
+                        logger.info(
+                            "Possessive resolution: query=%r → canonical_entity=%r, "
+                            "evidence filtered %d → %d",
+                            req.query[:80], _canonical_entity,
+                            _pre_filter_count, len(real_evidence),
+                        )
+                except Exception as _e_poss:
+                    logger.debug("Possessive entity resolution failed (non-fatal): %s", _e_poss)
+
                 # Build the evidence_refs list (same shape as the LLM path
                 # at line ~594, but without the structural-memory prefix
                 # because the rule-based path doesn't need it).

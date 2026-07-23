@@ -230,3 +230,102 @@ def get_entity_clusters(
             clusters[canonical].append(alias)
 
     return {k: v for k, v in clusters.items() if v}  # Only return clusters with aliases
+
+
+# ---------------------------------------------------------------------------
+# Deterministic possessive entity resolution (Trust gap #4 / Alex's-thing fix)
+# ---------------------------------------------------------------------------
+
+# Matches possessive forms: "Alex's", "Maria's", "David's", "Jamie's"
+# Also matches bare first names that appear before "thing" / "stuff":
+# "Alex's thing", "Maria's stuff", "Jamie's situation"
+_POSSESSIVE_RE = re.compile(r"\b([A-Z][a-z]+)'s\b")
+_BARE_NAME_BEFORE_THING_RE = re.compile(
+    r"\b([A-Z][a-z]+)\s+(?:thing|stuff|situation|matter|item)\b",
+    re.IGNORECASE,
+)
+
+
+def extract_possessive_entity(query: str) -> str | None:
+    """Extract the entity name from a possessive or implicit-reference query.
+
+    Examples:
+      "Alex's thing — what did I promise?"  → "Alex"
+      "What did Maria promise?"              → None (no possessive; standard query)
+      "Jamie's stuff"                        → "Jamie"
+      "Sam's situation"                      → "Sam"
+
+    Returns the extracted first name, or None if no possessive/implicit
+    reference is present.
+    """
+    if not query:
+        return None
+    m = _POSSESSIVE_RE.search(query)
+    if m:
+        return m.group(1)
+    m = _BARE_NAME_BEFORE_THING_RE.search(query)
+    if m:
+        return m.group(1)
+    return None
+
+
+def resolve_possessive_to_canonical(
+    query: str,
+    signals: list[Any],
+    user_email: str = "bootstrap",
+    db_path: str | None = None,
+) -> str | None:
+    """Deterministically resolve a possessive/implicit entity to its canonical form.
+
+    This is the three-benefit fix:
+      1. Retires Alex's-thing product leak (wrong entity returned)
+      2. Retires CI LLM-flakiness (entity no longer depends on stochastic choice)
+      3. Retires consistency-trust gap (same entity regardless of phrasing)
+
+    Flow:
+      1. Extract the first name from the possessive ("Alex's" → "Alex")
+      2. Resolve it against the user's known entities via resolve_entity_with_signals
+         (e.g., "Alex" → "Alex Chen")
+      3. Return the canonical entity name, or None if no possessive/unresolvable
+
+    The caller should FILTER evidence to only this entity before synthesis,
+    so the LLM can't pick a different entity stochastically.
+    """
+    first_name = extract_possessive_entity(query)
+    if not first_name:
+        return None
+    try:
+        canonical = resolve_entity_with_signals(
+            first_name, signals, user_email=user_email, db_path=db_path,
+        )
+        if canonical and canonical.lower() != first_name.lower():
+            logger.debug(
+                "Possessive resolution: %r → %r (from %d signals)",
+                first_name, canonical, len(signals),
+            )
+        return canonical or first_name
+    except Exception as e:
+        logger.debug("Possessive entity resolution failed: %s", e)
+        return first_name  # fall back to the bare first name
+
+
+def filter_evidence_to_entity(
+    evidence: list[dict[str, Any]],
+    canonical_entity: str,
+) -> list[dict[str, Any]]:
+    """Filter evidence to only rows matching the canonical entity.
+
+    Used after resolve_possessive_to_canonical to ensure the LLM only sees
+    evidence for the queried entity. Matching is case-insensitive substring
+    (canonical_entity "Alex Chen" matches evidence entity "alex chen" or
+    "Alex Chen" or "Alex Chen (Acme)").
+    """
+    if not canonical_entity or not evidence:
+        return evidence
+    canon_lower = canonical_entity.lower()
+    filtered = [
+        ev for ev in evidence
+        if canon_lower in str(ev.get("entity", "")).lower()
+        or str(ev.get("entity", "")).lower() in canon_lower
+    ]
+    return filtered if filtered else evidence  # don't return empty; fall back
