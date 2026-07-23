@@ -64,6 +64,45 @@ export function Connectors() {
     password: "",
   });
 
+  // Auto-detect IMAP host from email domain — removes the #1 UX friction.
+  // Users don't know their IMAP host; this fills it in for the common providers.
+  const IMAP_HOST_MAP: Record<string, { host: string; port: string }> = {
+    "gmail.com": { host: "imap.gmail.com", port: "993" },
+    "googlemail.com": { host: "imap.gmail.com", port: "993" },
+    "outlook.com": { host: "outlook.office365.com", port: "993" },
+    "hotmail.com": { host: "outlook.office365.com", port: "993" },
+    "live.com": { host: "outlook.office365.com", port: "993" },
+    "office365.com": { host: "outlook.office365.com", port: "993" },
+    "yahoo.com": { host: "imap.mail.yahoo.com", port: "993" },
+    "icloud.com": { host: "imap.mail.me.com", port: "993" },
+    "me.com": { host: "imap.mail.me.com", port: "993" },
+    "mac.com": { host: "imap.mail.me.com", port: "993" },
+    "zoho.com": { host: "imap.zoho.com", port: "993" },
+    "protonmail.com": { host: "127.0.0.1", port: "1143" }, // ProtonMail Bridge
+    "proton.me": { host: "127.0.0.1", port: "1143" },
+    "fastmail.com": { host: "imap.fastmail.com", port: "993" },
+  };
+
+  function detectImapHost(email: string): { host: string; port: string } | null {
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (!domain) return null;
+    // Direct match
+    if (IMAP_HOST_MAP[domain]) return IMAP_HOST_MAP[domain];
+    // Partial match for custom domains on known providers (e.g., workspace.google)
+    if (domain.includes("google")) return IMAP_HOST_MAP["gmail.com"];
+    return null;
+  }
+
+  function handleWorkEmailUsernameChange(email: string) {
+    const detected = detectImapHost(email);
+    setWorkEmailForm({
+      ...workEmailForm,
+      username: email,
+      host: detected?.host || workEmailForm.host,
+      port: detected?.port || workEmailForm.port,
+    });
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     const [c, d] = await Promise.all([
@@ -337,8 +376,23 @@ export function Connectors() {
               </Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="imap-username" className="text-xs">Work Email</Label>
+                <Input
+                  id="imap-username"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={workEmailForm.username}
+                  onChange={(e) => handleWorkEmailUsernameChange(e.target.value)}
+                />
+                {workEmailForm.host && (
+                  <p className="text-[10px] text-muted-foreground">
+                    IMAP host auto-detected: <strong>{workEmailForm.host}:{workEmailForm.port}</strong>
+                  </p>
+                )}
+              </div>
               <div className="space-y-1">
-                <Label htmlFor="imap-host" className="text-xs">IMAP Host</Label>
+                <Label htmlFor="imap-host" className="text-xs">IMAP Host <span className="text-muted-foreground/50">(auto-filled)</span></Label>
                 <Input
                   id="imap-host"
                   placeholder="imap.gmail.com"
@@ -356,17 +410,7 @@ export function Connectors() {
                   onChange={(e) => setWorkEmailForm({ ...workEmailForm, port: e.target.value })}
                 />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="imap-username" className="text-xs">Work Email</Label>
-                <Input
-                  id="imap-username"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={workEmailForm.username}
-                  onChange={(e) => setWorkEmailForm({ ...workEmailForm, username: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1">
+              <div className="space-y-1 sm:col-span-2">
                 <Label htmlFor="imap-password" className="text-xs">App Password</Label>
                 <Input
                   id="imap-password"
@@ -375,6 +419,10 @@ export function Connectors() {
                   value={workEmailForm.password}
                   onChange={(e) => setWorkEmailForm({ ...workEmailForm, password: e.target.value })}
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  App password required if 2FA is enabled — generate one in your
+                  email provider's security settings. Do NOT use your regular password.
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

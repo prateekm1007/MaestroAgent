@@ -246,6 +246,12 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
         # VERIFY the IMAP connection actually works before storing.
         # This is the critical honesty fix: no fake "connected" if the
         # credentials don't actually authenticate.
+        #
+        # NOTE: we return 400 (not 401) for IMAP failures because maestroFetch
+        # treats 401 as "auth expired" and clears the user's session token.
+        # IMAP auth failure is NOT a session-auth failure — it's a connector
+        # credential failure. Using 400 keeps the user logged in and shows
+        # the honest error in the toast.
         try:
             import imaplib
             conn = imaplib.IMAP4_SSL(host, port)
@@ -254,13 +260,21 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
             conn.logout()
         except imaplib.IMAP4.error as e:
             raise HTTPException(
-                status_code=401,
-                detail=f"IMAP connection failed: {e}. Check app password / enable IMAP / 2FA settings.",
+                status_code=400,
+                detail=(
+                    f"IMAP login failed: {e}. "
+                    f"Check your app password — if 2FA is enabled, generate an "
+                    f"app password in your provider's security settings. "
+                    f"Also confirm IMAP is enabled for this account."
+                ),
             )
         except Exception as e:
             raise HTTPException(
                 status_code=400,
-                detail=f"IMAP connection error: {e}. Check host and port.",
+                detail=(
+                    f"Couldn't reach the IMAP server: {e}. "
+                    f"Check the host/port, or your network may block IMAP."
+                ),
             )
 
         # Connection verified — store the credentials (encrypted via ConnectorStore)

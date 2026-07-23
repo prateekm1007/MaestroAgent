@@ -253,7 +253,19 @@ async function maestroFetch<T>(
           }, 3000);
         }
       }
-      throw new Error(`HTTP ${res.status}`);
+      // P2 fix: include the response body's detail field in the error message
+      // so the UI can show the honest error (e.g., "IMAP login failed: check
+      // app password"). Previously threw "HTTP 400" with no detail.
+      let errorDetail = `HTTP ${res.status}`;
+      try {
+        const errorBody = await res.json();
+        if (errorBody?.detail) {
+          errorDetail = errorBody.detail;
+        }
+      } catch {
+        // response body isn't JSON — use the status code
+      }
+      throw new Error(errorDetail);
     }
     const data = (await res.json()) as T;
     return { data, live: true };
