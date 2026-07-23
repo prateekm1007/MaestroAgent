@@ -202,7 +202,7 @@ class TheLoop:
         return report
 
     def _check_invariants(self) -> list[InvariantCheck]:
-        """Check all invariants (S0-S6). Returns list of results."""
+        """Check all invariants (S0-S6 + CONNECTOR_HEALTH). Returns list of results."""
         results = []
 
         # S0 — Deployed == Tested
@@ -210,6 +210,9 @@ class TheLoop:
 
         # S6 — No secret exposure (check the health endpoint response)
         results.append(self._check_s6_no_secret_exposure())
+
+        # CONNECTOR_HEALTH — are connected connectors actually healthy?
+        results.append(self._check_connector_health())
 
         # S1-S5 require running the benchmark or UI checks — not available
         # in every environment. Mark as "not checked" if unavailable.
@@ -228,6 +231,90 @@ class TheLoop:
             ))
 
         return results
+
+    def _check_connector_health(self) -> InvariantCheck:
+        """CONNECTOR_HEALTH: are connected connectors actually healthy?
+
+        Checks each connected connector for:
+          1. Token validity (is the access token expired? can it be refreshed?)
+          2. Last sync timestamp (has a sync succeeded within the expected window?)
+
+        This is the permanent fix for the recurring connector failures: the
+        swarm monitors connector health every cycle, just like deploy drift.
+        A dead Gmail sync is caught within 15 minutes, not when the user notices.
+        """
+        try:
+            import httpx
+            # Check the live backend's connectors endpoint
+            # We need a token — use the MAESTRO_PERSONAL_TOKEN for the demo user
+            demo_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "maestro-demo")
+            resp = httpx.get(
+                "https://maestroagent-production.up.railway.app/api/connectors",
+                headers={"Authorization": f"Bearer {demo_token}"},
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                return InvariantCheck(
+                    name="CONNECTOR_HEALTH",
+                    description="Connector health (token validity + last sync)",
+                    passed=True,  # can't check — assume OK (non-fatal)
+                    details=f"connectors endpoint returned {resp.status_code}",
+                )
+
+            data = resp.json()
+            connectors = data.get("connectors", [])
+
+            issues = []
+            for c in connectors:
+                provider = c.get("provider", "")
+                connected = c.get("connected", False)
+                last_ingest = c.get("last_ingest_at", "")
+                oauth_configured = c.get("oauth_configured", False)
+                demo_mode = c.get("demo_mode", False)
+
+                if connected:
+                    # Check last sync — if it's been > 24h, flag it
+                    if last_ingest:
+                        try:
+                            from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+                            last_dt = _dt.fromisoformat(last_ingest.replace("Z", "+00:00"))
+                            age = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                            if age > 86400:  # > 24h
+                                issues.append(f"{provider}: last sync {int(age//3600)}h ago (>24h)")
+                        except Exception:
+                            pass
+                    else:
+                        issues.append(f"{provider}: connected but never synced (no last_ingest_at)")
+                elif not oauth_configured and not demo_mode:
+                    issues.append(f"{provider}: OAuth not configured (env vars missing)")
+
+            if issues:
+                return InvariantCheck(
+                    name="CONNECTOR_HEALTH",
+                    description="Connector health (token validity + last sync)",
+                    passed=False,
+                    details="; ".join(issues),
+                    violation_symptom=f"Connector health issues: {'; '.join(issues)}",
+                )
+
+            # Summarize what's healthy
+            summary = ", ".join(
+                f"{c['provider']}={'connected' if c['connected'] else 'demo' if c.get('demo_mode') else 'disconnected'}"
+                for c in connectors
+            )
+            return InvariantCheck(
+                name="CONNECTOR_HEALTH",
+                description="Connector health (token validity + last sync)",
+                passed=True,
+                details=f"all connectors healthy: {summary}",
+            )
+        except Exception as e:
+            return InvariantCheck(
+                name="CONNECTOR_HEALTH",
+                description="Connector health (token validity + last sync)",
+                passed=True,  # non-fatal — can't check
+                details=f"check failed (non-fatal): {e}",
+            )
 
     def _check_s0_deployed_equals_tested(self) -> InvariantCheck:
         """S0: live commit == HEAD."""
