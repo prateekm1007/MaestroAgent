@@ -94,8 +94,9 @@ async def list_connectors(
 
     if experimental:
         return {"connectors": all_connectors, "demo_notice": _demo_notice}
-    # Demo surface: only Gmail + Calendar
-    _DEMO_CONNECTORS = {"gmail", "calendar"}
+    # P2 fix: surface work_email alongside Gmail + Calendar.
+    # Work email (IMAP) is a first-class connector — it's the B2B moat.
+    _DEMO_CONNECTORS = {"gmail", "calendar", "work_email"}
     return {
         "connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS],
         "demo_notice": _demo_notice,
