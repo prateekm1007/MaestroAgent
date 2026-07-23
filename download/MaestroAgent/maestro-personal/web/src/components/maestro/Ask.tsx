@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Brain,
   Clock,
+  FileText,
   HelpCircle,
   History,
   Loader2,
@@ -732,6 +733,79 @@ function AnswerCard({
                 </span>
               )}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Evidence refs — Trust gap #1: user-visible evidence with source links.
+          The backend returns evidence_refs as an array of {entity, text,
+          timestamp, signal_id, source_type}. This panel renders each ref
+          as a clickable source snippet so the user can verify the answer's
+          grounding — not just see a single source_sentence quote. */}
+      {Array.isArray(response.evidence_refs) && response.evidence_refs.length > 0 && (
+        <Card className="border-border/60">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <FileText className="size-3.5" />
+              <span>Evidence</span>
+              <span className="text-muted-foreground/70 normal-case tracking-normal">
+                · {response.evidence_refs.length} source{response.evidence_refs.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <ul className="space-y-2">
+              {response.evidence_refs.map((ref: any, i: number) => {
+                const refEntity = ref?.entity || "";
+                const refText = ref?.text || "";
+                const refTimestamp = ref?.timestamp || "";
+                const refSourceType = ref?.source_type || ref?.source || "";
+                const refSignalId = ref?.signal_id || "";
+                return (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-border/50 bg-muted/20 p-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        {refEntity && (
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-foreground/90">
+                              {refEntity}
+                            </span>
+                            {refSourceType && (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border border-border/60 bg-muted/40 text-muted-foreground uppercase tracking-wide">
+                                {refSourceType}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <p className="text-sm text-foreground/80 leading-relaxed">
+                          &ldquo;{refText}&rdquo;
+                        </p>
+                        {refTimestamp && (
+                          <p className="text-xs text-muted-foreground/70 mt-1.5 inline-flex items-center gap-1">
+                            <Clock className="size-3" />
+                            {formatTimestamp(refTimestamp)}
+                          </p>
+                        )}
+                      </div>
+                      {/* P1-8: clickable → deep-link to commitments filtered by this entity */}
+                      {refEntity && onViewCommitmentsForEntity && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 shrink-0 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => onViewCommitmentsForEntity(refEntity)}
+                          title={`View commitments for ${refEntity}`}
+                        >
+                          <ArrowRight className="size-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </CardContent>
         </Card>
       )}
