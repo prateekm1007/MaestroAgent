@@ -240,8 +240,8 @@ class OpsCouncil:
         return ticket
 
     def _step_report(self, ticket: Ticket) -> Ticket:
-        """Report the outcome and add to case memory."""
-        print(f"\n[6] Reporting + adding to case memory...")
+        """Report the outcome, add to case memory, and commit worklog to GitHub."""
+        print(f"\n[6] Reporting + adding to case memory + committing worklog to GitHub...")
 
         if ticket.status == TicketStatus.RESOLVED:
             # Add to case memory
@@ -259,16 +259,59 @@ class OpsCouncil:
             )
             self.case_memory.add_case(case)
             print(f"    ✓ Added case {case.id} to memory")
+
+            # Commit worklog to GitHub (the swarm documents itself)
+            self._commit_worklog_to_github(ticket)
             print(f"\n{'='*72}")
             print(f"TICKET {ticket.id} RESOLVED")
             print(f"{'='*72}")
         else:
+            # Even non-resolved tickets get a worklog entry (escalated/blocked)
+            self._commit_worklog_to_github(ticket)
             print(f"\n{'='*72}")
             print(f"TICKET {ticket.id} {ticket.status.value}")
             print(f"{'='*72}")
 
         ticket.history.append({"step": "report", "status": ticket.status.value})
         return ticket
+
+    def _commit_worklog_to_github(self, ticket: Ticket):
+        """Commit a worklog entry to GitHub — the swarm documents itself."""
+        try:
+            from github_worklog_committer import GitHubWorklogCommitter
+            from worklog import WorklogEntry
+
+            committer = GitHubWorklogCommitter()
+            if not committer.token:
+                print(f"    (GITHUB_TOKEN not set — worklog not committed to GitHub)")
+                return
+
+            entry = WorklogEntry(
+                ticket_id=f"OPS-{ticket.id}",
+                title=ticket.symptom[:80],
+                source="ops_council",
+            )
+            entry.add_detect(ticket.symptom)
+            entry.add_diagnose(ticket.diagnosis)
+            if ticket.governance_verdict:
+                entry.add_govern(ticket.governance_verdict)
+            if ticket.fix_applied:
+                entry.add_execute(ticket.fix_applied)
+            entry.add_verify(ticket.verification_result)
+            entry.add_learn(ticket.lesson or "No lesson recorded")
+            entry.set_outcome(ticket.status.value, ticket.symptom[:100])
+
+            result = committer.commit_worklog_entry(entry)
+            if result.get("committed"):
+                print(f"    ✓ Worklog committed to GitHub by the swarm")
+                print(f"      Commit: {result.get('commit_sha', 'N/A')[:7]}")
+                print(f"      URL: {result.get('url', 'N/A')}")
+                print(f"      Author: {result.get('author', 'N/A')}")
+                print(f"      Secret scan: {result.get('secret_scan', 'N/A')}")
+            else:
+                print(f"    ⚠ Worklog commit failed: {result.get('reason', 'unknown')}")
+        except Exception as e:
+            print(f"    ⚠ Worklog commit error: {e}")
 
 
 # ── Demo: run the deploy-stall as Ticket #001 ───────────────────────────────
