@@ -27,13 +27,15 @@ CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/ev
 def _get_calendar_config() -> dict[str, str]:
     """Get Calendar OAuth2 config from env.
 
-    Falls back to the Gmail OAuth client (same Google OAuth client can serve
-    both Gmail and Calendar APIs — just needs the calendar.readonly scope
-    added to the OAuth consent screen in Google Cloud Console).
+    REUSES the Gmail OAuth client + Gmail's redirect URI (single-callback pattern).
+    The Gmail callback endpoint dispatches by the `state` parameter to distinguish
+    Gmail vs Calendar flows. This avoids the redirect_uri_mismatch error — Google
+    only needs ONE redirect URI whitelisted (Gmail's), and Calendar reuses it.
 
     Priority:
       1. MAESTRO_CALENDAR_CLIENT_ID/SECRET (dedicated Calendar creds)
       2. MAESTRO_GMAIL_CLIENT_ID/SECRET (reuse Gmail client — the common path)
+    Redirect URI: always reuses Gmail's callback URL (single-callback dispatch).
     """
     # Try dedicated Calendar credentials first
     client_id = os.environ.get("MAESTRO_CALENDAR_CLIENT_ID", "")
@@ -44,17 +46,18 @@ def _get_calendar_config() -> dict[str, str]:
         client_id = os.environ.get("MAESTRO_GMAIL_CLIENT_ID", "")
         client_secret = os.environ.get("MAESTRO_GMAIL_CLIENT_SECRET", "")
 
+    # ALWAYS reuse Gmail's redirect URI (single-callback pattern).
+    # The Gmail callback dispatches by the `state` param to handle Calendar.
+    # This avoids redirect_uri_mismatch — Google only needs Gmail's URI whitelisted.
+    redirect_uri = os.environ.get(
+        "MAESTRO_GMAIL_REDIRECT_URI",
+        "https://maestroagent-production.up.railway.app/api/connectors/gmail/oauth/callback",
+    )
+
     return {
         "client_id": client_id,
         "client_secret": client_secret,
-        "redirect_uri": os.environ.get(
-            "MAESTRO_CALENDAR_REDIRECT_URI",
-            # Reuse the Gmail redirect URI if Calendar-specific one not set
-            os.environ.get(
-                "MAESTRO_GMAIL_REDIRECT_URI",
-                "http://localhost:8766/api/connectors/calendar/oauth/callback",
-            ),
-        ),
+        "redirect_uri": redirect_uri,
     }
 
 

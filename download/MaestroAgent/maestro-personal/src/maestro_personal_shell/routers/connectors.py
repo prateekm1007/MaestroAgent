@@ -156,12 +156,14 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
             pass  # fall through to demo mode
 
     # Phase E: Calendar OAuth2 flow (read-only)
+    # Uses Gmail's redirect URI (single-callback pattern) + state=connector:calendar
+    # to dispatch in the Gmail callback. Avoids redirect_uri_mismatch.
     if provider == "calendar" and not req.oauth_token:
         try:
             from maestro_personal_shell.calendar_connector import is_calendar_configured, CalendarOAuthClient
             if is_calendar_configured():
                 oauth_client = CalendarOAuthClient()
-                state = f"user={token}"
+                state = f"user={token};connector=calendar"
                 auth_url = oauth_client.get_authorization_url(state=state)
                 return {"oauth_required": True, "authorization_url": auth_url}
         except ImportError:
@@ -259,20 +261,29 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
             conn.select("INBOX")
             conn.logout()
         except imaplib.IMAP4.error as e:
+            # Strip the b'...' bytes wrapper from the error message for clean UX
+            error_str = str(e)
+            if error_str.startswith("b'") and error_str.endswith("'"):
+                error_str = error_str[2:-1]
+            elif error_str.startswith('b"') and error_str.endswith('"'):
+                error_str = error_str[2:-1]
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"IMAP login failed: {e}. "
+                    f"IMAP login failed: {error_str}. "
                     f"Check your app password — if 2FA is enabled, generate an "
                     f"app password in your provider's security settings. "
                     f"Also confirm IMAP is enabled for this account."
                 ),
             )
         except Exception as e:
+            error_str = str(e)
+            if error_str.startswith("b'") and error_str.endswith("'"):
+                error_str = error_str[2:-1]
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Couldn't reach the IMAP server: {e}. "
+                    f"Couldn't reach the IMAP server: {error_str}. "
                     f"Check the host/port, or your network may block IMAP."
                 ),
             )
@@ -318,10 +329,21 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
 
 
 def _extract_user_email(state: str) -> str:
-    """Extract user_email from the OAuth state parameter."""
-    if "user=" in state:
-        return state.split("user=", 1)[1]
-    return ""
+    """Extract user_email from the OAuth state parameter.
+
+    Handles both formats:
+      - 'user=<email>' (simple)
+      - 'user=<email>;connector=calendar' (compound with semicolons)
+    """
+    if "user=" not in state:
+        return ""
+    # Extract the user= value, then split on ';' or '&' to remove other params
+    user_part = state.split("user=", 1)[1]
+    # Remove any trailing params (e.g., ';connector=calendar')
+    for sep in [";", "&"]:
+        if sep in user_part:
+            user_part = user_part.split(sep, 1)[0]
+    return user_part
 
 
 def _oauth_success_page(provider: str) -> HTMLResponse:
@@ -416,11 +438,20 @@ async def gmail_oauth_callback(
     state: str = "",
     error: str = "",
 ):
-    """Gmail OAuth2 callback — exchanges authorization code for tokens."""
+    """Gmail OAuth2 callback — exchanges authorization code for tokens.
+
+    Also handles Calendar OAuth callbacks (single-callback pattern).
+    When state contains 'connector=calendar', dispatches to Calendar handling
+    instead of Gmail. This avoids needing a separate redirect URI for Calendar.
+    """
     if error:
         raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    # Single-callback dispatch: check if this is a Calendar OAuth callback
+    if "connector=calendar" in state:
+        return await _handle_calendar_callback(request, code, state)
 
     from maestro_personal_shell.connectors import ConnectorStore
     from maestro_personal_shell.gmail_connector import GmailOAuthClient, is_gmail_configured
@@ -458,6 +489,34 @@ async def gmail_oauth_callback(
         ingest_result = {"error": str(e)}
 
     return _oauth_response(request, "gmail", user_email, success=True)
+
+
+async def _handle_calendar_callback(request: Request, code: str, state: str):
+    """Handle Calendar OAuth callback via the Gmail redirect URI (single-callback pattern)."""
+    from maestro_personal_shell.connectors import ConnectorStore
+    from maestro_personal_shell.calendar_connector import CalendarOAuthClient, is_calendar_configured
+
+    if not is_calendar_configured():
+        raise HTTPException(status_code=400, detail="Calendar OAuth not configured")
+
+    user_email = _extract_user_email(state)
+    logger.info("[calendar-callback via gmail] state_user=%r", user_email)
+
+    oauth_client = CalendarOAuthClient()
+    token_data = oauth_client.exchange_code_for_tokens(code)
+
+    if "error" in token_data:
+        logger.error("[calendar-callback] token exchange failed: %s", token_data['error'])
+        raise HTTPException(status_code=400, detail=f"Calendar token exchange failed: {token_data['error']}")
+
+    token_json = json.dumps(token_data)
+    store = ConnectorStore()
+    result = store.connect(user_email, "calendar", token_json)
+    if "error" in result:
+        return _oauth_response(request, "calendar", user_email, success=False, error=result["error"])
+
+    logger.info("[calendar-callback] tokens stored for user=%r", user_email)
+    return _oauth_response(request, "calendar", user_email, success=True)
 
 
 @router.get("/connectors/slack/oauth/callback")

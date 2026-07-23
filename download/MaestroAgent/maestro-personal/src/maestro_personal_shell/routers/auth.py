@@ -105,11 +105,23 @@ async def login(request: Request, req: LoginRequest):
     }
 
     if env_token and req.password == env_token:
+        # P1 PERMANENT FIX (BE-002): reject blank-email login entirely.
+        # The "leave blank for demo" path logged users in as default@personal.local,
+        # showing that user's Gmail data (which looked like demo data). Real-data
+        # pilot mode means every user must provide their email.
+        requested = (req.user_email or "").strip().lower()
+        if not requested:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Email is required. Register a real account at /api/auth/register, "
+                    "or login with your registered email and password."
+                ),
+            )
         if _is_production() or not allow_arbitrary_email:
             # Production OR dev-without-opt-in: only the default user and the
             # documented demo user "bootstrap" can login with the shared secret.
             # Arbitrary email minting is blocked.
-            requested = (req.user_email or "").strip().lower()
             if requested and requested not in _ALLOWED_DEMO_IDENTITIES:
                 raise HTTPException(
                     status_code=403,

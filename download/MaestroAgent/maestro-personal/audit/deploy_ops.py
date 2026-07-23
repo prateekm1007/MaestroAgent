@@ -254,9 +254,15 @@ class DeployOps:
     # ── Drift detection (works WITHOUT Railway token — uses public endpoints) ──
 
     def get_head_sha(self) -> str:
-        """Get HEAD SHA via GitHub API (public, no token needed for public repos)
-        or git rev-parse as fallback."""
-        # Try GitHub API first (works in CI)
+        """Get the last commit that changed BACKEND code (not worklog/docs-only).
+
+        INFRA-001 fix: the swarm's own worklog commits advance HEAD without
+        triggering a backend deploy. A naive live==HEAD check would perpetually
+        report drift after any worklog commit. This method finds the last commit
+        that actually changed backend code — the commit the backend SHOULD be
+        running.
+        """
+        # Try GitHub API first
         try:
             headers = {}
             if self.github_token:
@@ -267,17 +273,38 @@ class DeployOps:
                 timeout=15,
             )
             if resp.status_code == 200:
-                return resp.json().get("sha", "")
+                # Check if this commit changed backend code
+                sha = resp.json().get("sha", "")
+                if sha and self._commit_changes_backend(sha):
+                    return sha
+                # If HEAD doesn't change backend, walk back to find one that does
+                return self._find_last_backend_commit(sha)
         except Exception:
             pass
 
-        # Fallback: git rev-parse (works locally)
+        # Fallback: git log for the last commit that changed backend code
         try:
+            # Look for commits that touched src/ or Dockerfile or requirements
             result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
+                ["git", "log", "--format=%H", "-1", "--",
+                 "download/MaestroAgent/maestro-personal/src/",
+                 "download/MaestroAgent/backend/",
+                 "Dockerfile",
+                 "download/MaestroAgent/maestro-personal/pyproject.toml"],
                 capture_output=True,
                 text=True,
                 timeout=10,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+
+        # Ultimate fallback: plain HEAD
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -285,6 +312,56 @@ class DeployOps:
             pass
 
         return ""
+
+    def _commit_changes_backend(self, sha: str) -> bool:
+        """Check if a commit changed backend code (not just worklog/docs)."""
+        try:
+            headers = {}
+            if self.github_token:
+                headers["Authorization"] = f"Bearer {self.github_token}"
+            resp = httpx.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/commits/{sha}",
+                headers=headers,
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                files = resp.json().get("files", [])
+                for f in files:
+                    path = f.get("filename", "")
+                    # Backend code paths
+                    if any(path.startswith(p) for p in [
+                        "download/MaestroAgent/maestro-personal/src/",
+                        "download/MaestroAgent/backend/",
+                        "Dockerfile",
+                        "download/MaestroAgent/maestro-personal/pyproject.toml",
+                        ".github/workflows/benchmark.yml",
+                    ]):
+                        return True
+            return False
+        except Exception:
+            return True  # fail open — assume it changes backend if we can't check
+
+    def _find_last_backend_commit(self, head_sha: str) -> str:
+        """Walk back from HEAD to find the last commit that changed backend code."""
+        try:
+            headers = {}
+            if self.github_token:
+                headers["Authorization"] = f"Bearer {self.github_token}"
+            # Get recent commits
+            resp = httpx.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/commits?per_page=20",
+                headers=headers,
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                for commit in resp.json():
+                    sha = commit.get("sha", "")
+                    if sha and self._commit_changes_backend(sha):
+                        return sha
+        except Exception:
+            pass
+        # Fallback: return HEAD if we can't determine
+        return head_sha
 
     def get_live_health(self) -> dict:
         """Fresh fetch of backend /api/health (live-claim rule: always fresh)."""
