@@ -10,3 +10,4 @@ Every agent action, reviewable. Append-only. Git history is the tamper-evident g
 - [SWARM-SELF-TEST-1784831101](worklog/SWARM-SELF-TEST-1784831101.md) — Self-test: swarm commits its own worklog | RESOLVED | 2026-07-23
 - [OPS-001](worklog/OPS-001.md) — Backend deploy stall — live commit behind HEAD, Railway shows SUCCESS but image  | RESOLVED | 2026-07-23
 - [SWARM-WHOLE-APP-DEBUG](worklog/SWARM-WHOLE-APP-DEBUG.md) — Multi-swarm whole-app debug — 5 teams, inter-leader coordination | COMPLETED | 2026-07-23
+- [SWARM-WHOLE-APP-DEBUG](worklog/SWARM-WHOLE-APP-DEBUG.md) — Multi-swarm whole-app debug — 5 teams, inter-leader coordination | COMPLETED | 2026-07-23
