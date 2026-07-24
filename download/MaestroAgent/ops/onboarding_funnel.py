@@ -31,7 +31,15 @@ import json
 import os
 import sys
 import time
-import urllib.request
+
+# Use httpx (already installed in CI) for better timeout + error handling
+try:
+    import httpx
+    USE_HTTPX = True
+except ImportError:
+    import urllib.request
+    import urllib.error
+    USE_HTTPX = False
 
 BACKEND_URL = os.environ.get(
     "MAESTRO_BACKEND_URL",
@@ -41,20 +49,33 @@ TARGET_SECONDS = 120  # 2 minutes — the Sean Parker bar
 
 
 def api(method: str, path: str, token: str = "", body: dict | None = None) -> dict:
-    """Call the backend API."""
+    """Call the backend API with httpx (preferred) or urllib fallback."""
     url = f"{BACKEND_URL}{path}"
-    data = json.dumps(body).encode() if body else None
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        return {"error": f"HTTP {e.code}", "body": e.read().decode()[:200]}
-    except Exception as e:
-        return {"error": str(e)}
+
+    if USE_HTTPX:
+        try:
+            if method == "GET":
+                resp = httpx.request(method, url, headers=headers, timeout=60)
+            else:
+                resp = httpx.request(method, url, headers=headers, json=body, timeout=60)
+            if resp.status_code >= 400:
+                return {"error": f"HTTP {resp.status_code}", "body": resp.text[:200]}
+            return resp.json()
+        except Exception as e:
+            return {"error": str(e)}
+    else:
+        data = json.dumps(body).encode() if body else None
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            return {"error": f"HTTP {e.code}", "body": e.read().decode()[:200]}
+        except Exception as e:
+            return {"error": str(e)}
 
 
 def measure_funnel() -> dict:
@@ -69,8 +90,9 @@ def measure_funnel() -> dict:
     })
     token = signup_resp.get("token", "")
     if not token:
-        report["steps"].append({"step": "signup", "seconds": 0, "ok": False, "error": str(signup_resp)})
-        report["total_seconds"] = time.time() - t0
+        signup_time = time.time() - t0
+        report["steps"].append({"step": "signup", "seconds": round(signup_time, 2), "ok": False, "error": str(signup_resp)[:200]})
+        report["total_seconds"] = signup_time
         return report
     signup_time = time.time() - t0
     report["steps"].append({"step": "signup", "seconds": round(signup_time, 2), "ok": True})
