@@ -294,22 +294,25 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
                 for ent in _queried_entities:
                     _entries = get_ledger_entries(token, _db_path, entity=ent)
-                    # Show ALL non-tombstoned entries — including superseded,
-                    # so reschedules are visible. The state_display tells the
-                    # user the current status of each commitment.
-                    _active_entries = [
+                    # Split into current (non-superseded, non-tombstoned) and history
+                    _current_entries = [
                         e for e in _entries
-                        if e.get("state") != "tombstoned"
+                        if e.get("state") not in ("tombstoned", "superseded")
+                    ]
+                    _history_entries = [
+                        e for e in _entries
+                        if e.get("state") == "superseded"
                     ]
 
-                    if _active_entries:
+                    if _current_entries:
                         _has_active = True
-                        for e in _active_entries[:5]:
+
+                        # PRIMARY: current state only
+                        for e in _current_entries[:5]:
                             _state = e.get("state", "unknown")
                             _action = e.get("action", "") or e.get("description", "") or e.get("evidence_quote", "") or "Unknown commitment"
                             _deadline = e.get("deadline_text", "")
 
-                            # Format the state for the user
                             _state_display = {
                                 "candidate": "proposed",
                                 "active": "active",
@@ -318,7 +321,6 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 "completed_verified": "completed (verified)",
                                 "disputed": "disputed",
                                 "cancelled": "cancelled",
-                                "superseded": "superseded (rescheduled/replaced)",
                             }.get(_state, _state)
 
                             _line = f"• [{ent}] {_action[:80]}"
@@ -335,11 +337,38 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 "source_type": "ledger",
                             })
 
+                        # HISTORY: superseded entries (separate section)
+                        if _history_entries:
+                            _answer_lines.append(f"\n  History (superseded/replaced):")
+                            for e in _history_entries[:3]:
+                                _action = e.get("action", "") or e.get("evidence_quote", "") or "Unknown"
+                                _answer_lines.append(f"    ○ [{ent}] {_action[:60]} — superseded")
+
                 if _has_active and _ledger_evidence:
+                    # CONFIDENCE CALIBRATION (auditor's overconfidence fix):
+                    # - Clean single active entry → high confidence (0.8)
+                    # - Multiple current entries for same entity (ambiguous) → lower (0.5)
+                    # - Has superseded history (recent change) → lower (0.6) + uncertainty note
+                    _has_superseded = any(
+                        e.get("state") == "superseded"
+                        for ent in _queried_entities
+                        for e in get_ledger_entries(token, _db_path, entity=ent)
+                    )
+                    _current_count = len(_ledger_evidence)
+                    if _has_superseded:
+                        _confidence = 0.6
+                        _calibration_note = "Answered from commitment ledger (current state). Note: a recent reschedule/supersession was detected — current status may be pending confirmation."
+                    elif _current_count > 2:
+                        _confidence = 0.5
+                        _calibration_note = "Answered from commitment ledger (current state). Multiple active commitments — status may be ambiguous."
+                    else:
+                        _confidence = 0.8
+                        _calibration_note = "Answered from commitment ledger (current reconciled state)."
+
                     _ledger_answer = "Based on your commitment ledger:\n" + "\n".join(_answer_lines)
                     logger.info(
-                        "RC2 ledger-read fast path: query=%r → %d entries for %d entities (no LLM needed)",
-                        req.query[:60], len(_ledger_evidence), len(_queried_entities),
+                        "RC2 ledger-read fast path: query=%r → %d current entries for %d entities, conf=%.1f (no LLM needed)",
+                        req.query[:60], len(_ledger_evidence), len(_queried_entities), _confidence,
                     )
                     return AskResponse(
                         answer=_ledger_answer,
@@ -349,14 +378,14 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         source_timestamp=_ledger_evidence[0].get("timestamp", ""),
                         situation_state="",
                         evidence_refs=_ledger_evidence[:5],
-                        confidence=0.8,
+                        confidence=_confidence,
                         counterevidence=[],
                         unknowns=[],
                         as_of=str(as_of or ""),
                         decision_boundary="",
                         perspectives=[],
                         reasoning_chain=[],
-                        calibration_note="Answered from commitment ledger (current reconciled state).",
+                        calibration_note=_calibration_note,
                         consequence_paths=[],
                         llm_active=False,
                         llm_provider="none",

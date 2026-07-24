@@ -150,6 +150,53 @@ def upsert_ledger_entry(
         ).fetchone()
 
         if existing is None:
+            # ── SUPERSESSION DETECTION ──────────────────────────────────
+            # Before inserting a new entry, check if this signal supersedes
+            # an existing active commitment for the same entity.
+            #
+            # A signal supersedes an existing commitment when:
+            # 1. The entity matches an existing active entry
+            # 2. The signal text contains reschedule cues
+            #    ("move it to", "reschedule", "push to", "can we do X instead",
+            #     "change to", "actually", "let's move", new date replacing old)
+            #
+            # When supersession is detected:
+            # - Transition the OLD entry to 'superseded' (superseded_by = new_id)
+            # - Insert the NEW entry as 'active' (the current state)
+            #
+            # This is the missing logic that makes real reschedule emails
+            # reconcile without hand-tagging.
+            entity = signal.get("entity", "")
+            signal_text = str(signal.get("text", "")).lower()
+            _RESCHEDULE_CUES = [
+                "move it to", "move to", "reschedule", "push to", "push it to",
+                "can we do", "can we move", "let's move", "let's push",
+                "change to", "change it to", "actually, let's",
+                "instead", "how about", "what about",
+                "i know i said", "i said", "but can we",
+                "new date", "new time", "different day",
+            ]
+            _is_reschedule = any(cue in signal_text for cue in _RESCHEDULE_CUES)
+
+            if _is_reschedule and entity:
+                # Find existing active commitments for this entity
+                old_entries = conn.execute(
+                    "SELECT * FROM commitments_ledger WHERE user_email = ? AND entity = ? AND state = 'active'",
+                    (user_email, entity),
+                ).fetchall()
+                for old_entry in old_entries:
+                    # Transition the OLD entry to superseded
+                    _transition_state_conn(
+                        conn, old_entry["ledger_id"], "active", "superseded",
+                        user_email, signal_id, db_path,
+                    )
+                    logger.info(
+                        "Supersession detected: entity=%r old_signal=%r → superseded by new_signal=%r",
+                        entity, old_entry["signal_id"][:20], signal_id[:20],
+                    )
+                # The NEW entry (the reschedule) becomes the current active commitment
+                target_state = "active"
+
             # Insert new entry.
             ledger_id = _new_ledger_id()
             conn.execute(

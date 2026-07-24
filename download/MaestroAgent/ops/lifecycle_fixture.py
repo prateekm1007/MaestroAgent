@@ -52,7 +52,10 @@ def create_lifecycle_fixture(token: str) -> dict:
                 "commitment_confidence": 0.9,
             },
         },
-        # 2. Maria Garcia — reschedule signal (transitions original to superseded)
+        # 2. Maria Garcia — reschedule signal (NO manual superseded tag)
+        #    The supersession detection in upsert_ledger_entry should detect
+        #    the reschedule cue ("can we move it to") and transition the
+        #    original active entry to superseded automatically.
         {
             "signal_id": f"lc-maria-reschedule-{int(time.time())}",
             "entity": "Maria Garcia",
@@ -62,8 +65,8 @@ def create_lifecycle_fixture(token: str) -> dict:
             "metadata": {
                 "source": "lifecycle_fixture",
                 "is_commitment": True,
-                "commitment_type": "commitment_rescheduled",
-                "commitment_state": "superseded",  # transitions the original to superseded
+                "commitment_type": "commitment_updated",
+                "commitment_state": "active",  # NOT superseded — detection should handle it
                 "commitment_owner": "user",
                 "commitment_confidence": 0.8,
             },
