@@ -52,6 +52,15 @@ class SignalResponse(BaseModel):
     timestamp: str
     # P1-Audit-F4: surface audit-log write failures to the caller
     audit_log_error: str | None = None
+    # P3 auditor fix (2026-07-24): return classification metadata so the
+    # user and auditor can see WHY a signal was classified as a commitment.
+    # Inspectable memory is the thesis; hidden classification contradicts it.
+    commitment_type: str | None = None
+    is_commitment: bool | None = None
+    commitment_state: str | None = None
+    commitment_confidence: float | None = None
+    classification_reasoning: str | None = None
+    llm_powered: bool | None = None
 
 
 # ---------------------------------------------------------------------------

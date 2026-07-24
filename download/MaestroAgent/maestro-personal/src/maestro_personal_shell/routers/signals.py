@@ -523,19 +523,38 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
 
 @router.get("/signals", response_model=list[SignalResponse])
 async def get_signals(token: str = Depends(verify_token_dep)):
-    """Get all stored signals (scoped to the authenticated user)."""
+    """Get all stored signals (scoped to the authenticated user).
+
+    P3 fix: returns classification metadata (commitment_type, is_commitment,
+    classification_reasoning, llm_powered) so the user and auditor can see
+    WHY each signal was classified as a commitment. Inspectable memory.
+    """
+    import json as _json
     from maestro_personal_shell.api import load_signals_from_db
     db_signals = load_signals_from_db(user_email=token)
-    return [
-        SignalResponse(
+    results = []
+    for r in db_signals:
+        # Parse metadata to extract classification info
+        meta = r.get("metadata", {})
+        if isinstance(meta, str):
+            try:
+                meta = _json.loads(meta) if meta else {}
+            except Exception:
+                meta = {}
+        results.append(SignalResponse(
             signal_id=r["signal_id"],
             entity=r["entity"],
             text=r["text"],
             signal_type=r["signal_type"],
             timestamp=r["timestamp"],
-        )
-        for r in db_signals
-    ]
+            commitment_type=meta.get("commitment_type"),
+            is_commitment=meta.get("is_commitment"),
+            commitment_state=meta.get("commitment_state"),
+            commitment_confidence=meta.get("commitment_confidence"),
+            classification_reasoning=meta.get("classification_reasoning"),
+            llm_powered=meta.get("llm_powered"),
+        ))
+    return results
 
 
 # ---------------------------------------------------------------------------

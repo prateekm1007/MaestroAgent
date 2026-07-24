@@ -26,6 +26,7 @@ import { More } from "@/components/maestro/More";
 import { SessionExpiredDialog } from "@/components/maestro/SessionExpiredDialog";
 import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
 import { BubbleTour } from "@/components/maestro/BubbleTour";
+import { DemoBanner, setUserEmail } from "@/components/maestro/DemoBanner";
 
 /**
  * AppShell — the client-side interactive shell.
@@ -297,6 +298,7 @@ function Shell({
         </header>
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-10 max-w-6xl w-full mx-auto">
+          <DemoBanner />
           {children}
         </main>
       </div>

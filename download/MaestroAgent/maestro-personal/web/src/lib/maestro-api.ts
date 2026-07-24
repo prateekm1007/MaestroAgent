@@ -322,6 +322,8 @@ export async function login(password: string, email?: string): Promise<LoginResu
     if (res.ok) {
       const j = await res.json();
       setToken(j.token);
+      // P39: store user email so DemoBanner can detect demo account
+      try { window.localStorage.setItem("maestro.user_email", user_email); } catch {}
       return { ok: true, demo: false, message: "Logged in." };
     }
     return { ok: false, demo: false, message: "Invalid credentials." };

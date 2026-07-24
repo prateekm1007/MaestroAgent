@@ -6,20 +6,30 @@ import json, os, sys, time, httpx
 BACKEND_URL = os.environ.get("MAESTRO_BACKEND_URL", "https://maestroagent-production.up.railway.app")
 FRONTEND_URL = os.environ.get("MAESTRO_FRONTEND_URL", "https://web-production-d5c26.up.railway.app")
 
-def api(method, path, token="", body=None):
+def api(method, path, token="", body=None, retries=3):
+    """Call the backend API with retry on DB contention (CI hygiene)."""
     url = f"{BACKEND_URL}{path}"
     headers = {"Content-Type": "application/json"}
     if token: headers["Authorization"] = f"Bearer {token}"
-    try:
-        if method == "GET":
-            resp = httpx.get(url, headers=headers, timeout=60)
-        else:
-            resp = httpx.request(method, url, headers=headers, json=body, timeout=60)
-        if resp.status_code >= 400:
-            return {"error": f"HTTP {resp.status_code}", "body": resp.text[:200]}
-        return resp.json()
-    except Exception as e:
-        return {"error": str(e)}
+    for attempt in range(retries):
+        try:
+            if method == "GET":
+                resp = httpx.get(url, headers=headers, timeout=120)
+            else:
+                resp = httpx.request(method, url, headers=headers, json=body, timeout=120)
+            if resp.status_code >= 500:
+                # 503 = DB locked — retry after delay (CI hygiene, not gate gagging)
+                time.sleep(3)
+                continue
+            if resp.status_code >= 400:
+                return {"error": f"HTTP {resp.status_code}", "body": resp.text[:200]}
+            return resp.json()
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(3)
+            else:
+                return {"error": str(e)}
+    return {"error": f"HTTP {resp.status_code} after {retries} retries"}
 
 def run_journey():
     results = {"steps": [], "passed": 0, "failed": 0}
