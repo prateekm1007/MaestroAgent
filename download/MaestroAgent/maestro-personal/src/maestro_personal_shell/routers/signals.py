@@ -12,6 +12,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
+# P3/Kimi-K3 fix: import _rule_based_classify at MODULE LEVEL so it's
+# available even when the classify_commitment import fails inside the
+# try block. _rule_based_classify is sync, pure text, touches no DB.
+from maestro_personal_shell.commitment_classifier import _rule_based_classify
+
 from maestro_personal_shell.models import (
     CalendarSyncRequest,
     CalendarSyncResponse,
@@ -216,21 +221,30 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # stores the result in metadata. Downstream endpoints (Commitments,
     # The Moment) use this to filter non-commitments.
     #
-    # P37 fix (auditor 2026-07-24 S1 #2): The classifier's result MUST
-    # override the caller-provided signal_type. Previously, a caller could
-    # post a question ("Will you send the report?") with signal_type=
-    # "commitment_made", and the classifier would correctly classify it as
-    # not_a_commitment, but the signal_type stayed "commitment_made" — so
-    # the commitment surface showed it as an active commitment anyway.
-    # Now: the classifier's commitment_type OVERWRITES the signal_type, so
-    # the surface sees the truth, not the caller's claim.
+    # P37/P3 fix (Kimi K3 design): classification must be resilient.
+    # If classify_commitment (LLM path) fails for ANY reason (timeout,
+    # ImportError, DB lock during entity resolution), fall back to
+    # _rule_based_classify (sync, pure text, no DB). If THAT also fails,
+    # set needs_review — NEVER silently admit as a commitment.
     metadata: dict[str, Any] = {}
+    classification = None
+    signal_type_override = "needs_review"  # default: NOT a commitment
+
     try:
         from maestro_personal_shell.commitment_classifier import classify_commitment
         classification = await classify_commitment(
             text=sanitized_text,
             entity=req.entity,
         )
+    except Exception as e:
+        logger.warning("LLM classification failed: %s — falling back to rules", e)
+        try:
+            classification = _rule_based_classify(sanitized_text, req.entity)
+        except Exception as e2:
+            logger.error("Rules classifier also failed: %s", e2)
+            classification = None
+
+    if classification is not None:
         metadata["commitment_type"] = classification.get("commitment_type", "not_a_commitment")
         metadata["is_commitment"] = classification.get("is_commitment", False)
         metadata["commitment_state"] = classification.get("state", "candidate")
@@ -240,12 +254,6 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         metadata["llm_powered"] = classification.get("llm_powered", False)
 
         classified_type = classification.get("commitment_type", "not_a_commitment")
-
-        # P37: Override the caller-provided signal_type with the classifier's
-        # verdict when the classifier says it's NOT a real commitment.
-        # This includes: not_a_commitment, tentative, proposal, request,
-        # aspiration, negation — ALL non-commitment types must be excluded
-        # from the active commitment surface.
         NON_COMMITMENT_TYPES = {
             "not_a_commitment", "tentative", "proposal", "request",
             "aspiration", "negation",
@@ -254,42 +262,15 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
             signal_type_override = "not_a_commitment"
         else:
             signal_type_override = req.signal_type  # keep lifecycle type
-    except Exception as e:
-        logger.warning("Commitment classification failed: %s — falling back to rules classifier", e)
-        # P37 fix: even if the LLM fails, run the rules classifier so we
-        # still get a classification. The rules classifier catches questions,
-        # tentative, etc. without needing the LLM.
-        try:
-            from maestro_personal_shell.commitment_classifier import _rule_based_classify
-            classification = _rule_based_classify(sanitized_text, req.entity)
-            metadata["commitment_type"] = classification.get("commitment_type", "not_a_commitment")
-            metadata["is_commitment"] = classification.get("is_commitment", False)
-            metadata["commitment_state"] = classification.get("state", "candidate")
-            metadata["commitment_confidence"] = classification.get("confidence", 0.5)
-            metadata["commitment_owner"] = classification.get("owner", "unknown")
-            metadata["classification_reasoning"] = f"rule-based fallback (LLM failed: {e})"
-            metadata["llm_powered"] = False
-
-            classified_type = classification.get("commitment_type", "not_a_commitment")
-            NON_COMMITMENT_TYPES = {
-                "not_a_commitment", "tentative", "proposal", "request",
-                "aspiration", "negation",
-            }
-            if classified_type in NON_COMMITMENT_TYPES:
-                signal_type_override = "not_a_commitment"
-            else:
-                signal_type_override = req.signal_type
-        except Exception as e2:
-            logger.error("Rules classifier also failed: %s", e2)
-            metadata["commitment_type"] = "needs_review"
-            metadata["is_commitment"] = None
-            metadata["commitment_state"] = "needs_review"
-            metadata["classification_reasoning"] = f"both LLM and rules classifier failed: {e} / {e2}"
-            metadata["llm_powered"] = False
-            # P3 auditor principle: classification failure → needs_review,
-            # NEVER silent admission as a commitment. If we can't classify
-            # it, it must NOT appear as an active commitment.
-            signal_type_override = "needs_review"
+    else:
+        metadata["commitment_type"] = "needs_review"
+        metadata["is_commitment"] = None
+        metadata["commitment_state"] = "needs_review"
+        metadata["commitment_confidence"] = 0.0
+        metadata["commitment_owner"] = "unknown"
+        metadata["classification_reasoning"] = "both LLM and rules classifier failed"
+        metadata["llm_powered"] = False
+        # signal_type_override stays "needs_review" — NOT a commitment
 
     # F3: Resolve entity to canonical form to prevent fragmentation.
     # "Acme Corp", "client", "AcmeCorp" → single canonical entity.
