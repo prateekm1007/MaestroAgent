@@ -3319,14 +3319,41 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 return False
 
             # (1) Filter evidence_refs deterministically.
+            # P36 + Kimi K3 ownership fix: when the query asks "What did I
+            # promise X?", also filter out third_party_report signals (those
+            # are someone ELSE's promise, not the user's). The entity filter
+            # keeps Maria's signals, but the owner filter removes Maria's
+            # promises from the user's commitment list.
+            _is_promise_query = bool(_re.search(
+                r'\bwhat\s+did\s+i\s+(promise|commit|agree|pledge)\b'
+                r'|\bmy\s+(promises?|commitments?)\b'
+                r'|\bpromises?\s+i\s+(made|owe|keep)\b',
+                req.query, _re.IGNORECASE,
+            ))
+            _NON_USER_TYPES = {"third_party_report", "not_a_commitment", "tentative", "proposal", "request", "aspiration", "negation"}
+
             _gate_pre_count = len(evidence_refs)
             _gate_filtered_refs = []
             for _ref in evidence_refs:
                 if not isinstance(_ref, dict):
                     continue
                 _re_ent = str(_ref.get("entity", ""))
-                if _gate_entity_matches(_re_ent):
-                    _gate_filtered_refs.append(_ref)
+                if not _gate_entity_matches(_re_ent):
+                    continue
+                # Ownership filter: if the query asks "what did I promise",
+                # exclude third-party reports and non-commitments
+                if _is_promise_query:
+                    _ref_meta = _ref.get("metadata", {})
+                    if isinstance(_ref_meta, str):
+                        try:
+                            import json as _json_meta
+                            _ref_meta = _json_meta.loads(_ref_meta) if _ref_meta else {}
+                        except Exception:
+                            _ref_meta = {}
+                    _ref_type = _ref_meta.get("commitment_type", _ref.get("commitment_type", ""))
+                    if _ref_type in _NON_USER_TYPES:
+                        continue
+                _gate_filtered_refs.append(_ref)
             evidence_refs = _gate_filtered_refs
 
             # (2) Filter perspectives deterministically — drop any perspective
