@@ -266,3 +266,108 @@ jobs:
                 'Do NOT merge until all UI assertions pass. The IA must stay at 4 tabs.'
               ].join('\n')
             });
+
+  # ─────────────────────────────────────────────────────────────────────
+  # ONBOARDING FUNNEL (Sean Parker hat) — signup-to-first-commitment < 2 min
+  # ─────────────────────────────────────────────────────────────────────
+  # Auditor (2026-07-24) "Sean Parker hat": instrument the one metric that
+  # decides whether this product grows: time-from-signup-to-first-commitment-
+  # surfaced. Drive it to under 2 minutes. A user who signs up and doesn't
+  # see their own commitment within 2 minutes is a broken funnel.
+  onboarding-funnel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      MAESTRO_BACKEND_URL: https://maestroagent-production.up.railway.app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install httpx
+        run: python -m pip install --quiet httpx
+
+      - name: Run activation funnel (signup → connect → first commitment < 2 min)
+        working-directory: download/MaestroAgent
+        run: |
+          set -euo pipefail
+          echo "=== ACTIVATION FUNNEL (Sean Parker hat) ==="
+          echo "Measuring: signup → connect source → first commitment surfaced"
+          echo "Target: < 120 seconds (2 minutes)"
+          echo ""
+          python3 ops/onboarding_funnel.py
+
+      - name: Notify on funnel failure (PR)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## 🔴 Activation Funnel FAILED',
+                '',
+                'The signup-to-first-commitment funnel exceeded the 2-minute target or commitment did not surface.',
+                'The merge to main is BLOCKED until the funnel passes.',
+                '',
+                `[View the failing run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                'The funnel measures: signup → connect source → first commitment surfaced.',
+                'Target: < 120 seconds. If this fails, the activation funnel is broken and users are being lost at the top.'
+              ].join('\n')
+            });
+
+  # ─────────────────────────────────────────────────────────────────────
+  # FRONTEND AUTO-DEPLOY (Sean Parker hat — no human in the loop)
+  # ─────────────────────────────────────────────────────────────────────
+  # Auditor (2026-07-24): "Frontend auto-deploy — fully automatable, do it
+  # first. Either Prateek shares the frontend service ID once, and you wire
+  # a Railway repo trigger — or you add a CI deploy step that deploys the
+  # frontend on every push after the gates pass."
+  #
+  # This step deploys the frontend via Railway CLI on every push to main,
+  # AFTER all gates pass. It's activated when the FRONTEND_SERVICE_ID
+  # secret is set. Until Prateek adds that secret, this step is a no-op
+  # (the `if` guard checks for the secret).
+  frontend-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [permanence-gate, ui-gate, onboarding-funnel]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy frontend to Railway (if FRONTEND_SERVICE_ID is set)
+        if: ${{ secrets.FRONTEND_SERVICE_ID != '' }}
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          FRONTEND_SERVICE_ID: ${{ secrets.FRONTEND_SERVICE_ID }}
+          RAILWAY_PROJECT_ID: 4aab2a0c-349d-452a-ae9a-5c5f0205817f
+          RAILWAY_ENV_ID: 38916bb1-5f30-47dc-91eb-9baf56e99591
+        run: |
+          set -euo pipefail
+          echo "=== FRONTEND AUTO-DEPLOY (gates passed, deploying) ==="
+          npm install -g @railway/cli
+          cd download/MaestroAgent/maestro-personal/web
+          railway link --project $RAILWAY_PROJECT_ID --environment $RAILWAY_ENV_ID --service $FRONTEND_SERVICE_ID
+          railway up --detach
+          echo "✓ Frontend deploy initiated. The UI gate will run against the new code on the next push."
+
+      - name: Skip (FRONTEND_SERVICE_ID not set)
+        if: ${{ secrets.FRONTEND_SERVICE_ID == '' }}
+        run: |
+          echo "⚠️  FRONTEND_SERVICE_ID secret not set — frontend auto-deploy SKIPPED."
+          echo "Prateek: add the FRONTEND_SERVICE_ID secret (the Railway service ID for web-production-d5c26)"
+          echo "to enable automatic frontend deploys on every push."
+          echo "Once set, this step will deploy the frontend after all gates pass, and the UI gate"
+          echo "will stop skipping and run its 19 assertions against the current commit's frontend."
