@@ -390,6 +390,99 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
             copilot_cannot_decide=copilot_cannot_decide,
             copilot_timeline=copilot_timeline,
         ))
+
+    # S2-3 PREPARE fix (Kimi K3 design, P35 + P41):
+    # Auditor found "No active situation found for Me." template appearing
+    # even when there are 24 active commitments. Root cause: Prepare returns
+    # an empty list when no situations need preparation, and the frontend
+    # renders that as a template.
+    #
+    # FIX: when no situations are found, DERIVE Prepare content from the
+    # active commitments ledger — the SAME source /api/commitments uses
+    # (P41 single source of truth — never a parallel snapshot). Top 3
+    # commitments by salience/urgency become the talking points; the
+    # "moment" line summarizes what the user owes.
+    if not result:
+        try:
+            from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
+            from maestro_personal_shell.api import (
+                _filter_corrected_signals as _fs_corrected,
+            )
+            # Single source of truth (P41): CommitmentsSurface.get_active_commitments
+            # is the SAME path /api/commitments uses — never query the DB directly.
+            commit_surface = CommitmentsSurface(shell=shell)
+            active = commit_surface.get_active_commitments()
+            # Read stale map (same source as /api/commitments — days_threshold=2)
+            stale_prep = shell.detect_stale_commitments(days_threshold=2)
+            stale_sids = set()
+            for s in stale_prep:
+                commit = s.get("commitment")
+                if not commit:
+                    continue
+                if isinstance(commit, dict):
+                    sid = commit.get("signal_id", "")
+                else:
+                    sid = getattr(commit, "signal_id", "")
+                if sid:
+                    stale_sids.add(sid)
+            # Sort: stale first, then by entity name for determinism
+            active_sorted = sorted(
+                active,
+                key=lambda c: (
+                    0 if c.get("signal_id", "") in stale_sids else 1,
+                    c.get("entity", "").lower(),
+                ),
+            )
+            top3 = active_sorted[:3]
+            if top3:
+                # Build talking points from the top 3 commitments — these are
+                # the things the user needs to prepare for NOW.
+                fallback_points = []
+                for c in top3:
+                    ent = c.get("entity", "unknown")
+                    txt = c.get("text", "")[:100]
+                    is_stale_c = c.get("signal_id", "") in stale_sids
+                    marker = "OVERDUE " if is_stale_c else ""
+                    fallback_points.append({
+                        "point": f"{marker}{ent}: {txt}",
+                        "source": "commitment-ledger",
+                    })
+                # Build the "moment" line — a single summary of what the user owes
+                total_active = len(active)
+                overdue_count = sum(1 for c in active if c.get("signal_id", "") in stale_sids)
+                top_entity = top3[0].get("entity", "")
+                top_action = top3[0].get("text", "")[:60]
+                moment_ctx = (
+                    f"You have {total_active} active commitment(s)"
+                    + (f", {overdue_count} OVERDUE" if overdue_count else "")
+                    + f". Highest priority: {top_entity} — {top_action}."
+                )
+                # Build timeline from the top 3
+                fallback_timeline = [
+                    {"summary": f"{c.get('entity','')}: {c.get('text','')[:60]}"}
+                    for c in top3
+                ]
+                # The "forgotten" is the oldest commitment (most likely to be forgotten)
+                forgotten = ""
+                if top3:
+                    forgotten = top3[0].get("text", "")
+                result.append(PrepareResponse(
+                    situation_id="commitment-ledger-fallback",
+                    entity=top_entity or "your commitments",
+                    meeting_context=moment_ctx,
+                    is_stale=False,
+                    the_forgotten=forgotten,
+                    the_open_question="",
+                    the_contradiction="",
+                    copilot_talking_points=fallback_points,
+                    copilot_blocking_unknowns=[],
+                    copilot_can_decide=[],
+                    copilot_cannot_decide=[],
+                    copilot_timeline=fallback_timeline,
+                ))
+        except Exception as e:
+            logger.debug("S2-3 PREPARE fallback (commitment-ledger) failed: %s", e)
+
     return result
 
 
