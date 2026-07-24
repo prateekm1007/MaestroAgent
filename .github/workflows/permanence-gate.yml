@@ -131,19 +131,21 @@ jobs:
           fi
 
           # Trigger a Railway deploy of the prior SHA via the GraphQL API.
-          # serviceInstanceDeploy with a specific commit SHA tells Railway
-          # to build and deploy that exact commit.
+          # Auditor (2026-07-24) item 4 rollback exercise: the original
+          # mutation used `ServiceInstanceDeployInput` (an input object),
+          # but Railway's schema changed — serviceInstanceDeploy now takes
+          # environmentId + serviceId as direct args and returns Boolean!.
+          # Verified working: dry-run with current SHA returned
+          # {"data":{"serviceInstanceDeploy":true}} on 2026-07-24.
           curl -fsS -X POST "https://backboard.railway.app/graphql/v2" \
             -H "Authorization: Bearer ${RAILWAY_API_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{
-              \"query\": \"mutation Deploy(\$input: ServiceInstanceDeployInput!) { serviceInstanceDeploy(input: \$input) { id status } }\",
+              \"query\": \"mutation Deploy(\$environmentId: String!, \$serviceId: String!, \$commitSha: String) { serviceInstanceDeploy(environmentId: \$environmentId, serviceId: \$serviceId, commitSha: \$commitSha) }\",
               \"variables\": {
-                \"input\": {
-                  \"environmentId\": \"${RAILWAY_ENV_ID}\",
-                  \"serviceId\": \"${RAILWAY_SERVICE_ID}\",
-                  \"commitSha\": \"${ROLLBACK_SHA}\"
-                }
+                \"environmentId\": \"${RAILWAY_ENV_ID}\",
+                \"serviceId\": \"${RAILWAY_SERVICE_ID}\",
+                \"commitSha\": \"${ROLLBACK_SHA}\"
               }
             }"
           echo ""
