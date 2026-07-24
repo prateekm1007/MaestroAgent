@@ -109,3 +109,17 @@ Item 1 (CI green end-to-end): backend 29/29 green in CI. UI gate correct but blo
 Item 2 (Yahoo OAuth end-to-end): built, not verified. Requires Prateek's Yahoo Developer app + env vars + browser consent. HONEST BOUNDARY.
 
 Backend gate: 29/29 GREEN. Commits: 590db81 (calibration UI gate).
+
+---
+Task ID: 13 (auditor 2026-07-24 — loud skip + setup guide + CI green end-to-end)
+Agent: New Coder (2026-07-24 session)
+
+- Loud skip implemented in ui_gate.py: check_frontend_deployed() looks for build markers; if stale, prints prominent "UI GATE SKIPPED — FRONTEND NOT DEPLOYED" banner + exits 0. NOT a silent pass.
+- Frontend service NOT found in this Railway workspace. alert-essence is a broken duplicate backend (delete it). Real frontend is in a different workspace.
+- docs/PRATEEK_OPERATIONAL_STEPS.md created: 3 step-by-step guides (frontend auto-deploy, Yahoo OAuth, Calendar scope).
+- CI GREEN END-TO-END on 0d599ec: https://github.com/prateekm1007/MaestroAgent/actions/runs/30076204126
+  * permanence-gate: ✓ success (29/29)
+  * ui-gate: ✓ success (loud skip, pending frontend deploy)
+- Backend gate: 29/29 GREEN. UI gate: 19 assertions ready (will auto-run when frontend deploys).
+
+Commits: 590db81, 768ac29, 0d599ec.
