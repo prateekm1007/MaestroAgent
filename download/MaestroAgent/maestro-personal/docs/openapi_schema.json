@@ -3,7 +3,7 @@
   "info": {
     "title": "Maestro Personal API",
     "description": "HTTP API for Maestro Personal v1 — wraps the PersonalShell (Core via Python)",
-    "version": "1.0.0"
+    "version": "1.0.0-beta"
   },
   "paths": {
     "/api/health": {
@@ -12,7 +12,7 @@
           "admin"
         ],
         "summary": "Health",
-        "description": "Health check — no auth required.",
+        "description": "Health check — no auth required. Returns deterministic build identity.\n\nUses JSONResponse with Cache-Control: no-store to prevent Railway's\nedge proxy from caching the response and serving stale version strings.",
         "operationId": "health_api_health_get",
         "responses": {
           "200": {
@@ -26,13 +26,198 @@
         }
       }
     },
+    "/api/admin/purge-demo-data": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Purge Demo Data",
+        "description": "Purge all demo_seed-sourced signals from ALL users.\n\nP1 PERMANENT FIX: the product is now a real-data pilot. This endpoint\nremoves existing demo_seed signals so users see only their real data.\n\nGovernance: scoped strictly to metadata LIKE '%demo_seed%'. Real user\ndata (Gmail-sourced) is NEVER touched. The action is logged.\n\nAuth: requires MAESTRO_PERSONAL_TOKEN (admin-level, not user-level).",
+        "operationId": "purge_demo_data_api_admin_purge_demo_data_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Purge Demo Data Get",
+        "description": "Purge all demo_seed-sourced signals. GET for easy curl testing.\n\nQuery params:\n    token: MAESTRO_PERSONAL_TOKEN (admin auth)\n    dry_run: if \"1\", report only without deleting",
+        "operationId": "purge_demo_data_get_api_admin_purge_demo_data_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/migrate-encryption": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Migrate Encryption",
+        "description": "FORENSIC-002 P0 FIX: migrate dev:base64 tokens to Fernet encryption.\n\nReads all stored connector tokens, re-encrypts any that start with 'dev:'\n(old format) to Fernet (new format). Transition-safe: _decrypt() handles\nboth formats, so this can run without breaking existing connections.\n\nAuth: requires MAESTRO_PERSONAL_TOKEN (admin-level).",
+        "operationId": "migrate_encryption_api_admin_migrate_encryption_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/critic-probe": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Critic Probe",
+        "description": "[C] Critic contradiction probe — feed the critic a denial-while-evidence-\ncontains-it case and verify the critic catches it.\n\nThe auditor's [C] gap: the ask_critic was wired but never tested against\na real denial-while-evidence-contains-it case. This endpoint:\n  1. Accepts {answer, query, evidence_texts: [...]} as JSON\n  2. Runs ask_critic.evaluate_answer() on the triple\n  3. Returns {score, justification, suggestions}\n\nA passing probe: an answer that DENIES the commitment while the evidence\nclearly contains it should score <0.5 (the critic catches the\ncontradiction).\n\nAuth: requires MAESTRO_PERSONAL_TOKEN (admin-level). Same gate as\n/api/admin/purge-demo-data and /api/admin/migrate-encryption.",
+        "operationId": "critic_probe_api_admin_critic_probe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/reclassify-ledger": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reclassify Ledger",
+        "description": "Re-classify ALL existing signals with the current classifier.\n\nAuditor Principle 5: \"A classifier change re-classifies the data. The\nclassifier code is fixed (the gold-set proves it), but the existing\nledger entries were classified by the old classifier and never\nre-classified. A classifier change must trigger a migration over\nexisting data, or the fix is only forward-looking and history stays wrong.\"\n\nThis endpoint:\n  1. Fetches all signals from the DB\n  2. Re-runs _rule_based_classify on each signal's text\n  3. Updates the signal_type + metadata with the new classification\n  4. Returns a report of what changed\n\nAuth: requires admin token (MAESTRO_PERSONAL_TOKEN).",
+        "operationId": "reclassify_ledger_api_admin_reclassify_ledger_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
           "auth"
         ],
         "summary": "Login",
-        "description": "Login — returns a bearer token.\n\nP1 fix: passwordless email login removed. The login now requires\neither:\n1. The MAESTRO_PERSONAL_TOKEN env var (single-user local mode) —\n   the caller must provide it as the password. No email-based login.\n2. A per-user token that was previously created via _create_user_token.\n   But tokens are never created without the setup password.\n\nIn dev mode (MAESTRO_PERSONAL_ENV not 'production'):\n- Bootstrap token works with password=AUTH_TOKEN (backward compat for tests)\n- Email-only login is REJECTED\n\nIn production mode:\n- Only per-user tokens work (no bootstrap)\n- Login requires password validation against user store (future)\n\nThis closes the P0-2 passwordless login vulnerability.",
+        "description": "Login — returns a bearer token.",
         "operationId": "login_api_auth_login_post",
         "requestBody": {
           "content": {
@@ -74,7 +259,7 @@
           "auth"
         ],
         "summary": "Register",
-        "description": "Register a new account with email + password.\n\nPhase 2: Real account lifecycle. Creates a user account with\na hashed password (PBKDF2-SHA256, 100k iterations). Returns\na bearer token immediately after registration.\n\nRate limited: 3 registrations per hour per IP.",
+        "description": "Register a new account with email + password.",
         "operationId": "register_api_auth_register_post",
         "requestBody": {
           "content": {
@@ -116,7 +301,7 @@
           "auth"
         ],
         "summary": "Revoke Token",
-        "description": "Revoke the current token (P1-4 fix).\n\nThe caller's bearer token (from the Authorization header) is revoked.\nAfter this call, the token can no longer be used for authentication.\nThe user must log in again to get a new token.\n\nThis is the standard 'logout' endpoint — it ensures that even if the\ntoken is intercepted, it becomes useless after revocation.",
+        "description": "Revoke the current token (P1-4 fix).",
         "operationId": "revoke_token_api_auth_revoke_post",
         "parameters": [
           {
@@ -157,7 +342,7 @@
           "auth"
         ],
         "summary": "Rotate Token",
-        "description": "Rotate the current token (P1-4 fix).\n\nIssues a new token and revokes ALL old tokens for the user. This is\nthe standard token rotation flow — call this periodically to limit\nthe window of opportunity for a compromised token.\n\nReturns the new token. The old token(s) are immediately invalid.",
+        "description": "Rotate the current token (P1-4 fix).",
         "operationId": "rotate_token_api_auth_rotate_post",
         "parameters": [
           {
@@ -249,7 +434,7 @@
           "ask"
         ],
         "summary": "Ask",
-        "description": "Ask a question — get the truth, sourced (LLM-powered when available).\n\nP0-3: supports multi-turn conversations via session_id. When provided,\nthe prior Q&A is included as context so follow-up questions like\n\"When is it due?\" reference the previous query's entity.",
+        "description": "Ask a question — get the truth, sourced (LLM-powered when available).",
         "operationId": "ask_api_ask_post",
         "parameters": [
           {
@@ -432,7 +617,7 @@
           "commitments"
         ],
         "summary": "Get The One Commitment",
-        "description": "The one commitment at risk today — not a list of 47.\n\nThe masterpiece Commitments: returns ONE primary commitment (the\nmost at-risk) + the rest as secondary. The inevitability: you know\nwhat you owe without scrolling.\n\nPhase 4: reads from the canonical WorldModel so all surfaces agree.",
+        "description": "The one commitment at risk today — not a list of 47.",
         "operationId": "get_the_one_commitment_api_commitments_the_one_get",
         "parameters": [
           {
@@ -475,7 +660,7 @@
           "commitments"
         ],
         "summary": "Get Commitments Ledger",
-        "description": "Read the normalized commitments ledger (Phase 3).\n\nReturns persisted commitment entries with their lifecycle state,\nowner, recipient, action, deadline, and confidence. This is the\nsource of truth for commitment lifecycle — the signals table holds\nraw observations; the ledger holds the normalized commitments.\n\nFilters:\n  - state: filter by lifecycle state (candidate/active/at_risk/\n    completed_claimed/completed_verified/disputed/cancelled/\n    superseded/tombstoned)\n  - entity: filter by entity name (exact match)",
+        "description": "Read the normalized commitments ledger.",
         "operationId": "get_commitments_ledger_api_commitments_ledger_get",
         "parameters": [
           {
@@ -558,7 +743,7 @@
           "commitments"
         ],
         "summary": "Transition Commitment",
-        "description": "Transition a commitment to a new lifecycle state (Phase 3).\n\nThe transition must be legal per the state machine. Illegal\ntransitions are rejected (400) AND audit-logged as\n'rejected_transition'. Legal transitions are applied AND\naudit-logged as 'commitment_transition'.",
+        "description": "Transition a commitment to a new lifecycle state.",
         "operationId": "transition_commitment_api_commitments__ledger_id__transition_post",
         "parameters": [
           {
@@ -715,7 +900,7 @@
           "signals"
         ],
         "summary": "Create Signal",
-        "description": "Create a new personal signal (manual entry for v1).\n\nF4 fix: sanitizes signal text against prompt injection BEFORE storing.\nS4 fix: classifies commitment type + lifecycle state on ingest using\n        the LLM-powered commitment_classifier. The classification is\n        stored in metadata and used by Commitments/The Moment to filter\n        non-commitments (tentative/proposal/request) from active commitments.",
+        "description": "Create a new personal signal (manual entry for v1).",
         "operationId": "create_signal_api_signals_post",
         "parameters": [
           {
@@ -766,7 +951,7 @@
           "signals"
         ],
         "summary": "Get Signals",
-        "description": "Get all stored signals (scoped to the authenticated user).",
+        "description": "Get all stored signals (scoped to the authenticated user).\n\nP3 fix: returns classification metadata (commitment_type, is_commitment,\nclassification_reasoning, llm_powered) so the user and auditor can see\nWHY each signal was classified as a commitment. Inspectable memory.",
         "operationId": "get_signals_api_signals_get",
         "parameters": [
           {
@@ -813,7 +998,7 @@
           "signals"
         ],
         "summary": "Correct Signal",
-        "description": "Correct or dismiss a signal (F7 fix).\n\nActions:\n- 'dismiss': mark signal as dismissed (removes from Moment/Commitments/Ask)\n- 'complete': mark signal as completed (closes the commitment)\n- 'cancel': mark signal as cancelled\n\nThe correction persists in the database.",
+        "description": "Correct or dismiss a signal (F7 fix).",
         "operationId": "correct_signal_api_signals__signal_id__correct_post",
         "parameters": [
           {
@@ -1075,1084 +1260,6 @@
         }
       }
     },
-    "/api/copilot/transcript": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Process Transcript",
-        "description": "Process a transcript chunk during a live call.\n\nPhase 4: Cluely-class real-time intelligence. Calls Core's\nCopilotSituationBridge.on_transcript_chunk(). Updates the Situation's\noperational state in real-time, detects new commitments, resolves unknowns.\n\nPhase 8 fix: call detect_situations() before passing situation_id to\nthe copilot bridge. Without this, the situation engine is empty and\nget_situation() returns None.\n\nP1-Audit-F10 fix: auto-bind situation_id from entity when not provided.",
-        "operationId": "process_transcript_api_copilot_transcript_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TranscriptChunkRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/transcribe": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Transcribe Audio Endpoint",
-        "description": "Transcribe an audio file using the configured STT provider.\n\nAccepts multipart/form-data with an audio file (m4a, wav, mp3).\nReturns the transcribed text, which the client then sends through\n/api/copilot/transcript for real-time intelligence.\n\nProviders (configured via env vars):\n- MAESTRO_WHISPER_MODEL: local Whisper (pip install openai-whisper)\n- MAESTRO_OPENAI_API_KEY: OpenAI Whisper API (cloud)\n- MAESTRO_GOOGLE_STT_KEY: Google Speech-to-Text\n\nIf no provider is configured, returns 200 with configured=False\nand a clear error message.",
-        "operationId": "transcribe_audio_endpoint_api_copilot_transcribe_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_transcribe_audio_endpoint_api_copilot_transcribe_post"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/post-call": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Post Call Summary",
-        "description": "Generate a post-call summary after the meeting ends.\n\nPhase 4: calls Core's CopilotSituationBridge.post_call_summary().",
-        "operationId": "post_call_summary_api_copilot_post_call_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PostCallSummaryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/follow-up-email": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Generate Follow Up Email",
-        "description": "Generate a commitment-aware follow-up email draft.\n\nPhase 5 P2: cites specific commitments + org laws. Adapts tone to\nthe conversation.",
-        "operationId": "generate_follow_up_email_api_copilot_follow_up_email_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FollowUpEmailRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/pre-call-intel": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Get Pre Call Intel",
-        "description": "Get pre-call intelligence panel: 3 things that matter for THIS meeting.",
-        "operationId": "get_pre_call_intel_api_copilot_pre_call_intel_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PreCallIntelRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/post-call-ui": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Get Post Call Ui",
-        "description": "Build the full post-call summary UI payload.",
-        "operationId": "get_post_call_ui_api_copilot_post_call_ui_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PostCallSummaryUIRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/playbooks": {
-      "get": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "List Playbooks",
-        "description": "List all playbooks (summary form).",
-        "operationId": "list_playbooks_api_copilot_playbooks_get",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Upsert Playbook",
-        "description": "Create or update a playbook.",
-        "operationId": "upsert_playbook_api_copilot_playbooks_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlaybookUpsertRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/playbooks/{playbook_id}": {
-      "get": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Get Playbook",
-        "description": "Get a specific playbook by ID.",
-        "operationId": "get_playbook_api_copilot_playbooks__playbook_id__get",
-        "parameters": [
-          {
-            "name": "playbook_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Playbook Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Delete Playbook",
-        "description": "Delete a playbook by ID.",
-        "operationId": "delete_playbook_api_copilot_playbooks__playbook_id__delete",
-        "parameters": [
-          {
-            "name": "playbook_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Playbook Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/playbooks/match": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Match Playbook",
-        "description": "Find the active playbook for the current transcript text.",
-        "operationId": "match_playbook_api_copilot_playbooks_match_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlaybookMatchRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/playbooks/outcome": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Record Playbook Outcome",
-        "description": "Record the outcome of using a talk track (feeds the learning loop).",
-        "operationId": "record_playbook_outcome_api_copilot_playbooks_outcome_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlaybookOutcomeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/shadow/start": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Start Shadow Session",
-        "description": "Start a shadow session — manager observes a rep's live call.",
-        "operationId": "start_shadow_session_api_copilot_shadow_start_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShadowStartRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/shadow/{session_id}/end": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "End Shadow Session",
-        "description": "End a shadow session.",
-        "operationId": "end_shadow_session_api_copilot_shadow__session_id__end_post",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/shadow/{session_id}/notes": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Add Shadow Note",
-        "description": "Add a coaching note to a shadow session.",
-        "operationId": "add_shadow_note_api_copilot_shadow__session_id__notes_post",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShadowNoteRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "List Shadow Notes",
-        "description": "List all coaching notes for a shadow session.",
-        "operationId": "list_shadow_notes_api_copilot_shadow__session_id__notes_get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/shadow/{session_id}/feedback": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Leave Shadow Feedback",
-        "description": "Leave structured post-call feedback for a shadow session.",
-        "operationId": "leave_shadow_feedback_api_copilot_shadow__session_id__feedback_post",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShadowFeedbackRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/shadow/{session_id}": {
-      "get": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Get Shadow Session",
-        "description": "Get a shadow session by ID (includes notes + feedback).",
-        "operationId": "get_shadow_session_api_copilot_shadow__session_id__get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/shadow": {
-      "get": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "List Shadow Sessions",
-        "description": "List shadow sessions (filtered by manager = current user).",
-        "operationId": "list_shadow_sessions_api_copilot_shadow_get",
-        "parameters": [
-          {
-            "name": "rep_email",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Rep Email"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Status"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/talk-ratio": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Get Talk Ratio",
-        "description": "Get talk ratio coaching from Core's TalkRatioCoach.",
-        "operationId": "get_talk_ratio_api_copilot_talk_ratio_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TalkRatioRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/copilot/negotiation": {
-      "post": {
-        "tags": [
-          "copilot"
-        ],
-        "summary": "Get Negotiation",
-        "description": "Get negotiation coaching from Core's NegotiationStrategyEngine.",
-        "operationId": "get_negotiation_api_copilot_negotiation_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NegotiationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/connectors": {
       "get": {
         "tags": [
@@ -2162,6 +1269,16 @@
         "description": "List all available connectors with the user's connection state.",
         "operationId": "list_connectors_api_connectors_get",
         "parameters": [
+          {
+            "name": "experimental",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Experimental"
+            }
+          },
           {
             "name": "authorization",
             "in": "header",
@@ -2200,7 +1317,7 @@
           "connectors"
         ],
         "summary": "Connect Provider",
-        "description": "Connect a provider (stores OAuth token encrypted).\n\nFor Gmail/Slack/Calendar/GitHub: if OAuth is configured (CLIENT_ID set),\nthis endpoint returns the authorization URL — the user visits it, grants\naccess, and the provider redirects to /api/connectors/<provider>/oauth/callback\nwhich completes the connection. If OAuth is NOT configured, stores the\nprovided oauth_token directly (demo mode).\n\nP0-2 fix: the body is now optional. Callers may POST with no body at\nall to initiate the OAuth flow — the previous version returned 422\nbecause `provider` was a required body field (despite being in the URL).",
+        "description": "Connect a provider (stores OAuth token encrypted).",
         "operationId": "connect_provider_api_connectors__provider__connect_post",
         "parameters": [
           {
@@ -2267,7 +1384,7 @@
           "connectors"
         ],
         "summary": "Gmail Oauth Callback",
-        "description": "Gmail OAuth2 callback — exchanges authorization code for tokens.",
+        "description": "Gmail OAuth2 callback — exchanges authorization code for tokens.\n\nAlso handles Calendar OAuth callbacks (single-callback pattern).\nWhen state contains 'connector=calendar', dispatches to Calendar handling\ninstead of Gmail. This avoids needing a separate redirect URI for Calendar.",
         "operationId": "gmail_oauth_callback_api_connectors_gmail_oauth_callback_get",
         "parameters": [
           {
@@ -2509,6 +1626,140 @@
         }
       }
     },
+    "/api/connectors/yahoo_mail/oauth/callback": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Yahoo Mail Oauth Callback",
+        "description": "Yahoo Mail OAuth2 callback — exchanges authorization code for tokens.",
+        "operationId": "yahoo_mail_oauth_callback_api_connectors_yahoo_mail_oauth_callback_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "State"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/connectors/microsoft_mail/oauth/callback": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Microsoft Mail Oauth Callback",
+        "description": "Microsoft Mail OAuth2 callback — exchanges authorization code for tokens.\n\nThe admin_consent query param is set to 'True' when an enterprise admin\npre-approves the scopes for their tenant. We accept it as a string\n(Microsoft sends it as a query param) and surface it in the response\nso the UI can show \"admin consent granted\" messaging.",
+        "operationId": "microsoft_mail_oauth_callback_api_connectors_microsoft_mail_oauth_callback_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "State"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Error"
+            }
+          },
+          {
+            "name": "admin_consent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Admin Consent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/connectors/{provider}": {
       "delete": {
         "tags": [
@@ -2666,7 +1917,7 @@
           "connectors"
         ],
         "summary": "Create Draft",
-        "description": "Create a pending draft for user approval (template formatter — P13 disclosure).\n\nNOTE (P13): This endpoint takes caller-supplied commitment_text + evidence_refs.\nIt is a TEMPLATE FORMATTER, not the real capability. For the real capability\n(deriving commitment + evidence from signal history), use POST /api/drafts/auto.",
+        "description": "Create a pending draft for user approval.",
         "operationId": "create_draft_api_drafts_post",
         "parameters": [
           {
@@ -3109,6 +2360,16 @@
         "operationId": "list_agents_api_agents_get",
         "parameters": [
           {
+            "name": "experimental",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Experimental"
+            }
+          },
+          {
             "name": "authorization",
             "in": "header",
             "required": false,
@@ -3187,6 +2448,16 @@
               "type": "string",
               "default": "",
               "title": "Text"
+            }
+          },
+          {
+            "name": "experimental",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Experimental"
             }
           },
           {
@@ -3798,13 +3069,54 @@
         }
       }
     },
+    "/api/debug-llm": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Debug Llm",
+        "description": "TEMP debug — inspect LLM router state.",
+        "operationId": "debug_llm_api_debug_llm_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/depth": {
       "get": {
         "tags": [
           "account"
         ],
         "summary": "Get Depth",
-        "description": "Show which Core modules are wired to Personal (honest: producing_value vs placeholder).",
+        "description": "Show which Core modules are wired to Personal.",
         "operationId": "get_depth_api_depth_get",
         "parameters": [
           {
@@ -4622,7 +3934,7 @@
           "surfaces"
         ],
         "summary": "Get Smart Notifications",
-        "description": "Get context-aware ambient notifications for the current user.\n\nP11 fix (wiring): the enterprise AmbientNotificationEngine was built\nand tested (19 tests) but never wired into the personal shell — the\nactual product the mobile app uses. This endpoint is the production\nentry point.\n\nP13: notifications are DERIVED from the user's signal history\n(overdue commitments, stale relationships, daily digest). The caller\nsupplies only CONTEXT (in-call, DND, focus mode) — not the content.\n\nReturns:\n  list of notifications with: notification_id, type, priority,\n  title, body, action_url, action_label, created_at, metadata",
+        "description": "Get context-aware ambient notifications for the current user.",
         "operationId": "get_smart_notifications_api_notifications_smart_post",
         "parameters": [
           {
@@ -4673,7 +3985,7 @@
           "surfaces"
         ],
         "summary": "Get Calendar Awareness Endpoint",
-        "description": "Get calendar awareness for upcoming meetings (Phase 9).\n\nP11 fix (wiring): the enterprise CalendarAwarenessEngine was built +\ntested (16 tests) but never wired into the personal shell. This\nendpoint is the production entry point.\n\nP13: meeting context is DERIVED from the user's signal history\n(commitments, talking points, risks, opportunities). The caller\nsupplies only the time horizon.\n\nReturns:\n  list of meeting context dicts with talking_points, risks,\n  opportunities, open_commitments, overdue_commitments.",
+        "description": "Get calendar awareness for upcoming meetings.",
         "operationId": "get_calendar_awareness_endpoint_api_calendar_awareness_post",
         "parameters": [
           {
@@ -4724,7 +4036,7 @@
           "surfaces"
         ],
         "summary": "Get Commitment Escalations Endpoint",
-        "description": "Get commitment escalations for the current user (Phase 9).\n\nP11 fix (wiring): the enterprise CommitmentEscalationEngine was built\n+ tested but never wired into the personal shell. This endpoint is\nthe production entry point.\n\nP13: commitments are DERIVED from the user's signal history — the\ncaller supplies nothing but the auth token.\n\nReturns:\n  list of escalation dicts sorted by severity (CRITICAL first):\n    commitment_id, commitment_text, entity, health,\n    escalation_level, days_until_due, days_overdue,\n    nudge_text, nudge_channel, nudge_draft,\n    failure_probability, failure_reason, related_commitments",
+        "description": "Get commitment escalations for the current user.",
         "operationId": "get_commitment_escalations_endpoint_api_commitments_escalations_get",
         "parameters": [
           {
@@ -4765,7 +4077,7 @@
           "surfaces"
         ],
         "summary": "Get Threads Endpoint",
-        "description": "Get cross-meeting threads linking related meetings by entity + topic.\n\nP11 fix (wiring): the enterprise CrossMeetingThreadBuilder was built\n+ tested (13 tests) but never wired into the personal shell. This\nendpoint is the production entry point.\n\nP13: meeting summaries are DERIVED from the user's signal history\n(meeting_scheduled + commitment_made + decision signals). The caller\nsupplies only an optional entity filter.\n\nReturns:\n  list of thread dicts, each with:\n    thread_id, entity, topic, meeting_count, meetings,\n    confidence, confidence_level, requires_confirmation,\n    topic_evolution, decision_chain",
+        "description": "Get cross-meeting threads linking related meetings by entity + topic.",
         "operationId": "get_threads_endpoint_api_threads_post",
         "parameters": [
           {
@@ -4916,7 +4228,7 @@
           "surfaces"
         ],
         "summary": "Get All Meeting Grades Endpoint",
-        "description": "Get grades for all meetings for the current user (Phase 16).\n\nP11 fix (wiring): the enterprise MeetingGrader was built + tested\n(14 tests) but never wired into the personal shell. This endpoint\nis the production entry point.\n\nP13: meeting data is DERIVED from the user's signal history\n(transcript, duration, talk ratio, sentiment, participants). The\ncaller supplies nothing but the auth token.\n\nReturns:\n  list of grade reports sorted by score (highest first), each with:\n    grade, effective_grade, score, factors, action_items,\n    action_item_completion_rate, follow_ups_pending, follow_ups_completed,\n    confidence_label, meeting_id, entity, title",
+        "description": "Get grades for all meetings for the current user.",
         "operationId": "get_all_meeting_grades_endpoint_api_meetings_grades_get",
         "parameters": [
           {
@@ -5007,7 +4319,7 @@
           "surfaces"
         ],
         "summary": "Override Meeting Grade Endpoint",
-        "description": "Override the computed grade for a meeting (Phase 16).\n\nThe user can adjust the grade based on intuition. The override is\ntransparent (recorded as user_override in the report). The computed\ngrade is still visible for comparison.",
+        "description": "Override the computed grade for a meeting.",
         "operationId": "override_meeting_grade_endpoint_api_meetings__meeting_id__grade_override_post",
         "parameters": [
           {
@@ -5067,7 +4379,7 @@
           "surfaces"
         ],
         "summary": "Get All Deal Health Endpoint",
-        "description": "Get deal health scores for all entities (Phase 11).\n\nP11 fix (wiring): the enterprise DealHealthEngine was built + tested\n(13 tests) but never wired into the personal shell. This endpoint\nis the production entry point.\n\nP13: scores are DERIVED from the user's signal history. The caller\nsupplies nothing but the auth token.\n\nReturns:\n  list of deal health dicts sorted by score (highest first), each with:\n    entity, score, status, momentum, confidence_label,\n    calibration_denominator, risk_factors, positive_indicators,\n    score_history, compounding_adjustments",
+        "description": "Get deal health scores for all entities.",
         "operationId": "get_all_deal_health_endpoint_api_deals_health_get",
         "parameters": [
           {
@@ -5158,7 +4470,7 @@
           "surfaces"
         ],
         "summary": "Get Analytics Endpoint",
-        "description": "Get the organizational learning report (Phase 20).\n\nP11 fix (wiring): the enterprise AdvancedAnalyticsEngine was built +\ntested (20 tests) but never wired into the personal shell. This\nendpoint is the production entry point.\n\nP13: the report is DERIVED from the user's signal history. The caller\nsupplies nothing but the auth token.\n\nReturns:\n  org learning report with: trends, team_performance, laws_validated,\n  laws_candidate, patterns_detected, brier_score, commitment_kept_rate,\n  commitment_broken_rate, meeting_grade_average, deal_cycle_time_days,\n  flywheel_summary",
+        "description": "Get the organizational learning report.",
         "operationId": "get_analytics_endpoint_api_analytics_trends_get",
         "parameters": [
           {
@@ -5233,6 +4545,117 @@
           }
         }
       }
+    },
+    "/api/inbox/synthetic": {
+      "get": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "List Synthetic Emails",
+        "description": "List all 20 synthetic emails.",
+        "operationId": "list_synthetic_emails_api_inbox_synthetic_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/synthetic/{email_id}/receive": {
+      "post": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Receive Synthetic Email",
+        "description": "Receive a synthetic email — ingests it as a signal, triggering commitment extraction.",
+        "operationId": "receive_synthetic_email_api_inbox_synthetic__email_id__receive_post",
+        "parameters": [
+          {
+            "name": "email_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Email Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/synthetic/status": {
+      "get": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Inbox Status",
+        "description": "Summary of synthetic emails received + their effects on commitments.",
+        "operationId": "inbox_status_api_inbox_synthetic_status_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5241,6 +4664,8 @@
         "properties": {
           "query": {
             "type": "string",
+            "maxLength": 10000,
+            "minLength": 1,
             "title": "Query"
           },
           "session_id": {
@@ -5378,21 +4803,7 @@
           "query"
         ],
         "title": "AskResponse",
-        "description": "The masterpiece Ask response — the truth, sourced, with full depth.\n\nNot a summary. Not a paraphrase. The exact sentence from the source,\nwith provenance you can tap to verify. PLUS: judgment, perspectives,\ndecision boundary, and reasoning trace from the full Core engine.\n\nPhase 5: added counterevidence, unknowns, confidence, as_of fields\nper the roadmap answer schema. The claim verifier populates\ncounterevidence (claims not supported by evidence) and the answer\nconfidence is calibrated from evidence quality."
-      },
-      "Body_transcribe_audio_endpoint_api_copilot_transcribe_post": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_transcribe_audio_endpoint_api_copilot_transcribe_post"
+        "description": "The masterpiece Ask response — the truth, sourced, with full depth."
       },
       "BriefingResponse": {
         "properties": {
@@ -5414,84 +4825,162 @@
             "title": "Top Situation"
           },
           "material_changes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Material Changes",
-            "default": []
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Changes"
           },
           "unknowns": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Unknowns",
-            "default": []
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknowns"
           },
           "disputes": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Disputes",
-            "default": []
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disputes"
           },
           "can_decide_now": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Can Decide Now",
-            "default": []
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Can Decide Now"
           },
           "cannot_decide_yet": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Cannot Decide Yet",
-            "default": []
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cannot Decide Yet"
           },
           "why_boundary": {
-            "type": "string",
-            "title": "Why Boundary",
-            "default": ""
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Boundary"
           },
           "next_step": {
-            "type": "string",
-            "title": "Next Step",
-            "default": ""
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Step"
           },
           "belief": {
-            "type": "string",
-            "title": "Belief",
-            "default": ""
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Belief"
           },
           "why_belief": {
-            "type": "string",
-            "title": "Why Belief",
-            "default": ""
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Belief"
           },
           "what_would_change_belief": {
-            "type": "string",
-            "title": "What Would Change Belief",
-            "default": ""
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "What Would Change Belief"
           },
           "watching_quietly": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Watching Quietly",
-            "default": []
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watching Quietly"
           },
           "ask_prompt": {
-            "type": "string",
-            "title": "Ask Prompt",
-            "default": ""
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ask Prompt"
+          },
+          "reconciliation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Reconciliation",
+            "default": {}
           }
         },
         "type": "object",
@@ -5707,6 +5196,11 @@
             "type": "string",
             "title": "Oauth Token",
             "default": ""
+          },
+          "admin_consent": {
+            "type": "boolean",
+            "title": "Admin Consent",
+            "default": false
           }
         },
         "type": "object",
@@ -5803,62 +5297,6 @@
         ],
         "title": "DraftResolutionRequest"
       },
-      "FollowUpEmailRequest": {
-        "properties": {
-          "meeting_title": {
-            "type": "string",
-            "title": "Meeting Title",
-            "default": ""
-          },
-          "participants": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Participants",
-            "default": []
-          },
-          "commitments": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Commitments",
-            "default": []
-          },
-          "objections": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Objections",
-            "default": []
-          },
-          "entity": {
-            "type": "string",
-            "title": "Entity",
-            "default": ""
-          },
-          "transcript_chunks": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Transcript Chunks",
-            "default": []
-          },
-          "tone": {
-            "type": "string",
-            "title": "Tone",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "title": "FollowUpEmailRequest"
-      },
       "GmailSyncRequest": {
         "properties": {
           "messages": {
@@ -5919,6 +5357,11 @@
             "title": "User Email",
             "default": ""
           },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "default": ""
+          },
           "password": {
             "type": "string",
             "title": "Password",
@@ -5965,35 +5408,6 @@
         "title": "MeetingOverrideRequest",
         "description": "Request body for overriding a meeting grade.\n\nP13: the caller supplies the grade letter (user judgment), not the\nmeeting data. The meeting data is DERIVED from signal history."
       },
-      "NegotiationRequest": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "speaker": {
-            "type": "string",
-            "title": "Speaker",
-            "default": ""
-          },
-          "batna": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Batna"
-          }
-        },
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "title": "NegotiationRequest"
-      },
       "OutcomeRequest": {
         "properties": {
           "prediction_id": {
@@ -6011,188 +5425,6 @@
           "actual_outcome"
         ],
         "title": "OutcomeRequest"
-      },
-      "PlaybookMatchRequest": {
-        "properties": {
-          "transcript_text": {
-            "type": "string",
-            "title": "Transcript Text",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "title": "PlaybookMatchRequest"
-      },
-      "PlaybookOutcomeRequest": {
-        "properties": {
-          "playbook_id": {
-            "type": "string",
-            "title": "Playbook Id"
-          },
-          "talk_track_idx": {
-            "type": "integer",
-            "title": "Talk Track Idx"
-          },
-          "outcome": {
-            "type": "string",
-            "title": "Outcome"
-          },
-          "context": {
-            "type": "string",
-            "title": "Context",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "playbook_id",
-          "talk_track_idx",
-          "outcome"
-        ],
-        "title": "PlaybookOutcomeRequest"
-      },
-      "PlaybookUpsertRequest": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "default": ""
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "default": ""
-          },
-          "triggers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Triggers",
-            "default": []
-          },
-          "talk_tracks": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Talk Tracks",
-            "default": []
-          },
-          "objection_responses": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Objection Responses",
-            "default": {}
-          }
-        },
-        "type": "object",
-        "title": "PlaybookUpsertRequest"
-      },
-      "PostCallSummaryRequest": {
-        "properties": {
-          "situation_id": {
-            "type": "string",
-            "title": "Situation Id",
-            "default": ""
-          },
-          "transcript_chunks": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Transcript Chunks",
-            "default": []
-          },
-          "commitments": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Commitments",
-            "default": []
-          },
-          "entity": {
-            "type": "string",
-            "title": "Entity",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "title": "PostCallSummaryRequest"
-      },
-      "PostCallSummaryUIRequest": {
-        "properties": {
-          "meeting_title": {
-            "type": "string",
-            "title": "Meeting Title",
-            "default": ""
-          },
-          "duration_seconds": {
-            "type": "integer",
-            "title": "Duration Seconds",
-            "default": 0
-          },
-          "participants": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Participants",
-            "default": []
-          },
-          "transcript_chunks": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Transcript Chunks",
-            "default": []
-          },
-          "suggestion_cards": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Suggestion Cards",
-            "default": []
-          },
-          "entity": {
-            "type": "string",
-            "title": "Entity",
-            "default": ""
-          },
-          "talk_ratio_pct": {
-            "type": "number",
-            "title": "Talk Ratio Pct",
-            "default": 0.0
-          }
-        },
-        "type": "object",
-        "title": "PostCallSummaryUIRequest"
-      },
-      "PreCallIntelRequest": {
-        "properties": {
-          "entity": {
-            "type": "string",
-            "title": "Entity",
-            "default": ""
-          },
-          "meeting_title": {
-            "type": "string",
-            "title": "Meeting Title",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "title": "PreCallIntelRequest"
       },
       "PredictionRequest": {
         "properties": {
@@ -6398,80 +5630,6 @@
         ],
         "title": "RegisterResponse"
       },
-      "ShadowFeedbackRequest": {
-        "properties": {
-          "overall_rating": {
-            "type": "integer",
-            "title": "Overall Rating"
-          },
-          "strengths": {
-            "type": "string",
-            "title": "Strengths",
-            "default": ""
-          },
-          "improvements": {
-            "type": "string",
-            "title": "Improvements",
-            "default": ""
-          },
-          "next_steps": {
-            "type": "string",
-            "title": "Next Steps",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "overall_rating"
-        ],
-        "title": "ShadowFeedbackRequest"
-      },
-      "ShadowNoteRequest": {
-        "properties": {
-          "note_text": {
-            "type": "string",
-            "title": "Note Text"
-          },
-          "transcript_chunk": {
-            "type": "string",
-            "title": "Transcript Chunk",
-            "default": ""
-          },
-          "note_type": {
-            "type": "string",
-            "title": "Note Type",
-            "default": "coaching"
-          }
-        },
-        "type": "object",
-        "required": [
-          "note_text"
-        ],
-        "title": "ShadowNoteRequest"
-      },
-      "ShadowStartRequest": {
-        "properties": {
-          "rep_email": {
-            "type": "string",
-            "title": "Rep Email"
-          },
-          "meeting_title": {
-            "type": "string",
-            "title": "Meeting Title",
-            "default": ""
-          },
-          "entity": {
-            "type": "string",
-            "title": "Entity",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "rep_email"
-        ],
-        "title": "ShadowStartRequest"
-      },
       "SignalCreate": {
         "properties": {
           "entity": {
@@ -6540,6 +5698,72 @@
               }
             ],
             "title": "Audit Log Error"
+          },
+          "commitment_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commitment Type"
+          },
+          "is_commitment": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Commitment"
+          },
+          "commitment_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commitment State"
+          },
+          "commitment_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commitment Confidence"
+          },
+          "classification_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification Reasoning"
+          },
+          "llm_powered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Powered"
           }
         },
         "type": "object",
@@ -6629,23 +5853,6 @@
         "title": "SmartNotificationRequest",
         "description": "Request body for /notifications/smart.\n\nPer P13: the caller supplies CONTEXT (am I in a call? is DND on?),\nNOT the notification content. The notifications themselves are DERIVED\nfrom the user's signal history by the AmbientNotificationEngine."
       },
-      "TalkRatioRequest": {
-        "properties": {
-          "segments": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Segments"
-          }
-        },
-        "type": "object",
-        "required": [
-          "segments"
-        ],
-        "title": "TalkRatioRequest"
-      },
       "TheMomentResponse": {
         "properties": {
           "has_moment": {
@@ -6689,6 +5896,12 @@
             "type": "array",
             "title": "Source Evidence",
             "default": []
+          },
+          "reconciliation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Reconciliation",
+            "default": {}
           }
         },
         "type": "object",
@@ -6709,34 +5922,6 @@
         "type": "object",
         "title": "ThreadRequest",
         "description": "Request body for /threads.\n\nP13: caller supplies only an optional entity filter (CONTEXT), not\nmeeting data. The threads are DERIVED from the user's signal history."
-      },
-      "TranscriptChunkRequest": {
-        "properties": {
-          "situation_id": {
-            "type": "string",
-            "title": "Situation Id",
-            "default": ""
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "speaker": {
-            "type": "string",
-            "title": "Speaker",
-            "default": ""
-          },
-          "entity": {
-            "type": "string",
-            "title": "Entity",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "title": "TranscriptChunkRequest"
       },
       "TranscriptIngestRequest": {
         "properties": {
@@ -6785,13 +5970,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
@@ -6816,6 +5994,12 @@
             "type": "string",
             "title": "Silence Message",
             "default": ""
+          },
+          "reconciliation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Reconciliation",
+            "default": {}
           }
         },
         "type": "object",
