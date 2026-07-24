@@ -106,22 +106,110 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # The full conversation history is also available for LLM context.
     # S1-1 fix (auditor): only augment the query with the prior entity,
     # don't append the full prior context (breaks entity detection).
+    #
+    # S2-5 MULTITURN fix (Kimi K3 design, P36 + P41):
+    # The auditor found "show me the evidence for that" returned evidence
+    # for Dana, not Maria — the system was reusing the prior evidence_refs
+    # list (which may have been evicted/rotated) instead of re-resolving
+    # "that" to the prior entity and re-running retrieval.
+    # FIX: explicit pronoun resolution for "that", "it", "the evidence",
+    # "the same", "this" — when these appear in a follow-up query AND we
+    # have a recent prior entity (within 5 minutes), augment the query
+    # with the prior entity BEFORE retrieval. If no recent prior entity
+    # exists, abstain explicitly (don't return stale evidence).
+    import time as _time_mod
+    _MULTITURN_STALENESS_S = 300  # 5 minutes
+    _PRONOUN_REFERENCES = {
+        "that", "it", "this", "those", "these",
+    }
+    _PRONOUN_PHRASES = [
+        "the evidence for that", "the evidence for it", "the evidence for this",
+        "evidence for that", "evidence for it", "evidence for this",
+        "the same", "for that", "for it", "for this",
+        "what about that", "what about it", "what about this",
+        "tell me more about that", "tell me more about it",
+        "show me that", "show me it", "show me this",
+    ]
     _prior_context = ""
     _prior_entity = ""
+    _prior_entity_age_s: float | None = None  # age of the prior entity (seconds)
     _conversation_history = ""
+    _is_pronoun_followup = False
+    # S2-5: detect pronoun follow-ups EVEN WITHOUT a session_id — a pronoun
+    # reference with no prior context MUST abstain (never return random data).
+    _q_lower_for_pronoun_check = req.query.lower().strip()
+    _has_pronoun_phrase_check = any(p in _q_lower_for_pronoun_check for p in _PRONOUN_PHRASES)
+    _has_pronoun_token_check = any(
+        tok in _PRONOUN_REFERENCES
+        for tok in _q_lower_for_pronoun_check.split()
+    )
+    _is_pronoun_followup = _has_pronoun_phrase_check or _has_pronoun_token_check
     if req.session_id:
         session_turns = _ask_sessions.get(req.session_id, [])
         if session_turns:
             # Get the most recent turn's entity for follow-up augmentation
             last_turn = session_turns[-1]
             _prior_entity = last_turn.get("entity", "")
+            # Compute age of the prior turn (for staleness check)
+            _prior_ts = last_turn.get("ts", 0)
+            if _prior_ts:
+                _prior_entity_age_s = _time_mod.time() - _prior_ts
             # Build conversation history string for LLM context (up to 5 turns)
             history_parts = []
             for turn in session_turns[-_MAX_SESSION_TURNS:]:
                 history_parts.append(f"Q: {turn.get('q', '')}\nA: {turn.get('a', '')[:150]}")
             _conversation_history = "\n\n".join(history_parts)
-            logger.info("Multi-turn: session=%s, %d prior turns, last entity=%s",
-                        req.session_id, len(session_turns), _prior_entity[:50])
+            logger.info("Multi-turn: session=%s, %d prior turns, last entity=%s, age=%ss",
+                        req.session_id, len(session_turns), _prior_entity[:50],
+                        f"{_prior_entity_age_s:.1f}" if _prior_entity_age_s is not None else "?")
+
+    # S2-5 MULTITURN abstention: if this is a pronoun follow-up but there
+    # is no recent prior entity (no session, or prior entity is older than
+    # 5 minutes), ABSTAIN explicitly — never return stale evidence.
+    if _is_pronoun_followup and not _prior_entity:
+        return AskResponse(
+            answer="I don't have a recent question to refer to. Could you rephrase with the entity name? (e.g., 'Show me the evidence for Maria')",
+            query=req.query,
+            source_sentence="",
+            source_entity="",
+            source_timestamp="",
+            situation_state="",
+            evidence_refs=[],
+            confidence=0.0,
+            counterevidence=[],
+            unknowns=["No prior conversation context to resolve the pronoun reference."],
+            as_of=str(as_of or ""),
+            decision_boundary="",
+            perspectives=[],
+            reasoning_chain=[],
+            calibration_note="S2-5: pronoun follow-up with no prior entity — abstaining to avoid stale evidence.",
+            consequence_paths=[],
+            llm_active=False,
+            llm_provider="none",
+            intelligence_source="rules",
+        )
+    if _is_pronoun_followup and _prior_entity_age_s is not None and _prior_entity_age_s > _MULTITURN_STALENESS_S:
+        return AskResponse(
+            answer=f"My last question was {_prior_entity_age_s/60:.0f} minutes ago — that's too long to safely resolve the reference. Could you rephrase with the entity name? (e.g., 'Show me the evidence for {_prior_entity}')",
+            query=req.query,
+            source_sentence="",
+            source_entity="",
+            source_timestamp="",
+            situation_state="",
+            evidence_refs=[],
+            confidence=0.0,
+            counterevidence=[],
+            unknowns=[f"Prior conversation context is {_prior_entity_age_s/60:.0f} minutes old — exceeds 5-minute staleness threshold."],
+            as_of=str(as_of or ""),
+            decision_boundary="",
+            perspectives=[],
+            reasoning_chain=[],
+            calibration_note=f"S2-5: pronoun follow-up but prior entity is {_prior_entity_age_s/60:.0f}min old — abstaining to avoid stale evidence.",
+            consequence_paths=[],
+            llm_active=False,
+            llm_provider="none",
+            intelligence_source="rules",
+        )
 
     temporal = parse_temporal_query(req.query)
     from_date = None
@@ -146,7 +234,10 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # no unrelated evidence references. Regardless of capitalization.
     # S1-1 fix: if this is a follow-up question (short, no entity named)
     # and we have a prior entity from the session, augment the query.
-    if _prior_entity and len(req.query.split()) <= 6:
+    # S2-5 MULTITURN: also augment pronoun follow-ups ("the evidence for
+    # that") with the prior entity — this is the CORE fix for the auditor's
+    # 'show me the evidence for that → Dana' finding.
+    if _prior_entity and (_is_pronoun_followup or len(req.query.split()) <= 6):
         # Check if the query already names an entity.
         # Bug fix (auditor P0 gate): the old regex \b[A-Z][a-z]+\b matched
         # "When" in "When is it due?" — a question word, not an entity.
@@ -3068,12 +3159,17 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
     # P0-3: Save session context for multi-turn follow-ups
     # Store up to 5 turns of Q+A history so follow-up questions have context.
+    # S2-5 MULTITURN: also store the timestamp so we can detect staleness
+    # (a pronoun reference to a 10-minute-old entity is unsafe — the
+    # evidence may have been resampled).
     if req.session_id:
+        import time as _time_mod_save
         turns = _ask_sessions.get(req.session_id, [])
         turns.append({
             "q": req.query,
             "a": str(verified_answer)[:200],
             "entity": source_entity,
+            "ts": _time_mod_save.time(),  # S2-5: epoch seconds for staleness check
         })
         # Keep only the last N turns
         if len(turns) > _MAX_SESSION_TURNS:
