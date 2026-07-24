@@ -161,3 +161,14 @@ Agent: New Coder (2026-07-24 session)
 Ask correctness gate: 13 adversarial cases across 7 categories (easy/temporal/relationship/negative/unknown/contradictory/contamination). 13/13 PASS. CI ask-correctness job added.
 CI GREEN on 887eaaf: all 6 jobs (permanence-gate 34/34, classifier-goldset 2248/2248, ask-correctness 13/13, onboarding-funnel 6.22s, ui-gate skip, frontend-deploy skip).
 Gate now has 3 correctness layers: mechanics + extraction + answer.
+
+---
+Task ID: 18 (auditor 2026-07-24 🔴 — 9 principles)
+Agent: New Coder (2026-07-24 session)
+
+P9: version → 1.0.0-beta (killed audit-ready).
+P5: /api/admin/reclassify-ledger endpoint (re-classify existing data).
+P1: ops/test_user_journey.py (13 checks: signup→connect→real data→ask→evidence→correct→provenance→LLM→frontend→version).
+P8: ops/test_concurrent_load.py (5 concurrent, p95=0.27s < 10s).
+Railway deploy issue: builds+starts but health check fails (infrastructure, not code).
+Commits: f177c3d.
