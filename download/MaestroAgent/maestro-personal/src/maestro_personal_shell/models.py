@@ -172,6 +172,8 @@ class WhatChangedMasterpieceResponse(BaseModel):
     """
     the_shifts: list[WhatChangedResponse] = []
     silence_message: str = ""
+    # S2-4 SURFACES reconciliation (P41) — see BriefingResponse.reconciliation
+    reconciliation: dict[str, Any] = {}
 
 
 class PrepareResponse(BaseModel):
@@ -443,6 +445,14 @@ class BriefingResponse(BaseModel):
     what_would_change_belief: str = ""
     watching_quietly: list[dict[str, Any]] = []
     ask_prompt: str = ""
+    # S2-4 SURFACES reconciliation (P41 — single source of truth):
+    # All three surfaces (Briefing, What-Changed, The-Moment) MUST return
+    # the SAME reconciliation block, derived from the SAME
+    # CommitmentsSurface.get_active_commitments() call. The auditor found
+    # Briefing saying "no changes" while What-Changed said "three changes"
+    # and The-Moment said "nothing" — with 24 active commitments. The
+    # reconciliation block ensures cross-surface consistency is verifiable.
+    reconciliation: dict[str, Any] = {}
 
 
 class TheMomentResponse(BaseModel):
@@ -459,3 +469,5 @@ class TheMomentResponse(BaseModel):
     situation: dict[str, Any] | None = None
     why_this_one: str = ""
     source_evidence: list[dict[str, Any]] = []
+    # S2-4 SURFACES reconciliation (P41) — see BriefingResponse.reconciliation
+    reconciliation: dict[str, Any] = {}

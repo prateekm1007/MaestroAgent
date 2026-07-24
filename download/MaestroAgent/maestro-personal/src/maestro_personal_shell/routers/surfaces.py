@@ -115,6 +115,10 @@ class BriefingResponse(BaseModel):
     what_would_change_belief: str | None = None
     watching_quietly: list[dict[str, Any]] | None = None
     ask_prompt: str | None = None
+    # S2-4 SURFACES reconciliation (P41) — single source of truth.
+    # Briefing, What-Changed, The-Moment all return the SAME reconciliation
+    # block, derived from the SAME CommitmentsSurface call.
+    reconciliation: dict[str, Any] = {}
 
     model_config = {"exclude_none": True}
 
@@ -140,6 +144,8 @@ class TheMomentResponse(BaseModel):
     situation: dict[str, Any] | None = None
     why_this_one: str = ""
     source_evidence: list[dict[str, Any]] = []
+    # S2-4 SURFACES reconciliation (P41) — see BriefingResponse.reconciliation
+    reconciliation: dict[str, Any] = {}
 
 
 class WhisperResponse(BaseModel):
@@ -243,6 +249,10 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     from maestro_personal_shell.surfaces.what_changed import WhatChangedSurface
+    # S2-4 SURFACES reconciliation (P41): single source of truth — every
+    # surface derives its counts from the same reconcile_snapshot() call.
+    from maestro_personal_shell.surfaces._snapshot import reconcile_snapshot
+    recon = reconcile_snapshot(shell, user_email=token)
     surface = WhatChangedSurface(shell=shell)
     since = datetime.now(timezone.utc) - timedelta(days=30)
     deltas = surface.get_recent_deltas(since_timestamp=since)
@@ -250,7 +260,8 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
     if not meaningful:
         return WhatChangedMasterpieceResponse(
             the_shifts=[],
-            silence_message="Nothing material changed since you last looked."
+            silence_message="Nothing material changed since you last looked.",
+            reconciliation=recon,
         )
     the_shifts = meaningful[:2]
     return WhatChangedMasterpieceResponse(
@@ -262,6 +273,7 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
             for d in the_shifts
         ],
         silence_message="",
+        reconciliation=recon,
     )
 
 
@@ -669,10 +681,14 @@ async def get_briefing(token: str = Depends(verify_token_dep)):
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     core = shell.core
+    # S2-4 SURFACES reconciliation (P41) — single source of truth.
+    from maestro_personal_shell.surfaces._snapshot import reconcile_snapshot
+    recon = reconcile_snapshot(shell, user_email=token)
     if not core.briefing_bridge:
         return BriefingResponse(
             greeting="Good morning. Briefing engine unavailable.",
             ask_prompt="What do you want to understand?",
+            reconciliation=recon,
         )
     try:
         briefing = core.briefing_bridge.generate_morning_briefing(
@@ -745,10 +761,15 @@ async def get_briefing(token: str = Depends(verify_token_dep)):
             what_would_change_belief=getattr(briefing, "what_would_change_belief", ""),
             watching_quietly=getattr(briefing, "watching_quietly", []) or [],
             ask_prompt=getattr(briefing, "ask_prompt", "What do you want to understand?"),
+            reconciliation=recon,
         )
     except Exception as e:
         logger.debug("Briefing generation failed: %s", e)
-        return BriefingResponse(greeting="Good morning.", ask_prompt="What do you want to understand?")
+        return BriefingResponse(
+            greeting="Good morning.",
+            ask_prompt="What do you want to understand?",
+            reconciliation=recon,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -762,10 +783,14 @@ async def get_evening_briefing(token: str = Depends(verify_token_dep)):
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     core = shell.core
+    # S2-4 SURFACES reconciliation (P41) — single source of truth.
+    from maestro_personal_shell.surfaces._snapshot import reconcile_snapshot
+    recon = reconcile_snapshot(shell, user_email=token)
     if not core.briefing_bridge:
         return BriefingResponse(
             greeting="Good evening. Briefing engine unavailable.",
             ask_prompt="What do you want to understand?",
+            reconciliation=recon,
         )
     try:
         briefing = core.briefing_bridge.generate_evening_briefing(
@@ -813,10 +838,15 @@ async def get_evening_briefing(token: str = Depends(verify_token_dep)):
             what_would_change_belief=getattr(briefing, "what_would_change_belief", ""),
             watching_quietly=getattr(briefing, "watching_quietly", []) or [],
             ask_prompt=getattr(briefing, "ask_prompt", "What do you want to understand?"),
+            reconciliation=recon,
         )
     except Exception as e:
         logger.debug("Evening briefing failed: %s", e)
-        return BriefingResponse(greeting="Good evening.", ask_prompt="What do you want to understand?")
+        return BriefingResponse(
+            greeting="Good evening.",
+            ask_prompt="What do you want to understand?",
+            reconciliation=recon,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -838,6 +868,9 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
         _filter_non_commitments_by_classification,
     )
     shell = build_shell(user_email=token, as_of=as_of)
+    # S2-4 SURFACES reconciliation (P41) — single source of truth.
+    from maestro_personal_shell.surfaces._snapshot import reconcile_snapshot
+    recon = reconcile_snapshot(shell, user_email=token)
     from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
     surface = CommitmentsSurface(shell=shell)
     commitments = surface.get_active_commitments()
@@ -846,7 +879,7 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
     commitments = _filter_non_commitments_by_classification(commitments, shell.oem_state.signals)
 
     if not commitments:
-        return TheMomentResponse(has_moment=False)
+        return TheMomentResponse(has_moment=False, reconciliation=recon)
 
     stale = shell.detect_stale_commitments(days_threshold=2)
     stale_ids = {s.get("commitment", None) and getattr(s["commitment"], "signal_id", "") or
@@ -897,7 +930,7 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
             best_why = "; ".join(reasons) if reasons else "active commitment"
 
     if not best_commitment:
-        return TheMomentResponse(has_moment=False)
+        return TheMomentResponse(has_moment=False, reconciliation=recon)
 
     # Phase 3.1: LLM-powered Trusted Silence (Materiality Gate)
     try:
@@ -949,6 +982,7 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
             return TheMomentResponse(
                 has_moment=False,
                 why_this_one=f"Trusted silence: {materiality.get('reasoning', 'low materiality')}",
+                reconciliation=recon,
             )
         if materiality.get("llm_powered"):
             best_why = materiality.get("reasoning", best_why)
@@ -992,6 +1026,7 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
         situation=related_situation,
         why_this_one=best_why,
         source_evidence=source_evidence,
+        reconciliation=recon,
     )
 
 
