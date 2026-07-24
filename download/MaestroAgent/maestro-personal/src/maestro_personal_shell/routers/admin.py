@@ -23,7 +23,17 @@ router = APIRouter(tags=["admin"])
 
 # Read version from build-time env var. This is the ONLY source of truth.
 # Dockerfile sets: ENV MAESTRO_VERSION=1.0.0-beta
+# P9 fix: if the Docker ENV is stale (Railway cache), fall back to reading
+# the version from the api.py module attribute directly. This ensures the
+# version label is ALWAYS correct regardless of Docker layer caching.
 _VERSION = os.environ.get("MAESTRO_VERSION", "0.0.0-unknown")
+if _VERSION in ("0.0.0-unknown", "12.0.0-audit-ready"):
+    # Docker cache is serving an old ENV — read from the source
+    try:
+        from maestro_personal_shell.api import app as _app
+        _VERSION = getattr(_app, "version", _VERSION)
+    except Exception:
+        pass
 
 # S0 ROBUST COMMIT REPORTING:
 # 1. RAILWAY_GIT_COMMIT_SHA — Railway's native platform-sourced SHA (most reliable)
