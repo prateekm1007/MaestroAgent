@@ -255,10 +255,35 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         else:
             signal_type_override = req.signal_type  # keep lifecycle type
     except Exception as e:
-        logger.debug("Commitment classification failed (non-fatal): %s", e)
-        metadata["commitment_type"] = "unclassified"
-        metadata["is_commitment"] = None  # unknown — don't filter
-        signal_type_override = req.signal_type  # fall back to caller's type
+        logger.warning("Commitment classification failed: %s — falling back to rules classifier", e)
+        # P37 fix: even if the LLM fails, run the rules classifier so we
+        # still get a classification. The rules classifier catches questions,
+        # tentative, etc. without needing the LLM.
+        try:
+            from maestro_personal_shell.commitment_classifier import _rule_based_classify
+            classification = _rule_based_classify(sanitized_text, req.entity)
+            metadata["commitment_type"] = classification.get("commitment_type", "not_a_commitment")
+            metadata["is_commitment"] = classification.get("is_commitment", False)
+            metadata["commitment_state"] = classification.get("state", "candidate")
+            metadata["commitment_confidence"] = classification.get("confidence", 0.5)
+            metadata["commitment_owner"] = classification.get("owner", "unknown")
+            metadata["classification_reasoning"] = f"rule-based fallback (LLM failed: {e})"
+            metadata["llm_powered"] = False
+
+            classified_type = classification.get("commitment_type", "not_a_commitment")
+            NON_COMMITMENT_TYPES = {
+                "not_a_commitment", "tentative", "proposal", "request",
+                "aspiration", "negation",
+            }
+            if classified_type in NON_COMMITMENT_TYPES:
+                signal_type_override = "not_a_commitment"
+            else:
+                signal_type_override = req.signal_type
+        except Exception as e2:
+            logger.error("Rules classifier also failed: %s", e2)
+            metadata["commitment_type"] = "unclassified"
+            metadata["is_commitment"] = None
+            signal_type_override = req.signal_type
 
     # F3: Resolve entity to canonical form to prevent fragmentation.
     # "Acme Corp", "client", "AcmeCorp" → single canonical entity.
