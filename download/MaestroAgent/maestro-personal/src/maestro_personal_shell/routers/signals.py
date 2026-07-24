@@ -258,6 +258,32 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
             "not_a_commitment", "tentative", "proposal", "request",
             "aspiration", "negation",
         }
+
+        # P37/Kimi-K3 fix: if the LLM says "commitment" but the rules
+        # classifier says "not_a_commitment", trust the RULES for clear-cut
+        # cases (questions, tentative, etc.). The LLM (Gemma 12B) sometimes
+        # classifies questions as commitments — the rules classifier is more
+        # reliable for structural patterns (interrogative mood, tentative
+        # hedges). Run the rules classifier as a secondary check whenever
+        # the LLM says it IS a commitment.
+        if classified_type not in NON_COMMITMENT_TYPES and classification.get("llm_powered", False):
+            try:
+                rules_result = _rule_based_classify(sanitized_text, req.entity)
+                rules_type = rules_result.get("commitment_type", "not_a_commitment")
+                if rules_type in NON_COMMITMENT_TYPES:
+                    # Rules classifier overrides LLM for clear non-commitments
+                    classified_type = rules_type
+                    metadata["commitment_type"] = rules_type
+                    metadata["is_commitment"] = rules_result.get("is_commitment", False)
+                    metadata["commitment_state"] = rules_result.get("state", "candidate")
+                    metadata["classification_reasoning"] = (
+                        f"rules override: LLM said {classified_type} but rules "
+                        f"detected {rules_type} ({rules_result.get('reasoning','')[:100]})"
+                    )
+                    metadata["llm_powered"] = False
+            except Exception:
+                pass  # rules check is best-effort; LLM result stands
+
         if classified_type in NON_COMMITMENT_TYPES:
             signal_type_override = "not_a_commitment"
         else:
