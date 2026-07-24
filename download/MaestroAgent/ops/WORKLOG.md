@@ -58,3 +58,18 @@ Gate: 23/23 PASS at full strength (was 17/17). New assertions: [COLD]x2, [WC]x1,
   (3) Yahoo one-click OAuth ✓
 
 Commits: c010812, 0dca0d7, 98d511e on origin/main.
+
+---
+Task ID: 10 (auditor 2026-07-24 IA redesign — 7→4 tab collapse)
+Agent: New Coder (2026-07-24 session)
+
+IA redesign: 7 tabs → 4 tabs (Today/Ask/Commitments/More). Rename Dashboard→Today.
+Fold map (move, don't delete): Prepare→Today card + Ask prep intent, Inbox→More→Browse sources, Agents→Today proactive + More→agent-controls.
+Today connectors banner: dismissible + snooze 3d, auto-hide on first connect, persists per-user.
+Bubble tour: 4-step coach-mark, trust/data disclosure first, persists per-user, replay button in More.
+Playwright UI gate (18 assertions): nav count==4, labels Today/Ask/Commitments/More, no legacy labels, tour fires+persists, banner honest, More sub-sections reachable, no 404s, no console errors.
+
+CI: both gates (backend 23/23 + UI 18/18) green on commit e540966, auto-fired on push.
+Run URL: https://github.com/prateekm1007/MaestroAgent/actions/runs/30072028761
+
+Commits: 2b054ea (IA redesign), e540966 (wire UI gate into CI).
