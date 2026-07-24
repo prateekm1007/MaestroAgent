@@ -335,6 +335,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 "timestamp": e.get("updated_at", e.get("created_at", "")),
                                 "signal_id": e.get("signal_id", ""),
                                 "source_type": "ledger",
+                                "commitment_type": e.get("commitment_type", ""),
                             })
 
                         # HISTORY: superseded entries (separate section)
