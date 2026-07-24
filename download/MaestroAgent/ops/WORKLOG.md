@@ -97,3 +97,15 @@ Genuinely-open work done:
 Pending: frontend deploy (operational — Prateek needs to deploy web-production-d5c26 from latest main).
 
 Commits: 276f275, 96e2de1, abf142a, 602fdc2, 2a80379.
+
+---
+Task ID: 12 (auditor 2026-07-24 path-to-🟢 — items 3/4/5 verified + boundaries)
+Agent: New Coder (2026-07-24 session)
+
+Item 3 (what-changed + completion): ALREADY in gate ([WC] line 348, [CMPL] lines 374/379). Live-verified: what-changed returns 3 deltas, completion completed=1/total=5. DONE.
+Item 4 ([C] probe output): live-verified. score=0.0, justification="blatant denial of evidence... warrants 0.0", suggestions include "Avoid denying commitments present in evidence." DONE.
+Item 5 (calibration UI gate): added [CALIBRATION] assertion to ui_gate.py. UI gate now 19 assertions. DONE.
+Item 1 (CI green end-to-end): backend 29/29 green in CI. UI gate correct but blocked on frontend deploy (can't find frontend service from sandbox). HONEST BOUNDARY.
+Item 2 (Yahoo OAuth end-to-end): built, not verified. Requires Prateek's Yahoo Developer app + env vars + browser consent. HONEST BOUNDARY.
+
+Backend gate: 29/29 GREEN. Commits: 590db81 (calibration UI gate).
