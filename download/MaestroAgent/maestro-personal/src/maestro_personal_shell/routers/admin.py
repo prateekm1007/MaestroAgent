@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 router = APIRouter(tags=["admin"])
 
 # Read version from build-time env var. This is the ONLY source of truth.
-# Dockerfile sets: ENV MAESTRO_VERSION=12.0.0-audit-ready
+# Dockerfile sets: ENV MAESTRO_VERSION=1.0.0-beta
 _VERSION = os.environ.get("MAESTRO_VERSION", "0.0.0-unknown")
 
 # S0 ROBUST COMMIT REPORTING:

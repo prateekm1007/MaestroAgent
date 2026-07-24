@@ -37,6 +37,7 @@ import {
   type DraftWithMeta,
 } from "./DraftApprovalModal";
 import { TodayConnectorsBanner } from "./TodayConnectorsBanner";
+import { FeatureBubble } from "./FeatureBubble";
 
 export function Dashboard({
   llm,
@@ -237,6 +238,11 @@ export function Dashboard({
           Shows when 0 connectors are connected. Dismissible + snooze 3d.
           Auto-hides once ≥1 connector is connected. Persists per-user. */}
       <TodayConnectorsBanner onNavigateToMore={() => onNavigate("more")} />
+
+      {/* P40 world-class Today surface — rotating feature tip bubble.
+          Feels like a helpful coach, not a notification. Dismissible
+          (persisted), replayable from More → Settings. */}
+      <FeatureBubble />
 
       {/* AMBIENT INTELLIGENCE — Smart Notifications (Phase 19) */}
       {smartNotifs.length > 0 && (

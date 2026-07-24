@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   Database,
   Download,
+  Lightbulb,
   Loader2,
+  RotateCcw,
   Shield,
   ShieldAlert,
   Trash2,
@@ -56,6 +58,7 @@ import {
 } from "@/lib/maestro-api";
 import { useToast } from "@/hooks/use-toast";
 import { Connectors } from "@/components/maestro/Connectors";
+import { replayFeatureBubble, isFeatureBubbleDismissed } from "@/components/maestro/FeatureBubble";
 
 // P1-11: Notification prefs localStorage key (mobile uses AsyncStorage — same shape)
 const NOTIF_PREFS_KEY = "maestro.notification_prefs";
@@ -661,6 +664,39 @@ export function Settings() {
                 </button>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* P40 world-class Today surface — replay the feature tip bubble.
+            Lets the user re-enable the rotating tips they dismissed on Today. */}
+        <Card className="border-border/60">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <Lightbulb className="size-3.5" />
+              <span>Tips &amp; Features</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The Today view shows a rotating tip bubble with helpful ways to use Maestro —
+              evidenced answers, connectors, provenance, and more.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                replayFeatureBubble();
+                toast({
+                  title: "Tips re-enabled",
+                  description: "The feature tip bubble will reappear on the Today view.",
+                });
+              }}
+            >
+              <RotateCcw className="size-3.5 mr-1.5" />
+              {typeof window !== "undefined" && isFeatureBubbleDismissed()
+                ? "Re-enable tips on Today"
+                : "Replay tips on Today"}
+            </Button>
           </CardContent>
         </Card>
       </div>

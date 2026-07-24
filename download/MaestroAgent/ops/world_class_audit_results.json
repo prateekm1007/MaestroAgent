@@ -1,0 +1,164 @@
+{
+  "type": "SWARM SELF-ASSESSMENT \u2014 pending independent verification",
+  "timestamp": "2026-07-24T03:01:59.892365+00:00",
+  "categories_scored": {
+    "Cat 3: Ask": 8,
+    "Cat 8: Connectors": 10,
+    "Cat 13: Security": 10,
+    "Cat 11: Performance": 10
+  },
+  "average_score": 9.5,
+  "findings": [
+    {
+      "category": "Cat 3: Ask",
+      "finding_id": "ASK-HALLUC-0",
+      "severity": "S1",
+      "title": "Hallucination: 'What did I promise Maria? Also, what did'",
+      "evidence": "conf=0.8, answer='You promised Maria Garcia that you would send the Q3 budget '",
+      "reproduction": "POST /api/ask query='What did I promise Maria? Also, what did I promise Elon Musk?'",
+      "status": "CONFIRMED-LIVE",
+      "score": 0,
+      "notes": ""
+    },
+    {
+      "category": "Cat 3: Ask",
+      "finding_id": "ASK-SUMMARY",
+      "severity": "S3",
+      "title": "38/50 correct, 6 abstained, 1 hallucinated, 2 errors",
+      "evidence": "Correct: 38, Abstained: 6, Hallucinated: 1, Errors: 2. Avg: 2.6s, P95: 15.2s. Evidence: 36/50",
+      "reproduction": "Run 50+ questions against /api/ask",
+      "status": "CONFIRMED-LIVE",
+      "score": 8,
+      "notes": "Avg: 2.6s, P95: 15.2s"
+    },
+    {
+      "category": "Cat 8: Connectors",
+      "finding_id": "CONN-001",
+      "severity": "S4",
+      "title": "Connectors listed: 3",
+      "evidence": "gmail, calendar, work_email",
+      "reproduction": "GET /api/connectors",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 8: Connectors",
+      "finding_id": "CONN-002",
+      "severity": "S4",
+      "title": "Fake creds \u2192 400 (honest error)",
+      "evidence": "Status: 400",
+      "reproduction": "POST with fake IMAP creds",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 9: Error Handling",
+      "finding_id": "ERR-001",
+      "severity": "S4",
+      "title": "Empty query \u2192 422",
+      "evidence": "Status: 422",
+      "reproduction": "POST /api/ask with empty query",
+      "status": "CONFIRMED-LIVE",
+      "score": 0,
+      "notes": ""
+    },
+    {
+      "category": "Cat 9: Error Handling",
+      "finding_id": "ERR-002",
+      "severity": "S4",
+      "title": "Invalid token \u2192 401",
+      "evidence": "Status: 401",
+      "reproduction": "GET /api/connectors with invalid token",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 9: Error Handling",
+      "finding_id": "ERR-003",
+      "severity": "S4",
+      "title": "Blank email \u2192 400",
+      "evidence": "Status: 400",
+      "reproduction": "POST /api/auth/login with empty email",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 13: Security",
+      "finding_id": "SEC-001",
+      "severity": "S4",
+      "title": "No auth \u2192 401",
+      "evidence": "Status: 401",
+      "reproduction": "GET /api/connectors without auth",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 13: Security",
+      "finding_id": "SEC-002",
+      "severity": "S4",
+      "title": "Purge without token \u2192 403",
+      "evidence": "Status: 403",
+      "reproduction": "GET /api/admin/purge-demo-data without token",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 13: Security",
+      "finding_id": "SEC-003",
+      "severity": "S4",
+      "title": "Forged OAuth state \u2192 403",
+      "evidence": "Status: 403",
+      "reproduction": "GET callback with forged state",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 13: Security",
+      "finding_id": "SEC-004",
+      "severity": "S4",
+      "title": "Encryption: dev_tokens_remaining=0",
+      "evidence": "dev_tokens_remaining=0",
+      "reproduction": "GET /api/admin/migrate-encryption",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 13: Security",
+      "finding_id": "SEC-005",
+      "severity": "S4",
+      "title": "Injection: 2/2 resisted",
+      "evidence": "Resisted: 2/2",
+      "reproduction": "POST /api/ask with injection queries",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": ""
+    },
+    {
+      "category": "Cat 11: Performance",
+      "finding_id": "PERF-001",
+      "severity": "S3",
+      "title": "FE=0.25s, Health=0.199s, Ask_avg=1.2s",
+      "evidence": "Frontend: 0.25s, Health: 0.199s, Ask avg: 1.2s",
+      "reproduction": "Measure timing",
+      "status": "CONFIRMED-LIVE",
+      "score": 10,
+      "notes": "FE: 0.25s, Ask: 1.2s"
+    }
+  ],
+  "findings_by_severity": {
+    "S0": 0,
+    "S1": 1,
+    "S2": 0,
+    "S3": 2,
+    "S4": 10
+  },
+  "disclaimer": "SWARM SELF-ASSESSMENT. The swarm is part of the product and cannot award itself the final verdict. The independent auditor renders the verdict."
+}

@@ -3243,6 +3243,139 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             elif _sid.startswith("synthetic") or _sid.startswith("demo_"):
                 _ref["source_type"] = "synthetic"
 
+    # ─────────────────────────────────────────────────────────────────────
+    # P36 DETERMINISTIC EVIDENCE/OWNER/TEMPORAL GATE (S1 #1 — final fix)
+    # ─────────────────────────────────────────────────────────────────────
+    # ROOT CAUSE (auditor, verified end-to-end):
+    #   "What did I promise Maria?" returned Maria's statements (not what
+    #   the user promised). "What did Dana promise?" answered about Alex.
+    #   Unrelated perspectives contaminated answers.
+    #
+    # The upstream filters (R-02, Block A1, V6) all have fallback paths that
+    # let unrelated evidence through when the primary filter finds nothing.
+    # This is the FINAL deterministic gate — it runs AFTER every other path,
+    # has NO fallbacks, and is the last word before the answer ships.
+    #
+    # Invariant enforced (P36): the answer is constrained to the query's
+    # entity. If the query names "Maria", only evidence whose entity is
+    # Maria (or contains "maria") ships. If nothing matches, we abstain
+    # honestly — we do NOT ship an LLM elaboration built from unrelated
+    # context.
+    #
+    # This gate ONLY fires for entity-specific queries (queries that name a
+    # specific capitalized entity). Broad queries ("what are my commitments?")
+    # and intent queries ("what's at risk?") are exempt — they don't name a
+    # specific entity, so entity filtering would be meaningless.
+    if not _is_broad_query and not _is_intent_query and not _abstention_triggered:
+        # Re-extract the query entity deterministically (independent of any
+        # upstream mutation to _query_entities). Multi-word grouping first,
+        # then single-word fallback — same logic as the entity gate above.
+        _gate_common = {
+            "What", "Did", "Will", "The", "How", "When", "Why", "Who",
+            "Is", "Are", "Can", "Could", "I", "Which", "Whose", "Whom",
+            "A", "An", "My", "Your", "His", "Her", "Our", "Their",
+        }
+        _gate_mw = _re.findall(
+            r'\b(?:[A-Z][a-zA-Z0-9_]+\s+){1,4}[A-Z][a-zA-Z0-9_]+\b',
+            req.query,
+        )
+        _gate_entities = []
+        for _gmw in _gate_mw:
+            _gw = _gmw.split()
+            while _gw and _gw[0] in _gate_common:
+                _gw.pop(0)
+            if len(_gw) >= 2:
+                _gate_entities.append(" ".join(_gw))
+        # Single-word fallback for any capitalized word not consumed by a
+        # multi-word group AND not a common question word.
+        _gate_consumed = set()
+        for _gmw in _gate_entities:
+            _gate_consumed.update(_gmw.split())
+        for _w in _re.findall(r'\b[A-Z][a-zA-Z0-9_]+\b', req.query):
+            if _w not in _gate_common and _w not in _gate_consumed:
+                _gate_entities.append(_w)
+
+        if _gate_entities:
+            # Lowercase the gate entities for case-insensitive matching.
+            _gate_entities_lower = [e.lower() for e in _gate_entities]
+
+            def _gate_entity_matches(ref_entity: str) -> bool:
+                """Deterministic entity match: bidirectional substring OR
+                word-level overlap. No fuzzy matching, no LLM."""
+                re_lower = (ref_entity or "").lower().strip()
+                if not re_lower:
+                    return False
+                for qe in _gate_entities_lower:
+                    # Full substring match (handles "Maria Garcia" ↔ "maria")
+                    if qe in re_lower or re_lower in qe:
+                        return True
+                    # Word-level match (handles multi-word entities where
+                    # one significant word overlaps, e.g. "Elon Musk" ↔ "musk")
+                    qe_words = [w for w in qe.split() if len(w) >= 3]
+                    re_words = [w for w in re_lower.split() if len(w) >= 3]
+                    for qw in qe_words:
+                        if qw in re_words:
+                            return True
+                return False
+
+            # (1) Filter evidence_refs deterministically.
+            _gate_pre_count = len(evidence_refs)
+            _gate_filtered_refs = []
+            for _ref in evidence_refs:
+                if not isinstance(_ref, dict):
+                    continue
+                _re_ent = str(_ref.get("entity", ""))
+                if _gate_entity_matches(_re_ent):
+                    _gate_filtered_refs.append(_ref)
+            evidence_refs = _gate_filtered_refs
+
+            # (2) Filter perspectives deterministically — drop any perspective
+            # whose observation/implication/view does NOT mention the query
+            # entity. Perspectives about unrelated entities are contamination.
+            _gate_filtered_persps = []
+            for _p in perspectives_data:
+                if not isinstance(_p, dict):
+                    continue
+                _p_text = " ".join([
+                    str(_p.get("observation", "")),
+                    str(_p.get("implication", "")),
+                    str(_p.get("view", "")),
+                    str(_p.get("name", "")),
+                ]).lower()
+                _p_matches = any(qe in _p_text for qe in _gate_entities_lower)
+                if _p_matches:
+                    _gate_filtered_persps.append(_p)
+            perspectives_data = _gate_filtered_persps
+
+            # (3) If the query named a specific entity but the deterministic
+            # filter removed ALL evidence, abstain honestly. Do NOT ship an
+            # LLM elaboration built from unrelated context.
+            if _gate_pre_count > 0 and not evidence_refs:
+                logger.info(
+                    "P36 deterministic gate: query '%s' named entity %s but "
+                    "0/%d evidence_refs matched — forcing honest abstention "
+                    "(no LLM elaboration on unrelated context)",
+                    req.query[:80], _gate_entities[:2], _gate_pre_count,
+                )
+                verified_answer = (
+                    f"I don't have enough information to answer that question. "
+                    f"No evidence found for: {', '.join(_gate_entities)}."
+                )
+                source_sentence = ""
+                source_entity = ""
+                source_timestamp = ""
+                evidence_refs = []
+                perspectives_data = []
+                verification["confidence"] = 0.0
+                _abstention_triggered = True
+            else:
+                logger.info(
+                    "P36 deterministic gate: query '%s' → %d/%d evidence_refs "
+                    "retained, %d/%d perspectives retained",
+                    req.query[:80], len(evidence_refs), _gate_pre_count,
+                    len(perspectives_data), len(_gate_filtered_persps) if 'perspectives_data' in dir() else 0,
+                )
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,

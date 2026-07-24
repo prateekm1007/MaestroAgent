@@ -7,9 +7,9 @@
  * Shown before Login if the flag is not set.
  *
  * Steps:
- *   1. Maestro remembers what you promised
- *   2. Ask Maestro anything (with sources)
- *   3. Trusted Silence (impossible questions return "no data found")
+ *   1. Maestro remembers what you promised — every commitment becomes a signal
+ *   2. Ask Maestro anything — every answer cites the exact source sentence
+ *   3. Trusted Silence — when Maestro doesn't know, it says so
  */
 
 import { useState } from "react";

@@ -167,6 +167,48 @@ async def delete_account(token: str = Depends(verify_token_dep)):
     except Exception as e:
         logger.debug("FTS cleanup after delete failed (non-fatal): %s", e)
 
+    # P38 DELETION FINALITY (S1 #3 — auditor critical finding):
+    # After DELETE /api/account, re-login with the same credentials MUST fail.
+    # The previous implementation only wiped the user's data but left the
+    # user_accounts row intact (with active=1), so re-login succeeded and
+    # minted a fresh token — resurrection by re-login.
+    #
+    # Fix: record the deleted email in a dedicated `deleted_accounts` table.
+    # The login and register endpoints check this table and REJECT any
+    # attempt to authenticate or re-create a deleted account (403).
+    # Deletion is final.
+    try:
+        _conn2 = get_db_conn(db)
+        try:
+            _conn2.execute("""
+                CREATE TABLE IF NOT EXISTS deleted_accounts (
+                    user_email TEXT PRIMARY KEY,
+                    deleted_at TEXT NOT NULL
+                )
+            """)
+            _conn2.execute(
+                "INSERT OR REPLACE INTO deleted_accounts (user_email, deleted_at) VALUES (?, ?)",
+                (token, datetime.now(timezone.utc).isoformat()),
+            )
+            # Also deactivate the user_accounts row so the login DB lookup
+            # (which checks active=1) fails. Belt + suspenders: the
+            # deleted_accounts table is the primary gate, but deactivating
+            # the row prevents the password-hash path from succeeding even
+            # if the deleted_accounts check is somehow bypassed.
+            try:
+                _conn2.execute(
+                    "UPDATE user_accounts SET active = 0 WHERE user_email = ?",
+                    (token,),
+                )
+            except sqlite3.OperationalError:
+                pass  # user_accounts table may not exist (dev/bootstrap mode)
+            _conn2.commit()
+            deleted_stores.append("deleted_accounts")
+        finally:
+            _conn2.close()
+    except Exception as e:
+        logger.error("CRITICAL: failed to record deletion in deleted_accounts: %s", e)
+
     return {
         "message": f"Account deleted. Data removed from {len(deleted_stores)} stores.",
         "status": "ok",

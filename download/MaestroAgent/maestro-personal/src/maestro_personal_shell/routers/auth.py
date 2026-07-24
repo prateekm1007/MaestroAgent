@@ -14,6 +14,26 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 # ---------------------------------------------------------------------------
+# Demo identity allowlist + alias map (module-level so the P38 deletion gate
+# can reference _DEMO_ALIAS_MAP before the login function body defines it).
+# ---------------------------------------------------------------------------
+
+# The set of user identities that the shared secret is allowed to mint.
+# "default@personal.local" is the canonical default user (has seeded demo data).
+# "bootstrap" and "bootstrap@maestro.local" are the documented demo login
+# — but the demo seed is scoped to "default@personal.local", so we map
+# bootstrap → default internally to ensure the demo data is visible.
+_ALLOWED_DEMO_IDENTITIES = {"default@personal.local", "bootstrap", "bootstrap@maestro.local"}
+# R2 fix (auditor S1): bootstrap login was returning 0 commitments because
+# demo data is seeded for "default@personal.local". Map bootstrap → default
+# so the documented demo login actually shows the demo data.
+_DEMO_ALIAS_MAP = {
+    "bootstrap": "default@personal.local",
+    "bootstrap@maestro.local": "default@personal.local",
+}
+
+
+# ---------------------------------------------------------------------------
 # verify_token — pulled lazily from api.py at request time so the router
 # can be imported before api.py finishes initializing (avoiding a circular
 # import). FastAPI inspects this dependency's signature and injects the
@@ -63,6 +83,63 @@ async def login(request: Request, req: LoginRequest):
     if not req.user_email and req.email:
         req.user_email = req.email
 
+    # P38 DELETION FINALITY (S1 #3): if this email was previously deleted via
+    # DELETE /api/account, REJECT the login with 403. Deletion is final —
+    # no resurrection by re-login. This check runs BEFORE any token minting
+    # path (shared secret, AUTH_TOKEN, or user_accounts DB).
+    _requested_email_for_gate = (req.user_email or "").strip().lower()
+    if _requested_email_for_gate and _is_deleted_account(_requested_email_for_gate):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This account has been deleted and cannot be reactivated. "
+                "Deletion is final. Please register a new account with a "
+                "different email address."
+            ),
+        )
+    # Also check the demo-alias-mapped email (bootstrap → default@personal.local).
+    # If the canonical user was deleted, the alias must also be blocked.
+    _mapped_for_gate = _DEMO_ALIAS_MAP.get(
+        _requested_email_for_gate, _requested_email_for_gate
+    ) if _requested_email_for_gate else ""
+    if _mapped_for_gate and _mapped_for_gate != _requested_email_for_gate:
+        if _is_deleted_account(_mapped_for_gate):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "This account has been deleted and cannot be reactivated. "
+                    "Deletion is final. Please register a new account with a "
+                    "different email address."
+                ),
+            )
+
+    # P39 ISOLATE SHARED DEMO IDENTITY (S1 #4 — auditor critical finding):
+    # `bootstrap@maestro.local` / `maestro-demo` works on production and maps
+    # to a shared identity with real data. This is a cross-user contamination
+    # risk: anyone who knows the demo password can access the shared identity's
+    # data in production.
+    #
+    # Fix: in production (MAESTRO_PERSONAL_ENV=production OR RAILWAY_SERVICE_ID
+    # is set), REJECT login from any demo identity with 403. Only allow demo
+    # login in explicit dev mode (MAESTRO_LOCAL_DEV=true) — a conscious opt-in.
+    _is_prod_env = _is_production() or os.environ.get("RAILWAY_SERVICE_ID") is not None
+    _is_local_dev = os.environ.get("MAESTRO_LOCAL_DEV", "").lower() in ("1", "true", "yes")
+    if _is_prod_env and not _is_local_dev:
+        if _requested_email_for_gate in _ALLOWED_DEMO_IDENTITIES:
+            logger.warning(
+                "P39: rejected demo identity '%s' login in production "
+                "(MAESTRO_PERSONAL_ENV=production, RAILWAY_SERVICE_ID=%s)",
+                _requested_email_for_gate,
+                "set" if os.environ.get("RAILWAY_SERVICE_ID") else "unset",
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Demo credentials are not available in production. "
+                    "Please register a new account."
+                ),
+            )
+
     env_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
 
     # F8/S1 fix (independent audit): dev mode must NOT mint tokens for
@@ -90,19 +167,9 @@ async def login(request: Request, req: LoginRequest):
         "MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL", ""
     ).lower() in ("1", "true", "yes")
 
-    # The set of user identities that the shared secret is allowed to mint.
-    # "default@personal.local" is the canonical default user (has seeded demo data).
-    # "bootstrap" and "bootstrap@maestro.local" are the documented demo login
-    # — but the demo seed is scoped to "default@personal.local", so we map
-    # bootstrap → default internally to ensure the demo data is visible.
-    _ALLOWED_DEMO_IDENTITIES = {"default@personal.local", "bootstrap", "bootstrap@maestro.local"}
-    # R2 fix (auditor S1): bootstrap login was returning 0 commitments because
-    # demo data is seeded for "default@personal.local". Map bootstrap → default
-    # so the documented demo login actually shows the demo data.
-    _DEMO_ALIAS_MAP = {
-        "bootstrap": "default@personal.local",
-        "bootstrap@maestro.local": "default@personal.local",
-    }
+    # NOTE: _ALLOWED_DEMO_IDENTITIES and _DEMO_ALIAS_MAP are now defined at
+    # module level (top of file) so the P38 deletion-finality gate can
+    # reference _DEMO_ALIAS_MAP before this point in the function.
 
     if env_token and req.password == env_token:
         # P1 PERMANENT FIX (BE-002): reject blank-email login entirely.
@@ -243,6 +310,37 @@ def _verify_password(password: str, stored: str) -> bool:
         return False
 
 
+def _is_deleted_account(user_email: str) -> bool:
+    """P38 DELETION FINALITY: check if an email is in the deleted_accounts table.
+
+    Returns True if the account was previously deleted via DELETE /api/account.
+    The login and register endpoints use this to REJECT re-authentication and
+    re-registration (403). Deletion is final.
+    """
+    if not user_email:
+        return False
+    try:
+        from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+        import sqlite3
+        db = get_db_conn(default_sqlite_path())
+        try:
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS deleted_accounts (
+                    user_email TEXT PRIMARY KEY,
+                    deleted_at TEXT NOT NULL
+                )
+            """)
+            row = db.execute(
+                "SELECT 1 FROM deleted_accounts WHERE user_email = ?",
+                (user_email,),
+            ).fetchone()
+            return row is not None
+        finally:
+            db.close()
+    except Exception:
+        return False
+
+
 @router.post("/register", response_model=RegisterResponse)
 @_maybe_login_decorator()
 async def register(request: Request, req: RegisterRequest):
@@ -253,6 +351,21 @@ async def register(request: Request, req: RegisterRequest):
     # Validate password strength
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    # P38 DELETION FINALITY (S1 #3): if this email was previously deleted via
+    # DELETE /api/account, REJECT re-registration with 403. Deletion is final —
+    # the email cannot be reused. This prevents a deleted user from silently
+    # re-creating an account with the same email (which would look like
+    # resurrection to anyone who knew the old account existed).
+    if _is_deleted_account((req.user_email or "").strip().lower()):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This email address was previously associated with a deleted "
+                "account and cannot be re-registered. Deletion is final. "
+                "Please use a different email address."
+            ),
+        )
 
     from maestro_personal_shell.db_util import default_sqlite_path
     db_path = default_sqlite_path()
