@@ -294,10 +294,12 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
 
                 for ent in _queried_entities:
                     _entries = get_ledger_entries(token, _db_path, entity=ent)
-                    # Filter out tombstoned/superseded — show current state only
+                    # Show ALL non-tombstoned entries — including superseded,
+                    # so reschedules are visible. The state_display tells the
+                    # user the current status of each commitment.
                     _active_entries = [
                         e for e in _entries
-                        if e.get("state") not in ("tombstoned", "superseded")
+                        if e.get("state") != "tombstoned"
                     ]
 
                     if _active_entries:
@@ -316,6 +318,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 "completed_verified": "completed (verified)",
                                 "disputed": "disputed",
                                 "cancelled": "cancelled",
+                                "superseded": "superseded (rescheduled/replaced)",
                             }.get(_state, _state)
 
                             _line = f"• [{ent}] {_action[:80]}"
