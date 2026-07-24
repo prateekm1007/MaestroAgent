@@ -239,16 +239,18 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         metadata["classification_reasoning"] = classification.get("reasoning", "")
         metadata["llm_powered"] = classification.get("llm_powered", False)
 
-        # P37: Override the caller-provided signal_type with the classifier's
-        # verdict. The signal_type is what the commitment surface reads; if
-        # the classifier says "not_a_commitment", the signal_type MUST reflect
-        # that, regardless of what the caller claimed.
         classified_type = classification.get("commitment_type", "not_a_commitment")
-        if classified_type != "not_a_commitment":
-            # Map classifier types to signal types for backward compat
-            signal_type_override = classified_type
-        else:
+
+        # P37: Override the caller-provided signal_type with the classifier's
+        # verdict ONLY when the classifier says it's NOT a commitment.
+        # For real commitments, keep the caller-provided signal_type (which
+        # encodes the lifecycle event: made/updated/completed/broken).
+        # This prevents questions/tentative/jokes from appearing as active
+        # commitments while preserving the lifecycle semantics.
+        if classified_type == "not_a_commitment":
             signal_type_override = "not_a_commitment"
+        else:
+            signal_type_override = req.signal_type  # keep lifecycle type
     except Exception as e:
         logger.debug("Commitment classification failed (non-fatal): %s", e)
         metadata["commitment_type"] = "unclassified"
