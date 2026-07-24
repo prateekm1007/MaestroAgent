@@ -281,9 +281,15 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
                 signal_type_override = req.signal_type
         except Exception as e2:
             logger.error("Rules classifier also failed: %s", e2)
-            metadata["commitment_type"] = "unclassified"
+            metadata["commitment_type"] = "needs_review"
             metadata["is_commitment"] = None
-            signal_type_override = req.signal_type
+            metadata["commitment_state"] = "needs_review"
+            metadata["classification_reasoning"] = f"both LLM and rules classifier failed: {e} / {e2}"
+            metadata["llm_powered"] = False
+            # P3 auditor principle: classification failure → needs_review,
+            # NEVER silent admission as a commitment. If we can't classify
+            # it, it must NOT appear as an active commitment.
+            signal_type_override = "needs_review"
 
     # F3: Resolve entity to canonical form to prevent fragmentation.
     # "Acme Corp", "client", "AcmeCorp" → single canonical entity.
