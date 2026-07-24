@@ -435,3 +435,68 @@ jobs:
                 'If this fails, a classifier regression was caught before it could ship.'
               ].join('\n')
             });
+
+  # ─────────────────────────────────────────────────────────────────────
+  # ASK CORRECTNESS GATE (auditor 2026-07-24 — answer engine correctness)
+  # ─────────────────────────────────────────────────────────────────────
+  # Auditor: "Build the Ask correctness gate: take the adversarial Ask
+  # battery (easy / temporal / relationship / negative / unknown /
+  # contradictory) and gate merges on the Ask engine passing them —
+  # correct answer, correct abstention on unknowns, evidence present,
+  # no contradiction-denial, no contamination."
+  #
+  # This is the answer-engine correctness gate that complements the
+  # classifier-goldset (extraction correctness). Together they cover
+  # BOTH intelligence components: extraction + answer.
+  ask-correctness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [permanence-gate]  # Run AFTER backend gate to avoid SQLite contention
+
+    env:
+      MAESTRO_BACKEND_URL: https://maestroagent-production.up.railway.app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install httpx
+        run: python -m pip install --quiet httpx
+
+      - name: Run Ask correctness gate (13 adversarial question cases)
+        working-directory: download/MaestroAgent
+        run: |
+          set -euo pipefail
+          echo "=== ASK CORRECTNESS GATE (answer engine) ==="
+          echo "Running 13 adversarial cases across 7 categories:"
+          echo "easy / temporal / relationship / negative / unknown / contradictory / contamination"
+          echo ""
+          python3 ops/test_ask_correctness.py
+
+      - name: Notify on Ask correctness failure (PR)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## 🔴 Ask Correctness Gate FAILED',
+                '',
+                'The Ask engine failed one or more adversarial question cases.',
+                'The merge to main is BLOCKED until the Ask engine passes all cases.',
+                '',
+                `[View the failing run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                'This is the ANSWER-ENGINE correctness gate — it proves the Ask engine is right,',
+                'complementing the classifier-goldset (extraction correctness).',
+                'Categories: easy / temporal / relationship / negative / unknown / contradictory / contamination'
+              ].join('\n')
+            });
