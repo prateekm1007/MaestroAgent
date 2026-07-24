@@ -394,6 +394,15 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 _filtered_ledger.append(_le)
                         _ledger_evidence = _filtered_ledger
 
+                        # Rebuild answer lines from filtered evidence
+                        # (the original _answer_lines were built BEFORE the
+                        # ownership filter, so they include third-party reports)
+                        _answer_lines = []
+                        for _le in _ledger_evidence:
+                            _le_text = _le.get("text", "")
+                            _le_entity = _le.get("entity", "")
+                            _answer_lines.append(f"• [{_le_entity}] {_le_text[:80]}")
+
                     if not _ledger_evidence:
                         # All evidence was filtered out by ownership — abstain honestly
                         return AskResponse(
