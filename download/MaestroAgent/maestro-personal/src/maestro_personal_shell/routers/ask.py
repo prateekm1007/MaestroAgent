@@ -243,6 +243,125 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         except Exception as e:
             logger.debug("Ledger-state query failed (non-fatal, falling through): %s", e)
 
+    # ── RC2: LEDGER-READ FAST PATH for entity-specific queries ───────────
+    # ROOT CAUSE 2 FIX: The Ask engine reads the CURRENT RECONCILED STATE
+    # from the commitment ledger for entity-specific queries, BEFORE going
+    # to BM25/LLM. This means "What did I promise Maria?" returns the
+    # ledger's current state (including reschedules, completions, cancellations)
+    # as a FACT — not a contradiction the LLM has to notice.
+    #
+    # This is the <2s fast path (RC3's latency fix falls out of this):
+    # structured data from the ledger, no LLM call needed.
+    #
+    # Only fires for entity-specific queries (not broad/no-entity queries).
+    _ENTITY_QUERY_PATTERNS = [
+        "what did i promise", "what did i commit", "what did i say to",
+        "what did i tell", "what's my", "what is my",
+        "did i promise", "did i commit", "did i say",
+        "what did", "who did i", "any promises to",
+        "what commitments", "what do i owe",
+    ]
+    _is_entity_query = any(p in query_lower for p in _ENTITY_QUERY_PATTERNS)
+
+    if _is_entity_query:
+        # Extract entity name(s) from the query using the known entities
+        _all_signals = shell.oem_state.signals if hasattr(shell, 'oem_state') else []
+        _known_entities = set()
+        for sig in _all_signals:
+            sig_ent = getattr(sig, 'entity', '') or (sig.get('entity', '') if isinstance(sig, dict) else '')
+            if sig_ent:
+                _known_entities.add(sig_ent)
+
+        _queried_entities = set()
+        for ent in _known_entities:
+            ent_lower = ent.lower()
+            ent_parts = ent_lower.replace(",", " ").split()
+            for part in ent_parts:
+                if len(part) >= 3 and part in query_lower:
+                    _queried_entities.add(ent)
+                    break
+
+        if _queried_entities:
+            # We have a specific entity query — read the ledger
+            try:
+                from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+                _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                init_ledger_table(_db_path)
+
+                _ledger_evidence = []
+                _answer_lines = []
+                _has_active = False
+
+                for ent in _queried_entities:
+                    _entries = get_ledger_entries(token, _db_path, entity=ent)
+                    # Filter out tombstoned/superseded — show current state only
+                    _active_entries = [
+                        e for e in _entries
+                        if e.get("state") not in ("tombstoned", "superseded")
+                    ]
+
+                    if _active_entries:
+                        _has_active = True
+                        for e in _active_entries[:5]:
+                            _state = e.get("state", "unknown")
+                            _action = e.get("action", "") or e.get("description", "") or e.get("evidence_quote", "") or "Unknown commitment"
+                            _deadline = e.get("deadline_text", "")
+
+                            # Format the state for the user
+                            _state_display = {
+                                "candidate": "proposed",
+                                "active": "active",
+                                "at_risk": "at risk",
+                                "completed_claimed": "completed",
+                                "completed_verified": "completed (verified)",
+                                "disputed": "disputed",
+                                "cancelled": "cancelled",
+                            }.get(_state, _state)
+
+                            _line = f"• [{ent}] {_action[:80]}"
+                            if _deadline:
+                                _line += f" (deadline: {_deadline})"
+                            _line += f" — status: {_state_display}"
+                            _answer_lines.append(_line)
+
+                            _ledger_evidence.append({
+                                "text": e.get("evidence_quote", "") or _action,
+                                "entity": ent,
+                                "timestamp": e.get("updated_at", e.get("created_at", "")),
+                                "signal_id": e.get("signal_id", ""),
+                                "source_type": "ledger",
+                            })
+
+                if _has_active and _ledger_evidence:
+                    _ledger_answer = "Based on your commitment ledger:\n" + "\n".join(_answer_lines)
+                    logger.info(
+                        "RC2 ledger-read fast path: query=%r → %d entries for %d entities (no LLM needed)",
+                        req.query[:60], len(_ledger_evidence), len(_queried_entities),
+                    )
+                    return AskResponse(
+                        answer=_ledger_answer,
+                        query=req.query,
+                        source_sentence=_ledger_evidence[0].get("text", ""),
+                        source_entity=_ledger_evidence[0].get("entity", ""),
+                        source_timestamp=_ledger_evidence[0].get("timestamp", ""),
+                        situation_state="",
+                        evidence_refs=_ledger_evidence[:5],
+                        confidence=0.8,
+                        counterevidence=[],
+                        unknowns=[],
+                        as_of=str(as_of or ""),
+                        decision_boundary="",
+                        perspectives=[],
+                        reasoning_chain=[],
+                        calibration_note="Answered from commitment ledger (current reconciled state).",
+                        consequence_paths=[],
+                        llm_active=False,
+                        llm_provider="none",
+                        intelligence_source="ledger",
+                    )
+            except Exception as e:
+                logger.debug("RC2 ledger-read fast path failed (non-fatal, falling through): %s", e)
+
     # Skip the gate for genuinely broad queries that don't name a specific
     # entity ("what's going on?", "what changed?", "how many commitments?").
     # But "what did i promise elon musk?" is NOT broad — it names a specific
