@@ -153,3 +153,11 @@ S1 FIXED: mood/tense gate rejects interrogative + future-intention before keywor
 Gold-set: 2248 taxonomy cases, 2248/2248 PASS. CI classifier-goldset job added.
 CI GREEN on 89caa7b: all 5 jobs (permanence-gate 34/34, classifier-goldset 2248/2248, ui-gate skip, onboarding-funnel 6.22s, frontend-deploy skip).
 Gate now has BOTH halves: mechanics + correctness.
+
+---
+Task ID: 17 (auditor 2026-07-24 — Ask correctness gate)
+Agent: New Coder (2026-07-24 session)
+
+Ask correctness gate: 13 adversarial cases across 7 categories (easy/temporal/relationship/negative/unknown/contradictory/contamination). 13/13 PASS. CI ask-correctness job added.
+CI GREEN on 887eaaf: all 6 jobs (permanence-gate 34/34, classifier-goldset 2248/2248, ask-correctness 13/13, onboarding-funnel 6.22s, ui-gate skip, frontend-deploy skip).
+Gate now has 3 correctness layers: mechanics + extraction + answer.
