@@ -50,6 +50,14 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 # Copy source
 COPY --from=builder /build/ ./
 
+# P9 fix: force the version layer to rebuild on every deploy by echoing
+# CACHEBUST right before the ENV. Without this, Railway's Docker builder
+# caches the ENV layer and serves the old version label even when the
+# source code has changed. This was the root cause of the journey gate
+# failing on the "version is NOT audit-ready" assertion.
+ARG CACHEBUST
+RUN echo "CACHEBUST_FINAL=${CACHEBUST:-unset}"
+
 # Build identity — single source of truth.
 # R-traceability fix (reviewer): the commit SHA is now injected at build time
 # via BUILD_COMMIT arg. This ensures /api/health always reports the actual

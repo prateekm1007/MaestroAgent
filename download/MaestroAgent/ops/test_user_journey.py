@@ -93,6 +93,57 @@ def run_journey():
     except Exception as e:
         check("Frontend reachable", False, str(e)[:100])
 
+    # ── S1-SPECIFIC JOURNEY ASSERTIONS (auditor 2026-07-24) ───────────
+    # These 4 assertions verify the S1 fixes end-to-end through the real API.
+    # They MUST pass in the SAME run as the version check — not carried over.
+
+    print("\n[S1#2] Lifecycle admission — question must NOT surface as commitment")
+    # Insert a question-form signal through the real API
+    q_signal = {
+        "signal_id": f"s1q-{int(t0)}",
+        "entity": "S1Question Entity",
+        "text": "Will you send the report by Friday?",
+        "signal_type": "commitment_made",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "metadata": {"source": "s1_journey", "is_commitment": True, "commitment_type": "commitment_made", "commitment_state": "active", "commitment_owner": "user", "commitment_confidence": 0.9},
+    }
+    q_resp = api("POST", "/api/signals", token=token, body=q_signal)
+    time.sleep(3)
+    # Check /api/commitments — the question should NOT appear
+    comms2 = api("GET", "/api/commitments", token=token)
+    comm_list2 = comms2 if isinstance(comms2, list) else comms2.get("commitments", comms2.get("data", []))
+    q_in_commitments = any("s1question" in str(c.get("entity", "")).lower() for c in comm_list2)
+    check("S1#2: Question does NOT surface as active commitment", not q_in_commitments,
+          f"found_in_commitments={q_in_commitments}, total_commitments={len(comm_list2)}")
+
+    print("\n[S1#1] Evidence/owner constraint — answer must not contaminate")
+    # Ask about Jordan — the answer should only contain Jordan's evidence
+    ask2 = api("POST", "/api/ask", token=token, body={"query": "What did I promise Jordan?"})
+    answer2 = str(ask2.get("answer", ""))
+    evidence2 = ask2.get("evidence_refs", [])
+    # The answer should NOT mention "S1Question" (the question entity we just posted)
+    contamination = "s1question" in answer2.lower()
+    check("S1#1: Answer does NOT contaminate with unrelated entity", not contamination,
+          f"contaminated={contamination}, answer={answer2[:100]}")
+
+    print("\n[S1#3] Deletion finality — re-login must fail after delete")
+    # Delete the account
+    del_resp = api("DELETE", "/api/account", token=token)
+    check("S1#3: Account deletion succeeds", "error" not in del_resp, str(del_resp)[:100])
+    time.sleep(2)
+    # Try to re-login with the same credentials
+    relogin = api("POST", "/api/auth/login", body={"user_email": email, "password": "journey-pass"})
+    relogin_failed = "error" in relogin or relogin.get("detail", "")
+    check("S1#3: Re-login fails after deletion", bool(relogin_failed),
+          f"relogin_response={str(relogin)[:100]}")
+
+    print("\n[S1#4] Demo identity blocked in production")
+    # Try to login as bootstrap — should fail in production
+    demo_login = api("POST", "/api/auth/login", body={"user_email": "bootstrap@maestro.local", "password": "maestro-demo"})
+    demo_blocked = "error" in demo_login or demo_login.get("detail", "")
+    check("S1#4: Demo login blocked in production", bool(demo_blocked),
+          f"demo_login_response={str(demo_login)[:100]}")
+
     print("\n[9] Version label check (P9)")
     health = api("GET", "/api/health")
     version = health.get("version", "")

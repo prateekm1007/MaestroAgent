@@ -124,26 +124,42 @@ jobs:
       - name: Install httpx
         run: python -m pip install --quiet httpx
 
-      - name: Wait for deploy (push to main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Wait for deploy (universal — push AND dispatch AND PR)
         run: |
           set -euo pipefail
-          # On push to main, Railway auto-deploys. We need to wait for the
-          # new commit SHA to appear in /api/health before running the gate,
-          # otherwise we're testing the OLD deploy.
+          # Universal deploy-wait: on EVERY trigger (push, dispatch, PR),
+          # poll /api/health until it returns a stable 200 with a commit SHA.
+          # This prevents false-reds from hitting a mid-deploy backend.
+          # On push, we wait for the NEW commit. On dispatch/PR, we wait
+          # for ANY stable commit (the backend should already be deployed).
           PUSHED_SHA="${GITHUB_SHA::12}"
-          echo "Waiting for deploy with commit >= ${PUSHED_SHA}..."
-          for i in $(seq 1 60); do  # 60 x 15s = 15 min max
+          echo "Waiting for stable backend (target commit: ${PUSHED_SHA})..."
+          STABLE_COUNT=0
+          for i in $(seq 1 40); do  # 40 x 15s = 10 min max
             HEALTH=$(curl -fsS "${BACKEND_URL}/api/health" 2>/dev/null || echo "{}")
-            DEPLOYED_SHA=$(echo "$HEALTH" | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit','unknown')[:12])" 2>/dev/null || echo "unknown")
-            echo "  attempt $i: deployed=${DEPLOYED_SHA}, expected=${PUSHED_SHA}"
-            if [ "$DEPLOYED_SHA" = "$PUSHED_SHA" ]; then
-              echo "✓ Deploy is live with the pushed commit"
+            DEPLOYED_SHA=$(echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('commit','unknown')[:12])" 2>/dev/null || echo "unknown")
+            STATUS=$(echo "$HEALTH" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+            echo "  attempt $i: status=${STATUS}, deployed=${DEPLOYED_SHA}, target=${PUSHED_SHA}"
+
+            # On push: wait for the exact commit
+            if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "$DEPLOYED_SHA" = "$PUSHED_SHA" ]; then
+              echo "✓ Push commit is live"
               break
             fi
-            # If the deployed SHA is "unknown" or empty, the deploy is mid-flight
-            if [ $i -eq 60 ]; then
-              echo "⚠ Timed out waiting for deploy — running gate against current deploy anyway"
+
+            # On dispatch/PR: wait for any stable 200 (3 consecutive successes)
+            if [ "${GITHUB_EVENT_NAME}" != "push" ] && [ "$STATUS" = "ok" ]; then
+              STABLE_COUNT=$((STABLE_COUNT + 1))
+              if [ $STABLE_COUNT -ge 3 ]; then
+                echo "✓ Backend stable (3 consecutive 200s, commit=${DEPLOYED_SHA})"
+                break
+              fi
+            else
+              STABLE_COUNT=0
+            fi
+
+            if [ $i -eq 40 ]; then
+              echo "⚠ Timed out — running gate against current deploy (commit=${DEPLOYED_SHA})"
             fi
             sleep 15
           done
