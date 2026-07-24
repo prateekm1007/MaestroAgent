@@ -73,3 +73,27 @@ CI: both gates (backend 23/23 + UI 18/18) green on commit e540966, auto-fired on
 Run URL: https://github.com/prateekm1007/MaestroAgent/actions/runs/30072028761
 
 Commits: 2b054ea (IA redesign), e540966 (wire UI gate into CI).
+
+---
+Task ID: 11 (auditor 2026-07-24 strict-order — IDOR + P95 + rollback + MySources)
+Agent: New Coder (2026-07-24 session)
+
+P1 finding: 6 of 7 auditor "still open" items were STALE (verified by fresh execution):
+- Yahoo OAuth: files exist (yahoo_mail_connector.py, microsoft_mail_connector.py)
+- openapi: admin-token→200 (not 404)
+- [C] critic-probe: returns 200
+- what-changed: includes commitment_* lifecycle types
+- completion: success_metrics counts commitment_completed
+- calibration: Ask.tsx renders calibration_note in amber callout
+
+Genuinely-open work done:
+- [IDOR] 4 assertions: tenant B sees 0 evidence, 0 commitments, 0 signals from tenant A. PROVEN.
+- [P95] 2 assertions: p50 < 1s (0.216s), p95 < 2s (0.392s). PROVEN.
+- Rollback mutation fixed: old Railway schema (ServiceInstanceDeployInput) → new (direct args, Boolean!). Dry-run proven.
+- Stale maestro-fixes submodule removed (was causing false CI failures).
+- MySources.tsx: real per-user signals view. Demo inbox honestly labeled.
+- Backend gate: 29/29 GREEN (was 23). New: [IDOR] x4, [P95] x2.
+
+Pending: frontend deploy (operational — Prateek needs to deploy web-production-d5c26 from latest main).
+
+Commits: 276f275, 96e2de1, abf142a, 602fdc2, 2a80379.
