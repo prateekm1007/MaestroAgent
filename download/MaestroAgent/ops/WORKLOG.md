@@ -135,3 +135,11 @@ PERMANENCE FIX: [CONN] connector-health assertions added to gate (5 new). Gate n
 Setup guide reoriented: connectors first, frontend last.
 
 Commits: ad5125b, e204ae4.
+
+---
+Task ID: 15 (Sean Parker hat — self-serve machine + CI green end-to-end)
+Agent: New Coder (2026-07-24 session)
+
+Built: provision_connector.py, onboarding_funnel.py (6.22s < 2min), CI jobs for funnel + frontend-deploy, unified API decision doc.
+CI GREEN on b36b131: all 4 jobs success (permanence-gate 34/34, ui-gate skip, onboarding-funnel 6.22s, frontend-deploy skip).
+Key fix: serialized funnel after backend gate to avoid SQLite contention from concurrent CI jobs.
