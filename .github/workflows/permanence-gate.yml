@@ -500,3 +500,60 @@ jobs:
                 'Categories: easy / temporal / relationship / negative / unknown / contradictory / contamination'
               ].join('\n')
             });
+
+  # ─────────────────────────────────────────────────────────────────────
+  # USER JOURNEY GATE (Principle 1 — verify the journey, not the components)
+  # ─────────────────────────────────────────────────────────────────────
+  # The centerpiece: fresh user -> connect -> real data -> ask -> evidence
+  # -> correct -> provenance. Enforces P1-P4 + P6-P9 at once.
+  user-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [permanence-gate]
+
+    env:
+      MAESTRO_BACKEND_URL: https://maestroagent-production.up.railway.app
+      MAESTRO_FRONTEND_URL: https://web-production-d5c26.up.railway.app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install httpx
+        run: python -m pip install --quiet httpx
+      - name: Run end-to-end user journey gate
+        working-directory: download/MaestroAgent
+        run: |
+          set -euo pipefail
+          echo "=== USER JOURNEY GATE (Principle 1) ==="
+          python3 ops/test_user_journey.py
+
+  # ─────────────────────────────────────────────────────────────────────
+  # CONCURRENT LOAD GATE (Principle 8 — gate concurrency, not just single)
+  # ─────────────────────────────────────────────────────────────────────
+  concurrent-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [permanence-gate]
+
+    env:
+      MAESTRO_BACKEND_URL: https://maestroagent-production.up.railway.app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install httpx
+        run: python -m pip install --quiet httpx
+      - name: Run concurrent load gate (5 concurrent, p95 < 10s)
+        working-directory: download/MaestroAgent
+        run: |
+          set -euo pipefail
+          echo "=== CONCURRENT LOAD GATE (Principle 8) ==="
+          python3 ops/test_concurrent_load.py

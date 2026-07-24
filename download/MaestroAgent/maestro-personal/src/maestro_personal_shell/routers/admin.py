@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 router = APIRouter(tags=["admin"])
 
 # Read version from build-time env var. This is the ONLY source of truth.
-# Dockerfile sets: ENV MAESTRO_VERSION=12.0.0-audit-ready
+# Dockerfile sets: ENV MAESTRO_VERSION=1.0.0-beta
 _VERSION = os.environ.get("MAESTRO_VERSION", "0.0.0-unknown")
 
 # S0 ROBUST COMMIT REPORTING:
@@ -306,3 +306,97 @@ async def critic_probe(payload: dict):
         "suggestions": result.suggestions,
         "critic_enabled": True,
     }
+
+
+# ---------------------------------------------------------------------------
+# P5: Re-classify ledger (auditor 2026-07-24 Principle 5)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/admin/reclassify-ledger")
+async def reclassify_ledger(authorization: str = Header(None)):
+    """Re-classify ALL existing signals with the current classifier.
+
+    Auditor Principle 5: "A classifier change re-classifies the data. The
+    classifier code is fixed (the gold-set proves it), but the existing
+    ledger entries were classified by the old classifier and never
+    re-classified. A classifier change must trigger a migration over
+    existing data, or the fix is only forward-looking and history stays wrong."
+
+    This endpoint:
+      1. Fetches all signals from the DB
+      2. Re-runs _rule_based_classify on each signal's text
+      3. Updates the signal_type + metadata with the new classification
+      4. Returns a report of what changed
+
+    Auth: requires admin token (MAESTRO_PERSONAL_TOKEN).
+    """
+    from fastapi import HTTPException
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or authorization != f"Bearer {admin_token}":
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    import sqlite3
+    import json as _json
+    import asyncio
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from maestro_personal_shell.commitment_classifier import _rule_based_classify
+
+    db_path = default_sqlite_path()
+    db = get_db_conn(db_path)
+    db.row_factory = sqlite3.Row
+
+    try:
+        rows = db.execute(
+            "SELECT signal_id, entity, text, signal_type, metadata, user_email FROM signals"
+        ).fetchall()
+
+        total = len(rows)
+        reclassified = 0
+        unchanged = 0
+        failed = 0
+        transitions = {}
+
+        for row in rows:
+            try:
+                old_type = row["signal_type"]
+                text = row["text"] or ""
+                entity = row["entity"] or ""
+
+                # Re-classify
+                new_result = _rule_based_classify(text, entity)
+                new_type = new_result.get("commitment_type", "not_a_commitment")
+
+                if new_type != old_type:
+                    transition = f"{old_type} → {new_type}"
+                    transitions[transition] = transitions.get(transition, 0) + 1
+
+                    # Update the metadata with the new classification
+                    old_metadata = _json.loads(row["metadata"]) if row["metadata"] else {}
+                    old_metadata["commitment_type"] = new_type
+                    old_metadata["is_commitment"] = new_result.get("is_commitment", False)
+                    old_metadata["commitment_state"] = new_result.get("state", "candidate")
+                    old_metadata["commitment_confidence"] = new_result.get("confidence", 0.5)
+                    old_metadata["reclassified_at"] = asyncio.get_event_loop().time()
+
+                    db.execute(
+                        "UPDATE signals SET signal_type = ?, metadata = ? WHERE signal_id = ?",
+                        (new_type, _json.dumps(old_metadata), row["signal_id"]),
+                    )
+                    reclassified += 1
+                else:
+                    unchanged += 1
+            except Exception as e:
+                failed += 1
+
+        db.commit()
+        return {
+            "action": "reclassify_ledger",
+            "total_signals": total,
+            "reclassified": reclassified,
+            "unchanged": unchanged,
+            "failed": failed,
+            "transitions": transitions,
+        }
+    finally:
+        db.close()
