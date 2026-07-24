@@ -297,8 +297,10 @@ def run_gate():
                 gate.assert_true("[MORE] More tab button found", False, "no More button in nav")
                 return gate
 
-            # Verify all 4 sub-section buttons are present
-            more_section_labels = ["Connectors", "Browse all sources", "Agent controls", "Settings"]
+            # Verify all 5 sub-section buttons are present (auditor item 1:
+            # "My sources" added for real-user data; "Demo inbox" honestly
+            # labeled instead of misleading "Browse all sources")
+            more_section_labels = ["Connectors", "My sources", "Demo inbox", "Agent controls", "Settings"]
             for label in more_section_labels:
                 btn = page.query_selector(f'button:has-text("{label}")')
                 gate.assert_true(
@@ -307,21 +309,37 @@ def run_gate():
                     f"button not found",
                 )
 
-            # Click "Browse all sources" — should show the SyntheticInbox
+            # Click "Demo inbox" — should show the SyntheticInbox
             try:
-                sources_btn = page.query_selector('button:has-text("Browse all sources")')
-                if sources_btn:
-                    sources_btn.click()
+                demo_btn = page.query_selector('button:has-text("Demo inbox")')
+                if demo_btn:
+                    demo_btn.click()
                     page.wait_for_timeout(1000)
                     # SyntheticInbox has the "Demo Inbox" heading
                     inbox_heading = page.query_selector('h2:has-text("Demo Inbox")')
                     gate.assert_true(
-                        "[MORE] Browse sources shows SyntheticInbox",
+                        "[MORE] Demo inbox shows SyntheticInbox",
                         inbox_heading is not None,
-                        "Demo Inbox heading not found after clicking Browse all sources",
+                        "Demo Inbox heading not found after clicking Demo inbox",
                     )
             except Exception as e:
-                print(f"  ⚠ Browse sources click failed: {e}")
+                print(f"  ⚠ Demo inbox click failed: {e}")
+
+            # Click "My sources" — should show the MySources component
+            try:
+                mysources_btn = page.query_selector('button:has-text("My sources")')
+                if mysources_btn:
+                    mysources_btn.click()
+                    page.wait_for_timeout(1000)
+                    # MySources has the "My Sources" heading or "No signals yet" empty state
+                    mysources_heading = page.query_selector('h3:has-text("My Sources")')
+                    gate.assert_true(
+                        "[MORE] My sources shows per-user signals view",
+                        mysources_heading is not None,
+                        "My Sources heading not found after clicking My sources",
+                    )
+            except Exception as e:
+                print(f"  ⚠ My sources click failed: {e}")
 
             # ── [REDIRECT] No 404s on navigation ────────────────────────
             print("[REDIRECT] Asserting no 404s on navigation...")
