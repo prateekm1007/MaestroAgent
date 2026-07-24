@@ -363,27 +363,32 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             "tentative", "proposal", "request",
                             "aspiration", "negation",
                         }
-                        # Look up each ledger entry's source signal metadata
-                        # to check commitment_type
-                        import json as _json_ledger
-                        from maestro_personal_shell.db_util import get_db_conn
+                        # Use the LEDGER ENTRY's OWN commitment_type field
+                        # (not the signal's metadata — the ledger may have
+                        # been created before the reclassify migration).
+                        # The ledger entry's commitment_type was set during
+                        # upsert from the classification result.
                         _filtered_ledger = []
                         for _le in _ledger_evidence:
-                            _sig_id = _le.get("signal_id", "") or _le.get("source_signal_id", "")
-                            _ctype = ""
-                            if _sig_id:
-                                try:
-                                    _conn = get_db_conn(_db_path)
-                                    _row = _conn.execute(
-                                        "SELECT metadata FROM signals WHERE signal_id = ?",
-                                        (_sig_id,),
-                                    ).fetchone()
-                                    _conn.close()
-                                    if _row and _row[0]:
-                                        _meta = _json_ledger.loads(_row[0])
-                                        _ctype = _meta.get("commitment_type", "")
-                                except Exception:
-                                    pass
+                            _ctype = _le.get("commitment_type", "")
+                            # Also check the signal's metadata as fallback
+                            if not _ctype:
+                                _sig_id = _le.get("signal_id", "") or _le.get("source_signal_id", "")
+                                if _sig_id:
+                                    try:
+                                        import json as _json_ledger
+                                        from maestro_personal_shell.db_util import get_db_conn
+                                        _conn = get_db_conn(_db_path)
+                                        _row = _conn.execute(
+                                            "SELECT metadata FROM signals WHERE signal_id = ?",
+                                            (_sig_id,),
+                                        ).fetchone()
+                                        _conn.close()
+                                        if _row and _row[0]:
+                                            _meta = _json_ledger.loads(_row[0])
+                                            _ctype = _meta.get("commitment_type", "")
+                                    except Exception:
+                                        pass
                             if _ctype not in _NON_USER_TYPES_LEDGER:
                                 _filtered_ledger.append(_le)
                         _ledger_evidence = _filtered_ledger
