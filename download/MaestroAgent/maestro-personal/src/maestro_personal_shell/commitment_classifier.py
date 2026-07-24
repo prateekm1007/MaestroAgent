@@ -341,39 +341,139 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
                 "llm_powered": False,
             }
 
-    # Completion signals — check that it's past tense, not "consider it done"
-    # Phase 1.2 Fix 1: Extended past-tense verb list. The corpus uses verbs
-    # like "reviewed", "signed", "shared", "finalized", "approved",
-    # "scheduled", "published", "updated" — none of which were in the
-    # original list. This caused 35/45 FNs on completed items.
+    # ───────────────────────────────────────────────────────────────────
+    # PRINCIPLE 1 (auditor 2026-07-24 S1 fix): MOOD/TENSE GATE
+    # ───────────────────────────────────────────────────────────────────
+    # The auditor found that "Should I send the team the updated roadmap
+    # tomorrow?" was classified as completed_claimed at 0.7 confidence
+    # because "updated" is a substring in the completion_keywords list.
+    # The comment at the old line 344 claimed "check that it's past tense"
+    # but NO past-tense check existed — a comment asserting a safeguard
+    # the code didn't implement (Principle 4 violation).
+    #
+    # This gate runs BEFORE any keyword list. It rejects completion /
+    # cancellation / broken matches outright if the sentence is:
+    #   - Interrogative (ends in "?")
+    #   - Auxiliary-inversion ("Should I...", "Would we...", "Did they...",
+    #     "Is the report...", "Are we...", "Can you...", "Might he...")
+    #   - Future-tense intention ("I will send the updated X tomorrow" —
+    #     "updated" is an adjective modifying X, not a past-tense verb)
+    #
+    # This kills the S1 AND the entire unenumerated class with one mechanism,
+    # instead of adding "should I" to a list. A patch adds keywords; a fix
+    # adds structure.
+    # ───────────────────────────────────────────────────────────────────
+
+    def _is_interrogative(text_lower: str) -> bool:
+        """Detect questions: ends in ?, or opens with auxiliary-inversion."""
+        stripped = text_lower.strip()
+        # Ends in question mark
+        if stripped.endswith("?"):
+            return True
+        # Opens with auxiliary + subject (inversion = question form)
+        # "Should I", "Would we", "Could you", "Did they", "Is the report",
+        # "Are we", "Can you", "Might he", "Do you", "Will you", "Has the"
+        import re as _re_q
+        auxiliary_inversion = r'^(should|would|could|do|does|did|is|are|was|were|can|might|will|has|have|had|shall|may)\s+'
+        if _re_q.match(auxiliary_inversion, stripped):
+            return True
+        return False
+
+    def _is_future_intention(text_lower: str) -> bool:
+        """Detect future-tense intentions where past-tense-looking words are
+        actually adjectives modifying a noun.
+
+        "I will send the updated roadmap tomorrow" — "updated" is an
+        adjective modifying "roadmap", NOT a past-tense verb. The sentence
+        is a PROMISE to send, not a COMPLETION.
+        """
+        # "will" / "going to" / "ll " + the ambiguous word as an adjective
+        # pattern: [future marker] ... [ambiguous word] [noun]
+        import re as _re_f
+        future_markers = [
+            r'\bi\s+will\b',
+            r'\bi\'ll\b',
+            r'\bwe\s+will\b',
+            r'\bwe\'ll\b',
+            r'\bgoing\s+to\b',
+            r'\bwill\s+send\b',
+            r'\bwill\s+share\b',
+            r'\bwill\s+deliver\b',
+            r'\bwill\s+provide\b',
+            r'\bwill\s+update\b',
+            r'\bwill\s+publish\b',
+            r'\bwill\s+schedule\b',
+            r'\bwill\s+review\b',
+            r'\bwill\s+finalize\b',
+            r'\bwill\s+submit\b',
+            r'\bwill\s+ship\b',
+        ]
+        return any(_re_f.search(m, text_lower) for m in future_markers)
+
+    # ── Completion signals (WITH the mood/tense gate) ──────────────────
+    # Auditor S1 fix: the mood/tense gate runs FIRST. If the sentence is
+    # interrogative or future-tense, completion keywords are REJECTED —
+    # they're adjectives or questions, not past-tense completion verbs.
     completion_keywords = [
         "sent ", "delivered", "completed", "finished", "paid", "submitted",
-        # Phase 1.2 Fix 1 additions — past-tense verbs
         "reviewed", "signed", "shared", "finalized", "approved",
         "scheduled", "published", "updated",
-        # Common variants
         "shipped", "uploaded", "deployed", "merged", "released",
         "emailed", "forwarded", "resolved", "closed",
     ]
-    # "done" only counts as completion if preceded by "is done", "has been done", "got it done"
-    # NOT "consider it done" (which is a promise)
+
     if any(kw in text_lower for kw in completion_keywords):
-        return {
-            "commitment_type": "completed",
-            "is_commitment": True,  # a completed commitment is still a commitment
-            "confidence": 0.7,
-            "state": "completed_claimed",
-            "owner": "unknown",
-            "deadline_text": "",
-            "reasoning": "rule-based: completion keyword detected",
-            "llm_powered": False,
-        }
+        # PRINCIPLE 1: reject if interrogative or future-tense
+        if _is_interrogative(text_lower):
+            return {
+                "commitment_type": "not_a_commitment",
+                "is_commitment": False,
+                "confidence": 0.8,
+                "state": "candidate",
+                "owner": "unknown",
+                "deadline_text": "",
+                "reasoning": "rule-based: completion keyword found but sentence is interrogative (question) — not a completion",
+                "llm_powered": False,
+            }
+        if _is_future_intention(text_lower):
+            # Future intention with a past-tense-looking word = the word is
+            # an adjective modifying a noun ("the updated roadmap"), not a
+            # completion verb. Fall through to the explicit/implicit checks
+            # below — this is likely a PROMISE, not a completion.
+            pass  # fall through to explicit/implicit classification
+        else:
+            # Not interrogative, not future — treat as a real completion.
+            # This is the correct path: "I sent the proposal yesterday" /
+            # "The report was reviewed last week" / "We shipped the feature."
+            return {
+                "commitment_type": "completed",
+                "is_commitment": True,
+                "confidence": 0.7,
+                "state": "completed_claimed",
+                "owner": "unknown",
+                "deadline_text": "",
+                "reasoning": "rule-based: completion keyword in declarative past-tense context",
+                "llm_powered": False,
+            }
+
     # Check for "done" as completion (but not "consider it done")
     if "done" in text_lower and "consider" not in text_lower and "it's done" not in text_lower:
         if any(kw in text_lower for kw in ["is done", "got it done", "have done", "has done", "i'm done"]):
+            # Apply the same mood/tense gate to "done"
+            if _is_interrogative(text_lower):
+                return {
+                    "commitment_type": "not_a_commitment",
+                    "is_commitment": False,
+                    "confidence": 0.8,
+                    "state": "candidate",
+                    "owner": "unknown",
+                    "deadline_text": "",
+                    "reasoning": "rule-based: 'done' found but sentence is interrogative — not a completion",
+                    "llm_powered": False,
+                }
             return {
                 "commitment_type": "completed",
-                "is_commitment": True,  # completed is still a commitment
+                "is_commitment": True,
                 "confidence": 0.7,
                 "state": "completed_claimed",
                 "owner": "unknown",
@@ -382,12 +482,23 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
                 "llm_powered": False,
             }
 
-    # Cancellation signals
+    # Cancellation signals (WITH the mood/tense gate)
     cancel_keywords = ["cancelled", "cancel ", "never mind", "forget it", "don't need", "won't be able", "can't make"]
     if any(kw in text_lower for kw in cancel_keywords):
+        if _is_interrogative(text_lower):
+            return {
+                "commitment_type": "not_a_commitment",
+                "is_commitment": False,
+                "confidence": 0.8,
+                "state": "candidate",
+                "owner": "unknown",
+                "deadline_text": "",
+                "reasoning": "rule-based: cancellation keyword found but sentence is interrogative — not a cancellation",
+                "llm_powered": False,
+            }
         return {
             "commitment_type": "cancelled",
-            "is_commitment": True,  # a cancelled commitment is still a commitment
+            "is_commitment": True,
             "confidence": 0.7,
             "state": "cancelled",
             "owner": "unknown",
@@ -559,6 +670,26 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
             "owner": "user",
             "deadline_text": "",
             "reasoning": "rule-based: negation detected — not a commitment",
+            "llm_powered": False,
+        }
+
+    # Hedged explicit — check BEFORE explicit keywords.
+    # "No promises, but I'll try" / "Don't count on it, but I'll send" —
+    # these contain "I'll" but the hedge ("no promises", "don't count on it")
+    # makes them tentative, not explicit. Without this check, the explicit
+    # keyword "I'll" fires first and misclassifies them.
+    # Auditor gold-set finding (2026-07-24): "No promises, but I'll try."
+    # was classified as explicit instead of tentative.
+    hedge_markers = ["no promises", "don't count on", "can't guarantee", "not sure", "might", "maybe", "possibly"]
+    if any(kw in text_lower for kw in hedge_markers):
+        return {
+            "commitment_type": "tentative",
+            "is_commitment": False,
+            "confidence": 0.6,
+            "state": "candidate",
+            "owner": "user",
+            "deadline_text": "",
+            "reasoning": "rule-based: tentative (hedged despite explicit-sounding language)",
             "llm_powered": False,
         }
 
