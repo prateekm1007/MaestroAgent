@@ -1234,29 +1234,56 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         # for entities NOT mentioned in the query. The auditor
                         # found David Kim evidence contaminating Maria queries.
                         # This is a DETERMINISTIC pre-filter, not an LLM judgment.
-                        query_entities = set()
+                        #
+                        # EDGE CASE HANDLING (auditor's over-abstention warning):
+                        # - No-entity queries ("what changed since Tuesday"):
+                        #   NO-OP (pass all evidence). The filter only fires when
+                        #   the query names a specific entity.
+                        # - Short-name ("Maria" vs "Maria Garcia"): use SUBSTRING
+                        #   matching, not exact. If "maria" appears in the entity
+                        #   name, it matches. Same for "Alex" → "Alex Chen".
+                        # - Multi-entity ("Maria and Alex"): keep ALL matching
+                        #   entities, not just the first.
                         query_lower = req.query.lower()
+                        query_has_entity = False
+                        matched_entities = set()
                         for ev in real_evidence:
                             ev_ent = str(ev.get("entity", "")).lower()
-                            if ev_ent and any(name in query_lower for name in ev_ent.split()):
-                                query_entities.add(ev.get("entity", ""))
+                            if not ev_ent:
+                                continue
+                            # Check if ANY part of the entity name appears in the query
+                            # This handles "Maria" matching "Maria Garcia" (substring)
+                            # and "Alex" matching "Alex Chen"
+                            ent_parts = ev_ent.replace(",", " ").split()
+                            for part in ent_parts:
+                                if len(part) >= 3 and part in query_lower:
+                                    matched_entities.add(ev.get("entity", ""))
+                                    query_has_entity = True
+                                    break
 
-                        # If we identified entities in the query, filter evidence
-                        # to ONLY those entities (prevents cross-entity contamination)
-                        if query_entities:
+                        # Only filter if we identified specific entities in the query.
+                        # No-entity queries ("what changed", "completed commitments")
+                        # pass ALL evidence through (no false abstention).
+                        if query_has_entity and matched_entities:
                             filtered_evidence = [
                                 ev for ev in real_evidence
                                 if str(ev.get("entity", "")).lower() in
-                                   {e.lower() for e in query_entities}
+                                   {e.lower() for e in matched_entities}
+                                # Also keep evidence where the entity name contains
+                                # any matched entity (handles "Maria Garcia" matching "Maria")
+                                or any(
+                                    me.lower() in str(ev.get("entity", "")).lower()
+                                    or str(ev.get("entity", "")).lower() in me.lower()
+                                    for me in matched_entities
+                                )
                             ]
                             # Only use the filter if it doesn't remove everything
                             if filtered_evidence:
                                 real_evidence = filtered_evidence
                                 logger.info(
-                                    "Relevance pre-filter: %d→%d evidence items (entities: %s)",
-                                    len(real_evidence) + len(query_entities),  # approx original
+                                    "Relevance pre-filter: →%d evidence items (entities: %s)",
                                     len(real_evidence),
-                                    ", ".join(query_entities)[:80],
+                                    ", ".join(matched_entities)[:80],
                                 )
 
                         safe_query = sanitize_for_llm(req.query)
