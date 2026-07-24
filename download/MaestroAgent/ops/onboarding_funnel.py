@@ -101,6 +101,8 @@ def measure_funnel() -> dict:
     # In production, this is: user clicks "Connect Gmail" → OAuth popup →
     # token stored → sync starts. For timing measurement, we simulate the
     # "first email ingested" by posting a signal directly.
+    # NOTE: the signal POST can hit SQLite "database is locked" under
+    # concurrent CI load. We retry up to 3 times with 1s delay.
     t1 = time.time()
     signal = {
         "signal_id": f"funnel-{int(t1)}",
@@ -117,10 +119,21 @@ def measure_funnel() -> dict:
             "commitment_confidence": 0.9,
         },
     }
-    signal_resp = api("POST", "/api/signals", token=token, body=signal)
+    signal_resp = None
+    for attempt in range(3):
+        signal_resp = api("POST", "/api/signals", token=token, body=signal)
+        if "error" not in signal_resp:
+            break
+        print(f"  ⚠ Signal post attempt {attempt+1} failed: {str(signal_resp)[:150]}")
+        time.sleep(2)  # retry after SQLite lock
     connect_time = time.time() - t1
-    ok = "error" not in signal_resp
-    report["steps"].append({"step": "connect_source", "seconds": round(connect_time, 2), "ok": ok})
+    ok = "error" not in (signal_resp or {})
+    report["steps"].append({
+        "step": "connect_source",
+        "seconds": round(connect_time, 2),
+        "ok": ok,
+        "detail": str(signal_resp)[:100] if not ok else "",
+    })
 
     # ── Step 3: Wait for ledger to settle ───────────────────────────────
     t2 = time.time()
