@@ -347,8 +347,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy frontend to Railway (if FRONTEND_SERVICE_ID is set)
-        if: ${{ secrets.FRONTEND_SERVICE_ID != '' }}
+      - name: Deploy frontend (or skip if FRONTEND_SERVICE_ID not set)
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
           FRONTEND_SERVICE_ID: ${{ secrets.FRONTEND_SERVICE_ID }}
@@ -356,18 +355,17 @@ jobs:
           RAILWAY_ENV_ID: 38916bb1-5f30-47dc-91eb-9baf56e99591
         run: |
           set -euo pipefail
+          if [ -z "$FRONTEND_SERVICE_ID" ]; then
+            echo "⚠️  FRONTEND_SERVICE_ID secret not set — frontend auto-deploy SKIPPED."
+            echo "Prateek: add the FRONTEND_SERVICE_ID secret (the Railway service ID for web-production-d5c26)"
+            echo "to enable automatic frontend deploys on every push."
+            echo "Once set, this step will deploy the frontend after all gates pass, and the UI gate"
+            echo "will stop skipping and run its 19 assertions against the current commit's frontend."
+            exit 0
+          fi
           echo "=== FRONTEND AUTO-DEPLOY (gates passed, deploying) ==="
           npm install -g @railway/cli
           cd download/MaestroAgent/maestro-personal/web
           railway link --project $RAILWAY_PROJECT_ID --environment $RAILWAY_ENV_ID --service $FRONTEND_SERVICE_ID
           railway up --detach
           echo "✓ Frontend deploy initiated. The UI gate will run against the new code on the next push."
-
-      - name: Skip (FRONTEND_SERVICE_ID not set)
-        if: ${{ secrets.FRONTEND_SERVICE_ID == '' }}
-        run: |
-          echo "⚠️  FRONTEND_SERVICE_ID secret not set — frontend auto-deploy SKIPPED."
-          echo "Prateek: add the FRONTEND_SERVICE_ID secret (the Railway service ID for web-production-d5c26)"
-          echo "to enable automatic frontend deploys on every push."
-          echo "Once set, this step will deploy the frontend after all gates pass, and the UI gate"
-          echo "will stop skipping and run its 19 assertions against the current commit's frontend."
