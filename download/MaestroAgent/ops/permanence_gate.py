@@ -514,6 +514,88 @@ def run_gate():
         f"p95={p95:.3f}s, all={[f'{l:.3f}' for l in latencies]}",
     )
 
+    # ── [CONN] Connector health (auditor 2026-07-24 — the permanence fix) ──
+    # Auditor: "the gate tests the engine on a synthetic fixture — it has zero
+    # coverage of the connectors actually ingesting real data. Add connector
+    # end-to-end coverage to the gate — a connector-health assertion that
+    # would have caught this breakage."
+    #
+    # This assertion uses the REAL `default@personal.local` user's Gmail
+    # connection as the canary. It logs in, asserts Gmail is connected,
+    # triggers a sync, and asserts the sync returns a valid response. This
+    # catches: token expiry, encryption key loss, Gmail API outage, sync
+    # code regressions — the things the fixture-based assertions cannot see.
+    #
+    # If the canary user is disconnected (Prateek disconnects Gmail), the
+    # assertion FAILS — which is correct: a product whose primary connector
+    # is disconnected is not deploy-ready.
+    print("[CONN] Connector health (real Gmail sync on canary user)...")
+    try:
+        # Login as the canary user
+        login_resp = httpx.post(
+            f"{BACKEND_URL}/api/auth/login",
+            json={"user_email": "default@personal.local", "password": "maestro-demo"},
+            timeout=15,
+        )
+        canary_token = login_resp.json().get("token", "")
+        if not canary_token:
+            gate.assert_true("[CONN] Canary user login", False, "login failed")
+        else:
+            gate.assert_true("[CONN] Canary user login", True, "")
+
+            # Check Gmail is connected
+            conn_resp = httpx.get(
+                f"{BACKEND_URL}/api/connectors",
+                headers={"Authorization": f"Bearer {canary_token}"},
+                timeout=15,
+            )
+            connectors = conn_resp.json().get("connectors", [])
+            gmail_conn = next((c for c in connectors if c["provider"] == "gmail"), {})
+            gmail_connected = gmail_conn.get("connected", False)
+            gate.assert_true(
+                "[CONN] Gmail is connected on canary user",
+                gmail_connected,
+                f"connected={gmail_connected}",
+            )
+
+            if gmail_connected:
+                # Trigger a real sync
+                sync_resp = httpx.post(
+                    f"{BACKEND_URL}/api/connectors/gmail/ingest",
+                    headers={"Authorization": f"Bearer {canary_token}"},
+                    timeout=60,
+                )
+                sync_data = sync_resp.json()
+                gate.assert_true(
+                    "[CONN] Gmail sync completes (HTTP 200)",
+                    sync_resp.status_code == 200,
+                    f"status={sync_resp.status_code}",
+                )
+                ingested = sync_data.get("ingested", -1)
+                gate.assert_true(
+                    "[CONN] Gmail sync returns valid count (ingested >= 0)",
+                    ingested >= 0,
+                    f"ingested={ingested}",
+                )
+                # The sync should return either new signals or duplicates
+                # (both prove the Gmail API was called successfully)
+                total_returned = ingested + sync_data.get("duplicates", 0)
+                gate.assert_true(
+                    "[CONN] Gmail API returned messages (ingested + duplicates > 0)",
+                    total_returned > 0,
+                    f"ingested={ingested}, duplicates={sync_data.get('duplicates',0)}",
+                )
+
+            # Check Calendar connection state (may be connected but not ingesting
+            # due to missing calendar.readonly scope — that's Prateek's action)
+            cal_conn = next((c for c in connectors if c["provider"] == "calendar"), {})
+            cal_connected = cal_conn.get("connected", False)
+            # Don't fail the gate on Calendar — it's a known scope issue
+            # that requires Prateek's Google Console action. Just log it.
+            print(f"  ℹ Calendar connected={cal_connected}, commitments_ingested={cal_conn.get('commitments_ingested',0)} (scope issue: Prateek's action)")
+    except Exception as e:
+        gate.assert_true("[CONN] Connector health check", False, f"error={e}")
+
     return gate
 
 
