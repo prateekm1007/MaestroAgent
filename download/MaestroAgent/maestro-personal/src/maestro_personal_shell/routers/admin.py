@@ -393,6 +393,12 @@ async def reclassify_ledger(authorization: str = Header(None)):
                         "UPDATE signals SET signal_type = ?, metadata = ? WHERE signal_id = ?",
                         (new_type, _json.dumps(old_metadata), row["signal_id"]),
                     )
+                    # P5 fix: also update the LEDGER table's commitment_type
+                    # so the ownership filter on the ledger fast path works.
+                    db.execute(
+                        "UPDATE commitments_ledger SET commitment_type = ? WHERE signal_id = ?",
+                        (new_type, row["signal_id"]),
+                    )
                     reclassified += 1
                 else:
                     unchanged += 1
