@@ -63,7 +63,13 @@ async def evaluate_answer(
     if not answer.strip():
         return CriticResult(score=0.0, justification="empty output", suggestions=[])
 
-    # Build the rubric — what a good commitment-intelligence answer looks like
+    # Build the rubric — what a good commitment-intelligence answer looks like.
+    # Auditor (2026-07-24) [C] gap: the original rubric did NOT explicitly
+    # call out 'denial of evidence' as a failure mode. The critic scored
+    # 1.0 for an answer that said 'I don't have any record of a commitment
+    # to Maria' while the evidence clearly contained Maria's commitment.
+    # That is the worst failure mode for a trust product — the user cannot
+    # rely on the answer. The rubric now explicitly flags this.
     rubric = """Score this answer to a commitment-intelligence question.
 
 A perfect answer (1.0):
@@ -75,10 +81,20 @@ A perfect answer (1.0):
 - Abstains honestly when no evidence exists
 
 A failing answer (0.0):
-- Hallucinates commitments not in the evidence
+- Hallucinations: claims commitments that do NOT exist in the evidence
+- DENIAL OF EVIDENCE (worst failure): the answer claims 'no evidence',
+  'I don't have any record', 'no commitments found', or any similar
+  denial WHEN THE EVIDENCE CLEARLY CONTAINS A RELEVANT COMMITMENT.
+  A confident denial of real evidence is WORSE than a hallucination
+  because it teaches the user to distrust the system.
 - Attributes commitments to the wrong entity
 - Presents tentative statements as firm commitments
 - Dumps unrelated signals instead of answering the question
+
+CRITICAL TEST: Compare the answer to the evidence texts. If the evidence
+contains a commitment relevant to the question, but the answer denies
+its existence, score 0.0 — do not be fooled by the answer being
+well-formed or directly addressing the question.
 """
 
     evidence_block = "\n".join(f"- {t[:200]}" for t in evidence_texts[:5]) if evidence_texts else "(no evidence provided)"
@@ -90,7 +106,10 @@ A failing answer (0.0):
             "You are an independent critic. Score the given answer against the rubric.\n"
             "Respond as JSON: "
             '{"score": <0.0-1.0>, "justification": "...", "suggestions": ["...", "..."]}\n'
-            "Be strict. A score of 1.0 means perfect; 0.5 means partial; 0.0 means fails the rubric."
+            "Be strict. A score of 1.0 means perfect; 0.5 means partial; 0.0 means fails the rubric.\n"
+            "CRITICAL: before scoring, compare the answer to the evidence texts. If the answer\n"
+            "denies that any commitment exists while the evidence clearly contains one, score 0.0\n"
+            "regardless of how well-formed the answer is. Denial of evidence is the worst failure."
         ),
         user=(
             f"Rubric:\n{rubric}\n\n"
