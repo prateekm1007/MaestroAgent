@@ -14,3 +14,4 @@ Every agent action, reviewable. Append-only. Git history is the tamper-evident g
 - [FORENSIC-AUDIT-20260723](worklog/FORENSIC-AUDIT-20260723.md) — k3-powered forensic audit — whole-app sweep | COMPLETED | 2026-07-23
 - [FORENSIC-AUDIT-20260723](worklog/FORENSIC-AUDIT-20260723.md) — k3-powered forensic audit — whole-app sweep | COMPLETED | 2026-07-23
 - [WORLD-CLASS-AUDIT-20260724](worklog/WORLD-CLASS-AUDIT-20260724.md) — World-class audit — swarm self-assessment | COMPLETED | 2026-07-24
+- [WORLD-CLASS-AUDIT-20260724](worklog/WORLD-CLASS-AUDIT-20260724.md) — World-class audit — swarm self-assessment | COMPLETED | 2026-07-24
