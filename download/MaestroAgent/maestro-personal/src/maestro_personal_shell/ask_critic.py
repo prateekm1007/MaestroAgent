@@ -31,8 +31,14 @@ class CriticResult:
 
 
 def is_critic_enabled() -> bool:
-    """Check if the gated critic is enabled (OFF by default)."""
-    return os.environ.get("MAESTRO_VERIFY_CRITIC", "").lower() in ("1", "true", "yes")
+    """Check if the critic is enabled.
+
+    ON by default (ROOT CAUSE 1 FIX). The auditor proved the LLM generates
+    claims the evidence doesn't support. The critic is the hard gate that
+    blocks unsupported answers from shipping. Set MAESTRO_VERIFY_CRITIC=0
+    to disable (for testing only).
+    """
+    return os.environ.get("MAESTRO_VERIFY_CRITIC", "1").lower() not in ("0", "false", "no", "off")
 
 
 async def evaluate_answer(

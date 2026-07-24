@@ -1229,6 +1229,36 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     if is_llm_available():
                         # Build the evidence context for the LLM.
                         # Sanitize all user-controlled text (S4 hygiene).
+
+                        # ROOT CAUSE 1 FIX: Relevance pre-filter — strip evidence
+                        # for entities NOT mentioned in the query. The auditor
+                        # found David Kim evidence contaminating Maria queries.
+                        # This is a DETERMINISTIC pre-filter, not an LLM judgment.
+                        query_entities = set()
+                        query_lower = req.query.lower()
+                        for ev in real_evidence:
+                            ev_ent = str(ev.get("entity", "")).lower()
+                            if ev_ent and any(name in query_lower for name in ev_ent.split()):
+                                query_entities.add(ev.get("entity", ""))
+
+                        # If we identified entities in the query, filter evidence
+                        # to ONLY those entities (prevents cross-entity contamination)
+                        if query_entities:
+                            filtered_evidence = [
+                                ev for ev in real_evidence
+                                if str(ev.get("entity", "")).lower() in
+                                   {e.lower() for e in query_entities}
+                            ]
+                            # Only use the filter if it doesn't remove everything
+                            if filtered_evidence:
+                                real_evidence = filtered_evidence
+                                logger.info(
+                                    "Relevance pre-filter: %d→%d evidence items (entities: %s)",
+                                    len(real_evidence) + len(query_entities),  # approx original
+                                    len(real_evidence),
+                                    ", ".join(query_entities)[:80],
+                                )
+
                         safe_query = sanitize_for_llm(req.query)
                         evidence_lines = []
                         for i, ev in enumerate(real_evidence[:5], 1):
@@ -1248,7 +1278,10 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             "If the question asks about 'threatened', 'at risk', 'overdue', "
                             "'broken', or similar concepts, treat them as related: "
                             "evidence saying 'overdue' or 'never sent' IS relevant to 'at risk' "
-                            "or 'threatened' queries. Quote the evidence verbatim where possible."
+                            "or 'threatened' queries. Quote the evidence verbatim where possible. "
+                            "CRITICAL: If the evidence mentions a reschedule, date change, or "
+                            "contradiction, you MUST surface both the original and the update — "
+                            "do not pick one and deny the other."
                         )
                         user_prompt = (
                             f"Question: {safe_query}\n\n"
@@ -1263,8 +1296,39 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             max_tokens=300,
                         )
                         if llm_result and len(llm_result.strip()) > 10:
-                            # LLM returned a usable answer. Use it.
-                            final_intent_answer = llm_result.strip()
+                            # ROOT CAUSE 1 FIX: Wire ask_critic as a HARD GATE.
+                            # The auditor proved the LLM generates claims the
+                            # evidence doesn't support. The critic (an independent
+                            # LLM call) scores the answer. If score < 0.5, we
+                            # DON'T ship the LLM answer — we fall back to the
+                            # rule-based answer (which is evidence-verbatim).
+                            critic_blocked = False
+                            try:
+                                from maestro_personal_shell.ask_critic import maybe_refine_answer
+                                evidence_texts_for_critic = [
+                                    str(ev.get("text", ""))[:200] for ev in real_evidence[:5]
+                                ]
+                                refined_answer, refined_conf, critic_result = await maybe_refine_answer(
+                                    answer=llm_result.strip(),
+                                    query=safe_query,
+                                    evidence_texts=evidence_texts_for_critic,
+                                    confidence=0.7,
+                                )
+                                if critic_result and critic_result.score < 0.5:
+                                    logger.warning(
+                                        "ask_critic BLOCKED LLM answer (score=%.2f): %s — falling back to rule-based",
+                                        critic_result.score, critic_result.justification[:100],
+                                    )
+                                    critic_blocked = True
+                                else:
+                                    final_intent_answer = refined_answer
+                            except ImportError:
+                                logger.debug("ask_critic not available — skipping critic gate")
+                            except Exception as critic_err:
+                                logger.warning("ask_critic error (non-fatal): %s", critic_err)
+
+                            if not critic_blocked:
+                                final_intent_answer = llm_result.strip()
                             llm_active_for_intent = True
                             llm_provider_for_intent = get_llm_provider_name()
                             logger.info(
