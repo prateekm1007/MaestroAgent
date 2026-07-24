@@ -1,16 +1,36 @@
-"""Database connection helper — P1-3 fix + Phase 8 Postgres support."""
+"""Database connection helper — P1-3 fix + Phase 8 Postgres support.
+
+P40 fix (auditor 2026-07-24): production reliability is a trust property.
+The SQLite 503 "database is locked" errors under concurrent load are the
+PRODUCT's concurrency ceiling, not a gate hygiene issue. This module now
+includes:
+  - WAL mode (already present — allows concurrent reads)
+  - busy_timeout increased from 5s to 30s (the auditor found 31s under
+    5 concurrent; 30s gives writes a fighting chance)
+  - synchronous = NORMAL (WAL + NORMAL is safe and much faster than FULL)
+  - A process-level write mutex that serializes writes in-process, so
+    concurrent requests don't each open a new connection and contend at
+    the SQLite level. This is the "write queue" pattern recommended for
+    SQLite in concurrent server environments.
+"""
 
 from __future__ import annotations
 
 import sqlite3
 import os
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BUSY_TIMEOUT_MS = 5000  # 5 seconds — SQLite will retry for this long
+_DEFAULT_BUSY_TIMEOUT_MS = 30000  # 30 seconds — was 5s, increased for P40
+
+# Process-level write mutex — serializes writes so concurrent requests
+# don't each open a new connection and contend at the SQLite level.
+# This is the "write queue" pattern for SQLite in concurrent servers.
+_write_lock = threading.Lock()
 
 
 def _get_database_url() -> str | None:
@@ -130,9 +150,30 @@ def get_db_conn(db_path: str | None = None, busy_timeout: int = _DEFAULT_BUSY_TI
     conn.execute(f"PRAGMA busy_timeout = {busy_timeout}")
     try:
         conn.execute("PRAGMA journal_mode = WAL")
+        # P40: synchronous = NORMAL is safe with WAL and much faster than FULL.
+        # This reduces fsync calls on writes, which is the main bottleneck
+        # under concurrent load.
+        conn.execute("PRAGMA synchronous = NORMAL")
     except Exception as e:
         logger.debug("execute failed: %s", e)
     return conn
+
+
+def get_write_lock() -> threading.Lock:
+    """Return the process-level write mutex for serializing SQLite writes.
+
+    Callers that perform writes should acquire this lock before writing:
+
+        with get_write_lock():
+            conn = get_db_conn()
+            conn.execute("INSERT ...")
+            conn.commit()
+            conn.close()
+
+    This prevents concurrent in-process writes from contending at the
+    SQLite level, which is the root cause of "database is locked" errors.
+    """
+    return _write_lock
 
 
 def is_database_locked_error(exc: Exception) -> bool:

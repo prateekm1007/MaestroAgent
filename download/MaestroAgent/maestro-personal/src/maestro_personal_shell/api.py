@@ -382,6 +382,7 @@ def load_signals_from_db(db_path: str | None = None, user_email: str | None = No
 def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_email: str = "bootstrap") -> bool:
     """Save a signal to SQLite."""
     import hashlib
+    from maestro_personal_shell.db_util import get_write_lock
 
     # Audit fix #7: dedup by content hash within time window
     content_hash = hashlib.md5(
@@ -390,40 +391,45 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
 
     if db_path is None:
         db_path = _db_path()
-    conn = get_db_conn(db_path)
-    # Check for existing duplicate within the last hour
-    one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-    existing = conn.execute(
-        """SELECT signal_id FROM signals
-           WHERE entity = ? AND text = ? AND user_email = ?
-           AND created_at > ?
-           LIMIT 1""",
-        (signal["entity"], signal["text"], user_email, one_hour_ago),
-    ).fetchone()
 
-    if existing:
+    # P40: acquire the process-level write lock to serialize writes.
+    # This prevents concurrent in-process writes from contending at the
+    # SQLite level, which is the root cause of "database is locked" errors.
+    with get_write_lock():
+        conn = get_db_conn(db_path)
+        # Check for existing duplicate within the last hour
+        one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        existing = conn.execute(
+            """SELECT signal_id FROM signals
+               WHERE entity = ? AND text = ? AND user_email = ?
+               AND created_at > ?
+               LIMIT 1""",
+            (signal["entity"], signal["text"], user_email, one_hour_ago),
+        ).fetchone()
+
+        if existing:
+            conn.close()
+            logger.debug("Duplicate signal skipped: entity=%s text=%s", signal["entity"], signal["text"][:50])
+            return False  # deduped
+
+        conn.execute(
+            """INSERT OR REPLACE INTO signals
+               (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at, user_email)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                signal["signal_id"],
+                signal["entity"],
+                signal["text"],
+                signal["signal_type"],
+                signal["timestamp"],
+                json.dumps(signal.get("metadata", {})),
+                signal.get("source_acl", "public"),
+                signal.get("created_at", datetime.now(timezone.utc).isoformat()),
+                user_email,
+            ),
+        )
+        conn.commit()
         conn.close()
-        logger.debug("Duplicate signal skipped: entity=%s text=%s", signal["entity"], signal["text"][:50])
-        return False  # deduped
-
-    conn.execute(
-        """INSERT OR REPLACE INTO signals
-           (signal_id, entity, text, signal_type, timestamp, metadata, source_acl, created_at, user_email)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            signal["signal_id"],
-            signal["entity"],
-            signal["text"],
-            signal["signal_type"],
-            signal["timestamp"],
-            json.dumps(signal.get("metadata", {})),
-            signal.get("source_acl", "public"),
-            signal.get("created_at", datetime.now(timezone.utc).isoformat()),
-            user_email,
-        ),
-    )
-    conn.commit()
-    conn.close()
 
     # Phase 1.3: index signal in FTS5 for semantic retrieval
     try:
