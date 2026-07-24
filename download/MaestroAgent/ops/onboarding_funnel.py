@@ -127,13 +127,22 @@ def measure_funnel() -> dict:
         print(f"  ⚠ Signal post attempt {attempt+1} failed: {str(signal_resp)[:150]}")
         time.sleep(2)  # retry after SQLite lock
     connect_time = time.time() - t1
-    ok = "error" not in (signal_resp or {})
+    # Check the signal was actually created (response should have signal_id or status)
+    ok = "error" not in (signal_resp or {}) and bool(
+        signal_resp.get("signal_id") or signal_resp.get("status") or signal_resp.get("id")
+    )
     report["steps"].append({
         "step": "connect_source",
         "seconds": round(connect_time, 2),
         "ok": ok,
-        "detail": str(signal_resp)[:100] if not ok else "",
+        "detail": f"resp={str(signal_resp)[:100]}" if not ok else "",
     })
+
+    # If the signal didn't post, the funnel is broken — fail fast
+    if not ok:
+        report["total_seconds"] = round(time.time() - t0, 2)
+        report["commitment_surfaced"] = False
+        return report
 
     # ── Step 3: Wait for ledger to settle ───────────────────────────────
     t2 = time.time()
