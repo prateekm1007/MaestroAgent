@@ -58,7 +58,7 @@ def _validate_oauth_state(state: str) -> tuple[str, str]:
         if not key:
             # No signing key — fall back to legacy parsing (unsafe but functional)
             user_email = _extract_user_email(state)
-            connector = "calendar" if "connector=calendar" in state else ""
+            connector = _extract_connector(state)
             return user_email, connector
         raise HTTPException(
             status_code=403,
@@ -82,7 +82,7 @@ def _validate_oauth_state(state: str) -> tuple[str, str]:
 
     # Extract user_email and connector from the validated payload
     user_email = _extract_user_email(payload)
-    connector = "calendar" if "connector=calendar" in payload else ""
+    connector = _extract_connector(payload)
     return user_email, connector
 
 
@@ -457,6 +457,23 @@ def _extract_user_email(state: str) -> str:
         if sep in user_part:
             user_part = user_part.split(sep, 1)[0]
     return user_part
+
+
+def _extract_connector(state: str) -> str:
+    """Extract the connector name from the OAuth state parameter.
+
+    Handles compound states like 'user=<email>;connector=yahoo_mail;sig=...'
+    Returns the connector value (e.g. 'calendar', 'yahoo_mail',
+    'microsoft_mail') or '' if no connector is present (plain Gmail flow).
+    """
+    if "connector=" not in state:
+        return ""
+    conn_part = state.split("connector=", 1)[1]
+    # Remove any trailing params (e.g., ';sig=...')
+    for sep in [";", "&"]:
+        if sep in conn_part:
+            conn_part = conn_part.split(sep, 1)[0]
+    return conn_part
 
 
 def _oauth_success_page(provider: str) -> HTMLResponse:

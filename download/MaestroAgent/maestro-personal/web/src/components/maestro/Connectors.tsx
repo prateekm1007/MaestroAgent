@@ -103,7 +103,7 @@ export function Connectors() {
     });
   }
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<Connector[]> => {
     setLoading(true);
     const [c, d] = await Promise.all([
       maestroApi.listConnectors(),
@@ -112,6 +112,7 @@ export function Connectors() {
     setConnectors(c.data.connectors);
     setDrafts(d.data.drafts);
     setLoading(false);
+    return c.data.connectors;
   }, []);
 
   useEffect(() => {
@@ -133,26 +134,27 @@ export function Connectors() {
         return;
       }
 
-      // If the backend says OAuth is required, open the Google consent screen.
-      // This is the 1-click OAuth flow: click → Google consent → connected.
+      // If the backend says OAuth is required, open the provider's consent
+      // screen. This is the 1-click OAuth flow shared by all OAuth providers
+      // (gmail, calendar, yahoo_mail, microsoft_mail): click → consent → connected.
       if (data?.oauth_required && data?.authorization_url) {
-        // Open Google's OAuth consent page in a popup
-        const popup = window.open(data.authorization_url, "gmail-oauth", "width=500,height=700");
+        // Open the OAuth consent page in a popup (works for all OAuth providers:
+        // gmail, calendar, yahoo_mail, microsoft_mail — the authorization_url
+        // is provider-specific, returned by the backend).
+        const popup = window.open(data.authorization_url, "maestro-oauth", "width=500,height=700");
 
         // Poll for the popup to close (user completed or cancelled)
         const pollInterval = setInterval(() => {
           if (popup?.closed) {
             clearInterval(pollInterval);
-            // Re-fetch connector status from the server — NOT optimistic
-            load().then(() => {
-              // After re-fetch, check if the connector is now connected
-              // The toast fires ONLY after the server confirms connection
-              setTimeout(() => {
-                const gmailConn = connectors.find((c) => c.provider === provider);
-                if (gmailConn?.connected) {
-                  toast({ title: "Connected", description: `${provider} is now connected.` });
-                }
-              }, 100);
+            // Re-fetch connector status from the server — NOT optimistic.
+            // Use the returned fresh data (NOT the stale `connectors` closure
+            // variable) to check whether the OAuth actually succeeded.
+            load().then((freshConnectors) => {
+              const conn = freshConnectors.find((c) => c.provider === provider);
+              if (conn?.connected) {
+                toast({ title: "Connected", description: `${provider} is now connected.` });
+              }
             });
             setBusyProvider(null);
           }
