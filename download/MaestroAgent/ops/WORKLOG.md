@@ -143,3 +143,13 @@ Agent: New Coder (2026-07-24 session)
 Built: provision_connector.py, onboarding_funnel.py (6.22s < 2min), CI jobs for funnel + frontend-deploy, unified API decision doc.
 CI GREEN on b36b131: all 4 jobs success (permanence-gate 34/34, ui-gate skip, onboarding-funnel 6.22s, frontend-deploy skip).
 Key fix: serialized funnel after backend gate to avoid SQLite contention from concurrent CI jobs.
+
+---
+Task ID: 16 (auditor 2026-07-24 S1 — classifier mood/tense gate + gold-set)
+Agent: New Coder (2026-07-24 session)
+
+S1 FIXED: mood/tense gate rejects interrogative + future-intention before keyword lists.
+"Should I send the updated roadmap?" -> not_a_commitment (was: completed_claimed 0.7).
+Gold-set: 2248 taxonomy cases, 2248/2248 PASS. CI classifier-goldset job added.
+CI GREEN on 89caa7b: all 5 jobs (permanence-gate 34/34, classifier-goldset 2248/2248, ui-gate skip, onboarding-funnel 6.22s, frontend-deploy skip).
+Gate now has BOTH halves: mechanics + correctness.
