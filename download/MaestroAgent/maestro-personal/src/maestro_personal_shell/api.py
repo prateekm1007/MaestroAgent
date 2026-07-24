@@ -872,7 +872,13 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url=None if _prod else "/docs",
     redoc_url=None if _prod else "/redoc",
-    openapi_url=None if _prod else "/openapi.json",
+    # S2-1-OPENAPI fix: ALWAYS set openapi_url=None — FastAPI's default
+    # /openapi.json route bypasses our custom auth handler (returns 200
+    # unauthenticated in dev mode). We register our own auth-protected
+    # handler at BOTH /api/openapi.json (canonical) AND /openapi.json
+    # (auditor-friendly alias) below. This is the single source of truth
+    # for the spec route (P41) — never two handlers, never an unauth path.
+    openapi_url=None,
 )
 
 # Security fix: add standard security headers
@@ -968,7 +974,14 @@ app.include_router(_inbox_router.router)
 # EITHER a valid user Bearer token OR the admin token. Unauthenticated
 # requests get 401 (not 404), and the spec is served to anyone with
 # legitimate access.
+# S2-1-OPENAPI fix (Kimi K3 design, P40 + P41):
+# Auditors conventionally hit /openapi.json (FastAPI default) which was
+# disabled, returning 404. Stacked decorator: ONE handler, TWO paths —
+# /api/openapi.json (canonical) and /openapi.json (auditor-friendly alias).
+# Same admin-OR-user Bearer auth (401 unauth, never 404), same JSON body.
+# Zero logic duplication (P41 — single source of truth for the handler).
 @app.get("/api/openapi.json", include_in_schema=False)
+@app.get("/openapi.json", include_in_schema=False)
 async def openapi_contract(authorization: str = Header(None)):
     """Return the OpenAPI 3.1 contract for this API.
 
@@ -976,7 +989,8 @@ async def openapi_contract(authorization: str = Header(None)):
       - a valid user token (issued by /api/auth/register or /api/auth/login)
       - the admin token (MAESTRO_PERSONAL_TOKEN — for auditor use)
 
-    Unauthenticated requests get 401 (not 404).
+    Unauthenticated requests get 401 (not 404). Aliased at both
+    /api/openapi.json (canonical) and /openapi.json (auditor-friendly).
     """
     from fastapi import HTTPException
     from fastapi.responses import JSONResponse
@@ -1019,6 +1033,15 @@ async def root():
             "links": {
                 "health": "/api/health",
                 "openapi": "/api/openapi.json",
+            },
+            # S2-1-OPENAPI fix: advertise BOTH alias paths so auditors
+            # hitting /openapi.json (FastAPI default) discover the contract
+            # from /. P40: reliability is a trust property — a 404 on a
+            # conventional path is a trust failure.
+            "contract": {
+                "canonical": "/api/openapi.json",
+                "aliases": ["/openapi.json"],
+                "auth": "Bearer (admin token OR user token); 401 unauth, never 404",
             },
             "note": "This is the API backend. The product UI is at the 'ui' URL.",
         },
