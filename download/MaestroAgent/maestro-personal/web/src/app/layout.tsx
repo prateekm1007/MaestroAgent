@@ -14,12 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Maestro — Personal Intelligence",
+  title: "Maestro — Today",
   description:
-    "Maestro is a personal intelligence product that remembers what you promised, surfaces what changed, and tells you what to do next — with provenance.",
+    "Maestro is a personal intelligence product that remembers what you promised, surfaces what changed, and tells you what to do next — with provenance. Your morning view, every day.",
   keywords: [
     "Maestro",
     "Personal Intelligence",
+    "Today",
     "Commitments",
     "Briefing",
     "Provenance",

@@ -36,6 +36,7 @@ import {
   DraftApprovalModal,
   type DraftWithMeta,
 } from "./DraftApprovalModal";
+import { TodayConnectorsBanner } from "./TodayConnectorsBanner";
 
 export function Dashboard({
   llm,
@@ -44,7 +45,7 @@ export function Dashboard({
 }: {
   llm: LlmStatus | null;
   onAsk: (query: string) => void;
-  onNavigate: (view: "ask" | "commitments") => void;
+  onNavigate: (view: "ask" | "commitments" | "more") => void;
 }) {
   const { toast } = useToast();
   const [moment, setMoment] = useState<TheMoment | null>(null);
@@ -232,6 +233,11 @@ export function Dashboard({
 
   return (
     <div className="space-y-6">
+      {/* Auditor (2026-07-24) IA — Today connectors banner.
+          Shows when 0 connectors are connected. Dismissible + snooze 3d.
+          Auto-hides once ≥1 connector is connected. Persists per-user. */}
+      <TodayConnectorsBanner onNavigateToMore={() => onNavigate("more")} />
+
       {/* AMBIENT INTELLIGENCE — Smart Notifications (Phase 19) */}
       {smartNotifs.length > 0 && (
         <div className="space-y-2">

@@ -2,14 +2,12 @@
 
 import { useEffect, useState } from "react";
 import {
-  CalendarClock,
   CheckCircle,
-  Inbox,
-  LayoutDashboard,
   LogOut,
+  MoreHorizontal,
   Search,
   Settings as SettingsIcon,
-  Users,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,46 +22,104 @@ import { Login } from "@/components/maestro/Login";
 import { Dashboard } from "@/components/maestro/Dashboard";
 import { Ask } from "@/components/maestro/Ask";
 import { Commitments } from "@/components/maestro/Commitments";
-import { Settings } from "@/components/maestro/Settings";
-import { Agents } from "@/components/maestro/Agents";
-import { Prepare } from "@/components/maestro/Prepare";
+import { More } from "@/components/maestro/More";
 import { SessionExpiredDialog } from "@/components/maestro/SessionExpiredDialog";
 import { Onboarding, isOnboarded } from "@/components/maestro/Onboarding";
-import { SyntheticInbox } from "@/components/maestro/SyntheticInbox";
-
-export type View = "dashboard" | "ask" | "commitments" | "prepare" | "agents" | "inbox" | "settings";
-
-export const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "ask", label: "Ask", icon: Search },
-  { id: "commitments", label: "Commitments", icon: CheckCircle },
-  { id: "prepare", label: "Prepare", icon: CalendarClock },
-  { id: "inbox", label: "Inbox", icon: Inbox },
-  { id: "agents", label: "Agents", icon: Users },
-  { id: "settings", label: "More", icon: SettingsIcon },
-];
+import { BubbleTour } from "@/components/maestro/BubbleTour";
 
 /**
  * AppShell — the client-side interactive shell.
  *
- * SSR first-paint design (Trust gap #1 + first-impression):
- * The server component (page.tsx) renders a meaningful shell — brand,
- * nav, and a proper loading state — NOT just "Loading…". This client
- * component hydrates into that shell and swaps in the real content
- * (Login / Onboarding / Dashboard) once localStorage is read.
+ * Auditor (2026-07-24) IA redesign: collapsed 7-tab nav → 4-tab nav.
+ *   OLD: Dashboard · Ask · Commitments · Prepare · Inbox · Agents · More
+ *   NEW: Today    · Ask · Commitments · More
  *
- * The `ready` prop is passed from the server as false; the client sets
- * it to true after mount. Until then, we render the SAME shell the
- * server rendered, so there's no hydration mismatch.
+ * Fold map (move, don't delete — capabilities preserved via fold targets):
+ *   Dashboard → Today (renamed; same component, retitled for the morning view)
+ *   Prepare   → Today "next meeting" card + Ask prep intent ("prepare me for my 3pm")
+ *   Inbox     → More → "Browse all sources" (SyntheticInbox)
+ *   Agents    → Today proactive "Needs Attention" section + More → agent-controls
+ *
+ * Legacy view IDs are kept in the View union so any stale state, deep link,
+ * or external navigation that references them is silently redirected to the
+ * fold target — no 404s, no broken bookmarks. The FOLD_TARGET table below
+ * is the source of truth for the redirect behavior.
  */
+export type View =
+  // Top-level tabs (the 4 that render in NAV)
+  | "today"
+  | "ask"
+  | "commitments"
+  | "more"
+  // Legacy view IDs — kept for fold-target redirects only, NEVER rendered in NAV
+  | "dashboard"
+  | "prepare"
+  | "inbox"
+  | "agents"
+  | "settings";
+
+/**
+ * FOLD_TARGET — when a legacy view is requested, redirect to its fold target.
+ * This is the no-404 rule applied at the view layer (the app is a SPA, so
+ * there are no URL routes per view — but stale state, deep links via
+ * setView, or external code can still reference the old IDs).
+ */
+const FOLD_TARGET: Record<string, View> = {
+  dashboard: "today",
+  prepare: "today",   // Prepare card lives on Today; the Ask prep intent is "prepare me for my 3pm"
+  inbox: "more",      // Browse sources lives in More
+  agents: "more",     // Agent controls live in More
+  settings: "more",
+};
+
+/** Resolve a view request through the fold map. Legacy IDs → fold target. */
+function resolveView(v: View): View {
+  return FOLD_TARGET[v] ?? v;
+}
+
+export const NAV: { id: View; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "today", label: "Today", icon: Sun },
+  { id: "ask", label: "Ask", icon: Search },
+  { id: "commitments", label: "Commitments", icon: CheckCircle },
+  { id: "more", label: "More", icon: MoreHorizontal },
+];
+
 export function AppShell() {
   const [mounted, setMounted] = useState(false);
   const [authed, setAuthed] = useState<boolean>(false);
   const [onboarded, setOnboarded] = useState<boolean>(false);
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setViewRaw] = useState<View>("today");
   const [pendingQuery, setPendingQuery] = useState<string | undefined>();
   const [entityFilter, setEntityFilter] = useState<string>("");
   const [llm, setLlm] = useState<LlmStatus | null>(null);
+  // More-section sub-tab (so a deep link to "browse sources" or "agent controls"
+  // can land on the right section inside More). Default = "connectors".
+  const [moreSection, setMoreSection] = useState<
+    "connectors" | "settings" | "sources" | "agents" | "tour"
+  >("connectors");
+
+  // Wrap setView so legacy IDs are always folded — no caller can land on
+  // a removed tab. This is the redirect layer.
+  const setView = (v: View) => {
+    // If the caller asked for a More sub-section (e.g. "inbox" → "more" + sources),
+    // route them to the right More tab.
+    if (v === "inbox") {
+      setMoreSection("sources");
+      setViewRaw("more");
+      return;
+    }
+    if (v === "agents") {
+      setMoreSection("agents");
+      setViewRaw("more");
+      return;
+    }
+    if (v === "settings") {
+      setMoreSection("settings");
+      setViewRaw("more");
+      return;
+    }
+    setViewRaw(resolveView(v));
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -87,24 +143,22 @@ export function AppShell() {
   function logout() {
     clearToken();
     setAuthed(false);
-    setView("dashboard");
+    setViewRaw("today");
     setLlm(null);
   }
 
   function handleAsk(query: string) {
     setPendingQuery(query);
-    setView("ask");
+    setViewRaw("ask");
   }
 
   function handleViewCommitmentsForEntity(entity: string) {
     setEntityFilter(entity);
-    setView("commitments");
+    setViewRaw("commitments");
   }
 
-  // Until mounted, render the SSR shell (brand + nav + loading content area).
-  // This matches what the server rendered, so hydration is seamless.
   if (!mounted) {
-    return <ShellSkeleton view="dashboard" />;
+    return <ShellSkeleton view="today" />;
   }
 
   if (!onboarded) {
@@ -128,11 +182,11 @@ export function AppShell() {
       llm={llm}
       onLogout={logout}
     >
-      {view === "dashboard" && (
+      {view === "today" && (
         <Dashboard
           llm={llm}
           onAsk={handleAsk}
-          onNavigate={(v) => setView(v)}
+          onNavigate={(v) => setView(v as View)}
         />
       )}
       {view === "ask" && (
@@ -148,10 +202,15 @@ export function AppShell() {
           onEntityFilterConsumed={() => setEntityFilter("")}
         />
       )}
-      {view === "prepare" && <Prepare />}
-      {view === "inbox" && <SyntheticInbox />}
-      {view === "agents" && <Agents />}
-      {view === "settings" && <Settings />}
+      {view === "more" && (
+        <More
+          initialSection={moreSection}
+          onSectionChange={setMoreSection}
+          onAsk={handleAsk}
+        />
+      )}
+      {/* Bubble tour — fires once per user (persisted), trust/data disclosure first */}
+      <BubbleTour currentView={view} onNavigate={setView} />
     </Shell>
   );
 }
@@ -244,13 +303,13 @@ function Shell({
 
       <SessionExpiredDialog />
 
-      {/* Mobile bottom nav */}
+      {/* Mobile bottom nav — 4 columns for 4 tabs */}
       <nav
         className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
         aria-label="Mobile navigation"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-4">
           {NAV.map((item) => {
             const Icon = item.icon;
             const active = view === item.id;
@@ -266,6 +325,7 @@ function Shell({
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 aria-current={active ? "page" : undefined}
+                aria-label={item.label}
               >
                 <Icon className="size-5" />
                 <span className="truncate max-w-full px-1">{item.label}</span>
@@ -281,13 +341,7 @@ function Shell({
 /**
  * ShellSkeleton — the SSR first-paint shell.
  *
- * This is what the server renders: brand + nav + a loading content area.
- * It's NOT just "Loading…" — it's the real app chrome with a subtle
- * pulse in the content area, so the first paint looks like the app
- * loading its data, not a blank page.
- *
- * The client hydrates into this same shell, then swaps in the real
- * content (Login / Dashboard / etc.) after localStorage is read.
+ * Renders the same 4-tab chrome as the live Shell so hydration is seamless.
  */
 export function ShellSkeleton({ view }: { view: View }) {
   return (
@@ -360,7 +414,7 @@ export function ShellSkeleton({ view }: { view: View }) {
         aria-label="Mobile navigation"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-4">
           {NAV.map((item) => {
             const Icon = item.icon;
             return (
@@ -400,6 +454,7 @@ function NavButton({
           : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
       )}
       aria-current={active ? "page" : undefined}
+      aria-label={item.label}
     >
       <Icon className="size-4" />
       <span>{item.label}</span>
