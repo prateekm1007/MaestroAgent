@@ -57,7 +57,20 @@ def main():
     # Step 2: Verify all routers are registered
     print("\n[2] Verifying router registration...")
     try:
-        routes = [r.path for r in app.routes]
+        # Some routes are sub-routers (_IncludedRouter) that don't have
+        # a .path attribute. Collect all paths safely.
+        all_paths = set()
+        for r in app.routes:
+            path = getattr(r, "path", None)
+            if path:
+                all_paths.add(path)
+            # Also check sub-routes (mounted apps, included routers)
+            routes_attr = getattr(r, "routes", [])
+            for sr in routes_attr:
+                sr_path = getattr(sr, "path", None)
+                if sr_path:
+                    all_paths.add(sr_path)
+
         critical_routes = [
             "/api/health",
             "/api/auth/register",
@@ -70,7 +83,7 @@ def main():
         ]
         for route in critical_routes:
             # Check if the route exists (may be a prefix match)
-            found = any(route == r or route.startswith(r.rstrip("/") + "/") or r.startswith(route) for r in routes)
+            found = any(route == p or route.startswith(p.rstrip("/") + "/") or p.startswith(route) for p in all_paths)
             if found:
                 print(f"  ✓ {route}")
             else:
