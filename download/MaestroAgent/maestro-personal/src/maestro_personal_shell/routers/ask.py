@@ -369,7 +369,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         from maestro_personal_shell.db_util import get_db_conn
                         _filtered_ledger = []
                         for _le in _ledger_evidence:
-                            _sig_id = _le.get("source_signal_id", "")
+                            _sig_id = _le.get("signal_id", "") or _le.get("source_signal_id", "")
                             _ctype = ""
                             if _sig_id:
                                 try:
