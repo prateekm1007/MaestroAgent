@@ -152,7 +152,14 @@ def measure_funnel() -> dict:
 
     # ── Step 4: Ask "What did I promise?" → first commitment surfaces ───
     t3 = time.time()
-    ask_resp = api("POST", "/api/ask", token=token, body={"query": "What did I promise Sarah?"})
+    # Retry the Ask query — the first call may trigger build_shell (cold start)
+    ask_resp = None
+    for attempt in range(3):
+        ask_resp = api("POST", "/api/ask", token=token, body={"query": "What did I promise Sarah?"})
+        if "error" not in ask_resp and ask_resp.get("answer"):
+            break
+        print(f"  ⚠ Ask attempt {attempt+1} returned: {str(ask_resp)[:150]}")
+        time.sleep(2)
     ask_time = time.time() - t3
 
     answer = ask_resp.get("answer", "")
