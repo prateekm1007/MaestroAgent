@@ -48,3 +48,7 @@ The swarm does what it can; it reports what it can't; it never blurs the two.
 ## Forbidden Actions
 
 See `FORBIDDEN_ACTIONS.md` for the enumerated list, drawn from real incidents in this audit arc.
+
+## The Journey-Correctness Principles (P35-P40)
+
+See `ENTROPY_RECOVERY.md` Part Six for the full text. The load-bearing meta-principle: **component correctness does not imply journey correctness.** Every component gate must have a corresponding journey gate that tests the same input through the real API and asserts at the product surface. The three audits proved this pattern three times: connectors, classifier correctness, classifier integration. The journey gate is the antidote.

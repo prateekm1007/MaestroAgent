@@ -65,3 +65,35 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Rule:** Never automate browser-based OAuth for third-party app installation. GitHub gates this behind a consent screen deliberately. Route around it (e.g., deploy from GitHub Actions) instead of fighting it.
 
 **Enforcement:** `GovernanceEnforcer` Layer 2 (LLM critic) — reviews actions for headless-browser OAuth attempts.
+
+## 9. Crediting a component gate as a product fix (P35)
+
+**Incident:** Three independent audits found the same structural gap: a component gate (the 2,248-case classifier gold-set) passed while the product still surfaced questions as active commitments. The gate tested `_rule_based_classify` in isolation; the real API didn't honor the classifier's rejection.
+
+**Rule:** Never claim a component is "fixed" or "permanent" without a corresponding JOURNEY gate that tests the same input through the real API and asserts at the product surface. A component gate without a journey gate is a necessary-but-not-sufficient half-measure.
+
+**Enforcement:** `GovernanceEnforcer` Layer 3 (outcome verification) — after a component fix, verify the FULL journey, not just the component's return value.
+
+## 10. Shipping an answer not constrained to the query's entity/owner (P36)
+
+**Incident:** "What did I promise Maria?" returned Maria's statements (not what I promised). "What did Dana promise?" answered about Alex. Unrelated PayPal/RBI perspectives contaminated answers.
+
+**Rule:** Every answer must pass entity, speaker/owner, temporal, and source consistency checks deterministically BEFORE it ships. Never allow an LLM fallback to elaborate on unrelated context.
+
+**Enforcement:** Journey gate — adversarial Ask battery asserting answers are entity/owner/temporal/source-constrained.
+
+## 11. Admitting non-commitments to the active commitment surface (P37)
+
+**Incident:** Questions, tentative language, and jokes appeared as `is_commitment: true, state: active` in `/api/commitments` despite the classifier typing them correctly.
+
+**Rule:** Classification without admission control is theater. The commitment surface must hard-filter on `is_commitment: true` — if the classifier says `false`, the signal MUST NOT appear.
+
+**Enforcement:** Journey gate — insert controlled signal taxonomy, assert only real commitments surface.
+
+## 12. Allowing re-login after account deletion (P38)
+
+**Incident:** `DELETE /api/account` succeeded, then re-login with the same credentials returned 200 with a new token.
+
+**Rule:** Deletion is final. After deletion, re-login MUST fail. The identity, credentials, signals, connectors, and audit trail are all gone.
+
+**Enforcement:** Deletion-finality test — register → delete → re-login must fail.

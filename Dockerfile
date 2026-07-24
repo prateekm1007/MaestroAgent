@@ -56,7 +56,7 @@ COPY --from=builder /build/ ./
 # deployed commit, not a stale hardcoded value.
 ARG BUILD_COMMIT=unknown
 ARG BUILD_TIME=unknown
-ENV MAESTRO_VERSION="1.0.0-beta"
+ENV MAESTRO_VERSION="12.0.0-audit-ready"
 ENV MAESTRO_BUILD_COMMIT=$BUILD_COMMIT
 ENV MAESTRO_BUILD_TIME=$BUILD_TIME
 ENV PYTHONPATH=/app/src

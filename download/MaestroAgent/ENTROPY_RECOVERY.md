@@ -223,3 +223,53 @@ The auditor had P1 ("execute, don't read"), P19 ("unit ≠ integration"), and P2
 Read Part One and Part Two before writing code. Read Part Three before auditing. Read Part Four before either — the wiring-vs-existence failures it documents are the most recent and most common. Read Part Five before auditing — the auditor's own failures it documents are the most recent and most common audit blindspots. Read the whole thing before writing instructions for either. Every N rounds, pick one item marked "done" at random — not the one you're worried about, the one you're confident is fine — and re-verify it at the deepest level (principle #15's third checkbox). That's where entropy hides: not in the things anyone is still worried about, but in the things everyone stopped checking because they were marked done two rounds ago.
 
 **P26 is the load-bearing principle of Part Four. P34 is the load-bearing principle of Part Five.** Principles don't enforce themselves. Re-application does. The mechanical checks in P20-P25 ARE the enforcement — "did you run `grep` and count the callers?" is enforceable; "did you remember the wiring principle?" is not. The mechanical checks in P27-P34 ARE the enforcement for the auditor — "did you read the assertion?" is enforceable; "did you remember to test 3+ inputs?" is not. Every session, re-read P11, P15, P20-P25, and P27-P34 from disk, and cite the P-number in every fix commit and every audit verdict.
+
+---
+
+## PART SIX — THE JOURNEY-CORRECTNESS PRINCIPLES (NEW, FROM THE THIRD AUDIT 2026-07-24)
+
+### The meta-failure this part reveals
+
+Three independent audits found the same structural gap from three different angles: **component correctness does not imply journey correctness.** A gate — however large — that tests a component in isolation gives false confidence while the product breaks at the seams between components.
+
+- Audit 1 (connectors): the gate tested the engine's mechanics but not the connectors ingesting real data. Gmail could break and the gate stayed green.
+- Audit 2 (classifier correctness): the gate tested mechanics (does Ask run, does the ledger store) but not the classifier's correctness. The classifier fabricated completions and the gate stayed green.
+- Audit 3 (classifier integration): the 2,248-case gold-set proved `_rule_based_classify` rejects questions — but the real API still surfaced them as `is_commitment: true` in `/api/commitments`. The classifier's rejection was not honored by the ingestion→store→surface path.
+
+**The pattern is not bad luck; it is that every gate verifies a component, and the product fails at the seams.** P35-P40 below are the enforcement.
+
+### 35. Gate the journey, not the component — a component gate is necessary but never sufficient
+
+**The failure:** The 2,248-case gold-set tests `_rule_based_classify` in isolation and goes green. But when the same question-form signal is posted through the real `/api/signals` endpoint, it appears as `is_commitment: true, state: active` in `/api/commitments` — because the ingestion path does not honor the classifier's rejection.
+
+> **Rule:** For every component gate, there must be a corresponding JOURNEY gate that inserts the same test input through the REAL API and asserts the output at the PRODUCT surface (not the component return value). If the classifier rejects a question, the journey gate must post that question through `/api/signals` and assert it does NOT appear in `/api/commitments`. A component gate without a journey gate is a necessary-but-not-sufficient half-measure. The unit of verification is the end-to-end journey: insert → classify → store → surface → assert.
+
+### 36. Deterministic evidence/owner/temporal gate — answers must be constrained before they ship
+
+**The failure:** "What did I promise Maria?" returned Maria's statements (not what I promised). "What did Dana promise?" answered about Alex. "What commitments do I have?" attached unrelated PayPal/RBI perspectives. The answer was not constrained to the query's entity/owner.
+
+> **Rule:** Every answer must pass entity, speaker/owner, temporal, and source consistency checks deterministically, BEFORE it ships. If the retrieved evidence doesn't match the query's entity/owner/time/source, return a short abstention with the matching evidence — never an LLM fallback elaborating on unrelated context. The answer is constrained and verified, not generated freely. A gate that asserts "the answer mentions the entity" is not enough; the gate must assert "the answer does NOT mention entities not in the query's evidence."
+
+### 37. Typed lifecycle with hard admission rules — classification without admission control is theater
+
+**The failure:** The classifier types signals correctly (question, tentative, quote, third-party, joke), but the commitment surface admits them all as `is_commitment: true, state: active` anyway. Classification without admission control is a label, not a gate.
+
+> **Rule:** Questions, quotes, tentative language, third-party obligations, jokes, cancellations, and completions must be structurally excluded from the active commitment surface — enforced at the STORE + SURFACE level, not just classified at the component level. The admission rule (what types appear as active commitments) must be a hard filter in `/api/commitments`, not a suggestion in the classifier. If the classifier says `is_commitment: false`, the signal MUST NOT appear in the commitments list. Trace the full path: classify → store → surface → assert.
+
+### 38. Deletion is final — the deletion contract must actually hold
+
+**The failure:** `DELETE /api/account` succeeds, then re-login with the same credentials returns 200 with a new token. The data may be gone but the identity persists, violating GDPR-style right-to-be-forgotten.
+
+> **Rule:** Account deletion must prevent re-access with the same credentials. After `DELETE /api/account`, a login attempt with the same email/password MUST fail (403 or 404), not create a new account. The deletion contract is: the identity, the credentials, the signals, the connectors, and the audit trail are all gone. A deletion that allows re-login is not deletion. Gate it: register → delete → re-login must fail.
+
+### 39. No shared identity in production — demo credentials are a security hole
+
+**The failure:** `bootstrap@maestro.local` / `maestro-demo` works on production and maps to a shared identity with real connector/signal state. Any auditor or user can log in and see real data.
+
+> **Rule:** The demo/bootstrap identity must either be (a) isolated to a synthetic-only tenant with no real connector data, or (b) removed from the live deployment entirely. A shared identity on production with real data is a security and trust failure. Gate it: assert that the bootstrap credentials either don't work on production or only see synthetic data.
+
+### 40. Production reliability is a trust property — 500/502s and 30s latency are trust failures
+
+**The failure:** 20% of Ask queries returned 500/502, p95 was ~30s, and the Calendar→Gmail redirect defect broke a core connector. A system-of-record that's unavailable 20% of the time is not trustworthy, regardless of how correct its answers are when it works.
+
+> **Rule:** Production reliability must be gated, not just observed. A concurrent load gate must assert zero 500/502s and a bounded p95 (e.g., < 10s under 5 concurrent). Circuit breakers, graceful fallback, and streaming must be in place. OAuth redirect defects (Calendar→Gmail) must have a redirect test. Rate limiting must be tested (rapid invalid logins → 429). Reliability is a trust property, not a performance nicety.
