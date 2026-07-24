@@ -81,14 +81,46 @@ SUPPORTED_CONNECTORS: dict[str, dict[str, Any]] = {
         "phase": 4,
     },
     "work_email": {
-        "name": "Work Email (IMAP/SMTP)",
+        "name": "Other / Custom Domain (Advanced — IMAP)",
         "icon": "briefcase",
         "category": "work",
         "scopes": ["imap", "smtp"],
-        "ingest_description": "Connect any work email via IMAP (Exchange, Outlook, ProtonMail Bridge, custom domain). Extracts commitments from sent + received mail.",
+        "ingest_description": (
+            "Advanced: connect any work email via IMAP (ProtonMail Bridge, "
+            "custom domain, or a provider without OAuth). Requires an "
+            "app password. For Gmail / Outlook / Yahoo, use the one-click "
+            "OAuth cards above instead — no app password needed."
+        ),
         "write_description": "Draft and send commitment follow-up emails via SMTP (with approval)",
         "oauth_configured": False,
         "phase": 5,
+        "advanced": True,  # auditor: demote IMAP to "Advanced"
+    },
+    "yahoo_mail": {
+        "name": "Yahoo Mail",
+        "icon": "email",
+        "category": "work",
+        "scopes": ["mail-ro"],
+        "ingest_description": "Connect Yahoo Mail with one click (OAuth). No app password required.",
+        "write_description": "Read-only ingestion — Yahoo Mail API does not support send via mail-ro scope.",
+        "oauth_configured": False,
+        "phase": 5,
+        "advanced": False,
+    },
+    "microsoft_mail": {
+        "name": "Microsoft 365 / Outlook",
+        "icon": "email",
+        "category": "work",
+        "scopes": ["Mail.Read", "Mail.Send", "offline_access"],
+        "ingest_description": (
+            "Connect Microsoft 365, Outlook.com, Hotmail, or Live with one "
+            "click (OAuth). Supports enterprise admin-consent for "
+            "tenant-wide deployment."
+        ),
+        "write_description": "Draft and send commitment follow-up emails via Microsoft Graph (with approval)",
+        "oauth_configured": False,
+        "phase": 5,
+        "advanced": False,
     },
     "whatsapp": {
         "name": "WhatsApp",
@@ -355,6 +387,8 @@ class ConnectorStore:
         For Calendar, uses is_calendar_configured() which falls back to
         the Gmail OAuth client (same Google OAuth client serves both APIs).
         For work_email, IMAP doesn't use OAuth (it uses direct credentials).
+        For yahoo_mail and microsoft_mail, checks the provider-specific env
+        vars (set via Railway).
         """
         if provider == "calendar":
             try:
@@ -366,6 +400,18 @@ class ConnectorStore:
             # Work email uses IMAP (direct credentials), not OAuth.
             # It's always "configured" — the user provides their own creds.
             return True
+        if provider == "yahoo_mail":
+            try:
+                from maestro_personal_shell.yahoo_mail_connector import is_yahoo_configured
+                return is_yahoo_configured()
+            except ImportError:
+                return False
+        if provider == "microsoft_mail":
+            try:
+                from maestro_personal_shell.microsoft_mail_connector import is_microsoft_configured
+                return is_microsoft_configured()
+            except ImportError:
+                return False
         client_id = os.environ.get(f"MAESTRO_{provider.upper()}_CLIENT_ID", "")
         return bool(client_id) or SUPPORTED_CONNECTORS.get(provider, {}).get("oauth_configured", False)
 
@@ -808,6 +854,46 @@ class ConnectorStore:
                 return signals
             except Exception as e:
                 logger.warning(f"Work email (IMAP) ingestion failed: {e}")
+                return []
+
+        # Phase G: real Yahoo Mail (OAuth2) ingestion — auditor item 2
+        if provider == "yahoo_mail":
+            try:
+                stored_token = self.get_stored_token(user_email, "yahoo_mail")
+                if not stored_token:
+                    logger.info("Yahoo Mail not connected — returning empty")
+                    return []
+                from maestro_personal_shell.yahoo_mail_connector import (
+                    YahooMailOAuthClient, fetch_real_yahoo_messages,
+                )
+                oauth_client = YahooMailOAuthClient()
+                signals, _updated = fetch_real_yahoo_messages(
+                    stored_token, oauth_client, max_messages=50,
+                )
+                logger.info("Yahoo Mail ingestion: %d signals", len(signals))
+                return signals
+            except Exception as e:
+                logger.warning(f"Yahoo Mail ingestion failed: {e}")
+                return []
+
+        # Phase H: real Microsoft Mail (Graph API) ingestion — auditor item 2
+        if provider == "microsoft_mail":
+            try:
+                stored_token = self.get_stored_token(user_email, "microsoft_mail")
+                if not stored_token:
+                    logger.info("Microsoft Mail not connected — returning empty")
+                    return []
+                from maestro_personal_shell.microsoft_mail_connector import (
+                    MicrosoftMailOAuthClient, fetch_real_microsoft_messages,
+                )
+                oauth_client = MicrosoftMailOAuthClient()
+                signals, _updated = fetch_real_microsoft_messages(
+                    stored_token, oauth_client, max_messages=50,
+                )
+                logger.info("Microsoft Mail ingestion: %d signals", len(signals))
+                return signals
+            except Exception as e:
+                logger.warning(f"Microsoft Mail ingestion failed: {e}")
                 return []
 
         # Other providers — not yet implemented (Phase F: WhatsApp, etc.)

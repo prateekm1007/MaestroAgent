@@ -683,6 +683,27 @@ function AnswerCard({
               <span className="text-foreground/90">{response.decision_boundary}</span>
             </div>
           )}
+
+          {/* Auditor (2026-07-24) item 3 — surface calibration_reason.
+              The backend has always populated `calibration_note` (e.g.
+              "Answered from commitment ledger (current state). Note: a
+              recent reschedule/supersession was detected — current status
+              may be pending confirmation.") but it was never rendered.
+              A 0.6 confidence with no explanation reads as arbitrary on
+              a trust product. This block surfaces it visibly so the user
+              sees WHY the confidence is what it is. */}
+          {response.calibration_note && (
+            <div className="rounded-md border border-amber-500/30 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2 text-xs">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-700 dark:text-amber-400 font-medium shrink-0 mt-0.5">
+                  Why this confidence:
+                </span>
+                <span className="text-amber-900 dark:text-amber-200 leading-relaxed">
+                  {response.calibration_note}
+                </span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

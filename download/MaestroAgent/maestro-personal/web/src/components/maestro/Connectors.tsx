@@ -292,7 +292,18 @@ export function Connectors() {
     }
   }
 
-  const workConnectors = connectors.filter((c) => c.category === "work");
+  const workConnectors = connectors
+    .filter((c) => c.category === "work")
+    // Auditor (2026-07-24) item 2 — demote IMAP (work_email) below the
+    // one-click OAuth cards. The OAuth cards (gmail, yahoo_mail,
+    // microsoft_mail, calendar) should appear first; the IMAP "Advanced"
+    // path appears last so users see one-click options before the
+    // app-password path.
+    .sort((a, b) => {
+      const aAdvanced = a.provider === "work_email" ? 1 : 0;
+      const bAdvanced = b.provider === "work_email" ? 1 : 0;
+      return aAdvanced - bAdvanced;
+    });
   const socialConnectors = connectors.filter((c) => c.category === "social");
 
   return (
@@ -518,9 +529,15 @@ function ConnectorCard({
 }) {
   const Icon = PROVIDER_ICONS[connector.icon] || Link2;
   const connected = connector.connected;
+  // Auditor item 2 — demote IMAP+app-password to "Advanced"
+  const isAdvanced = connector.provider === "work_email";
 
   return (
-    <Card className={cn("border-border/60", connected && "border-l-4 border-l-emerald-500/50")}>
+    <Card className={cn(
+      "border-border/60",
+      connected && "border-l-4 border-l-emerald-500/50",
+      isAdvanced && "opacity-90",
+    )}>
       <CardContent className="pt-5 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -531,7 +548,14 @@ function ConnectorCard({
               <Icon className="size-4" />
             </div>
             <div>
-              <div className="text-sm font-medium">{connector.name}</div>
+              <div className="text-sm font-medium flex items-center gap-1.5">
+                {connector.name}
+                {isAdvanced && (
+                  <Badge variant="outline" className="text-[9px] uppercase tracking-wider text-muted-foreground border-muted-foreground/30">
+                    Advanced
+                  </Badge>
+                )}
+              </div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
                 {connector.category} · Phase {connector.phase}
               </div>

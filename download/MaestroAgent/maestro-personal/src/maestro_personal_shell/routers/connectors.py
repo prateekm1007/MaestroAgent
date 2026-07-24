@@ -110,6 +110,10 @@ class ConnectorConnectRequest(BaseModel):
     # omitted the redundant field.
     provider: str = ""  # ignored — taken from the URL path
     oauth_token: str = ""  # empty in demo mode / pre-OAuth
+    # Auditor (2026-07-24) item 2 — Microsoft enterprise admin-consent path.
+    # When True, the Microsoft OAuth URL is generated with prompt=admin_consent
+    # so a tenant admin can pre-approve the scopes for all users in their org.
+    admin_consent: bool = False
 
 
 class ConnectorDraftRequest(BaseModel):
@@ -166,7 +170,12 @@ async def list_connectors(
         return {"connectors": all_connectors, "demo_notice": _demo_notice}
     # P2 fix: surface work_email alongside Gmail + Calendar.
     # Work email (IMAP) is a first-class connector — it's the B2B moat.
-    _DEMO_CONNECTORS = {"gmail", "calendar", "work_email"}
+    # Auditor (2026-07-24) item 2: add yahoo_mail + microsoft_mail as
+    # first-class one-click OAuth cards alongside gmail/calendar/work_email.
+    _DEMO_CONNECTORS = {
+        "gmail", "calendar", "work_email",
+        "yahoo_mail", "microsoft_mail",
+    }
     return {
         "connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS],
         "demo_notice": _demo_notice,
@@ -238,6 +247,40 @@ async def connect_provider(request: Request, provider: str, req: ConnectorConnec
                 return {"oauth_required": True, "authorization_url": auth_url}
         except ImportError:
             pass  # fall through to demo mode
+
+    # Phase G: Yahoo Mail OAuth2 flow (auditor item 2 — one-click OAuth)
+    # Yahoo Mail supports OAuth2 with the mail-ro scope. This replaces the
+    # IMAP+app-password path for Yahoo users — no app password needed.
+    if provider == "yahoo_mail" and not req.oauth_token:
+        try:
+            from maestro_personal_shell.yahoo_mail_connector import is_yahoo_configured, YahooMailOAuthClient
+            if is_yahoo_configured():
+                oauth_client = YahooMailOAuthClient()
+                state = _sign_oauth_state(token, connector="yahoo_mail")  # FORENSIC-003: HMAC-signed
+                auth_url = oauth_client.get_authorization_url(state=state)
+                return {"oauth_required": True, "authorization_url": auth_url}
+        except ImportError:
+            pass  # fall through to error
+
+    # Phase H: Microsoft Mail OAuth2 flow (auditor item 2 — one-click OAuth)
+    # Microsoft Graph API with Mail.Read + Mail.Send. Supports both user
+    # consent (default) and admin consent (enterprise tenant-wide deployment).
+    # The admin_consent=True field is passed via the ConnectorConnectRequest
+    # body (Pydantic-validated — avoids raw body-stream parsing).
+    if provider == "microsoft_mail" and not req.oauth_token:
+        try:
+            from maestro_personal_shell.microsoft_mail_connector import is_microsoft_configured, MicrosoftMailOAuthClient
+            if is_microsoft_configured():
+                oauth_client = MicrosoftMailOAuthClient(admin_consent=req.admin_consent)
+                state = _sign_oauth_state(token, connector="microsoft_mail")  # FORENSIC-003
+                auth_url = oauth_client.get_authorization_url(state=state)
+                return {
+                    "oauth_required": True,
+                    "authorization_url": auth_url,
+                    "admin_consent": req.admin_consent,
+                }
+        except ImportError:
+            pass  # fall through to error
 
     # Phase D: GitHub OAuth2 flow
     if provider == "github" and not req.oauth_token:
@@ -693,6 +736,135 @@ async def github_oauth_callback(
         return _oauth_response(request, "github", user_email, success=False, error=result["error"])
 
     return _oauth_response(request, "github", user_email, success=True)
+
+
+# ---------------------------------------------------------------------------
+# Yahoo Mail OAuth2 callback (auditor item 2 — one-click OAuth)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/connectors/yahoo_mail/oauth/callback")
+async def yahoo_mail_oauth_callback(
+    request: Request,
+    code: str = "",
+    state: str = "",
+    error: str = "",
+):
+    """Yahoo Mail OAuth2 callback — exchanges authorization code for tokens."""
+    if error:
+        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    from maestro_personal_shell.connectors import ConnectorStore
+    from maestro_personal_shell.yahoo_mail_connector import YahooMailOAuthClient, is_yahoo_configured
+
+    if not is_yahoo_configured():
+        raise HTTPException(status_code=400, detail="Yahoo Mail OAuth not configured")
+
+    user_email, _ = _validate_oauth_state(state)  # FORENSIC-003: validate HMAC
+    logger.info("[yahoo_mail-callback] state_user=%r", user_email)
+
+    oauth_client = YahooMailOAuthClient()
+    token_data = oauth_client.exchange_code_for_tokens(code)
+
+    if "error" in token_data:
+        logger.error("[yahoo_mail-callback] token exchange failed: %s", token_data['error'])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Yahoo token exchange failed: {token_data['error']}",
+        )
+
+    token_json = json.dumps(token_data)
+    store = ConnectorStore()
+    result = store.connect(user_email, "yahoo_mail", token_json)
+    if "error" in result:
+        return _oauth_response(request, "yahoo_mail", user_email, success=False, error=result["error"])
+
+    logger.info("[yahoo_mail-callback] tokens stored for user=%r", user_email)
+
+    # Sync-on-connect: ingest recent Yahoo messages
+    try:
+        from maestro_personal_shell.api import build_shell
+        shell = build_shell(user_email=user_email)
+        store.ingest(user_email, "yahoo_mail", shell=shell)
+    except Exception as e:
+        logger.warning("Yahoo Mail sync-on-connect failed (non-fatal): %s", e)
+
+    return _oauth_response(request, "yahoo_mail", user_email, success=True)
+
+
+# ---------------------------------------------------------------------------
+# Microsoft Mail OAuth2 callback (auditor item 2 — one-click OAuth)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/connectors/microsoft_mail/oauth/callback")
+async def microsoft_mail_oauth_callback(
+    request: Request,
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    admin_consent: str = "",
+):
+    """Microsoft Mail OAuth2 callback — exchanges authorization code for tokens.
+
+    The admin_consent query param is set to 'True' when an enterprise admin
+    pre-approves the scopes for their tenant. We accept it as a string
+    (Microsoft sends it as a query param) and surface it in the response
+    so the UI can show "admin consent granted" messaging.
+    """
+    if error:
+        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+    if not code:
+        # Admin-consent flow sometimes returns just admin_consent=True
+        # without a code — treat that as a successful pre-approval.
+        if admin_consent.lower() == "true":
+            return _oauth_response(
+                request, "microsoft_mail", "",
+                success=True,
+                error="Admin consent granted. Users in this tenant can now connect without individual consent.",
+            )
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    from maestro_personal_shell.connectors import ConnectorStore
+    from maestro_personal_shell.microsoft_mail_connector import (
+        MicrosoftMailOAuthClient, is_microsoft_configured,
+    )
+
+    if not is_microsoft_configured():
+        raise HTTPException(status_code=400, detail="Microsoft Mail OAuth not configured")
+
+    user_email, _ = _validate_oauth_state(state)  # FORENSIC-003: validate HMAC
+    logger.info("[microsoft_mail-callback] state_user=%r admin_consent=%s", user_email, admin_consent)
+
+    oauth_client = MicrosoftMailOAuthClient()
+    token_data = oauth_client.exchange_code_for_tokens(code)
+
+    if "error" in token_data:
+        logger.error("[microsoft_mail-callback] token exchange failed: %s", token_data['error'])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Microsoft token exchange failed: {token_data['error']}",
+        )
+
+    token_json = json.dumps(token_data)
+    store = ConnectorStore()
+    result = store.connect(user_email, "microsoft_mail", token_json)
+    if "error" in result:
+        return _oauth_response(request, "microsoft_mail", user_email, success=False, error=result["error"])
+
+    logger.info("[microsoft_mail-callback] tokens stored for user=%r", user_email)
+
+    # Sync-on-connect: ingest recent Microsoft messages
+    try:
+        from maestro_personal_shell.api import build_shell
+        shell = build_shell(user_email=user_email)
+        store.ingest(user_email, "microsoft_mail", shell=shell)
+    except Exception as e:
+        logger.warning("Microsoft Mail sync-on-connect failed (non-fatal): %s", e)
+
+    return _oauth_response(request, "microsoft_mail", user_email, success=True)
 
 
 # ---------------------------------------------------------------------------

@@ -953,15 +953,38 @@ app.include_router(_inbox_router.router)
 # P2 said "returns 404 even WITH auth" — meaning it should require auth.
 # Fix: require Bearer token. Authenticated users get the full spec;
 # unauthenticated requests get 401.
+#
+# Auditor (2026-07-24) item 4 — openapi resolution:
+# "resolve openapi (authenticated/auditor-scoped contract, or document the
+# intentional disable + hand the schema another way — no 404 to an
+# auditor)". An auditor with MAESTRO_PERSONAL_TOKEN (admin) should be able
+# to fetch the spec without registering a user — so the endpoint accepts
+# EITHER a valid user Bearer token OR the admin token. Unauthenticated
+# requests get 401 (not 404), and the spec is served to anyone with
+# legitimate access.
 @app.get("/api/openapi.json", include_in_schema=False)
 async def openapi_contract(authorization: str = Header(None)):
     """Return the OpenAPI 3.1 contract for this API.
 
-    Requires Bearer token auth — the spec includes admin-gated endpoints
-    whose descriptions are not for public consumption.
+    Requires Bearer token auth — accepts EITHER:
+      - a valid user token (issued by /api/auth/register or /api/auth/login)
+      - the admin token (MAESTRO_PERSONAL_TOKEN — for auditor use)
+
+    Unauthenticated requests get 401 (not 404).
     """
-    await verify_token(authorization=authorization)
+    from fastapi import HTTPException
     from fastapi.responses import JSONResponse
+
+    # Auditor-scoped path: accept MAESTRO_PERSONAL_TOKEN as Bearer
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if admin_token and authorization == f"Bearer {admin_token}":
+        return JSONResponse(
+            content=app.openapi(),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    # User-scoped path: validate the user token
+    await verify_token(authorization=authorization)
     return JSONResponse(
         content=app.openapi(),
         headers={"Cache-Control": "no-store"},

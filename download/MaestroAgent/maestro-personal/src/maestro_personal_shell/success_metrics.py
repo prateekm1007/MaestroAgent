@@ -89,24 +89,49 @@ def _compute_commitment_metrics(path: str, user_email: str) -> dict[str, Any]:
         conn = get_db_conn(path)
         conn.row_factory = sqlite3.Row
 
-        # Count signals by type
+        # Count signals by type. Total = all commitment-related signals.
+        # Auditor (2026-07-24) [CMPL] gap: previously only `commitment_made`
+        # was counted as total, so a `commitment_completed` signal was neither
+        # in total NOR counted as completed (the metadata-correction check
+        # doesn't match the lifecycle fixture's metadata). Result: a tenant
+        # with a real completed commitment (Alex Chen) showed
+        # commitments_completed=0 — a false-zero that hid a real lifecycle
+        # event. Fix: count ALL commitment_* signal types as total, and
+        # count `commitment_completed` as completed.
         total = conn.execute(
-            "SELECT COUNT(*) FROM signals WHERE user_email = ? AND signal_type = 'commitment_made'",
+            """SELECT COUNT(*) FROM signals
+               WHERE user_email = ?
+               AND signal_type IN
+                   ('commitment_made','commitment_updated','commitment_completed','commitment_broken')""",
             (user_email,),
         ).fetchone()[0]
 
-        # Count completed (metadata has correction=complete)
+        # Count completed (auditor [CMPL] fix):
+        #   (a) signals with signal_type = 'commitment_completed' (lifecycle
+        #       fixture path — Alex Chen-style "I already reviewed it")
+        #   (b) signals whose metadata records a correction=complete event
+        #       (user-marked-via-UI path)
         completed = conn.execute(
             """SELECT COUNT(*) FROM signals
-               WHERE user_email = ? AND metadata LIKE '%correction%complete%'""",
+               WHERE user_email = ?
+               AND (
+                   signal_type = 'commitment_completed'
+                   OR metadata LIKE '%correction%complete%'
+                   OR metadata LIKE '%commitment_state%completed%'
+               )""",
             (user_email,),
         ).fetchone()[0]
 
         # Count dismissed/cancelled (missed)
         missed = conn.execute(
             """SELECT COUNT(*) FROM signals
-               WHERE user_email = ? AND (metadata LIKE '%correction%dismiss%'
-               OR metadata LIKE '%correction%cancel%')""",
+               WHERE user_email = ?
+               AND (
+                   signal_type = 'commitment_broken'
+                   OR metadata LIKE '%correction%dismiss%'
+                   OR metadata LIKE '%correction%cancel%'
+                   OR metadata LIKE '%commitment_state%cancelled%'
+               )""",
             (user_email,),
         ).fetchone()[0]
 

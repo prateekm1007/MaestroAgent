@@ -252,3 +252,57 @@ async def migrate_encryption(token: str = ""):
         }
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# [C] Critic contradiction probe — auditor's strict-order item 4 (fill [C])
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/admin/critic-probe")
+async def critic_probe(payload: dict):
+    """[C] Critic contradiction probe — feed the critic a denial-while-evidence-
+    contains-it case and verify the critic catches it.
+
+    The auditor's [C] gap: the ask_critic was wired but never tested against
+    a real denial-while-evidence-contains-it case. This endpoint:
+      1. Accepts {answer, query, evidence_texts: [...]} as JSON
+      2. Runs ask_critic.evaluate_answer() on the triple
+      3. Returns {score, justification, suggestions}
+
+    A passing probe: an answer that DENIES the commitment while the evidence
+    clearly contains it should score <0.5 (the critic catches the
+    contradiction).
+
+    Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level). Same gate as
+    /api/admin/purge-demo-data and /api/admin/migrate-encryption.
+    """
+    from fastapi import HTTPException
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    token = payload.get("token", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    answer = payload.get("answer", "")
+    query = payload.get("query", "")
+    evidence_texts = payload.get("evidence_texts", [])
+
+    if not answer or not query:
+        raise HTTPException(
+            status_code=400,
+            detail="Both 'answer' and 'query' are required."
+        )
+
+    from maestro_personal_shell.ask_critic import evaluate_answer
+    result = await evaluate_answer(
+        answer=answer,
+        query=query,
+        evidence_texts=evidence_texts,
+    )
+
+    return {
+        "score": result.score,
+        "justification": result.justification,
+        "suggestions": result.suggestions,
+        "critic_enabled": True,
+    }

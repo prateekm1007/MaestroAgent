@@ -134,12 +134,24 @@ class WhatChangedSurface:
           - Changes a meeting (scheduled/moved/cancelled)
           - Indicates a deadline (approaching/missed)
           - Is a follow-up required
+
+        Auditor (2026-07-24) [WC] fix: the lifecycle fixture uses
+        signal_types `commitment_updated`, `commitment_completed`, and
+        `commitment_broken` for Maria-reschedule, Alex-completed, and
+        Jamie-cancelled. These were absent from meaningful_types, so the
+        what-changed surface returned empty for a tenant seeded with the
+        lifecycle fixture — the auditor's "what-changed from ledger returns
+        empty despite populated ledger" finding. Fix: include all
+        commitment_* lifecycle types so reschedules, completions, and
+        cancellations surface as meaningful deltas.
         """
         sig_type = str(getattr(signal, "signal_type", "") or
                        getattr(getattr(signal, "type", ""), "value", "")).lower()
 
         meaningful_types = {
-            "commitment_made", "personal.promise", "personal.commitment",
+            "commitment_made", "commitment_updated", "commitment_completed",
+            "commitment_broken",
+            "personal.promise", "personal.commitment",
             "meeting.scheduled", "meeting.moved", "meeting.cancelled",
             "calendar_change",
             "deadline.approaching", "deadline.missed",

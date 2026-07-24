@@ -34,6 +34,7 @@ CI INTEGRATION:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import httpx
@@ -210,6 +211,46 @@ def run_gate():
     gate = GateResult()
     token = setup_isolated_tenant()
 
+    # ── [COLD] Cold-start first-query latency (auditor refinement 2026-07-24) ──
+    # The auditor's 28–36s measurements on prior turns were plausibly early/cold
+    # queries on a fresh tenant (build_shell_async runs on first request). The
+    # [A] assertion below uses a warm-up to measure steady-state latency — but
+    # the cold-first-query cost is also part of the user experience and must not
+    # vanish from the record. This assertion catches cold-start regressions
+    # (e.g., a new blocking I/O call added to build_shell_async) distinctly
+    # from steady-state regressions.
+    #
+    # Threshold: 6s. The fast-path compute is <0.3s; the cold-start delta is
+    # shell-build + first-tenant setup on Railway. 6s is well below the 30s
+    # client-crash threshold and is a honest ceiling for a fresh-tenant first
+    # request.
+    print("[COLD] Cold-start first-query latency (no warm-up, fresh tenant)...")
+    cold_start = time.time()
+    cold_d = None
+    try:
+        resp = httpx.post(
+            f"{BACKEND_URL}/api/ask",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"query": "What did I promise Priya?"},
+            timeout=30,
+        )
+        cold_d = resp.json()
+    except Exception as e:
+        print(f"  ⚠ Cold-start request failed: {e}")
+    cold_lat = time.time() - cold_start
+    gate.assert_lt(
+        "[COLD] Cold-first-query latency < 6s (incl. shell build on fresh tenant)",
+        cold_lat,
+        6.0,
+    )
+    # The cold query must also return a valid answer (not crash)
+    if cold_d is not None:
+        gate.assert_true(
+            "[COLD] Cold query returned an answer (not crash)",
+            "answer" in cold_d and len(str(cold_d.get("answer", ""))) > 0,
+            f"keys={list(cold_d.keys())[:5]}",
+        )
+
     # ── [A] Maria reschedule (auditor's exact query) ──────────────────
     print("\n[A] Maria reschedule (auditor exact)...")
     # Warm-up query (builds the shell, so the timed query is hot)
@@ -283,6 +324,109 @@ def run_gate():
     lat, d = ask(token, "What commitments are completed?")
     gate.assert_true("[D2] Confidence > 0", d.get("confidence", 0) > 0, f"conf={d.get('confidence')}")
     gate.assert_true("[D2] Evidence > 0", len(d.get("evidence_refs", [])) > 0, f"ev={len(d.get('evidence_refs', []))}")
+
+    # ── [WC] What-Changed from ledger (auditor item 4) ───────────────
+    # Auditor: "'what changed' from ledger — untouched, returns empty
+    # despite populated ledger". The lifecycle fixture posts 5 signals
+    # (Maria active, Maria reschedule, Alex completed, Jamie cancelled,
+    # Priya active). The /api/what-changed surface MUST surface at least
+    # one of these as a meaningful delta after the fixture is seeded.
+    print("[WC] What-changed from ledger...")
+    try:
+        wc_resp = httpx.get(
+            f"{BACKEND_URL}/api/what-changed",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        wc_data = wc_resp.json() if wc_resp.status_code == 200 else []
+        wc_count = len(wc_data) if isinstance(wc_data, list) else 0
+    except Exception as e:
+        print(f"  ⚠ What-changed request failed: {e}")
+        wc_count = 0
+        wc_data = []
+    gate.assert_true(
+        "[WC] What-changed returns >= 1 delta from lifecycle fixture",
+        wc_count >= 1,
+        f"count={wc_count}, sample={str(wc_data[:1])[:120]}",
+    )
+
+    # ── [CMPL] Metrics commitments_completed (auditor item 4) ─────────
+    # Auditor: "completion unreconciled — /api/metrics not re-checked".
+    # The fixture posts a `commitment_completed` signal for Alex Chen
+    # ("I already reviewed it"). After the [CMPL] fix to
+    # _compute_commitment_metrics, this signal_type is now counted as
+    # completed. The assertion: commitments_completed >= 1 on the gate
+    # tenant after seeding.
+    print("[CMPL] Metrics commitments_completed from lifecycle fixture...")
+    try:
+        m_resp = httpx.get(
+            f"{BACKEND_URL}/api/metrics",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        m_data = m_resp.json() if m_resp.status_code == 200 else {}
+    except Exception as e:
+        print(f"  ⚠ Metrics request failed: {e}")
+        m_data = {}
+    cmpl_count = m_data.get("commitments_completed", -1)
+    cmpl_total = m_data.get("commitments_total", -1)
+    gate.assert_true(
+        "[CMPL] commitments_completed >= 1 (Alex Chen completed signal counted)",
+        cmpl_count >= 1,
+        f"completed={cmpl_count}, total={cmpl_total}, raw={str(m_data)[:200]}",
+    )
+    gate.assert_true(
+        "[CMPL] commitments_total >= 4 (lifecycle fixture has 5 signals, ≥4 must be counted)",
+        cmpl_total >= 4,
+        f"total={cmpl_total}",
+    )
+
+    # ── [C] Critic contradiction probe (auditor item 4 — fill [C]) ────
+    # Auditor: "fill [C]: critic contradiction probe (feed denial-while-
+    # evidence-contains-it)". This posts an answer that DENIES a
+    # commitment while the evidence clearly contains it. The ask_critic
+    # must score this <0.5 (the critic catches the contradiction).
+    #
+    # This exercises the ask_critic via the new /api/admin/critic-probe
+    # endpoint (admin-gated by MAESTRO_PERSONAL_TOKEN).
+    print("[C] Critic contradiction probe (denial-while-evidence-contains-it)...")
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    critic_score = -1.0
+    critic_justification = ""
+    if admin_token:
+        try:
+            c_resp = httpx.post(
+                f"{BACKEND_URL}/api/admin/critic-probe",
+                json={
+                    "token": admin_token,
+                    "query": "What did I promise Maria?",
+                    "answer": (
+                        "I don't have any record of a commitment to Maria. "
+                        "There is no evidence in your data of any promise "
+                        "or follow-up owed to Maria."
+                    ),
+                    "evidence_texts": [
+                        "I will send the Q3 budget proposal to Maria by Friday.",
+                        "I know I said Friday, but can we move it to next Wednesday instead?",
+                    ],
+                },
+                timeout=60,
+            )
+            if c_resp.status_code == 200:
+                c_data = c_resp.json()
+                critic_score = float(c_data.get("score", -1))
+                critic_justification = str(c_data.get("justification", ""))[:200]
+            else:
+                print(f"  ⚠ Critic probe HTTP {c_resp.status_code}: {c_resp.text[:200]}")
+        except Exception as e:
+            print(f"  ⚠ Critic probe request failed: {e}")
+    else:
+        print("  ⚠ MAESTRO_PERSONAL_TOKEN not set — skipping critic probe (will FAIL)")
+    gate.assert_true(
+        "[C] Critic catches denial-while-evidence-contains-it (score < 0.5)",
+        critic_score >= 0.0 and critic_score < 0.5,
+        f"score={critic_score}, justification={critic_justification}",
+    )
 
     return gate
 

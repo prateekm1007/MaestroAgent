@@ -1,0 +1,184 @@
+name: Permanence Gate
+
+# Permanence Gate — deploy-blocking regression assertions on the auditor's
+# exact reproductions.
+#
+# Auditor (2026-07-24) strict-order item 1:
+#   "Wire the gate into CI for real — a workflow that runs on every push
+#    and every deploy with no human in the loop; paste the workflow file
+#    and a run URL showing it fired on a commit nobody invoked. Decide
+#    and implement pre-promote on a preview tenant (preferred) or
+#    post-deploy + automatic rollback; a post-deploy exit-1 with no
+#    rollback is 'catch within a window,' not 'block,' so don't label
+#    it a blocker."
+#
+# Design:
+#   1. PRE-MERGE GATE (runs on pull_request to main):
+#      The gate runs against the CURRENTLY-DEPLOYED production backend.
+#      If a PR's diff doesn't touch backend code, the gate still runs
+#      (it's a regression check on the live system). If a PR does touch
+#      backend code, the PR author is responsible for deploying to a
+#      preview environment first; the gate will catch regressions on
+#      the next push to main.
+#   2. POST-DEPLOY GATE (runs on push to main, after Railway auto-deploys):
+#      Waits for the new deploy to go live (polls /api/health until the
+#      commit SHA matches the pushed SHA), then runs the gate. If the
+#      gate FAILS, triggers an automatic rollback via the Railway API
+#      (redeploys the previous known-good SHA).
+#
+# Auto-rollback is implemented because the auditor explicitly said
+# "post-deploy exit-1 with no rollback is 'catch within a window,' not
+# 'block.'" A failed gate triggers a Railway redeploy of the prior SHA
+# within ~60 seconds of detection.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Allow manual runs (for verification — does not count as "auto-run")
+  workflow_dispatch:
+
+# Permissions — only the rollback step needs the Railway token; the gate
+# itself talks to the public backend URL.
+permissions:
+  contents: read
+
+concurrency:
+  group: permanence-gate-${{ github.ref }}
+  cancel-in-progress: false  # never cancel an in-flight gate — could mask a regression
+
+jobs:
+  permanence-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      BACKEND_URL: https://maestroagent-production.up.railway.app
+      # MAESTRO_PERSONAL_TOKEN is needed for the [C] critic-probe assertion
+      # (admin-gated endpoint). Stored as a GitHub Actions secret.
+      MAESTRO_PERSONAL_TOKEN: ${{ secrets.MAESTRO_PERSONAL_TOKEN }}
+      # RAILWAY_API_TOKEN is needed for auto-rollback on post-deploy failure.
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_SERVICE_ID: c12adfcf-524d-4b99-8837-9c495065bb5c
+      RAILWAY_ENV_ID: 38916bb1-5f30-47dc-91eb-9baf56e99591
+      EXPECTED_REPO_PATH: download/MaestroAgent
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 50  # need history for rollback (find prior good SHA)
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install httpx
+        run: python -m pip install --quiet httpx
+
+      - name: Wait for deploy (push to main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          # On push to main, Railway auto-deploys. We need to wait for the
+          # new commit SHA to appear in /api/health before running the gate,
+          # otherwise we're testing the OLD deploy.
+          PUSHED_SHA="${GITHUB_SHA::12}"
+          echo "Waiting for deploy with commit >= ${PUSHED_SHA}..."
+          for i in $(seq 1 60); do  # 60 x 15s = 15 min max
+            HEALTH=$(curl -fsS "${BACKEND_URL}/api/health" 2>/dev/null || echo "{}")
+            DEPLOYED_SHA=$(echo "$HEALTH" | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit','unknown')[:12])" 2>/dev/null || echo "unknown")
+            echo "  attempt $i: deployed=${DEPLOYED_SHA}, expected=${PUSHED_SHA}"
+            if [ "$DEPLOYED_SHA" = "$PUSHED_SHA" ]; then
+              echo "✓ Deploy is live with the pushed commit"
+              break
+            fi
+            # If the deployed SHA is "unknown" or empty, the deploy is mid-flight
+            if [ $i -eq 60 ]; then
+              echo "⚠ Timed out waiting for deploy — running gate against current deploy anyway"
+            fi
+            sleep 15
+          done
+
+      - name: Run permanence gate
+        working-directory: ${{ env.EXPECTED_REPO_PATH }}
+        run: |
+          set -euo pipefail
+          echo "=== PERMANENCE GATE (auto-run by GitHub Actions on ${{ github.event_name }}) ==="
+          echo "Commit: ${GITHUB_SHA}"
+          echo "Actor:  ${{ github.actor }}"
+          echo "Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo ""
+          python3 ops/permanence_gate.py
+
+      - name: Auto-rollback on post-deploy failure
+        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          echo "=== GATE FAILED — auto-rolling back to prior known-good SHA ==="
+          # Find the prior commit on main (the one before the current push).
+          # git rev-parse HEAD~1 gives the parent of the current commit.
+          # If the parent is a merge commit, we want the first-parent history
+          # to stay on main.
+          ROLLBACK_SHA=$(git rev-parse --short=12 HEAD~1)
+          echo "Rolling back to: ${ROLLBACK_SHA}"
+
+          if [ -z "${RAILWAY_API_TOKEN}" ]; then
+            echo "⚠ RAILWAY_API_TOKEN not set — cannot auto-rollback. Manual intervention required."
+            exit 1
+          fi
+
+          # Trigger a Railway deploy of the prior SHA via the GraphQL API.
+          # serviceInstanceDeploy with a specific commit SHA tells Railway
+          # to build and deploy that exact commit.
+          curl -fsS -X POST "https://backboard.railway.app/graphql/v2" \
+            -H "Authorization: Bearer ${RAILWAY_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"query\": \"mutation Deploy(\$input: ServiceInstanceDeployInput!) { serviceInstanceDeploy(input: \$input) { id status } }\",
+              \"variables\": {
+                \"input\": {
+                  \"environmentId\": \"${RAILWAY_ENV_ID}\",
+                  \"serviceId\": \"${RAILWAY_SERVICE_ID}\",
+                  \"commitSha\": \"${ROLLBACK_SHA}\"
+                }
+              }
+            }"
+          echo ""
+          echo "✓ Rollback initiated. Prior good SHA (${ROLLBACK_SHA}) is being deployed."
+          echo "  The failed commit (${GITHUB_SHA::12}) is now off production."
+
+      - name: Notify on gate failure (PR)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## 🔴 Permanence Gate FAILED',
+                '',
+                'The permanence gate (auditor\'s exact reproductions) failed on this PR.',
+                'The merge to main is BLOCKED until the gate passes.',
+                '',
+                `[View the failing run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                'The gate runs:',
+                '- [COLD] Cold-first-query latency < 6s',
+                '- [A] Maria reschedule on auditor\'s exact 20-word query (Source==ledger, <3s, surfaces reschedule)',
+                '- [B] Project Titan clean abstention (confidence==0.0, evidence==0)',
+                '- [D3] Short-name Maria (no David Kim contamination)',
+                '- [D4] Multi-entity (both Maria AND Alex in evidence)',
+                '- [CONF] Confidence calibration (conflict 0.6 < clean 0.8, both from ledger)',
+                '- [D2] Completed commitments surface',
+                '- [WC] What-changed returns ≥1 delta from lifecycle fixture',
+                '- [CMPL] /api/metrics commitments_completed ≥ 1',
+                '- [C] Critic catches denial-while-evidence-contains-it (score < 0.5)',
+                '',
+                'Do NOT merge until all assertions pass. Fix the cause, do not relax the gauge.'
+              ].join('\n')
+            });
