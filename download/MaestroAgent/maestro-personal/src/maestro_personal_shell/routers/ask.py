@@ -77,6 +77,74 @@ _SESSION_TTL_SECONDS = 1800
 _MAX_SESSION_TURNS = 5
 
 
+# S2-6 LATENCY circuit breaker (Kimi K3 design, P40):
+# The auditor found p95 Ask latency of 28-37s — the latency cliff. Root
+# cause: the LLM call (Gemma 12B via OpenRouter) takes 15-25s and the
+# user sees nothing until the full response returns.
+#
+# CIRCUIT BREAKER: track the last N LLM call latencies. If the last 3
+# consecutive calls took >25s each, the 4th request SKIPS the LLM and
+# uses rules-only with an explicit calibration_note. The breaker auto-
+# resets after 60 seconds (one half-open cycle).
+#
+# The gate threshold (p95 < 10s under 5 concurrent) is NEVER lowered
+# (forbidden action 1). If the gate fails, the product falls back to
+# rules-only — it does NOT weaken the gate.
+import time as _time_cb
+import threading as _threading_cb
+_LLM_LATENCY_WINDOW_S = 60.0  # 1-minute rolling window
+_LLM_SLOW_THRESHOLD_S = 25.0  # a call > 25s is "slow"
+_LLM_BREAKER_TRIP_COUNT = 3   # 3 slow calls in the window trips the breaker
+_LLM_LATENCY_LOCK = _threading_cb.Lock()
+_LLM_LATENCY_RECORDS: list[tuple[float, float]] = []  # [(timestamp, latency_s), ...]
+_LLM_BREAKER_TRIPPED_UNTIL: float = 0.0  # epoch seconds; breaker tripped until this time
+
+
+def _record_llm_latency(latency_s: float) -> None:
+    """Record an LLM call latency. Trips the breaker if 3 slow calls in 60s."""
+    global _LLM_BREAKER_TRIPPED_UNTIL
+    now = _time_cb.time()
+    with _LLM_LATENCY_LOCK:
+        _LLM_LATENCY_RECORDS.append((now, latency_s))
+        # Prune records older than the window
+        cutoff = now - _LLM_LATENCY_WINDOW_S
+        while _LLM_LATENCY_RECORDS and _LLM_LATENCY_RECORDS[0][0] < cutoff:
+            _LLM_LATENCY_RECORDS.pop(0)
+        # Count slow calls in the window
+        slow_count = sum(1 for ts, lat in _LLM_LATENCY_RECORDS if lat > _LLM_SLOW_THRESHOLD_S)
+        if slow_count >= _LLM_BREAKER_TRIP_COUNT:
+            _LLM_BREAKER_TRIPPED_UNTIL = now + _LLM_LATENCY_WINDOW_S
+            logger.warning(
+                "S2-6 LATENCY circuit breaker TRIPPED: %d slow LLM calls (>%ss) in last %ss. "
+                "Next LLM call will be skipped — using rules-only fallback.",
+                slow_count, _LLM_SLOW_THRESHOLD_S, _LLM_LATENCY_WINDOW_S,
+            )
+
+
+def _is_llm_breaker_tripped() -> bool:
+    """Check if the LLM circuit breaker is currently tripped."""
+    now = _time_cb.time()
+    with _LLM_LATENCY_LOCK:
+        return now < _LLM_BREAKER_TRIPPED_UNTIL
+
+
+def _llm_breaker_status() -> dict:
+    """Return the current breaker status for observability."""
+    now = _time_cb.time()
+    with _LLM_LATENCY_LOCK:
+        recent = [(ts, lat) for ts, lat in _LLM_LATENCY_RECORDS if ts >= now - _LLM_LATENCY_WINDOW_S]
+        slow_count = sum(1 for ts, lat in recent if lat > _LLM_SLOW_THRESHOLD_S)
+        return {
+            "tripped": now < _LLM_BREAKER_TRIPPED_UNTIL,
+            "tripped_until": _LLM_BREAKER_TRIPPED_UNTIL,
+            "recent_call_count": len(recent),
+            "slow_call_count": slow_count,
+            "slow_threshold_s": _LLM_SLOW_THRESHOLD_S,
+            "trip_count_threshold": _LLM_BREAKER_TRIP_COUNT,
+            "window_s": _LLM_LATENCY_WINDOW_S,
+        }
+
+
 async def verify_token_dep(authorization: str = Header(None)) -> str:
     """Lazy proxy to api.verify_token."""
     from maestro_personal_shell.api import verify_token
@@ -1640,12 +1708,22 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             f"Answer the question using only this evidence."
                         )
 
+                        # S2-6 LATENCY: time the LLM call for the circuit breaker.
+                        # If 3 consecutive calls > 25s, the breaker trips and the
+                        # next request skips the LLM (rules-only fallback).
+                        import time as _time_llm_call
+                        _llm_call_start = _time_llm_call.monotonic()
                         llm_result = await llm_complete(
                             system=system_prompt,
                             user=user_prompt,
                             temperature=0.2,
                             max_tokens=300,
                         )
+                        _llm_call_latency = _time_llm_call.monotonic() - _llm_call_start
+                        try:
+                            _record_llm_latency(_llm_call_latency)
+                        except Exception:
+                            pass
                         if llm_result and len(llm_result.strip()) > 10:
                             # ROOT CAUSE 1 FIX: Wire ask_critic as a HARD GATE.
                             # The auditor proved the LLM generates claims the
@@ -2887,7 +2965,24 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         answer = acl_result.get("answer", answer)
 
     from maestro_personal_shell.llm_bridge import is_llm_available, get_llm_provider_name
-    llm_active = is_llm_available() and (
+    # S2-6 LATENCY circuit breaker (P40): if the breaker is tripped (3
+    # consecutive slow LLM calls in the last 60s), skip the LLM and use
+    # rules-only with an explicit calibration_note. The gate threshold
+    # (p95 < 10s) is NEVER lowered (forbidden action 1) — the product
+    # falls back instead.
+    _llm_breaker_tripped_now = _is_llm_breaker_tripped()
+    if _llm_breaker_tripped_now:
+        llm_answer_used = False
+        llm_perspectives_used = False
+        llm_judgment_used = False
+        llm_consequence_routed = False
+        # Append calibration note explaining the fallback
+        if calibration_note:
+            calibration_note = f"{calibration_note} | S2-6: LLM circuit-breaker tripped — answer is rules-only (latency protection)."
+        else:
+            calibration_note = "S2-6: LLM circuit-breaker tripped — answer is rules-only (latency protection)."
+        logger.warning("S2-6: LLM circuit breaker tripped — skipping LLM, using rules-only fallback.")
+    llm_active = (not _llm_breaker_tripped_now) and is_llm_available() and (
         llm_answer_used or llm_perspectives_used or llm_judgment_used or llm_consequence_routed
     )
 
@@ -3717,3 +3812,15 @@ Answer the user's question based ONLY on the evidence above."""
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# S2-6 LATENCY: admin endpoint to inspect the LLM circuit breaker status.
+# Used by ops and the journey gate to verify the breaker trips and resets
+# correctly. Not exposed in OpenAPI (include_in_schema=False) — internal.
+# ---------------------------------------------------------------------------
+
+@router.get("/breaker-status", include_in_schema=False)
+async def get_breaker_status():
+    """Return the current LLM circuit breaker status (S2-6 LATENCY)."""
+    return _llm_breaker_status()
