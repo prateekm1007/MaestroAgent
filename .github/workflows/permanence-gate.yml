@@ -277,6 +277,7 @@ jobs:
   onboarding-funnel:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    needs: [permanence-gate]  # Run AFTER backend gate to avoid SQLite contention
 
     env:
       MAESTRO_BACKEND_URL: https://maestroagent-production.up.railway.app

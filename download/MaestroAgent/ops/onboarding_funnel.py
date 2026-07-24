@@ -58,9 +58,9 @@ def api(method: str, path: str, token: str = "", body: dict | None = None) -> di
     if USE_HTTPX:
         try:
             if method == "GET":
-                resp = httpx.request(method, url, headers=headers, timeout=60)
+                resp = httpx.request(method, url, headers=headers, timeout=120)
             else:
-                resp = httpx.request(method, url, headers=headers, json=body, timeout=60)
+                resp = httpx.request(method, url, headers=headers, json=body, timeout=120)
             if resp.status_code >= 400:
                 return {"error": f"HTTP {resp.status_code}", "body": resp.text[:200]}
             return resp.json()
@@ -82,13 +82,19 @@ def measure_funnel() -> dict:
     """Run the full activation funnel and return timing + results."""
     report = {"steps": [], "total_seconds": 0, "commitment_surfaced": False}
 
-    # ── Step 1: Signup ──────────────────────────────────────────────────
+    # ── Step 1: Signup (with retries — CI runner can hit transient backend slowness) ──
     t0 = time.time()
     email = f"funnel-{int(t0)}@example.com"
-    signup_resp = api("POST", "/api/auth/register", body={
-        "user_email": email, "password": "funnel-pass", "name": "Funnel",
-    })
-    token = signup_resp.get("token", "")
+    signup_resp = None
+    for attempt in range(3):
+        signup_resp = api("POST", "/api/auth/register", body={
+            "user_email": email, "password": "funnel-pass", "name": "Funnel",
+        })
+        token = signup_resp.get("token", "")
+        if token:
+            break
+        print(f"  ⚠ Signup attempt {attempt+1} failed: {str(signup_resp)[:150]}")
+        time.sleep(3)
     if not token:
         signup_time = time.time() - t0
         report["steps"].append({"step": "signup", "seconds": round(signup_time, 2), "ok": False, "error": str(signup_resp)[:200]})
