@@ -331,7 +331,9 @@ def run_gate():
                 if mysources_btn:
                     mysources_btn.click()
                     page.wait_for_timeout(1000)
-                    # MySources has the "My Sources" heading or "No signals yet" empty state
+                    # MySources always shows the "My Sources" heading (even in
+                    # empty state, per the fix that renders the heading outside
+                    # the signals.length > 0 conditional)
                     mysources_heading = page.query_selector('h3:has-text("My Sources")')
                     gate.assert_true(
                         "[MORE] My sources shows per-user signals view",

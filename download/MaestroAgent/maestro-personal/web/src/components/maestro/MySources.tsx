@@ -98,19 +98,31 @@ export function MySources() {
 
   if (signals.length === 0) {
     return (
-      <Card className="border-border/60">
-        <CardContent className="pt-6 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Database className="size-4 text-muted-foreground" />
-            No signals yet
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Connect a source in the Connectors tab above. Once Maestro ingests
-            your email or calendar, your signals will appear here — grouped by
-            source, scoped to your account only.
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Database className="size-4" />
+            My Sources
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Your ingested signals, grouped by source. This is your data — scoped
+            to your account only. No other user can see these signals.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+        <Card className="border-border/60">
+          <CardContent className="pt-6 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Database className="size-4 text-muted-foreground" />
+              No signals yet
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Connect a source in the Connectors tab above. Once Maestro ingests
+              your email or calendar, your signals will appear here — grouped by
+              source, scoped to your account only.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
