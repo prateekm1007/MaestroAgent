@@ -49,6 +49,52 @@ concurrency:
   cancel-in-progress: false  # never cancel an in-flight gate — could mask a regression
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # BOOT GATE (P35 enforcement — the simplest journey gate)
+  # ─────────────────────────────────────────────────────────────────────
+  # Auditor (2026-07-24): "A boot gate — a CI step that actually starts
+  # the application (imports every module, registers every router, boots
+  # the server) and asserts it serves /api/health. A missing import, a
+  # broken router registration, a startup exception — any of these fails
+  # the boot gate in seconds, in CI, instead of crashing production."
+  #
+  # This is the FIRST job — all other jobs depend on it. If the app can't
+  # boot, nothing else matters. The 2,248-case classifier gold-set and the
+  # 13-case ask-correctness gate both passed while the backend couldn't
+  # start because of a missing `Header` import. This gate catches that.
+  boot-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend
+        working-directory: download/MaestroAgent/maestro-personal
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "." "slowapi>=0.1.9" "httpx"
+
+      - name: Run boot gate (import all modules + boot app + assert /api/health)
+        working-directory: download/MaestroAgent/maestro-personal
+        env:
+          PYTHONPATH: src
+          MAESTRO_PERSONAL_ENV: production
+          MAESTRO_PERSONAL_DB: /tmp/boot_gate_test.db
+        run: |
+          set -euo pipefail
+          echo "=== BOOT GATE (P35 enforcement) ==="
+          echo "Can the full application start + serve /api/health?"
+          echo "This catches missing imports, broken routers, startup crashes."
+          echo ""
+          python3 ../ops/test_boot_gate.py
+
   permanence-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 15

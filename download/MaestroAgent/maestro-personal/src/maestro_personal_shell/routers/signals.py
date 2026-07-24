@@ -215,6 +215,15 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # This runs the LLM-powered classifier (or rule-based fallback) and
     # stores the result in metadata. Downstream endpoints (Commitments,
     # The Moment) use this to filter non-commitments.
+    #
+    # P37 fix (auditor 2026-07-24 S1 #2): The classifier's result MUST
+    # override the caller-provided signal_type. Previously, a caller could
+    # post a question ("Will you send the report?") with signal_type=
+    # "commitment_made", and the classifier would correctly classify it as
+    # not_a_commitment, but the signal_type stayed "commitment_made" — so
+    # the commitment surface showed it as an active commitment anyway.
+    # Now: the classifier's commitment_type OVERWRITES the signal_type, so
+    # the surface sees the truth, not the caller's claim.
     metadata: dict[str, Any] = {}
     try:
         from maestro_personal_shell.commitment_classifier import classify_commitment
@@ -229,10 +238,22 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         metadata["commitment_owner"] = classification.get("owner", "unknown")
         metadata["classification_reasoning"] = classification.get("reasoning", "")
         metadata["llm_powered"] = classification.get("llm_powered", False)
+
+        # P37: Override the caller-provided signal_type with the classifier's
+        # verdict. The signal_type is what the commitment surface reads; if
+        # the classifier says "not_a_commitment", the signal_type MUST reflect
+        # that, regardless of what the caller claimed.
+        classified_type = classification.get("commitment_type", "not_a_commitment")
+        if classified_type != "not_a_commitment":
+            # Map classifier types to signal types for backward compat
+            signal_type_override = classified_type
+        else:
+            signal_type_override = "not_a_commitment"
     except Exception as e:
         logger.debug("Commitment classification failed (non-fatal): %s", e)
         metadata["commitment_type"] = "unclassified"
         metadata["is_commitment"] = None  # unknown — don't filter
+        signal_type_override = req.signal_type  # fall back to caller's type
 
     # F3: Resolve entity to canonical form to prevent fragmentation.
     # "Acme Corp", "client", "AcmeCorp" → single canonical entity.
@@ -274,7 +295,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         "signal_id": signal_id,
         "entity": canonical_entity,  # F3: store canonical entity, not raw
         "text": sanitized_text,  # F4: sanitized, not raw
-        "signal_type": req.signal_type,
+        "signal_type": signal_type_override,  # P37: classifier's verdict, not caller's claim
         "timestamp": signal_timestamp,  # P0-3: preserve client timestamp
         "metadata": metadata,
         "source_acl": "public",
