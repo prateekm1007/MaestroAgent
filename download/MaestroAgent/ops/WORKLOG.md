@@ -123,3 +123,15 @@ Agent: New Coder (2026-07-24 session)
 - Backend gate: 29/29 GREEN. UI gate: 19 assertions ready (will auto-run when frontend deploys).
 
 Commits: 590db81, 768ac29, 0d599ec.
+
+---
+Task ID: 14 (auditor 2026-07-24 — connector diagnosis + [CONN] gate assertions)
+Agent: New Coder (2026-07-24 session)
+
+DIAGNOSIS: Gmail WORKING (49 emails, 56 commitments, sync succeeds). Calendar connected but 0 events (scope issue). Yahoo/Microsoft not configured. Frontend stale. Backend infrastructure verified end-to-end.
+
+PERMANENCE FIX: [CONN] connector-health assertions added to gate (5 new). Gate now 34/34. If Gmail breaks, CI fails. Connectors no longer ungated.
+
+Setup guide reoriented: connectors first, frontend last.
+
+Commits: ad5125b, e204ae4.
