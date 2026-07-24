@@ -14,6 +14,7 @@ import { Connectors } from "@/components/maestro/Connectors";
 import { Settings } from "@/components/maestro/Settings";
 import { SyntheticInbox } from "@/components/maestro/SyntheticInbox";
 import { Agents } from "@/components/maestro/Agents";
+import { MySources } from "@/components/maestro/MySources";
 import { replayTour } from "@/components/maestro/BubbleTour";
 
 /**
@@ -32,11 +33,17 @@ import { replayTour } from "@/components/maestro/BubbleTour";
  * deep links from the fold map (e.g. "inbox" → More→Sources) land on the
  * right section.
  */
-export type MoreSection = "connectors" | "settings" | "sources" | "agents" | "tour";
+// Auditor (2026-07-24) item 1: "My sources" shows the CURRENT USER's real
+// ingested signals (token-scoped /api/signals, grouped by source). The
+// "Demo inbox" is honestly labeled — it's the SyntheticInbox fixture for
+// beta users to try the lifecycle without OAuth. A real user with real
+// Gmail data sees THEIR signals in "My sources", not the demo fixture.
+export type MoreSection = "connectors" | "mysources" | "demo" | "settings" | "agents" | "sources" | "tour";
 
 const SECTIONS: { id: MoreSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "connectors", label: "Connectors", icon: Briefcase },
-  { id: "sources", label: "Browse all sources", icon: InboxIcon },
+  { id: "mysources", label: "My sources", icon: InboxIcon },
+  { id: "demo", label: "Demo inbox", icon: InboxIcon },
   { id: "agents", label: "Agent controls", icon: Users },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -119,7 +126,8 @@ export function More({
       {/* Section content */}
       <div>
         {section === "connectors" && <Connectors />}
-        {section === "sources" && <SyntheticInbox />}
+        {section === "mysources" && <MySources />}
+        {(section === "demo" || section === "sources") && <SyntheticInbox />}
         {section === "agents" && <Agents />}
         {section === "settings" && <Settings />}
       </div>

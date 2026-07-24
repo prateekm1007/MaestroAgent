@@ -428,6 +428,92 @@ def run_gate():
         f"score={critic_score}, justification={critic_justification}",
     )
 
+    # ── [IDOR] Cross-tenant isolation (auditor item 5 — re-audit scope) ──
+    # Auditor: "add cross-tenant IDOR assertions (if not already in the 23)".
+    # The gate's isolated tenant (token) has 5 lifecycle signals. A SECOND
+    # tenant (token_b) is registered. token_b must NOT see token_a's signals,
+    # commitments, or ask answers. This is the S3 invariant (isolation ≥ 95%)
+    # asserted at the API level — the most important security gate for a
+    # multi-user beta.
+    print("[IDOR] Cross-tenant isolation (user A ≠ user B)...")
+    token_b_resp = httpx.post(
+        f"{BACKEND_URL}/api/auth/register",
+        json={"user_email": f"gate-b-{int(time.time())}@example.com", "password": "gate-pass-b", "name": "GateB"},
+        timeout=15,
+    )
+    token_b = token_b_resp.json().get("token", "")
+    if not token_b:
+        gate.assert_true("[IDOR] Second tenant registered", False, "register failed")
+    else:
+        gate.assert_true("[IDOR] Second tenant registered", True, "")
+
+        # token_b asks about Maria — must NOT see token_a's Maria data
+        _, d_b = ask(token_b, "What did I promise Maria?")
+        b_evidence = d_b.get("evidence_refs", [])
+        b_entities = set(str(e.get("entity", "")) for e in b_evidence)
+        gate.assert_true(
+            "[IDOR] Tenant B sees 0 evidence for Maria (no cross-tenant leak)",
+            len(b_evidence) == 0,
+            f"evidence_count={len(b_evidence)}, entities={b_entities}",
+        )
+
+        # token_b's commitments must be empty (token_b has no signals)
+        try:
+            c_b = httpx.get(
+                f"{BACKEND_URL}/api/commitments",
+                headers={"Authorization": f"Bearer {token_b}"},
+                timeout=15,
+            ).json()
+            c_b_list = c_b if isinstance(c_b, list) else c_b.get("commitments", c_b.get("data", []))
+            gate.assert_true(
+                "[IDOR] Tenant B commitments list is empty (no cross-tenant leak)",
+                len(c_b_list) == 0,
+                f"count={len(c_b_list)}",
+            )
+        except Exception as e:
+            gate.assert_true("[IDOR] Tenant B commitments list is empty", False, f"error={e}")
+
+        # token_b's signals must be empty
+        try:
+            s_b = httpx.get(
+                f"{BACKEND_URL}/api/signals",
+                headers={"Authorization": f"Bearer {token_b}"},
+                timeout=15,
+            ).json()
+            s_b_list = s_b if isinstance(s_b, list) else s_b.get("signals", [])
+            gate.assert_true(
+                "[IDOR] Tenant B signals list is empty (no cross-tenant leak)",
+                len(s_b_list) == 0,
+                f"count={len(s_b_list)}",
+            )
+        except Exception as e:
+            gate.assert_true("[IDOR] Tenant B signals list is empty", False, f"error={e}")
+
+    # ── [P95] p50/p95 latency distribution (auditor item 5) ─────────────
+    # Auditor: "the gate tests single-query latency, not percentiles." This
+    # runs 10 ledger-fast-path queries and asserts p95 < 2s (the steady-state
+    # SLO). The fast-path compute is <0.3s; p95 < 2s catches latency
+    # regressions that a single-query test could miss (e.g., a slow code path
+    # that fires on every Nth request).
+    print("[P95] p50/p95 latency distribution (10 ledger queries)...")
+    latencies: list[float] = []
+    for i in range(10):
+        lat, _ = ask(token, "What did I promise Maria?")
+        latencies.append(lat)
+    latencies.sort()
+    p50 = latencies[5]  # median of 10
+    p95 = latencies[9]  # max of 10 (closest to p95 for n=10)
+    gate.assert_true(
+        "[P95] p50 latency < 1s (steady-state median)",
+        p50 < 1.0,
+        f"p50={p50:.3f}s",
+    )
+    gate.assert_true(
+        "[P95] p95 latency < 2s (steady-state tail)",
+        p95 < 2.0,
+        f"p95={p95:.3f}s, all={[f'{l:.3f}' for l in latencies]}",
+    )
+
     return gate
 
 
