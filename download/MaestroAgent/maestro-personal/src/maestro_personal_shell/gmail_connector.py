@@ -40,9 +40,18 @@ def _get_gmail_config() -> dict[str, str]:
 
 
 def is_gmail_configured() -> bool:
-    """Check if real Gmail OAuth credentials are configured."""
+    """Check if real Gmail OAuth credentials are configured.
+
+    P1 auditor fix (2026-07-24): reject placeholder values.
+    """
     config = _get_gmail_config()
-    return bool(config["client_id"] and config["client_secret"])
+    cid = config["client_id"]
+    csecret = config["client_secret"]
+    if not cid or not csecret:
+        return False
+    if "PLACEHOLDER" in cid.upper() or "PLACEHOLDER" in csecret.upper():
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------

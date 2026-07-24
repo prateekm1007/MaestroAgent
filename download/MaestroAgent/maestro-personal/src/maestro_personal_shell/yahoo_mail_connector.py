@@ -68,9 +68,21 @@ def _get_yahoo_config() -> dict[str, str]:
 
 
 def is_yahoo_configured() -> bool:
-    """Check if real Yahoo Mail OAuth credentials are configured."""
+    """Check if real Yahoo Mail OAuth credentials are configured.
+
+    P1 auditor fix (2026-07-24): reject placeholder values. A placeholder
+    credential is NOT configured — it's 'needs setup'. The connector must
+    report its true state, never a placeholder dressed as real.
+    """
     config = _get_yahoo_config()
-    return bool(config["client_id"] and config["client_secret"])
+    cid = config["client_id"]
+    csecret = config["client_secret"]
+    if not cid or not csecret:
+        return False
+    # Reject placeholders — they make oauth_configured=True which lies to users
+    if "PLACEHOLDER" in cid.upper() or "PLACEHOLDER" in csecret.upper():
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
