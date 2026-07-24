@@ -406,6 +406,35 @@ async def reclassify_ledger(authorization: str = Header(None)):
                 failed += 1
 
         db.commit()
+
+        # P5 fix: SYNC the ledger table's commitment_type from the signals
+        # metadata. The reclassify above only updates signals that CHANGED.
+        # But the ledger may have STALE commitment_type values from before
+        # the reclassify was added. This sync ensures the ledger matches
+        # the signals for ALL entries (not just changed ones).
+        try:
+            ledger_synced = 0
+            all_signals = db.execute(
+                "SELECT signal_id, metadata FROM signals"
+            ).fetchall()
+            for sig_row in all_signals:
+                sig_id = sig_row[0]
+                meta_str = sig_row[1] or "{}"
+                try:
+                    meta = _json.loads(meta_str)
+                    ctype = meta.get("commitment_type", "")
+                    if ctype:
+                        db.execute(
+                            "UPDATE commitments_ledger SET commitment_type = ? WHERE signal_id = ?",
+                            (ctype, sig_id),
+                        )
+                        ledger_synced += 1
+                except Exception:
+                    pass
+            db.commit()
+        except Exception as e:
+            logger.warning("Ledger sync failed: %s", e)
+
         return {
             "action": "reclassify_ledger",
             "total_signals": total,
@@ -413,6 +442,7 @@ async def reclassify_ledger(authorization: str = Header(None)):
             "unchanged": unchanged,
             "failed": failed,
             "transitions": transitions,
+            "ledger_synced": ledger_synced,
         }
     finally:
         db.close()
