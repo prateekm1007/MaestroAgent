@@ -345,6 +345,73 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 _answer_lines.append(f"    ○ [{ent}] {_action[:60]} — superseded")
 
                 if _has_active and _ledger_evidence:
+                    # P36 OWNERSHIP FILTER (Kimi K3 design, applied to ledger fast path):
+                    # When the query asks "What did I promise X?", exclude
+                    # third_party_report and non-commitment types from the
+                    # ledger evidence. The ledger fast path bypasses the
+                    # P36 gate at line 3247, so the ownership filter must
+                    # be applied HERE too.
+                    _is_promise_query_ledger = bool(_re.search(
+                        r'\bwhat\s+did\s+i\s+(promise|commit|agree|pledge)\b'
+                        r'|\bmy\s+(promises?|commitments?)\b'
+                        r'|\bpromises?\s+i\s+(made|owe|keep)\b',
+                        req.query, _re.IGNORECASE,
+                    ))
+                    if _is_promise_query_ledger:
+                        _NON_USER_TYPES_LEDGER = {
+                            "third_party_report", "not_a_commitment",
+                            "tentative", "proposal", "request",
+                            "aspiration", "negation",
+                        }
+                        # Look up each ledger entry's source signal metadata
+                        # to check commitment_type
+                        import json as _json_ledger
+                        from maestro_personal_shell.db_util import get_db_conn
+                        _filtered_ledger = []
+                        for _le in _ledger_evidence:
+                            _sig_id = _le.get("source_signal_id", "")
+                            _ctype = ""
+                            if _sig_id:
+                                try:
+                                    _conn = get_db_conn(_db_path)
+                                    _row = _conn.execute(
+                                        "SELECT metadata FROM signals WHERE signal_id = ?",
+                                        (_sig_id,),
+                                    ).fetchone()
+                                    _conn.close()
+                                    if _row and _row[0]:
+                                        _meta = _json_ledger.loads(_row[0])
+                                        _ctype = _meta.get("commitment_type", "")
+                                except Exception:
+                                    pass
+                            if _ctype not in _NON_USER_TYPES_LEDGER:
+                                _filtered_ledger.append(_le)
+                        _ledger_evidence = _filtered_ledger
+
+                    if not _ledger_evidence:
+                        # All evidence was filtered out by ownership — abstain honestly
+                        return AskResponse(
+                            answer=f"I don't have any record of commitments you made to {', '.join(_queried_entities)}. Any references to them may be third-party reports, not your own promises.",
+                            query=req.query,
+                            source_sentence="",
+                            source_entity="",
+                            source_timestamp="",
+                            situation_state="",
+                            evidence_refs=[],
+                            confidence=0.0,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note="Ownership filter: excluded third-party reports from promise query.",
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
+
                     # CONFIDENCE CALIBRATION (auditor's overconfidence fix):
                     # - Clean single active entry → high confidence (0.8)
                     # - Multiple current entries for same entity (ambiguous) → lower (0.5)

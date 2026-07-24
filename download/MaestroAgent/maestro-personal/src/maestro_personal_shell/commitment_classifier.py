@@ -680,7 +680,7 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     # keyword "I'll" fires first and misclassifies them.
     # Auditor gold-set finding (2026-07-24): "No promises, but I'll try."
     # was classified as explicit instead of tentative.
-    hedge_markers = ["no promises", "don't count on", "can't guarantee", "not sure", "might", "maybe", "possibly"]
+    hedge_markers = ["no promises", "don't count on", "dont count on", "can't guarantee", "cant guarantee", "not sure", "might", "maybe", "possibly", "i'll try", "ill try", "try but"]
     if any(kw in text_lower for kw in hedge_markers):
         return {
             "commitment_type": "tentative",

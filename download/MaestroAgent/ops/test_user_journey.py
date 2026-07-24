@@ -147,12 +147,47 @@ def run_journey():
     check("S1#3: Re-login fails after deletion", bool(relogin_failed),
           f"relogin_response={str(relogin)[:100]}")
 
-    print("\n[S1#4] Demo identity blocked in production")
-    # Try to login as bootstrap — should fail in production
+    print("\n[S1#4] Demo identity — works but isolated")
+    # Demo login should WORK (reverted from block to isolate+label)
     demo_login = api("POST", "/api/auth/login", body={"user_email": "bootstrap@maestro.local", "password": "maestro-demo"})
-    demo_blocked = "error" in demo_login or demo_login.get("detail", "")
-    check("S1#4: Demo login blocked in production", bool(demo_blocked),
-          f"demo_login_response={str(demo_login)[:100]}")
+    demo_works = "token" in demo_login and demo_login.get("token","")
+    check("S1#4: Demo login works (isolated, not blocked)", bool(demo_works),
+          f"token={demo_login.get('token','')[:20]}..." if demo_works else str(demo_login)[:100])
+
+    # ── EXISTING CORPUS ASSERTIONS (auditor 2026-07-24 P5) ────────────
+    # The fix must reach the data the user sees, not just new posts.
+    # Read the demo tenant's /api/commitments and assert:
+    # (a) no question/tentative/third-party as active commitment
+    # (b) "What did I promise Maria?" returns only owner=user items
+    if demo_works:
+        demo_token = demo_login["token"]
+        print("\n[CORPUS] Testing EXISTING demo tenant data (P5)")
+
+        # (a) Check commitments for questions/tentative
+        demo_comms = api("GET", "/api/commitments", token=demo_token)
+        demo_comm_list = demo_comms if isinstance(demo_comms, list) else demo_comms.get("commitments", demo_comms.get("data", []))
+        bad_items = []
+        for c in demo_comm_list:
+            text = str(c.get("text", c.get("action", "")))
+            if text.strip().endswith("?"):
+                bad_items.append(f"question: {text[:50]}")
+            if any(kw in text.lower() for kw in ["don't count on", "dont count on", "i'll try", "ill try", "maybe", "might"]):
+                bad_items.append(f"tentative: {text[:50]}")
+        check("CORPUS: No questions in active commitments", not any("question" in b for b in bad_items),
+              f"bad={bad_items[:3]}" if bad_items else "clean")
+        check("CORPUS: No tentative in active commitments", not any("tentative" in b for b in bad_items),
+              f"bad={bad_items[:3]}" if bad_items else "clean")
+
+        # (b) Check ownership — "What did I promise Maria?" should not return
+        # third-party reports (Maria's own promises)
+        maria_ask = api("POST", "/api/ask", token=demo_token, body={"query": "What did I promise Maria?"})
+        maria_answer = str(maria_ask.get("answer", ""))
+        maria_evidence = maria_ask.get("evidence_refs", [])
+        # Check if answer mentions "Maria said" (third-party report indicator)
+        has_third_party = "maria said" in maria_answer.lower() or "said:" in maria_answer.lower()
+        check("CORPUS: 'What did I promise Maria?' excludes third-party reports",
+              not has_third_party,
+              f"third_party_detected={has_third_party}, answer={maria_answer[:100]}")
 
     print("\n[9] Version label check (P9)")
     health = api("GET", "/api/health")
