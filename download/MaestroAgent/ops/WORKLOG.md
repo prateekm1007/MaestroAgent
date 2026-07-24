@@ -15,3 +15,46 @@ Every agent action, reviewable. Append-only. Git history is the tamper-evident g
 - [FORENSIC-AUDIT-20260723](worklog/FORENSIC-AUDIT-20260723.md) — k3-powered forensic audit — whole-app sweep | COMPLETED | 2026-07-23
 - [WORLD-CLASS-AUDIT-20260724](worklog/WORLD-CLASS-AUDIT-20260724.md) — World-class audit — swarm self-assessment | COMPLETED | 2026-07-24
 - [WORLD-CLASS-AUDIT-20260724](worklog/WORLD-CLASS-AUDIT-20260724.md) — World-class audit — swarm self-assessment | COMPLETED | 2026-07-24
+
+---
+Task ID: 9 (auditor 2026-07-24 strict-order cycle)
+Agent: New Coder (2026-07-24 session)
+
+Strict-order items 1-5 from the 2026-07-24 verdict (highest 🟡 yet, 1 of 3 🟢-preconditions met):
+
+1. CI auto-wiring + cold-start assertion — DONE
+   - .github/workflows/permanence-gate.yml (root + nested): push to main + PR + workflow_dispatch
+   - Pre-merge gate posts PR comment on fail; post-deploy gate auto-rolls-back via Railway GraphQL
+   - [COLD] assertion: cold-first-query on fresh tenant <6s, must return valid answer
+   - CI run URLs:
+     * Push-fired (auto): https://github.com/prateekm1007/MaestroAgent/actions/runs/30069867663
+     * Dispatch-fired (green): https://github.com/prateekm1007/MaestroAgent/actions/runs/30070026993
+   - GitHub Actions secrets set: MAESTRO_PERSONAL_TOKEN, RAILWAY_API_TOKEN
+
+2. Work-email OAuth redesign (3rd time asked) — DONE
+   - NEW yahoo_mail_connector.py (Yahoo OAuth2, mail-ro scope, one-click)
+   - NEW microsoft_mail_connector.py (Graph API, Mail.Read+Mail.Send, admin_consent path)
+   - routers/connectors.py: yahoo_mail + microsoft_mail OAuth callbacks + Phase G/H handlers
+   - connectors.py: yahoo_mail + microsoft_mail as first-class; work_email renamed "Other / Custom Domain (Advanced — IMAP)" with advanced=True
+   - Connectors.tsx: OAuth cards sorted first, work_email last; "Advanced" badge on IMAP card
+
+3. Surface calibration reason — DONE
+   - Ask.tsx: amber "Why this confidence:" callout below confidence meter, renders response.calibration_note
+
+4. Ledger-wire what-changed + completion + [C] + openapi — DONE
+   - [WC] fix: surfaces/what_changed.py now includes commitment_updated/completed/broken in meaningful_types
+   - [CMPL] fix: success_metrics.py now counts signal_type='commitment_completed' as completed
+   - [C] new: /api/admin/critic-probe endpoint (admin-gated) + gate assertion. First run scored 1.0 (real bug). Fixed rubric in ask_critic.py to explicitly flag denial-of-evidence. Second run scored 0.0 (passed).
+   - openapi: /api/openapi.json now accepts MAESTRO_PERSONAL_TOKEN as Bearer (auditor-scoped, no 404)
+
+5. SQLite-concurrency finding — DONE
+   - docs/ENTERPRISE_READINESS_SQLITE_CONCURRENCY.md: 4-phase migration path (SQLite → Postgres → queue → per-tenant isolation), explicit "NOT a pilot blocker" decision
+
+Gate: 23/23 PASS at full strength (was 17/17). New assertions: [COLD]x2, [WC]x1, [CMPL]x2, [C]x1.
+
+3 of 3 🟢-preconditions now met:
+  (1) un-weakened gate green on exact reproductions ✓
+  (2) CI auto-execution proof (URLs above) ✓
+  (3) Yahoo one-click OAuth ✓
+
+Commits: c010812, 0dca0d7, 98d511e on origin/main.
