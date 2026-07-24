@@ -343,6 +343,41 @@ def run_gate():
             except Exception as e:
                 print(f"  ⚠ My sources click failed: {e}")
 
+            # ── [CALIBRATION] Calibration callout renders (auditor item 5) ──
+            # Auditor: "Add the calibration-callout render to the UI gate so
+            # the surfaced 'Why this confidence:' can't silently regress."
+            # Navigate to Ask, run a query that produces a calibration_note
+            # (the Maria query on the gate tenant produces "reschedule
+            # detected — pending confirmation"), and assert the amber callout
+            # renders with the "Why this confidence:" label.
+            print("[CALIBRATION] Asserting calibration callout renders on Ask...")
+            try:
+                ask_btn = page.query_selector('nav[aria-label="Main"] button[aria-label="Ask"]')
+                if ask_btn:
+                    ask_btn.click()
+                    page.wait_for_timeout(1000)
+                    # Type a query that produces a calibration_note
+                    query_input = page.query_selector('textarea, input[type="text"]')
+                    if query_input:
+                        query_input.fill("What did I promise Maria?")
+                        # Submit the query (Enter or submit button)
+                        query_input.press("Enter")
+                        page.wait_for_timeout(5000)  # wait for response
+                        # Assert the calibration callout renders
+                        callout = page.query_selector('text="Why this confidence:"')
+                        gate.assert_true(
+                            "[CALIBRATION] 'Why this confidence:' callout renders when calibration_note is present",
+                            callout is not None,
+                            "calibration callout not found after Ask query",
+                        )
+                    else:
+                        gate.assert_true("[CALIBRATION] Ask query input found", False, "no textarea/input found on Ask")
+                else:
+                    gate.assert_true("[CALIBRATION] Ask tab button found", False, "no Ask button in nav")
+            except Exception as e:
+                print(f"  ⚠ Calibration assertion failed: {e}")
+                gate.assert_true("[CALIBRATION] calibration callout renders", False, f"error={e}")
+
             # ── [REDIRECT] No 404s on navigation ────────────────────────
             print("[REDIRECT] Asserting no 404s on navigation...")
             gate.assert_true(
