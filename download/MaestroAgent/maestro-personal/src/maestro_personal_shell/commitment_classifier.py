@@ -39,6 +39,120 @@ COMMITMENT_STATES = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# P42 — Normalize text before structural matching.
+# ---------------------------------------------------------------------------
+# The 5-layer ownership trace exposed a class-level smell: the tentative
+# filter missed "I will try to get it done, but dont count on it" because
+# the hedge check matched "don't" but the text had "dont" — an apostrophe
+# defeated the rules engine. Every contraction variant was being manually
+# duplicated in every keyword list (don't AND dont, can't AND cant, etc.),
+# which is brittle by construction.
+#
+# PRINCIPLE: normalize text ONCE, then run all hedge/keyword/interrogative
+# checks against the normalized form. The display text remains the original.
+# This is the structural end of the apostrophe-defeat wack-a-mole.
+
+_CONTRACTION_MAP = {
+    # ---- Apostrophe forms (always safe to expand) ----
+    "don't": "do not",
+    "doesn't": "does not",
+    "didn't": "did not",
+    "won't": "will not",
+    "wouldn't": "would not",
+    "shouldn't": "should not",
+    "couldn't": "could not",
+    "mustn't": "must not",
+    "isn't": "is not",
+    "aren't": "are not",
+    "wasn't": "was not",
+    "weren't": "were not",
+    "hasn't": "has not",
+    "haven't": "have not",
+    "hadn't": "had not",
+    "can't": "cannot",
+    "i'll": "i will",
+    "you'll": "you will",
+    "he'll": "he will",
+    "she'll": "she will",
+    "they'll": "they will",
+    "we'll": "we will",
+    "it'll": "it will",
+    "i've": "i have",
+    "you've": "you have",
+    "we've": "we have",
+    "they've": "they have",
+    "i'm": "i am",
+    "you're": "you are",
+    "they're": "they are",
+    "we're": "we are",
+    "it's": "it is",
+    "that's": "that is",
+    "what's": "what is",
+    "who's": "who is",
+    "let's": "let us",
+    "there's": "there is",
+    "here's": "here is",
+    "how's": "how is",
+    # ---- No-apostrophe misspelling forms (only the UNAMBIGUOUS ones) ----
+    # These are NOT real English words — they're common misspellings of the
+    # contracted form (the apostrophe was omitted). Safe to expand.
+    # DO NOT include ambiguous short forms like "ill" (medical condition),
+    # "im" (instant message), "ive" (rare name), "we're"→"were" (past tense),
+    # "its" (possessive) — those are real words and would corrupt the text.
+    "dont": "do not",
+    "cant": "cannot",
+    "wont": "will not",
+    "didnt": "did not",
+    "doesnt": "does not",
+    "isnt": "is not",
+    "arent": "are not",
+    "wasnt": "was not",
+    "werent": "were not",
+    "hasnt": "has not",
+    "havent": "have not",
+    "hadnt": "had not",
+    "wouldnt": "would not",
+    "shouldnt": "should not",
+    "couldnt": "could not",
+    "mustnt": "must not",
+    "thats": "that is",
+    "whats": "what is",
+    "whos": "who is",
+    "theres": "there is",
+    "heres": "here is",
+    "hows": "how is",
+    "youre": "you are",
+    "theyre": "they are",
+}
+
+
+def normalize_text(text: str) -> str:
+    """Normalize text for structural matching (P42).
+
+    - Lowercase
+    - Collapse whitespace
+    - Expand common contractions (don't → do not, can't → cannot, I'll → i will, etc.)
+    - Strip trailing punctuation ON WHOLE-WORD BOUNDARIES (keep internal punctuation)
+
+    The DISPLAY text (in answers, ledger, UI) remains the original. This
+    function is for INTERNAL structural matching only — hedge/keyword/
+    interrogative checks should call this BEFORE matching.
+
+    Principle: normalize once, check many. Never duplicate contraction
+    variants in keyword lists.
+    """
+    if not text:
+        return ""
+    s = text.lower()
+    # Expand contractions — sort by length descending so "won't" matches before "wont"
+    for contracted, expanded in sorted(_CONTRACTION_MAP.items(), key=lambda kv: -len(kv[0])):
+        s = s.replace(contracted, expanded)
+    # Collapse whitespace
+    s = " ".join(s.split())
+    return s
+
+
 async def classify_commitment(
     text: str,
     entity: str = "",
@@ -49,7 +163,8 @@ async def classify_commitment(
 
     # S2-05 fix: slang joke markers BEFORE the LLM path.
     # "I promise I will become a billionaire, haha" has "haha" — skip the LLM.
-    text_lower = text.lower()
+    # P42: use normalized form so contraction-based jokes ("didn't, jk") match.
+    text_lower = normalize_text(text)
     joke_markers = ["haha", "lol", "lmao", "rofl", "jk", "just kidding", "sike", "iykyk", "🤣", "😂"]
     if any(marker in text_lower for marker in joke_markers):
         return {
@@ -223,7 +338,14 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
 
     Uses keyword patterns to classify the commitment type.
     """
-    text_lower = text.lower()
+    # P42: normalize ONCE — expand contractions, lowercase, collapse whitespace.
+    # All hedge/keyword/interrogative checks below use the normalized form.
+    # The display text (in answers, ledger, UI) remains the original `text`.
+    # This is the structural end of the apostrophe-defeat wack-a-mole that
+    # missed "dont count on it" (no apostrophe) — we no longer duplicate
+    # contraction variants in keyword lists.
+    text_lower = normalize_text(text)
+    text_lower_raw = text.lower()  # legacy fallback for patterns that rely on raw form
 
     # Tentative-if check — must run BEFORE explicit/implicit so
     # "If I have time I'll sketch options" is tentative, not a commitment.
@@ -246,7 +368,9 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
         }
 
     # Negation signals — check BEFORE explicit (so "I will not" isn't classified as explicit)
-    negation_keywords = ["won't", "will not", "can't", "cannot", "not able to", "unable to"]
+    # P42: text_lower is normalized — "won't" → "will not", "can't" → "cannot".
+    # Single canonical forms; no duplicate variants.
+    negation_keywords = ["will not", "cannot", "not able to", "unable to"]
     if any(kw in text_lower for kw in negation_keywords):
         return {
             "commitment_type": "negation",
@@ -265,11 +389,13 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     # "sent" matched the completion keyword. Root cause: no negation-context
     # check. "Never sent", "didn't send", "failed to deliver" are BREAKS,
     # not completions.
+    # P42: text_lower is normalized — "didn't send" → "did not send",
+    # "hasn't sent" → "has not sent". Single canonical forms; no duplicates.
     broken_keywords = [
-        "never sent", "didn't send", "did not send",
-        "never delivered", "didn't deliver", "did not deliver",
+        "never sent", "did not send",
+        "never delivered", "did not deliver",
         "failed to send", "failed to deliver", "failed to ship",
-        "hasn't sent", "has not sent", "hasn't delivered",
+        "has not sent", "has not delivered",
         "not sent", "not delivered", "not shipped",
         "missed the deadline", "missed deadline",
         "still pending", "still not done", "still not sent",
@@ -680,7 +806,17 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
     # keyword "I'll" fires first and misclassifies them.
     # Auditor gold-set finding (2026-07-24): "No promises, but I'll try."
     # was classified as explicit instead of tentative.
-    hedge_markers = ["no promises", "don't count on", "dont count on", "can't guarantee", "cant guarantee", "not sure", "might", "maybe", "possibly", "i'll try", "ill try", "try but"]
+    #
+    # P42 fix: text_lower is already NORMALIZED — contractions expanded.
+    # So "don't count on" / "dont count on" BOTH become "do not count on",
+    # "can't guarantee" / "cant guarantee" BOTH become "cannot guarantee",
+    # "I'll try" / "Ill try" BOTH become "i will try". One canonical form
+    # per concept — no more duplicate variants.
+    hedge_markers = [
+        "no promises", "do not count on", "cannot guarantee",
+        "not sure", "might", "maybe", "possibly",
+        "i will try", "try but",
+    ]
     if any(kw in text_lower for kw in hedge_markers):
         return {
             "commitment_type": "tentative",
@@ -694,7 +830,11 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
         }
 
     # Explicit commitment
-    explicit_keywords = ["i will", "i'll", "i promise", "i commit", "i guarantee", "i'm going to", "im going to"]
+    # P42: text_lower is normalized — "i'll" → "i will", "i'm going to" → "i am going to"
+    # One canonical form per concept; no duplicate variants.
+    explicit_keywords = [
+        "i will", "i promise", "i commit", "i guarantee", "i am going to",
+    ]
     if any(kw in text_lower for kw in explicit_keywords):
         return {
             "commitment_type": "explicit",
@@ -709,22 +849,26 @@ def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
 
     # Implicit commitments — auditor found 68% recall, target 88%.
     # These are commitments that don't use "I will" but are still promises.
+    # P42: text_lower is normalized — "i'm on it" → "i am on it",
+    # "you'll have it" → "you will have it", "we're good for" → "we are good for",
+    # "i'll own" → "i will own", "that's on me" → "that is on me".
+    # Single canonical forms; no duplicate variants.
     implicit_keywords = [
-        "let me take that", "consider it done", "that's on me", "i'm on it",
-        "i'm on it", "im on it", "i own the", "count me in", "you'll have it",
-        "you will have it", "we're good for", "we are good for",
-        "i'll own", "i can do that", "i can get that", "i can have that",
-        "i'll make sure", "i'll ensure", "i'll handle", "i'll take care",
-        "i'll follow up", "i'll get back", "i'll send", "i'll deliver",
-        "i'll prepare", "i'll review", "i'll check", "i'll verify",
-        "i'll set up", "i'll create", "i'll update", "i'll provide",
-        "i'll share", "i'll coordinate", "i'll organize", "i'll schedule",
+        "let me take that", "consider it done", "that is on me", "i am on it",
+        "i own the", "count me in", "you will have it",
+        "we are good for",
+        "i will own", "i can do that", "i can get that", "i can have that",
+        "i will make sure", "i will ensure", "i will handle", "i will take care",
+        "i will follow up", "i will get back", "i will send", "i will deliver",
+        "i will prepare", "i will review", "i will check", "i will verify",
+        "i will set up", "i will create", "i will update", "i will provide",
+        "i will share", "i will coordinate", "i will organize", "i will schedule",
         "let me handle", "let me take care", "let me get", "let me send",
         "let me prepare", "let me review", "let me check",
-        "i'll have", "i'll give", "i'll bring", "i'll write",
-        "i'll put together", "i'll draft", "i'll finalize",
+        "i will have", "i will give", "i will bring", "i will write",
+        "i will put together", "i will draft", "i will finalize",
         "expect it by", "you can expect", "i should have",
-        "i plan to", "i intend to", "i'm planning to", "im planning to",
+        "i plan to", "i intend to", "i am planning to",
     ]
     if any(kw in text_lower for kw in implicit_keywords):
         return {
