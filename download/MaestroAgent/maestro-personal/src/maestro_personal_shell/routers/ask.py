@@ -636,7 +636,8 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         ]
                         _all_mentioned_entities = set()
                         for _pat in _compound_patterns:
-                            for _m in _re_compound.finditer(_pat, req.query):
+                            # K3-COMPOUND fix: use re.IGNORECASE so 'What' matches 'what'
+                            for _m in _re_compound.finditer(_pat, req.query, _re_compound.IGNORECASE):
                                 _all_mentioned_entities.add(_m.group(1).strip())
                         # Find entities mentioned in the query but NOT in the ledger
                         _queried_lower = {e.lower() for e in _queried_entities}
