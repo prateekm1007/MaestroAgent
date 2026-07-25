@@ -131,6 +131,55 @@ def upsert_ledger_entry(
     if classification.get("is_commitment") is False or ctype == "not_a_commitment":
         return None
 
+    # TICKET-1/P64 (seventh audit): RESOLUTION SIGNALS MUST NOT CREATE
+    # DUPLICATE LEDGER ROWS. A completion/cancellation/broken signal is a
+    # STATE TRANSITION on an existing active commitment, not a new commitment.
+    # The prior code always inserted a new row, causing:
+    # - /api/commitments (shows active) vs /api/commitments/ledger (shows all)
+    #   disagreement
+    # - /api/metrics double-counting → active:-2 or active:-4
+    # - Duplicate ledger entries for the same real-world event
+    #
+    # Fix: if the classification state is a RESOLUTION state (completed/
+    # cancelled/broken), find the matching active entry for this entity and
+    # transition it IN PLACE. Do NOT insert a new row. The signal is stored
+    # in the signals table (as evidence) but the ledger has ONE row per
+    # real-world commitment, with its state transitioning over time.
+    _RESOLUTION_STATES = {"completed_claimed", "completed_verified", "cancelled", "broken"}
+    if target_state in _RESOLUTION_STATES:
+        entity = signal.get("entity", "")
+        if entity:
+            # Find the most recent active entry for this entity
+            active_entry = conn.execute(
+                "SELECT * FROM commitments_ledger WHERE user_email = ? AND entity = ? AND state = 'active' "
+                "ORDER BY updated_at DESC LIMIT 1",
+                (user_email, entity),
+            ).fetchone()
+            if active_entry:
+                # Transition the EXISTING entry — do NOT insert a new row
+                _transition_state_conn(
+                    conn, active_entry["ledger_id"], active_entry["state"],
+                    target_state, user_email, signal_id, db_path,
+                )
+                logger.info(
+                    "TICKET-1: resolution signal %s transitioned existing ledger %s "
+                    "(entity=%s) from %s → %s (NO duplicate row created)",
+                    signal_id[:20], active_entry["ledger_id"][:20],
+                    entity, active_entry["state"], target_state,
+                )
+                row = conn.execute(
+                    "SELECT * FROM commitments_ledger WHERE ledger_id = ?",
+                    (active_entry["ledger_id"],),
+                ).fetchone()
+                return dict(row) if row else None
+            # If no active entry found, fall through to insert (the resolution
+            # signal has no commitment to resolve — rare but possible)
+            logger.info(
+                "TICKET-1: resolution signal %s (entity=%s, state=%s) found no active "
+                "entry to transition — inserting as standalone",
+                signal_id[:20], entity, target_state,
+            )
+
     signal_id = str(signal.get("signal_id", ""))
     if not signal_id:
         return None

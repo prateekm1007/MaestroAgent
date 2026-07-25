@@ -89,59 +89,37 @@ def _compute_commitment_metrics(path: str, user_email: str) -> dict[str, Any]:
         conn = get_db_conn(path)
         conn.row_factory = sqlite3.Row
 
-        # Count signals by type. Total = all commitment-related signals.
-        # Auditor (2026-07-24) [CMPL] gap: previously only `commitment_made`
-        # was counted as total, so a `commitment_completed` signal was neither
-        # in total NOR counted as completed (the metadata-correction check
-        # doesn't match the lifecycle fixture's metadata). Result: a tenant
-        # with a real completed commitment (Alex Chen) showed
-        # commitments_completed=0 — a false-zero that hid a real lifecycle
-        # event. Fix: count ALL commitment_* signal types as total, and
-        # count `commitment_completed` as completed.
-        total = conn.execute(
-            """SELECT COUNT(*) FROM signals
-               WHERE user_email = ?
-               AND signal_type IN
-                   ('commitment_made','commitment_updated','commitment_completed','commitment_broken')""",
-            (user_email,),
-        ).fetchone()[0]
+        # TICKET-1/P64 (seventh audit): METRICS READ FROM THE LEDGER, NOT
+        # FROM SIGNALS. The prior code counted signals (which double-count
+        # because a completion signal is a separate row from the commitment
+        # signal), causing active:-2 or active:-4. The ledger has ONE row
+        # per real-world commitment, with its state transitioning over time.
+        # Count the ledger rows by state — that's the single source of truth.
+        try:
+            ledger_total = conn.execute(
+                "SELECT COUNT(*) FROM commitments_ledger WHERE user_email = ?",
+                (user_email,),
+            ).fetchone()[0]
+            ledger_completed = conn.execute(
+                "SELECT COUNT(*) FROM commitments_ledger WHERE user_email = ? AND state IN ('completed_claimed', 'completed_verified')",
+                (user_email,),
+            ).fetchone()[0]
+            ledger_cancelled = conn.execute(
+                "SELECT COUNT(*) FROM commitments_ledger WHERE user_email = ? AND state = 'cancelled'",
+                (user_email,),
+            ).fetchone()[0]
+            ledger_active = conn.execute(
+                "SELECT COUNT(*) FROM commitments_ledger WHERE user_email = ? AND state IN ('active', 'at_risk')",
+                (user_email,),
+            ).fetchone()[0]
+        except Exception:
+            # Ledger table may not exist yet — fall back to 0s
+            ledger_total = ledger_completed = ledger_cancelled = ledger_active = 0
 
-        # Count completed (auditor [CMPL] fix):
-        #   (a) signals with signal_type = 'commitment_completed' (lifecycle
-        #       fixture path — Alex Chen-style "I already reviewed it")
-        #   (b) signals whose metadata records a correction=complete event
-        #       (user-marked-via-UI path)
-        completed = conn.execute(
-            """SELECT COUNT(*) FROM signals
-               WHERE user_email = ?
-               AND (
-                   signal_type = 'commitment_completed'
-                   OR metadata LIKE '%correction%complete%'
-                   OR metadata LIKE '%commitment_state%completed%'
-               )""",
-            (user_email,),
-        ).fetchone()[0]
-
-        # Count dismissed/cancelled (missed)
-        missed = conn.execute(
-            """SELECT COUNT(*) FROM signals
-               WHERE user_email = ?
-               AND (
-                   signal_type = 'commitment_broken'
-                   OR metadata LIKE '%correction%dismiss%'
-                   OR metadata LIKE '%correction%cancel%'
-                   OR metadata LIKE '%commitment_state%cancelled%'
-               )""",
-            (user_email,),
-        ).fetchone()[0]
-
-        # Active = total - completed - missed
-        # P64 (seventh audit): CLAMP to 0 — active can never be negative.
-        # The prior code returned active:-4 when completed+missed > total
-        # (double-counted signals or overlapping categories). An impossible
-        # value like -4 is a structural defect — counts must be
-        # non-negative and internally consistent.
-        active = max(0, total - completed - missed)
+        total = ledger_total
+        completed = ledger_completed
+        missed = ledger_cancelled
+        active = max(0, ledger_active)  # P64: never negative (structurally impossible now)
 
         completion_rate = completed / (completed + missed) if (completed + missed) > 0 else 0.0
 

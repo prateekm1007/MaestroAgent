@@ -128,37 +128,64 @@ class WhatChangedSurface:
     def _is_meaningful_delta(self, signal: Any) -> bool:
         """Heuristic: is this delta meaningful (not noise)?
 
-        Per break-test dimension 5: What Changed must surface meaningful
-        deltas, not inbox activity. A delta is meaningful if it:
-          - Is a commitment (promise/proposal)
-          - Changes a meeting (scheduled/moved/cancelled)
-          - Indicates a deadline (approaching/missed)
-          - Is a follow-up required
+        TICKET-2 (seventh audit): DERIVE MATERIALITY FROM THE CLASSIFIER
+        OUTPUT, NOT A PARALLEL SIGNAL_TYPE ENUM. The prior code maintained
+        a hardcoded set of signal_type strings that the public API never
+        sets (POST /api/signals defaults to 'reported_statement'). Result:
+        every signal ingested through the actual public API was structurally
+        invisible to What Changed, permanently. Four prior patches added
+        more strings to the allow-list; none addressed that the public
+        ingestion path never sets a recognized type.
 
-        Auditor (2026-07-24) [WC] fix: the lifecycle fixture uses
-        signal_types `commitment_updated`, `commitment_completed`, and
-        `commitment_broken` for Maria-reschedule, Alex-completed, and
-        Jamie-cancelled. These were absent from meaningful_types, so the
-        what-changed surface returned empty for a tenant seeded with the
-        lifecycle fixture — the auditor's "what-changed from ledger returns
-        empty despite populated ledger" finding. Fix: include all
-        commitment_* lifecycle types so reschedules, completions, and
-        cancellations surface as meaningful deltas.
+        Fix: check the signal's CLASSIFICATION METADATA (commitment_type,
+        is_commitment) — the same fields the classifier sets on every
+        ingestion. If the classifier says it's a commitment (is_commitment
+        = True, or commitment_type in the commitment taxonomy), it's
+        meaningful. If the classifier says it's noise (not_a_commitment,
+        request, etc.), it's not. ONE taxonomy, not two.
         """
+        # TICKET-2: check classifier metadata first (the canonical source)
+        meta = getattr(signal, "metadata", {}) or {}
+        if isinstance(meta, str):
+            try:
+                import json as _json
+                meta = _json.loads(meta)
+            except Exception:
+                meta = {}
+
+        # If the classifier ran, use its output
+        is_commitment = meta.get("is_commitment")
+        commitment_type = meta.get("commitment_type", "")
+
+        if is_commitment is True:
+            return True  # the classifier says this is a commitment
+        if is_commitment is False and commitment_type in (
+            "not_a_commitment", "request", "aspiration"
+        ):
+            return False  # the classifier says this is noise
+
+        # Fall back to signal_type for backward compat (calendar events, etc.)
         sig_type = str(getattr(signal, "signal_type", "") or
                        getattr(getattr(signal, "type", ""), "value", "")).lower()
-
-        meaningful_types = {
-            "commitment_made", "commitment_updated", "commitment_completed",
-            "commitment_broken",
-            "personal.promise", "personal.commitment",
+        _CALENDAR_TYPES = {
             "meeting.scheduled", "meeting.moved", "meeting.cancelled",
-            "calendar_change",
-            "deadline.approaching", "deadline.missed",
-            "follow_up.required",
-            "personal.decision",
+            "calendar_change", "deadline.approaching", "deadline.missed",
+            "follow_up.required", "personal.decision",
         }
-        return sig_type in meaningful_types
+        if sig_type in _CALENDAR_TYPES:
+            return True
+
+        # If no classifier metadata AND no recognized signal_type, check
+        # if the signal text looks like a commitment (rules-based fallback)
+        sig_text = str(getattr(signal, "text", "")).lower()
+        if any(kw in sig_text for kw in (
+            "i will", "i'll", "i promise", "i commit", "i guarantee",
+            "sent ", "delivered", "completed", "done", "finished",
+            "cancelled", "reschedule", "move to", "push to",
+        )):
+            return True
+
+        return False
 
     def get_stale_commitments(self, days_threshold: int = 5) -> list[dict[str, Any]]:
         """Get commitments with no follow-up for N days.
