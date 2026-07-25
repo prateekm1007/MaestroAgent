@@ -60,13 +60,35 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
 
     # Ingest the email body as a signal (triggers classification + closure matching)
     db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+
+    # TICKET-10/P69 fix (2026-07-25): run the classifier BEFORE saving so the
+    # classification result (including commitment_owner) is written to the
+    # signal's metadata. Without this, reconcile_signals_for_user can't
+    # determine ownership (P69 bug) and the TICKET-10 filter can't exclude
+    # user-owned commitments from third-party queries.
+    _pre_classification = None
+    try:
+        _pre_classification = await classify_commitment(
+            text=email["body"],
+            entity=email["from_name"],
+        )
+    except Exception:
+        _pre_classification = None
+
+    _pre_metadata = {"source": "synthetic_inbox", "email_id": email_id, "category": email["category"]}
+    if _pre_classification:
+        _pre_metadata["commitment_type"] = _pre_classification.get("commitment_type", "")
+        _pre_metadata["is_commitment"] = _pre_classification.get("is_commitment", False)
+        _pre_metadata["commitment_owner"] = _pre_classification.get("owner", "unknown")
+        _pre_metadata["commitment_confidence"] = _pre_classification.get("confidence", 0.0)
+
     signal = {
         "signal_id": f"synthetic_{email_id}_{int(__import__('time').time())}",
         "entity": email["from_name"],
         "text": email["body"],
         "signal_type": "commitment_made",
         "timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
-        "metadata": {"source": "synthetic_inbox", "email_id": email_id, "category": email["category"]},
+        "metadata": _pre_metadata,
     }
 
     try:

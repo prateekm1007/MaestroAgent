@@ -164,10 +164,114 @@ class _PseudoSituation:
     def __init__(self, entity: str, title: str, state: str = "observing"):
         self.entity = entity; self.title = title; self.state = state; self.operational_state = state
 
+
+def _apply_ticket10_filter(
+    query: str,
+    user_token: str,
+    answer: str,
+    evidence_refs: list,
+    confidence: float,
+    calibration_note: str,
+) -> tuple[str, list, float, str]:
+    """TICKET-10: Apply the third-party promise query exclusion filter.
+
+    This is the UNBYPASSABLE filter — called at EVERY AskResponse return point.
+    "What did Maria promise?" must NOT return the user's own commitment TO Maria.
+
+    Returns (answer, evidence_refs, confidence, calibration_note) — possibly modified.
+    """
+    import re as _re_t10
+    _is_tp = bool(_re_t10.search(
+        r'\bwhat\s+did\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(promise|commit|agree|pledge)\b'
+        r'|\bwhat\s+did\s+(he|she|they)\s+(promise|commit|agree|pledge)\b',
+        query, _re_t10.IGNORECASE,
+    ))
+    if not _is_tp or not evidence_refs:
+        return answer, evidence_refs, confidence, calibration_note
+
+    try:
+        _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+        _reconciled = reconcile_signals_for_user(
+            user_email=user_token,
+            db_path=_db_path,
+            include_non_commitments=True,
+        )
+        if not _reconciled:
+            return answer, evidence_refs, confidence, calibration_note
+
+        _user_owned_ids = {r["signal_id"] for r in _reconciled if r.get("owner", "unknown") == "user"}
+        _filtered = [
+            ev for ev in evidence_refs
+            if ev.get("signal_id", "") not in _user_owned_ids
+            or not ev.get("signal_id", "")
+        ]
+        _had_sids = any(ev.get("signal_id", "") for ev in evidence_refs)
+        _has_sids = any(ev.get("signal_id", "") for ev in _filtered)
+
+        if _had_sids and not _has_sids:
+            # All signal_id-bearing evidence was user-owned — third party made no promises
+            _filtered = [ev for ev in _filtered if not ev.get("signal_id", "")]
+            _answer = (
+                "Based on your commitment ledger, there is no record of "
+                "any promise made BY this entity. The commitments you have "
+                "are your own promises TO them, not their promises to you."
+            )
+            _cal = "TICKET-10: third-party query — user's own commitments excluded."
+            if calibration_note:
+                _cal = calibration_note + " | " + _cal
+            return _answer, _filtered, 0.0, _cal
+        elif len(_filtered) < len(evidence_refs):
+            return answer, _filtered, confidence, calibration_note
+    except Exception as _e:
+        logger.warning("TICKET-10 filter failed: %s", _e)
+
+    return answer, evidence_refs, confidence, calibration_note
+
+
 @router.post("", response_model=AskResponse)
 @rate_limit("30/minute")  # P0-6: Ask is LLM-powered + expensive — cap at 30/min per IP
 async def ask(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
-    """Ask a question — get the truth, sourced (LLM-powered when available)."""
+    """Ask a question — get the truth, sourced (LLM-powered when available).
+
+    TICKET-10 (2026-07-25): This is a WRAPPER around _ask_impl that applies
+    the unbypassable third-party promise query exclusion filter to EVERY
+    response, regardless of which internal code path produced it. The filter
+    is applied HERE, at the single exit point, so no future code path inside
+    _ask_impl can bypass it by returning early.
+    """
+    response = await _ask_impl(request, req, as_of, token)
+    # Apply the TICKET-10 filter at the single exit point — unbypassable
+    filtered_answer, filtered_ev, filtered_conf, filtered_cal = _apply_ticket10_filter(
+        req.query, token,
+        response.answer, response.evidence_refs or [],
+        response.confidence, response.calibration_note or "",
+    )
+    # Return a new AskResponse with the filtered values
+    return AskResponse(
+        answer=filtered_answer,
+        query=response.query,
+        source_sentence=response.source_sentence,
+        source_entity=response.source_entity,
+        source_timestamp=response.source_timestamp,
+        situation_state=response.situation_state,
+        evidence_refs=filtered_ev,
+        confidence=filtered_conf,
+        counterevidence=response.counterevidence,
+        unknowns=response.unknowns,
+        as_of=response.as_of,
+        decision_boundary=response.decision_boundary,
+        perspectives=response.perspectives,
+        reasoning_chain=response.reasoning_chain,
+        calibration_note=filtered_cal,
+        consequence_paths=response.consequence_paths,
+        llm_active=response.llm_active,
+        llm_provider=response.llm_provider,
+        intelligence_source=response.intelligence_source,
+    )
+
+
+async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
+    """Internal ask implementation — the original 4000-line function."""
     from maestro_personal_shell.api import (
         build_shell_async,
         load_signals_from_db,
