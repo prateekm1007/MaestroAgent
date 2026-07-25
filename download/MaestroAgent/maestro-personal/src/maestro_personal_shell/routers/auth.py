@@ -12,6 +12,27 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+import time as _rl_time
+from collections import deque as _rl_deque
+_auth_rl = {}
+def _check_rl(request):
+    import os as _os
+    if _os.environ.get('MAESTRO_TEST_MODE') == '1' and _os.environ.get('MAESTRO_PERSONAL_ENV') != 'production':
+        return
+    ip = request.client.host if request.client else '?'
+    fwd = request.headers.get('X-Forwarded-For', '')
+    if fwd:
+        ip = fwd.split(',')[0].strip()
+    now = _rl_time.monotonic()
+    if ip not in _auth_rl:
+        _auth_rl[ip] = _rl_deque()
+    ts = _auth_rl[ip]
+    while ts and ts[0] < now - 60:
+        ts.popleft()
+    if len(ts) >= 10:
+        raise HTTPException(status_code=429, detail='Rate limit exceeded.', headers={'Retry-After': '60'})
+    ts.append(now)
+
 
 # ---------------------------------------------------------------------------
 # Demo identity allowlist + alias map (module-level so the P38 deletion gate
@@ -72,6 +93,7 @@ def _maybe_login_decorator():
 @router.post("/login", response_model=LoginResponse)
 @_maybe_login_decorator()
 async def login(request: Request, req: LoginRequest):
+    _check_rl(request)
     """Login — returns a bearer token."""
     from maestro_personal_shell.api import (
         _is_production,
@@ -338,6 +360,7 @@ def _is_deleted_account(user_email: str) -> bool:
 @router.post("/register", response_model=RegisterResponse)
 @_maybe_login_decorator()
 async def register(request: Request, req: RegisterRequest):
+    _check_rl(request)
     """Register a new account with email + password."""
     from maestro_personal_shell.db_util import get_db_conn
     import os
