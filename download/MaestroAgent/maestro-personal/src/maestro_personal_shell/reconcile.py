@@ -141,7 +141,15 @@ def reconcile_signal(signal_id: str, db_path: str | None = None, user_email: str
         )
 
     # Derive owner from metadata (canonical) — "user" | "other" | "unknown"
-    owner = metadata.get("owner", "unknown")
+    # K3-OWNER fix (2026-07-25): the writer (routers/signals.py) stores the
+    # classifier's owner under "commitment_owner", NOT "owner". This was broken
+    # since reconcile.py was first written (commit 1acad66) — the reader used
+    # the wrong key, so owner was ALWAYS "unknown", and the P36/P60 ownership
+    # filter rejected every record. The GREEN 8.5/10 verdict was given while
+    # this bug was live because no test inspected the owner field on the
+    # reconciled record. Fix: read "commitment_owner" first, fall back to
+    # "owner" for backward compatibility with any legacy metadata.
+    owner = metadata.get("commitment_owner", metadata.get("owner", "unknown"))
     if owner not in ("user", "other", "unknown"):
         owner = "unknown"
 
