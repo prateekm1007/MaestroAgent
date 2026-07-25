@@ -489,3 +489,25 @@ The sixth audit tested paths the fifth did not — mutations, full lifecycle, ex
 **The failure:** The P43 ownership filter (F-03) only ran on the LLM ledger-fast-path. In rules-only mode — no LLM config, which is what every fresh clone runs and what every auditor hit — the ownership filter never ran. F-03 was fixed for the LLM path and silently unfixed for the path the audits actually test. Similarly, the P60 third-party exclusion was only verifiable on the live deploy, not in CI, because the code paths diverged — a fix the CI gate cannot observe is not permanent (P45).
 
 > **Rule:** The audits test a fresh clone with no LLM config; if a fix only fires when the LLM is present, it is unfixed for the environment that gets audited. And a fix the CI gate cannot observe is not permanent. Ownership filtering, third-party exclusion, and every trust guarantee must run identically in rules-only mode and be verifiable in CI — the LLM may *enhance* them, but it must not be the *condition* for them. The trust guarantees are deterministic; the LLM is polish.
+
+---
+
+## PART THIRTEEN — THE CODE HYGIENE PRINCIPLES (NEW, FROM THE SEVENTH AUDIT ROOT-CAUSE ANALYSIS 2026-07-25)
+
+### 66. Never add a local import of a name already imported at module level, inside the same function
+
+**The failure:** `routers/ask.py` imported `reconcile_signals_for_user` at module level (line 20) and used it correctly at line 542. But 1,200 lines later, inside the same `ask()` function, a redundant local `from maestro_personal_shell.reconcile import reconcile_signals_for_user` (line 1775) made the name local to the ENTIRE function. Python's scoping rules mean any name assigned anywhere in a function body is local to the whole function — so the earlier reference at line 542 threw `UnboundLocalError` unconditionally, every time, LLM-on or LLM-off. The surrounding `except Exception: logger.debug(...)` swallowed it silently, and the query fell through to the situation-synthesizer path with no ownership filter. This was the ACTUAL root cause of the P43/P60 ownership filter failing — not "LLM unavailable."
+
+> **Rule:** Never add a local `import` of a name already imported at module level, inside the same function. If a function is long enough that this is hard to notice, that's itself a signal the function should be split — a 4,000-line file with the same name imported twice 1,200 lines apart is a structural risk, not a style nitpick.
+
+### 67. An except clause guarding a primary code path must log at error level, not debug
+
+**The failure:** The `except Exception as e: logger.debug(...)` pattern that swallowed the `UnboundLocalError` appeared at least twice in `ask.py` (RC2 fast-path, ledger-state query). Silent debug-level swallowing is how the ownership filter broke without anyone noticing for however long it's been broken — the query silently fell through to a different code path with no ownership filter, and the user saw third-party reports in their promise queries.
+
+> **Rule:** An `except Exception: logger.debug(...)` guarding a primary code path (not a genuine optional/fallback path) is a bug waiting to hide another bug. Any except clause that causes a fallthrough to a materially different answer-generation path must log at `error` level with full context and increment a visible metric — silent debug-level swallowing is how the ownership filter broke without anyone noticing.
+
+### 68. A shared test fixture used by 15+ files is a single point of failure for the entire regression-detection signal
+
+**The failure:** At least a dozen test files use a shared `auth_headers` fixture that logs in with the legacy shared-password scheme (`{"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")}`), which the current API doesn't accept. When it breaks, "N passed" numbers stop meaning what they used to mean — the full suite showed 63 failed, 275 errored, not the 5 the last worklog cited. Nobody noticed until an external auditor manually diffs error counts against failure counts.
+
+> **Rule:** Treat shared test fixtures with the same "one source of truth" discipline as the commitment ledger. A shared fixture used by 15+ files is a single point of failure for the entire regression-detection signal — when it breaks, the test suite's pass/fail numbers become meaningless, and nobody notices until an auditor catches it. Shared fixtures must be tested independently and updated when the API contract changes.

@@ -410,7 +410,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     intelligence_source="ledger",
                 )
         except Exception as e:
-            logger.debug("Ledger-state query failed (non-fatal, falling through): %s", e)
+            logger.warning("P67: Ledger-state query failed (falling through to general path): %s", e)
 
     # ── RC2: LEDGER-READ FAST PATH for entity-specific queries ───────────
     # ROOT CAUSE 2 FIX: The Ask engine reads the CURRENT RECONCILED STATE
@@ -663,7 +663,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         intelligence_source="ledger",
                     )
             except Exception as e:
-                logger.debug("RC2 ledger-read fast path failed (non-fatal, falling through): %s", e)
+                logger.warning("P67: RC2 ledger-read fast path failed (falling through to general path): %s", e)
 
     # Skip the gate for genuinely broad queries that don't name a specific
     # entity ("what's going on?", "what changed?", "how many commitments?").
@@ -1772,7 +1772,11 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             logger.warning("P51: LLM returned empty result — falling back to rules-based answer")
                             if not answer or not answer.strip():
                                 # Rules-based answer is also empty — build a ledger-grounded fallback
-                                from maestro_personal_shell.reconcile import reconcile_signals_for_user
+                                # P66 (seventh audit): DO NOT re-import reconcile_signals_for_user here —
+                                # it's already imported at module level (line 20). A local import makes
+                                # the name local to the ENTIRE function, causing UnboundLocalError at
+                                # the earlier reference (line 542) unconditionally. This was the root
+                                # cause of the P43/P60 ownership filter failing in ALL environments.
                                 try:
                                     _p51_reconciled = reconcile_signals_for_user(
                                         user_email=token, db_path=_db_path,
