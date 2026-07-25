@@ -289,14 +289,37 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         else:
             signal_type_override = req.signal_type  # keep lifecycle type
     else:
-        metadata["commitment_type"] = "needs_review"
-        metadata["is_commitment"] = None
-        metadata["commitment_state"] = "needs_review"
-        metadata["commitment_confidence"] = 0.0
-        metadata["commitment_owner"] = "unknown"
-        metadata["classification_reasoning"] = "both LLM and rules classifier failed"
-        metadata["llm_powered"] = False
-        # signal_type_override stays "needs_review" — NOT a commitment
+        # TICKET-1/P59 (seventh audit): when the classifier is unavailable
+        # (CI environment, no LLM), PRESERVE the request's commitment_state
+        # instead of overwriting with "needs_review". The prior code destroyed
+        # the caller's intent (commitment_state=cancelled/completed_claimed)
+        # which caused the lifecycle engine to never fire in CI.
+        # The request metadata is the caller's intent — the classifier should
+        # refine it, not destroy it.
+        _req_commitment_state = metadata.get("commitment_state", "")
+        _req_is_commitment = metadata.get("is_commitment", None)
+        _req_commitment_type = metadata.get("commitment_type", "")
+        _req_owner = metadata.get("commitment_owner", "unknown")
+
+        if _req_commitment_state and _req_commitment_state != "needs_review":
+            # Preserve the caller's intent — the classifier will refine later
+            metadata["commitment_type"] = _req_commitment_type or "needs_review"
+            metadata["is_commitment"] = _req_is_commitment
+            metadata["commitment_state"] = _req_commitment_state
+            metadata["commitment_confidence"] = metadata.get("commitment_confidence", 0.5)
+            metadata["commitment_owner"] = _req_owner
+            metadata["classification_reasoning"] = "classifier unavailable — preserved caller's metadata"
+            metadata["llm_powered"] = False
+            signal_type_override = req.signal_type or "commitment_made"
+        else:
+            metadata["commitment_type"] = "needs_review"
+            metadata["is_commitment"] = None
+            metadata["commitment_state"] = "needs_review"
+            metadata["commitment_confidence"] = 0.0
+            metadata["commitment_owner"] = "unknown"
+            metadata["classification_reasoning"] = "both LLM and rules classifier failed"
+            metadata["llm_powered"] = False
+            # signal_type_override stays "needs_review" — NOT a commitment
 
     # F3: Resolve entity to canonical form to prevent fragmentation.
     # "Acme Corp", "client", "AcmeCorp" → single canonical entity.

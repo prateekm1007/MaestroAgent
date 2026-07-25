@@ -327,6 +327,12 @@ jobs:
           # P48: split suite — red here means a real regression in the
           # S2/S3 + P41/P42/P43 work, not noise from pre-existing backend
           # failures. --maxfail=3 + -rf to surface failures fast.
+          # P48: split suite — red here means a real regression in the
+          # S2/S3 + P41/P42/P43 work, not noise from pre-existing backend
+          # failures. Use pipefail so the pytest exit code propagates
+          # through the tail pipe (without it, tail always exits 0 and
+          # masks test failures).
+          set -o pipefail
           python -m pytest \
             tests/test_P43_reconcile_wired_live.py \
             tests/test_P41_single_source_of_truth.py \
@@ -345,7 +351,7 @@ jobs:
             tests/test_S3_02_permanence_isolated.py \
             --tb=long \
             -rf \
-            -v 2>&1 | tail -50
+            -v 2>&1 | tail -80
 
       - name: Run boot gate (P35 enforcement)
         working-directory: download/MaestroAgent/maestro-personal

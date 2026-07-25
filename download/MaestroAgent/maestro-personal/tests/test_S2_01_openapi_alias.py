@@ -31,6 +31,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 os.environ.setdefault("MAESTRO_ENV", "dev")
 os.environ.setdefault("ENV", "dev")
+# Ensure MAESTRO_PERSONAL_TOKEN is set for the admin-token tests.
+# In CI, this env var may not be set — default to 'maestro-demo'.
+os.environ.setdefault("MAESTRO_PERSONAL_TOKEN", "maestro-demo")
 # Load .env.local if present (for OPENROUTER_API_KEY + MAESTRO_PERSONAL_TOKEN)
 _env_local = Path("/home/z/my-project/.env.local")
 if _env_local.exists():
