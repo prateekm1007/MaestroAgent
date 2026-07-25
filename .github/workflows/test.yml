@@ -299,6 +299,10 @@ jobs:
       MAESTRO_PERSONAL_DB: /tmp/personal_journey.db
       MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL: "1"
       MAESTRO_TEST_MODE: "1"
+      # K3-BE-001/P67 fix: rate limiting now gates on MAESTRO_LOCAL_DEV (not
+      # MAESTRO_TEST_MODE). Journey-gate tests legitimately make >10 register/
+      # login calls per minute, so they need the local-dev bypass.
+      MAESTRO_LOCAL_DEV: "true"
     steps:
       - uses: actions/checkout@v4
 

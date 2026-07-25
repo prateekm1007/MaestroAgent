@@ -51,6 +51,11 @@ def _reset_llm_state_between_tests():
     P20/P22 isolation: without this, tests that mock or probe the LLM leave
     cached state that leaks into subsequent tests. Also clears the ZAI
     rate-limit cooldown so tests don't skip due to a prior test's 429.
+
+    K3-BE-001 fix (2026-07-25): also clear the in-memory _auth_rl deque so
+    the rate limiter (which now fires in CI per the P67 fix) doesn't trip
+    tests that legitimately make >10 register/login calls. Production still
+    enforces 10/min — this fixture is test-only.
     """
     try:
         from maestro_personal_shell.llm_bridge import reset_llm_router, _router
@@ -60,10 +65,21 @@ def _reset_llm_state_between_tests():
             _router._rate_limited_until = 0.0
     except ImportError:
         pass  # llm_bridge not yet importable (early collection)
+    # K3-BE-001/P67 fix: clear the auth rate-limiter state between tests
+    try:
+        from maestro_personal_shell.routers.auth import _auth_rl
+        _auth_rl.clear()
+    except ImportError:
+        pass
     yield
     try:
         from maestro_personal_shell.llm_bridge import reset_llm_router
         reset_llm_router()
+    except ImportError:
+        pass
+    try:
+        from maestro_personal_shell.routers.auth import _auth_rl
+        _auth_rl.clear()
     except ImportError:
         pass
 
