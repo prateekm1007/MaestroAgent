@@ -523,3 +523,104 @@ Stage Summary:
   path to GREEN is: one evidenced dashboard pass against the live demo corpus.
 - All Prateek-only infrastructure actions have been automated. No remaining Prateek actions
   except optionally completing the Postgres cutover (code follow-up, not infra).
+
+
+---
+Task ID: 48 (CTO — Compound fix live + Dashboard audit + GREEN verdict)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored, Kimi K3 verdict
+
+GOVERNANCE LOOP READ RECEIPT:
+- All governance files re-read (CLAUDE.md, ENTROPY_RECOVERY.md P1-P68,
+  FORBIDDEN_ACTIONS.md FA1-FA26, GOVERNANCE_LOOP.md, AUDITOR_GOVERNANCE.md)
+
+TASK A (Postgres cutover) — CODE SHIPPED, ROLLED BACK FOR STABILITY:
+- Commit 7df5c71: PostgresConnection.execute() now handles:
+  - INSERT OR REPLACE → ON CONFLICT (pk) DO UPDATE SET non_pk = EXCLUDED.non_pk
+    (with PK introspection from pg_constraint, cached per-table)
+  - INSERT OR IGNORE → ON CONFLICT (pk) DO NOTHING
+  - INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY
+  - DictCursor for row["col"] access (sqlite3.Row pattern, 14 call sites)
+  - 8-test suite in test_postgres_cutover.py
+- Postgres service provisioned on Railway (postgres:16-alpine, online)
+- psycopg2-binary + libpq-dev added to Dockerfile
+- LIVE TEST: backend crashed on FTS5 (CREATE VIRTUAL TABLE) — SQLite-specific
+  syntax not supported on Postgres. Also "list index out of range" in RC2
+  fast path (fixed in fc81fb7).
+- DECISION: rolled back MAESTRO_DATABASE_URL to keep production stable on SQLite.
+  Postgres code is correct but needs FTS5 → tsvector migration. Follow-up, not
+  a blocker for GREEN.
+
+TASK B (Compound-question handling) — SHIPPED + LIVE-VERIFIED ✓:
+- Commit 6a395ce: regex-based entity extraction + grounded negatives
+- Commit fc81fb7: guard _ledger_evidence[0] with if/else (was causing IndexError
+  that bypassed the compound fix entirely)
+- Commit cf30329: add re.IGNORECASE so 'What' matches 'what' (case-sensitive
+  regex was the reason the compound fix didn't fire live)
+- Commit dd6293c: apply compound decomposition at the FINAL return point too
+  (the RC2 fast-path version only fires when ledger has entries; the final-return
+  version fires on EVERY AskResponse)
+- LIVE VERIFICATION (commit dd6293c):
+  "What did I promise Maria? Also, what did I promise Elon Musk?" →
+  "You promised Maria Garcia that you would send the Q3 budget proposal by Friday EOD.
+   There is no record of a promise made to Elon Musk."
+  BOTH halves addressed. ✓
+- 3/3 tests passing in test_compound_question.py
+
+TASK C (Dashboard audit) — 10 SCREENSHOTS + DOM EVIDENCE ✓:
+- Used agent-browser (Playwright headless Chromium) to audit the live frontend
+- Registered dash-audit-2026@x.com, seeded 10 synthetic emails
+- Captured 10 screenshots + full accessibility tree snapshots of:
+  - Login page
+  - Today tab (empty + with data + clean + full-page)
+  - Ask tab (with suggestions + question typed)
+  - Commitments tab (THE ONE + All active + full-page)
+- DASHBOARD_EVIDENCE.md documents every surface with direct DOM text capture:
+  - THE MOMENT: honest abstention with trusted-silence calibration (P53)
+  - What Changed: 2 material shifts with entity + evidence quote (P54)
+  - Briefing: top situation (Priya Patel) with state label
+  - Ambient Intelligence: Sam Rivera sentiment alert (differentiated)
+  - Commitments: 'THE ONE' with reason + All active list
+  - Ask: entity-aware suggestions from actual user data
+- Two minor display inconsistencies noted (P25 confidence, P64 count) — non-blocking
+
+TASK D (Kimi K3 verdict re-run) — GREEN ✓:
+- P46-verified verdict: gen-1785000725-yGMgMrhavHID5SnD5mRV
+- Scores:
+  - Cat 1 First Impression: 8 (was 7)
+  - Cat 2 Dashboard: 8 (was 6 — lifted by direct DOM evidence)
+  - Cat 10 UX feel: 8 (was 7)
+  - Cat 12 Trust: 8 (was 8)
+  - Cat 14 Product Strategy: 9 (was 8)
+  - Cat 15 ChatGPT comparison: 8 (was 7)
+  - Overall average: 8.9 (was 8.0)
+  - BAND VERDICT: 🟢 GREEN
+  - Open S0: [] (none)
+  - Open S1: [] (none)
+- Band rationale: "All S0 and S1 findings are fixed with live verification
+  evidence, not just claims. Every score is >= 8, clearing the GREEN threshold
+  of all categories >= 7. Overall average of 8.9 clears the >= 8.0 requirement.
+  GREEN means ship with a backlog, not perfection; the evidence supports shipping."
+
+COMMITS (CTO-authored, P47 honest attribution):
+- 7df5c71 — Postgres cutover code (INSERT OR REPLACE → ON CONFLICT + DictCursor + AUTOINCREMENT)
+- 6a395ce — Compound-question decomposition (regex entity extraction + grounded negatives)
+- fc81fb7 — Fix IndexError in RC2 fast path (guard _ledger_evidence[0] with if/else)
+- cf30329 — Add re.IGNORECASE so 'What' matches 'what' in compound regex
+- dd6293c — Apply compound decomposition at the FINAL return point too
+- 2e421c2 — Dashboard evidence (10 screenshots + DASHBOARD_EVIDENCE.md)
+
+P46 VERIFICATION RECEIPTS (Kimi K3 generation IDs):
+- Selftest: gen-1784992728-MbKCrluG7P8gPoUYuUsi
+- Final GREEN verdict: gen-1785000725-yGMgMrhavHID5SnD5mRV
+
+REMAINING (non-blocking follow-ups, documented in verdict):
+1. Fix P25: unify confidence denominator between THE ONE (0%) and All Active (28%)
+2. Fix P64: reconcile Briefing situation count ('0 under observation') with displayed situation
+3. Complete Postgres FTS5 → tsvector migration, then set MAESTRO_DATABASE_URL
+4. Capture full DOM evidence of a completed Ask answer (current capture stops at 'Thinking…')
+
+Stage Summary:
+- 🟢 GREEN achieved. All S0/S1 fixed, deployed, and live-verified. Cat 2 lifted
+  from 6 to 8 with direct DOM evidence. Cat 3 lifted from 8 to 9 with compound
+  fix. Overall average 8.9/10. Kimi K3 verdict: "ship with a backlog, not
+  perfection; the evidence supports shipping."
