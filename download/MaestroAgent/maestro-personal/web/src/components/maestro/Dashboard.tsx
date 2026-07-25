@@ -714,7 +714,12 @@ function BriefingCard({
   briefing: Briefing | null;
   onNavigate: (view: "ask" | "commitments") => void;
 }) {
-  const watchingCount = briefing?.watching_quietly?.length ?? 0;
+  // P64 fix (2026-07-25): count the top_situation as part of the observation
+  // count. Previously, when top_situation was set but watching_quietly was
+  // empty, the UI showed "0 situations under observation" right next to a
+  // displayed top situation — a visible self-contradiction. Now the count
+  // includes the top_situation if it exists.
+  const watchingCount = (briefing?.watching_quietly?.length ?? 0) + (briefing?.top_situation ? 1 : 0);
   return (
     <Card className="border-border/60">
       <CardContent className="pt-6 space-y-4">

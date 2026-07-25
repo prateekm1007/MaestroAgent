@@ -582,7 +582,7 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
 @router.get("/the-one", response_model=CommitmentsMasterpieceResponse)
 async def get_the_one_commitment(token: str = Depends(verify_token_dep)):
     """The one commitment at risk today — not a list of 47."""
-    from maestro_personal_shell.api import build_shell
+    from maestro_personal_shell.api import build_shell, _get_real_calibration
 
     shell = build_shell(user_email=token)
 
@@ -605,7 +605,24 @@ async def get_the_one_commitment(token: str = Depends(verify_token_dep)):
         if sig_id:
             stale_map[sig_id] = s.get("days_stale", 0)
 
-    # Build commitment responses with at-risk info
+    # P25 fix (2026-07-25): compute calibration note + per-item confidence
+    # using the SAME function as /api/commitments, so THE ONE and All Active
+    # show the same confidence for the same commitment. Previously THE ONE
+    # returned confidence=0.0 (the default) while All Active returned the
+    # real computed confidence — a visible contradiction on the same screen.
+    core = shell.core
+    cal_note = ""
+    if core.calibration_primitives:
+        try:
+            brier = core.calibration_primitives.brier_score([])
+            if brier is None:
+                cal_note = _get_real_calibration(user_email=token)
+            else:
+                cal_note = f"Brier score: {brier:.4f} (lower is better)"
+        except Exception:
+            cal_note = _get_real_calibration(user_email=token)
+
+    # Build commitment responses with at-risk info + P25 confidence
     all_commitments = []
     for c in commitments:
         sig_id = c.get("signal_id", "")
@@ -619,6 +636,8 @@ async def get_the_one_commitment(token: str = Depends(verify_token_dep)):
             is_at_risk=sig_id in stale_map,
             days_stale=days_stale,
             deadline=(c.get("metadata", {}) or {}).get("deadline", ""),
+            confidence=_compute_commitment_confidence(c, cal_note, days_stale),  # P25 fix
+            calibration_note=cal_note,  # P25 fix — same note as All Active
         ))
 
     # The primary is the most at-risk: highest days_stale, then oldest
