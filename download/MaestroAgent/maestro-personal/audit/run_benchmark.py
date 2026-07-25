@@ -60,16 +60,44 @@ def register_and_seed(base_url: str) -> str:
         sys.exit(1)
     print(f"  ✓ Registered (token: {token[:20]}...)")
 
-    # Ingest all 20 emails
+    # Ingest all 20 emails (K3-INFRA-001 fix: count failures, abort if any)
+    ingest_failures = 0
     for i in range(1, 21):
         email_id = f"email_{i:02d}"
-        resp = httpx.post(
-            f"{base_url}/api/inbox/synthetic/{email_id}/receive",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30,
-        )
-        if resp.status_code != 200:
-            print(f"  ✗ Failed to ingest {email_id}: {resp.status_code}")
+        try:
+            resp = httpx.post(
+                f"{base_url}/api/inbox/synthetic/{email_id}/receive",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                print(f"  ✗ Failed to ingest {email_id}: {resp.status_code} {resp.text[:100]}")
+                ingest_failures += 1
+                # Retry once after a short backoff (rate-limit friendly)
+                time.sleep(2)
+                try:
+                    resp = httpx.post(
+                        f"{base_url}/api/inbox/synthetic/{email_id}/receive",
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=30,
+                    )
+                    if resp.status_code == 200:
+                        ingest_failures -= 1
+                        print(f"  ✓ {email_id} ingested on retry")
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"  ✗ Exception ingesting {email_id}: {e}")
+            ingest_failures += 1
+
+    # K3-INFRA-001 fix: seed integrity is a precondition for every metric.
+    # If ingestion failed, abstention/evidence-isolation metrics pass vacuously
+    # (no data to be wrong about). Abort with a clear gate line instead.
+    if ingest_failures > 0:
+        print(f"\nSEED_INTEGRITY: FAIL — {ingest_failures}/20 emails failed to ingest")
+        print("Refusing to compute metrics on a partial corpus (K3-INFRA-001 fix).")
+        sys.exit(1)
+    print("SEED_INTEGRITY: PASS — 20/20 emails ingested")
 
     # Verify ledger has commitments
     resp = httpx.get(
@@ -79,6 +107,10 @@ def register_and_seed(base_url: str) -> str:
     )
     status = resp.json()
     total = status.get("commitments", {}).get("total", 0)
+    if total == 0:
+        print(f"\nSEED_INTEGRITY: FAIL — 20 emails ingested but 0 commitments in ledger")
+        print("The corpus produced no commitments — metrics would be vacuous.")
+        sys.exit(1)
     print(f"  ✓ Ingested 20 emails — ledger has {total} commitments")
     print()
 
