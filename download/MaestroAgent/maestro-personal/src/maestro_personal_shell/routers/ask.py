@@ -3947,6 +3947,44 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             if not any(ind in str(ev.get("text", "")).lower() for ind in _THIRD_PARTY_INDICATORS_ALL)
         ]
 
+    # K3-COMPOUND fix (2026-07-25): compound-question decomposition at the
+    # FINAL return point. The RC2 fast-path version only fires when the ledger
+    # has entries. This version fires on EVERY AskResponse, ensuring compound
+    # questions like "What did I promise Maria? Also, what did I promise Elon
+    # Musk?" get both halves addressed — the answer from the LLM/rules path
+    # plus grounded negatives for any mentioned entities not in the evidence.
+    import re as _re_final_compound
+    _final_compound_patterns = [
+        r'what\s+did\s+i\s+promise\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+        r'what\s+did\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+promise',
+        r'what\s+about\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+    ]
+    _final_mentioned = set()
+    for _pat in _final_compound_patterns:
+        for _m in _re_final_compound.finditer(_pat, req.query, _re_final_compound.IGNORECASE):
+            _final_mentioned.add(_m.group(1).strip())
+    # Build the set of entities already addressed in the answer + evidence
+    _final_addressed = set()
+    _final_answer_lower = str(verified_answer).lower()
+    for _ev in evidence_refs:
+        _ent = _ev.get("entity", "") if isinstance(_ev, dict) else ""
+        if _ent:
+            _final_addressed.add(_ent.lower())
+    # Find mentioned entities NOT in the answer or evidence
+    _final_unaddressed = [
+        e for e in _final_mentioned
+        if e.lower() not in _final_addressed
+        and e.lower() not in _final_answer_lower
+        and e.lower() not in ("i", "me", "my", "we", "us", "our", "you", "your", "the", "a", "an")
+    ]
+    if _final_unaddressed:
+        _final_negatives = [f"No record of any promise to {_ent}." for _ent in _final_unaddressed]
+        verified_answer = str(verified_answer) + "\n\n" + "\n".join(_final_negatives)
+        if calibration_note:
+            calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
+        else:
+            calibration_note = "Compound question: some entities had no matching records — grounded negatives appended."
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,
