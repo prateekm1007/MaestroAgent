@@ -47,6 +47,15 @@ _COMMIT = (
 _BUILT = os.environ.get("MAESTRO_BUILD_TIME", "unknown")
 
 
+def _get_rate_limiting_status() -> str:
+    """Check if slowapi rate limiting is active (P64 audit transparency)."""
+    try:
+        import slowapi  # noqa: F401
+        return "enabled"
+    except ImportError:
+        return "disabled (slowapi not installed)"
+
+
 @router.get("/api/health")
 async def health():
     """Health check — no auth required. Returns deterministic build identity.
@@ -63,6 +72,7 @@ async def health():
             "docs_disabled": True,
             "security_headers": True,
             "build_time": _BUILT,
+            "rate_limiting": _get_rate_limiting_status(),
         },
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",

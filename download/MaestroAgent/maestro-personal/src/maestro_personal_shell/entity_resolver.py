@@ -408,7 +408,11 @@ def filter_evidence_to_entities(
     Multi-entity version of filter_evidence_to_entity. For "Maria and Alex's
     things", keeps evidence for Maria OR Alex, drops everyone else.
 
-    Falls back to unfiltered evidence if no matches (don't over-abstain).
+    P36 (seventh audit retrieval contamination): if NO evidence matches the
+    entity, return EMPTY — do NOT fall back to unfiltered evidence. The prior
+    code returned all evidence when nothing matched, which is how a Maria
+    query returned Railway build failures. Evidence that doesn't match the
+    query entity is contamination, not a fallback.
     """
     if not canonical_entities or not evidence:
         return evidence
@@ -423,4 +427,7 @@ def filter_evidence_to_entities(
             for c in canon_lowers
         ):
             filtered.append(ev)
-    return filtered if filtered else evidence  # don't return empty; fall back
+    # P36: return filtered only — do NOT fall back to unfiltered evidence.
+    # An empty result triggers the P60 answer-evidence guard (clean abstention)
+    # or the ledger-grounded fallback — both are better than contamination.
+    return filtered
