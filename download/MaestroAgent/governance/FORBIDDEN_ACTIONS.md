@@ -129,3 +129,35 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Rule:** Never report a fix as "done" on local test output alone. The report includes the CI run URL on the pushed commit, with the permanence gate and the relevant journey tests green. A local suite is how you DEVELOP confidence; CI on the commit is how you EARN it.
 
 **Enforcement:** Every "done" claim includes a CI run URL. If CI is red, the claim is "CI red, here's why" — not "done."
+
+## 17. Returning a blank answer on LLM failure (P51)
+
+**Incident:** Under an LLM outage window, multiple Ask queries returned `answer:""` with all-None fields and zero user feedback. The circuit breaker (S2-6) handles SLOW (fails closed to rules after three >25s calls) but not DEAD (empty/500 responses). The user cannot tell "Maestro found nothing" from "Maestro broke."
+
+**Rule:** Ask must NEVER return a blank answer. On any LLM failure (timeout, 500, empty response), Ask returns an explicit, ledger-grounded answer with a clear "AI unavailable" note. `/api/debug-llm` must not throw an unhandled 500. Silent empty is forbidden.
+
+**Enforcement:** Journey gate — simulate LLM outage (mock llm_complete to return None/empty/raise), assert Ask response has a non-empty answer grounded in the ledger with a calibration_note mentioning "AI unavailable."
+
+## 18. Ingesting misclassified signals without entity-extraction validation (P50)
+
+**Incident:** The Slack ingest path grabs date tokens ("Friday.") and pronouns ("I'm") as entities; a joke ("conquer the moon") becomes a commitment_made; a cancellation is missed; third-party reports are undetected; the Gmail and Slack paths use inconsistent taxonomies. The gold-set tested the commitment-type classifier on clean cases — but never tested entity extraction or the Slack ingest path on adversarial input.
+
+**Rule:** Entity extraction, classification, and ledger-write must be tested end-to-end on messy, adversarial, real-ish input. No date tokens, pronouns, or test markers as entities. Jokes, cancellations, and third-party reports must be detected. A single consistent taxonomy across all ingest paths (Gmail AND Slack).
+
+**Enforcement:** Journey gate — post adversarial Slack signals (jokes, cancellations, third-party, date-pronoun-entity attempts), assert the ledger receives correct entity + commitment_type + owner for each.
+
+## 19. Surfacing real PII in the demo corpus (P52)
+
+**Incident:** The demo corpus contains Prateek's real name ("PRATEEK MISRA") and a real brokerage client ID ("Zerodha Client ID TND670"). Ask "who am I" on the demo account surfaces this PII as the user's identity.
+
+**Rule:** The demo corpus must be synthetic and PII-free. No real names, client IDs, brokerage accounts, or real email addresses. The demo principal must be a clearly-synthetic identity.
+
+**Enforcement:** Journey gate — login as demo, ask "who am I", assert the answer does NOT contain any real person's name or any real account/client ID. Grep the demo seeder for real PII tokens.
+
+## 20. Suppressing the flagship feature on a synthetic/fresh-user artifact (P53)
+
+**Incident:** The Moment returns has_moment:false ("user dismisses 100% of suggestions") based on a dismissal_rate:1.0 artifact in the seed data. A first-run user sees nothing.
+
+**Rule:** Dismissal-based suppression must NEVER hide The Moment on a synthetic or fresh-user artifact. It requires real dismissal history (minimum 5 dismissals) AND a minimum-confidence threshold. A fresh user always sees The Moment.
+
+**Enforcement:** Journey gate — fresh user with 0 dismissals, post a commitment, assert /api/the-moment returns has_moment:true. Synthetic seed corpus must not produce a 100%-dismissal artifact.

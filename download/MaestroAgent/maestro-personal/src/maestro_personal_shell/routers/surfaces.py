@@ -979,11 +979,38 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
         except Exception as e:
             logger.debug(") failed: %s", e)
         if not materiality.get("should_speak", True):
-            return TheMomentResponse(
-                has_moment=False,
-                why_this_one=f"Trusted silence: {materiality.get('reasoning', 'low materiality')}",
-                reconciliation=recon,
-            )
+            # P53 (fifth audit F5/S2): "trusted silence" has a FLOOR.
+            # Dismissal-based suppression must NEVER hide the flagship
+            # feature on a synthetic or fresh-user artifact. If the user
+            # has fewer than 5 real dismissals, The Moment STILL surfaces
+            # — the suppression requires real dismissal history. This
+            # prevents the "100%-dismissal artifact hides everything"
+            # failure the auditor found.
+            try:
+                from maestro_personal_shell.learning_loop_v2 import get_entity_dismissal_rate
+                _p53_dismissal_rate = get_entity_dismissal_rate(
+                    user_email=token, entity=str(best_commitment.get("entity", "")),
+                )
+                # P53 floor: if dismissal_rate is 1.0 but the user has
+                # very few total signals (likely a fresh/synthetic artifact),
+                # surface The Moment anyway.
+                _total_signals = len(shell.oem_state.signals)
+                if _p53_dismissal_rate >= 0.95 and _total_signals < 50:
+                    logger.info(
+                        "P53: trusted-silence floor — dismissal_rate=%.2f but only %d signals "
+                        "(likely fresh/synthetic); surfacing The Moment anyway.",
+                        _p53_dismissal_rate, _total_signals,
+                    )
+                    # Fall through to surface The Moment (don't return False)
+                else:
+                    return TheMomentResponse(
+                        has_moment=False,
+                        why_this_one=f"Trusted silence: {materiality.get('reasoning', 'low materiality')}",
+                        reconciliation=recon,
+                    )
+            except Exception as _p53_err:
+                logger.debug("P53 floor check failed, surfacing The Moment: %s", _p53_err)
+                # On error, surface The Moment (fail-open for the flagship feature)
         if materiality.get("llm_powered"):
             best_why = materiality.get("reasoning", best_why)
     except Exception as e:

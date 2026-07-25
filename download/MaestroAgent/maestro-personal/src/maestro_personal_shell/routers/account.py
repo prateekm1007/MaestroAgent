@@ -713,61 +713,90 @@ async def llm_status(token: str = Depends(verify_token_dep)):
 
 @router.get("/debug-llm")
 async def debug_llm(token: str = Depends(verify_token_dep)):
-    """TEMP debug — inspect LLM router state."""
-    import os
-    from maestro_personal_shell.llm_bridge import (
-        get_llm_router, is_llm_available, _is_circuit_breaker_open,
-        _OllamaDirectRouter,
-    )
-    ollama_host = os.environ.get("OLLAMA_HOST", "<NOT SET>")
-    ollama_model = os.environ.get("OLLAMA_MODEL", "<NOT SET>")
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "<NOT SET>")
-    cb_open = _is_circuit_breaker_open()
-    llm_avail = is_llm_available()
-    
-    # Try to build a router directly
-    router = None
-    router_error = ""
+    """TEMP debug — inspect LLM router state.
+
+    P51 (fifth audit F1): this endpoint must NEVER throw an unhandled 500.
+    Every operation is guarded; the endpoint returns structured JSON with
+    error fields rather than crashing.
+    """
+    # P51: wrap the ENTIRE endpoint in a try/except so no internal error
+    # can produce an unhandled 500. The user gets a structured response
+    # even if the LLM bridge is completely broken.
     try:
-        router = get_llm_router()
+        import os
+        from maestro_personal_shell.llm_bridge import (
+            get_llm_router, is_llm_available, _is_circuit_breaker_open,
+            _OllamaDirectRouter,
+        )
+        ollama_host = os.environ.get("OLLAMA_HOST", "<NOT SET>")
+        ollama_model = os.environ.get("OLLAMA_MODEL", "<NOT SET>")
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "<NOT SET>")
+
+        try:
+            cb_open = _is_circuit_breaker_open()
+        except Exception:
+            cb_open = "error"
+        try:
+            llm_avail = is_llm_available()
+        except Exception:
+            llm_avail = False
+
+        # Try to build a router directly
+        router = None
+        router_error = ""
+        try:
+            router = get_llm_router()
+        except Exception as e:
+            router_error = str(e)[:200]
+
+        # Try health check directly
+        health = None
+        health_error = ""
+        direct_fetch_status = "not_attempted"
+        direct_fetch_error = ""
+        try:
+            if ollama_host and ollama_host.startswith("http") and "localhost" not in ollama_host:
+                try:
+                    test = _OllamaDirectRouter()
+                    health = test.health_check()
+                except Exception as e:
+                    health_error = str(e)[:200]
+                # Also try a direct urllib fetch to see the actual error
+                try:
+                    import urllib.request
+                    req = urllib.request.Request(f"{ollama_host}/api/tags")
+                    resp = urllib.request.urlopen(req, timeout=15)
+                    direct_data = json.loads(resp.read())
+                    direct_fetch_status = f"OK ({len(direct_data.get('models', []))} models)"
+                except Exception as e:
+                    direct_fetch_status = "FAILED"
+                    direct_fetch_error = str(e)[:300]
+        except Exception as e:
+            health_error = f"outer guard: {str(e)[:200]}"
+
+        return {
+            "OLLAMA_HOST": ollama_host,
+            "OLLAMA_MODEL": ollama_model,
+            "OPENROUTER_API_KEY": "<set>" if openrouter_key and openrouter_key != "<NOT SET>" else openrouter_key,
+            "circuit_breaker_open": cb_open,
+            "is_llm_available": llm_avail,
+            "router_present": router is not None,
+            "router_provider": getattr(router, "default_provider", "none") if router else "none",
+            "router_error": router_error,
+            "direct_health_check": health,
+            "health_error": health_error,
+            "direct_fetch_status": direct_fetch_status,
+            "direct_fetch_error": direct_fetch_error,
+        }
     except Exception as e:
-        router_error = str(e)[:200]
-    
-    # Try health check directly
-    health = None
-    health_error = ""
-    direct_fetch_error = ""
-    if ollama_host and ollama_host.startswith("http") and "localhost" not in ollama_host:
-        try:
-            test = _OllamaDirectRouter()
-            health = test.health_check()
-        except Exception as e:
-            health_error = str(e)[:200]
-        # Also try a direct urllib fetch to see the actual error
-        try:
-            import urllib.request
-            req = urllib.request.Request(f"{ollama_host}/api/tags")
-            resp = urllib.request.urlopen(req, timeout=15)
-            direct_data = json.loads(resp.read())
-            direct_fetch_status = f"OK ({len(direct_data.get('models', []))} models)"
-        except Exception as e:
-            direct_fetch_status = "FAILED"
-            direct_fetch_error = str(e)[:300]
-    
-    return {
-        "OLLAMA_HOST": ollama_host,
-        "OLLAMA_MODEL": ollama_model,
-        "OPENROUTER_API_KEY": "<set>" if openrouter_key and openrouter_key != "<NOT SET>" else openrouter_key,
-        "circuit_breaker_open": cb_open,
-        "is_llm_available": llm_avail,
-        "router_present": router is not None,
-        "router_provider": getattr(router, "default_provider", "none") if router else "none",
-        "router_error": router_error,
-        "direct_health_check": health,
-        "health_error": health_error,
-        "direct_fetch_status": direct_fetch_status,
-        "direct_fetch_error": direct_fetch_error,
-    }
+        # P51: unhandled 500 is forbidden — return a structured 200 with the error
+        return {
+            "error": f"P51 guarded: {str(e)[:300]}",
+            "OLLAMA_HOST": os.environ.get("OLLAMA_HOST", "<NOT SET>") if 'os' in dir() else "<unknown>",
+            "is_llm_available": False,
+            "circuit_breaker_open": "unknown",
+            "note": "P51: debug-llm endpoint caught an internal error and returned structured JSON instead of a 500.",
+        }
 
 
 @router.get("/depth")

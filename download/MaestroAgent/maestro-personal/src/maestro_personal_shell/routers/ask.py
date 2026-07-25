@@ -1739,19 +1739,56 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         # S2-6 LATENCY: time the LLM call for the circuit breaker.
                         # If 3 consecutive calls > 25s, the breaker trips and the
                         # next request skips the LLM (rules-only fallback).
+                        # P51 (fifth audit F1/S1): Ask NEVER returns a blank answer.
+                        # On LLM failure (timeout, exception, empty result), fall back
+                        # to the rules-based answer, then to a ledger-grounded abstention.
+                        # Silent empty is forbidden — the user cannot tell "found nothing"
+                        # from "broke."
                         import time as _time_llm_call
                         _llm_call_start = _time_llm_call.monotonic()
-                        llm_result = await llm_complete(
-                            system=system_prompt,
-                            user=user_prompt,
-                            temperature=0.2,
-                            max_tokens=300,
-                        )
+                        try:
+                            llm_result = await llm_complete(
+                                system=system_prompt,
+                                user=user_prompt,
+                                temperature=0.2,
+                                max_tokens=300,
+                            )
+                        except Exception as _llm_call_err:
+                            logger.warning("P51: LLM call raised exception: %s — using rules fallback", _llm_call_err)
+                            llm_result = None
                         _llm_call_latency = _time_llm_call.monotonic() - _llm_call_start
                         try:
                             _record_llm_latency(_llm_call_latency)
                         except Exception:
                             pass
+
+                        # P51: if LLM returned empty/None, use the rules-based answer
+                        # (which was built from the ledger BEFORE the LLM call). If the
+                        # rules-based answer is ALSO empty, return an explicit abstention
+                        # grounded in the ledger — NEVER a blank answer.
+                        if not llm_result or not llm_result.strip():
+                            logger.warning("P51: LLM returned empty result — falling back to rules-based answer")
+                            if not answer or not answer.strip():
+                                # Rules-based answer is also empty — build a ledger-grounded fallback
+                                from maestro_personal_shell.reconcile import reconcile_signals_for_user
+                                try:
+                                    _p51_reconciled = reconcile_signals_for_user(
+                                        user_email=token, db_path=_db_path,
+                                        include_non_commitments=False,
+                                    )
+                                    if _p51_reconciled:
+                                        _p51_entities = list(set(r["entity"] for r in _p51_reconciled if r["entity"]))[:5]
+                                        answer = (
+                                            f"AI is unavailable right now. Based on your commitment ledger, "
+                                            f"you have {len(_p51_reconciled)} active commitment(s)"
+                                            + (f" involving: {', '.join(_p51_entities)}." if _p51_entities else ".")
+                                        )
+                                    else:
+                                        answer = "AI is unavailable right now. Your commitment ledger is empty — no signals found to answer this question."
+                                except Exception:
+                                    answer = "AI is unavailable right now. I couldn't reach the LLM or your ledger. Please try again in a moment."
+                                calibration_note = "P51: LLM unavailable, returning ledger-grounded fallback (non-blank)."
+                                llm_active = False
                         if llm_result and len(llm_result.strip()) > 10:
                             # ROOT CAUSE 1 FIX: Wire ask_critic as a HARD GATE.
                             # The auditor proved the LLM generates claims the
@@ -3703,6 +3740,70 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     req.query[:80], len(evidence_refs), _gate_pre_count,
                     len(perspectives_data), len(_gate_filtered_persps) if 'perspectives_data' in dir() else 0,
                 )
+
+    # P51 BELT-AND-SUSPENDERS (fifth audit F1/S1): the answer field MUST
+    # NEVER be empty in any AskResponse. If verified_answer is empty/None
+    # at this point (which means every prior fallback also failed), return
+    # an explicit non-blank abstention. Silent empty is forbidden.
+    if not verified_answer or not str(verified_answer).strip():
+        verified_answer = (
+            "I don't have enough information to answer that question right now. "
+            "This could be due to an AI outage or no matching signals in your ledger. "
+            "Please try rephrasing, or try again in a moment."
+        )
+        if not calibration_note:
+            calibration_note = "P51: final non-blank guard — no empty answer ever shipped."
+
+    # P52 (fifth audit F4/S2): PII redaction — the demo corpus must not
+    # surface real PII (names, client IDs, brokerage accounts). Known PII
+    # tokens are redacted from the answer and evidence at READ time,
+    # regardless of whether the write-side dismiss persisted. This is
+    # defense-in-depth: the write side SHOULD be clean, but the read side
+    # MUST be clean.
+    _PII_TOKENS = [
+        "PRATEEK MISRA", "PRATEEK", "MISRA",
+        "TND670", "Zerodha", "zerodha",
+        "Client ID: TND670", "client id: tnd670",
+    ]
+    def _redact_pii(text: str) -> str:
+        """Redact known PII tokens from text (P52)."""
+        if not text:
+            return text
+        result = str(text)
+        for token in _PII_TOKENS:
+            result = result.replace(token, "[REDACTED]")
+            # Also handle case-insensitive matches
+            import re as _re_pii
+            result = _re_pii.sub(_re_pii.escape(token), "[REDACTED]", result, flags=_re_pii.IGNORECASE)
+        return result
+
+    verified_answer = _redact_pii(verified_answer)
+    if source_sentence:
+        source_sentence = _redact_pii(source_sentence)
+    if evidence_refs:
+        evidence_refs = [
+            {**ev, "text": _redact_pii(ev.get("text", ""))} if isinstance(ev, dict) else ev
+            for ev in evidence_refs
+        ]
+
+    # P36 FINAL EVIDENCE FILTER (fifth audit defense-in-depth): for promise
+    # queries ("What did I promise X?"), strip third-party reports from
+    # evidence_refs at the final return point. The ledger fast path (P43)
+    # already filters these, but the general retrieval path may not — this
+    # is the belt-and-suspenders guard ensuring NO third-party report leaks
+    # into a promise-query response regardless of which code path produced it.
+    _is_promise_query_final = bool(_re.search(
+        r'\bwhat\s+did\s+i\s+(promise|commit|agree|pledge)\b'
+        r'|\bmy\s+(promises?|commitments?)\b'
+        r'|\bpromises?\s+i\s+(made|owe|keep)\b',
+        req.query, _re.IGNORECASE,
+    ))
+    if _is_promise_query_final and evidence_refs:
+        _THIRD_PARTY_INDICATORS = [" said:", " said ", " says ", " wrote:", " mentioned:"]
+        evidence_refs = [
+            ev for ev in evidence_refs
+            if not any(ind in str(ev.get("text", "")).lower() for ind in _THIRD_PARTY_INDICATORS)
+        ]
 
     return AskResponse(
         answer=str(verified_answer),

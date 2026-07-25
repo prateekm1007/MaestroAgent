@@ -317,3 +317,35 @@ The arc's recurring ghost — placeholder connectors, stale-frontend gates, corp
 **The failure:** The Test Suite CI job was "always a little red" on pre-existing backend test failures — and the new maestro-personal journey gates (P43/P41/P42/S2-*/S3-2) were not in CI at all, because test.yml only ran backend tests. A perpetually-red suite trains everyone to ignore red (the boy-who-cried-wolf failure that lets a real regression slip through), and a suite that doesn't run the new tests at all can't catch their regressions.
 
 > **Rule:** Keep every CI suite either green or honestly split, so red means a real regression, not Tuesday. If a suite has known-failing tests, either fix them or split them into a separate job (e.g., "backend-legacy" vs "personal-journey-gates") so a red in one doesn't train ignoring red in the other. A gate with known failures is not a gate — it's noise.
+
+---
+
+## PART EIGHT — THE INGEST-JOURNEY + RESILIENCE PRINCIPLES (NEW, FROM THE FIFTH AUDIT 2026-07-25)
+
+### The meta-failure this part reveals
+
+The fifth audit (independent, adversarial, from-scratch) converged on the same 🟡 the arc has held — and it found the NEXT layer of breakage: the read side is fixed (P43 ownership, P42 normalization, P41 SSOT) but the WRITE side (ingest) is still broken on messy real-ish input. Entity extraction grabs date tokens and pronouns as entities; jokes become commitments; cancellations are missed; third-party reports are undetected; the Gmail and Slack ingest paths use inconsistent taxonomies. The gold-set (2,248 cases) tested the commitment-type classifier on clean cases — but never tested entity extraction or the Slack ingest path on adversarial input. This is the gate-testing-the-component-not-the-journey pattern once more, now at the ingest layer.
+
+### 49. Gate the ingest journey, not just the classifier component (P50)
+
+**The failure:** The auditor ingested new text via the Slack ingest path and found it broken: entity extraction grabs `"Friday."`, `"I'm"`, `"Audit_Test"` as entities; a joke ("conquer the moon") becomes a `commitment_made`; a cancellation is missed; third-party reports aren't detected; the taxonomy is inconsistent between Gmail and Slack paths. The reclassify migration fixed the EXISTING corpus; the gold-set tested the commitment-type classifier on CLEAN cases — but neither covered entity extraction or the Slack ingest path on adversarial input.
+
+> **Rule:** Entity extraction, classification, and ledger-write must be tested END-TO-END on messy, adversarial, real-ish input (dates, pronouns, jokes, cancellations, third-party reports, mixed Gmail/Slack formats) — not just the commitment-type classifier on clean cases. The gold-set must grow to cover entity extraction (no date/pronoun tokens as entities) and every ingest path (Gmail AND Slack) with a single consistent taxonomy. The ingest side is where the ledger is WRITTEN; if it's broken there, no amount of Ask-side fixing makes the product trustworthy.
+
+### 50. Ask never fails silently (P51)
+
+**The failure:** Under an LLM outage window, multiple Ask queries returned `answer:""` with all-None fields and zero user feedback. `/api/debug-llm` threw an unhandled 500. The circuit breaker (S2-6) handles SLOW (fails closed to rules after three >25s calls) — but the audit found that under DEAD (empty/500 responses), Ask returns a blank answer with no fallback and no error. The user cannot tell "Maestro found nothing" from "Maestro broke."
+
+> **Rule:** Ask must NEVER return a blank answer. On any LLM failure (timeout, 500, empty response), Ask returns an explicit, ledger-grounded answer with a clear "AI unavailable right now — here's what I know from your ledger" note — never `answer:""`. The breaker handles slow; a separate fallback handles dead. And `/api/debug-llm` must not throw an unhandled 500 — it returns a structured error. Silent empty is forbidden; it is the one unforgivable failure for a trust product.
+
+### 51. The demo is synthetic and PII-free, and the demo identity is never conflated with a real person (P52)
+
+**The failure:** Logging in as `bootstrap@maestro.local` yields a server principal of `default@personal.local`, and Ask "who am I" asserts "You are PRATEEK (PRATEEK MISRA)… Zerodha Client ID TND670." The synthetic demo corpus is contaminated with Prateek's actual identity and a real brokerage client ID, which Ask then surfaces as the user's identity. A demo that leaks the founder's real PII into answers is a privacy defect and a trust-killer for any evaluator.
+
+> **Rule:** Purge real PII (names, client IDs, brokerage accounts, real email addresses) from the seed corpus. The demo principal must be a clearly-synthetic identity (e.g., "Demo User" with a synthetic email). A demo that surfaces the founder's real brokerage ID is a defect, not a fixture. The demo identity must NEVER conflate with a real person.
+
+### 52. "Trusted silence" has a floor (P53)
+
+**The failure:** `behavior/patterns` reports `dismissal_rate:1.0`, so The Moment returns `has_moment:false` ("user dismisses 100% of suggestions"). The "trusted silence" feature is HIDING the one feature it should surface, based on a 100%-dismissal artifact in the seed data. A first-run user sees NOTHING, which reads as "broken," not "calm."
+
+> **Rule:** Dismissal-based suppression must NEVER hide the flagship feature on a synthetic or fresh-user artifact. It requires real dismissal history (a minimum number of dismissals — e.g., 5) AND a minimum-confidence threshold below which The Moment still surfaces. A fresh user with no real dismissal history always sees The Moment. A synthetic seed corpus must not produce a 100%-dismissal artifact that suppresses the hero feature.
