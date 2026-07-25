@@ -593,86 +593,90 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             raise  # let the outer try/except handle it
 
                     if not _ledger_evidence:
-                        # P65 fix: fall through to general path when ledger is empty
+                        # P65 fix: fall through to general path when ledger is empty.
+                        # K3-COMPOUND fix (2026-07-25): the old code only logged here
+                        # but continued to the return block, which accessed
+                        # _ledger_evidence[0] → IndexError "list index out of range".
+                        # Now we skip the entire ledger-answer block and fall through.
                         logger.info("P65: RC2 ledger evidence empty — falling through to general path")
-
-                    # - Multiple current entries for same entity (ambiguous) → lower (0.5)
-                    # - Has superseded history (recent change) → lower (0.6) + uncertainty note
-                    _has_superseded = any(
-                        e.get("state") == "superseded"
-                        for ent in _queried_entities
-                        for e in get_ledger_entries(token, _db_path, entity=ent)
-                    )
-                    _current_count = len(_ledger_evidence)
-                    if _has_superseded:
-                        _confidence = 0.6
-                        _calibration_note = "Answered from commitment ledger (current state). Note: a recent reschedule/supersession was detected — current status may be pending confirmation."
-                    elif _current_count > 2:
-                        _confidence = 0.5
-                        _calibration_note = "Answered from commitment ledger (current state). Multiple active commitments — status may be ambiguous."
                     else:
-                        _confidence = 0.8
-                        _calibration_note = "Answered from commitment ledger (current reconciled state)."
+                        # - Multiple current entries for same entity (ambiguous) → lower (0.5)
+                        # - Has superseded history (recent change) → lower (0.6) + uncertainty note
+                        _has_superseded = any(
+                            e.get("state") == "superseded"
+                            for ent in _queried_entities
+                            for e in get_ledger_entries(token, _db_path, entity=ent)
+                        )
+                        _current_count = len(_ledger_evidence)
+                        if _has_superseded:
+                            _confidence = 0.6
+                            _calibration_note = "Answered from commitment ledger (current state). Note: a recent reschedule/supersession was detected — current status may be pending confirmation."
+                        elif _current_count > 2:
+                            _confidence = 0.5
+                            _calibration_note = "Answered from commitment ledger (current state). Multiple active commitments — status may be ambiguous."
+                        else:
+                            _confidence = 0.8
+                            _calibration_note = "Answered from commitment ledger (current reconciled state)."
 
-                    _ledger_answer = "Based on your commitment ledger:\n" + "\n".join(_answer_lines)
+                        _ledger_answer = "Based on your commitment ledger:\n" + "\n".join(_answer_lines)
 
-                    # K3-COMPOUND fix (2026-07-25): compound-question decomposition.
-                    # Queries like "What did I promise Maria? Also, what did I promise
-                    # Elon Musk?" only matched Maria (she exists in known entities) and
-                    # silently dropped the Elon half. Now we extract ALL mentioned
-                    # entities from the query text, and for any that don't have ledger
-                    # entries, append a grounded negative ("I don't have any record of
-                    # promises to {entity}."). This ensures both halves of a compound
-                    # question are addressed — lifting Cat 3 from 8 to 9.
-                    import re as _re_compound
-                    _compound_patterns = [
-                        r'what\s+did\s+i\s+promise\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-                        r'what\s+did\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+promise',
-                        r'what\s+about\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-                    ]
-                    _all_mentioned_entities = set()
-                    for _pat in _compound_patterns:
-                        for _m in _re_compound.finditer(_pat, req.query):
-                            _all_mentioned_entities.add(_m.group(1).strip())
-                    # Find entities mentioned in the query but NOT in the ledger
-                    _queried_lower = {e.lower() for e in _queried_entities}
-                    _unaddressed = [
-                        e for e in _all_mentioned_entities
-                        if e.lower() not in _queried_lower
-                        and e.lower() not in ("i", "me", "my", "we", "us", "our", "you", "your", "the", "a", "an")
-                    ]
-                    if _unaddressed:
-                        _negatives = []
-                        for _ent in _unaddressed:
-                            _negatives.append(f"• No record of any promise to {_ent}.")
-                        _ledger_answer += "\n\n" + "\n".join(_negatives)
-                        _calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
+                        # K3-COMPOUND fix (2026-07-25): compound-question decomposition.
+                        # Queries like "What did I promise Maria? Also, what did I promise
+                        # Elon Musk?" only matched Maria (she exists in known entities) and
+                        # silently dropped the Elon half. Now we extract ALL mentioned
+                        # entities from the query text, and for any that don't have ledger
+                        # entries, append a grounded negative ("I don't have any record of
+                        # promises to {entity}."). This ensures both halves of a compound
+                        # question are addressed — lifting Cat 3 from 8 to 9.
+                        import re as _re_compound
+                        _compound_patterns = [
+                            r'what\s+did\s+i\s+promise\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                            r'what\s+did\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+promise',
+                            r'what\s+about\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                        ]
+                        _all_mentioned_entities = set()
+                        for _pat in _compound_patterns:
+                            for _m in _re_compound.finditer(_pat, req.query):
+                                _all_mentioned_entities.add(_m.group(1).strip())
+                        # Find entities mentioned in the query but NOT in the ledger
+                        _queried_lower = {e.lower() for e in _queried_entities}
+                        _unaddressed = [
+                            e for e in _all_mentioned_entities
+                            if e.lower() not in _queried_lower
+                            and e.lower() not in ("i", "me", "my", "we", "us", "our", "you", "your", "the", "a", "an")
+                        ]
+                        if _unaddressed:
+                            _negatives = []
+                            for _ent in _unaddressed:
+                                _negatives.append(f"• No record of any promise to {_ent}.")
+                            _ledger_answer += "\n\n" + "\n".join(_negatives)
+                            _calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
 
-                    logger.info(
-                        "RC2 ledger-read fast path: query=%r → %d current entries for %d entities, conf=%.1f (no LLM needed)",
-                        req.query[:60], len(_ledger_evidence), len(_queried_entities), _confidence,
-                    )
-                    return AskResponse(
-                        answer=_ledger_answer,
-                        query=req.query,
-                        source_sentence=_ledger_evidence[0].get("text", ""),
-                        source_entity=_ledger_evidence[0].get("entity", ""),
-                        source_timestamp=_ledger_evidence[0].get("timestamp", ""),
-                        situation_state="",
-                        evidence_refs=_ledger_evidence[:5],
-                        confidence=_confidence,
-                        counterevidence=[],
-                        unknowns=[],
-                        as_of=str(as_of or ""),
-                        decision_boundary="",
-                        perspectives=[],
-                        reasoning_chain=[],
-                        calibration_note=_calibration_note,
-                        consequence_paths=[],
-                        llm_active=False,
-                        llm_provider="none",
-                        intelligence_source="ledger",
-                    )
+                        logger.info(
+                            "RC2 ledger-read fast path: query=%r → %d current entries for %d entities, conf=%.1f (no LLM needed)",
+                            req.query[:60], len(_ledger_evidence), len(_queried_entities), _confidence,
+                        )
+                        return AskResponse(
+                            answer=_ledger_answer,
+                            query=req.query,
+                            source_sentence=_ledger_evidence[0].get("text", ""),
+                            source_entity=_ledger_evidence[0].get("entity", ""),
+                            source_timestamp=_ledger_evidence[0].get("timestamp", ""),
+                            situation_state="",
+                            evidence_refs=_ledger_evidence[:5],
+                            confidence=_confidence,
+                            counterevidence=[],
+                            unknowns=[],
+                            as_of=str(as_of or ""),
+                            decision_boundary="",
+                            perspectives=[],
+                            reasoning_chain=[],
+                            calibration_note=_calibration_note,
+                            consequence_paths=[],
+                            llm_active=False,
+                            llm_provider="none",
+                            intelligence_source="ledger",
+                        )
             except Exception as e:
                 logger.warning("P67: RC2 ledger-read fast path failed (falling through to general path): %s", e)
 
