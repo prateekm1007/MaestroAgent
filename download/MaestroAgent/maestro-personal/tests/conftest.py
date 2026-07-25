@@ -15,6 +15,9 @@ os.environ.setdefault("MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL", "1")
 # Set test mode so the rate limiter bypasses per-endpoint limits.
 os.environ.setdefault("MAESTRO_TEST_MODE", "1")
 
+# TICKET-9: ensure MAESTRO_PERSONAL_TOKEN is set for admin-token tests.
+os.environ.setdefault("MAESTRO_PERSONAL_TOKEN", "maestro-demo")
+
 # Add maestro-personal/src to path (the Personal shell package)
 personal_src = pathlib.Path(__file__).resolve().parents[1] / "src"
 if str(personal_src) not in sys.path:
@@ -98,3 +101,44 @@ def _fresh_db_per_test():
         os.unlink(tmp.name)
     except OSError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# TICKET-9/P68 (seventh audit): SHARED client + auth_headers fixtures.
+#
+# The prior code had 15+ test files each implementing their own auth_headers
+# fixture using the LEGACY shared-password scheme ({"password": "test"}),
+# which the current API doesn't accept (requires user_email + password).
+# This caused 275 ERRORS in the full test suite — the entire regression-
+# detection signal was broken.
+#
+# These fixtures use the CURRENT API schema. All test files that need auth
+# should use these instead of rolling their own.
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def client():
+    """Shared TestClient fixture — creates the app + initializes the DB."""
+    from fastapi.testclient import TestClient
+    from maestro_personal_shell.api import app, init_db
+    init_db()
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture
+def auth_headers(client):
+    """Register a test user and return Authorization headers.
+
+    Uses the current API schema (user_email + password → token).
+    Available to ALL test files — no more per-file auth fixtures.
+    """
+    import uuid
+    email = f"test-{uuid.uuid4().hex[:8]}@example.com"
+    r = client.post("/api/auth/register", json={
+        "user_email": email,
+        "password": "TestPassword123!",
+    })
+    assert r.status_code == 200, f"register failed: {r.status_code} {r.text[:200]}"
+    token = r.json().get("token")
+    assert token, f"no token in register response: {r.text[:200]}"
+    return {"Authorization": f"Bearer {token}"}

@@ -3917,6 +3917,20 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             else:
                 calibration_note += " | P65: third-party reports stripped from answer."
 
+    # TICKET-10 (seventh audit): FINAL-GATE FILTER on EVERY AskResponse.
+    # The P65 filter above only runs on promise queries. But third-party
+    # reports should NEVER appear in evidence_refs regardless of the query
+    # type — they're someone else's promise, not the user's. This filter
+    # runs unconditionally on ALL AskResponses, stripping third-party
+    # reports from evidence_refs by text pattern. One filter, one place,
+    # applied post-hoc — can't be bypassed by a new code path.
+    if evidence_refs:
+        _THIRD_PARTY_INDICATORS_ALL = [" said:", " said ", " says ", " wrote:", " mentioned:"]
+        evidence_refs = [
+            ev for ev in evidence_refs
+            if not any(ind in str(ev.get("text", "")).lower() for ind in _THIRD_PARTY_INDICATORS_ALL)
+        ]
+
     return AskResponse(
         answer=str(verified_answer),
         query=req.query,
