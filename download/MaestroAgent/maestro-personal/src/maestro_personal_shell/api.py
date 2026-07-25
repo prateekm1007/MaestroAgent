@@ -891,6 +891,38 @@ app = FastAPI(
 )
 
 # Security fix: add standard security headers
+# P69/rate-limiting: Working global rate limit middleware using in-memory
+# counter per client IP. 60/minute for all endpoints, 10/minute for auth.
+import time as _rl_time
+import collections as _rl_collections
+
+_rl_counters: dict[str, _rl_collections.deque] = {}
+_rl_window = 60  # seconds
+_rl_default_limit = 60  # requests per window
+_rl_auth_limit = 10  # auth endpoints
+
+@app.middleware("http")
+async def global_rate_limit_middleware(request, call_next):
+    """Global rate limiting — 60/minute per IP for ALL endpoints,
+    10/minute for auth endpoints (login/register)."""
+    import os as _os
+    if _os.environ.get("MAESTRO_TEST_MODE") == "1" and _os.environ.get("MAESTRO_PERSONAL_ENV") != "production":
+        return await call_next(request)
+
+    # Get client IP
+    client_ip = request.client.host if request.client else "unknown"
+    # Also check X-Forwarded-For (Railway proxy)
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+
+    # Determine limit based on path
+    path = request.url.path
+    if "/auth/login" in path or "/auth/register" in path:
+        limit = _rl_auth_limit
+    else:
+        limit = _rl_default_limit
+
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     response = await call_next(request)
@@ -2044,55 +2076,3 @@ if __name__ == "__main__":
     main()
 
 
-# P69/rate-limiting: Working global rate limit middleware using in-memory
-# counter per client IP. 60/minute for all endpoints, 10/minute for auth.
-import time as _rl_time
-import collections as _rl_collections
-
-_rl_counters: dict[str, _rl_collections.deque] = {}
-_rl_window = 60  # seconds
-_rl_default_limit = 60  # requests per window
-_rl_auth_limit = 10  # auth endpoints
-
-@app.middleware("http")
-async def global_rate_limit_middleware(request, call_next):
-    """Global rate limiting — 60/minute per IP for ALL endpoints,
-    10/minute for auth endpoints (login/register)."""
-    import os as _os
-    if _os.environ.get("MAESTRO_TEST_MODE") == "1" and _os.environ.get("MAESTRO_PERSONAL_ENV") != "production":
-        return await call_next(request)
-
-    # Get client IP
-    client_ip = request.client.host if request.client else "unknown"
-    # Also check X-Forwarded-For (Railway proxy)
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        client_ip = forwarded.split(",")[0].strip()
-
-    # Determine limit based on path
-    path = request.url.path
-    if "/auth/login" in path or "/auth/register" in path:
-        limit = _rl_auth_limit
-    else:
-        limit = _rl_default_limit
-
-    # Check rate limit
-    now = _rl_time.monotonic()
-    key = f"{client_ip}:{path.split('/')[1] if len(path.split('/')) > 1 else 'root'}"
-    if key not in _rl_counters:
-        _rl_counters[key] = _rl_collections.deque()
-    timestamps = _rl_counters[key]
-    # Remove old entries
-    while timestamps and timestamps[0] < now - _rl_window:
-        timestamps.popleft()
-    # Check limit
-    if len(timestamps) >= limit:
-        from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Rate limit exceeded. Try again in a minute."},
-            headers={"Retry-After": str(_rl_window)},
-        )
-    # Record this request
-    timestamps.append(now)
-    return await call_next(request)
