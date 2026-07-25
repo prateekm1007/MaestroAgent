@@ -3856,9 +3856,15 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         # not just the ledger fast path. This ensures F-03 (ownership) and
         # F-09 (third-party exclusion) hold in rules-only mode.
         try:
+            _p65_db_path = None
+            try:
+                from pathlib import Path as _P_p65
+                _p65_db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(_P_p65(__file__).resolve().parent / "personal.db"))
+            except Exception:
+                pass
             _p65_reconciled = reconcile_signals_for_user(
                 user_email=token,
-                db_path=_db_path if '_db_path' in dir() else None,
+                db_path=_p65_db_path,
                 include_non_commitments=True,  # get all to filter
             )
             if _p65_reconciled:
@@ -3886,6 +3892,26 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             ev for ev in evidence_refs
             if not any(ind in str(ev.get("text", "")).lower() for ind in _THIRD_PARTY_INDICATORS)
         ]
+
+        # P65/P60: also strip third-party reports from the ANSWER TEXT.
+        # The LLM may surface "Maria said:" in the answer even though the
+        # evidence_refs are clean. For promise queries, the answer must
+        # NOT contain third-party report indicators.
+        _answer_lower = str(verified_answer).lower()
+        if any(ind in _answer_lower for ind in _THIRD_PARTY_INDICATORS):
+            # Strip lines containing third-party indicators
+            _answer_lines = str(verified_answer).split("\n")
+            _filtered_lines = [
+                line for line in _answer_lines
+                if not any(ind in line.lower() for ind in _THIRD_PARTY_INDICATORS)
+            ]
+            verified_answer = "\n".join(_filtered_lines)
+            if not str(verified_answer).strip():
+                verified_answer = "Based on your commitment ledger, no promises were found matching this query."
+            if not calibration_note:
+                calibration_note = "P65: third-party reports stripped from answer text."
+            else:
+                calibration_note += " | P65: third-party reports stripped from answer."
 
     return AskResponse(
         answer=str(verified_answer),
