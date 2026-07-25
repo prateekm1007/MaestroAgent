@@ -3913,8 +3913,14 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
             if any(e.lower() == s_entity for e in entities):
                 matching_situation = s
                 break
-        if not matching_situation and situations:
-            matching_situation = situations[0]
+        # F-08 (seventh audit): DO NOT fall back to an unrelated situation.
+        # The prior code did: if not matching_situation and situations:
+        #   matching_situation = situations[0]
+        # This is how a Maria query streamed "conquering the moon" — the
+        # first situation in the list was about a joke signal, not Maria.
+        # The evidence must match the query's entity. If no situation
+        # matches, return the rules-based answer (which IS entity-scoped).
+        # P36: evidence must pass entity consistency checks.
 
         if not matching_situation:
             yield f"data: {json.dumps({'chunk': rule_based_answer, 'llm_active': False})}\n\n"

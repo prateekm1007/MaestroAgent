@@ -206,8 +206,17 @@ async def verify_token(authorization: str = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="Invalid auth scheme — expected 'Bearer <token>'")
     token = authorization.split(" ", 1)[1]
 
-    # Demo bypass: accept 'demo-bypass-token' for local testing without auth setup
-    if token == "demo-bypass-token":
+    # P63/S0 (seventh audit): NO HARDCODED AUTH BYPASSES IN PRODUCTION.
+    # The prior code accepted 'demo-bypass-token' and returned
+    # 'default@personal.local' — a hardcoded auth bypass that let anyone
+    # authenticate as the demo user without credentials. This is a
+    # disqualifying security hole.
+    #
+    # The bypass is now GATED on MAESTRO_LOCAL_DEV=true (off in production).
+    # In production (Railway), this env var is NOT set, so the bypass is
+    # dead code — the token 'demo-bypass-token' is rejected like any other
+    # invalid token.
+    if token == "demo-bypass-token" and os.environ.get("MAESTRO_LOCAL_DEV") == "true":
         return "default@personal.local"
 
     # Check per-user tokens (SQLite-persisted) — inlined to avoid reload closure issues

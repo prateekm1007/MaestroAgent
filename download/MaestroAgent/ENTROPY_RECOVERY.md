@@ -463,3 +463,19 @@ The sixth audit tested paths the fifth did not — mutations, full lifecycle, ex
 **The failure:** "What did I promise Maria?" returns a false negative ("no record") while the user HAS a promise to Maria. "What are my active commitments?" abstains with confidence 0.8 while evidence_refs contains active commitments — the answer contradicts its own evidence. LLM latency is 5-70s. Multi-turn session memory is broken. The stream is contaminated (a Maria query streamed "conquering the moon").
 
 > **Rule:** Ask is deterministic ledger-QA first: sub-second structured answers with mandatory clickable evidence that always resolves to a source span. The LLM may rephrase for language polish but may NOT override the ledger or abstain while evidence is present. Hard p95 < 3s. Session memory must actually retain the referent across turns. The deterministic path is the authority; the LLM is the polish.
+
+---
+
+## PART ELEVEN — THE SECURITY + CONSISTENCY PRINCIPLES (NEW, FROM THE SEVENTH AUDIT 2026-07-25)
+
+### 63. No hardcoded auth bypasses in production
+
+**The failure:** A hardcoded `demo-bypass-token` in `verify_token()` returned `default@personal.local` for anyone who sent `Authorization: Bearer demo-bypass-token` — bypassing all authentication. This was live in production code. Any external attacker who guessed or found this string (it was in the source code) could authenticate as the demo user and read all demo data.
+
+> **Rule:** Identity comes only from a validated token. Any local-test bypass must be env-gated (`MAESTRO_LOCAL_DEV=true`) and OFF in production. No hardcoded tokens, no magic strings, no backdoor identities. A hardcoded auth bypass in production is a disqualifying security hole.
+
+### 64. One commitment truth model — no surface contradicts another; counts are structurally consistent
+
+**The failure:** `/api/metrics` returned `active: -4` — an impossible value. `/api/commitments` returned `[]` while `/api/commitments/ledger` was populated. The Moment said `has_moment: false` while reconciliation showed 8 active commitments. Each surface computed its own snapshot from different sources, and they disagreed.
+
+> **Rule:** Every surface — `/api/commitments`, `/api/commitments/ledger`, `/api/the-moment`, `/api/metrics`, `/api/what-changed`, Ask — reads from ONE reconciled commitment model (P41). Counts are derived from the same ledger snapshot and can NEVER go negative (clamp to 0). No surface contradicts another. An impossible value like `active: -4` is a structural defect, not a data issue — the code must make it unrepresentable.

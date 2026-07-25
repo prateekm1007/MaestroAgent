@@ -193,3 +193,19 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Rule:** Disconnect real Gmail from the shared demo entirely. Seed synthetic-only data. No token redaction substitutes for not having the corpus.
 
 **Enforcement:** Journey gate — login as demo, check /api/connectors, assert no real Gmail connection; check /api/account/export, assert no real-person names or account IDs.
+
+## 25. Hardcoded auth bypass tokens in production code (P63)
+
+**Incident:** `verify_token()` accepted the literal string "demo-bypass-token" and returned "default@personal.local" — bypassing all authentication. Live in production.
+
+**Rule:** Identity comes only from a validated token. Local-test bypasses must be env-gated (MAESTRO_LOCAL_DEV=true) and off in production. No hardcoded tokens.
+
+**Enforcement:** Journey gate — POST /api/ask with `Authorization: Bearer demo-bypass-token` in production → must return 401.
+
+## 26. Surfaces returning impossible or contradictory state (P64)
+
+**Incident:** /api/metrics returned `active: -4`. /api/commitments returned `[]` while /api/commitments/ledger was populated.
+
+**Rule:** Every surface reads from one reconciled model. Counts are clamped to non-negative. No surface contradicts another.
+
+**Enforcement:** Journey gate — read /api/metrics, assert `commitments_active >= 0`.

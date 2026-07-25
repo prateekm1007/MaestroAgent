@@ -136,7 +136,12 @@ def _compute_commitment_metrics(path: str, user_email: str) -> dict[str, Any]:
         ).fetchone()[0]
 
         # Active = total - completed - missed
-        active = total - completed - missed
+        # P64 (seventh audit): CLAMP to 0 — active can never be negative.
+        # The prior code returned active:-4 when completed+missed > total
+        # (double-counted signals or overlapping categories). An impossible
+        # value like -4 is a structural defect — counts must be
+        # non-negative and internally consistent.
+        active = max(0, total - completed - missed)
 
         completion_rate = completed / (completed + missed) if (completed + missed) > 0 else 0.0
 
