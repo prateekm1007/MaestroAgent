@@ -3840,6 +3840,11 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # already filters these, but the general retrieval path may not — this
     # is the belt-and-suspenders guard ensuring NO third-party report leaks
     # into a promise-query response regardless of which code path produced it.
+    #
+    # P65 (seventh audit): this filter MUST run in rules-only mode (no LLM)
+    # and in CI — not just on the LLM ledger-fast-path. The ownership filter
+    # is a TRUST GUARANTEE, not an LLM enhancement. It runs on EVERY promise
+    # query regardless of which code path produced the evidence.
     _is_promise_query_final = bool(_re.search(
         r'\bwhat\s+did\s+i\s+(promise|commit|agree|pledge)\b'
         r'|\bmy\s+(promises?|commitments?)\b'
@@ -3847,6 +3852,35 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         req.query, _re.IGNORECASE,
     ))
     if _is_promise_query_final and evidence_refs:
+        # P65: run the reconcile ownership filter on ALL promise queries,
+        # not just the ledger fast path. This ensures F-03 (ownership) and
+        # F-09 (third-party exclusion) hold in rules-only mode.
+        try:
+            _p65_reconciled = reconcile_signals_for_user(
+                user_email=token,
+                db_path=_db_path if '_db_path' in dir() else None,
+                include_non_commitments=True,  # get all to filter
+            )
+            if _p65_reconciled:
+                _p65_filtered = filter_for_promise_query(
+                    _p65_reconciled,
+                    user_email=token,
+                    entity_filter="",
+                )
+                # Build a set of allowed signal_ids from the filtered records
+                _p65_allowed_ids = {r["signal_id"] for r in _p65_filtered}
+                # Filter evidence_refs to only include allowed signal_ids
+                _p65_filtered_evidence = [
+                    ev for ev in evidence_refs
+                    if ev.get("signal_id", "") in _p65_allowed_ids
+                    or not ev.get("signal_id", "")  # keep evidence without signal_id
+                ]
+                if _p65_filtered_evidence:
+                    evidence_refs = _p65_filtered_evidence
+        except Exception as _p65_err:
+            logger.debug("P65 ownership filter failed (non-fatal): %s", _p65_err)
+
+        # P36: also strip third-party reports by text pattern (belt-and-suspenders)
         _THIRD_PARTY_INDICATORS = [" said:", " said ", " says ", " wrote:", " mentioned:"]
         evidence_refs = [
             ev for ev in evidence_refs

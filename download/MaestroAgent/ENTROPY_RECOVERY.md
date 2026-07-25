@@ -479,3 +479,13 @@ The sixth audit tested paths the fifth did not — mutations, full lifecycle, ex
 **The failure:** `/api/metrics` returned `active: -4` — an impossible value. `/api/commitments` returned `[]` while `/api/commitments/ledger` was populated. The Moment said `has_moment: false` while reconciliation showed 8 active commitments. Each surface computed its own snapshot from different sources, and they disagreed.
 
 > **Rule:** Every surface — `/api/commitments`, `/api/commitments/ledger`, `/api/the-moment`, `/api/metrics`, `/api/what-changed`, Ask — reads from ONE reconciled commitment model (P41). Counts are derived from the same ledger snapshot and can NEVER go negative (clamp to 0). No surface contradicts another. An impossible value like `active: -4` is a structural defect, not a data issue — the code must make it unrepresentable.
+
+---
+
+## PART TWELVE — THE RULES-ONLY ROBUSTNESS PRINCIPLE (NEW, FROM THE SEVENTH AUDIT 2026-07-25)
+
+### 65. A fix must hold on the rules-only path and in CI, not just the LLM path and the live deploy
+
+**The failure:** The P43 ownership filter (F-03) only ran on the LLM ledger-fast-path. In rules-only mode — no LLM config, which is what every fresh clone runs and what every auditor hit — the ownership filter never ran. F-03 was fixed for the LLM path and silently unfixed for the path the audits actually test. Similarly, the P60 third-party exclusion was only verifiable on the live deploy, not in CI, because the code paths diverged — a fix the CI gate cannot observe is not permanent (P45).
+
+> **Rule:** The audits test a fresh clone with no LLM config; if a fix only fires when the LLM is present, it is unfixed for the environment that gets audited. And a fix the CI gate cannot observe is not permanent. Ownership filtering, third-party exclusion, and every trust guarantee must run identically in rules-only mode and be verifiable in CI — the LLM may *enhance* them, but it must not be the *condition* for them. The trust guarantees are deterministic; the LLM is polish.
