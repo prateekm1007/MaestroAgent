@@ -1,6 +1,8 @@
 """Shared rate-limit decorator — P0-6 audit fix (2026-07-15).
 P67 fix: rate limiting MUST fire in production regardless of MAESTRO_TEST_MODE.
-P69 fix: slowapi needs the request object in kwargs to identify the client."""
+P69 fix: slowapi needs the request object in kwargs to identify the client.
+P67/K3 fix (2026-07-25): gate on MAESTRO_LOCAL_DEV (canonical local-dev flag),
+NOT MAESTRO_TEST_MODE (test-suite flag that was set on Railway by accident)."""
 from __future__ import annotations
 
 import functools
@@ -18,9 +20,11 @@ def rate_limit(limit_str: str) -> Callable:
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            _is_prod = os.environ.get("MAESTRO_PERSONAL_ENV") == "production"
-            _is_test = os.environ.get("MAESTRO_TEST_MODE") == "1"
-            if _is_test and not _is_prod:
+            # P67/K3 fix: only skip in local dev. Test mode does NOT disable
+            # rate limiting — tests should use MAESTRO_LOCAL_DEV=true if they
+            # need to bypass, or use a separate test fixture that doesn't
+            # trigger the rate-limited path.
+            if os.environ.get("MAESTRO_LOCAL_DEV") == "true":
                 return await func(*args, **kwargs)
 
             nonlocal _decorated_cache

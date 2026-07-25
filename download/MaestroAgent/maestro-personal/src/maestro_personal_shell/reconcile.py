@@ -71,11 +71,26 @@ def reconcile_signal(signal_id: str, db_path: str | None = None, user_email: str
         logger.debug("reconcile_signal: DB connection failed: %s", e)
         return None
     try:
-        row = conn.execute(
-            "SELECT signal_id, entity, text, timestamp, metadata, signal_type, user_email "
-            "FROM signals WHERE signal_id = ?",
-            (signal_id,),
-        ).fetchone()
+        # K3-BE-002 fix (P58 authorization): when user_email is provided,
+        # scope the query to that user — NEVER return another user's signal.
+        # Without this predicate, any caller with a signal_id could read
+        # another tenant's data (cross-tenant IDOR).
+        if user_email:
+            row = conn.execute(
+                "SELECT signal_id, entity, text, timestamp, metadata, signal_type, user_email "
+                "FROM signals WHERE signal_id = ? AND user_email = ?",
+                (signal_id, user_email),
+            ).fetchone()
+        else:
+            # No user_email → caller is a privileged internal path (e.g. admin,
+            # migration, or system reconcile). Log at INFO so the privilege
+            # escalation is auditable.
+            logger.info("reconcile_signal called without user_email (privileged path) signal_id=%s", signal_id)
+            row = conn.execute(
+                "SELECT signal_id, entity, text, timestamp, metadata, signal_type, user_email "
+                "FROM signals WHERE signal_id = ?",
+                (signal_id,),
+            ).fetchone()
         conn.close()
     except Exception as e:
         logger.debug("reconcile_signal: query failed: %s", e)

@@ -15,22 +15,45 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 import time as _rl_time
 from collections import deque as _rl_deque
 _auth_rl = {}
+# K3-BE-001 fix: trusted-proxy list — X-Forwarded-For is only honored when the
+# immediate peer is a trusted reverse proxy (Railway's edge, localhost for dev).
+# Without this check, any client could spoof X-Forwarded-For and get a fresh
+# rate-limit bucket per spoofed IP, defeating brute-force protection.
+_TRUSTED_PROXIES = frozenset(
+    os.environ.get("MAESTRO_TRUSTED_PROXIES", "127.0.0.1,::1,localhost").split(",")
+)
+
+
+def _client_ip(request):
+    """Return the client IP, honoring X-Forwarded-For ONLY from a trusted proxy (K3-BE-001)."""
+    peer = request.client.host if request.client else "?"
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd and peer in _TRUSTED_PROXIES:
+        # Trusted proxy — take the leftmost (original client) IP.
+        return fwd.split(",")[0].strip() or peer
+    return peer
+
+
 def _check_rl(request):
-    import os as _os
-    if _os.environ.get('MAESTRO_TEST_MODE') == '1' and _os.environ.get('MAESTRO_PERSONAL_ENV') != 'production':
+    # P63/P67 fix: gate on MAESTRO_LOCAL_DEV (the canonical local-dev flag),
+    # NOT MAESTRO_TEST_MODE (a test-suite flag that was set on Railway by
+    # accident). Rate limiting MUST fire in production regardless of test mode.
+    if os.environ.get("MAESTRO_LOCAL_DEV") == "true":
         return
-    ip = request.client.host if request.client else '?'
-    fwd = request.headers.get('X-Forwarded-For', '')
-    if fwd:
-        ip = fwd.split(',')[0].strip()
+    ip = _client_ip(request)
     now = _rl_time.monotonic()
     if ip not in _auth_rl:
         _auth_rl[ip] = _rl_deque()
     ts = _auth_rl[ip]
     while ts and ts[0] < now - 60:
         ts.popleft()
+    # K3-BE-001 fix: evict empty deques so _auth_rl does not grow unboundedly.
+    if not ts:
+        del _auth_rl[ip]
+        _auth_rl[ip] = _rl_deque()
+        ts = _auth_rl[ip]
     if len(ts) >= 10:
-        raise HTTPException(status_code=429, detail='Rate limit exceeded.', headers={'Retry-After': '60'})
+        raise HTTPException(status_code=429, detail="Rate limit exceeded.", headers={"Retry-After": "60"})
     ts.append(now)
 
 

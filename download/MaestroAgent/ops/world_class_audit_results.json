@@ -1,6 +1,6 @@
 {
   "type": "SWARM SELF-ASSESSMENT \u2014 pending independent verification",
-  "timestamp": "2026-07-24T03:01:59.892365+00:00",
+  "timestamp": "2026-07-25T13:00:48.442899+00:00",
   "categories_scored": {
     "Cat 3: Ask": 8,
     "Cat 8: Connectors": 10,
@@ -14,7 +14,7 @@
       "finding_id": "ASK-HALLUC-0",
       "severity": "S1",
       "title": "Hallucination: 'What did I promise Maria? Also, what did'",
-      "evidence": "conf=0.8, answer='You promised Maria Garcia that you would send the Q3 budget '",
+      "evidence": "conf=0.8, answer='Okay, here's the information based on the evidence I have:\n\n'",
       "reproduction": "POST /api/ask query='What did I promise Maria? Also, what did I promise Elon Musk?'",
       "status": "CONFIRMED-LIVE",
       "score": 0,
@@ -24,19 +24,19 @@
       "category": "Cat 3: Ask",
       "finding_id": "ASK-SUMMARY",
       "severity": "S3",
-      "title": "38/50 correct, 6 abstained, 1 hallucinated, 2 errors",
-      "evidence": "Correct: 38, Abstained: 6, Hallucinated: 1, Errors: 2. Avg: 2.6s, P95: 15.2s. Evidence: 36/50",
+      "title": "37/50 correct, 6 abstained, 1 hallucinated, 0 errors",
+      "evidence": "Correct: 37, Abstained: 6, Hallucinated: 1, Errors: 0. Avg: 1.3s, P95: 3.9s. Evidence: 35/50",
       "reproduction": "Run 50+ questions against /api/ask",
       "status": "CONFIRMED-LIVE",
       "score": 8,
-      "notes": "Avg: 2.6s, P95: 15.2s"
+      "notes": "Avg: 1.3s, P95: 3.9s"
     },
     {
       "category": "Cat 8: Connectors",
       "finding_id": "CONN-001",
       "severity": "S4",
-      "title": "Connectors listed: 3",
-      "evidence": "gmail, calendar, work_email",
+      "title": "Connectors listed: 5",
+      "evidence": "gmail, calendar, work_email, yahoo_mail, microsoft_mail",
       "reproduction": "GET /api/connectors",
       "status": "CONFIRMED-LIVE",
       "score": 10,
@@ -145,12 +145,12 @@
       "category": "Cat 11: Performance",
       "finding_id": "PERF-001",
       "severity": "S3",
-      "title": "FE=0.25s, Health=0.199s, Ask_avg=1.2s",
-      "evidence": "Frontend: 0.25s, Health: 0.199s, Ask avg: 1.2s",
+      "title": "FE=0.25s, Health=0.230s, Ask_avg=1.5s",
+      "evidence": "Frontend: 0.25s, Health: 0.230s, Ask avg: 1.5s",
       "reproduction": "Measure timing",
       "status": "CONFIRMED-LIVE",
       "score": 10,
-      "notes": "FE: 0.25s, Ask: 1.2s"
+      "notes": "FE: 0.25s, Ask: 1.5s"
     }
   ],
   "findings_by_severity": {

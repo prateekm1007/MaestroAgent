@@ -50,16 +50,25 @@ def _validate_oauth_state(state: str) -> tuple[str, str]:
 
     Returns (user_email, connector) if valid.
     Raises HTTPException(403) if the signature is invalid or missing.
+
+    K3-CONN-001 fix (P6 fail-closed): if no signing key is configured, REJECT
+    the state instead of falling back to legacy unsigned parsing. The previous
+    "unsafe but functional" branch allowed an attacker to forge any state when
+    the deployment forgot to set MAESTRO_PERSONAL_TOKEN/MAESTRO_ENCRYPTION_KEY.
     """
+    key = _get_oauth_signing_key()
+    if not key:
+        # Fail closed — no signing key means OAuth connect is disabled.
+        logger.error("OAuth state validation failed: no signing key configured "
+                     "(set MAESTRO_PERSONAL_TOKEN or MAESTRO_ENCRYPTION_KEY)")
+        raise HTTPException(
+            status_code=503,
+            detail="OAuth connector sign-in is not configured on this server "
+                   "(missing signing key). Contact the administrator."
+        )
+
     if ";sig=" not in state:
-        # Legacy unsigned state — reject for security (FORENSIC-003)
-        # But allow during transition if no signing key is set
-        key = _get_oauth_signing_key()
-        if not key:
-            # No signing key — fall back to legacy parsing (unsafe but functional)
-            user_email = _extract_user_email(state)
-            connector = _extract_connector(state)
-            return user_email, connector
+        # Legacy unsigned state — reject (FORENSIC-003, K3-CONN-001).
         raise HTTPException(
             status_code=403,
             detail="OAuth state missing signature — possible CSRF attack. Re-connect the connector."
@@ -71,8 +80,7 @@ def _validate_oauth_state(state: str) -> tuple[str, str]:
     provided_sig = parts[1]
 
     # Recompute the expected signature
-    key = _get_oauth_signing_key().encode()
-    expected_sig = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()[:16]
+    expected_sig = hmac.new(key.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
 
     if not hmac.compare_digest(provided_sig, expected_sig):
         raise HTTPException(

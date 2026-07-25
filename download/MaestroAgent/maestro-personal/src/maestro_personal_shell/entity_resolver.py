@@ -22,18 +22,48 @@ def _get_db_path() -> str:
 
 
 def init_entity_aliases(db_path: str | None = None) -> None:
-    """Initialize the entity_aliases table."""
+    """Initialize the entity_aliases table.
+
+    K3-DATA-001 fix: PRIMARY KEY is now (alias, user_email) — composite, scoped
+    per tenant. The old schema used `alias TEXT PRIMARY KEY` alone, which meant
+    Bob's INSERT OR REPLACE would silently repoint Alice's "Maria" alias to a
+    different canonical entity (cross-tenant data corruption). With the composite
+    key, two users can independently own the same alias string.
+    """
     path = db_path or _get_db_path()
     conn = get_db_conn(path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS entity_aliases (
-            alias TEXT PRIMARY KEY,
+            alias TEXT NOT NULL,
             canonical_entity TEXT NOT NULL,
             user_email TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            confidence REAL DEFAULT 1.0
+            confidence REAL DEFAULT 1.0,
+            PRIMARY KEY (alias, user_email)
         )
     """)
+    # K3-DATA-001 migration: if the old schema (alias TEXT PRIMARY KEY) exists,
+    # recreate with the composite key. This is a no-op on fresh databases.
+    try:
+        cols = conn.execute("PRAGMA table_info(entity_aliases)").fetchall()
+        pk_cols = [c[1] for c in cols if c[5] > 0]  # c[5] is pk flag
+        if pk_cols == ["alias"]:
+            logger.info("K3-DATA-001 migration: rebuilding entity_aliases with composite PK (alias, user_email)")
+            conn.execute("ALTER TABLE entity_aliases RENAME TO entity_aliases_old")
+            conn.execute("""
+                CREATE TABLE entity_aliases (
+                    alias TEXT NOT NULL,
+                    canonical_entity TEXT NOT NULL,
+                    user_email TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    confidence REAL DEFAULT 1.0,
+                    PRIMARY KEY (alias, user_email)
+                )
+            """)
+            conn.execute("INSERT OR IGNORE INTO entity_aliases (alias, canonical_entity, user_email, created_at, confidence) SELECT alias, canonical_entity, user_email, created_at, confidence FROM entity_aliases_old")
+            conn.execute("DROP TABLE entity_aliases_old")
+    except Exception as e:
+        logger.debug("K3-DATA-001 migration check skipped: %s", e)
     conn.commit()
     conn.close()
 
