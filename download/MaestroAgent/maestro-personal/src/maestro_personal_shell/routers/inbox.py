@@ -72,7 +72,8 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
             text=email["body"],
             entity=email["from_name"],
         )
-    except Exception:
+    except Exception as _e:
+        logger.warning("TICKET-10: pre-save classification failed: %s", _e)
         _pre_classification = None
 
     _pre_metadata = {"source": "synthetic_inbox", "email_id": email_id, "category": email["category"]}
