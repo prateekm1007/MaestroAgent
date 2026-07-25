@@ -57,6 +57,12 @@ class PostgresConnection:
 
     This allows the rest of the codebase to use the same conn.execute()
     pattern regardless of whether SQLite or PostgreSQL is the backend.
+
+    K3-DATA-002 / TICKET-13 fix (2026-07-25): the INSERT OR REPLACE →
+    ON CONFLICT conversion was previously a `pass` (line 101), which meant
+    any upsert would fail with a duplicate-key error on Postgres. Now we
+    introspect the table's primary key from pg_constraint and build the
+    ON CONFLICT clause dynamically. PK lookups are cached per-table.
     """
 
     def __init__(self, url: str):
@@ -66,39 +72,157 @@ class PostgresConnection:
             raise RuntimeError(
                 "PostgreSQL support requires psycopg2. Install with: pip install psycopg2-binary"
             )
-
-        self._conn = psycopg2.connect(url)
+        # K3-DATA-002 fix: use DictCursorFactory so rows support both
+        # `row["col"]` (sqlite3.Row pattern) and `row[0]` (tuple pattern).
+        # The codebase sets `conn.row_factory = sqlite3.Row` in 14 places
+        # and accesses rows by column name; DictCursor makes that work on
+        # Postgres without touching any caller.
+        try:
+            from psycopg2.extras import DictCursor
+            self._conn = psycopg2.connect(url, cursor_factory=DictCursor)
+        except ImportError:
+            self._conn = psycopg2.connect(url)
         self._conn.autocommit = False
+        self._pk_cache: dict[str, list[str]] = {}
+        # Per-connection cursor for metadata lookups (PK introspection).
+        # We use a separate cursor so we don't disturb the caller's transaction.
+        self._meta_cursor = self._conn.cursor()
+
+    def _get_primary_key(self, table: str) -> list[str]:
+        """Return the list of PK column names for a table. Cached per-table.
+
+        Uses pg_constraint + pg_attribute to find the primary key columns.
+        Returns [] if the table has no PK (in which case ON CONFLICT is impossible).
+        """
+        if table in self._pk_cache:
+            return self._pk_cache[table]
+        try:
+            self._meta_cursor.execute(
+                """
+                SELECT a.attname
+                FROM pg_constraint c
+                JOIN pg_attribute a
+                  ON a.attrelid = c.conrelid
+                 AND a.attnum = ANY(c.conkey)
+                WHERE c.contype = 'p'
+                  AND c.conrelid = %s::regclass
+                ORDER BY array_position(c.conkey, a.attnum)
+                """,
+                (table,),
+            )
+            cols = [r[0] for r in self._meta_cursor.fetchall()]
+        except Exception as e:
+            logger.debug("PK lookup for %s failed: %s", table, e)
+            cols = []
+        self._pk_cache[table] = cols
+        return cols
+
+    @staticmethod
+    def _parse_insert_columns(sql: str, table: str) -> list[str] | None:
+        """Parse the column list out of `INSERT INTO table (col1, col2, ...) VALUES ...`.
+
+        Returns the list of column names (lowercased for comparison), or None if
+        the INSERT has no explicit column list (e.g. `INSERT INTO table VALUES (...)`).
+        """
+        import re
+        # Match `INSERT [OR REPLACE|OR IGNORE] INTO <table> (<cols>) VALUES`
+        m = re.search(
+            r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+" + re.escape(table) + r"\s*\(([^)]+)\)\s*VALUES",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if not m:
+            return None
+        return [c.strip().strip('"').strip("'").lower() for c in m.group(1).split(",")]
+
+    def _convert_insert_or_replace(self, sql: str) -> str:
+        """Convert `INSERT OR REPLACE INTO t (cols) VALUES (...)` to Postgres UPSERT.
+
+        Strategy: parse the table + columns, look up the PK, build
+        `ON CONFLICT (pk_cols) DO UPDATE SET non_pk_cols = EXCLUDED.non_pk_cols`.
+        If the table has no PK or the column list can't be parsed, fall back to
+        `ON CONFLICT DO NOTHING` (safer than failing — the caller's intent was
+        "insert or replace", and DO NOTHING at least doesn't crash).
+        """
+        import re
+        table_match = re.search(r"INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)", sql, re.IGNORECASE)
+        if not table_match:
+            return sql.replace("INSERT OR REPLACE", "INSERT", 1)  # defensive
+        table = table_match.group(1)
+        pk_cols = self._get_primary_key(table)
+        insert_cols = self._parse_insert_columns(sql, table) or []
+
+        # Strip the "OR REPLACE" so Postgres accepts the INSERT
+        sql = re.sub(r"INSERT\s+OR\s+REPLACE\s+INTO", "INSERT INTO", sql, count=1, flags=re.IGNORECASE)
+
+        if not pk_cols or not insert_cols:
+            # No PK or no column list — DO NOTHING is the safe fallback
+            return sql.rstrip(";").rstrip() + " ON CONFLICT DO NOTHING"
+
+        # Build ON CONFLICT (pk) DO UPDATE SET non_pk = EXCLUDED.non_pk
+        non_pk_cols = [c for c in insert_cols if c not in [p.lower() for p in pk_cols]]
+        pk_list = ", ".join(f'"{c}"' for c in pk_cols)
+        if non_pk_cols:
+            set_clause = ", ".join(f'"{c}" = EXCLUDED."{c}"' for c in non_pk_cols)
+            on_conflict = f" ON CONFLICT ({pk_list}) DO UPDATE SET {set_clause}"
+        else:
+            # All columns are PK columns — DO NOTHING (no non-PK to update)
+            on_conflict = f" ON CONFLICT ({pk_list}) DO NOTHING"
+        return sql.rstrip(";").rstrip() + on_conflict
+
+    def _convert_insert_or_ignore(self, sql: str) -> str:
+        """Convert `INSERT OR IGNORE INTO t (...) VALUES (...)` to Postgres ON CONFLICT DO NOTHING."""
+        import re
+        table_match = re.search(r"INSERT\s+OR\s+IGNORE\s+INTO\s+(\w+)", sql, re.IGNORECASE)
+        if not table_match:
+            return sql.replace("INSERT OR IGNORE", "INSERT", 1)
+        table = table_match.group(1)
+        pk_cols = self._get_primary_key(table)
+        sql = re.sub(r"INSERT\s+OR\s+IGNORE\s+INTO", "INSERT INTO", sql, count=1, flags=re.IGNORECASE)
+        if pk_cols:
+            pk_list = ", ".join(f'"{c}"' for c in pk_cols)
+            return sql.rstrip(";").rstrip() + f" ON CONFLICT ({pk_list}) DO NOTHING"
+        return sql.rstrip(";").rstrip() + " ON CONFLICT DO NOTHING"
 
     def execute(self, sql: str, params: tuple = ()) -> Any:
         """Execute SQL, converting SQLite-specific syntax to PostgreSQL."""
-        # Convert SQLite PRAGMA statements to no-ops (Postgres doesn't use PRAGMA)
-        if sql.strip().upper().startswith("PRAGMA"):
+        import re
+        sql_upper = sql.strip().upper()
+
+        # SQLite PRAGMA → no-op (Postgres doesn't use PRAGMA)
+        if sql_upper.startswith("PRAGMA"):
             return self  # no-op
 
         # Convert SQLite-style placeholders (?, ?) to PostgreSQL-style (%s, %s)
         if "?" in sql:
             sql = sql.replace("?", "%s")
 
-        # Convert SQLite INSERT OR REPLACE to PostgreSQL ON CONFLICT
-        if "INSERT OR REPLACE" in sql.upper():
-            sql = sql.replace("INSERT OR REPLACE", "INSERT")
-            # Add ON CONFLICT clause if not present
-            if "ON CONFLICT" not in sql.upper():
-                # Extract table name
-                import re
-                table_match = re.search(r"INSERT\s+INTO\s+(\w+)", sql, re.IGNORECASE)
-                if table_match:
-                    table = table_match.group(1)
-                    # Need to know the primary key — for now, use a generic approach
-                    # This handles the common case of single-PK tables
-                    sql = sql.replace(
-                        f"INSERT INTO {table}",
-                        f"INSERT INTO {table}"
-                    )
-                    # Append ON CONFLICT DO UPDATE (generic — updates all non-PK columns)
-                    # This is a simplification; real Postgres migrations would be more precise
-                    pass
+        # Convert SQLite CREATE TABLE syntax to Postgres-compatible:
+        # `INTEGER PRIMARY KEY AUTOINCREMENT` → `SERIAL PRIMARY KEY`
+        # (Postgres doesn't support AUTOINCREMENT; SERIAL creates an implicit
+        # sequence + int4 column. BIGINT PRIMARY KEY AUTOINCREMENT → BIGSERIAL.)
+        if "AUTOINCREMENT" in sql_upper:
+            sql = re.sub(
+                r"BIGINT\s+PRIMARY\s+KEY\s+AUTOINCREMENT",
+                "BIGSERIAL PRIMARY KEY",
+                sql,
+                flags=re.IGNORECASE,
+            )
+            sql = re.sub(
+                r"INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT",
+                "SERIAL PRIMARY KEY",
+                sql,
+                flags=re.IGNORECASE,
+            )
+            # Strip any remaining bare AUTOINCREMENT keywords (defensive)
+            sql = re.sub(r"\s+AUTOINCREMENT\b", "", sql, flags=re.IGNORECASE)
+
+        # Convert SQLite INSERT OR REPLACE → Postgres UPSERT (ON CONFLICT DO UPDATE)
+        if "INSERT OR REPLACE" in sql_upper:
+            sql = self._convert_insert_or_replace(sql)
+        # Convert SQLite INSERT OR IGNORE → Postgres ON CONFLICT DO NOTHING
+        elif "INSERT OR IGNORE" in sql_upper:
+            sql = self._convert_insert_or_ignore(sql)
 
         cur = self._conn.cursor()
         cur.execute(sql, params if isinstance(params, (tuple, list)) else (params,))
@@ -109,9 +233,14 @@ class PostgresConnection:
 
     def close(self):
         try:
+            try:
+                self._meta_cursor.close()
+            except Exception:
+                pass
             self._conn.close()
         except Exception as e:
             logger.debug("close failed: %s", e)
+
     @property
     def row_factory(self):
         return getattr(self._conn, "row_factory", None)
