@@ -710,3 +710,97 @@ Stage Summary:
   are done and live-verified. Production is now running on Postgres (not SQLite) with zero
   FTS errors. P25 and P64 visible contradictions are eliminated. The completed Ask answer
   is captured in DOM evidence. 0 open S0, 0 open S1. Kimi K3: "GREEN is warranted."
+
+
+---
+Task ID: 50 (CTO — P69 owner-key fix + TICKET-10 partial + P69 principle + honest reassessment)
+Agent: CTO (GLM) — P47 honest attribution: bug found by user (independent trace), fix applied by CTO
+
+GOVERNANCE LOOP READ RECEIPT:
+- All governance files re-read (CLAUDE.md, ENTROPY_RECOVERY.md P1-P69, FORBIDDEN_ACTIONS.md FA1-FA27)
+
+THE P69 BUG — FOUND BY USER, NOT BY THE K3 AUDIT:
+- Root cause: reconcile.py:144 read `metadata.get("owner", "unknown")` but signals.py:267
+  writes `metadata["commitment_owner"]`. Wrong key. Owner was ALWAYS "unknown".
+- The P36/P60 ownership filter rejected EVERY record. The trust thesis (P43 ownership,
+  P60 third-party leak) was NOT enforced — ever, since commit 1acad66.
+- The GREEN 8.5/10 verdict (Task 49) was given WHILE THIS BUG WAS LIVE.
+- Nobody caught it because no test inspected the `owner` field on the reconciled record.
+  Every prior check either looked at the ledger table directly (separate column,
+  unaffected) or accepted a CI/test result without this exact trace.
+
+P69 FIX (commit c700492):
+- One line: `owner = metadata.get("commitment_owner", metadata.get("owner", "unknown"))`
+- Verified locally: P43 (2/2), P60 (2/2), P58 (3/3) all passing.
+- Deployed live (commit 7038a2f, verified via health endpoint).
+
+TICKET-10 (commit 4acbb5e) — PARTIAL FIX:
+- "What did Maria promise?" was returning the user's own commitment TO Maria
+  (a third-party leak in the opposite direction).
+- Added third-party exclusion filter to:
+  1. RC2 ledger fast path (line 656)
+  2. General ledger path (line 517)
+  3. FINAL return point (line 4039)
+- KNOWN LIMITATION (P18 scope honesty): the filter does NOT yet run on the 5 other
+  early-return points in ask.py (lines 265, 287, 1169, 1513, 2263) that return
+  intelligence_source='rules'. The rules path can still leak for third-party queries
+  when the answer is built by the situation synthesizer. Full fix requires refactoring
+  to a single return point — tracked as follow-up.
+- Tests: 1/3 passing (first-person query works). 2 failures on third-party query via
+  the rules path (the early-return limitation above).
+
+TICKET-21 (Postgres cutover investigation):
+- User correctly flagged: "register, seed, ask all return 200" only proves a fresh
+  DB works, not that a migration happened.
+- Investigation confirmed: init_db() only does CREATE TABLE IF NOT EXISTS — NO data
+  migration logic. The Postgres cutover was a COLD START (empty DB), not a migration.
+- Demo user (default@personal.local) had 0 commitments on Postgres vs 17 on SQLite.
+- ROLLED BACK: unset MAESTRO_DATABASE_URL to restore production to SQLite (which has
+  the data on the Railway volume). Verified: demo user now has 17 commitments again.
+
+P69 PRINCIPLE ADDED TO GOVERNANCE:
+- ENTROPY_RECOVERY.md: P69 — "When a value crosses a module boundary, the key name
+  is a contract. Enforce it with a shared constant or a schema, not a duplicated
+  string literal."
+- FORBIDDEN_ACTIONS.md: FA27 — "Closing a ticket on a verdict without a posted live
+  reproduction. A verdict without a posted reproduction is a hypothesis, not a finding."
+
+HONEST REASSESSMENT OF THE GREEN 8.5/10 VERDICT:
+- The GREEN 8.5/10 verdict (Task 49, gen-1785002228-JF8dUitG0i82SXgxVede) was WRONG.
+- It was given while the P69 owner-key bug was live — the exact trust-thesis violation
+  (P43 ownership, P60 third-party leak) that this entire audit has been tracking.
+- The verdict was wrong not because the reviewer (Kimi K3) was careless, but because
+  it never posted the one reproduction that would have caught it (ask "What did I
+  promise Maria?" on a clean rules-only account and inspect the `owner` field).
+- This is exactly what P1 warns about: a claim is not true until it has been executed.
+- The verdict should be treated as PROVISIONAL. With the P69 fix deployed, the P43/P60
+  trust thesis is now actually enforced for the first time. But TICKET-10 (final-gate
+  filter on every return path) is only partially fixed — the rules path can still leak.
+- The Postgres cutover claim was also false (cold start, not migration). Production is
+  back on SQLite until a proper migration script is written.
+
+COMMITS (CTO-authored, P47 honest attribution):
+- c700492 — P69 CRITICAL: reconcile.py reads 'commitment_owner' not 'owner'
+- 7038a2f — chore: trigger fresh deploy of c700492
+- 4acbb5e — TICKET-10: third-party promise query exclusion (partial — RC2 + final return)
+
+P46 VERIFICATION RECEIPTS:
+- selftest: gen-1785001255-mCxdsDwWFNEIn97xNMtU
+
+REMAINING (per roadmap, honest status):
+- TICKET-9: NOT FIXED — 275 test errors still hide the real regression rate
+- TICKET-10: PARTIAL — early-return paths still bypass the filter
+- TICKET-11: NOT STARTED — audit ask.py for more shadowed imports + silent excepts
+- TICKET-20: NOT STARTED — full 16-category re-audit with live reproductions
+- TICKET-21: ANSWERED — Postgres cutover was a cold start, not a migration. Rolled back.
+- The GREEN verdict is REVOKED until TICKET-9, TICKET-10 (full), and TICKET-20 are done.
+
+Stage Summary:
+- P69 owner-key bug found by user (independent trace), fixed by CTO, deployed live.
+- TICKET-10 partial fix shipped — RC2 + final return covered, early-return paths pending.
+- Postgres cutover rolled back — was a cold start, not a migration.
+- P69 principle + FA27 added to governance.
+- GREEN 8.5/10 verdict REVOKED — was given while P69 bug was live. Honest reassessment:
+  the product is at YELLOW, not GREEN. The trust thesis is now enforced for the first
+  time (P69 fix), but TICKET-10 (final-gate filter) is only partial, and TICKET-9
+  (test fixture) still hides the real regression rate.

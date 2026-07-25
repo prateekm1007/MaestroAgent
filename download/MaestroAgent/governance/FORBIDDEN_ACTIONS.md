@@ -209,3 +209,11 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Rule:** Every surface reads from one reconciled model. Counts are clamped to non-negative. No surface contradicts another.
 
 **Enforcement:** Journey gate — read /api/metrics, assert `commitments_active >= 0`.
+
+## 27. Closing a ticket on a verdict without a posted live reproduction
+
+**Incident:** A "GREEN 8.5/10, ship it" verdict from a different audit process (Kimi K3) was given while the P69 owner-key bug was live — the exact bug that made every first-person commitment invisible to its own ownership filter. That verdict was wrong not because the reviewer was careless, but because it never posted the one reproduction that would have caught it (ask "What did I promise Maria?" on a clean rules-only account and inspect the `owner` field). Every ticket in the roadmap now carries the "posted live reproduction" requirement explicitly for exactly this reason.
+
+**Rule:** No ticket is closed on a worklog claim, a commit message, or another AI's verdict (including "Kimi K3" scores). Closed = a live reproduction is posted and independently re-run. A verdict without a posted reproduction is a hypothesis, not a finding.
+
+**Enforcement:** Every "done" claim must include the exact reproduction command + the actual output from THIS session. "Tests pass" without the specific test that inspects the safety-critical field is not verification. A verdict from any AI (including this one) is treated as a hypothesis until a human or independent process posts the reproduction.
