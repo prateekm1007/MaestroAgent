@@ -42,6 +42,13 @@ class SignalCreate(BaseModel):
     text: str = Field(..., max_length=10_000)
     signal_type: str = "reported_statement"
     timestamp: str | None = None  # P0-3 fix: accept client timestamp to preserve history
+    # TICKET-1/P59: allow callers to pass classification hints (commitment_state,
+    # commitment_type, etc.) so the lifecycle engine can fire on resolution
+    # signals even when the classifier is unavailable. The classifier refines
+    # these; the caller's intent is preserved for fields the classifier doesn't
+    # override.
+    metadata: dict[str, Any] = {}
+    signal_id: str | None = None  # allow caller-specified signal_id (for tests)
 
 
 class SignalResponse(BaseModel):

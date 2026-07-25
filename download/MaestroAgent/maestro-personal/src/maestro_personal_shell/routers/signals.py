@@ -209,7 +209,8 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     except Exception:
         pass  # semantic check is best-effort; regex layers already ran
 
-    signal_id = str(uuid4())
+    # TICKET-1/P59: use caller-provided signal_id if available (for tests)
+    signal_id = req.signal_id if req.signal_id else str(uuid4())
     now = datetime.now(timezone.utc)
 
     # P0-3 fix: use client-provided timestamp if available (preserves history)
@@ -226,7 +227,14 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # ImportError, DB lock during entity resolution), fall back to
     # _rule_based_classify (sync, pure text, no DB). If THAT also fails,
     # set needs_review — NEVER silently admit as a commitment.
-    metadata: dict[str, Any] = {}
+    #
+    # TICKET-1/P59: START with the caller's metadata (from the request body)
+    # so classification hints (commitment_state, commitment_type) are
+    # preserved. The classifier refines these; the caller's intent is
+    # respected for fields the classifier doesn't override.
+    metadata: dict[str, Any] = dict(req.metadata) if req.metadata else {}
+    _caller_commitment_state = metadata.get("commitment_state", "")
+    _caller_is_commitment = metadata.get("is_commitment", None)
     classification = None
     signal_type_override = "needs_review"  # default: NOT a commitment
 
@@ -247,9 +255,16 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     if classification is not None:
         metadata["commitment_type"] = classification.get("commitment_type", "not_a_commitment")
         metadata["is_commitment"] = classification.get("is_commitment", False)
-        metadata["commitment_state"] = classification.get("state", "candidate")
+        # TICKET-1/P59: if the caller specified a resolution state (cancelled/
+        # completed_claimed/completed_verified/broken), PRESERVE it — the
+        # classifier doesn't detect lifecycle transitions from text alone.
+        _classifier_state = classification.get("state", "candidate")
+        if _caller_commitment_state in ("cancelled", "completed_claimed", "completed_verified", "broken"):
+            metadata["commitment_state"] = _caller_commitment_state
+        else:
+            metadata["commitment_state"] = _classifier_state
         metadata["commitment_confidence"] = classification.get("confidence", 0.5)
-        metadata["commitment_owner"] = classification.get("owner", "unknown")
+        metadata["commitment_owner"] = classification.get("owner", metadata.get("commitment_owner", "unknown"))
         metadata["classification_reasoning"] = classification.get("reasoning", "")
         metadata["llm_powered"] = classification.get("llm_powered", False)
 
