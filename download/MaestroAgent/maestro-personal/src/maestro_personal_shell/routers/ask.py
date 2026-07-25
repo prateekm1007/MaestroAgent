@@ -3754,6 +3754,52 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         if not calibration_note:
             calibration_note = "P51: final non-blank guard — no empty answer ever shipped."
 
+    # P60/S0 (sixth audit F-03): ANSWER MUST MATCH THE EVIDENCE.
+    # The retrieval layer is fixed (P60 fuzzy entity match finds the user's
+    # own promises), but the LLM may STILL abstain ("I don't have enough
+    # reliable evidence") while evidence_refs contains the user's commitment.
+    # The user reads the abstention, not the retrieval fix — the answer
+    # self-contradicts the evidence. This guard overrides the abstention
+    # with a ledger-grounded answer built directly from the evidence_refs.
+    #
+    # Rule: if evidence_refs is non-empty AND the answer contains abstention
+    # language, replace the answer with a structured summary of the evidence.
+    # Abstention is only allowed when evidence is genuinely empty.
+    _ABSTENTION_PHRASES = [
+        "i don't have enough",
+        "i don't have any record",
+        "i don't have sufficient",
+        "not enough reliable evidence",
+        "no matching signals",
+        "i couldn't find",
+        "no commitments found",
+        "i have no information",
+    ]
+    _answer_lower = str(verified_answer).lower()
+    _is_abstaining = any(phrase in _answer_lower for phrase in _ABSTENTION_PHRASES)
+    if _is_abstaining and evidence_refs:
+        # The LLM abstained but we HAVE evidence — build a ledger-grounded answer
+        logger.info(
+            "P60/S0 F-03: overriding LLM abstention — evidence_refs has %d items "
+            "but answer says '%s...'. Building ledger-grounded answer.",
+            len(evidence_refs), str(verified_answer)[:60],
+        )
+        _evidence_lines = []
+        for ev in evidence_refs[:5]:
+            _ev_entity = ev.get("entity", "") if isinstance(ev, dict) else ""
+            _ev_text = ev.get("text", "") if isinstance(ev, dict) else str(ev)
+            _evidence_lines.append(f"• [{_ev_entity}] {_ev_text[:100]}")
+        verified_answer = (
+            f"Based on your commitment ledger:\n" + "\n".join(_evidence_lines)
+        )
+        if not calibration_note:
+            calibration_note = "P60/S0: answer grounded in evidence_refs (overrode LLM abstention)."
+        else:
+            calibration_note = calibration_note + " | P60/S0: answer grounded in evidence_refs."
+        # Boost confidence — we have evidence, the abstention was wrong
+        if verification.get("confidence", 0) < 0.5:
+            verification["confidence"] = 0.7
+
     # P52 (fifth audit F4/S2): PII redaction — the demo corpus must not
     # surface real PII (names, client IDs, brokerage accounts). Known PII
     # tokens are redacted from the answer and evidence at READ time,
