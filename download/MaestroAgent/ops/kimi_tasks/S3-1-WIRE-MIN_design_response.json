@@ -1,0 +1,47 @@
+{
+  "design_summary": "Replace the inline 5-layer ownership filter in routers/ask.py's ledger fast path with two calls \u2014 reconcile_signals_for_user(include_non_commitments=False) followed by filter_for_promise_query \u2014 binding the result to the same downstream variable name so nothing below the seam changes. Delete the duplicated filter logic entirely (P41: derive from one source of truth in the reconcile module; do not keep a second inline pass). Ship with a journey test that spies on the live ask path to prove the call is wired (P43), plus empty-path and error-path tests pinning the pre-change abstain contract (FA7). The call site must sit inside the existing try/fallback boundary; no new exception handling is introduced.",
+  "files_to_change": [
+    {
+      "path": "routers/ask.py",
+      "change_type": "modify",
+      "diff_or_block": "--- routers/ask.py  (ledger fast path, ~L349-475)\n@@ import block @@\n+from maestro_personal_shell.reconcile import (\n+    reconcile_signals_for_user,\n+    filter_for_promise_query,\n+)\n\n@@ ledger fast path: where the 5-layer filter previously produced <filtered_signals> @@\n-<DELETE ENTIRELY: the 5-layer inline ownership filter block\n- (owner checks, third_party_report exclusion, commitment-type checks, etc.)>\n+reconciled = reconcile_signals_for_user(\n+    user_email=user_email,\n+    db_path=db_path,\n+    entity_filter=entity_filter,\n+    include_non_commitments=False,   # P37: exclude non-commitments at admission, not post-hoc\n+)\n+filtered_signals = filter_for_promise_query(\n+    reconciled, user_email, entity_filter   # P36: deterministic owner/entity gate\n+)\n\n# Placement rules (binding):\n# 1. The two calls are bound at the exact point the old filter's output was bound,\n#    inside the existing try/fallback boundary. No new try/except is added.\n# 2. Keep the downstream variable name identical to the old one so all code\n#    below the seam is untouched.\n# 3. Downstream now consumes ReconciledRecord dicts:\n#    r[\"signal_id\"], r[\"entity\"], r[\"owner\"], r[\"commitment_type\"], r[\"text\"],\n#    r[\"timestamp\"], r[\"source\"]. If any consumer uses attribute access\n#    (r.entity), convert that consumption site to dict access in this same diff.",
+      "rationale": "P41: the reconcile module becomes the single source of truth for ownership/commitment gating; the inline 5-layer copy is deleted, not left as a redundant second pass. P36: entity_filter and user_email are threaded deterministically through both calls. P37: include_non_commitments=False enforces hard admission \u2014 non-commitments never enter the active surface and are not merely filtered later. Minimal-diff discipline: same variable binding point, same downstream names, no new control flow."
+    }
+  ],
+  "test_additions": [
+    {
+      "path": "tests/test_ask_reconcile_wiring.py",
+      "block": "from unittest.mock import patch\nimport routers.ask as ask_mod\n\n# Fixture contract for seeded_ledger_db (test fixture only, never prod):\n#   (a) user-owned commitment about entity 'Acme'\n#   (b) third_party_report about 'Acme'\n#   (c) other-owner commitment about 'Globex'\n\ndef test_fast_path_wires_reconcile(monkeypatch, ask_client, seeded_ledger_db):\n    \"\"\"P43: prove the LIVE ask path calls reconcile_signals_for_user.\"\"\"\n    real = ask_mod.reconcile_signals_for_user\n    calls = []\n    def spy(user_email, db_path, entity_filter, include_non_commitments):\n        calls.append({\"user_email\": user_email, \"entity_filter\": entity_filter,\n                      \"include_non_commitments\": include_non_commitments})\n        return real(user_email, db_path, entity_filter, include_non_commitments)\n    monkeypatch.setattr(ask_mod, \"reconcile_signals_for_user\", spy)\n\n    resp = ask_client.post(\"/ask\", json={\"q\": \"What did I promise Acme?\"})\n\n    assert resp.status_code == 200\n    assert len(calls) == 1                              # wired, called once\n    assert calls[0][\"include_non_commitments\"] is False  # P37 admission\n    assert calls[0][\"entity_filter\"] is not None         # P36 entity gate\n    body = str(resp.get_json())\n    assert \"Acme\" in body                                # real record surfaced\n    assert \"Globex\" not in body                          # other-owner excluded\n    assert \"third_party\" not in body.lower()             # report excluded\n\ndef test_empty_and_error_paths_match_prechange_contract(monkeypatch, ask_client, seeded_ledger_db):\n    \"\"\"FA7: verify abstain/error behavior, not just the happy path.\"\"\"\n    monkeypatch.setattr(ask_mod, \"reconcile_signals_for_user\", lambda *a, **k: [])\n    resp = ask_client.post(\"/ask\", json={\"q\": \"What did I promise Acme?\"})\n    assert resp.status_code == 200                       # same abstain shape as before\n\n    def boom(*a, **k):\n        raise RuntimeError(\"db gone\")\n    monkeypatch.setattr(ask_mod, \"reconcile_signals_for_user\", boom)\n    resp2 = ask_client.post(\"/ask\", json={\"q\": \"What did I promise Acme?\"})\n    # CTO: pin this to the ACTUAL pre-change fallback status observed on main\n    assert resp2.status_code in (200, 503)"
+    }
+  ],
+  "verification_commands": [
+    "pytest tests/test_ask_reconcile_wiring.py -q",
+    "pytest tests/ -k 'ask or reconcile' -q",
+    "grep -nE 'third_party_report|is_commitment|owner *!=' routers/ask.py && echo 'FAIL: residual inline filter logic (P41 violation)' || echo 'PASS: single source of truth in reconcile module'",
+    "git diff main -- routers/ask.py | grep -c '^-.*owner' # sanity: old filter lines actually deleted",
+    "git push && gh run watch --exit-status  # P45: CI-green-on-push is the proof, local green is only a hypothesis"
+  ],
+  "risks": [
+    "Field-access mismatch: ReconciledRecord is a dict; if downstream uses attribute access (.entity), the path breaks at runtime \u2014 convert consumption sites in the same diff.",
+    "Coverage gap: if any of the 5 removed layers (e.g., temporal window, P42-normalized entity matching) is NOT implemented inside reconcile_signals_for_user/filter_for_promise_query, that layer must be MOVED into the reconcile module, not left inline (P41).",
+    "Error contract drift: reconcile may raise exception types the old path never raised; keeping the call inside the existing try/fallback boundary plus the pinned error-path test mitigates this.",
+    "DB access: reconcile opens db_path itself \u2014 if the fast path already holds a connection/transaction, confirm no locking or nested-connection issue.",
+    "Context files were empty: line anchors are approximate. CTO must apply against the real source, confirm no other consumer relied on side effects of the deleted block, and pin the actual pre-change error status in the test before merging."
+  ],
+  "principle_citations": [
+    "P41",
+    "P43",
+    "P36",
+    "P37",
+    "P45"
+  ],
+  "forbidden_action_check": [
+    "6"
+  ],
+  "_served_model": "moonshotai/kimi-k3",
+  "_served_model_verified": true,
+  "_generation_id": "gen-1784948642-WQjc4PQWvtQqWiLDMqqs",
+  "_provider": "Moonshot AI",
+  "_latency_s": 205.73,
+  "_p46_note": "VERIFIED: response.model=moonshotai/kimi-k3, generation_id=gen-1784948642-WQjc4PQWvtQqWiLDMqqs. Cross-checkable on OpenRouter dashboard."
+}

@@ -1,0 +1,8 @@
+{
+  "task_id": "S3-1-WIRE-MIN",
+  "title": "Wire reconcile_signal into ask.py — minimal diff design",
+  "context_files": [],
+  "principle_refs": ["P41", "P43"],
+  "forbidden_actions": ["6"],
+  "spec": "I have a function `reconcile_signals_for_user(user_email, db_path, entity_filter, include_non_commitments)` in `maestro_personal_shell.reconcile` that returns a list of ReconciledRecord dicts. Each record has: signal_id, entity, owner, commitment_type, is_commitment, text, timestamp, source, reconcile_source='signal.metadata'. I also have `filter_for_promise_query(records, user_email, entity_filter)` that excludes third_party_report + non-user owners + non-commitment types.\n\nIn `routers/ask.py` around line 349-475, there's a 5-layer ownership filter on the ledger fast path. I want to replace the filter step with a call to reconcile_signals_for_user + filter_for_promise_query.\n\nQuestion: what is the minimal diff? Output ONE JSON object with keys: design_summary (string), diff_block (a single Python code block showing the replacement), rationale (string), risks (list of strings). Keep the response under 2000 tokens. No prose outside the JSON."
+}
