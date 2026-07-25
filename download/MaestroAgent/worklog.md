@@ -804,3 +804,71 @@ Stage Summary:
   the product is at YELLOW, not GREEN. The trust thesis is now enforced for the first
   time (P69 fix), but TICKET-10 (final-gate filter) is only partial, and TICKET-9
   (test fixture) still hides the real regression rate.
+
+
+---
+Task ID: 51 (CTO — TICKET-9/10/11/13/20 + honest status)
+Agent: CTO (GLM) — P47 honest attribution
+
+GOVERNANCE LOOP READ RECEIPT:
+- All governance files re-read (P1-P69, FA1-FA27)
+
+TICKET-9 (FIXED ✓):
+- Fixed 57 test files with stale {'password': ...} login fixture
+- Replaced with {'user_email': ..., 'password': ...} register pattern
+- 275 errors → real failures (the failure count is now the real signal)
+- Commit: 085ceb1
+
+TICKET-10 (PARTIAL — wrapper deployed, classifier metadata issue on production):
+- Created _apply_ticket10_filter() helper function
+- Wrapped ask() in a single-exit-point wrapper — the filter is now
+  structurally UNBYPASSABLE (runs at the one exit point, not 15)
+- Fixed inbox.py to run classifier BEFORE saving and write commitment_owner
+  to signal metadata
+- 3/3 tests passing locally (test_ticket10_final_gate.py)
+- PRODUCTION ISSUE: signals on production have empty metadata (commitment_owner
+  NOT SET). The classifier may be failing silently on production. Changed
+  except to logger.warning to diagnose. Deploy pending.
+- Commits: e243ec8, be5fab9
+
+TICKET-11 (COMPLETE ✓):
+- Audited ask.py for P66 (shadowed imports) and P67 (silent debug excepts)
+- NO VIOLATIONS found — the earlier fixes are holding
+- Commit: 890b2d8
+
+TICKET-13 (SCRIPT WRITTEN ✓):
+- Wrote migrate_sqlite_to_postgres.py — proper data migration script
+- Reads all SQLite tables, creates Postgres tables, copies rows, rebuilds FTS
+- This is the migration that was missing when MAESTRO_DATABASE_URL was first set
+- Commit: 94db824
+
+TICKET-20 (IN PROGRESS — live reproductions):
+- P43 (ownership): PASS — "What did I promise Maria?" returns user's commitment ✓
+- P60/TICKET-10 (third-party exclusion): FAIL on production — "What did Maria
+  promise?" still returns user's commitment. Root cause: signals have empty
+  metadata (commitment_owner NOT SET) because classifier may be failing on
+  production. The wrapper filter is deployed but can't filter without owner data.
+- Compound question: PASS — both halves addressed ✓
+
+TICKET-21 (ANSWERED ✓):
+- Postgres cutover was a cold start, not a migration. Rolled back to SQLite.
+- Migration script written (TICKET-13) for future proper cutover.
+
+HONEST STATUS:
+- The GREEN 8.5/10 verdict remains REVOKED.
+- TICKET-9 is FIXED (275 errors → real failures).
+- TICKET-10 is PARTIAL — the wrapper is unbypassable but the classifier
+  isn't setting commitment_owner on production. This is the remaining blocker.
+- TICKET-11 is COMPLETE (no violations).
+- TICKET-13 script is written (not yet run).
+- TICKET-20 live reproductions show P43 PASS, P60 FAIL, Compound PASS.
+- The product is at YELLOW, not GREEN. The trust thesis is enforced for
+  first-person queries (P43) but NOT yet for third-party queries (P60/TICKET-10)
+  on production because the classifier metadata isn't being set.
+
+COMMITS:
+- 085ceb1 — TICKET-9: fix 57 stale auth fixtures
+- e243ec8 — TICKET-10: unbypassable wrapper + classifier metadata
+- 890b2d8 — TICKET-11: audit complete, no violations
+- 94db824 — TICKET-13: migration script
+- be5fab9 — TICKET-10: log classification failure at warning level
