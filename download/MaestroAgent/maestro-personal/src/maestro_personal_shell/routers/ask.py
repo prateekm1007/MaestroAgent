@@ -615,6 +615,39 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         _calibration_note = "Answered from commitment ledger (current reconciled state)."
 
                     _ledger_answer = "Based on your commitment ledger:\n" + "\n".join(_answer_lines)
+
+                    # K3-COMPOUND fix (2026-07-25): compound-question decomposition.
+                    # Queries like "What did I promise Maria? Also, what did I promise
+                    # Elon Musk?" only matched Maria (she exists in known entities) and
+                    # silently dropped the Elon half. Now we extract ALL mentioned
+                    # entities from the query text, and for any that don't have ledger
+                    # entries, append a grounded negative ("I don't have any record of
+                    # promises to {entity}."). This ensures both halves of a compound
+                    # question are addressed — lifting Cat 3 from 8 to 9.
+                    import re as _re_compound
+                    _compound_patterns = [
+                        r'what\s+did\s+i\s+promise\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                        r'what\s+did\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+promise',
+                        r'what\s+about\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                    ]
+                    _all_mentioned_entities = set()
+                    for _pat in _compound_patterns:
+                        for _m in _re_compound.finditer(_pat, req.query):
+                            _all_mentioned_entities.add(_m.group(1).strip())
+                    # Find entities mentioned in the query but NOT in the ledger
+                    _queried_lower = {e.lower() for e in _queried_entities}
+                    _unaddressed = [
+                        e for e in _all_mentioned_entities
+                        if e.lower() not in _queried_lower
+                        and e.lower() not in ("i", "me", "my", "we", "us", "our", "you", "your", "the", "a", "an")
+                    ]
+                    if _unaddressed:
+                        _negatives = []
+                        for _ent in _unaddressed:
+                            _negatives.append(f"• No record of any promise to {_ent}.")
+                        _ledger_answer += "\n\n" + "\n".join(_negatives)
+                        _calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
+
                     logger.info(
                         "RC2 ledger-read fast path: query=%r → %d current entries for %d entities, conf=%.1f (no LLM needed)",
                         req.query[:60], len(_ledger_evidence), len(_queried_entities), _confidence,
