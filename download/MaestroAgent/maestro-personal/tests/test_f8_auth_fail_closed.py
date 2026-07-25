@@ -51,24 +51,21 @@ def test_dev_mode_rejects_arbitrary_email_by_default():
     client = TestClient(personal_api.app)
 
     # 1. Login as default user — should succeed
-    r = client.post("/api/auth/login",
-                    json={"password": "f8-test-token"})
+    r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     assert r.status_code == 200, f"Default login failed: {r.status_code} {r.text}"
     body = r.json()
     assert body["user_email"] == "default@personal.local", \
         f"Default login should mint default user, got: {body['user_email']}"
 
     # 2. Login as attacker@evil.com — must be REJECTED (403)
-    r = client.post("/api/auth/login",
-                    json={"password": "f8-test-token", "user_email": "attacker@evil.com"})
+    r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     assert r.status_code == 403, (
         f"F8 FAIL: arbitrary email minted in dev mode without opt-in. "
         f"Got status {r.status_code}: {r.text}"
     )
 
     # 3. Login with wrong password — must be 401
-    r = client.post("/api/auth/login",
-                    json={"password": "wrong-password"})
+    r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     assert r.status_code == 401
 
 
@@ -80,8 +77,7 @@ def test_dev_mode_allows_arbitrary_email_with_explicit_opt_in():
     from fastapi.testclient import TestClient
     client = TestClient(personal_api.app)
 
-    r = client.post("/api/auth/login",
-                    json={"password": "f8-test-token", "user_email": "test@user.com"})
+    r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     assert r.status_code == 200, f"Opt-in login failed: {r.status_code} {r.text}"
     body = r.json()
     assert body["user_email"] == "test@user.com"

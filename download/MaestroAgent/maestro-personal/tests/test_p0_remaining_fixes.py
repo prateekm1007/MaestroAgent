@@ -114,7 +114,7 @@ class TestMobileAuthFix:
             api_module.DB_PATH = f.name
         api_module.init_db(f.name)
         client = TestClient(api_module.app)
-        response = client.post("/api/auth/login", json={"password": ""})
+        response = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         assert response.status_code == 401, f"Empty password should be rejected, got {response.status_code}"
         os.unlink(f.name)
 
@@ -192,7 +192,7 @@ class TestAudioTranscription:
         client = TestClient(api_module.app)
 
         # Login first
-        login_resp = client.post("/api/auth/login", json={"password": "test-transcribe"})
+        login_resp = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         token = login_resp.json()["token"]
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -223,7 +223,7 @@ class TestAudioTranscription:
         api_module.init_db(f.name)
         client = TestClient(api_module.app)
 
-        login_resp = client.post("/api/auth/login", json={"password": "test-empty"})
+        login_resp = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         token = login_resp.json()["token"]
         headers = {"Authorization": f"Bearer {token}"}
 

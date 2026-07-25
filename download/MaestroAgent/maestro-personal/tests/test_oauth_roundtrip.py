@@ -62,7 +62,7 @@ def client(fresh_db):
 @pytest.fixture
 def auth_headers(client):
     """Login + return auth headers."""
-    r = client.post("/api/auth/login", json={"password": os.environ["MAESTRO_PERSONAL_TOKEN"]})
+    r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     assert r.status_code == 200, f"Login failed: {r.text}"
     return {"Authorization": f"Bearer {r.json()['token']}"}
 

@@ -42,7 +42,7 @@ def _seed_and_get_whispers(signal_text, entity="TestCorp", signal_type="reported
     personal_api.init_db()
     client = TestClient(personal_api.app)
 
-    r = client.post("/api/auth/login", json={"password": "f6-test-token"})
+    r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     assert r.status_code == 200
     token = r.json()["token"]
     h = {"Authorization": f"Bearer {token}"}

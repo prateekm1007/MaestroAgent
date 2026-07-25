@@ -42,7 +42,7 @@ class TestSlackOAuth:
 
     @pytest.fixture
     def auth_headers(self, client):
-        r = client.post("/api/auth/login", json={"password": "test"})
+        r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         assert r.status_code == 200
         return {"Authorization": f"Bearer {r.json()['token']}"}
 
@@ -95,7 +95,7 @@ class TestGitHubOAuth:
 
     @pytest.fixture
     def auth_headers(self, client):
-        r = client.post("/api/auth/login", json={"password": "test"})
+        r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         assert r.status_code == 200
         return {"Authorization": f"Bearer {r.json()['token']}"}
 
@@ -149,7 +149,7 @@ class TestConnectorListing:
 
     @pytest.fixture
     def auth_headers(self, client):
-        r = client.post("/api/auth/login", json={"password": "test"})
+        r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         assert r.status_code == 200
         return {"Authorization": f"Bearer {r.json()['token']}"}
 

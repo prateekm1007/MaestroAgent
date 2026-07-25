@@ -99,11 +99,16 @@ def client(isolated_api):
 
 @pytest.fixture
 def auth_headers(client):
-    response = client.post(
-        "/api/auth/login",
-        json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test-grader")},
-    )
-    token = response.json()["token"]
+    """Register a test user and return Authorization headers."""
+    import uuid
+    email = f"test-{uuid.uuid4().hex[:8]}@example.com"
+    r = client.post("/api/auth/register", json={
+        "user_email": email,
+        "password": "TestPassword123!",
+        "name": "Test",
+    })
+    assert r.status_code == 200, f"Register failed: {r.text}"
+    token = r.json()["token"]
     return {"Authorization": f"Bearer {token}"}
 
 

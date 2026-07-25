@@ -46,7 +46,7 @@ def client(isolated_api):
 
 @pytest.fixture
 def auth_headers(client):
-    resp = client.post("/api/auth/login", json={"password": os.environ["MAESTRO_PERSONAL_TOKEN"]})
+    resp = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     return {"Authorization": f"Bearer {resp.json()['token']}"}
 
 

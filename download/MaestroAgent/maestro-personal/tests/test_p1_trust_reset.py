@@ -68,13 +68,13 @@ class TestP1PasswordlessLogin:
 
     def test_correct_password_works(self, client):
         """Login with the correct token as password must work."""
-        response = client.post("/api/auth/login", json={"password": "test-p1-trust"})
+        response = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         assert response.status_code == 200
         assert "token" in response.json()
 
     def test_dev_mode_bootstrap_works(self, client):
         """In dev mode, the correct token as password works (backward compat for tests)."""
-        response = client.post("/api/auth/login", json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")})
+        response = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         assert response.status_code == 200
 
     def test_cannot_impersonate_arbitrary_email(self, client):
@@ -92,7 +92,7 @@ class TestP1NoiseFiltering:
     def test_newsletter_not_top_situation(self, client):
         """Newsletter entities must not appear as top_situation in briefing."""
         # Login first
-        login_resp = client.post("/api/auth/login", json={"password": "test-p1-trust"})
+        login_resp = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
         token = login_resp.json()["token"]
         headers = {"Authorization": f"Bearer {token}"}
 

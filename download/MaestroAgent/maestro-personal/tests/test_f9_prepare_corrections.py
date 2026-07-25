@@ -33,7 +33,7 @@ def _fresh_client():
 
 
 def _login(client):
-    r = client.post("/api/auth/login", json={"password": "f9-test-token"})
+    r = client.post("/api/auth/register", json={"user_email": "test-fix@example.com", "password": "TestPassword123!", "name": "Test"})
     assert r.status_code == 200
     return r.json()["token"]
 
