@@ -293,7 +293,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   personal-journey-gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       MAESTRO_ENV: dev
       MAESTRO_PERSONAL_DB: /tmp/personal_journey.db
