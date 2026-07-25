@@ -283,3 +283,65 @@ jobs:
             exit 1
           fi
           echo "CSS audit passed — all files under 5 inline styles."
+
+  # ─────────────────────────────────────────────────────────────────────
+  # P48 (new): maestro-personal journey gates — the S2/S3 + P41/P42/P43/P46
+  # tests that were added in the S2/S3 build. These MUST run in CI as a
+  # SEPARATE job so red means a real regression in the personal shell, not
+  # a pre-existing backend test failure (P48 — a red CI with known failures
+  # is not a gate).
+  # ─────────────────────────────────────────────────────────────────────
+  personal-journey-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MAESTRO_ENV: dev
+      MAESTRO_PERSONAL_DB: /tmp/personal_journey.db
+      MAESTRO_PERSONAL_ALLOW_ARBITRARY_EMAIL: "1"
+      MAESTRO_TEST_MODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maestro-personal + backend deps
+        working-directory: download/MaestroAgent/maestro-personal
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" 2>/dev/null || pip install -e .
+          pip install pytest pytest-asyncio httpx fastapi pydantic
+
+      - name: Install backend (for maestro_cognitive_council imports)
+        working-directory: download/MaestroAgent/backend
+        run: |
+          pip install -e ".[dev]" 2>/dev/null || pip install -e .
+
+      - name: Run P43 + P41 + P42 + S2-* + S3-2 journey gates
+        working-directory: download/MaestroAgent/maestro-personal
+        env:
+          PYTHONPATH: src:../backend
+        run: |
+          python -m pytest \
+            tests/test_P43_reconcile_wired_live.py \
+            tests/test_P41_single_source_of_truth.py \
+            tests/test_P42_text_normalization.py \
+            tests/test_S2_01_openapi_alias.py \
+            tests/test_S2_03_prepare_no_template.py \
+            tests/test_S2_04_surfaces_reconcile.py \
+            tests/test_S2_05_multiturn_pronoun.py \
+            tests/test_S2_06_latency_breaker.py \
+            tests/test_S3_02_permanence_isolated.py \
+            --tb=short \
+            -v \
+            --timeout=120
+
+      - name: Run boot gate (P35 enforcement)
+        working-directory: download/MaestroAgent/maestro-personal
+        env:
+          PYTHONPATH: src
+          MAESTRO_PERSONAL_ENV: production
+        run: |
+          python3 ../ops/test_boot_gate.py

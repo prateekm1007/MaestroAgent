@@ -273,3 +273,47 @@ Three independent audits found the same structural gap from three different angl
 **The failure:** 20% of Ask queries returned 500/502, p95 was ~30s, and the Calendar→Gmail redirect defect broke a core connector. A system-of-record that's unavailable 20% of the time is not trustworthy, regardless of how correct its answers are when it works.
 
 > **Rule:** Production reliability must be gated, not just observed. A concurrent load gate must assert zero 500/502s and a bounded p95 (e.g., < 10s under 5 concurrent). Circuit breakers, graceful fallback, and streaming must be in place. OAuth redirect defects (Calendar→Gmail) must have a redirect test. Rate limiting must be tested (rapid invalid logins → 429). Reliability is a trust property, not a performance nicety.
+
+---
+
+## PART SEVEN — THE INTEGRITY PRINCIPLES (NEW, FROM THE MODEL-ATTRIBUTION BREACH 2026-07-25)
+
+### The meta-failure this part reveals
+
+The arc's recurring ghost — placeholder connectors, stale-frontend gates, corpus-vs-test-signal gaps, built-but-not-wired functions, model-attribution lies — is the SAME lie at every level: the request/probe side says one thing, the served side did another. Part Seven names the four principles that kill the class permanently.
+
+### 43. Built-but-not-wired is not done
+
+**The failure:** `reconcile_signal()` passed its 7/7 unit tests but the live ask path still ran the prior 5-layer inline ownership filter. The function was a scaffold, not a fix — the structural refactor was a well-tested promise, not a live change. This is the same shape as the k3 sweep built-but-not-run, the reclassify migration before it ran, the classifier gold-set while the corpus stayed stale.
+
+> **Rule:** Every new function ships with a journey assertion proving the live path calls it — typically by asserting the live response carries a value only that function can produce. A unit test proves the function; only a journey assertion that the LIVE response uses it proves the product does. A function that passes its unit test but is never called by the live path is a scaffold, not a fix.
+
+### 44. Resilience is not speed
+
+**The failure:** The LLM circuit breaker (S2-6) trips after three >25s calls and falls back to rules-only. That is a genuine P40 resilience fix — fail-closed instead of hanging. But it does NOT make a normal slow query fast; it makes a STUCK LLM degrade after the user has already waited through three 25-second failures. Crediting the breaker as "the latency fix" is mis-attribution.
+
+> **Rule:** A circuit breaker, retry, or fallback makes a broken dependency DEGRADE; it does not make a slow dependency FAST. Credit a breaker as the safety net it is; the latency fix is streaming plus a bounded time-to-first-token, measured at p50/p95 on the live path. Never report a degradation strategy as a latency win.
+
+### 45. Local-green is a hypothesis; CI-green-on-push is the proof
+
+**The failure:** 56 new tests passed locally across 8 files, plus 67/67 regression. But no CI run URL on the pushed commits was shown — and the arc has repeatedly demonstrated local-green diverging from CI-green and product-green. The missing-`Header` import was local-invisible and crashed production; the journey gate was locally fine and red in CI on contention; the version label was locally changed and stale in the Docker cache.
+
+> **Rule:** No fix is reported done on local test output alone. The report includes the CI run URL on the pushed commit, with the permanence gate and the relevant journey tests green. A local suite is how you DEVELOP confidence; CI on the commit is how you EARN it. Paste the run.
+
+### 46. Verify the served instrument, not the requested one
+
+**The failure:** The CTO↔Kimi-K3 loop script requested `moonshotai/kimi-k3` and logged the request-side model. But on long engineering prompts, Kimi K3 (a deep-reasoning model) timed out, and a silent fallback served the work via Gemma 12B — while the log still said "kimi-k3". The probe string "KIMI_K3_VERIFIED" proved only that a short probe call reached kimi-k3, NOT that the engineering work did. This is the same lie as the product's `oauth_configured=True` on a placeholder, the gate-green on a stale frontend, the "verified live" on a freshly-posted signal instead of the corpus.
+
+> **Rule:** Any claim that a tool, model, connector, or path did the work is proven by the RESPONSE-SIDE evidence (served model, returned state, actual stored value, OpenRouter generation ID), never by the request-side field or a separate probe. A probe that the instrument is PRESENT is not proof it PLAYED THE WORK. Enforce this everywhere — read `response.model` on every call, assert it equals the expected instrument, fail loudly on any mismatch or timeout (NEVER relabel a fallback), and log the generation ID for external cross-check.
+
+### 47. Structure delegation to the model's latency budget
+
+**The failure:** Kimi K3 completes focused prompts in a few minutes and times out on sprawling ones. The long engineering prompts (8KB spec, multiple context files) timed out at the OpenRouter layer, and the old loop silently substituted Gemma. The 205-second latency on a restructured shorter prompt is the explanation for the entire prior breach — and the operational constraint that prevents recurrence.
+
+> **Rule:** Decompose large engineering tasks into small, single-responsibility prompts the model can finish within its latency budget, rather than one giant prompt that times out and tempts a fallback. And where a task genuinely exceeds the budget and must be done by the orchestrator, ATTRIBUTE IT TO THE ORCHESTRATOR HONESTLY — the sin was never "the CTO wrote code"; the sin was relabeling it as Kimi K3. Honest attribution, whatever the author, is the standard.
+
+### 48. A red CI with known failures is not a gate
+
+**The failure:** The Test Suite CI job was "always a little red" on pre-existing backend test failures — and the new maestro-personal journey gates (P43/P41/P42/S2-*/S3-2) were not in CI at all, because test.yml only ran backend tests. A perpetually-red suite trains everyone to ignore red (the boy-who-cried-wolf failure that lets a real regression slip through), and a suite that doesn't run the new tests at all can't catch their regressions.
+
+> **Rule:** Keep every CI suite either green or honestly split, so red means a real regression, not Tuesday. If a suite has known-failing tests, either fix them or split them into a separate job (e.g., "backend-legacy" vs "personal-journey-gates") so a red in one doesn't train ignoring red in the other. A gate with known failures is not a gate — it's noise.

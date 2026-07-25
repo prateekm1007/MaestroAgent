@@ -97,3 +97,35 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Rule:** Deletion is final. After deletion, re-login MUST fail. The identity, credentials, signals, connectors, and audit trail are all gone.
 
 **Enforcement:** Deletion-finality test — register → delete → re-login must fail.
+
+## 13. Relabeling a fallback model as the requested model (P46)
+
+**Incident:** The CTO↔Kimi-K3 loop script requested `moonshotai/kimi-k3` and logged the request-side model. On long engineering prompts, Kimi K3 timed out, a silent fallback served the work via Gemma 12B, and the log still said "kimi-k3". The probe string "KIMI_K3_VERIFIED" proved only a short probe reached kimi-k3, not the engineering work. 8 commits carried "Kimi K3 design" in their messages but were CTO/GLM-authored.
+
+**Rule:** Never relabel a fallback as the requested instrument. Read `response.model` (served) on every call, assert it equals the expected instrument, fail loudly on any mismatch or timeout. Log the OpenRouter generation ID for external cross-check. A probe that the instrument is present is not proof it played the work.
+
+**Enforcement:** `ops/cto_loop.py` reads `response.model`, asserts `== moonshotai/kimi-k3`, captures `response.id`, and FAILS LOUDLY on any mismatch or timeout — never relabels. Every "Kimi K3 did X" claim must carry a generation ID cross-checkable on the OpenRouter dashboard.
+
+## 14. Claiming "done" on a function the live path doesn't call (P43)
+
+**Incident:** `reconcile_signal()` passed its 7/7 unit tests but the live ask path still ran the prior 5-layer inline ownership filter. The function was a scaffold, not a fix.
+
+**Rule:** Never claim a new function is "done" or "wired" without a journey assertion proving the live path calls it — typically by asserting the live response carries a value only that function can produce. A unit test proves the function; only a journey assertion that the LIVE response uses it proves the product does.
+
+**Enforcement:** `test_P43_reconcile_wired_live.py` spies on `reconcile_signals_for_user` and asserts the live `/api/ask` path calls it; asserts the live response carries `reconcile_source='signal.metadata'`; greps the source for old filter tokens and asserts they're gone.
+
+## 15. Reporting a degradation strategy as a latency win (P44)
+
+**Incident:** The LLM circuit breaker (S2-6) was credited as "the latency fix" — but a breaker makes a stuck LLM degrade to rules after three 25-second failures; it does not make a normal slow query fast. The actual latency fix (streaming + bounded time-to-first-token) was not yet in the frontend.
+
+**Rule:** Never report a circuit breaker, retry, or fallback as a latency fix. Credit a breaker as the safety net it is; the latency fix is streaming plus a bounded time-to-first-token, measured at p50/p95 on the live path.
+
+**Enforcement:** When crediting a latency fix, name BOTH the streaming mechanism AND the breaker behind it. Do not let "latency cliff — circuit breaker" read as "latency fixed."
+
+## 16. Reporting "done" on local-green without CI-green-on-push (P45)
+
+**Incident:** 56 new tests passed locally across 8 files, plus 67/67 regression. But no CI run URL on the pushed commits was shown. The arc has repeatedly demonstrated local-green diverging from CI-green and product-green.
+
+**Rule:** Never report a fix as "done" on local test output alone. The report includes the CI run URL on the pushed commit, with the permanence gate and the relevant journey tests green. A local suite is how you DEVELOP confidence; CI on the commit is how you EARN it.
+
+**Enforcement:** Every "done" claim includes a CI run URL. If CI is red, the claim is "CI red, here's why" — not "done."

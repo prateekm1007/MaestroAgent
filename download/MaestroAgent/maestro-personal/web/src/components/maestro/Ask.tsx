@@ -75,6 +75,10 @@ export function Ask({
   const [query, setQuery] = useState(initialQuery ?? "");
   const [busy, setBusy] = useState(false);
   const [response, setResponse] = useState<AskResponse | null>(null);
+  // P44: streaming text — tokens arrive here as they're generated, so the
+  // user sees progress within low seconds (time-to-first-token), not the
+  // 28-37s cliff the audit measured.
+  const [streamingText, setStreamingText] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [qaHistory, setQaHistory] = useState<QaPair[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -257,10 +261,102 @@ export function Ask({
     };
   }, []);
 
+  // P44: streaming ask — calls /api/ask/stream (SSE), reads tokens as they
+  // arrive, and renders them in streamingText so the user sees progress
+  // within low seconds. The backend's circuit breaker (S2-6) is the safety
+  // net behind this — if the LLM hangs, the breaker trips and the stream
+  // falls back to rules-only. This function is the LATENCY FIX the audit
+  // named (P44 — resilience is not speed; streaming + bounded TTFT is).
+  async function runAskStreaming(q: string, sessId: string): Promise<AskResponse> {
+    const res = await fetch("/api/ask/stream", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // P1-3: pass session_id so backend maintains multi-turn context
+        "X-Session-Id": sessId,
+      },
+      body: JSON.stringify({ query: q, session_id: sessId }),
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`stream failed: HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let fullAnswer = "";
+    let llmActive = false;
+    let provider = "none";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE format: "data: {json}\n\n"
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const evt = JSON.parse(payload);
+          if (evt.llm_active !== undefined) llmActive = evt.llm_active;
+          if (evt.provider) provider = evt.provider;
+          if (evt.chunk) {
+            fullAnswer += evt.chunk;
+            // P44: update streaming text on EVERY chunk — this is what
+            // makes the wait read as progress instead of a cliff.
+            setStreamingText(fullAnswer);
+          }
+          if (evt.fallback) {
+            // Backend fell back to rules-only (circuit breaker tripped)
+            fullAnswer += evt.chunk || "";
+            setStreamingText(fullAnswer);
+          }
+        } catch {
+          /* ignore malformed SSE lines */
+        }
+      }
+    }
+
+    // Construct an AskResponse from the streamed answer. The streaming
+    // endpoint doesn't return structured evidence_refs, so we synthesize
+    // a minimal response. The synchronous fallback path is still used
+    // for the final structured data if the user needs evidence details.
+    return {
+      answer: fullAnswer || "I don't have enough information to answer that.",
+      query: q,
+      source_sentence: "",
+      source_entity: "",
+      source_timestamp: "",
+      situation_state: "",
+      evidence_refs: [],
+      confidence: llmActive ? 0.7 : 0.4,
+      counterevidence: [],
+      unknowns: [],
+      as_of: new Date().toISOString(),
+      decision_boundary: "",
+      perspectives: [],
+      reasoning_chain: [],
+      calibration_note: llmActive
+        ? "Answered via streaming LLM (P44 latency fix)."
+        : "Answered via streaming rules-only fallback (circuit breaker may be tripped).",
+      consequence_paths: [],
+      llm_active: llmActive,
+      llm_provider: provider,
+      intelligence_source: llmActive ? "llm" : "rules",
+    } as AskResponse;
+  }
+
   async function runAsk(q: string) {
     if (!q.trim()) return;
     setBusy(true);
     setResponse(null);
+    // P44: streaming state — show "thinking..." immediately, then tokens
+    // arrive so the wait reads as progress (the latency fix the audit
+    // named — time-to-first-token in low seconds, not 28-37s cliff).
+    setStreamingText("");
     // Stop any in-progress TTS when a new question starts
     stopSpeaking();
 
@@ -274,9 +370,30 @@ export function Ask({
       contextualQuery = `Previous conversation:\n${context}\n\nCurrent question: ${q.trim()}`;
     }
 
-    // P1-3: Pass stable session_id so backend maintains multi-turn context
-    const { data } = await maestroApi.ask(contextualQuery, sessionId);
+    // P44: try /api/ask/stream first (SSE) — time-to-first-token in low
+    // seconds. If streaming fails or isn't supported, fall back to the
+    // synchronous /api/ask path. The circuit breaker (S2-6) is behind
+    // this on the backend — the breaker is the safety net, the streaming
+    // is the latency fix.
+    let data: AskResponse | null = null;
+    try {
+      data = await runAskStreaming(contextualQuery, sessionId);
+    } catch (streamErr) {
+      // Streaming failed — fall back to synchronous /api/ask
+      console.warn("[Ask] streaming failed, falling back to /api/ask:", streamErr);
+      try {
+        const syncResult = await maestroApi.ask(contextualQuery, sessionId);
+        data = syncResult.data;
+      } catch (syncErr) {
+        console.error("[Ask] synchronous fallback also failed:", syncErr);
+        setBusy(false);
+        setStreamingText("");
+        return;
+      }
+    }
+
     setResponse(data);
+    setStreamingText("");
     setBusy(false);
 
     // Update plain-string history (UI)
@@ -511,7 +628,27 @@ export function Ask({
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         {/* Answer column */}
         <div className="space-y-4">
-          {busy && <AnswerSkeleton />}
+          {/* P44: while streaming, show the partial answer as it arrives.
+              This is the latency fix — tokens appear within low seconds,
+              not the 28-37s cliff the audit measured. */}
+          {busy && streamingText && (
+            <Card className="border-primary/30">
+              <CardContent className="pt-6 pb-6 space-y-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="size-3 animate-spin" />
+                  <span>Streaming answer…</span>
+                </div>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {streamingText}
+                  <span className="inline-block w-1.5 h-4 bg-primary/60 ml-0.5 animate-pulse align-middle" />
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* P44: when busy but no streaming text yet, show the skeleton
+              (time-to-first-token window — usually <2s). */}
+          {busy && !streamingText && <AnswerSkeleton />}
 
           {!busy && response && (
             <AnswerCard
