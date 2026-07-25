@@ -217,30 +217,63 @@ def filter_for_promise_query(
     user_email: str,
     entity_filter: str = "",
 ) -> list[dict[str, Any]]:
-    """P36 ownership filter for "What did I promise X?" queries.
+    """P36/P60 ownership filter for "What did I promise X?" queries.
 
-    SINGLE SOURCE OF TRUTH (P41): operates on ReconciledRecords (already
-    derived from signal metadata). Excludes:
-      - third_party_report (someone else's promise)
-      - non-commitment types (tentative, proposal, request, aspiration, negation)
-      - signals where owner != "user"
-      - signals for a different entity (if entity_filter is set)
+    SIXTH AUDIT F-03/S0 FIX: the prior filter over-corrected from
+    false-positive (attributing Maria's promises to the user) to
+    false-negative (denying the user's OWN promises to Maria). The root
+    cause: exact entity matching + overly broad exclusion of
+    third_party_report.
 
-    This is the structural end of the 5-layer wack-a-mole — ONE filter on
-    the reconciled record, not 5 separate filters on parallel copies.
+    P60 (four buckets): the filter now distinguishes:
+      - my_promise (owner=user, is_commitment=True) → INCLUDE
+      - their_promise (owner=other, is_commitment=True) → EXCLUDE
+      - quoted (third_party_report) → EXCLUDE
+      - third_party (non-commitment types) → EXCLUDE
+
+    The entity match is now FUZZY (substring/word-level), so "Maria"
+    matches "Maria Garcia" — the prior exact match caused false negatives.
     """
     NON_USER_TYPES = {
         "third_party_report", "not_a_commitment",
         "tentative", "proposal", "request", "aspiration", "negation",
     }
+
+    def _entity_matches(rec_entity: str, query_entity: str) -> bool:
+        """Fuzzy entity match: bidirectional substring OR word-level overlap."""
+        if not query_entity:
+            return True  # no filter → match all
+        re_lower = (rec_entity or "").lower().strip()
+        qe_lower = query_entity.lower().strip()
+        if not re_lower:
+            return False
+        # Exact match
+        if re_lower == qe_lower:
+            return True
+        # Substring match (handles "Maria Garcia" ↔ "Maria")
+        if qe_lower in re_lower or re_lower in qe_lower:
+            return True
+        # Word-level match (handles multi-word entities)
+        qe_words = [w for w in qe_lower.split() if len(w) >= 3]
+        re_words = [w for w in re_lower.split() if len(w) >= 3]
+        for qw in qe_words:
+            for rw in re_words:
+                if qw == rw or qw in rw or rw in qw:
+                    return True
+        return False
+
     filtered = []
     for rec in records:
+        # P60: exclude non-commitment types (their_promise, quoted, third_party)
         if rec.get("commitment_type") in NON_USER_TYPES:
             continue
+        # P60: only my_promise (owner=user) — exclude their_promise (owner=other)
         if rec.get("owner") != "user":
             continue
-        if entity_filter and rec.get("entity", "").lower() != entity_filter.lower():
+        # P60: fuzzy entity match (was exact — caused false negatives)
+        if entity_filter and not _entity_matches(rec.get("entity", ""), entity_filter):
             continue
+        # P60: must be a commitment
         if not rec.get("is_commitment"):
             continue
         filtered.append(rec)

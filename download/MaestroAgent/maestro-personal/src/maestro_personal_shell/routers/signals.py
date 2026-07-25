@@ -389,6 +389,17 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         # closes and transition that entry. This is how "Sent the proposal"
         # closes "I'll send the proposal by Friday" — by action overlap,
         # not just entity.
+        #
+        # P59 (sixth audit F-02/S0): CLASSIFICATION IS NOT LIFECYCLE.
+        # The prior code only matched by keyword overlap, which failed
+        # when a cancellation email ("Cancelled: Sam Rivera roadmap item")
+        # didn't share keywords with the original commitment. The lifecycle
+        # engine must APPLY transitions, not just label signals. Fix:
+        # (1) try keyword-overlap match first (precise), then
+        # (2) fall back to ENTITY-ONLY match (the cancellation is for the
+        #     same entity, even if the words differ) — this is how real
+        #     cancellation emails work ("Cancelled: Sam's roadmap item"
+        #     cancels Sam's commitment even without keyword overlap).
         if ledger_entry and metadata.get("commitment_state") in ("completed_claimed", "completed_verified", "cancelled"):
             active_entries = [
                 e for e in get_ledger_entries(token, _db, state="active")
@@ -396,13 +407,41 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
                 + get_ledger_entries(token, _db, state="completed_claimed")
                 if e.get("signal_id") != signal_id  # don't close ourselves
             ]
+            # P59: first try precise keyword-overlap match
             match = match_closure(
                 {"entity": canonical_entity, "text": sanitized_text, "recipient": ""},
                 active_entries,
             )
+            # P59: if no keyword match, fall back to entity-only match
+            # (the cancellation/completion is for the same entity, even
+            # if the action keywords don't overlap — real cancellation
+            # emails often say "Cancelled: [entity]" without repeating
+            # the original commitment's action words)
+            if not match:
+                _comp_entity_lower = canonical_entity.lower().strip()
+                for entry in active_entries:
+                    _ent_entity_lower = (entry.get("entity", "") or "").lower().strip()
+                    if _comp_entity_lower and _ent_entity_lower:
+                        # Fuzzy entity match (same as filter_for_promise_query)
+                        if (_comp_entity_lower == _ent_entity_lower
+                                or _comp_entity_lower in _ent_entity_lower
+                                or _ent_entity_lower in _comp_entity_lower):
+                            match = entry
+                            logger.info(
+                                "P59 lifecycle: entity-only closure match — "
+                                "signal entity=%s matched active entry entity=%s "
+                                "(ledger_id=%s)",
+                                canonical_entity, entry.get("entity", ""),
+                                entry.get("ledger_id", ""),
+                            )
+                            break
             if match:
                 target = metadata.get("commitment_state")
                 transition_ledger_state(match["ledger_id"], target, token, _db)
+                logger.info(
+                    "P59 lifecycle APPLIED: signal %s → ledger %s transitioned to %s",
+                    signal_id, match["ledger_id"], target,
+                )
     except Exception as e:
         logger.debug("Ledger persistence failed (non-fatal): %s", e)
 
