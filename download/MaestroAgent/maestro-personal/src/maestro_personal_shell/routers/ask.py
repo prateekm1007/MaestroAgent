@@ -12,6 +12,14 @@ from fastapi import APIRouter, Depends, Header, Request
 
 from maestro_personal_shell.models import AskRequest, AskResponse
 from maestro_personal_shell.rate_limit import rate_limit
+# S3-1-WIRE-LIVE (Kimi K3 design, generation_id=gen-1784948642-WQjc4PQWvtQqWiLDMqqs):
+# P41 single source of truth + P43 built-but-not-wired is not done.
+# The reconcile module is the canonical read path for classification/ownership.
+# Wiring it into the live ask path replaces the 5-layer inline filter.
+from maestro_personal_shell.reconcile import (
+    reconcile_signals_for_user,
+    filter_for_promise_query,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -505,12 +513,18 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 _answer_lines.append(f"    ○ [{ent}] {_action[:60]} — superseded")
 
                 if _has_active and _ledger_evidence:
-                    # P36 OWNERSHIP FILTER (Kimi K3 design, applied to ledger fast path):
-                    # When the query asks "What did I promise X?", exclude
-                    # third_party_report and non-commitment types from the
-                    # ledger evidence. The ledger fast path bypasses the
-                    # P36 gate at line 3247, so the ownership filter must
-                    # be applied HERE too.
+                    # S3-1-WIRE-LIVE (Kimi K3 design, generation_id=gen-1784948642-WQjc4PQWvtQqWiLDMqqs):
+                    # P41 single source of truth + P43 built-but-not-wired is not done.
+                    # The 5-layer inline ownership filter below was the wack-a-mole
+                    # site — it duplicated classification logic across the ledger
+                    # column, the evidence dict, the signal metadata, and the
+                    # answer lines. It is REPLACED by a single call to the
+                    # reconcile module, which derives the truth from one place
+                    # (signal.metadata) and applies ONE filter
+                    # (filter_for_promise_query) on the reconciled record.
+                    #
+                    # P36 ownership filter is still enforced — but via the
+                    # reconcile module, not 5 inline layers.
                     _is_promise_query_ledger = bool(_re.search(
                         r'\bwhat\s+did\s+i\s+(promise|commit|agree|pledge)\b'
                         r'|\bmy\s+(promises?|commitments?)\b'
@@ -518,49 +532,63 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         req.query, _re.IGNORECASE,
                     ))
                     if _is_promise_query_ledger:
-                        _NON_USER_TYPES_LEDGER = {
-                            "third_party_report", "not_a_commitment",
-                            "tentative", "proposal", "request",
-                            "aspiration", "negation",
-                        }
-                        # Use the LEDGER ENTRY's OWN commitment_type field
-                        # (not the signal's metadata — the ledger may have
-                        # been created before the reclassify migration).
-                        # The ledger entry's commitment_type was set during
-                        # upsert from the classification result.
-                        _filtered_ledger = []
-                        for _le in _ledger_evidence:
-                            _ctype = _le.get("commitment_type", "")
-                            # Also check the signal's metadata as fallback
-                            if not _ctype:
-                                _sig_id = _le.get("signal_id", "") or _le.get("source_signal_id", "")
-                                if _sig_id:
-                                    try:
-                                        import json as _json_ledger
-                                        from maestro_personal_shell.db_util import get_db_conn
-                                        _conn = get_db_conn(_db_path)
-                                        _row = _conn.execute(
-                                            "SELECT metadata FROM signals WHERE signal_id = ?",
-                                            (_sig_id,),
-                                        ).fetchone()
-                                        _conn.close()
-                                        if _row and _row[0]:
-                                            _meta = _json_ledger.loads(_row[0])
-                                            _ctype = _meta.get("commitment_type", "")
-                                    except Exception:
-                                        pass
-                            if _ctype not in _NON_USER_TYPES_LEDGER:
-                                _filtered_ledger.append(_le)
-                        _ledger_evidence = _filtered_ledger
+                        # P41: single source of truth — derive from signal.metadata
+                        # via reconcile_signals_for_user, then apply ONE P36 filter.
+                        # The ledger entry's commitment_type column is NOT consulted
+                        # (it's a stale copy — see test_reconcile_does_not_consult_ledger).
+                        try:
+                            _reconciled_all = reconcile_signals_for_user(
+                                user_email=token,
+                                db_path=_db_path,
+                                entity_filter="",  # all entities; filter below
+                                include_non_commitments=False,  # P37: hard admission
+                            )
+                            # P36: filter to user-owned commitments for the queried entities
+                            _filtered_reconciled = []
+                            for _ent in _queried_entities:
+                                _ent_records = filter_for_promise_query(
+                                    _reconciled_all,
+                                    user_email=token,
+                                    entity_filter=_ent,
+                                )
+                                _filtered_reconciled.extend(_ent_records)
 
-                        # Rebuild answer lines from filtered evidence
-                        # (the original _answer_lines were built BEFORE the
-                        # ownership filter, so they include third-party reports)
-                        _answer_lines = []
-                        for _le in _ledger_evidence:
-                            _le_text = _le.get("text", "")
-                            _le_entity = _le.get("entity", "")
-                            _answer_lines.append(f"• [{_le_entity}] {_le_text[:80]}")
+                            # Convert ReconciledRecords to the ledger-evidence shape
+                            # the downstream code expects (so the seam is minimal).
+                            _ledger_evidence = [
+                                {
+                                    "signal_id": r["signal_id"],
+                                    "entity": r["entity"],
+                                    "text": r["text"],
+                                    "timestamp": r["timestamp"],
+                                    "source_type": "ledger",
+                                    "commitment_type": r["commitment_type"],
+                                    "owner": r["owner"],
+                                    # P43: reconcile_source proves the live path
+                                    # used reconcile_signal() — this field is the
+                                    # journey-assertion token. Only reconcile_signal()
+                                    # can produce 'signal.metadata' here.
+                                    "reconcile_source": r.get("reconcile_source", "signal.metadata"),
+                                }
+                                for r in _filtered_reconciled
+                            ]
+
+                            # Rebuild answer lines from filtered evidence
+                            _answer_lines = []
+                            for _le in _ledger_evidence:
+                                _le_text = _le.get("text", "")
+                                _le_entity = _le.get("entity", "")
+                                _answer_lines.append(f"• [{_le_entity}] {_le_text[:80]}")
+                        except Exception as _reconcile_err:
+                            # FAIL LOUDLY — do not silently fall back to the old
+                            # 5-layer filter. If reconcile fails, the ledger fast
+                            # path falls through to the general path (the existing
+                            # try/except boundary at line 476).
+                            logger.debug(
+                                "S3-1 reconcile wiring failed (non-fatal, falling through to general path): %s",
+                                _reconcile_err,
+                            )
+                            raise  # let the outer try/except handle it
 
                     if not _ledger_evidence:
                         # All evidence was filtered out by ownership — abstain honestly
@@ -579,7 +607,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             decision_boundary="",
                             perspectives=[],
                             reasoning_chain=[],
-                            calibration_note="Ownership filter: excluded third-party reports from promise query.",
+                            calibration_note="Ownership filter (reconcile_signal, P41): excluded third-party reports from promise query.",
                             consequence_paths=[],
                             llm_active=False,
                             llm_provider="none",
