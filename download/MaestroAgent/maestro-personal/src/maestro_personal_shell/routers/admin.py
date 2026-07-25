@@ -482,20 +482,21 @@ async def purge_real_gmail_from_demo(token: str = ""):
     db.row_factory = sqlite3.Row
 
     try:
-        demo_email = "bootstrap@maestro.local"
+        demo_emails = ["bootstrap@maestro.local", "default@personal.local", "bootstrap"]
 
-        # Find all Gmail-derived signals on the demo account
+        # Find all Gmail-derived signals on the demo account(s)
+        placeholders_emails = ",".join("?" * len(demo_emails))
         gmail_rows = db.execute(
-            """SELECT signal_id, user_email, entity, text FROM signals
-               WHERE user_email = ? AND (
+            f"""SELECT signal_id, user_email, entity, text FROM signals
+               WHERE user_email IN ({placeholders_emails}) AND (
                    metadata LIKE '%gmail%' OR signal_id LIKE 'conn_gmail_%'
                    OR metadata LIKE '%source\":\"gmail%'
                )""",
-            (demo_email,),
+            demo_emails,
         ).fetchall()
 
         total_before = db.execute(
-            "SELECT COUNT(*) FROM signals WHERE user_email = ?", (demo_email,)
+            f"SELECT COUNT(*) FROM signals WHERE user_email IN ({placeholders_emails})", demo_emails
         ).fetchone()[0]
 
         if gmail_rows:
@@ -525,23 +526,23 @@ async def purge_real_gmail_from_demo(token: str = ""):
                 pass
             db.commit()
 
-        # Also delete the Gmail connector token for the demo account
+        # Also delete the Gmail connector token for the demo account(s)
         try:
             db.execute(
-                "DELETE FROM connector_tokens WHERE user_email = ? AND provider = 'gmail'",
-                (demo_email,),
+                f"DELETE FROM connector_tokens WHERE user_email IN ({placeholders_emails}) AND provider = 'gmail'",
+                demo_emails,
             )
             db.commit()
         except Exception:
             pass  # table may not exist
 
         total_after = db.execute(
-            "SELECT COUNT(*) FROM signals WHERE user_email = ?", (demo_email,)
+            f"SELECT COUNT(*) FROM signals WHERE user_email IN ({placeholders_emails})", demo_emails
         ).fetchone()[0]
 
         return {
             "action": "purge_real_gmail_from_demo",
-            "demo_email": demo_email,
+            "demo_email": ", ".join(demo_emails),
             "gmail_signals_found": len(gmail_rows),
             "gmail_signals_deleted": len(gmail_rows),
             "total_signals_before": total_before,
