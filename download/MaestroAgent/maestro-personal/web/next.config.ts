@@ -51,6 +51,34 @@ const nextConfig: NextConfig = {
         source: "/ws/:path*",
         destination: `${backendUrl}/ws/:path*`,
       },
+      // F-14 (seventh audit): SPA routing — all client-side routes resolve
+      // to the main page so /ask, /commitments, /login, /today, /dashboard
+      // don't 404. The app uses tab-based navigation, so these URLs should
+      // load the app shell and let the client-side router handle the tab.
+      {
+        source: "/ask",
+        destination: "/",
+      },
+      {
+        source: "/commitments",
+        destination: "/",
+      },
+      {
+        source: "/login",
+        destination: "/",
+      },
+      {
+        source: "/today",
+        destination: "/",
+      },
+      {
+        source: "/dashboard",
+        destination: "/",
+      },
+      {
+        source: "/more",
+        destination: "/",
+      },
     ];
   },
 };

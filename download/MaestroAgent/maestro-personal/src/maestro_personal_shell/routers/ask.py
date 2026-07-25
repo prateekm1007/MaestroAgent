@@ -394,7 +394,9 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     source_timestamp="",
                     situation_state="",
                     evidence_refs=_ledger_evidence,
-                    confidence=0.95,
+                    # P64 (seventh audit): honest confidence, not uniform 0.95.
+                    # Base on evidence count + type + staleness.
+                    confidence=min(0.85, 0.5 + 0.1 * len(_ledger_evidence)) if _ledger_evidence else 0.0,
                     counterevidence=[],
                     unknowns=[],
                     as_of=str(as_of or ""),
@@ -3889,6 +3891,36 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
 
     async def generate():
         shell = build_shell(user_email=token)
+
+        # F-07 (seventh audit): Multi-turn session memory for the STREAMING path.
+        # The synchronous /api/ask has pronoun resolution + entity augmentation,
+        # but the streaming path skipped it entirely. Fix: apply the same
+        # session-based augmentation here so "When is that due?" after a Maria
+        # question resolves to Maria in the stream too.
+        _stream_prior_entity = ""
+        if req.session_id:
+            _stream_turns = _ask_sessions.get(req.session_id, [])
+            if _stream_turns:
+                _stream_prior_entity = _stream_turns[-1].get("entity", "")
+                # Augment pronoun follow-ups with the prior entity
+                _stream_q_lower = req.query.lower().strip()
+                _stream_pronouns = {"that", "it", "this", "those", "these"}
+                _stream_has_pronoun = any(
+                    tok in _stream_pronouns for tok in _stream_q_lower.split()
+                )
+                if _stream_prior_entity and (_stream_has_pronoun or len(req.query.split()) <= 6):
+                    # Check if query already names an entity
+                    _stream_words = req.query.split()
+                    _stream_has_entity = False
+                    for _w in _stream_words[1:]:
+                        if _re.match(r'^[A-Z][a-z]{2,}$', _w):
+                            _stream_has_entity = True
+                            break
+                    if not _stream_has_entity:
+                        req.query = f"{req.query} {_stream_prior_entity}"
+                        logger.info("F-07 stream: augmented with prior entity '%s' → '%s'",
+                                    _stream_prior_entity, req.query[:80])
+
         from maestro_personal_shell.surfaces.ask import AskSurface
         surface = AskSurface(shell=shell)
         result = surface.ask(req.query)
@@ -3923,6 +3955,19 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
         # P36: evidence must pass entity consistency checks.
 
         if not matching_situation:
+            # F-07: still save the session turn (with the augmented entity)
+            if req.session_id:
+                import time as _time_nomatch
+                turns = _ask_sessions.get(req.session_id, [])
+                turns.append({
+                    "q": req.query,
+                    "a": rule_based_answer[:200],
+                    "entity": _stream_prior_entity or "",
+                    "ts": _time_nomatch.time(),
+                })
+                if len(turns) > _MAX_SESSION_TURNS:
+                    turns = turns[-_MAX_SESSION_TURNS:]
+                _ask_sessions[req.session_id] = turns
             yield f"data: {json.dumps({'chunk': rule_based_answer, 'llm_active': False})}\n\n"
             yield "data: [DONE]\n\n"
             return
@@ -3984,7 +4029,28 @@ Answer the user's question based ONLY on the evidence above."""
             yield f"data: {json.dumps({'chunk': chunk})}\n\n"
 
         if not full_answer.strip():
+            full_answer = rule_based_answer
             yield f"data: {json.dumps({'chunk': rule_based_answer, 'fallback': True})}\n\n"
+
+        # F-07: Save the session turn so Turn 3 has Turn 2's context.
+        # Use the matching situation's entity (or the prior entity if no match).
+        if req.session_id:
+            import time as _time_stream_save
+            _stream_entity = ""
+            if matching_situation:
+                _stream_entity = str(getattr(matching_situation, "entity", "") or "")
+            if not _stream_entity:
+                _stream_entity = _stream_prior_entity or ""
+            turns = _ask_sessions.get(req.session_id, [])
+            turns.append({
+                "q": req.query,
+                "a": full_answer[:200],
+                "entity": _stream_entity,
+                "ts": _time_stream_save.time(),
+            })
+            if len(turns) > _MAX_SESSION_TURNS:
+                turns = turns[-_MAX_SESSION_TURNS:]
+            _ask_sessions[req.session_id] = turns
 
         yield "data: [DONE]\n\n"
 
