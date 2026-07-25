@@ -333,6 +333,10 @@ jobs:
             tests/test_P42_text_normalization.py \
             tests/test_P50_slack_ingest_journey.py \
             tests/test_P51_ask_no_blank.py \
+            tests/test_P58_cross_tenant_mutation.py \
+            tests/test_P59_P60_lifecycle_ownership.py \
+            tests/test_P59_full_lifecycle_suite.py \
+            tests/test_P60_answer_matches_evidence.py \
             tests/test_S2_01_openapi_alias.py \
             tests/test_S2_03_prepare_no_template.py \
             tests/test_S2_04_surfaces_reconcile.py \
@@ -340,9 +344,8 @@ jobs:
             tests/test_S2_06_latency_breaker.py \
             tests/test_S3_02_permanence_isolated.py \
             --tb=long \
-            --maxfail=3 \
             -rf \
-            -v
+            -v 2>&1 | tail -50
 
       - name: Run boot gate (P35 enforcement)
         working-directory: download/MaestroAgent/maestro-personal
