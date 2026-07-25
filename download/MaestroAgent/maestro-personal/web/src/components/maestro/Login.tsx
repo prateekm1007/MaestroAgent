@@ -45,16 +45,29 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
   }, []);
 
   useEffect(() => {
-    let alive = false;
-    checkHealth().then(async (ok) => {
-      alive = ok;
-      setHealth(ok ? "live" : "demo");
-      const { data } = await maestroApi.getLlmStatus();
-      if (!alive) setLlm(data);
-      else setLlm(data);
-    });
+    // K3-UI-002 fix (2026-07-25): the old code used `alive` as both a
+    // cancellation flag AND a health-value carrier, with an inverted unmount
+    // guard (cleanup set it to `true` instead of `false`). The two branches
+    // (if (!alive) / else) were also identical. Fixed: separate `cancelled`
+    // flag, single setLlm call, and .catch for rejection safety.
+    let cancelled = false;
+    checkHealth()
+      .then(async (ok) => {
+        if (cancelled) return;
+        setHealth(ok ? "live" : "demo");
+        try {
+          const { data } = await maestroApi.getLlmStatus();
+          if (cancelled) return;
+          setLlm(data);
+        } catch {
+          if (!cancelled) setLlm(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHealth("demo");
+      });
     return () => {
-      alive = true;
+      cancelled = true;
     };
   }, []);
 
