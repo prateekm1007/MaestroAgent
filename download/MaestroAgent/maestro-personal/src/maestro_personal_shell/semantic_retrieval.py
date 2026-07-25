@@ -1,4 +1,11 @@
-"""Semantic retrieval — FTS5-backed BM25 ranking for signals."""
+"""Semantic retrieval — FTS5-backed BM25 ranking for signals.
+
+K3-DATA-003 / TICKET-13 fix (2026-07-25): Postgres-compatible. When
+MAESTRO_DATABASE_URL is set to a postgresql:// URL, the module uses
+Postgres tsvector + ts_rank + plainto_tsquery instead of SQLite FTS5.
+The public API (init_fts_index, index_signal, search_signals_fts) is
+identical — callers don't need to know which backend is active.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +18,7 @@ from typing import Any
 from pathlib import Path
 
 # P1-3 fix: shared DB connection helper with busy_timeout + WAL mode
-from maestro_personal_shell.db_util import get_db_conn
+from maestro_personal_shell.db_util import get_db_conn, _is_postgres
 
 logger = logging.getLogger(__name__)
 
@@ -86,31 +93,64 @@ def _get_db_path() -> str:
 
 
 def init_fts_index(db_path: str | None = None) -> None:
-    """Initialize the FTS5 virtual table for semantic signal search.
+    """Initialize the FTS index for semantic signal search.
 
-    Creates a virtual table that mirrors the signals table and supports
-    BM25-ranked full-text search over entity + text + signal_type.
+    K3-DATA-003 fix (2026-07-25): backend-aware.
+    - SQLite: creates a virtual table using FTS5 (CREATE VIRTUAL TABLE).
+    - Postgres: adds a tsvector column + GIN index to the signals table.
     """
     path = db_path or _get_db_path()
     conn = get_db_conn(path)
     try:
-        # FTS5 virtual table — stores a search index alongside the main signals table
-        conn.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS signals_fts
-            USING fts5(
-                signal_id UNINDEXED,
-                entity,
-                text,
-                signal_type,
-                user_email UNINDEXED,
-                timestamp UNINDEXED,
-                tokenize = 'porter unicode61'
-            )
-        """)
-        conn.commit()
+        if _is_postgres():
+            # Postgres: add a tsvector column + GIN index to the signals table.
+            # The tsvector indexes entity + text + signal_type for BM25-style ranking.
+            # ADD COLUMN IF NOT EXISTS is Postgres 9.6+.
+            try:
+                conn.execute("""
+                    ALTER TABLE signals
+                    ADD COLUMN IF NOT EXISTS search_vector tsvector
+                """)
+            except Exception:
+                pass  # older Postgres or already exists
+            try:
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS signals_search_vector_idx
+                    ON signals USING gin(search_vector)
+                """)
+            except Exception:
+                pass
+            # Populate the tsvector for any existing rows (UPDATE triggers on INSERT/UPDATE
+            # are added by index_signal — here we just backfill existing rows).
+            try:
+                conn.execute("""
+                    UPDATE signals SET search_vector =
+                        to_tsvector('english', coalesce(entity, '') || ' ' || coalesce(text, '') || ' ' || coalesce(signal_type, ''))
+                    WHERE search_vector IS NULL
+                """)
+            except Exception as e:
+                logger.debug("Postgres FTS backfill skipped: %s", e)
+            conn.commit()
+        else:
+            # SQLite: FTS5 virtual table
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS signals_fts
+                USING fts5(
+                    signal_id UNINDEXED,
+                    entity,
+                    text,
+                    signal_type,
+                    user_email UNINDEXED,
+                    timestamp UNINDEXED,
+                    tokenize = 'porter unicode61'
+                )
+            """)
+            conn.commit()
     except sqlite3.OperationalError as e:
         # FTS5 not available in this SQLite build — graceful fallback
         logger.warning("FTS5 not available, semantic search disabled: %s", e)
+    except Exception as e:
+        logger.warning("FTS index initialization failed: %s", e)
     finally:
         conn.close()
 
@@ -119,25 +159,48 @@ def index_signal(signal: dict[str, Any], db_path: str | None = None) -> None:
     """Add or update a signal in the FTS index.
 
     Call this whenever a signal is saved to the main signals table.
+
+    K3-DATA-003 fix: backend-aware.
+    - SQLite: INSERT into signals_fts virtual table.
+    - Postgres: UPDATE the search_vector tsvector column on the signals row.
     """
     path = db_path or _get_db_path()
     conn = get_db_conn(path)
     try:
-        # Remove existing entry for this signal_id (if re-indexing)
-        conn.execute("DELETE FROM signals_fts WHERE signal_id = ?", (signal["signal_id"],))
-        conn.execute("""
-            INSERT INTO signals_fts (signal_id, entity, text, signal_type, user_email, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            signal["signal_id"],
-            signal.get("entity", ""),
-            signal.get("text", ""),
-            signal.get("signal_type", ""),
-            signal.get("user_email", "bootstrap"),
-            signal.get("timestamp", datetime.now(timezone.utc).isoformat()),
-        ))
-        conn.commit()
+        if _is_postgres():
+            # Postgres: update the search_vector column on the existing signals row.
+            # The signal must already be INSERTed into the signals table; this just
+            # populates the tsvector for BM25-style search.
+            conn.execute("""
+                UPDATE signals SET search_vector =
+                    to_tsvector('english', coalesce(%s, '') || ' ' || coalesce(%s, '') || ' ' || coalesce(%s, ''))
+                WHERE signal_id = %s
+            """, (
+                signal.get("entity", ""),
+                signal.get("text", ""),
+                signal.get("signal_type", ""),
+                signal["signal_id"],
+            ))
+            conn.commit()
+        else:
+            # SQLite: INSERT into the FTS5 virtual table
+            # Remove existing entry for this signal_id (if re-indexing)
+            conn.execute("DELETE FROM signals_fts WHERE signal_id = ?", (signal["signal_id"],))
+            conn.execute("""
+                INSERT INTO signals_fts (signal_id, entity, text, signal_type, user_email, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                signal["signal_id"],
+                signal.get("entity", ""),
+                signal.get("text", ""),
+                signal.get("signal_type", ""),
+                signal.get("user_email", "bootstrap"),
+                signal.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            ))
+            conn.commit()
     except sqlite3.OperationalError as e:
+        logger.debug("FTS index failed: %s", e)
+    except Exception as e:
         logger.debug("FTS index failed: %s", e)
     finally:
         conn.close()
@@ -147,13 +210,37 @@ def rebuild_fts_index(db_path: str | None = None, user_email: str | None = None)
     """Rebuild the FTS index from the main signals table.
 
     Returns the number of signals indexed.
+
+    K3-DATA-003 fix: backend-aware.
+    - SQLite: DELETE + INSERT into signals_fts virtual table.
+    - Postgres: UPDATE search_vector on all rows in the signals table.
     """
     path = db_path or _get_db_path()
     init_fts_index(path)
     conn = get_db_conn(path)
-    conn.row_factory = sqlite3.Row
+    if not _is_postgres():
+        conn.row_factory = sqlite3.Row
     try:
-        # Clear existing index
+        if _is_postgres():
+            # Postgres: recompute search_vector for all matching rows
+            if user_email:
+                conn.execute("""
+                    UPDATE signals SET search_vector =
+                        to_tsvector('english', coalesce(entity, '') || ' ' || coalesce(text, '') || ' ' || coalesce(signal_type, ''))
+                    WHERE user_email = %s
+                """, (user_email,))
+                count = conn.execute("SELECT COUNT(*) FROM signals WHERE user_email = %s", (user_email,)).fetchone()[0]
+            else:
+                conn.execute("""
+                    UPDATE signals SET search_vector =
+                        to_tsvector('english', coalesce(entity, '') || ' ' || coalesce(text, '') || ' ' || coalesce(signal_type, ''))
+                """)
+                count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+            conn.commit()
+            logger.info("Rebuilt Postgres FTS index: %d signals", count)
+            return count
+
+        # SQLite: clear + re-insert into FTS5 virtual table
         conn.execute("DELETE FROM signals_fts")
 
         # Load all signals from main table
@@ -187,6 +274,9 @@ def rebuild_fts_index(db_path: str | None = None, user_email: str | None = None)
     except sqlite3.OperationalError as e:
         logger.warning("FTS rebuild failed: %s", e)
         return 0
+    except Exception as e:
+        logger.warning("FTS rebuild failed: %s", e)
+        return 0
     finally:
         conn.close()
 
@@ -197,60 +287,88 @@ def semantic_search(
     limit: int = 10,
     db_path: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Search signals by semantic relevance using BM25 ranking."""
+    """Search signals by semantic relevance using BM25 ranking.
+
+    K3-DATA-003 fix: backend-aware.
+    - SQLite: FTS5 MATCH + bm25() function.
+    - Postgres: tsvector @@ plainto_tsquery + ts_rank() function.
+    """
     path = db_path or _get_db_path()
     init_fts_index(path)
 
     # Sanitize the natural-language query into a safe FTS5 MATCH expression.
-    # Without this, raw questions like "What did Maria review?" raise
-    # `fts5: syntax error near "?"` (caught below as 0 rows), which silently
-    # starves the ask_ranker of candidates so it never fires.
     fts_query = _build_fts_query(query)
     if not fts_query:
         # No content-bearing tokens — let the caller's LIKE fallback handle it.
         return []
 
     conn = get_db_conn(path)
-    conn.row_factory = sqlite3.Row
+    if not _is_postgres():
+        conn.row_factory = sqlite3.Row
     try:
-        # BM25-ranked search via FTS5.
-        # P1-BreakingPoint: increase limit 10x so the ranker has enough
-        # real signals to find after filtering out noise. At 5000+ noise
-        # signals, the default limit of 10 might return ALL noise.
         effective_limit = limit * 10
-        # Returns signal_id + relevance score from FTS, then looks up
-        # full signal data from the main signals table (source of truth).
-        if user_email:
-            fts_rows = conn.execute(
-                """
-                SELECT signal_id, bm25(signals_fts) as relevance_score
-                FROM signals_fts
-                WHERE signals_fts MATCH ? AND user_email = ?
-                ORDER BY relevance_score
-                LIMIT ?
-                """,
-                (fts_query, user_email, effective_limit),
-            ).fetchall()
+
+        if _is_postgres():
+            # Postgres: use the search_vector tsvector column on the signals table.
+            # plainto_tsquery handles natural-language input safely (no FTS5 syntax).
+            # ts_rank returns a relevance score (higher = more relevant, unlike bm25
+            # which is lower = more relevant — we handle the ORDER BY direction below).
+            if user_email:
+                fts_rows = conn.execute(
+                    """
+                    SELECT signal_id, ts_rank(search_vector, plainto_tsquery('english', %s)) as relevance_score
+                    FROM signals
+                    WHERE search_vector @@ plainto_tsquery('english', %s) AND user_email = %s
+                    ORDER BY relevance_score DESC
+                    LIMIT %s
+                    """,
+                    (query, query, user_email, effective_limit),
+                ).fetchall()
+            else:
+                fts_rows = conn.execute(
+                    """
+                    SELECT signal_id, ts_rank(search_vector, plainto_tsquery('english', %s)) as relevance_score
+                    FROM signals
+                    WHERE search_vector @@ plainto_tsquery('english', %s)
+                    ORDER BY relevance_score DESC
+                    LIMIT %s
+                    """,
+                    (query, query, effective_limit),
+                ).fetchall()
         else:
-            fts_rows = conn.execute(
-                """
-                SELECT signal_id, bm25(signals_fts) as relevance_score
-                FROM signals_fts
-                WHERE signals_fts MATCH ?
-                ORDER BY relevance_score
-                LIMIT ?
-                """,
-                (fts_query, effective_limit),
-            ).fetchall()
+            # SQLite: FTS5 MATCH + bm25()
+            if user_email:
+                fts_rows = conn.execute(
+                    """
+                    SELECT signal_id, bm25(signals_fts) as relevance_score
+                    FROM signals_fts
+                    WHERE signals_fts MATCH ? AND user_email = ?
+                    ORDER BY relevance_score
+                    LIMIT ?
+                    """,
+                    (fts_query, user_email, effective_limit),
+                ).fetchall()
+            else:
+                fts_rows = conn.execute(
+                    """
+                    SELECT signal_id, bm25(signals_fts) as relevance_score
+                    FROM signals_fts
+                    WHERE signals_fts MATCH ?
+                    ORDER BY relevance_score
+                    LIMIT ?
+                    """,
+                    (fts_query, effective_limit),
+                ).fetchall()
 
         if not fts_rows:
             return []
 
         # Look up full signal data from the main signals table.
-        # If the signal isn't in the main table (test-only), fall back
-        # to querying FTS directly for that signal_id.
         signal_ids = [r["signal_id"] for r in fts_rows]
-        placeholders = ",".join("?" * len(signal_ids))
+        if _is_postgres():
+            placeholders = ",".join(["%s"] * len(signal_ids))
+        else:
+            placeholders = ",".join(["?"] * len(signal_ids))
 
         try:
             main_rows = conn.execute(
