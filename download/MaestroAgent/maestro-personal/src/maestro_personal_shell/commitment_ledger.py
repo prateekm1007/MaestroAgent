@@ -131,6 +131,15 @@ def upsert_ledger_entry(
     if classification.get("is_commitment") is False or ctype == "not_a_commitment":
         return None
 
+    signal_id = str(signal.get("signal_id", ""))
+    if not signal_id:
+        return None
+
+    target_state = classification.get("state", "candidate")
+    # Sanity: never insert an unknown state.
+    if target_state not in LEGAL_TRANSITIONS:
+        target_state = "candidate"
+
     # TICKET-1/P64 (seventh audit): RESOLUTION SIGNALS MUST NOT CREATE
     # DUPLICATE LEDGER ROWS. A completion/cancellation/broken signal is a
     # STATE TRANSITION on an existing active commitment, not a new commitment.
@@ -145,6 +154,8 @@ def upsert_ledger_entry(
     # transition it IN PLACE. Do NOT insert a new row. The signal is stored
     # in the signals table (as evidence) but the ledger has ONE row per
     # real-world commitment, with its state transitioning over time.
+    conn = get_db_conn(db_path)
+    conn.row_factory = sqlite3.Row
     _RESOLUTION_STATES = {"completed_claimed", "completed_verified", "cancelled", "broken"}
     if target_state in _RESOLUTION_STATES:
         entity = signal.get("entity", "")
@@ -171,6 +182,7 @@ def upsert_ledger_entry(
                     "SELECT * FROM commitments_ledger WHERE ledger_id = ?",
                     (active_entry["ledger_id"],),
                 ).fetchone()
+                conn.close()
                 return dict(row) if row else None
             # If no active entry found, fall through to insert (the resolution
             # signal has no commitment to resolve — rare but possible)
@@ -180,18 +192,8 @@ def upsert_ledger_entry(
                 signal_id[:20], entity, target_state,
             )
 
-    signal_id = str(signal.get("signal_id", ""))
-    if not signal_id:
-        return None
-
     now = datetime.now(timezone.utc).isoformat()
-    target_state = classification.get("state", "candidate")
-    # Sanity: never insert an unknown state.
-    if target_state not in LEGAL_TRANSITIONS:
-        target_state = "candidate"
 
-    conn = get_db_conn(db_path)
-    conn.row_factory = sqlite3.Row
     try:
         existing = conn.execute(
             "SELECT * FROM commitments_ledger WHERE signal_id = ?",
