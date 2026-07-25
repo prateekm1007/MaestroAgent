@@ -945,7 +945,6 @@ from maestro_personal_shell.routers import (
     ask as _ask_router,
     commitments as _commitments_router,
     signals as _signals_router,
-    copilot as _copilot_router,
     connectors as _connectors_router,
     account as _account_router,
     surfaces as _surfaces_router,
@@ -961,7 +960,6 @@ app.include_router(_signals_router.router)
 # mounted. This drops the OpenAPI path count from 98 to ~84 and removes a
 # major source of "wide-but-hollow" API surface that the auditor flagged.
 # To re-enable: uncomment the next line.
-# app.include_router(_copilot_router.router)
 app.include_router(_connectors_router.router)
 app.include_router(_account_router.router)
 app.include_router(_surfaces_router.router)
