@@ -6,7 +6,7 @@ WORKDIR /build
 # Declaring ARG without using it does nothing — that was the prior bug.
 ARG CACHEBUST
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ libffi-dev libssl-dev && rm -rf /var/lib/apt/lists/*
+    gcc g++ libffi-dev libssl-dev libpq-dev && rm -rf /var/lib/apt/lists/*
 
 # Copy source. The maestro-personal/src/ goes to /build/src/ (for pip install).
 # The 4 used backend modules go to /build/src/ too (PYTHONPATH=/app/src at runtime).
@@ -37,7 +37,7 @@ RUN grep "MAESTRO_VERSION" /build/src/maestro_personal_shell/routers/admin.py &&
 # pyproject.toml, but listing them here guarantees the install layer hash changes
 # when the build-arg changes (CACHEBUST echoed into the layer).
 RUN echo "CACHEBUST=${CACHEBUST:-unset}" && \
-    pip install --no-cache-dir "." "sqlalchemy>=2.0" "email-validator>=2.0" "slowapi>=0.1.9" "google-api-python-client>=2.100.0" "google-auth-oauthlib>=1.1.0" "google-auth-httplib2>=0.2.0"
+    pip install --no-cache-dir "." "sqlalchemy>=2.0" "email-validator>=2.0" "slowapi>=0.1.9" "google-api-python-client>=2.100.0" "google-auth-oauthlib>=1.1.0" "google-auth-httplib2>=0.2.0" "psycopg2-binary>=2.9.9"
 
 # Final stage — fresh image, no cache possible
 FROM python:3.12-slim

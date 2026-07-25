@@ -24,6 +24,8 @@ dependencies = [
     "google-api-python-client>=2.100.0",
     "google-auth-oauthlib>=1.1.0",
     "google-auth-httplib2>=0.2.0",
+    # TICKET-13: Postgres backend support (db_util.py PostgresConnection)
+    "psycopg2-binary>=2.9.9",
 ]
 
 [project.optional-dependencies]
