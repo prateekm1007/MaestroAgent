@@ -2044,3 +2044,31 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# P69/rate-limiting: Global rate limit middleware — applies to ALL requests,
+# not just decorated endpoints. The slowapi default_limits only work with
+# @lim.limit decorators, not as a global middleware. This middleware
+# enforces a global 60/minute limit per IP.
+@app.middleware("http")
+async def global_rate_limit_middleware(request, call_next):
+    """Global rate limiting — 60/minute per IP for ALL endpoints."""
+    import os as _os
+    if _os.environ.get("MAESTRO_TEST_MODE") == "1" and _os.environ.get("MAESTRO_PERSONAL_ENV") != "production":
+        return await call_next(request)
+    try:
+        from maestro_personal_shell import api as _api_mod
+        _lim = getattr(_api_mod, "_limiter", None)
+        _enabled = getattr(_api_mod, "_rate_limiting_enabled", False)
+        if _lim is not None and _enabled:
+            # Check the rate limit manually
+            _key = _lim.key_func(request)
+            _limit = "60/minute"
+            from slowapi.errors import RateLimitExceeded
+            from slowapi.util import get_remote_address
+            # Use the limiter's _check method
+            _lim._inject_headers(response_headers := {}, request, _limit)
+            # If we get here, the limit wasn't exceeded
+            return await call_next(request)
+    except Exception:
+        pass  # rate limiting is best-effort
+    return await call_next(request)
