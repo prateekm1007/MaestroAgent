@@ -446,3 +446,108 @@ async def reclassify_ledger(authorization: str = Header(None)):
         }
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# F-04/P61 (sixth audit): Purge REAL Gmail-derived signals from the shared
+# demo account. The demo must be synthetic-only — no real person's bank mail.
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/purge-real-gmail-from-demo")
+async def purge_real_gmail_from_demo(token: str = ""):
+    """Purge real Gmail-derived signals from the demo account (F-04/P61).
+
+    The shared demo (bootstrap@maestro.local) must be synthetic-only. This
+    endpoint removes all signals with source containing 'gmail' or signal_id
+    starting with 'conn_gmail_' from the demo user ONLY. Real user data on
+    other accounts is never touched.
+
+    Also disconnects the Gmail connector from the demo account to prevent
+    re-ingestion on next sync.
+
+    Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level).
+    """
+    import sqlite3
+    import json
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from fastapi import HTTPException
+    import os
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    db = get_db_conn(db_path)
+    db.row_factory = sqlite3.Row
+
+    try:
+        demo_email = "bootstrap@maestro.local"
+
+        # Find all Gmail-derived signals on the demo account
+        gmail_rows = db.execute(
+            """SELECT signal_id, user_email, entity, text FROM signals
+               WHERE user_email = ? AND (
+                   metadata LIKE '%gmail%' OR signal_id LIKE 'conn_gmail_%'
+                   OR metadata LIKE '%source\":\"gmail%'
+               )""",
+            (demo_email,),
+        ).fetchall()
+
+        total_before = db.execute(
+            "SELECT COUNT(*) FROM signals WHERE user_email = ?", (demo_email,)
+        ).fetchone()[0]
+
+        if gmail_rows:
+            signal_ids = [row["signal_id"] for row in gmail_rows]
+            placeholders = ",".join("?" * len(signal_ids))
+
+            # Delete from signals
+            db.execute(
+                f"DELETE FROM signals WHERE signal_id IN ({placeholders})",
+                signal_ids,
+            )
+            # Delete from FTS
+            try:
+                db.execute(
+                    f"DELETE FROM signals_fts WHERE signal_id IN ({placeholders})",
+                    signal_ids,
+                )
+            except Exception:
+                pass
+            # Delete from ledger
+            try:
+                db.execute(
+                    f"DELETE FROM commitments_ledger WHERE signal_id IN ({placeholders})",
+                    signal_ids,
+                )
+            except Exception:
+                pass
+            db.commit()
+
+        # Also delete the Gmail connector token for the demo account
+        try:
+            db.execute(
+                "DELETE FROM connector_tokens WHERE user_email = ? AND provider = 'gmail'",
+                (demo_email,),
+            )
+            db.commit()
+        except Exception:
+            pass  # table may not exist
+
+        total_after = db.execute(
+            "SELECT COUNT(*) FROM signals WHERE user_email = ?", (demo_email,)
+        ).fetchone()[0]
+
+        return {
+            "action": "purge_real_gmail_from_demo",
+            "demo_email": demo_email,
+            "gmail_signals_found": len(gmail_rows),
+            "gmail_signals_deleted": len(gmail_rows),
+            "total_signals_before": total_before,
+            "total_signals_after": total_after,
+            "gmail_connector_disconnected": True,
+            "governance": "F-04/P61: demo is now synthetic-only — no real Gmail signals",
+        }
+    finally:
+        db.close()

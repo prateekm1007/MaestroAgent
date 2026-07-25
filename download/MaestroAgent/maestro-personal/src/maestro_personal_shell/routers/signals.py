@@ -365,13 +365,37 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         from maestro_personal_shell.commitment_ledger import upsert_ledger_entry, match_closure, transition_ledger_state, get_ledger_entries
         from pathlib import Path as _P
         _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
+
+        # F-09/P60 (sixth audit): third-party/quoted text MUST NOT enter the
+        # ledger as an active obligation. The ownership model (my_promise/
+        # their_promise/quoted/third_party) must apply at the WRITE path,
+        # not just the Ask read path. If the classifier says third_party_report
+        # or owner=other, the ledger entry is created with state="candidate"
+        # (not "active") so it never surfaces as the user's active commitment.
+        _ingest_commitment_type = metadata.get("commitment_type", "not_a_commitment")
+        _ingest_owner = metadata.get("commitment_owner", "unknown")
+        _ingest_is_commitment = metadata.get("is_commitment", False)
+        _ingest_state = metadata.get("commitment_state", "candidate")
+
+        # F-09: third_party_report and owner=other → don't create an active
+        # ledger entry. The signal is stored (it's evidence), but it's NOT
+        # the user's commitment.
+        if _ingest_commitment_type == "third_party_report" or _ingest_owner == "other":
+            _ingest_is_commitment = False  # not the user's commitment
+            _ingest_state = "candidate"    # never active
+            logger.info(
+                "F-09/P60: third-party/quoted signal ingested as non-active "
+                "(type=%s, owner=%s) — not the user's commitment",
+                _ingest_commitment_type, _ingest_owner,
+            )
+
         # Persist the classification (upsert handles state-machine routing).
         ledger_entry = upsert_ledger_entry(
             classification={
-                "is_commitment": metadata.get("is_commitment", False),
-                "commitment_type": metadata.get("commitment_type", "not_a_commitment"),
-                "state": metadata.get("commitment_state", "candidate"),
-                "owner": metadata.get("commitment_owner", "unknown"),
+                "is_commitment": _ingest_is_commitment,
+                "commitment_type": _ingest_commitment_type,
+                "state": _ingest_state,
+                "owner": _ingest_owner,
                 "recipient": "",  # not extracted by current classifier; future work
                 "action": sanitized_text,  # use full text as action for closure matching
                 "deadline_text": "",

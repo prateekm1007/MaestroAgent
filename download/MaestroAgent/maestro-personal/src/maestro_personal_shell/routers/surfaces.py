@@ -732,9 +732,24 @@ async def get_briefing(token: str = Depends(verify_token_dep)):
                         is_noise = True
                         break
             if not is_noise:
-                noise_name_patterns = ("newsletter", "news corp", "digest", "fyi", "notification")
+                # F-05 (sixth audit): expanded noise patterns — newsletters,
+                # promo senders, marketing, and known newsletter brands must
+                # never rank above a human obligation in the top situation.
+                noise_name_patterns = ("newsletter", "news corp", "digest", "fyi", "notification",
+                                       "the athletic", "athletic", "substack", "medium",
+                                       "hacker news", "product hunt", "techcrunch",
+                                       "promotional", "no-reply", "noreply", "do not reply",
+                                       "unsubscribe", "mailing list", "mailinglist")
                 if any(pat in top_entity for pat in noise_name_patterns):
                     is_noise = True
+                # F-05: also check the title
+                if not is_noise and any(pat in top_title for pat in noise_name_patterns):
+                    is_noise = True
+                # F-05: marketing sender patterns (all-caps TEAM, NOTIFICATIONS, etc.)
+                if not is_noise:
+                    _entity_upper = top_entity.upper()
+                    if any(kw in _entity_upper for kw in ("TEAM", "NOTIFICATIONS", "NO-REPLY", "NOREPLY", "UPDATES", "DIGEST")):
+                        is_noise = True
             # Also check the title directly for tentative language
             if not is_noise:
                 tentative_in_title = [
@@ -814,9 +829,24 @@ async def get_evening_briefing(token: str = Depends(verify_token_dep)):
                     is_noise = True
                     break
             if not is_noise:
-                noise_name_patterns = ("newsletter", "news corp", "digest", "fyi", "notification")
+                # F-05 (sixth audit): expanded noise patterns — newsletters,
+                # promo senders, marketing, and known newsletter brands must
+                # never rank above a human obligation in the top situation.
+                noise_name_patterns = ("newsletter", "news corp", "digest", "fyi", "notification",
+                                       "the athletic", "athletic", "substack", "medium",
+                                       "hacker news", "product hunt", "techcrunch",
+                                       "promotional", "no-reply", "noreply", "do not reply",
+                                       "unsubscribe", "mailing list", "mailinglist")
                 if any(pat in top_entity for pat in noise_name_patterns):
                     is_noise = True
+                # F-05: also check the title
+                if not is_noise and any(pat in top_title for pat in noise_name_patterns):
+                    is_noise = True
+                # F-05: marketing sender patterns (all-caps TEAM, NOTIFICATIONS, etc.)
+                if not is_noise:
+                    _entity_upper = top_entity.upper()
+                    if any(kw in _entity_upper for kw in ("TEAM", "NOTIFICATIONS", "NO-REPLY", "NOREPLY", "UPDATES", "DIGEST")):
+                        is_noise = True
             if is_noise:
                 top_situation = None
 
