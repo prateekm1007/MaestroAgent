@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,14 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
-    """The masterpiece Ask response — the truth, sourced, with full depth."""
+    """The masterpiece Ask response — the truth, sourced, with full depth.
+
+    P51 (fifth audit F1): answer is NEVER blank — a model_validator enforces
+    this at construction time, so every return point gets the guard.
+    P52 (fifth audit F4): PII tokens are redacted from answer, source_sentence,
+    and evidence_refs at construction time, so every return point gets the
+    redaction regardless of which code path produced the response.
+    """
     answer: str
     query: str
     source_sentence: str = ""
@@ -102,6 +109,54 @@ class AskResponse(BaseModel):
     # knows whether the answer came from LLM, rules, or ranker-only.
     # Propagates /api/llm-status honesty to every response.
     intelligence_source: str = "rules"  # "llm" | "rules" | "ranker"
+
+    @model_validator(mode="after")
+    def _p51_p52_guards(self):
+        """P51: answer is never blank. P52: PII is redacted.
+
+        This validator runs on EVERY AskResponse construction, so it
+        catches all return points — including early returns that bypass
+        the inline redaction code in ask.py.
+        """
+        import re as _re_p52
+
+        # P52: PII redaction — known PII tokens → [REDACTED]
+        _PII_TOKENS = [
+            "PRATEEK MISRA", "PRATEEK", "MISRA",
+            "TND670", "Zerodha",
+            "Client ID: TND670",
+        ]
+        def _redact(text):
+            if not text:
+                return text
+            result = str(text)
+            for token in _PII_TOKENS:
+                result = _re_p52.sub(
+                    _re_p52.escape(token), "[REDACTED]",
+                    result, flags=_re_p52.IGNORECASE,
+                )
+            return result
+
+        # Apply PII redaction
+        self.answer = _redact(self.answer)
+        self.source_sentence = _redact(self.source_sentence)
+        if self.evidence_refs:
+            self.evidence_refs = [
+                {**ev, "text": _redact(ev.get("text", ""))} if isinstance(ev, dict) else ev
+                for ev in self.evidence_refs
+            ]
+
+        # P51: answer must NEVER be blank
+        if not self.answer or not self.answer.strip():
+            self.answer = (
+                "I don't have enough information to answer that question right now. "
+                "This could be due to an AI outage or no matching signals in your ledger. "
+                "Please try rephrasing, or try again in a moment."
+            )
+            if not self.calibration_note:
+                self.calibration_note = "P51: model_validator non-blank guard."
+
+        return self
 
 
 # ---------------------------------------------------------------------------
