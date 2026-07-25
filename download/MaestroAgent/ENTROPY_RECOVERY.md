@@ -274,6 +274,18 @@ Three independent audits found the same structural gap from three different angl
 
 > **Rule:** Production reliability must be gated, not just observed. A concurrent load gate must assert zero 500/502s and a bounded p95 (e.g., < 10s under 5 concurrent). Circuit breakers, graceful fallback, and streaming must be in place. OAuth redirect defects (Calendar→Gmail) must have a redirect test. Rate limiting must be tested (rapid invalid logins → 429). Reliability is a trust property, not a performance nicety.
 
+### 41. Single source of truth for classification/ownership — derive, don't duplicate
+
+**The failure:** The 5-layer ownership trace exposed a class-level smell: the classification/ownership truth was stored in FOUR parallel places — the signal's metadata, the ledger's `commitment_type` column, the evidence dict, and the pre-built answer lines. Each copy drifted, and each drift was a layer the CTO had to chase (dont→don't, signal_id→source_signal_id, ledger never synced, evidence dict missing commitment_type, answer built before filter). The denormalization IS the bug class.
+
+> **Rule:** At read time, the answer and its evidence are DERIVED from ONE reconciled record (the signal's metadata), never assembled from parallel copies that must be re-synced after every migration. The commitment_ledger becomes a CACHED VIEW — its commitment_type column is derived from signal metadata at read time, never written independently. Build that, and the next ownership/classification fix is one change, not five. This is the structural end of the wack-a-mole the 5-layer trace exposed.
+
+### 42. Normalize text before structural matching
+
+**The failure:** The tentative filter missed "I will try to get it done, but dont count on it" because the hedge check matched "don't" but the text had "dont" — an apostrophe defeated the rules engine. Every contraction variant was being manually duplicated in every keyword list (don't AND dont, can't AND cant, I'll AND ill), which is brittle by construction.
+
+> **Rule:** Case-fold AND normalize punctuation/contractions (`don't`/`dont`, `can't`/`cant`, `I'll`/`ill`) BEFORE any hedge, keyword, or interrogative check. A rules engine that breaks on an apostrophe is brittle by construction; normalization makes the structural checks robust to trivial orthographic variation. Normalize once, check many — never duplicate contraction variants in keyword lists.
+
 ---
 
 ## PART SEVEN — THE INTEGRITY PRINCIPLES (NEW, FROM THE MODEL-ATTRIBUTION BREACH 2026-07-25)
@@ -318,6 +330,12 @@ The arc's recurring ghost — placeholder connectors, stale-frontend gates, corp
 
 > **Rule:** Keep every CI suite either green or honestly split, so red means a real regression, not Tuesday. If a suite has known-failing tests, either fix them or split them into a separate job (e.g., "backend-legacy" vs "personal-journey-gates") so a red in one doesn't train ignoring red in the other. A gate with known failures is not a gate — it's noise.
 
+### 49. Verify the served deploy state, not the workflow's claim
+
+**The failure:** The CTO reported "Deploy: FAILED (Railway did not converge)" based on the GitHub Actions Deploy workflow's convergence-check step failing. But Railway's own API showed the deploy as SUCCESS — the workflow's verification step was stricter than Railway's status and false-negatived. The CTO then spent a turn "debugging the deploy failure" when the deploy had actually succeeded. This is P46 applied to deploys: the workflow CLAIMS failure, the platform's actual status is the truth.
+
+> **Rule:** A deploy is proven by the platform's actual status (Railway `SUCCESS` + live `/api/health` returning the new SHA), not by a CI convergence-check that can false-negative. When a workflow says "deploy failed," check the platform API directly — the workflow's verification step may be stricter or buggier than the platform's own status. Report the served deploy state, not the workflow's claim.
+
 ---
 
 ## PART EIGHT — THE INGEST-JOURNEY + RESILIENCE PRINCIPLES (NEW, FROM THE FIFTH AUDIT 2026-07-25)
@@ -326,26 +344,84 @@ The arc's recurring ghost — placeholder connectors, stale-frontend gates, corp
 
 The fifth audit (independent, adversarial, from-scratch) converged on the same 🟡 the arc has held — and it found the NEXT layer of breakage: the read side is fixed (P43 ownership, P42 normalization, P41 SSOT) but the WRITE side (ingest) is still broken on messy real-ish input. Entity extraction grabs date tokens and pronouns as entities; jokes become commitments; cancellations are missed; third-party reports are undetected; the Gmail and Slack ingest paths use inconsistent taxonomies. The gold-set (2,248 cases) tested the commitment-type classifier on clean cases — but never tested entity extraction or the Slack ingest path on adversarial input. This is the gate-testing-the-component-not-the-journey pattern once more, now at the ingest layer.
 
-### 49. Gate the ingest journey, not just the classifier component (P50)
+### 50. Gate the ingest journey, not just the classifier component
 
 **The failure:** The auditor ingested new text via the Slack ingest path and found it broken: entity extraction grabs `"Friday."`, `"I'm"`, `"Audit_Test"` as entities; a joke ("conquer the moon") becomes a `commitment_made`; a cancellation is missed; third-party reports aren't detected; the taxonomy is inconsistent between Gmail and Slack paths. The reclassify migration fixed the EXISTING corpus; the gold-set tested the commitment-type classifier on CLEAN cases — but neither covered entity extraction or the Slack ingest path on adversarial input.
 
 > **Rule:** Entity extraction, classification, and ledger-write must be tested END-TO-END on messy, adversarial, real-ish input (dates, pronouns, jokes, cancellations, third-party reports, mixed Gmail/Slack formats) — not just the commitment-type classifier on clean cases. The gold-set must grow to cover entity extraction (no date/pronoun tokens as entities) and every ingest path (Gmail AND Slack) with a single consistent taxonomy. The ingest side is where the ledger is WRITTEN; if it's broken there, no amount of Ask-side fixing makes the product trustworthy.
 
-### 50. Ask never fails silently (P51)
+### 51. Ask never fails silently
 
 **The failure:** Under an LLM outage window, multiple Ask queries returned `answer:""` with all-None fields and zero user feedback. `/api/debug-llm` threw an unhandled 500. The circuit breaker (S2-6) handles SLOW (fails closed to rules after three >25s calls) — but the audit found that under DEAD (empty/500 responses), Ask returns a blank answer with no fallback and no error. The user cannot tell "Maestro found nothing" from "Maestro broke."
 
 > **Rule:** Ask must NEVER return a blank answer. On any LLM failure (timeout, 500, empty response), Ask returns an explicit, ledger-grounded answer with a clear "AI unavailable right now — here's what I know from your ledger" note — never `answer:""`. The breaker handles slow; a separate fallback handles dead. And `/api/debug-llm` must not throw an unhandled 500 — it returns a structured error. Silent empty is forbidden; it is the one unforgivable failure for a trust product.
 
-### 51. The demo is synthetic and PII-free, and the demo identity is never conflated with a real person (P52)
+### 52. The demo is synthetic and PII-free, and the demo identity is never conflated with a real person
 
 **The failure:** Logging in as `bootstrap@maestro.local` yields a server principal of `default@personal.local`, and Ask "who am I" asserts "You are PRATEEK (PRATEEK MISRA)… Zerodha Client ID TND670." The synthetic demo corpus is contaminated with Prateek's actual identity and a real brokerage client ID, which Ask then surfaces as the user's identity. A demo that leaks the founder's real PII into answers is a privacy defect and a trust-killer for any evaluator.
 
 > **Rule:** Purge real PII (names, client IDs, brokerage accounts, real email addresses) from the seed corpus. The demo principal must be a clearly-synthetic identity (e.g., "Demo User" with a synthetic email). A demo that surfaces the founder's real brokerage ID is a defect, not a fixture. The demo identity must NEVER conflate with a real person.
 
-### 52. "Trusted silence" has a floor (P53)
+### 53. "Trusted silence" has a floor
 
 **The failure:** `behavior/patterns` reports `dismissal_rate:1.0`, so The Moment returns `has_moment:false` ("user dismisses 100% of suggestions"). The "trusted silence" feature is HIDING the one feature it should surface, based on a 100%-dismissal artifact in the seed data. A first-run user sees NOTHING, which reads as "broken," not "calm."
 
 > **Rule:** Dismissal-based suppression must NEVER hide the flagship feature on a synthetic or fresh-user artifact. It requires real dismissal history (a minimum number of dismissals — e.g., 5) AND a minimum-confidence threshold below which The Moment still surfaces. A fresh user with no real dismissal history always sees The Moment. A synthetic seed corpus must not produce a 100%-dismissal artifact that suppresses the hero feature.
+
+---
+
+## PART NINE — THE MASTER + PROSE PRINCIPLES (CONSOLIDATED FROM ALL FIVE AUDITS)
+
+### The meta-failure this part reveals
+
+Across five audits, the same patterns recurred in prose before they had numbers. These are the principles that were voiced as guidance but not yet codified as enforcement — the master principle all the others serve, and three operational principles that complete the set. Part Nine codifies them so the full set P1-P57 is in one place, each earned by a specific failure.
+
+### 54. Fix the data the user sees, not just the path (THE MASTER PRINCIPLE)
+
+**The failure:** Across four audits, the same shape: the gold-set passed while the existing corpus stayed stale; the classifier was fixed for new signals but the demo still showed questions as commitments; the reclassify migration was built but not run; the P43 wiring was code-complete but the live path still ran the old filter. In every case, the PATH was fixed but the DATA THE USER READS was not.
+
+> **Rule:** A fix applied to the code path but not to the corpus the user actually reads is NOT A FIX. Every fix must reach the data the user sees — the existing corpus, the live API response, the deployed frontend. This is the root of P5 (re-classify the corpus), P35 (gate the journey), P43 (built-but-not-wired), and P50 (gate the ingest journey). If the fix doesn't reach the user's eyeballs, it's a scaffold.
+
+### 55. Report true state, never fake readiness
+
+**The failure:** Placeholder Yahoo/Microsoft credentials made `oauth_configured=True` while the OAuth flow broke on click. The probe string "KIMI_K3_VERIFIED" proved only a short call, not the engineering work. The demo banner said "DEMO" but the corpus contained real PII. In each case, a status field reported "ready" while the underlying state was placeholder, partial, or broken.
+
+> **Rule:** No placeholder, partial, or failed state ever reports as configured/connected/committed. If a credential is a placeholder, `oauth_configured=False`. If a model call timed out, the task is "NOT DONE BY KIMI K3." If the demo has real PII, the demo is "CONTAMINATED," not "ready." Report the SERVED truth — the actual state, not the wished state. This is P46 applied to every status field in the product.
+
+### 56. Rules are the authority for structure; the LLM is for nuance — and the rules hold a veto
+
+**The failure:** The Gemma runtime LLM classified a textbook question ("Will you send the report by Friday?") as a real commitment, and the product trusted the LLM over the rules classifier. The rules classifier correctly said "not_a_commitment" — but the LLM result was preferred, and the question surfaced as an active commitment. The LLM was wrong on a clear-cut structural pattern where the rules were right.
+
+> **Rule:** Deterministic rules decide clear-cut structural patterns (questions, negations, tentative hedges, third-party reports) — they are fast, free, and reliable. The LLM handles genuine ambiguity (intent, context, nuance). For NON-COMMITMENTS, the rules HOLD A VETO: if the rules say "not a commitment" and the LLM says "commitment," the rules win. The LLM may override the rules only in the direction of CAUTION (classifying a borderline commitment as tentative), never in the direction of PERMISSIVENESS (classifying a question as a commitment). The sin is trusting the LLM's permissiveness over the rules' structural correctness.
+
+### 57. Classification must be inspectable
+
+**The failure:** The API omitted classification metadata from signal responses. When a misclassification occurred, there was no way to diagnose it through the API or UI — the signal appeared as `is_commitment: true` with no visible `commitment_type`, `classification_reasoning`, or `llm_powered` flag. This contradicted the product's "inspectable memory" thesis and made every misclassification undiagnosable.
+
+> **Rule:** Every signal exposes its classification metadata through the API AND the UI: `commitment_type`, `is_commitment`, `classification_reasoning`, `llm_powered`, `confidence`, `owner`. The user can see WHY a signal was classified the way it was — not just THAT it was. A classification that can't be inspected can't be trusted, can't be corrected, and can't be audited. Inspectability is the precondition for the correction loop.
+
+---
+
+## THE FULL PRINCIPLE INDEX (P1-P57)
+
+**Part One (P1-P10):** The original coder principles — execute don't claim, test don't assume, mock don't verify, state drift, self-certify, swallow exceptions, isolation, cite rounds, defer, document misses.
+
+**Part Two (P11-P15):** The deeper coder principles — visible defaults, small surfaces, durability, component vs integration, re-application.
+
+**Part Three (P16-P19):** Call-graph scrutiny, distrust code that cites you by name, scope honesty, integration vs unit execution.
+
+**Part Four (P20-P26):** Call-site parameters, all-paths trigger, regression on production path, commit cites output, cross-surface coherence, confidence display gate, meta-enforcement.
+
+**Part Five (P27-P34):** Auditor's own failures — read assertions, test 3+ inputs, re-run canonical scenario, count comprehensiveness, run verify scripts, check all derived state, search for refutation, re-derive method.
+
+**Part Six (P35-P40):** Journey-correctness — gate the journey, deterministic entity/owner gate, typed lifecycle admission, deletion finality, no shared identity, reliability is trust.
+
+**Part Seven (P43-P49):** Integrity — built-but-not-wired, resilience≠speed, local-green is hypothesis, verify served instrument, structure delegation, red CI is not a gate, verify served deploy state.
+
+**Part Eight (P50-P53):** Ingest + resilience — gate the ingest journey, Ask never blank, PII-free demo, trusted silence floor.
+
+**Part Nine (P54-P57):** Master + prose — fix the data the user sees, report true state, rules hold a veto, classification is inspectable.
+
+---
+
+**The short version, if it must fit on a wall:** *Fix the data the user sees. Report the served truth, not the requested wish. One source of truth, derived at read time. Classify by structure with the rules holding a veto, and re-classify the corpus when the classifier changes. Never fail silently, never fake readiness, never relabel. A fix isn't done until it's wired live, green in CI on the push, and proven on the journey — not the component, not the probe, not the local run.*
