@@ -593,31 +593,9 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             raise  # let the outer try/except handle it
 
                     if not _ledger_evidence:
-                        # All evidence was filtered out by ownership — abstain honestly
-                        return AskResponse(
-                            answer=f"I don't have any record of commitments you made to {', '.join(_queried_entities)}. Any references to them may be third-party reports, not your own promises.",
-                            query=req.query,
-                            source_sentence="",
-                            source_entity="",
-                            source_timestamp="",
-                            situation_state="",
-                            evidence_refs=[],
-                            confidence=0.0,
-                            counterevidence=[],
-                            unknowns=[],
-                            as_of=str(as_of or ""),
-                            decision_boundary="",
-                            perspectives=[],
-                            reasoning_chain=[],
-                            calibration_note="Ownership filter (reconcile_signal, P41): excluded third-party reports from promise query.",
-                            consequence_paths=[],
-                            llm_active=False,
-                            llm_provider="none",
-                            intelligence_source="ledger",
-                        )
+                        # P65 fix: fall through to general path when ledger is empty
+                        logger.info("P65: RC2 ledger evidence empty — falling through to general path")
 
-                    # CONFIDENCE CALIBRATION (auditor's overconfidence fix):
-                    # - Clean single active entry → high confidence (0.8)
                     # - Multiple current entries for same entity (ambiguous) → lower (0.5)
                     # - Has superseded history (recent change) → lower (0.6) + uncertainty note
                     _has_superseded = any(
