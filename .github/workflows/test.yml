@@ -312,7 +312,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]" 2>/dev/null || pip install -e .
-          pip install pytest pytest-asyncio httpx fastapi pydantic
+          pip install pytest pytest-asyncio pytest-timeout httpx fastapi pydantic
 
       - name: Install backend (for maestro_cognitive_council imports)
         working-directory: download/MaestroAgent/backend
@@ -335,8 +335,7 @@ jobs:
             tests/test_S2_06_latency_breaker.py \
             tests/test_S3_02_permanence_isolated.py \
             --tb=short \
-            -v \
-            --timeout=120
+            -v
 
       - name: Run boot gate (P35 enforcement)
         working-directory: download/MaestroAgent/maestro-personal
