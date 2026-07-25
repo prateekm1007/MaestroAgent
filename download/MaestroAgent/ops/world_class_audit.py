@@ -36,16 +36,26 @@ class AuditFinding:
 def setup_audit_fixture():
     """Create audit user + seed controlled test data."""
     print("[SETUP] Creating audit fixture user...")
-    resp = httpx.post(f"{BACKEND_URL}/api/auth/register",
-        json={"user_email": f"audit-{int(time.time())}@example.com", "password": "audit-wc-2026", "name": "Audit"},
-        timeout=15)
+    # K3-BE-001/P67 fix: rate limiting now fires in production. The register
+    # endpoint has a 10/min limit. Retry with backoff if we hit it.
+    for attempt in range(5):
+        resp = httpx.post(f"{BACKEND_URL}/api/auth/register",
+            json={"user_email": f"audit-{int(time.time())}@example.com", "password": "audit-wc-2026", "name": "Audit"},
+            timeout=15)
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", "60"))
+            print(f"  ⚠ Register rate-limited, waiting {retry_after}s (attempt {attempt+1}/5)")
+            time.sleep(retry_after + 2)
+            continue
+        break
     token = resp.json().get("token", "")
     if not token: print(f"  ✗ Failed: {resp.json()}"); return ""
     print(f"  ✓ Registered: {resp.json().get('user_email','')}")
     print("  Seeding 20 synthetic emails...")
     for i in range(1, 21):
-        try: httpx.post(f"{BACKEND_URL}/api/inbox/synthetic/email_{i:02d}/receive",
-            headers={"Authorization": f"Bearer {token}"}, timeout=15)
+        try:
+            httpx.post(f"{BACKEND_URL}/api/inbox/synthetic/email_{i:02d}/receive",
+                headers={"Authorization": f"Bearer {token}"}, timeout=15)
         except: pass
     try:
         r = httpx.get(f"{BACKEND_URL}/api/inbox/synthetic/status",
@@ -88,6 +98,14 @@ def audit_ask(token):
             resp = httpx.post(f"{BACKEND_URL}/api/ask",
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                 json={"query": q}, timeout=60)
+            # K3-BE-001/P67 fix: rate limiting now fires (30/min on /api/ask).
+            # Backoff and retry on 429 instead of counting as an error.
+            if resp.status_code == 429:
+                retry_after = int(resp.headers.get("Retry-After", "2"))
+                time.sleep(retry_after + 1)
+                resp = httpx.post(f"{BACKEND_URL}/api/ask",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    json={"query": q}, timeout=60)
             elapsed = time.time() - start; response_times.append(elapsed)
             if resp.status_code != 200: errors += 1; continue
             data = resp.json()
