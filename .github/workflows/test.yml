@@ -331,6 +331,8 @@ jobs:
             tests/test_P43_reconcile_wired_live.py \
             tests/test_P41_single_source_of_truth.py \
             tests/test_P42_text_normalization.py \
+            tests/test_P50_slack_ingest_journey.py \
+            tests/test_P51_ask_no_blank.py \
             tests/test_S2_01_openapi_alias.py \
             tests/test_S2_03_prepare_no_template.py \
             tests/test_S2_04_surfaces_reconcile.py \
