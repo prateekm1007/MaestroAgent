@@ -161,3 +161,35 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Rule:** Dismissal-based suppression must NEVER hide The Moment on a synthetic or fresh-user artifact. It requires real dismissal history (minimum 5 dismissals) AND a minimum-confidence threshold. A fresh user always sees The Moment.
 
 **Enforcement:** Journey gate — fresh user with 0 dismissals, post a commitment, assert /api/the-moment returns has_moment:true. Synthetic seed corpus must not produce a 100%-dismissal artifact.
+
+## 21. Transitioning/correcting/deleting another user's commitment (P58)
+
+**Incident:** The sixth audit reproduced a cross-tenant mutation IDOR: any user can cancel any other user's ledger entries via /api/commitments/{id}/transition. The fifth audit verified read isolation but did not test mutations.
+
+**Rule:** Every state-changing endpoint must verify the target resource belongs to the requesting tenant before mutating. Cross-tenant mutations return 403, not 200.
+
+**Enforcement:** Journey gate — register two users, create a commitment for user A, attempt to transition it as user B → must 403. (test_P58_cross_tenant_mutation.py)
+
+## 22. Labeling a signal "cancellation" without applying the lifecycle transition (P59)
+
+**Incident:** The sixth audit ingested the product's own synthetic lifecycle suite — cancellations were not applied, completions did not close commitments. The reclassify migration re-labeled signal types but the lifecycle engine doesn't fire.
+
+**Rule:** A completion/cancellation/deadline-change signal must APPLY a state transition to the matching commitment. Classification without lifecycle application is theater.
+
+**Enforcement:** Journey gate — post a cancellation signal for an active commitment, assert the commitment's state transitions to cancelled.
+
+## 23. Returning "no record" when the user's own promise exists (P60)
+
+**Incident:** The P43 ownership filter over-corrected: "What did I promise Maria?" returns "no record" while the user HAS a promise to Maria. The filter excludes by entity, not by owner.
+
+**Rule:** The ownership model must distinguish my_promise/their_promise/quoted/third_party. "What did I promise X?" returns my_promise to X — never nothing when my_promise exists.
+
+**Enforcement:** Journey gate — post a user-owned commitment to Maria, ask "What did I promise Maria?", assert the response includes the user's commitment.
+
+## 24. Keeping a real connected mailbox on the shared demo (P61)
+
+**Incident:** The bootstrap tenant has a real connected Gmail with 209+ signals including bank/brokerage PII, readable by anyone with the demo password.
+
+**Rule:** Disconnect real Gmail from the shared demo entirely. Seed synthetic-only data. No token redaction substitutes for not having the corpus.
+
+**Enforcement:** Journey gate — login as demo, check /api/connectors, assert no real Gmail connection; check /api/account/export, assert no real-person names or account IDs.

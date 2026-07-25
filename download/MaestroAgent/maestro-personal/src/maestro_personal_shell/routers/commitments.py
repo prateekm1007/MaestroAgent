@@ -668,17 +668,47 @@ async def transition_commitment(
     to_state: str,
     token: str = Depends(verify_token_dep),
 ):
-    """Transition a commitment to a new lifecycle state."""
+    """Transition a commitment to a new lifecycle state.
+
+    P58 (sixth audit F-01/S0): AUTHORIZATION COVERS MUTATIONS. The
+    transition_ledger_state function now verifies the ledger entry belongs
+    to the requesting user before mutating. A cross-tenant transition
+    returns 403 (not 409) — the distinction matters for the IDOR gate.
+    """
     import os
     from pathlib import Path as _P
     _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
-    from maestro_personal_shell.commitment_ledger import transition_ledger_state, is_legal_transition
+    from maestro_personal_shell.commitment_ledger import transition_ledger_state
     if to_state not in {"candidate", "active", "at_risk", "completed_claimed",
                         "completed_verified", "disputed", "cancelled", "superseded", "tombstoned"}:
         raise HTTPException(status_code=400, detail=f"Unknown state: {to_state}")
+
+    # P58: check if the ledger entry exists AND belongs to the requesting user
+    entry = get_ledger_entry(ledger_id, _db) if 'get_ledger_entry' in dir() else None
+    # The transition_ledger_state function does the ownership check internally;
+    # if it returns False, we need to distinguish "not found" from "not authorized"
+    # by checking if the entry exists at all.
+    import sqlite3
+    try:
+        from maestro_personal_shell.db_util import get_db_conn
+        conn = get_db_conn(_db)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT user_email FROM commitments_ledger WHERE ledger_id = ?", (ledger_id,)
+        ).fetchone()
+        conn.close()
+    except Exception:
+        row = None
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Ledger entry not found")
+    if row["user_email"] != token:
+        # P58: cross-tenant mutation attempt → 403 Forbidden
+        raise HTTPException(status_code=403, detail="Not authorized: this commitment belongs to another user")
+
     ok = transition_ledger_state(ledger_id, to_state, token, _db)
     if not ok:
-        raise HTTPException(status_code=409, detail="Illegal transition or ledger entry not found")
+        raise HTTPException(status_code=409, detail="Illegal transition")
     return {"ledger_id": ledger_id, "state": to_state, "transitioned": True}
 
 

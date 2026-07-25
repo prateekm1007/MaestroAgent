@@ -425,3 +425,41 @@ Across five audits, the same patterns recurred in prose before they had numbers.
 ---
 
 **The short version, if it must fit on a wall:** *Fix the data the user sees. Report the served truth, not the requested wish. One source of truth, derived at read time. Classify by structure with the rules holding a veto, and re-classify the corpus when the classifier changes. Never fail silently, never fake readiness, never relabel. A fix isn't done until it's wired live, green in CI on the push, and proven on the journey — not the component, not the probe, not the local run.*
+
+---
+
+## PART TEN — THE SECURITY + LIFECYCLE REDESIGN PRINCIPLES (NEW, FROM THE SIXTH AUDIT 2026-07-25)
+
+### The meta-failure this part reveals
+
+The sixth audit tested paths the fifth did not — mutations, full lifecycle, export — and found three S0s that were there the whole time. The arc's recurring ghost (component verified, journey untested) now has a security dimension: read isolation was verified and credited, while the write path stood open. Classification was relabeled and credited, while cancellations never cancelled. The ownership filter was fixed and credited, while the user's own promises disappeared. Each was a layer the prior audit didn't test.
+
+### 58. Authorization covers mutations, not just reads
+
+**The failure:** The sixth audit reproduced a cross-tenant mutation IDOR: log in as bootstrap, collect `ledger_id`s; log in as a different user; `POST /api/commitments/{ledger_id}/transition?to_state=cancelled` → `200 {"transitioned": true}`. Bootstrap's ledger entries were cancelled by the auditor's account. The fifth audit verified READ isolation (E5) and the arc credited "multi-tenant isolation verified" — but neither tested mutations. The `/api/commitments/{id}/transition` endpoint took a `ledger_id` and transitioned it without verifying the entry belonged to the requesting user.
+
+> **Rule:** Every state-changing endpoint — `transition`, `correct`, `dismiss`, `delete`, purge — must verify the target resource belongs to the requesting tenant BEFORE mutating, and the IDOR gate must test MUTATIONS (transition/correct/delete with another user's token → must 403/404), not only reads. A read-isolated, write-open API is not isolated; it is one enumerated ID away from any user rewriting any other user's ledger. Read isolation is necessary but it is NOT the security boundary; MUTATION isolation is.
+
+### 59. Classification is not lifecycle
+
+**The failure:** The sixth audit ingested the product's own synthetic lifecycle battery — completion emails, cancellation emails, a deadline change — and the result was `active: 12, completed: 1, cancelled: 0`. Cancellations were not applied. Completions did not close the commitments. The deadline change did not update. The reclassify migration re-labeled signal TYPES in the existing corpus, but the lifecycle engine that is supposed to APPLY a completion/cancellation/deadline-change signal to the corresponding commitment does not fire. Classification is not lifecycle.
+
+> **Rule:** A completion/cancellation/deadline-change signal must APPLY a state transition to the matching commitment, with an evidence-linked, user-visible diff. The synthetic lifecycle suite must pass 100% (cancellations cancel, completions close, deadline changes update) before the lifecycle is called working. Labeling a signal "cancellation" while leaving the commitment active is theater — the product can classify correctly and still fail its thesis.
+
+### 60. The ownership model has four distinct buckets
+
+**The failure:** The P43 ownership filter correctly stopped attributing Maria's OWN promises to the user (the old false positive), but it now excludes the user's OWN commitments to Maria as well (the new false negative). "What did I promise Maria?" returns "no record" while the user HAS a promise to Maria. The filter swung from false-positive to false-negative because it filters by ENTITY rather than by OWNER — it cannot distinguish "my promise to Maria" from "Maria's promise."
+
+> **Rule:** The ownership model must distinguish four buckets: `my_promise` (user → X), `their_promise` (X → user, or X's own commitment), `quoted` (user quoting X), `third_party` (someone else entirely). "What did I promise X?" returns `my_promise` to X — never `their_promise` (the old false positive) and never NOTHING when `my_promise` exists (the new false negative). The filter must distinguish OWNER, not just ENTITY.
+
+### 61. The demo is synthetic-only with no real connected mailbox
+
+**The failure:** The bootstrap tenant has a REAL connected Gmail with 209+ signals — Kotak Bank addressing "PRATEEK", Zerodha, Samsung, PayPal — readable by anyone with the demo password via Ask/export/signals. Dismissing 39 token-matched signals and redacting four strings did not remove the corpus. The fix is not redaction; it is disconnecting the real Gmail from the shared demo entirely and seeding synthetic-only data.
+
+> **Rule:** Disconnect real Gmail from the shared demo entirely. Seed synthetic-only data. No token redaction scheme can substitute for not having the real corpus there at all. A shared demo with a real person's bank mail is not a demo; it is a breach waiting for a screenshot. The demo must be synthetic-only, PII-free, and have NO real connected mailbox.
+
+### 62. Ask is deterministic ledger-QA first, LLM for polish
+
+**The failure:** "What did I promise Maria?" returns a false negative ("no record") while the user HAS a promise to Maria. "What are my active commitments?" abstains with confidence 0.8 while evidence_refs contains active commitments — the answer contradicts its own evidence. LLM latency is 5-70s. Multi-turn session memory is broken. The stream is contaminated (a Maria query streamed "conquering the moon").
+
+> **Rule:** Ask is deterministic ledger-QA first: sub-second structured answers with mandatory clickable evidence that always resolves to a source span. The LLM may rephrase for language polish but may NOT override the ledger or abstain while evidence is present. Hard p95 < 3s. Session memory must actually retain the referent across turns. The deterministic path is the authority; the LLM is the polish.

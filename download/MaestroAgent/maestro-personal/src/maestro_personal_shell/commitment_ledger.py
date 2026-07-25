@@ -298,9 +298,12 @@ def _transition_state_conn(
         return False
 
     now = datetime.now(timezone.utc).isoformat()
+    # P58 (F-01/S0) defense-in-depth: the UPDATE also guards on user_email,
+    # so even if the ownership check above is bypassed, the SQL itself
+    # cannot transition a cross-tenant entry.
     conn.execute(
-        "UPDATE commitments_ledger SET state = ?, updated_at = ? WHERE ledger_id = ?",
-        (to_state, now, ledger_id),
+        "UPDATE commitments_ledger SET state = ?, updated_at = ? WHERE ledger_id = ? AND user_email = ?",
+        (to_state, now, ledger_id, user_email),
     )
     conn.commit()
 
@@ -330,6 +333,13 @@ def transition_ledger_state(
 
     Returns True if the transition was legal + applied, False otherwise.
     Every attempt (legal or rejected) is audit-logged.
+
+    P58 (sixth audit F-01/S0): AUTHORIZATION COVERS MUTATIONS, NOT JUST READS.
+    The ledger entry MUST belong to the requesting user (user_email) before
+    any state transition is applied. A cross-tenant transition returns False
+    (which the router maps to 403/404). This is the IDOR fix — the prior
+    code fetched by ledger_id alone and never checked ownership, so any
+    user could cancel any other user's commitments.
     """
     init_ledger_table(db_path)
     conn = get_db_conn(db_path)
@@ -339,6 +349,29 @@ def transition_ledger_state(
             "SELECT * FROM commitments_ledger WHERE ledger_id = ?", (ledger_id,)
         ).fetchone()
         if row is None:
+            return False
+        # P58 (F-01/S0): OWNERSHIP CHECK — the ledger entry must belong to
+        # the requesting user. Without this, any user can transition any
+        # other user's commitments (cross-tenant mutation IDOR).
+        if row["user_email"] != user_email:
+            logger.warning(
+                "P58 AUTHORIZATION DENIED: user %s attempted to transition ledger %s "
+                "owned by %s — cross-tenant mutation blocked.",
+                user_email, ledger_id, row["user_email"],
+            )
+            # Audit-log the denied cross-tenant attempt
+            try:
+                from maestro_personal_shell.audit_trust import log_data_access
+                log_data_access(
+                    user_email=user_email,
+                    action="denied_cross_tenant_transition",
+                    endpoint="/api/commitments/{id}/transition",
+                    resource_id=ledger_id,
+                    details={"owner": row["user_email"], "requested_state": to_state},
+                    db_path=db_path,
+                )
+            except Exception:
+                pass
             return False
         return _transition_state_conn(
             conn, ledger_id, row["state"], to_state, user_email,
