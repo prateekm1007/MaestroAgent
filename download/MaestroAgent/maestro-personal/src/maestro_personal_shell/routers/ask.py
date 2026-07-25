@@ -515,6 +515,52 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                                 _answer_lines.append(f"    ○ [{ent}] {_action[:60]} — superseded")
 
                 if _has_active and _ledger_evidence:
+                    # TICKET-10 (2026-07-25): THIRD-PARTY PROMISE QUERY EXCLUSION
+                    # on the general ledger path. "What did Maria promise?" matches
+                    # Maria as the entity and returns all ledger entries for Maria —
+                    # but those are the user's promises TO Maria, not Maria's promises.
+                    # Look up the owner of each signal via reconcile_signals_for_user
+                    # and exclude user-owned commitments for third-party queries.
+                    _is_tp_general = bool(_re.search(
+                        r'\bwhat\s+did\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(promise|commit|agree|pledge)\b'
+                        r'|\bwhat\s+did\s+(he|she|they)\s+(promise|commit|agree|pledge)\b',
+                        req.query, _re.IGNORECASE,
+                    ))
+                    if _is_tp_general:
+                        try:
+                            _tp_reconciled_general = reconcile_signals_for_user(
+                                user_email=token,
+                                db_path=_db_path,
+                                include_non_commitments=True,
+                            )
+                            _tp_user_owned_ids = {
+                                r["signal_id"] for r in _tp_reconciled_general
+                                if r.get("owner", "unknown") == "user"
+                            }
+                            # Filter out user-owned commitments (those are the user's
+                            # promises TO the entity, not the entity's promises)
+                            _tp_filtered = [
+                                ev for ev in _ledger_evidence
+                                if ev.get("signal_id", "") not in _tp_user_owned_ids
+                            ]
+                            if len(_tp_filtered) < len(_ledger_evidence):
+                                # Some evidence was the user's own — exclude it
+                                _ledger_evidence = _tp_filtered
+                                _answer_lines = []  # rebuild answer lines
+                                _has_active = bool(_ledger_evidence)
+                                for ev in _ledger_evidence:
+                                    _answer_lines.append(f"• [{ev.get('entity','')}] {ev.get('text','')[:80]}")
+                                if not _ledger_evidence:
+                                    # All evidence was user-owned — third party made no promises
+                                    _answer_lines = [
+                                        "Based on your commitment ledger, there is no record of "
+                                        "any promise made BY this entity. The commitments you have "
+                                        "are your own promises TO them, not their promises to you."
+                                    ]
+                                    _has_active = False
+                        except Exception as _tp_gen_err:
+                            logger.warning("TICKET-10 general-path filter failed: %s", _tp_gen_err)
+
                     # S3-1-WIRE-LIVE (Kimi K3 design, generation_id=gen-1784948642-WQjc4PQWvtQqWiLDMqqs):
                     # P41 single source of truth + P43 built-but-not-wired is not done.
                     # The 5-layer inline ownership filter below was the wack-a-mole
@@ -653,6 +699,46 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             _ledger_answer += "\n\n" + "\n".join(_negatives)
                             _calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
 
+                        # TICKET-10 (2026-07-25): THIRD-PARTY PROMISE QUERY EXCLUSION
+                        # on the RC2 fast path. "What did Maria promise?" must NOT return
+                        # the user's own commitment TO Maria. The RC2 fast path matches
+                        # "Maria" as the entity and returns all ledger entries for Maria
+                        # — but those are the user's promises TO Maria, not Maria's promises.
+                        # Detect third-party phrasing and replace the answer with an honest
+                        # abstention if the only matches are the user's own commitments.
+                        _is_tp_promise_rc2 = bool(_re.search(
+                            r'\bwhat\s+did\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(promise|commit|agree|pledge)\b'
+                            r'|\bwhat\s+did\s+(he|she|they)\s+(promise|commit|agree|pledge)\b',
+                            req.query, _re.IGNORECASE,
+                        ))
+                        if _is_tp_promise_rc2:
+                            # Check if the matched evidence is the user's own commitment
+                            # (owner=user). If so, this is a third-party leak — the user
+                            # asked what Maria promised, not what they themselves promised.
+                            _tp_has_user_owned = any(
+                                ev.get("owner", "unknown") == "user"
+                                for ev in _ledger_evidence
+                                if isinstance(ev, dict)
+                            )
+                            _tp_has_other_owned = any(
+                                ev.get("owner", "unknown") != "user"
+                                for ev in _ledger_evidence
+                                if isinstance(ev, dict)
+                            )
+                            if _tp_has_user_owned and not _tp_has_other_owned:
+                                # All evidence is the user's own — third party made no promises
+                                _ledger_answer = (
+                                    "Based on your commitment ledger, there is no record of "
+                                    "any promise made BY this entity. The commitments you have "
+                                    "are your own promises TO them, not their promises to you."
+                                )
+                                _ledger_evidence = []  # clear evidence_refs
+                                _confidence = 0.0
+                                _calibration_note = (
+                                    "TICKET-10: third-party promise query — user's own "
+                                    "commitments excluded from the answer."
+                                )
+
                         logger.info(
                             "RC2 ledger-read fast path: query=%r → %d current entries for %d entities, conf=%.1f (no LLM needed)",
                             req.query[:60], len(_ledger_evidence), len(_queried_entities), _confidence,
@@ -660,9 +746,9 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         return AskResponse(
                             answer=_ledger_answer,
                             query=req.query,
-                            source_sentence=_ledger_evidence[0].get("text", ""),
-                            source_entity=_ledger_evidence[0].get("entity", ""),
-                            source_timestamp=_ledger_evidence[0].get("timestamp", ""),
+                            source_sentence=(_ledger_evidence[0].get("text", "") if _ledger_evidence else ""),
+                            source_entity=(_ledger_evidence[0].get("entity", "") if _ledger_evidence else ""),
+                            source_timestamp=(_ledger_evidence[0].get("timestamp", "") if _ledger_evidence else ""),
                             situation_state="",
                             evidence_refs=_ledger_evidence[:5],
                             confidence=_confidence,
@@ -3871,6 +3957,16 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         r'|\bpromises?\s+i\s+(made|owe|keep)\b',
         req.query, _re.IGNORECASE,
     ))
+    # TICKET-10 (2026-07-25): also detect THIRD-PARTY promise queries
+    # ("What did Maria promise?") — these must EXCLUDE owner=user evidence
+    # (the user's own promises to Maria are NOT what Maria promised).
+    # Without this, the RC2 fast path returns the user's commitment to Maria
+    # when asked "What did Maria promise?" — a third-party leak.
+    _is_third_party_promise_query = bool(_re.search(
+        r'\bwhat\s+did\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(promise|commit|agree|pledge)\b'
+        r'|\bwhat\s+did\s+(he|she|they)\s+(promise|commit|agree|pledge)\b',
+        req.query, _re.IGNORECASE,
+    ))
     if _is_promise_query_final and evidence_refs:
         # P65: run the reconcile ownership filter on ALL promise queries,
         # not just the ledger fast path. This ensures F-03 (ownership) and
@@ -3932,6 +4028,62 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                 calibration_note = "P65: third-party reports stripped from answer text."
             else:
                 calibration_note += " | P65: third-party reports stripped from answer."
+
+    # TICKET-10 (2026-07-25): THIRD-PARTY PROMISE QUERY EXCLUSION.
+    # "What did Maria promise?" must NOT return the user's own commitment TO Maria.
+    # The user's commitment (owner=user) is what the user promised, not what Maria
+    # promised. Without this filter, the RC2 fast path returns the user's commitment
+    # when asked about Maria's promises — a third-party leak in the opposite direction.
+    # This runs on EVERY AskResponse return path (not just RC2), so no future code
+    # path can reintroduce the leak by omission.
+    if _is_third_party_promise_query and evidence_refs:
+        try:
+            _tp_db_path = None
+            try:
+                from pathlib import Path as _P_tp
+                _tp_db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(_P_tp(__file__).resolve().parent / "personal.db"))
+            except Exception:
+                pass
+            _tp_reconciled = reconcile_signals_for_user(
+                user_email=token,
+                db_path=_tp_db_path,
+                include_non_commitments=True,
+            )
+            if _tp_reconciled:
+                # For third-party queries, EXCLUDE owner=user records (those are the
+                # user's own promises, not the third party's). Keep only owner=other
+                # or owner=unknown records that match the queried entity.
+                _tp_allowed_ids = {
+                    r["signal_id"] for r in _tp_reconciled
+                    if r.get("owner", "unknown") != "user"
+                }
+                _tp_filtered_evidence = [
+                    ev for ev in evidence_refs
+                    if ev.get("signal_id", "") in _tp_allowed_ids
+                    or not ev.get("signal_id", "")
+                ]
+                # If filtering removed evidence with signal_ids, the user's own
+                # commitments were the only matches — that means the third party
+                # made no promises. Return an honest abstention instead of leaking
+                # the user's commitments.
+                _tp_had_signal_ids = any(ev.get("signal_id", "") for ev in evidence_refs)
+                _tp_has_signal_ids = any(ev.get("signal_id", "") for ev in _tp_filtered_evidence)
+                if _tp_had_signal_ids and not _tp_has_signal_ids:
+                    # All signal_id-bearing evidence was the user's own — third party made no promises
+                    evidence_refs = [ev for ev in _tp_filtered_evidence if not ev.get("signal_id", "")]
+                    verified_answer = (
+                        "Based on your commitment ledger, there is no record of "
+                        "any promise made BY this entity. The commitments you have "
+                        "are your own promises TO them, not their promises to you."
+                    )
+                    if not calibration_note:
+                        calibration_note = "TICKET-10: third-party query — user's own commitments excluded."
+                    else:
+                        calibration_note += " | TICKET-10: third-party query — user's own commitments excluded."
+                elif len(_tp_filtered_evidence) < len(evidence_refs):
+                    evidence_refs = _tp_filtered_evidence
+        except Exception as _tp_err:
+            logger.warning("TICKET-10 third-party promise filter failed: %s", _tp_err)
 
     # TICKET-10 (seventh audit): FINAL-GATE FILTER on EVERY AskResponse.
     # The P65 filter above only runs on promise queries. But third-party
