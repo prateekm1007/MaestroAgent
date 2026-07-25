@@ -324,6 +324,9 @@ jobs:
         env:
           PYTHONPATH: src:../backend
         run: |
+          # P48: split suite — red here means a real regression in the
+          # S2/S3 + P41/P42/P43 work, not noise from pre-existing backend
+          # failures. --maxfail=3 + -rf to surface failures fast.
           python -m pytest \
             tests/test_P43_reconcile_wired_live.py \
             tests/test_P41_single_source_of_truth.py \
@@ -334,13 +337,18 @@ jobs:
             tests/test_S2_05_multiturn_pronoun.py \
             tests/test_S2_06_latency_breaker.py \
             tests/test_S3_02_permanence_isolated.py \
-            --tb=short \
+            --tb=long \
+            --maxfail=3 \
+            -rf \
             -v
 
       - name: Run boot gate (P35 enforcement)
         working-directory: download/MaestroAgent/maestro-personal
         env:
-          PYTHONPATH: src
+          # P43 fix: boot gate imports maestro_personal_shell.api which
+          # depends on maestro_cognitive_council (in ../backend). Both
+          # paths must be on PYTHONPATH or the import fails.
+          PYTHONPATH: src:../backend
           MAESTRO_PERSONAL_ENV: production
         run: |
           python3 ../ops/test_boot_gate.py
