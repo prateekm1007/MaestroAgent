@@ -118,44 +118,35 @@ def _slack_ts_to_iso(ts: str) -> str:
 
 
 def _classify_slack_message(text: str) -> str:
-    """Classify a Slack message into a signal type."""
-    text_lower = text.lower()
+    """Classify a Slack message into a signal type.
 
-    # Commitment patterns
-    commitment_patterns = [
-        "i will", "i'll", "i promise", "i commit", "i guarantee",
-        "let me take", "i'm on it", "consider it done", "i'll handle",
-        "i'll send", "i'll follow up", "i'll get back", "i'll prepare",
-        "i plan to", "i intend to", "i'm going to",
-    ]
-    if any(p in text_lower for p in commitment_patterns):
+    P41 (fifth audit F2): the Slack ingest path MUST use the SAME
+    classifier as the Ask path — _rule_based_classify from
+    commitment_classifier.py. This unifies the taxonomy across Gmail
+    and Slack, so the same sentence classifies the same way regardless
+    of which connector ingested it. No local keyword list — that was
+    the source of the taxonomy drift the audit found.
+
+    P56 (rules hold a veto): for non-commitments, the rules classifier
+    is the authority. A joke ("conquer the moon") that the old keyword
+    list classified as commitment_made is now correctly classified by
+    the rules as not_a_commitment.
+    """
+    from maestro_personal_shell.commitment_classifier import _rule_based_classify
+    result = _rule_based_classify(text)
+    # Map the reconciled classifier result to the Slack signal_type vocabulary.
+    # P36/P37: third_party_report IS a commitment (is_commitment=True) but
+    # owner="other" — it's someone ELSE's promise. It must NOT surface as
+    # the user's commitment_made. Only owner="user" commitments are
+    # commitment_made; everything else is a reported_statement.
+    ct = (result.get("commitment_type") or "").lower()
+    owner = (result.get("owner") or "").lower()
+    if result.get("is_commitment", False) and owner == "user":
         return "commitment_made"
-
-    # Request patterns
-    request_patterns = [
-        "can you", "could you", "would you", "please", "need you to",
-        "can someone", "who can", "anyone able to",
-    ]
-    if any(p in text_lower for p in request_patterns):
+    if ct in ("request", "not_a_commitment"):
         return "request"
-
-    # Meeting scheduling
-    meeting_patterns = [
-        "let's meet", "schedule", "calendar", "meeting", "call",
-        "sync", "standup", "huddle", "1:1", "check-in",
-    ]
-    if any(p in text_lower for p in meeting_patterns):
-        return "meeting_scheduled"
-
-    # Completion
-    completion_patterns = [
-        "sent ", "delivered", "completed", "done", "finished",
-        "shipped", "deployed", "merged", "closed",
-    ]
-    if any(p in text_lower for p in completion_patterns):
-        return "completion"
-
-    # Default: reported statement
+    # third_party_report (owner=other), tentative, negation, aspiration, proposal
+    # → reported_statement (not the user's commitment)
     return "reported_statement"
 
 
@@ -164,21 +155,54 @@ def _extract_entity_from_slack(text: str, channel: str) -> str:
 
     Priority:
     1. @mentioned user
-    2. Capitalized name in text
+    2. Capitalized name in text (filtered by stopword set — P50)
     3. Channel name as fallback
+
+    P50 (fifth audit F2): entity extraction must NOT grab date tokens
+    ("Friday."), pronouns ("I'm"), question words, or common words.
+    Token-class awareness via a stopword set, plus punctuation stripping
+    BEFORE matching (P42 — normalize before structural matching).
     """
     # Check for @user mentions
     mention_match = re.search(r'@(\w+)', text)
     if mention_match:
         return mention_match.group(1)
 
-    # Check for capitalized names (not at start of sentence)
-    words = text.split()
-    for word in words[1:]:  # skip first word (likely sentence start)
-        if word[0].isupper() and word[1:].islower() and len(word) > 2:
-            # Filter common words
-            if word.lower() not in {"the", "this", "that", "hey", "hi", "yes", "no", "ok"}:
-                return word
+    # P50: stopword set — dates, pronouns, question words, common words,
+    # and common verbs that must NEVER be extracted as entities.
+    _ENTITY_STOPWORDS = frozenset({
+        # dates
+        'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+        'sunday', 'today', 'tomorrow', 'yesterday', 'tonight',
+        # pronouns + contractions
+        'i', "i'm", 'im', 'me', 'my', 'you', 'your', 'he', 'she', 'they',
+        'we', 'it', 'him', 'her', 'them', 'us', 'its',
+        # question words
+        'what', 'when', 'where', 'how', 'why', 'who', 'whom', 'which',
+        # common words
+        'the', 'a', 'an', 'and', 'or', 'but', 'if', 'then', 'this', 'that',
+        'these', 'those', 'yes', 'no', 'ok', 'okay', 'sure', 'thanks',
+        'thank', 'please', 'hi', 'hello', 'hey', 'will', 'would', 'can',
+        'could', 'should', 'do', 'does', 'did', 'is', 'are', 'was', 'were',
+        'be', 'been', 'not', "don't", 'dont', "can't", 'cant', "won't",
+        'wont', 'let', "let's", 'lets', 'just', 'also', 'really', 'very',
+        'so', 'too', 'about',
+        # common verbs (sentence-starting capitalized forms)
+        'spoke', 'talked', 'said', 'told', 'asked', 'called', 'sent',
+        'got', 'made', 'went', 'came', 'saw', 'gave', 'took', 'found',
+        'need', 'want', 'think', 'know', 'feel', 'look', 'seem',
+        'let', 'see', 'try', 'help', 'work', 'play', 'run', 'set',
+        'put', 'get', 'go', 'come', 'make', 'take', 'give', 'find',
+    })
+
+    # P42: strip trailing punctuation BEFORE matching, lowercase for stopword check
+    for m in re.finditer(r'\b([A-Z][a-zA-Z0-9_&.\'-]*)', text):
+        token = m.group(1).rstrip(".,!?:;'\"").strip()
+        if len(token) < 2:
+            continue
+        if token.lower() in _ENTITY_STOPWORDS:
+            continue
+        return token
 
     # Fallback: use channel name
     return channel.replace("#", "").replace("-", " ").title()
