@@ -462,7 +462,25 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         #     same entity, even if the words differ) — this is how real
         #     cancellation emails work ("Cancelled: Sam's roadmap item"
         #     cancels Sam's commitment even without keyword overlap).
-        if ledger_entry and metadata.get("commitment_state") in ("completed_claimed", "completed_verified", "cancelled"):
+        # TICKET-1: if upsert_ledger_entry already transitioned an active entry
+        # (the resolution was handled), SKIP closure matching to prevent
+        # over-cancellation. The TICKET-1 code in upsert_ledger_entry finds
+        # the first active entry and transitions it — running closure matching
+        # too would find ANOTHER active entry and transition it, causing
+        # both to be cancelled.
+        _ticket1_already_resolved = (
+            ledger_entry
+            and metadata.get("commitment_state") in ("completed_claimed", "completed_verified", "cancelled", "broken")
+            and isinstance(ledger_entry, dict)
+            and ledger_entry.get("state") in ("completed_claimed", "completed_verified", "cancelled", "broken")
+        )
+        if _ticket1_already_resolved:
+            logger.info(
+                "TICKET-1: resolution already applied by upsert_ledger_entry "
+                "(state=%s) — skipping closure matching to prevent over-cancellation",
+                ledger_entry.get("state") if isinstance(ledger_entry, dict) else "?",
+            )
+        elif ledger_entry and metadata.get("commitment_state") in ("completed_claimed", "completed_verified", "cancelled"):
             active_entries = [
                 e for e in get_ledger_entries(token, _db, state="active")
                 + get_ledger_entries(token, _db, state="at_risk")
