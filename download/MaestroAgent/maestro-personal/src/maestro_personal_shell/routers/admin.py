@@ -612,6 +612,7 @@ async def migrate_to_postgres(token: str = ""):
     sq.row_factory = sqlite3.Row
     pg = psycopg2.connect(postgres_url)
     pg.autocommit = False
+    pg_cur = pg.cursor()  # psycopg2 requires a cursor for execute
 
     # Get all tables from SQLite (skip FTS virtual tables)
     tables = [r[0] for r in sq.execute(
@@ -637,7 +638,7 @@ async def migrate_to_postgres(token: str = ""):
         create_sql = create_sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
         create_sql = create_sql.replace("AUTOINCREMENT", "")
         try:
-            pg.execute(create_sql.replace("?", "%s"))
+            pg_cur.execute(create_sql.replace("?", "%s"))
             pg.commit()
         except Exception:
             pg.rollback()  # table might already exist
@@ -653,14 +654,14 @@ async def migrate_to_postgres(token: str = ""):
             row_dict = dict(row)
             values = tuple(row_dict.get(c) for c in cols)
             try:
-                pg.execute(insert_sql, values)
+                pg_cur.execute(insert_sql, values)
                 copied += 1
             except Exception:
                 pg.rollback()
                 continue
         pg.commit()
 
-        pg_count = pg.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        pg_count = pg_cur.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         migration_report["tables"][table] = {
             "sqlite": sq_count,
             "postgres": pg_count,
@@ -681,6 +682,7 @@ async def migrate_to_postgres(token: str = ""):
         migration_report["fts_index"] = {"error": str(e), "status": "failed"}
 
     sq.close()
+    pg_cur.close()
     pg.close()
 
     migration_report["status"] = "complete"
