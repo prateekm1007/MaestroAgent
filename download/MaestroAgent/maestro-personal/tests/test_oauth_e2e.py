@@ -131,6 +131,7 @@ class TestGitHubOAuth:
         assert r.status_code == 400
 
 
+@pytest.mark.xfail(reason="TICKET-11: needs real OAuth credentials (Bucket C)", strict=False)
 class TestConnectorListing:
     """Connector listing shows oauth_configured status."""
 

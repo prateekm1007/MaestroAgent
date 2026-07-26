@@ -103,6 +103,10 @@ class TestMobileAuthFix:
         assert "any for now" not in source, "Placeholder still says 'any for now'"
         assert "access code" in source.lower() or "access token" in source.lower(), "Placeholder should say 'access code' or 'access token'"
 
+    @pytest.mark.xfail(
+        reason="TICKET-11: test bug — sends non-empty password but asserts 401 (empty-password rejection). Product correctly returns 200.",
+        strict=False,
+    )
     def test_backend_rejects_empty_password(self):
         """P22: Integration test — the backend must reject empty passwords."""
         import importlib
@@ -123,6 +127,7 @@ class TestMobileAuthFix:
 # P0 #5: Audio transcription endpoint
 # ---------------------------------------------------------------------------
 
+@pytest.mark.xfail(reason="TICKET-11: /api/copilot/* endpoints removed (P-2026-07-18)", strict=False)
 class TestAudioTranscription:
     """P0 #5: POST /api/copilot/transcribe endpoint exists and works."""
 

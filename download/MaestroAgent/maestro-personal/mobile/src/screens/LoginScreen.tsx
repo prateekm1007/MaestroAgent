@@ -154,7 +154,7 @@ export default function LoginScreen() {
             styles.loginInput,
             { backgroundColor: t.surface, color: t.textPrimary, borderColor: error ? colors.alertRed : 'transparent' },
           ]}
-          placeholder={isRegister ? 'Choose a password' : 'Password (demo mode: any value)'}
+          placeholder={isRegister ? 'Choose a password' : 'Password (access code)'}
           placeholderTextColor={t.textSecondary}
           value={password}
           onChangeText={setPassword}

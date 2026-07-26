@@ -523,6 +523,7 @@ class TestShadowMode:
 # 6. API Integration — all 13 new endpoints
 # ---------------------------------------------------------------------------
 
+@pytest.mark.xfail(reason="TICKET-11: /api/copilot/* endpoints removed (P-2026-07-18)", strict=True)
 class TestAPIIntegration:
     """All 13 new endpoints return 200 and correct shape."""
 
@@ -606,6 +607,10 @@ class TestAPIIntegration:
     def test_get_playbook_404(self, client, auth_headers):
         response = client.get("/api/copilot/playbooks/nonexistent", headers=auth_headers)
         assert response.status_code == 404
+    test_get_playbook_404 = pytest.mark.xfail(
+        reason="TICKET-11: /api/copilot/* removed — 404 test now trivially passes",
+        strict=False,
+    )(test_get_playbook_404)
 
     def test_upsert_playbook_endpoint(self, client, auth_headers):
         response = client.post(
@@ -730,6 +735,10 @@ class TestAPIIntegration:
     def test_shadow_get_session_404(self, client, auth_headers):
         response = client.get("/api/copilot/shadow/nonexistent", headers=auth_headers)
         assert response.status_code == 404
+    test_shadow_get_session_404 = pytest.mark.xfail(
+        reason="TICKET-11: /api/copilot/* removed — 404 test now trivially passes",
+        strict=False,
+    )(test_shadow_get_session_404)
 
     def test_shadow_list_sessions_endpoint(self, client, auth_headers):
         # Start a couple sessions
@@ -754,6 +763,7 @@ class TestAPIIntegration:
 # Regression — existing post-call endpoint still works
 # ---------------------------------------------------------------------------
 
+@pytest.mark.xfail(reason="TICKET-11: /api/copilot/* endpoints removed (P-2026-07-18)", strict=True)
 class TestRegression:
     """Verify the existing /api/copilot/post-call endpoint still works."""
 

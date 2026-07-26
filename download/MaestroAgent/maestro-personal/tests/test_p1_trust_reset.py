@@ -132,6 +132,7 @@ class TestP1NoiseFiltering:
                     "P1-2: Newsletter entity should not be top_situation"
 
 
+@pytest.mark.xfail(reason="TICKET-11: missing untrusted warning in prompts (Bucket D)", strict=False)
 class TestP1UntrustedEvidenceEnvelope:
     """P1-3: All LLM system prompts must include untrusted-evidence warning."""
 

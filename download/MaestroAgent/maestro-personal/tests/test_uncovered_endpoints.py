@@ -143,6 +143,10 @@ def test_copilot_negotiation_endpoint():
     )
     # 200 = success, 500 = downstream engine error (still proves route works)
     assert r.status_code in (200, 500), f"copilot/negotiation failed: {r.status_code} {r.text}"
+test_copilot_negotiation_endpoint = pytest.mark.xfail(
+    reason="TICKET-11: /api/copilot/* endpoints removed (P-2026-07-18)",
+    strict=True,
+)(test_copilot_negotiation_endpoint)
 
 
 # ---------------------------------------------------------------------------
@@ -162,3 +166,7 @@ def test_copilot_talk_ratio_endpoint():
     )
     # 200 = success, 500 = downstream engine error (still proves route works)
     assert r.status_code in (200, 500), f"copilot/talk-ratio failed: {r.status_code} {r.text}"
+test_copilot_talk_ratio_endpoint = pytest.mark.xfail(
+    reason="TICKET-11: /api/copilot/* endpoints removed (P-2026-07-18)",
+    strict=True,
+)(test_copilot_talk_ratio_endpoint)

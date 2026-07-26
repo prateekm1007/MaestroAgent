@@ -181,6 +181,7 @@ class TestPhase8CopilotEval:
         assert isinstance(report["lift"], (int, float))
 
 
+@pytest.mark.xfail(reason="TICKET-11: /api/copilot/* endpoints removed (P-2026-07-18)", strict=True)
 class TestPhase8PostCallSummary:
     """Post-call summary must update the canonical world model."""
 

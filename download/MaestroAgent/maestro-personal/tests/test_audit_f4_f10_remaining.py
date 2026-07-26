@@ -232,6 +232,7 @@ class TestStaleWhispersNotSilenced:
 
 
 # F10: Copilot REST auto-binds situation_id
+@pytest.mark.xfail(reason="TICKET-11: /api/copilot/* endpoints removed (P-2026-07-18)", strict=True)
 class TestCopilotAutoBindSituation:
     def test_transcript_without_situation_id_works(self, client):
         """POST /api/copilot/transcript without situation_id must NOT

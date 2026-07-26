@@ -51,6 +51,7 @@ def auth_headers(client):
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.mark.xfail(reason="TICKET-11: needs OpenRouter API key (Bucket B — LLM-dependent)", strict=False)
 class TestFourWayComparison:
     """The 4-way comparison must test all 4 conditions."""
 
