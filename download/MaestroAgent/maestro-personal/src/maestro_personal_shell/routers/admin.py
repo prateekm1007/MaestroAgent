@@ -743,20 +743,20 @@ async def reclassify_signals(token: str = ""):
     """Backfill commitment_owner in signal metadata for old signals.
 
     Old signals (created before the inbox.py fix) don't have commitment_owner
-    in their metadata. This endpoint reads all signals, runs the commitment
-    classifier on each, and writes the classification result (including
-    commitment_owner) to the signal's metadata.
+    in their metadata. This endpoint reads all signals, runs the RULES
+    classifier (fast, no LLM/network calls) on each, and writes the
+    classification result (including commitment_owner) to metadata.
 
-    This fixes P60 (third-party exclusion) for old migrated data — the
-    TICKET-10 filter can't determine ownership without commitment_owner.
+    Uses _rule_based_classify instead of the async classify_commitment to
+    avoid hanging the container on 1800+ LLM calls. The rules classifier
+    returns instantly and sets owner="user" for first-person commitments.
 
     Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level).
     """
     import json as _json_rc
-    import asyncio as _asyncio_rc
     from fastapi import HTTPException
     from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
-    from maestro_personal_shell.commitment_classifier import classify_commitment
+    from maestro_personal_shell.commitment_classifier import _rule_based_classify
 
     admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
     if not admin_token or token != admin_token:
@@ -765,9 +765,8 @@ async def reclassify_signals(token: str = ""):
     db_path = default_sqlite_path()
     conn = get_db_conn(db_path)
 
-    # Get all signals that DON'T have commitment_owner in metadata
     rows = conn.execute(
-        "SELECT signal_id, entity, text, metadata, user_email FROM signals"
+        "SELECT signal_id, entity, text, metadata FROM signals"
     ).fetchall()
 
     total = len(rows)
@@ -780,30 +779,26 @@ async def reclassify_signals(token: str = ""):
         entity = row[1] or ""
         text = row[2] or ""
         metadata_raw = row[3] or "{}"
-        user_email = row[4] or "bootstrap"
 
         try:
             metadata = _json_rc.loads(metadata_raw) if isinstance(metadata_raw, str) else (metadata_raw or {})
         except Exception:
             metadata = {}
 
-        # Skip if commitment_owner already set
         if "commitment_owner" in metadata:
             skipped += 1
             continue
 
-        # Run the classifier
         try:
-            classification = await classify_commitment(text=text, entity=entity)
+            classification = _rule_based_classify(text, entity)
             if classification:
                 metadata["commitment_type"] = classification.get("commitment_type", "")
                 metadata["is_commitment"] = classification.get("is_commitment", False)
                 metadata["commitment_owner"] = classification.get("owner", "unknown")
                 metadata["commitment_confidence"] = classification.get("confidence", 0.0)
                 metadata["classification_reasoning"] = classification.get("reasoning", "")
-                metadata["llm_powered"] = classification.get("llm_powered", False)
+                metadata["llm_powered"] = False
 
-                # Write back to DB
                 conn.execute(
                     "UPDATE signals SET metadata = ? WHERE signal_id = ?",
                     (_json_rc.dumps(metadata), sig_id),
