@@ -244,10 +244,7 @@ class ConnectorStore:
     """
 
     def __init__(self, db_path: str | None = None):
-        self.db_path = db_path or os.environ.get(
-            "MAESTRO_PERSONAL_DB",
-            str(Path(__file__).resolve().parent / "personal.db"),
-        )
+        self.db_path = db_path or default_sqlite_path()
         self._encryption_key = self._get_encryption_key()
         self._init_db()
 
@@ -1418,8 +1415,23 @@ class ConnectorDraftGenerator:
                 if not involves_recipient:
                     continue
 
-                # Is this a commitment?
-                is_commitment = "commitment" in sig_type and "made" in sig_type
+                # Is this a commitment? Check both signal_type and metadata
+                # (signal_type may have been transitioned by the lifecycle engine
+                #  to "completed", "cancelled", etc. — but is_commitment in metadata
+                #  remains True for all commitment signals)
+                is_commitment = ("commitment" in sig_type and "made" in sig_type)
+                # Also check metadata for is_commitment (P69/TICKET-10c fix:
+                # reclassified signals may have signal_type="completed" but
+                # is_commitment=True in metadata)
+                try:
+                    sig_meta = getattr(sig, "metadata", {}) or {}
+                    if isinstance(sig_meta, str):
+                        import json as _json_meta
+                        sig_meta = _json_meta.loads(sig_meta) if sig_meta else {}
+                    if sig_meta.get("is_commitment") == True or sig_meta.get("is_commitment") == "true":
+                        is_commitment = True
+                except Exception:
+                    pass
 
                 if is_commitment and not best_commitment:
                     # This is our primary commitment

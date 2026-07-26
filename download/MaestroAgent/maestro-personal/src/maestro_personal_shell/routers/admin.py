@@ -821,3 +821,31 @@ async def reclassify_signals(token: str = ""):
         "errors": errors,
         "governance": "P69/TICKET-10: commitment_owner backfilled for old signals",
     }
+
+@router.post("/api/admin/fix-sequences")
+async def fix_sequences(token: str = ""):
+    """Fix Postgres sequences after SQLite migration (SERIAL sequences start at 1)."""
+    import os
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, _is_postgres
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    if not _is_postgres():
+        return {"status": "skipped", "reason": "not using Postgres"}
+
+    conn = get_db_conn()
+    results = []
+    # Fix common sequences
+    for table, col in [("connector_audit", "audit_id"), ("predictions", "prediction_id"), ("outcomes", "outcome_id")]:
+        try:
+            seq_name = f"{table}_{col}_seq"
+            conn.execute(f"SELECT setval('{seq_name}', COALESCE((SELECT MAX({col}) FROM {table}), 1))")
+            results.append(f"{table}: sequence reset to MAX({col})")
+        except Exception as e:
+            results.append(f"{table}: {e}")
+    conn.commit()
+    conn.close()
+    return {"status": "complete", "fixes": results}
