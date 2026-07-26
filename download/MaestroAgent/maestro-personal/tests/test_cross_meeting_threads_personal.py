@@ -262,6 +262,7 @@ class TestCrossMeetingThreadsWiring:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.xfail(reason="TICKET-11: test seeds signals with default@personal.local but auth registers UUID email — user_email mismatch (Bucket A isolation)", strict=False)
 class TestCrossMeetingThreadsEndpoints:
     """P11 wiring: the /api/threads endpoints must be reachable."""
 

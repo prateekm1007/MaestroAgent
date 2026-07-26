@@ -1,7 +1,7 @@
-from maestro_personal_shell.db_util import default_sqlite_path
-
 """Personal-shell wrapper for the MeetingGrader."""
 from __future__ import annotations
+
+from maestro_personal_shell.db_util import default_sqlite_path
 
 import logging
 import os

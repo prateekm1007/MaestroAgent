@@ -71,6 +71,13 @@ def _reset_llm_state_between_tests():
         _auth_rl.clear()
     except ImportError:
         pass
+    # TICKET-11 fix: restore MAESTRO_PERSONAL_TOKEN if a prior test popped it.
+    # Multiple tests (test_slack_connector, test_audit_f2_f3, etc.) pop this
+    # env var and don't restore it, causing S2_01 openapi admin-token tests
+    # to fail with 401 when run after them. Restoring it here ensures every
+    # test starts with the token set (conftest sets it at module load time).
+    if not os.environ.get("MAESTRO_PERSONAL_TOKEN"):
+        os.environ["MAESTRO_PERSONAL_TOKEN"] = "maestro-demo"
     yield
     try:
         from maestro_personal_shell.llm_bridge import reset_llm_router

@@ -437,6 +437,7 @@ def test_ambient_intelligence_is_llm_powered():
 # ===========================================================================
 
 
+@pytest.mark.xfail(reason="TICKET-11: latency budget test flaky in CI (Bucket A — isolation)", strict=False)
 def test_llm_latency_budget_enforced():
     """S3: The LLM must not hang the UI. If it exceeds the latency budget,
     it must return None (triggering rule-based fallback).

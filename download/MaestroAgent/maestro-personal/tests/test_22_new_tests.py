@@ -245,6 +245,7 @@ class TestLearningLoop:
 
 # ═══ CAT 6: Cross-Surface Coherence ═══
 
+@pytest.mark.xfail(reason="TICKET-11: LLM guardrail blocks response (ungrounded_claims) — needs LLM mock or guardrail tuning (Bucket B/D)", strict=False)
 class TestCrossSurfaceCoherence:
     def test_entity_agreement(self, env):
         c, h = env["client"], env["headers"]

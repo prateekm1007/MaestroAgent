@@ -99,6 +99,7 @@ class TestCoreWiring:
         _ = shell.core.whisper_bridge  # should not raise
 
 
+@pytest.mark.xfail(reason="TICKET-11: /api/depth admin-gated (returns 404 without MAESTRO_ADMIN_TOKEN — security hardening)", strict=True)
 class TestDepthEndpoint:
     """Verify the /api/depth endpoint reports wiring status."""
 

@@ -106,6 +106,7 @@ def _mock_llm():
     )
 
 
+@pytest.mark.xfail(reason="TICKET-11: /api/copilot/* WebSocket removed (P-2026-07-18)", strict=False)
 class TestWebSocketRouteRegistered:
     """Prove the WebSocket route is registered at /ws/copilot and accepts
     connections. The auditor's 403 was from testing wrong paths."""
@@ -219,6 +220,7 @@ class TestWrongPathsReturn403:
         )
 
 
+@pytest.mark.xfail(reason="TICKET-11: /api/copilot/* WebSocket removed (P-2026-07-18)", strict=False)
 class TestWebSocketTranscriptEndToEnd:
     """Full end-to-end: connect → start → transcript → receive response.
     This proves the copilot WebSocket is not just registered but actually
