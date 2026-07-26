@@ -12,6 +12,13 @@ from fastapi import APIRouter, Depends, Header, Request
 
 from maestro_personal_shell.models import AskRequest, AskResponse
 from maestro_personal_shell.rate_limit import rate_limit
+# P66/P70 fix (2026-07-26): import default_sqlite_path at MODULE LEVEL.
+# Previous fixes (TICKET-10b, TICKET-11b) added LOCAL imports of this function
+# inside _ask_impl, which caused Python to treat the name as local to the ENTIRE
+# function — making the first usage throw UnboundLocalError before the later
+# local import ran. This is the P66 pattern (shadowed local import) recurring
+# a THIRD time. The fix: ONE module-level import, NO local imports anywhere.
+from maestro_personal_shell.db_util import default_sqlite_path
 # S3-1-WIRE-LIVE (Kimi K3 design, generation_id=gen-1784948642-WQjc4PQWvtQqWiLDMqqs):
 # P41 single source of truth + P43 built-but-not-wired is not done.
 # The reconcile module is the canonical read path for classification/ownership.
@@ -197,7 +204,6 @@ def _apply_ticket10_filter(
         # level too deep). This silently hit "no such table: signals" on a
         # fresh DB, causing the filter to return 0 reconciled records and
         # fall through without filtering — leaking the user's commitment.
-        from maestro_personal_shell.db_util import default_sqlite_path
         _db_path = default_sqlite_path()
         _reconciled = reconcile_signals_for_user(
             user_email=user_token,
@@ -1668,7 +1674,6 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     if _is_intent_query:
         try:
             from maestro_personal_shell.retrieval_ensemble import retrieve as ensemble_retrieve
-            from maestro_personal_shell.db_util import default_sqlite_path
             _db = default_sqlite_path()
             # F-Precision fix (2026-07-20): enable Cohere reranker for intent
             # queries when COHERE_API_KEY is set. Cohere is a true cross-encoder
@@ -4090,12 +4095,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         # not just the ledger fast path. This ensures F-03 (ownership) and
         # F-09 (third-party exclusion) hold in rules-only mode.
         try:
-            _p65_db_path = None
-            try:
-                from pathlib import Path as _P_p65
-                _p65_db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(_P_p65(__file__).resolve().parent / "personal.db"))
-            except Exception:
-                pass
+            _p65_db_path = default_sqlite_path()  # P66/P70 fix: module-level import, no local import
             _p65_reconciled = reconcile_signals_for_user(
                 user_email=token,
                 db_path=_p65_db_path,
@@ -4156,12 +4156,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     # path can reintroduce the leak by omission.
     if _is_third_party_promise_query and evidence_refs:
         try:
-            _tp_db_path = None
-            try:
-                from pathlib import Path as _P_tp
-                _tp_db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(_P_tp(__file__).resolve().parent / "personal.db"))
-            except Exception:
-                pass
+            _tp_db_path = default_sqlite_path()  # P66/P70 fix: module-level import, no local import
             _tp_reconciled = reconcile_signals_for_user(
                 user_email=token,
                 db_path=_tp_db_path,

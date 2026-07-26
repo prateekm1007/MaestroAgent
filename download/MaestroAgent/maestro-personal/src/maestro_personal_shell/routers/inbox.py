@@ -15,6 +15,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 
+from maestro_personal_shell.db_util import default_sqlite_path
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/inbox", tags=["inbox"])
 
@@ -59,7 +61,7 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
         raise HTTPException(status_code=404, detail=f"Email {email_id} not found")
 
     # Ingest the email body as a signal (triggers classification + closure matching)
-    db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+    db_path = default_sqlite_path()
 
     # TICKET-10/P69 fix (2026-07-25): run the classifier BEFORE saving so the
     # classification result (including commitment_owner) is written to the
@@ -213,7 +215,7 @@ async def inbox_status(token: str = Depends(verify_token_dep)):
     import os, sqlite3, json
     from pathlib import Path
     
-    db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+    db_path = default_sqlite_path()
     init_ledger_table(db_path)
     
     # Count synthetic signals

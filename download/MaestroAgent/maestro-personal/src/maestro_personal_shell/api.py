@@ -51,7 +51,7 @@ API_PORT = int(os.environ.get("MAESTRO_PERSONAL_PORT") or os.environ.get("PORT")
 # The default_sqlite_path() helper in db_util.py does exactly this.
 # All call sites that used DB_PATH as a default parameter now call this
 # function instead, so they always see the current env var value.
-from maestro_personal_shell.db_util import default_sqlite_path as _get_db_path
+from maestro_personal_shell.db_util import default_sqlite_path, default_sqlite_path as _get_db_path
 
 def _db_path() -> str:
     """Return the current DB path (reads env var fresh — not cached at import).
@@ -98,10 +98,7 @@ def _is_production() -> bool:
 # Per-user token store (F1 fix) — persisted in SQLite for cross-restart
 def _get_db():
     """Get DB path from env (always fresh — avoids reload staleness)."""
-    return os.environ.get(
-        "MAESTRO_PERSONAL_DB",
-        str(Path(__file__).resolve().parent / "personal.db"),
-    )
+    return default_sqlite_path()
 
 
 def _hash_token(token: str) -> str:
@@ -220,7 +217,7 @@ async def verify_token(authorization: str = Header(None)) -> str:
         return "default@personal.local"
 
     # Check per-user tokens (SQLite-persisted) — inlined to avoid reload closure issues
-    db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+    db = default_sqlite_path()
     # P1-4 fix: hash the incoming token and look up the hash
     token_hash = _hash_token(token)
     try:
@@ -1353,7 +1350,7 @@ async def websocket_copilot_handler(websocket: "WebSocket"):
     # Check per-user tokens first
     user_email = None
     try:
-        db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+        db = default_sqlite_path()
         conn = get_db_conn(db)
         # P1-4 fix: hash the token and look up the hash
         ws_token_hash = _hash_token(raw_token)

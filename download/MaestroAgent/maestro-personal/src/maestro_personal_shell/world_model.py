@@ -1,5 +1,4 @@
 """Canonical World Model — Phase 4: Cross-Surface Coherence."""
-
 from __future__ import annotations
 
 import logging
@@ -8,15 +7,14 @@ from typing import Any
 from datetime import datetime, timezone
 from pathlib import Path
 
+from maestro_personal_shell.db_util import default_sqlite_path
+
 logger = logging.getLogger(__name__)
 
 
 def _get_db_path() -> str:
     import os
-    return os.environ.get(
-        "MAESTRO_PERSONAL_DB",
-        str(Path(__file__).resolve().parent / "personal.db"),
-    )
+    return default_sqlite_path()
 
 
 class WorldModel:
