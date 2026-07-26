@@ -25,10 +25,21 @@ _TRUSTED_PROXIES = frozenset(
 
 
 def _client_ip(request):
-    """Return the client IP, honoring X-Forwarded-For ONLY from a trusted proxy (K3-BE-001)."""
+    """Return the client IP, honoring X-Forwarded-For from trusted proxies.
+
+    K3-BE-001 fix: X-Forwarded-For is only honored from trusted proxies.
+    Railway fix (2026-07-26): Railway's proxy IPs are in the 100.64.0.0/16
+    mesh range. We check if the peer IP starts with "100.64." to treat it
+    as a trusted Railway proxy. This is necessary because Railway rotates
+    proxy IPs (100.64.0.3, 100.64.0.8, etc.) — without CIDR matching,
+    the rate limiter sees a different IP per request and never accumulates
+    enough hits to trigger.
+    """
     peer = request.client.host if request.client else "?"
     fwd = request.headers.get("X-Forwarded-For", "")
-    if fwd and peer in _TRUSTED_PROXIES:
+    # Check if peer is in the trusted proxy list OR is a Railway mesh IP (100.64.x.x)
+    is_trusted = peer in _TRUSTED_PROXIES or peer.startswith("100.64.")
+    if fwd and is_trusted:
         # Trusted proxy — take the leftmost (original client) IP.
         return fwd.split(",")[0].strip() or peer
     return peer
