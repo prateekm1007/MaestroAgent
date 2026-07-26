@@ -190,7 +190,15 @@ def _apply_ticket10_filter(
         return answer, evidence_refs, confidence, calibration_note
 
     try:
-        _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parent / "personal.db"))
+        # TICKET-10b fix (2026-07-25): use the shared default_sqlite_path()
+        # utility from db_util.py — NEVER hand-roll this path. The previous
+        # code used Path(__file__).resolve().parent / "personal.db" which
+        # resolves to routers/personal.db (wrong directory — routers/ is one
+        # level too deep). This silently hit "no such table: signals" on a
+        # fresh DB, causing the filter to return 0 reconciled records and
+        # fall through without filtering — leaking the user's commitment.
+        from maestro_personal_shell.db_util import default_sqlite_path
+        _db_path = default_sqlite_path()
         _reconciled = reconcile_signals_for_user(
             user_email=user_token,
             db_path=_db_path,
@@ -468,7 +476,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     if any(m in query_lower for m in _COMPLETION_QUERY_MARKERS):
         try:
             from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
-            _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+            _db_path = default_sqlite_path()
             init_ledger_table(_db_path)
             _entries = get_ledger_entries(token, _db_path)
             _resolved = [e for e in _entries if e.get("state") in ("completed_claimed", "completed_verified")]
@@ -566,7 +574,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
             # We have a specific entity query — read the ledger
             try:
                 from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
-                _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                _db_path = default_sqlite_path()
                 init_ledger_table(_db_path)
 
                 _ledger_evidence = []
@@ -1347,7 +1355,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                 # Try ledger first
                 try:
                     from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
-                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    _db_path = default_sqlite_path()
                     init_ledger_table(_db_path)
                     _entries = get_ledger_entries(token, _db_path)
                     if _entries:
@@ -1422,7 +1430,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                 # Use the ledger to identify state changes since from_date
                 try:
                     from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
-                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    _db_path = default_sqlite_path()
                     init_ledger_table(_db_path)
                     _entries = get_ledger_entries(token, _db_path)
 
@@ -1520,7 +1528,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
             if _is_attention_query:
                 try:
                     from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
-                    _db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                    _db_path = default_sqlite_path()
                     init_ledger_table(_db_path)
                     _entries = get_ledger_entries(token, _db_path)
 
@@ -1660,10 +1668,8 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     if _is_intent_query:
         try:
             from maestro_personal_shell.retrieval_ensemble import retrieve as ensemble_retrieve
-            _db = os.environ.get(
-                "MAESTRO_PERSONAL_DB",
-                str(Path(__file__).resolve().parents[1] / "personal.db"),
-            )
+            from maestro_personal_shell.db_util import default_sqlite_path
+            _db = default_sqlite_path()
             # F-Precision fix (2026-07-20): enable Cohere reranker for intent
             # queries when COHERE_API_KEY is set. Cohere is a true cross-encoder
             # (single API call, ~300ms) — much faster than the LLM-based reranker
@@ -2397,7 +2403,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
             # No model swap fixes a retrieval architecture problem.
             try:
                 from maestro_personal_shell.retrieval_ensemble import retrieve as ensemble_retrieve
-                _db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+                _db = default_sqlite_path()
                 retrieval_result = ensemble_retrieve(
                     query=req.query,
                     user_email=token,
@@ -3314,7 +3320,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     if not llm_answer_used and entities and not _is_intent_query:
         try:
             from maestro_personal_shell.db_util import get_db_conn
-            _db = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+            _db = default_sqlite_path()
             _conn = get_db_conn(_db)
             existing_entities = set()
             for qe in entities:

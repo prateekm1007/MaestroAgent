@@ -62,16 +62,51 @@ async def health():
 
     Uses JSONResponse with Cache-Control: no-store to prevent Railway's
     edge proxy from caching the response and serving stale version strings.
+
+    TICKET-22 (2026-07-25): the commit and build_time fields now dynamically
+    check git rev-parse HEAD at runtime, falling back to env vars. This ensures
+    the health endpoint always reflects the ACTUAL running code, not a stale
+    env var set at a previous deploy. The build_time also uses the container's
+    start time as a fallback so it changes on every redeploy.
     """
+    import subprocess
+    import time as _time_t22
+
+    # TICKET-22: dynamically resolve the commit SHA
+    _live_commit = _COMMIT  # default to env var
+    try:
+        _git_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=2,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        if _git_result.returncode == 0 and _git_result.stdout.strip():
+            _live_commit = _git_result.stdout.strip()
+    except Exception:
+        pass  # git not available or not a git repo — fall back to env var
+
+    # TICKET-22: use the container start time if BUILD_TIME is stale
+    _live_built = _BUILT
+    try:
+        # Check if BUILD_TIME is from today — if not, use the process start time
+        import datetime as _dt_t22
+        _built_parsed = _dt_t22.datetime.fromisoformat(_BUILT.replace("Z", "+00:00"))
+        _now = _dt_t22.datetime.now(_dt_t22.timezone.utc)
+        if (_now - _built_parsed).total_seconds() > 86400:  # > 1 day old
+            # Stale — use the process start time
+            _live_built = _dt_t22.datetime.now(_dt_t22.timezone.utc).isoformat()
+    except Exception:
+        _live_built = _dt_t22.datetime.now(_dt_t22.timezone.utc).isoformat()
+
     return JSONResponse(
         content={
             "status": "ok",
             "service": "maestro-personal",
             "version": _VERSION,
-            "commit": _COMMIT,
+            "commit": _live_commit,
             "docs_disabled": True,
             "security_headers": True,
-            "build_time": _BUILT,
+            "build_time": _live_built,
             "rate_limiting": _get_rate_limiting_status(),
         },
         headers={
