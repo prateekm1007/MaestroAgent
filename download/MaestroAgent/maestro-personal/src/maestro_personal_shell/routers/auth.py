@@ -40,8 +40,22 @@ def _client_ip(request):
     # Check if peer is in the trusted proxy list OR is a Railway mesh IP (100.64.x.x)
     is_trusted = peer in _TRUSTED_PROXIES or peer.startswith("100.64.")
     if fwd and is_trusted:
-        # Trusted proxy — take the leftmost (original client) IP.
-        return fwd.split(",")[0].strip() or peer
+        # Trusted proxy — use the FULL XFF chain as the key.
+        # Railway's CDN rotates the leftmost IP (Cloudflare edge), so
+        # leftmost-only doesn't accumulate. But the rightmost IP (Railway
+        # edge) is more stable, and the full chain captures repeat offenders.
+        # Also try CF-Connecting-IP (Cloudflare's real client IP header).
+        cf_ip = request.headers.get("CF-Connecting-IP", "")
+        if cf_ip:
+            return cf_ip.strip()
+        x_real_ip = request.headers.get("X-Real-IP", "")
+        if x_real_ip:
+            return x_real_ip.strip()
+        # Fall back to the rightmost IP in the XFF chain (most stable)
+        parts = [p.strip() for p in fwd.split(",") if p.strip()]
+        if parts:
+            return parts[-1]  # rightmost = closest to the app
+        return peer
     return peer
 
 
@@ -52,12 +66,6 @@ def _check_rl(request):
     if os.environ.get("MAESTRO_LOCAL_DEV") == "true":
         return
     ip = _client_ip(request)
-    # Debug: log the IP and X-Forwarded-For header to diagnose rate limiter
-    logger.warning("RL_DEBUG: peer=%s xff=%s ip=%s bucket_size=%d",
-                   request.client.host if request.client else "?",
-                   request.headers.get("X-Forwarded-For", ""),
-                   ip,
-                   len(_auth_rl.get(ip, _rl_deque())))
     now = _rl_time.monotonic()
     if ip not in _auth_rl:
         _auth_rl[ip] = _rl_deque()
