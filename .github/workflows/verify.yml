@@ -1,0 +1,118 @@
+name: MaestroAgent Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install httpx pypdf
+
+      - name: Run verification checks
+        env:
+          BACKEND_URL: https://maestroagent-production.up.railway.app
+        run: |
+          python3 << 'PYEOF'
+          import httpx, json, os, sys, time, re
+          from pathlib import Path
+
+          BACKEND = os.environ.get("BACKEND_URL", "https://maestroagent-production.up.railway.app")
+          report = {"timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "checks": {}, "summary": {"pass": 0, "fail": 0, "warn": 0}}
+
+          def check(name, status, detail):
+              report["checks"][name] = {"status": status, "detail": detail}
+              report["summary"][status.lower()] = report["summary"].get(status.lower(), 0) + 1
+              print(f"  [{status}] {name}: {detail}")
+
+          # 1. Backend health
+          try:
+              h = httpx.get(f"{BACKEND}/api/health", timeout=15).json()
+              check("backend_health", "PASS", f"status={h.get('status')} build={h.get('build_time','?')[:25]}")
+          except Exception as e:
+              check("backend_health", "FAIL", str(e))
+
+          # 2. Code checks
+          src = Path("download/MaestroAgent/maestro-personal/src/maestro_personal_shell")
+
+          reconcile = (src / "reconcile.py").read_text()
+          check("p69_owner_key", "PASS" if "commitment_owner" in reconcile else "FAIL",
+                "reconcile.py reads commitment_owner" if "commitment_owner" in reconcile else "P69 regression")
+
+          ask = (src / "routers" / "ask.py").read_text()
+          local_imports = len(re.findall(r"from maestro_personal_shell\.db_util import default_sqlite_path", ask))
+          check("p66_shadowing", "PASS" if local_imports <= 1 else "FAIL",
+                f"{local_imports} default_sqlite_path imports (should be <=1)")
+
+          aliased = len(re.findall(r"from pathlib import Path as", ask))
+          check("p66_aliased", "PASS" if aliased == 0 else "FAIL", f"{aliased} aliased Path imports")
+
+          # 3. Hardcoded DB paths
+          hardcoded = []
+          for py in src.rglob("*.py"):
+              if py.name == "db_util.py": continue
+              content = py.read_text()
+              for i, line in enumerate(content.split("\n"), 1):
+                  if "Path(__file__)" in line and "personal.db" in line and not line.strip().startswith("#"):
+                      hardcoded.append(f"{py.name}:{i}")
+          check("hardcoded_db_paths", "PASS" if not hardcoded else "FAIL",
+                f"{len(hardcoded)} violations: {hardcoded[:3]}" if hardcoded else "0 violations")
+
+          # 4. Live API checks
+          try:
+              email = f"ci-verify-{int(time.time())}@x.com"
+              r = httpx.post(f"{BACKEND}/api/auth/register", json={"user_email": email, "password": "audit-2026", "name": "CI"}, timeout=30)
+              token = r.json().get("token", "")
+              if not token:
+                  check("register", "FAIL", f"Register failed: {r.text[:100]}")
+              else:
+                  check("register", "PASS", email)
+
+                  # Seed signal
+                  httpx.post(f"{BACKEND}/api/signals", headers={"Authorization": f"Bearer {token}"}, json={"entity": "Maria", "text": "I will send the proposal to Maria by Friday", "signal_type": "commitment_made"}, timeout=30)
+
+                  # P43
+                  r = httpx.post(f"{BACKEND}/api/ask", headers={"Authorization": f"Bearer {token}"}, json={"query": "What did I promise Maria?"}, timeout=90)
+                  ans = r.json().get("answer", "")
+                  check("p43_ownership", "PASS" if "maria" in ans.lower() else "FAIL", f"answer contains Maria: {'maria' in ans.lower()}")
+
+                  # P60
+                  r = httpx.post(f"{BACKEND}/api/ask", headers={"Authorization": f"Bearer {token}"}, json={"query": "What did Maria promise?"}, timeout=90)
+                  ans = r.json().get("answer", "")
+                  check("p60_exclusion", "PASS" if "i will send" not in ans.lower() else "FAIL", f"leak: {'i will send' in ans.lower()}")
+
+                  # P63 bypass token
+                  try:
+                      r = httpx.get(f"{BACKEND}/api/connectors", headers={"Authorization": "Bearer demo-bypass-token"}, timeout=15)
+                      check("p63_bypass_live", "FAIL", f"bypass token returned {r.status_code}")
+                  except httpx.HTTPStatusError as e:
+                      check("p63_bypass_live", "PASS" if e.response.status_code == 401 else "WARN", f"status={e.response.status_code}")
+          except Exception as e:
+              check("live_checks", "FAIL", str(e))
+
+          # Save report
+          report["summary"]["total"] = sum(report["summary"].values())
+          Path("verification_report.json").write_text(json.dumps(report, indent=2))
+          print(f"\n=== SUMMARY: {report['summary']['pass']} PASS, {report['summary']['fail']} FAIL, {report['summary']['warn']} WARN ===")
+          sys.exit(1 if report["summary"]["fail"] > 0 else 0)
+          PYEOF
+
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report
+          path: verification_report.json
