@@ -230,10 +230,13 @@ def reconcile_signals_for_user(
     for (sig_id,) in rows:
         rec = reconcile_signal(sig_id, db_path=_db, user_email=user_email)
         if rec is None:
+            logger.warning("TICKET-10 debug: reconcile_signal returned None for sig_id=%s user_email=%s", sig_id, user_email)
             continue
         # P37: filter non-commitments unless explicitly requested
         if not include_non_commitments and not rec["is_commitment"]:
+            logger.warning("TICKET-10 debug: filtered out non-commitment sig_id=%s is_commitment=%s owner=%s", sig_id, rec.get("is_commitment"), rec.get("owner"))
             continue
+        logger.warning("TICKET-10 debug: kept record sig_id=%s is_commitment=%s owner=%s commitment_type=%s", sig_id, rec.get("is_commitment"), rec.get("owner"), rec.get("commitment_type"))
         results.append(rec)
     return results
 
