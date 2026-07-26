@@ -614,9 +614,17 @@ async def migrate_to_postgres(token: str = ""):
     pg.autocommit = False
     pg_cur = pg.cursor()  # psycopg2 requires a cursor for execute
 
-    # Get all tables from SQLite (skip FTS virtual tables)
+    # Get all tables from SQLite (skip FTS virtual tables and shadow tables)
     tables = [r[0] for r in sq.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_fts'"
+        "SELECT name FROM sqlite_master WHERE type='table' "
+        "AND name NOT LIKE 'sqlite_%' "
+        "AND name NOT LIKE '%_fts' "
+        "AND name NOT LIKE '%_fts_%' "
+        "AND name NOT LIKE '%_fts_data' "
+        "AND name NOT LIKE '%_fts_idx' "
+        "AND name NOT LIKE '%_fts_config' "
+        "AND name NOT LIKE '%_fts_content' "
+        "AND name NOT LIKE '%_fts_docsize' "
     ).fetchall()]
 
     migration_report = {"tables": {}, "total_rows": 0}
