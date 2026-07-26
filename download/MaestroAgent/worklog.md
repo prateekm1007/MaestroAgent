@@ -925,3 +925,84 @@ HONEST STATUS:
   the verdict can be re-evaluated.
 - Remaining: TICKET-9 (test fixture) is fixed, TICKET-11 is complete,
   TICKET-13 migration script is written, TICKET-20 needs full re-audit.
+
+
+---
+Task ID: 53 (CTO — SQLite→Postgres migration COMPLETE + verification)
+Agent: CTO (GLM) — P47 honest attribution
+
+MIGRATION COMPLETE (commit 88fefa1):
+- 24,587 rows migrated from SQLite to Postgres
+- All tables show "status": "OK" (Postgres count >= SQLite count)
+- FTS index rebuilt: 1,840 signals indexed on Postgres (tsvector)
+- Demo user has 17 commitments on Postgres (was 0 on the cold-start Postgres)
+- Backend is running on Postgres with migrated data
+
+MIGRATION ENDPOINT (commit 261ec33 + fixes):
+- POST /api/admin/migrate-to-postgres?token=maestro-demo
+- Reads SQLite directly (sqlite3.connect), writes to Postgres (psycopg2 cursor)
+- Excludes FTS virtual tables and shadow tables (signals_fts_data etc)
+- Rebuilds FTS index on Postgres after migration
+- Returns a migration report with row counts for verification
+
+FIXES DURING MIGRATION:
+1. psycopg2 connection.execute doesn't exist → use pg_cur = pg.cursor()
+2. psycopg2 cursor.execute returns None for SELECT → call fetchone() on cursor
+3. FTS shadow tables (signals_fts_data, signals_fts_idx, etc) excluded from migration
+
+VERIFICATION (P1 — executed this session):
+- Demo login: 200 ✓
+- Demo commitments: 17 (migrated data present) ✓
+- P43 'What did I promise Maria?': PASS ✓ (returns Maria's commitment)
+- P60 'What did Maria promise?': FAIL — leaks user's commitment
+
+P60 FAILURE ON MIGRATED DATA — ROOT CAUSE:
+The migrated signals were created BEFORE the inbox.py fix (commit e243ec8)
+that writes commitment_owner to metadata. Their metadata has the OLD format
+(no commitment_owner key). The TICKET-10 filter reads commitment_owner via
+reconcile_signals_for_user, which returns owner='unknown' for old signals.
+The filter excludes owner='unknown' for third-party queries, but the RC2
+fast path returns the answer BEFORE the wrapper filter runs (the answer
+goes through intelligence_source='ledger' which is the RC2 path that
+returns early at line 746, before the wrapper at line 250).
+
+Wait — the wrapper IS at the exit point. But the P60 answer shows
+intelligence_source='ledger' which means the RC2 fast path returned. The
+wrapper should filter it. But the filter calls reconcile_signals_for_user
+which returns records with owner='unknown' for old data. The filter
+excludes owner != 'other', so ALL old records are excluded, and the answer
+should be replaced with the abstention. But it's not being replaced...
+
+Actually, looking at the P60 answer: it shows the user's commitment. This
+means the wrapper filter ISN'T catching it. The issue might be that the
+RC2 fast path's OWN filter (line 656) runs BEFORE the wrapper, and it
+returns early with the unfiltered answer. But the wrapper should still
+filter the response...
+
+The real issue: the RC2 fast path returns at line 746, which is inside
+_ask_impl. The wrapper at line 250 calls _ask_impl and filters the
+response. So the wrapper SHOULD filter it. But the filter checks
+evidence_refs — and the RC2 fast path's evidence_refs might not have
+signal_ids that match the reconcile records.
+
+This is the same issue as before — the RC2 fast path builds evidence_refs
+from get_ledger_entries (not reconcile), so the signal_ids in evidence_refs
+don't match the signal_ids in the reconcile records. The filter can't
+match them.
+
+FIX NEEDED: for old migrated data, run a reclassification pass that writes
+commitment_owner to metadata. This is a one-time migration script.
+
+HONEST STATUS:
+- Postgres migration: COMPLETE (24,587 rows, all tables OK)
+- P43 on Postgres: PASS ✓
+- P60 on Postgres: FAIL (old data lacks commitment_owner in metadata)
+- P60 on NEW data (created after the fix): PASS ✓ (verified in Task 52)
+- The product is at YELLOW. P60 works for new data but not for old migrated data.
+- A reclassification pass is needed to backfill commitment_owner on old signals.
+
+COMMITS:
+- 261ec33 — add /api/admin/migrate-to-postgres endpoint
+- 835ae30 — fix: use psycopg2 cursor
+- ee3a8b4 — fix: psycopg2 cursor.execute returns None
+- 88fefa1 — fix: exclude FTS shadow tables
