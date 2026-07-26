@@ -216,12 +216,15 @@ def reconcile_signals_for_user(
             ).fetchall()
         conn.close()
     except Exception as e:
-        logger.debug("reconcile_signals_for_user: query failed: %s", e)
+        logger.warning("TICKET-10 debug: reconcile_signals_for_user query failed: user_email=%s entity_filter=%s error=%s", user_email, entity_filter, e)
         try:
             conn.close()
         except Exception:
             pass
         return []
+
+    # TICKET-10 debug: log how many records were found
+    logger.warning("TICKET-10 debug: reconcile_signals_for_user found %d signals for user_email=%s", len(rows), user_email)
 
     results: list[dict[str, Any]] = []
     for (sig_id,) in rows:
