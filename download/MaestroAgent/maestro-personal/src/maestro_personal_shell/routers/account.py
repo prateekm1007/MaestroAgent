@@ -11,7 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from maestro_personal_shell.db_util import get_db_conn
+from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
 
 logger = logging.getLogger(__name__)
 
@@ -517,7 +517,7 @@ _DEFAULT_CONSENT: dict[str, dict[str, bool]] = {
 @router.get("/consent/settings")
 async def get_consent_settings(token: str = Depends(verify_token_dep)):
     """Get per-connector consent toggles for the current user."""
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     from maestro_personal_shell.audit_trust import log_data_access
     log_data_access(token, "read", "/api/consent/settings")
 
@@ -559,7 +559,7 @@ async def set_consent_settings(
 
     Body: {"provider": "gmail", "scope": "create_drafts", "enabled": false}
     """
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     from maestro_personal_shell.audit_trust import log_data_access
     import json
 
@@ -613,7 +613,7 @@ def check_consent(user_email: str, provider: str, scope: str) -> bool:
     if scope not in _DEFAULT_CONSENT[provider]:
         return True  # unknown scope — allow
 
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     import json
     import logging
     logger = logging.getLogger(__name__)
@@ -981,7 +981,4 @@ async def get_persisted_situations(token: str = Depends(verify_token_dep)):
 def _get_db_path() -> str:
     """Get the DB path from env (always fresh — avoids reload staleness)."""
     import os
-    return os.environ.get(
-        "MAESTRO_PERSONAL_DB",
-        str(Path(__file__).resolve().parents[1] / "personal.db"),
-    )
+    return default_sqlite_path()

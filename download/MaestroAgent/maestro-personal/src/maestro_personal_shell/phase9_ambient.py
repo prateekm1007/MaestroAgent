@@ -43,7 +43,7 @@ def _resolve_db_path() -> str:
     if env:
         return env
     from pathlib import Path
-    return str(Path(__file__).resolve().parent / "personal.db")
+    return default_sqlite_path()
 
 
 def _get_signals_for_user(user_email: str, db_path: str = "") -> list[dict]:
@@ -51,7 +51,7 @@ def _get_signals_for_user(user_email: str, db_path: str = "") -> list[dict]:
 
     P13: inputs are DERIVED from stored evidence, not caller-supplied.
     """
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     path = db_path or _resolve_db_path()
     db = get_db_conn(path)
     try:

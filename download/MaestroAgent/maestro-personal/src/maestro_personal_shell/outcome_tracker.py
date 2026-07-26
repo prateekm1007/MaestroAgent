@@ -16,7 +16,7 @@ report shows real Brier scores instead of 'Insufficient calibration history.'
 from __future__ import annotations
 
 import sqlite3
-from maestro_personal_shell.db_util import get_db_conn
+from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
 import json
 import logging
 from datetime import datetime, timezone
@@ -30,7 +30,7 @@ def _get_db_path() -> str:
     import os
     return os.environ.get(
         "MAESTRO_PERSONAL_DB",
-        str(__import__("pathlib").Path(__file__).resolve().parent / "personal.db"),
+        default_sqlite_path(),
     )
 
 

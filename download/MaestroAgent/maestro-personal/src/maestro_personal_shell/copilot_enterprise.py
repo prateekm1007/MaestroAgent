@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from maestro_personal_shell.db_util import get_db_conn
+from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
 
 logger = logging.getLogger(__name__)
 
@@ -106,10 +106,7 @@ class PlaybookEngine:
 
     def __init__(self, shell: Any = None, db_path: str | None = None):
         self.shell = shell
-        self.db_path = db_path or os.environ.get(
-            "MAESTRO_PERSONAL_DB",
-            str(Path(__file__).resolve().parent / "personal.db"),
-        )
+        self.db_path = db_path or default_sqlite_path()
         self.playbooks: list[dict[str, Any]] = []
         self._initialized = False
 
@@ -435,10 +432,7 @@ class ShadowMode:
 
     def __init__(self, shell: Any = None, db_path: str | None = None):
         self.shell = shell
-        self.db_path = db_path or os.environ.get(
-            "MAESTRO_PERSONAL_DB",
-            str(Path(__file__).resolve().parent / "personal.db"),
-        )
+        self.db_path = db_path or default_sqlite_path()
         self._initialized = False
 
     def _ensure_init(self) -> None:

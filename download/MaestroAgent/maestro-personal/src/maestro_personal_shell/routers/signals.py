@@ -690,9 +690,9 @@ async def correct_signal(
     """Correct or dismiss a signal (F7 fix)."""
     import sqlite3
     import json as _json
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
 
-    db_path = os.environ.get("MAESTRO_PERSONAL_DB", str(Path(__file__).resolve().parents[1] / "personal.db"))
+    db_path = default_sqlite_path()
     conn = get_db_conn(db_path)
 
     # Check signal exists AND belongs to the authenticated user (cross-user protection)

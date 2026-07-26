@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 def _get_db_path() -> str:
     return os.environ.get(
         "MAESTRO_PERSONAL_DB",
-        str(Path(__file__).resolve().parent.parent / "personal.db"),
+        default_sqlite_path(),
     )
 
 
 def init_cursors_table(db_path: str | None = None) -> None:
     """Create the sync_cursors table if it doesn't exist."""
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     if db_path is None:
         db_path = _get_db_path()
     conn = get_db_conn(db_path)
@@ -46,7 +46,7 @@ def init_cursors_table(db_path: str | None = None) -> None:
 
 def get_cursor(user_email: str, source: str, db_path: str | None = None) -> SyncCursor:
     """Load the persisted cursor for a (user, source) pair."""
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     if db_path is None:
         db_path = _get_db_path()
     init_cursors_table(db_path)
@@ -78,7 +78,7 @@ def get_cursor(user_email: str, source: str, db_path: str | None = None) -> Sync
 
 def save_cursor(cursor: SyncCursor, db_path: str | None = None) -> None:
     """Persist a cursor to the database."""
-    from maestro_personal_shell.db_util import get_db_conn
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     if db_path is None:
         db_path = _get_db_path()
     init_cursors_table(db_path)

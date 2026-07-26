@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from maestro_personal_shell.db_util import get_db_conn
+from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
 
 logger = logging.getLogger(__name__)
 

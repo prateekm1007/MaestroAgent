@@ -18,7 +18,7 @@ from typing import Any
 from pathlib import Path
 
 # P1-3 fix: shared DB connection helper with busy_timeout + WAL mode
-from maestro_personal_shell.db_util import get_db_conn, _is_postgres
+from maestro_personal_shell.db_util import get_db_conn, _is_postgres, default_sqlite_path
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +86,7 @@ def _build_fts_query(query: str) -> str:
 
 
 def _get_db_path() -> str:
-    return os.environ.get(
-        "MAESTRO_PERSONAL_DB",
-        str(Path(__file__).resolve().parent / "personal.db"),
-    )
+    return default_sqlite_path()
 
 
 def init_fts_index(db_path: str | None = None) -> None:
