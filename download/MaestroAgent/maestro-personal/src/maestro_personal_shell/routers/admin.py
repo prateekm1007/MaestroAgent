@@ -732,3 +732,97 @@ async def migrate_to_postgres(token: str = ""):
     migration_report["status"] = "complete"
     migration_report["next_step"] = "Set MAESTRO_DATABASE_URL on Railway to switch to Postgres"
     return migration_report
+
+
+# ---------------------------------------------------------------------------
+# Reclassify old signals — backfill commitment_owner in metadata
+# ---------------------------------------------------------------------------
+
+@router.post("/api/admin/reclassify-signals")
+async def reclassify_signals(token: str = ""):
+    """Backfill commitment_owner in signal metadata for old signals.
+
+    Old signals (created before the inbox.py fix) don't have commitment_owner
+    in their metadata. This endpoint reads all signals, runs the commitment
+    classifier on each, and writes the classification result (including
+    commitment_owner) to the signal's metadata.
+
+    This fixes P60 (third-party exclusion) for old migrated data — the
+    TICKET-10 filter can't determine ownership without commitment_owner.
+
+    Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level).
+    """
+    import json as _json_rc
+    import asyncio as _asyncio_rc
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from maestro_personal_shell.commitment_classifier import classify_commitment
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    conn = get_db_conn(db_path)
+
+    # Get all signals that DON'T have commitment_owner in metadata
+    rows = conn.execute(
+        "SELECT signal_id, entity, text, metadata, user_email FROM signals"
+    ).fetchall()
+
+    total = len(rows)
+    reclassified = 0
+    skipped = 0
+    errors = 0
+
+    for row in rows:
+        sig_id = row[0]
+        entity = row[1] or ""
+        text = row[2] or ""
+        metadata_raw = row[3] or "{}"
+        user_email = row[4] or "bootstrap"
+
+        try:
+            metadata = _json_rc.loads(metadata_raw) if isinstance(metadata_raw, str) else (metadata_raw or {})
+        except Exception:
+            metadata = {}
+
+        # Skip if commitment_owner already set
+        if "commitment_owner" in metadata:
+            skipped += 1
+            continue
+
+        # Run the classifier
+        try:
+            classification = await classify_commitment(text=text, entity=entity)
+            if classification:
+                metadata["commitment_type"] = classification.get("commitment_type", "")
+                metadata["is_commitment"] = classification.get("is_commitment", False)
+                metadata["commitment_owner"] = classification.get("owner", "unknown")
+                metadata["commitment_confidence"] = classification.get("confidence", 0.0)
+                metadata["classification_reasoning"] = classification.get("reasoning", "")
+                metadata["llm_powered"] = classification.get("llm_powered", False)
+
+                # Write back to DB
+                conn.execute(
+                    "UPDATE signals SET metadata = ? WHERE signal_id = ?",
+                    (_json_rc.dumps(metadata), sig_id),
+                )
+                reclassified += 1
+            else:
+                errors += 1
+        except Exception as e:
+            errors += 1
+            logger.warning("Reclassify failed for %s: %s", sig_id, e)
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "complete",
+        "total_signals": total,
+        "reclassified": reclassified,
+        "skipped (already had commitment_owner)": skipped,
+        "errors": errors,
+        "governance": "P69/TICKET-10: commitment_owner backfilled for old signals",
+    }
