@@ -52,6 +52,12 @@ def _check_rl(request):
     if os.environ.get("MAESTRO_LOCAL_DEV") == "true":
         return
     ip = _client_ip(request)
+    # Debug: log the IP and X-Forwarded-For header to diagnose rate limiter
+    logger.warning("RL_DEBUG: peer=%s xff=%s ip=%s bucket_size=%d",
+                   request.client.host if request.client else "?",
+                   request.headers.get("X-Forwarded-For", ""),
+                   ip,
+                   len(_auth_rl.get(ip, _rl_deque())))
     now = _rl_time.monotonic()
     if ip not in _auth_rl:
         _auth_rl[ip] = _rl_deque()
