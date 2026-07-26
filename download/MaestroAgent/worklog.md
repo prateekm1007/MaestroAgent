@@ -1198,3 +1198,71 @@ HONEST STATUS:
 - TICKET-22: FIXED (health endpoint build_time fresh) ✓
 - P70: ADDED to governance + CI check ✓
 - The GREEN verdict is now backed by live reproductions, not just claims.
+
+
+---
+Task ID: 57 (CTO — P66 THIRD REGRESSION fix + GREEN REVOKED again + all import issues fixed)
+Agent: CTO (GLM) — P47 honest attribution: regression found by user (independent live reproduction)
+
+CRITICAL REGRESSION (P66 pattern, THIRD time):
+The TICKET-11b fix that replaced hardcoded DB paths with default_sqlite_path()
+added LOCAL imports inside _ask_impl. Python's scoping rules make the name
+local to the ENTIRE function — the first usage (line 200) threw UnboundLocalError
+before the second import (line 1671) ran. This broke P43 (ownership) — the
+flagship query fell through to the situation synthesizer. The GREEN 8.5/10
+verdict (Task 56) was given while this regression was live. REVOKED.
+
+ALSO FOUND AND FIXED BY USER:
+- Two aliased Path imports (from pathlib import Path as _P_p65, _P_tp) in
+  final-gate filters used wrong-directory Path(__file__) construction — same
+  TICKET-10b bug, hidden from the CI grep check by the alias
+- CI grep check didn't catch aliased imports, didn't work from arbitrary dirs
+- inbox.py and world_model.py had import before __future__ (SyntaxError)
+- api.py imported default_sqlite_path as _get_db_path but call sites used
+  the unaliased name (NameError)
+
+FIX (commit 50ee75b):
+1. default_sqlite_path imported ONCE at MODULE LEVEL in ask.py (line 21)
+2. ALL local imports removed (2 in ask.py)
+3. ALL aliased Path imports removed (2 in final-gate filters)
+4. ALL final-gate filters use default_sqlite_path() (module-level)
+5. CI check fixed: catches aliased imports, works from any directory
+6. Import ordering fixed in inbox.py, world_model.py
+7. api.py imports both default_sqlite_path and _get_db_path alias
+
+VERIFICATION (P1 — executed this session):
+- Local tests: 10/10 passing (test_ticket10, test_P43, test_P60, test_compound)
+- CI check: passes from repo root AND from /tmp
+- LIVE: P43 PASS, P60 PASS (no leak), TICKET-10 filter ran, P66 regression FIXED
+
+GREEN VERDICT REVOKED (third time):
+The GREEN 8.5/10 verdict (Task 56) was given while P43 was broken by the
+P66 regression. The verdict is REVOKED. This is the third GREEN revocation:
+1. Task 49: GREEN 8.5 → revoked (P69 owner-key bug was live)
+2. Task 56: GREEN 8.5 → revoked (P66 third regression was live)
+3. (This task: the fix is verified, but the verdict stays revoked until
+   a fresh Kimi K3 verdict is run against the fixed deployment)
+
+P70 LESSON REINFORCED:
+P70 says "a principle written down does not retroactively protect code."
+The TICKET-11b fix — which was specifically about enforcing the default_sqlite_path
+rule — INTRODUCED the P66 pattern (local imports shadowing module-level names)
+in the same session P66 was written up. The CI check that was supposed to
+prevent hardcoded paths didn't catch the aliased imports that had the same bug.
+A principle without enforcement is prose. Enforcement without coverage is theater.
+
+COMMITS:
+- 50ee75b — fix(P66 THIRD REGRESSION + aliased paths + CI check): module-level import
+
+P46 VERIFICATION RECEIPTS:
+- selftest: gen-1785033281-3mTL4i6E9YbnBZ6xVpJR
+
+HONEST STATUS:
+- P43 (ownership): PASS on fresh account ✓ (verified live, commit 50ee75b)
+- P60 (third-party exclusion): PASS on fresh account ✓ (no leak, filter ran)
+- P66 regression: FIXED ✓ (module-level import, no local imports)
+- CI check: FIXED ✓ (catches aliased imports, works from any directory)
+- GREEN verdict: REVOKED (third time) — needs fresh verdict against fixed deployment
+- Product status: YELLOW — the trust thesis works, but the verdict process
+  has been wrong three times. Don't trust any verdict until it's been verified
+  live after at least 24 hours of stable operation.
