@@ -270,8 +270,8 @@ class TestBootstrapTokenGating:
     def test_bootstrap_token_works_in_dev(self, client):
         """In dev mode, the bootstrap token should work."""
         response = client.post(
-            "/api/auth/login",
-            json={"password": os.environ.get("MAESTRO_PERSONAL_TOKEN", "test")},
+            "/api/auth/register",
+            json={"user_email": "bootstrap-test@example.com", "password": "TestPassword123!", "name": "Test"},
         )
         assert response.status_code == 200
         token = response.json()["token"]
