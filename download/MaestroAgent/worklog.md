@@ -872,3 +872,56 @@ COMMITS:
 - 890b2d8 — TICKET-11: audit complete, no violations
 - 94db824 — TICKET-13: migration script
 - be5fab9 — TICKET-10: log classification failure at warning level
+
+
+---
+Task ID: 52 (CTO — P60 third-party leak FIXED LIVE — root cause + fix)
+Agent: CTO (GLM) — P47 honest attribution
+
+ROOT CAUSE FOUND via production debug logging:
+- reconcile_signals_for_user WAS returning records (not 0 as previously thought)
+- The LLM classifier returns owner='user' for SOME signals but owner='unknown'
+  for OTHERS (depending on LLM availability and text patterns)
+- The previous TICKET-10 filter only excluded owner='user' signals
+- Signals with owner='unknown' were NOT excluded → they leaked into
+  third-party query responses
+- email_01 (Maria) had owner='unknown' on production because the LLM classifier
+  returned a different result than locally (possibly due to LLM latency/fallback)
+
+FIX (commit f096bbe4):
+- Changed _apply_ticket10_filter: for third-party queries, ONLY include
+  signals where owner='other' (the third party's own promises). Exclude
+  BOTH owner='user' (the user's own promise TO them) AND owner='unknown'
+  (ambiguous — better to abstain than leak the user's commitment)
+- Removed debug logging from reconcile_signals_for_user
+- Fixed the for loop to handle both tuple and dict row types
+
+LIVE VERIFICATION (P1 — executed this session, commit f096bbe4):
+P43 'What did I promise Maria?':
+  intelligence_source: llm
+  answer: Based on your commitment ledger:
+  • [Maria Garcia] Thanks for the call. I will send the Q3 budget proposal by Friday EOD.
+  PASS: True ✓
+
+P60 'What did Maria promise?':
+  intelligence_source: ledger
+  answer: Based on your commitment ledger, there is no record of any promise made BY this entity.
+  The commitments you have are your own promises TO them, not their promises to you.
+  calibration_note: ... | TICKET-10: third-party query — user's own commitments excluded.
+  Leaks user commitment: False
+  TICKET-10 filter ran: True
+  PASS (no leak): True ✓
+
+BOTH PASS. The trust thesis (P43 ownership + P60 third-party exclusion) is
+now ENFORCED LIVE on production for the first time.
+
+COMMITS:
+- f096bbe4 — fix(TICKET-10): third-party query excludes owner=unknown too
+
+HONEST STATUS:
+- P43 (ownership): PASS live ✓
+- P60/TICKET-10 (third-party exclusion): PASS live ✓ (for the first time)
+- The GREEN verdict was REVOKED because P60 was failing. Now that P60 passes,
+  the verdict can be re-evaluated.
+- Remaining: TICKET-9 (test fixture) is fixed, TICKET-11 is complete,
+  TICKET-13 migration script is written, TICKET-20 needs full re-audit.
