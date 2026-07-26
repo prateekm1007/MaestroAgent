@@ -227,17 +227,25 @@ def reconcile_signals_for_user(
     logger.warning("TICKET-10 debug: reconcile_signals_for_user found %d signals for user_email=%s", len(rows), user_email)
 
     results: list[dict[str, Any]] = []
-    for (sig_id,) in rows:
-        rec = reconcile_signal(sig_id, db_path=_db, user_email=user_email)
+    logger.warning("TICKET-10 debug: entering loop with %d rows, include_non_commitments=%s", len(rows), include_non_commitments)
+    for i, row in enumerate(rows):
+        sig_id = row[0] if isinstance(row, (tuple, list)) else row.get("signal_id", "") if isinstance(row, dict) else str(row)
+        logger.warning("TICKET-10 debug: processing row %d sig_id=%s", i, sig_id)
+        try:
+            rec = reconcile_signal(sig_id, db_path=_db, user_email=user_email)
+        except Exception as _e:
+            logger.warning("TICKET-10 debug: reconcile_signal THREW for sig_id=%s: %s", sig_id, _e)
+            continue
         if rec is None:
-            logger.warning("TICKET-10 debug: reconcile_signal returned None for sig_id=%s user_email=%s", sig_id, user_email)
+            logger.warning("TICKET-10 debug: reconcile_signal returned None for sig_id=%s", sig_id)
             continue
         # P37: filter non-commitments unless explicitly requested
-        if not include_non_commitments and not rec["is_commitment"]:
+        if not include_non_commitments and not rec.get("is_commitment", False):
             logger.warning("TICKET-10 debug: filtered out non-commitment sig_id=%s is_commitment=%s owner=%s", sig_id, rec.get("is_commitment"), rec.get("owner"))
             continue
         logger.warning("TICKET-10 debug: kept record sig_id=%s is_commitment=%s owner=%s commitment_type=%s", sig_id, rec.get("is_commitment"), rec.get("owner"), rec.get("commitment_type"))
         results.append(rec)
+    logger.warning("TICKET-10 debug: exiting loop with %d results", len(results))
     return results
 
 
