@@ -145,7 +145,6 @@ def _maybe_login_decorator():
 
 
 @router.post("/login", response_model=LoginResponse)
-@_maybe_login_decorator()
 async def login(request: Request, req: LoginRequest):
     _check_rl(request, key_override=req.user_email or req.email or "")
     """Login — returns a bearer token."""
@@ -412,7 +411,6 @@ def _is_deleted_account(user_email: str) -> bool:
 
 
 @router.post("/register", response_model=RegisterResponse)
-@_maybe_login_decorator()
 async def register(request: Request, req: RegisterRequest):
     _check_rl(request)
     """Register a new account with email + password."""
