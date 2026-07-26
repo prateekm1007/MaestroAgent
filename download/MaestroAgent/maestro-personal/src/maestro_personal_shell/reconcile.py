@@ -4,6 +4,8 @@ The 5-layer ownership trace exposed a class-level smell: the
 classification/ownership truth was stored in FOUR parallel places:
   1. The signal's metadata (the canonical source)
   2. The commitment_ledger table's commitment_type column (a copy)
+from maestro_personal_shell.db_util import default_sqlite_path
+
   3. The evidence dict assembled in the ask router (a copy)
   4. The pre-built answer lines (a copy)
 

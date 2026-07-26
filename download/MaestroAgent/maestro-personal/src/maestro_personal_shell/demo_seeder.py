@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any
+from maestro_personal_shell.db_util import default_sqlite_path
+
 
 logger = logging.getLogger(__name__)
 

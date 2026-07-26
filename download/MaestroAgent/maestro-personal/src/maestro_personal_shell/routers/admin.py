@@ -4,6 +4,8 @@ Single source of truth for build identity. Version is read from
 MAESTRO_VERSION env var (set in Dockerfile at build time).
 No hardcoded version strings. No git calls. No pyproject import.
 
+from maestro_personal_shell.db_util import default_sqlite_path
+
 S0 ROBUST COMMIT REPORTING (anti-entropy fix):
 The commit SHA is sourced from Railway's native RAILWAY_GIT_COMMIT_SHA
 env var FIRST (platform-sourced, always accurate), falling back to

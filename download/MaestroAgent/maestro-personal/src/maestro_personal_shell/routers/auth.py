@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from maestro_personal_shell.models import LoginRequest, LoginResponse
+from maestro_personal_shell.db_util import default_sqlite_path
 
 logger = logging.getLogger(__name__)
 

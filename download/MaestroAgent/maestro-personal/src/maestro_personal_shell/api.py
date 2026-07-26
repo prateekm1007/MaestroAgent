@@ -4,6 +4,8 @@ Maestro Personal HTTP API — FastAPI on port 8766.
 Separate from Enterprise (port 8765). This is the Personal API that the
 mobile app calls. It wraps the PersonalShell (which calls Core directly)
 and adds:
+from maestro_personal_shell.db_util import default_sqlite_path
+
   - SQLite persistence (signals survive restart)
   - Bearer token auth (simple, v1)
   - 8 endpoints mapping to the 4 surfaces + signal management + auth

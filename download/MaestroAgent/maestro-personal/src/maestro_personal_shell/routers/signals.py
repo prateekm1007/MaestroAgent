@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 # available even when the classify_commitment import fails inside the
 # try block. _rule_based_classify is sync, pure text, touches no DB.
 from maestro_personal_shell.commitment_classifier import _rule_based_classify
+from maestro_personal_shell.db_util import default_sqlite_path
 
 from maestro_personal_shell.models import (
     CalendarSyncRequest,

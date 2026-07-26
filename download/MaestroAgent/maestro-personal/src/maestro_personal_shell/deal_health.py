@@ -1,3 +1,5 @@
+from maestro_personal_shell.db_util import default_sqlite_path
+
 """Personal-shell wrapper for the DealHealthEngine."""
 from __future__ import annotations
 
