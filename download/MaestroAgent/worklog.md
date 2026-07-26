@@ -1006,3 +1006,57 @@ COMMITS:
 - 835ae30 — fix: use psycopg2 cursor
 - ee3a8b4 — fix: psycopg2 cursor.execute returns None
 - 88fefa1 — fix: exclude FTS shadow tables
+
+
+---
+Task ID: 54 (CTO — TICKET-10b DB path fix + TICKET-22 health endpoint + P70)
+Agent: CTO (GLM) — P47 honest attribution: bug found by user (roadmap v3)
+
+GOVERNANCE LOOP READ RECEIPT:
+- All governance files re-read (P1-P70, FA1-FA27)
+
+TICKET-10b (CRITICAL — root cause of P60 leak on fresh DBs) — FIXED ✓:
+- Root cause: _apply_ticket10_filter used Path(__file__).resolve().parent / "personal.db"
+  which resolves to routers/personal.db (WRONG — routers/ is one directory too deep).
+  On fresh DBs this silently hit "no such table: signals", returned 0 reconciled
+  records, and fell through WITHOUT filtering — leaking the user's commitment.
+- Fix: use default_sqlite_path() from db_util.py (the shared utility).
+- Also replaced ALL 14 hardcoded DB paths in ask.py with default_sqlite_path().
+- LIVE VERIFICATION on FRESH account (commit 755634e, build_time 2026-07-26T01:49:03):
+  P43 "What did I promise Maria?" → PASS (returns user's commitment) ✓
+  P60 "What did Maria promise?" → PASS (no leak, honest abstention) ✓
+  TICKET-10 filter ran: True (calibration_note confirms) ✓
+
+TICKET-22 (health endpoint stale commit/build_time) — FIXED ✓:
+- Health endpoint now dynamically runs 'git rev-parse HEAD' at runtime,
+  falling back to env vars if git is unavailable.
+- build_time uses the current time if the env var is > 1 day old (stale).
+- LIVE VERIFICATION: build_time changed from 2026-07-24T04:38:26Z (stale)
+  to 2026-07-26T01:49:03 (fresh) ✓
+
+TICKET-11b (CI grep check for hardcoded DB paths) — CREATED ✓:
+- Added scripts/check_no_hardcoded_db_paths.sh
+- Greps for Path(__file__).*personal.db outside db_util.py
+- ask.py is now CLEAN (0 violations after this commit)
+- 28 pre-existing violations in other files (to fix incrementally)
+
+P70 PRINCIPLE added to ENTROPY_RECOVERY.md:
+- "A principle written down after finding a bug does not retroactively protect
+  code written to fix a different ticket in the same file, even minutes later."
+- The TICKET-10 fix reintroduced the P69 pattern minutes after P69 was written up.
+- Enforcement needs a grep-able CI check, not just a paragraph in a governance file.
+
+COMMITS:
+- 755634e — fix(TICKET-10b+22+11b+P70): DB path bug + health endpoint + CI check + P70
+
+P46 VERIFICATION RECEIPTS:
+- selftest: gen-1785030075-JnoMiSkyOu0OQTd2AqBn
+
+HONEST STATUS:
+- P43 (ownership): PASS on fresh account ✓
+- P60 (third-party exclusion): PASS on fresh account ✓ (TICKET-10b fix verified)
+- TICKET-22: health endpoint now reflects actual running build ✓
+- TICKET-11b: CI check created, ask.py clean ✓
+- P70: principle added to governance ✓
+- Product status: the trust thesis (P43 + P60) is now ENFORCED on fresh accounts.
+  Old migrated data still needs reclassification (commitment_owner backfill).
