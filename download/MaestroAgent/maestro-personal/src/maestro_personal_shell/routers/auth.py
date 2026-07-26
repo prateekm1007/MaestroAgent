@@ -73,7 +73,7 @@ def _check_rl(request, key_override=None):
     else:
         rl_key = _client_ip(request)
     now = _rl_time.monotonic()
-    if ip not in _auth_rl:
+    if rl_key not in _auth_rl:
         _auth_rl[rl_key] = _rl_deque()
     ts = _auth_rl[rl_key]
     while ts and ts[0] < now - 60:
