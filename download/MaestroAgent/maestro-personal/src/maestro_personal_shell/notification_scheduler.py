@@ -14,6 +14,8 @@ import json
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
+from maestro_personal_shell.db_util import default_sqlite_path
+
 logger = logging.getLogger(__name__)
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"

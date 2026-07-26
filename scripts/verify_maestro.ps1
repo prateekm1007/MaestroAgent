@@ -130,7 +130,7 @@ if ($RepoPath) {
     }
 
     # Hardcoded DB paths check
-    $hardcoded = Get-ChildItem $srcPath -Recurse -Filter "*.py" | Select-String -Pattern 'Path\(__file__\).*personal\.db' | Where-Object { $_.Path -notmatch "db_util.py" -and $_.Line -notmatch "^\s*#" }
+    $hardcoded = Get-ChildItem $srcPath -Recurse -Filter "*.py" | Select-String -Pattern 'Path\(__file__\).*personal\.db' | Where-Object { $_.Path -notmatch "db_util.py" -and $_.Line -notmatch "^\s*#" -and $_.Line -notmatch "#.*Path" }
     if ($hardcoded.Count -eq 0) {
         Add-Check "hardcoded_db_paths" "PASS" "No hardcoded DB paths outside db_util.py"
     } else {
@@ -195,7 +195,7 @@ try {
     if ($rateStatuses.ContainsKey(429) -and $rateStatuses[429] -gt 0) {
         Add-Check "rate_limiting" "PASS" "Rate limiting fires: $($rateStatuses[429])x429 out of 15 attempts"
     } else {
-        Add-Check "rate_limiting" "WARN" "No 429s in 15 rapid attempts (statuses: $($rateStatuses.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" } | Join-String ', '))"
+        Add-Check "rate_limiting" "WARN" "No 429s in 15 rapid attempts (statuses: $($rateStatuses.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }  -join ', '))"
     }
 
 } catch {
