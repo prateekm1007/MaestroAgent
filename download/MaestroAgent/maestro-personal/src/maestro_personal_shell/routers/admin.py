@@ -562,3 +562,127 @@ async def purge_real_gmail_from_demo(token: str = ""):
         }
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# TICKET-13: SQLite → Postgres migration endpoint
+# ---------------------------------------------------------------------------
+
+@router.post("/api/admin/migrate-to-postgres")
+async def migrate_to_postgres(token: str = ""):
+    """TICKET-13: Migrate all SQLite data to Postgres.
+
+    Reads all tables from the SQLite database, creates the same tables on
+    Postgres (if they don't exist), copies all rows, and rebuilds the FTS
+    index. This is the proper migration that was missing when
+    MAESTRO_DATABASE_URL was first set (which was a cold start to an empty
+    Postgres, not a migration).
+
+    After migration completes, set MAESTRO_DATABASE_URL on Railway to switch
+    the backend to Postgres.
+
+    Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level).
+    """
+    import sqlite3
+    import json as _json
+    from fastapi import HTTPException
+    import os
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    postgres_url = os.environ.get("MAESTRO_DATABASE_URL", "")
+    if not postgres_url or not postgres_url.startswith("postgres"):
+        raise HTTPException(
+            status_code=400,
+            detail="MAESTRO_DATABASE_URL not set or not a postgresql:// URL"
+        )
+
+    try:
+        import psycopg2
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="psycopg2 not installed on the backend"
+        )
+
+    sqlite_path = os.environ.get("MAESTRO_PERSONAL_DB", "/data/personal.db")
+    sq = sqlite3.connect(sqlite_path)
+    sq.row_factory = sqlite3.Row
+    pg = psycopg2.connect(postgres_url)
+    pg.autocommit = False
+
+    # Get all tables from SQLite (skip FTS virtual tables)
+    tables = [r[0] for r in sq.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%_fts'"
+    ).fetchall()]
+
+    migration_report = {"tables": {}, "total_rows": 0}
+
+    for table in tables:
+        cols = [c[1] for c in sq.execute(f"PRAGMA table_info({table})").fetchall()]
+        if not cols:
+            continue
+
+        sq_count = sq.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        if sq_count == 0:
+            migration_report["tables"][table] = {"sqlite": 0, "postgres": 0, "status": "skipped (empty)"}
+            continue
+
+        # Create table on Postgres
+        create_sql = sq.execute(
+            f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table}'"
+        ).fetchone()[0]
+        create_sql = create_sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+        create_sql = create_sql.replace("AUTOINCREMENT", "")
+        try:
+            pg.execute(create_sql.replace("?", "%s"))
+            pg.commit()
+        except Exception:
+            pg.rollback()  # table might already exist
+
+        # Copy rows
+        rows = sq.execute(f"SELECT * FROM {table}").fetchall()
+        placeholders = ", ".join(["%s"] * len(cols))
+        col_list = ", ".join(f'"{c}"' for c in cols)
+        insert_sql = f'INSERT INTO {table} ({col_list}) VALUES ({placeholders})'
+
+        copied = 0
+        for row in rows:
+            row_dict = dict(row)
+            values = tuple(row_dict.get(c) for c in cols)
+            try:
+                pg.execute(insert_sql, values)
+                copied += 1
+            except Exception:
+                pg.rollback()
+                continue
+        pg.commit()
+
+        pg_count = pg.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        migration_report["tables"][table] = {
+            "sqlite": sq_count,
+            "postgres": pg_count,
+            "copied": copied,
+            "status": "OK" if pg_count >= sq_count else "MISMATCH"
+        }
+        migration_report["total_rows"] += copied
+
+    # Rebuild FTS index on Postgres
+    try:
+        from maestro_personal_shell.db_util import PostgresConnection
+        from maestro_personal_shell.semantic_retrieval import rebuild_fts_index
+        pg_conn = PostgresConnection(postgres_url)
+        fts_count = rebuild_fts_index(db_path=postgres_url)
+        pg_conn.close()
+        migration_report["fts_index"] = {"signals_indexed": fts_count, "status": "OK"}
+    except Exception as e:
+        migration_report["fts_index"] = {"error": str(e), "status": "failed"}
+
+    sq.close()
+    pg.close()
+
+    migration_report["status"] = "complete"
+    migration_report["next_step"] = "Set MAESTRO_DATABASE_URL on Railway to switch to Postgres"
+    return migration_report
