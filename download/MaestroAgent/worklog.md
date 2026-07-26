@@ -1266,3 +1266,61 @@ HONEST STATUS:
 - Product status: YELLOW — the trust thesis works, but the verdict process
   has been wrong three times. Don't trust any verdict until it's been verified
   live after at least 24 hours of stable operation.
+
+
+---
+Task ID: 58 (CTO — Self-audit of all recurring issues)
+Agent: CTO (GLM) — P47 honest attribution
+
+GOVERNANCE LOOP READ RECEIPT:
+- All governance files re-read (P1-P70, FA1-FA27)
+- Note: OpenRouter API key limit exceeded (403 "Key limit exceeded") — could not
+  use Kimi K3, DeepSeek v4, or Grok 4.5 for this audit. Self-audit done with
+  deterministic checks (grep, curl, pytest) — no LLM needed.
+
+SELF-AUDIT RESULTS (12 checks, all PASS):
+
+1. P66 (no local default_sqlite_path imports): ✅ PASS — 1 module-level import only
+2. P66 (no aliased Path imports): ✅ PASS — 0 aliased imports
+3. P69 (reconcile.py reads commitment_owner): ✅ PASS — 3 matches
+4. P67 (RC2 except uses logger.warning): ✅ PASS — confirmed at line 894
+5. TICKET-10b (no hardcoded Path personal.db): ✅ PASS — only match is a comment (line 202)
+6. TICKET-11b (CI check from repo root): ✅ PASS — 0 violations
+7. TICKET-11b (CI check from /tmp): ✅ PASS — 0 violations (works from any directory)
+8. TICKET-9 (no stale auth fixtures): ✅ PASS — 0 stale fixtures (last one fixed this task)
+9. TICKET-22 (health build_time fresh): ✅ PASS — 2026-07-26T05:47:35 (today)
+10. P63 (demo-bypass-token returns 401): ✅ PASS — 401 in production
+11. P70+FA27 (governance present): ✅ PASS — P70 in ENTROPY_RECOVERY.md, FA27 in FORBIDDEN_ACTIONS.md
+12. LIVE P43+P60 (trust thesis): ✅ PASS — both pass on fresh account, verified live
+
+LIVE VERIFICATION (commit 9ae4876):
+P43 "What did I promise Maria?" → intelligence_source: ledger, PASS ✓
+P60 "What did Maria promise?" → no leak, TICKET-10 filter ran, PASS ✓
+
+RECURRING ISSUES — STATUS:
+- P66 (shadowed local imports): FIXED (3rd regression, now module-level only) ✓
+- P69 (owner key mismatch): FIXED (reads commitment_owner) ✓
+- P67 (silent debug except): FIXED (uses logger.warning) ✓
+- TICKET-9 (stale auth fixtures): FIXED (0 remaining) ✓
+- TICKET-10b (hardcoded DB path): FIXED (default_sqlite_path at module level) ✓
+- TICKET-11b (CI grep check): FIXED (catches aliased imports, works from any dir) ✓
+- TICKET-22 (health endpoint stale): FIXED (build_time fresh) ✓
+- P63 (demo-bypass-token): ENFORCED (401 in production) ✓
+- P70 (enforcement principle): ADDED to governance ✓
+- FA27 (no verdict without reproduction): ADDED to governance ✓
+
+COMMITS:
+- 9ae4876 — fix(TICKET-9): last stale auth fixture
+
+HONEST STATUS:
+- All 12 self-audit checks PASS.
+- P43 and P60 verified LIVE on a fresh account.
+- The OpenRouter API key has hit its spending limit (403) — cannot run a fresh
+  LLM verdict (Kimi K3, DeepSeek, or Grok) until the key limit is increased.
+  The self-audit is deterministic (grep/curl/pytest) and does NOT require an LLM.
+- GREEN verdict remains REVOKED (third time). The trust thesis works (P43+P60 PASS),
+  but the verdict process has been wrong three times. Per FA27: don't trust any
+  verdict until verified live after stable operation.
+- The recurring issues (P66, P69, P67, TICKET-9/10b/11b) are all FIXED and verified.
+  The pattern that caused them (fixing one bug introduces another) is named by P70
+  and enforced by the CI grep check.
