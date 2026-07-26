@@ -199,10 +199,18 @@ def _apply_ticket10_filter(
         if not _reconciled:
             return answer, evidence_refs, confidence, calibration_note
 
-        _user_owned_ids = {r["signal_id"] for r in _reconciled if r.get("owner", "unknown") == "user"}
+        # TICKET-10 fix: for third-party queries, exclude signals that are NOT
+        # owned by the third party. Only owner="other" signals are the third
+        # party's promises. owner="user" is the user's own promise TO them.
+        # owner="unknown" is ambiguous — for third-party queries, exclude it
+        # too (better to abstain than to leak the user's own commitment).
+        _third_party_ids = {
+            r["signal_id"] for r in _reconciled
+            if r.get("owner", "unknown") == "other"
+        }
         _filtered = [
             ev for ev in evidence_refs
-            if ev.get("signal_id", "") not in _user_owned_ids
+            if ev.get("signal_id", "") in _third_party_ids
             or not ev.get("signal_id", "")
         ]
         _had_sids = any(ev.get("signal_id", "") for ev in evidence_refs)
