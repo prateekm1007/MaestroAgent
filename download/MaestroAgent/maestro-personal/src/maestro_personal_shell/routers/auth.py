@@ -59,24 +59,30 @@ def _client_ip(request):
     return peer
 
 
-def _check_rl(request):
+def _check_rl(request, key_override=None):
     # P63/P67 fix: gate on MAESTRO_LOCAL_DEV (the canonical local-dev flag),
     # NOT MAESTRO_TEST_MODE (a test-suite flag that was set on Railway by
     # accident). Rate limiting MUST fire in production regardless of test mode.
     if os.environ.get("MAESTRO_LOCAL_DEV") == "true":
         return
-    ip = _client_ip(request)
+    # Railway fix: CDN rotates all IP headers, so IP-based rate limiting
+    # doesn't work. For login/register, use the email as the key.
+    # For other endpoints, fall back to IP (best-effort).
+    if key_override:
+        rl_key = key_override
+    else:
+        rl_key = _client_ip(request)
     now = _rl_time.monotonic()
     if ip not in _auth_rl:
-        _auth_rl[ip] = _rl_deque()
-    ts = _auth_rl[ip]
+        _auth_rl[rl_key] = _rl_deque()
+    ts = _auth_rl[rl_key]
     while ts and ts[0] < now - 60:
         ts.popleft()
     # K3-BE-001 fix: evict empty deques so _auth_rl does not grow unboundedly.
     if not ts:
-        del _auth_rl[ip]
-        _auth_rl[ip] = _rl_deque()
-        ts = _auth_rl[ip]
+        del _auth_rl[rl_key]
+        _auth_rl[rl_key] = _rl_deque()
+        ts = _auth_rl[rl_key]
     if len(ts) >= 10:
         raise HTTPException(status_code=429, detail="Rate limit exceeded.", headers={"Retry-After": "60"})
     ts.append(now)
@@ -141,7 +147,7 @@ def _maybe_login_decorator():
 @router.post("/login", response_model=LoginResponse)
 @_maybe_login_decorator()
 async def login(request: Request, req: LoginRequest):
-    _check_rl(request)
+    _check_rl(request, key_override=req.user_email or req.email or "")
     """Login — returns a bearer token."""
     from maestro_personal_shell.api import (
         _is_production,
