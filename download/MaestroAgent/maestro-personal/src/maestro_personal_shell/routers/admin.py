@@ -661,7 +661,8 @@ async def migrate_to_postgres(token: str = ""):
                 continue
         pg.commit()
 
-        pg_count = pg_cur.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        pg_cur.execute(f"SELECT COUNT(*) FROM {table}")
+        pg_count = pg_cur.fetchone()[0]
         migration_report["tables"][table] = {
             "sqlite": sq_count,
             "postgres": pg_count,
