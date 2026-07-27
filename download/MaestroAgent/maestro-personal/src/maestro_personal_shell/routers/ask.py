@@ -3127,7 +3127,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                     "implication": hp.get("implication", ""),
                     "recommended_next_step": hp.get("recommended_next_step", ""),
                     "urgency": hp.get("urgency", "normal"),
-                    "confidence": hp.get("confidence", 0.0),
+                    "confidence": hp.get("confidence", 0.7),  # P1 fix: was 0.0 — LLM perspectives have moderate confidence
                     "llm_powered": True,
                 })
             except Exception as e:
@@ -3224,7 +3224,8 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                     for jp in judgment_perspectives[:3]:
                         perspectives_data.append({
                             "name": str(getattr(jp, "specialist", "specialist")),
-                            "view": str(getattr(jp, "observation", "") or getattr(jp, "implication", ""))[:200],
+                            "view": _truncate_at_sentence(str(getattr(jp, "observation", "") or getattr(jp, "implication", "")), 300),
+                            "confidence": getattr(jp, "confidence", 0.7),  # P1 fix: don't default to 0.0
                         })
             except Exception as e:
                 logger.debug("Judgment synthesis failed: %s", e)
