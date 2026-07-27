@@ -454,6 +454,35 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
             db_path=_db,
         )
 
+        # P83 (canonical ledger coherence): ALSO write to the canonical ledger
+        # (commitment_events table) so the Ask endpoint can retrieve commitments.
+        # The commitment_ledger (commitments_ledger table) is the legacy system;
+        # the canonical_ledger (commitment_events table) is what Ask queries.
+        # Without this, signals are created but Ask returns 'no records'.
+        if ledger_entry and _ingest_is_commitment and _ingest_owner != 'other':
+            try:
+                from maestro_personal_shell.canonical_ledger import append_event
+                append_event(
+                    user_email=token,
+                    commitment_id=ledger_entry.get('commitment_id', signal_id),
+                    event_type='commitment_created' if _ingest_state == 'active' else 'commitment_candidate',
+                    actor='user' if _ingest_owner == 'user' else _ingest_owner,
+                    entity=canonical_entity,
+                    text=sanitized_text,
+                    confidence=metadata.get('commitment_confidence', 0.5),
+                    metadata={
+                        'signal_id': signal_id,
+                        'commitment_type': _ingest_commitment_type,
+                        'state': _ingest_state,
+                    },
+                )
+                logger.info(
+                    'P83: wrote to canonical ledger (commitment_events) for signal %s',
+                    signal_id
+                )
+            except Exception as e:
+                logger.error('P83: canonical ledger write failed for signal %s: %s', signal_id, e)
+
         # Closure matching (roadmap requirement #4): if this new signal
         # is a completion/cancellation, find the active ledger entry it
         # closes and transition that entry. This is how "Sent the proposal"
