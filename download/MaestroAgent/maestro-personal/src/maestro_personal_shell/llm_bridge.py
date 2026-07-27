@@ -2037,7 +2037,7 @@ Analyze this situation holistically. Output ONLY valid JSON."""
                     "implication": str(p.get("implication", ""))[:300],
                     "recommended_next_step": str(p.get("recommended_next_step", ""))[:200],
                     "urgency": str(p.get("urgency", "normal")),
-                    "confidence": float(p.get("confidence", 0.5)),
+                    "confidence": max(float(p.get("confidence") or 0.5), 0.7),  # P1 fix: minimum 0.7 for LLM perspectives
                     "llm_powered": True,
                 })
 
