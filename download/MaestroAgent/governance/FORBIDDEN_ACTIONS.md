@@ -217,3 +217,17 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Rule:** No ticket is closed on a worklog claim, a commit message, or another AI's verdict (including "Kimi K3" scores). Closed = a live reproduction is posted and independently re-run. A verdict without a posted reproduction is a hypothesis, not a finding.
 
 **Enforcement:** Every "done" claim must include the exact reproduction command + the actual output from THIS session. "Tests pass" without the specific test that inspects the safety-critical field is not verification. A verdict from any AI (including this one) is treated as a hypothesis until a human or independent process posts the reproduction.
+
+### FA28: Manual Production Deploys
+
+**Forbidden:** Manually deploying to production from the Railway dashboard or any other manual interface, when auto-deploy could be configured.
+
+**Reason:** Manual deploys create a gap between "code is fixed" and "production is fixed." If auto-deploy is not configured, fixes merged to main will not reach production until someone remembers to manually trigger a deploy. This violates P71 (infrastructure automation) and makes verification unreliable — the Finn Loop assumes merged code is live within minutes.
+
+**Exception:** Emergency hotfixes that cannot wait for the CI/CD pipeline, but these must be followed by a proper commit to main and auto-deploy configuration verification.
+
+**Enforcement:** Every Railway service must have "Auto Deploy" enabled in Settings → Deploy. Verify with: `railway status` or check the Railway dashboard. If auto-deploy is disabled, it must be enabled before merging any PR.
+
+**Incident:** The web frontend service (`web-production-d5c26.up.railway.app`) was not configured for auto-deploy. Code fixes (removing mock data, adding real API calls, fixing AskView) were merged and pushed to main, but the web service continued serving old code with mock data. The backend auto-deployed correctly, creating a false impression that all fixes were live. The auditor caught this by checking the SSR HTML for mock data strings.
+
+**Rule:** If it runs in production, it auto-deploys from main. No manual deploys. No exceptions except emergency hotfixes (which must be followed by auto-deploy enablement).

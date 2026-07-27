@@ -531,3 +531,15 @@ The sixth audit tested paths the fifth did not — mutations, full lifecycle, ex
 **The failure:** The TICKET-10 fix (third-party promise query exclusion) reintroduced almost exactly the shape of mistake P69 was named for (duplicated boundary-crossing logic instead of a shared source of truth) in the same session P69 was written up. The `_apply_ticket10_filter` function hand-rolled a DB path construction (`Path(__file__).resolve().parent / "personal.db"`) instead of calling the shared `default_sqlite_path()` utility — and the path was wrong (resolved to `routers/personal.db` instead of `maestro_personal_shell/personal.db`), silently hitting "no such table: signals" on fresh DBs and causing the filter to return 0 records and fall through without filtering. The P69 principle ("use a shared constant, not a duplicated string literal") was in the governance file, but the TICKET-10 code was written minutes later without consulting it.
 
 > **Rule:** Treat "we wrote the principle down" and "the principle is now enforced" as different claims — the second one needs a grep-able CI check, not just a paragraph in a governance file, or it will be violated again by the next fix under time pressure. Every principle that names a specific code pattern (P69: shared key names, P66: no shadowed imports, P67: no silent debug excepts) needs a corresponding CI check that grep-fails on the pattern. A principle without enforcement is prose.
+
+---
+
+## PART SIXTEEN — THE INFRASTRUCTURE AUTOMATION PRINCIPLE (NEW, FROM THE WEB DEPLOY GAP 2026-07-27)
+
+### 71. If it runs in production, it auto-deploys from main. No manual deploys.
+
+**The failure:** The web frontend service on Railway was not configured for auto-deploy. Code fixes (removing mock data, wiring real API calls, fixing AskView, fixing confidence clamping) were merged and pushed to main. The backend auto-deployed within 90 seconds. The web service did not — it continued serving old code with mock "Q3 budget proposal" data for hours. The auditor caught this by checking the SSR HTML and finding mock data strings still present. The CTO believed the fix was live because the backend health endpoint showed the latest commit, but the web service was stale.
+
+**The gap:** Manual deploys create a gap between "code is fixed" and "production is fixed." This gap violates the Finn Loop's assumption that merged code is live in production within minutes. When the loop breaks, verification becomes unreliable — the reviewer verifies against stale production, getting false negatives (fixes not visible) or false positives (bugs appear fixed but aren't live).
+
+> **Rule:** If it runs in production, it auto-deploys from main. No manual deploys. Every Railway service must have "Auto Deploy" enabled (Settings → Deploy → toggle on). The deploy branch must be `main`. Health checks must be configured (`/api/health` for backend, `/` for web). After merging a PR, verify the deploy within 5 minutes by checking the health endpoint commit hash. If the hash doesn't match the latest merge commit, the auto-deploy is broken and must be fixed before any further work.
