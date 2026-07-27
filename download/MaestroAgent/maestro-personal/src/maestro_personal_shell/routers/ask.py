@@ -30,6 +30,31 @@ from maestro_personal_shell.reconcile import (
 
 logger = logging.getLogger(__name__)
 
+
+def _truncate_at_sentence(text: str, max_len: int = 300) -> str:
+    """P1 fix: truncate at sentence boundary instead of cutting mid-sentence.
+
+    If the text is longer than max_len, find the last sentence-ending punctuation
+    (. ! ?) within the first max_len chars and truncate there. If no sentence
+    boundary is found, truncate at the last space within max_len (word boundary).
+    Falls back to hard truncation only if no space or punctuation is found.
+    """
+    if not text or len(text) <= max_len:
+        return text
+    # Look for sentence boundary within the limit
+    truncated = text[:max_len]
+    # Find last sentence-ending punctuation
+    for i in range(len(truncated) - 1, -1, -1):
+        if truncated[i] in '.!?':
+            return truncated[:i + 1]
+    # No sentence boundary — find last space (word boundary)
+    last_space = truncated.rfind(' ')
+    if last_space > 0:
+        return truncated[:last_space] + '…'
+    # Hard truncation as last resort
+    return truncated + '…'
+
+
 def _source_from_signal(sig_or_ref: dict) -> str:
     """Extract source from a signal/ref's metadata or signal_id prefix."""
     # Try metadata first (the proper path)
@@ -3097,7 +3122,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                 persp_objects.append(p)
                 perspectives_data.append({
                     "name": hp.get("name", "specialist"),
-                    "view": f"{hp.get('observation', '')}. {hp.get('implication', '')}"[:300],
+                    "view": _truncate_at_sentence(f"{hp.get('observation', '')}. {hp.get('implication', '')}", 300),
                     "observation": hp.get("observation", ""),
                     "implication": hp.get("implication", ""),
                     "recommended_next_step": hp.get("recommended_next_step", ""),
@@ -3115,7 +3140,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
             llm_judgment_used = True
             boundary = holistic_judgment.get("decision_boundary", "")
             if boundary:
-                decision_boundary = str(boundary)[:300]
+                decision_boundary = _truncate_at_sentence(str(boundary), 300)
             central_claim = holistic_judgment.get("central_claim", "")
             if central_claim:
                 calibration_note = f"LLM judgment: {central_claim[:200]}"
@@ -3178,7 +3203,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                     boundary = llm_judgment.get("decision_boundary", "") or \
                                llm_judgment.get("central_claim", "")
                     if boundary:
-                        decision_boundary = str(boundary)[:300]
+                        decision_boundary = _truncate_at_sentence(str(boundary), 300)
                     central_claim = llm_judgment.get("central_claim", "")
                     if central_claim:
                         calibration_note = f"LLM judgment: {central_claim[:200]}"
@@ -3193,7 +3218,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                                getattr(judgment, "boundary", "") or \
                                getattr(judgment, "central_claim", "")
                     if boundary:
-                        decision_boundary = str(boundary)[:300]
+                        decision_boundary = _truncate_at_sentence(str(boundary), 300)
 
                     judgment_perspectives = getattr(judgment, "perspectives", []) or []
                     for jp in judgment_perspectives[:3]:
@@ -3208,7 +3233,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         for p in persp_objects[:3]:
             perspectives_data.append({
                 "name": p.specialist,
-                "view": f"{p.observation}. {p.implication}"[:300],
+                "view": _truncate_at_sentence(f"{p.observation}. {p.implication}", 300),
                 "observation": p.observation,
                 "implication": p.implication,
                 "recommended_next_step": p.recommended_next_step,
