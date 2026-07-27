@@ -3127,7 +3127,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                     "implication": hp.get("implication", ""),
                     "recommended_next_step": hp.get("recommended_next_step", ""),
                     "urgency": hp.get("urgency", "normal"),
-                    "confidence": min(max(float(hp.get("confidence") or 0), 0.7), 0.95),  # P0 fix: clamp 0.7-0.95 (LLM returned 45.0)
+                    "confidence": (lambda _c: min(max(_c / 100 if _c > 1 else _c, 0.3), 0.95))(float(hp.get("confidence") or 0)),  # P0 fix: clamp 0.7-0.95 (LLM returned 45.0)
                     "llm_powered": True,
                 })
             except Exception as e:
@@ -3186,7 +3186,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                         implication=np.get("implication", ""),
                         recommended_next_step=np.get("recommended_next_step", ""),
                         evidence=np.get("evidence", []),
-                        confidence=min(max(float(np.get("confidence") or 0), 0.7), 0.95),  # P0 fix: clamp 0.7-0.95
+                        confidence=(lambda _c: min(max(_c / 100 if _c > 1 else _c, 0.3), 0.95))(float(np.get("confidence") or 0)),  # P0 fix: clamp 0.7-0.95
                     )
                     persp_objects.append(p)
                 except Exception as e:
@@ -3241,7 +3241,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                 "recommended_next_step": p.recommended_next_step,
                 "evidence": p.evidence if hasattr(p, 'evidence') else [],
                 "urgency": getattr(p, 'urgency', 'normal'),
-                "confidence": min(max(float(getattr(p, 'confidence', 0) or 0), 0.7), 0.95),  # P0 fix: clamp 0.7-0.95
+                "confidence": (lambda _c: min(max(_c / 100 if _c > 1 else _c, 0.3), 0.95))(float(getattr(p, 'confidence', 0) or 0)),  # P0 fix: clamp 0.7-0.95
                 "llm_powered": llm_perspectives_used,
             })
 
