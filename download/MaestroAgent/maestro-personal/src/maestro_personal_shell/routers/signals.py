@@ -479,6 +479,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
                     }),
                 )
                 append_event(event)
+            except Exception as e:
                 logger.error('P83: canonical ledger write failed for signal %s: %s', signal_id, e)
 
         # Closure matching (roadmap requirement #4): if this new signal
