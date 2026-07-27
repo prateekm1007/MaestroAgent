@@ -40,6 +40,210 @@ COMMITMENT_STATES = [
 
 
 # ---------------------------------------------------------------------------
+# TICKET-6b — Marketing noise filters.
+# ---------------------------------------------------------------------------
+# The classifier was classifying marketing copy as commitments because
+# marketing emails use the same first-person future tense ("I will",
+# "we will") as real commitments. "I will conquer the moon haha" from a
+# Slack marketing email was classified as an explicit commitment.
+#
+# Three-layer defense:
+#   1. Marketing SENDER filter (reject by sender domain/email)
+#   2. Marketing COPY filter (reject by content patterns)
+#   3. Commitment CONTEXT validation (require temporal/deliverable context)
+#
+# The sender filter takes PRIORITY over keyword matching. Even if the text
+# says "I will send the report by Friday", if the sender is
+# noreply@cursor.com, it's NOT a commitment — it's marketing copy.
+
+import re as _reMarketing
+
+# Known marketing/notification/newsletter sender domains.
+# Signals from these senders are NEVER commitments.
+MARKETING_DOMAINS = frozenset({
+    # Newsletters and marketing platforms
+    "mail.beehiiv.com", "beehiiv.com", "substack.com", "convertkit.com",
+    "mailchimp.com", "sendgrid.net", "constantcontact.com", "hubspot.com",
+    "campaign-archive.com", "mailchimpapp.net",
+    # Social media notifications
+    "twitter.com", "x.com", "facebook.com", "instagram.com", "linkedin.com",
+    "reddit.com", "youtube.com", "tiktok.com", "pinterest.com", "tumblr.com",
+    # Product marketing / dev tools
+    "cursor.com", "cursor.sh", "slack.com", "notion.so", "figma.com",
+    "vercel.com", "github.com", "gitlab.com", "linear.app", "asana.com",
+    "clickup.com", "monday.com", "trello.com", "discord.com",
+    # Bank and financial notifications
+    "kotak.com", "zerodha.com", "paypal.com", "stripe.com", "hdfcbank.com",
+    "icicibank.com", "sbicard.com", "axisbank.com", "amex.co.in",
+    # E-commerce
+    "amazon.com", "amazon.in", "flipkart.com", "myntra.com", "ajio.com",
+    # News/media
+    "washingtonpost.com", "nytimes.com", "economist.com", "bloomberg.com",
+})
+
+# Patterns in sender email/local-part that indicate marketing/notification.
+MARKETING_SENDER_PATTERNS = [
+    "noreply", "no-reply", "notification", "newsletter", "marketing",
+    "promo", "updates", "digest", "alerts", "donotreply", "do-not-reply",
+    "automated", "bot@", "mailer", "postmaster",
+]
+
+# Marketing copy patterns — text that looks like marketing, not a commitment.
+# These are checked AFTER the sender filter. If the sender is a known
+# marketing domain, we don't even get here.
+MARKETING_COPY_PATTERNS = [
+    r"\bconquer\b.*\b(moon|world|galaxy|universe)\b",  # "I will conquer the moon"
+    r"\bget started\b",
+    r"\bsign up\b",
+    r"\blimited time\b",
+    r"\bact now\b",
+    r"\bdon'?t miss\b",
+    r"\bexclusive\b.*\boffer\b",
+    r"\bfree trial\b",
+    r"\bsubscribe\b",
+    r"\bunsubscribe\b",
+    r"\bclick here\b",
+    r"\blearn more\b",
+    r"\bshop now\b",
+    r"\border now\b",
+    r"\bdownload\b.*\bnow\b",
+    r"\bregister\b.*\bnow\b",
+    r"\bjoin\b.*\bnow\b",
+    r"\bhurry\b",
+    r"\blast chance\b",
+    r"\byou'?re invited\b",
+    r"\bcongratulations\b",
+    r"\bwe'?re excited\b",
+    r"\bintroducing\b",
+    r"\bnew feature\b",
+    r"\bwhat'?s new\b",
+    r"\bwebinar\b",
+    r"\bpodcast\b",
+    r"\bnewsletter\b",
+    r"\bdigest\b",
+    r"\broundup\b",
+    r"\bcase study\b",
+    r"\bbest practices\b",
+    r"\btips?\b.*\bfor\b",
+    r"\bhow to\b.*\bguide\b",
+    r"\byour (otp|verification code|one.?time)\b",  # OTP emails
+    r"\b(otp|verification code)\s*[:is]\s*\d{4,8}\b",  # "OTP: 123456"
+    r"\b(statement|invoice|receipt)\s+(for|of)\b",  # bank statements
+    r"\b(scheduled downtime|maintenance window)\b",  # bank notifications
+    r"\b(important update|security alert|account alert)\b",
+    r"\b(dear customer|dear user|valued customer)\b",
+    r"\b(posted in|commented on|reacted to)\b",  # social media notifications
+    r"\b(see what .* posted|check out .* post)\b",
+]
+
+# Temporal markers — a REAL commitment usually has a deadline or timeframe.
+TEMPORAL_MARKERS = [
+    r"\bby\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    r"\bby\s+(tomorrow|tonight|eod|eow|eom|cob)\b",
+    r"\bby\s+\w+\s+\d{1,2}\b",          # "by July 25"
+    r"\bnext\s+(week|month|quarter|year)\b",
+    r"\bthis\s+(week|month|quarter|year)\b",
+    r"\bby\s+the\s+end\s+of\b",
+    r"\bwithin\s+\d+\s+(days?|hours?|weeks?)\b",
+    r"\bbefore\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    r"\bdue\s+(date|by|on)\b",
+    r"\bdeadline\b",
+    r"\basap\b",
+    r"\b(in|on)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+]
+
+# Deliverable patterns — a REAL commitment references a specific work product.
+DELIVERABLE_PATTERNS = [
+    r"\b(the|a|an)\s+(proposal|report|budget|document|presentation|draft|review|analysis|summary|update|plan|deck|spec|contract|invoice|questionnaire|form)\b",
+    r"\bsend\b.*\b(the|a|an|it|them)\b",
+    r"\bshare\b.*\b(the|a|an|it|them)\b",
+    r"\bdeliver\b.*\b(the|a|an|it|them)\b",
+    r"\bcomplete\b.*\b(the|a|an|it|them)\b",
+    r"\bfinish\b.*\b(the|a|an|it|them)\b",
+    r"\breview\b.*\b(the|a|an|it|them)\b",
+    r"\bfollow\s*up\b",
+    r"\bget back to\b",
+    r"\bcircle back\b",
+    r"\btouch base\b",
+    r"\bpull request\b|\bpr\b.*\b(review|merge|approve)\b",
+    r"\bauth module\b|\bauth system\b",
+    r"\bdesign mockups?\b",
+    r"\broadmap\b",
+    r"\bci pipeline\b",
+]
+
+
+def is_marketing_sender(sender_email: str = "", sender_domain: str = "") -> bool:
+    """Reject signals from known marketing/notification senders.
+
+    TICKET-6b: Marketing emails use "I will" in copy ("I will conquer the
+    moon haha"). The sender domain is the strongest signal — if it's a
+    known marketing/notification domain, reject regardless of text content.
+    """
+    sender_email = (sender_email or "").lower().strip()
+    sender_domain = (sender_domain or "").lower().strip()
+
+    # Extract domain from email if not provided directly
+    if sender_email and not sender_domain and "@" in sender_email:
+        sender_domain = sender_email.split("@", 1)[1]
+
+    # Check exact domain match
+    if sender_domain in MARKETING_DOMAINS:
+        return True
+
+    # Check subdomain match (e.g., "mail.cursor.com" → "cursor.com")
+    for marketing_domain in MARKETING_DOMAINS:
+        if sender_domain.endswith("." + marketing_domain) or sender_domain == marketing_domain:
+            return True
+
+    # Check sender email local-part patterns
+    for pattern in MARKETING_SENDER_PATTERNS:
+        if pattern in sender_email:
+            return True
+
+    return False
+
+
+def is_marketing_copy(text: str) -> bool:
+    """Reject text that matches marketing copy patterns.
+
+    TICKET-6b: Even without sender info, certain text patterns are
+    unmistakably marketing ("get started today", "limited time offer",
+    "unsubscribe", OTP codes, "dear customer").
+    """
+    if not text:
+        return False
+    text_lower = text.lower()
+    for pattern in MARKETING_COPY_PATTERNS:
+        if _reMarketing.search(pattern, text_lower):
+            return True
+    return False
+
+
+def has_commitment_context(text: str) -> bool:
+    """A real commitment has temporal context OR a specific deliverable.
+
+    TICKET-6b: Marketing copy uses "I will" without any deadline or
+    deliverable ("I will conquer the moon"). Real commitments reference
+    a timeframe ("by Friday") or a work product ("the proposal").
+
+    This is a SOFT signal — not all real commitments have explicit
+    temporal markers ("I promise to review the PR" is valid). Used to
+    downgrade confidence, not reject outright.
+    """
+    if not text:
+        return False
+    text_lower = text.lower()
+    for pattern in TEMPORAL_MARKERS:
+        if _reMarketing.search(pattern, text_lower):
+            return True
+    for pattern in DELIVERABLE_PATTERNS:
+        if _reMarketing.search(pattern, text_lower):
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
 # P42 — Normalize text before structural matching.
 # ---------------------------------------------------------------------------
 # The 5-layer ownership trace exposed a class-level smell: the tentative
@@ -157,9 +361,46 @@ async def classify_commitment(
     text: str,
     entity: str = "",
     context: str = "",
+    sender_email: str = "",
 ) -> dict[str, Any]:
-    """Classify a signal text as a commitment type."""
+    """Classify a signal text as a commitment type.
+
+    TICKET-6b: Added sender_email parameter for marketing sender filtering.
+    Marketing senders (noreply@cursor.com, notifications@slack.com) are
+    rejected BEFORE keyword matching — even if the text says "I will send
+    the report by Friday", a marketing sender is never a real commitment.
+    """
     from maestro_personal_shell.llm_bridge import is_llm_available, llm_complete, sanitize_for_llm
+
+    # TICKET-6b: Marketing sender filter — PRIORITY over all other checks.
+    # Marketing emails use "I will" in copy. The sender domain is the
+    # strongest signal. This runs BEFORE joke markers, BEFORE the LLM path.
+    if sender_email and is_marketing_sender(sender_email):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.95,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": f"rule-based: marketing sender rejected ({sender_email})",
+            "llm_powered": False,
+        }
+
+    # TICKET-6b: Marketing copy filter — reject unmistakable marketing patterns.
+    # "Get started today", "limited time offer", "unsubscribe", OTP codes.
+    # This catches marketing emails from senders NOT in the domain list.
+    if is_marketing_copy(text):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.90,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": "rule-based: marketing copy pattern detected",
+            "llm_powered": False,
+        }
 
     # S2-05 fix: slang joke markers BEFORE the LLM path.
     # "I promise I will become a billionaire, haha" has "haha" — skip the LLM.
@@ -220,7 +461,7 @@ async def classify_commitment(
         }
 
     if not is_llm_available():
-        return _rule_based_classify(text, entity)
+        return _rule_based_classify(text, entity, sender_email=sender_email)
 
     safe_text = sanitize_for_llm(text, max_length=500)
     safe_entity = sanitize_for_llm(entity, max_length=100)
@@ -283,15 +524,15 @@ Classify this text. Output ONLY valid JSON."""
         result = await llm_complete(system_prompt, user_prompt, temperature=0.1, max_tokens=250)
     except Exception as e:
         logger.debug("Commitment classification LLM failed: %s", e)
-        return _rule_based_classify(text, entity)
+        return _rule_based_classify(text, entity, sender_email=sender_email)
 
     if not result:
-        return _rule_based_classify(text, entity)
+        return _rule_based_classify(text, entity, sender_email=sender_email)
 
     from maestro_personal_shell.llm_bridge import extract_json
     parsed = extract_json(result, expect="object")
     if not parsed or not isinstance(parsed, dict):
-        return _rule_based_classify(text, entity)
+        return _rule_based_classify(text, entity, sender_email=sender_email)
 
     # Validate and normalize
     ctype = str(parsed.get("commitment_type", "not_a_commitment"))
@@ -333,11 +574,40 @@ Classify this text. Output ONLY valid JSON."""
     }
 
 
-def _rule_based_classify(text: str, entity: str = "") -> dict[str, Any]:
+def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") -> dict[str, Any]:
     """Rule-based commitment classification (fallback when no LLM).
 
     Uses keyword patterns to classify the commitment type.
+
+    TICKET-6b: Added sender_email parameter. Marketing senders are rejected
+    BEFORE keyword matching. Marketing copy patterns are also rejected.
     """
+    # TICKET-6b: Marketing sender filter — PRIORITY over keyword matching.
+    if sender_email and is_marketing_sender(sender_email):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.95,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": f"rule-based: marketing sender rejected ({sender_email})",
+            "llm_powered": False,
+        }
+
+    # TICKET-6b: Marketing copy filter — reject unmistakable marketing patterns.
+    if is_marketing_copy(text):
+        return {
+            "commitment_type": "not_a_commitment",
+            "is_commitment": False,
+            "confidence": 0.90,
+            "state": "cancelled",
+            "owner": "unknown",
+            "deadline_text": "",
+            "reasoning": "rule-based: marketing copy pattern detected",
+            "llm_powered": False,
+        }
+
     # P42: normalize ONCE — expand contractions, lowercase, collapse whitespace.
     # All hedge/keyword/interrogative checks below use the normalized form.
     # The display text (in answers, ledger, UI) remains the original `text`.
