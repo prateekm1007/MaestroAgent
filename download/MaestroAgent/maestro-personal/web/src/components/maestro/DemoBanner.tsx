@@ -11,9 +11,26 @@ export function setUserEmail(email: string) {
   window.localStorage.setItem(DEMO_EMAIL_KEY, email);
 }
 
+// Must mirror the backend `_ALLOWED_DEMO_IDENTITIES` set in
+// src/maestro_personal_shell/routers/auth.py — these are the only
+// identities the shared demo password is allowed to mint, and all of
+// them read demo-seeded data (seeded by demo_seeder.py for both
+// 'bootstrap' and 'default@personal.local'). The substring check on
+// "bootstrap" / "demo" alone missed 'default@personal.local', causing
+// the demo banner to be hidden when a user logged in with that email —
+// so the Today tab showed Alex Chen / Jamie Lee demo signals with no
+// "DEMO — sample data" label. Bug surfaced via user screenshot 2026-07-28.
+const DEMO_IDENTITIES = new Set<string>([
+  "default@personal.local",
+  "bootstrap",
+  "bootstrap@maestro.local",
+]);
+
 export function isDemoAccount(): boolean {
   if (typeof window === "undefined") return false;
-  const email = window.localStorage.getItem(DEMO_EMAIL_KEY) || "";
+  const email = (window.localStorage.getItem(DEMO_EMAIL_KEY) || "").trim().toLowerCase();
+  if (!email) return false;
+  if (DEMO_IDENTITIES.has(email)) return true;
   return email.includes("bootstrap") || email.includes("demo");
 }
 
