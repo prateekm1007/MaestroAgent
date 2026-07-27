@@ -317,3 +317,24 @@ Each forbidden action below is grounded in a specific incident from this audit a
 - The verification step is logged so auditors can trace which claims were grounded vs. redacted.
 
 **Enforcement:** Journey gate — for every state-bearing endpoint, run the same query via Ask and via the direct endpoint, assert equivalence. CI gate (`scripts/check_p87_state_consistency.py`) covers 20 consistency fixtures: counts, states, recency, entity-specific state. Nightly production check runs 10 random state queries and verifies consistency.
+
+
+# PART FIFTEEN: GOVERNANCE COHERENCE RESOLUTIONS (Addendum)
+
+The following resolutions clarify and amend previous principles to ensure strict logical coherence and mechanical enforceability across the governance framework. In cases of conflict between these resolutions and earlier text, these resolutions take precedence.
+
+## Resolution 1: Promotion Threshold (Amends P82 and FA#33)
+**Add P88 — The Promotion Threshold Principle**
+The attribution classifier accuracy target (P82, 95%) is distinct from the promotion threshold. To satisfy FA#33 (never promote non-user events without review), promotions to the active commitment ledger require `confidence ≥ 0.9 AND actor_attribution_confidence ≥ 0.95`. Extractions falling between 0.70 and 0.95 attribution confidence must be routed to a human review queue, not the active ledger.
+
+## Resolution 2: Auto-Deploy Rollback (Amends P71 and P85)
+**Revise P71 — The Infrastructure Automation Principle**
+If it runs in production, it auto-deploys from main. No manual deploys. **Addendum:** Auto-deploy must include automatic rollback on SLO breach. If the HTTP 500 rate on read endpoints exceeds 0.1% within 15 minutes of a deploy, the system must automatically rollback to the previous commit, trigger an alert, and block further deploys until the root cause is fixed. This ensures P71 and P85 are simultaneously satisfiable.
+
+## Resolution 3: Enforcement Timing (Amends P70)
+**Revise P70 — The Enforcement Principle**
+A principle written down after finding a bug does not retroactively **blame** code written before the principle existed. However, it **does** apply to all future code, including modifications to the same file. Principles are forward-looking enforcement mechanisms, not backward-looking blame assignments.
+
+## Resolution 4: Independent Reproduction (Amends FA#27)
+**Revise FA#27 — Closing Tickets Without Live Reproduction**
+Closing a ticket on a verdict without a posted live reproduction is forbidden. **Addendum:** To satisfy Principle 5 (Independence), the live reproduction must be executed and posted by an **independent session or auditor**, not the same session that authored the fix. The fix-author may run tests locally, but the ticket cannot be closed until an independent verifier confirms the live reproduction.
