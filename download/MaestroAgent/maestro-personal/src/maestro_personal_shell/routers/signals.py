@@ -461,26 +461,24 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         # Without this, signals are created but Ask returns 'no records'.
         if ledger_entry and _ingest_is_commitment and _ingest_owner != 'other':
             try:
-                from maestro_personal_shell.canonical_ledger import append_event
-                append_event(
-                    user_email=token,
+                from maestro_personal_shell.canonical_ledger import append_event, CommitmentEvent
+                event = CommitmentEvent(
                     commitment_id=ledger_entry.get('commitment_id', signal_id),
-                    event_type='commitment_created' if _ingest_state == 'active' else 'commitment_candidate',
-                    actor='user' if _ingest_owner == 'user' else _ingest_owner,
+                    event_type='commitment',
+                    actor='user' if _ingest_owner == 'user' else 'entity_name',
                     entity=canonical_entity,
                     text=sanitized_text,
+                    source_signal_id=signal_id,
                     confidence=metadata.get('commitment_confidence', 0.5),
-                    metadata={
+                    state='active' if _ingest_state == 'active' else 'cancelled',
+                    user_email=token,
+                    metadata=json.dumps({
                         'signal_id': signal_id,
                         'commitment_type': _ingest_commitment_type,
                         'state': _ingest_state,
-                    },
+                    }),
                 )
-                logger.info(
-                    'P83: wrote to canonical ledger (commitment_events) for signal %s',
-                    signal_id
-                )
-            except Exception as e:
+                append_event(event)
                 logger.error('P83: canonical ledger write failed for signal %s: %s', signal_id, e)
 
         # Closure matching (roadmap requirement #4): if this new signal
