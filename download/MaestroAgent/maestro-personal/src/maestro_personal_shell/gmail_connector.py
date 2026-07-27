@@ -383,6 +383,12 @@ class GmailIngester:
         Uses regex + LLM classification (intelligent_ingestion.py) for
         high-precision extraction. Falls back to keyword detection if
         intelligent ingestion is unavailable.
+
+        TICKET-6c: extracts the sender EMAIL ADDRESS (not just the name)
+        and passes it to the classifier via extract_signals_intelligently.
+        This activates the marketing SENDER filter (TICKET-6b) on real
+        Gmail data — marketing senders (noreply@slack.com, etc.) are
+        rejected before keyword matching.
         """
         body = msg.get("body_text", "")
         if not body:
@@ -394,6 +400,16 @@ class GmailIngester:
         entity = self._extract_name(from_header)
         timestamp = self._parse_email_date(msg.get("date", ""))
         source = "gmail:inbox" if "me" not in to_header.lower() else "gmail:sent"
+
+        # TICKET-6c: extract the sender EMAIL ADDRESS for the marketing
+        # sender filter. parseaddr handles "Name <email>" and bare emails.
+        from email.utils import parseaddr as _parseaddr
+        _sender_name, sender_email = _parseaddr(from_header)
+        # Also handle "me" (sent mail) — use the to_header as the entity
+        if source == "gmail:sent" and to_header:
+            _to_name, to_email = _parseaddr(to_header)
+            if to_email:
+                entity = self._extract_name(to_header)
 
         # Use intelligent ingestion (regex + LLM) for high-precision extraction
         commitments = []
@@ -416,6 +432,7 @@ class GmailIngester:
                         entity=entity,
                         source=source,
                         timestamp=timestamp,
+                        sender_email=sender_email,
                     ))
                     commitments = future.result(timeout=30)
             else:
@@ -424,6 +441,7 @@ class GmailIngester:
                     entity=entity,
                     source=source,
                     timestamp=timestamp,
+                    sender_email=sender_email,
                 ))
         except Exception as e:
             logger.warning("Intelligent ingestion failed, using keyword fallback: %s", e)

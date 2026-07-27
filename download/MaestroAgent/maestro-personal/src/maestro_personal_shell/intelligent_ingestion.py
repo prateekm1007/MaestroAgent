@@ -25,6 +25,7 @@ async def extract_signals_intelligently(
     entity: str = "",
     source: str = "gmail",
     timestamp: str = "",
+    sender_email: str = "",
 ) -> list[dict[str, Any]]:
     """Extract commitments using regex + LLM classification.
 
@@ -33,6 +34,9 @@ async def extract_signals_intelligently(
         entity: The entity (person/company) this message is about.
         source: "gmail", "slack", "github", or "manual".
         timestamp: ISO timestamp of the original message.
+        sender_email: The sender's email address (for marketing sender filter).
+            TICKET-6c: passed through to classify_commitment so the marketing
+            SENDER filter (TICKET-6b) can reject marketing domains.
 
     Returns:
         List of signal dicts ready for ingestion. Each dict has:
@@ -54,6 +58,7 @@ async def extract_signals_intelligently(
                 text=candidate_text,
                 entity=entity,
                 context=message_text[:500],
+                sender_email=sender_email,
             )
         except Exception as e:
             logger.warning("LLM classification failed, using regex-only: %s", e)
