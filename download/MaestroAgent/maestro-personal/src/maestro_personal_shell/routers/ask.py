@@ -185,6 +185,12 @@ def _apply_ticket10_filter(
     This is the UNBYPASSABLE filter — called at EVERY AskResponse return point.
     "What did Maria promise?" must NOT return the user's own commitment TO Maria.
 
+    AUDITOR FIX (2026-07-27): The filter previously only stripped evidence_refs,
+    but the situation-synthesizer path puts the user's commitment in the ANSWER
+    TEXT (via situation.title). Now the filter also checks the answer text: if
+    the user's own first-person commitment appears in the answer for a third-party
+    query, the answer is replaced with the abstention message.
+
     Returns (answer, evidence_refs, confidence, calibration_note) — possibly modified.
     """
     import re as _re_t10
@@ -193,17 +199,12 @@ def _apply_ticket10_filter(
         r'|\bwhat\s+did\s+(he|she|they)\s+(promise|commit|agree|pledge)\b',
         query, _re_t10.IGNORECASE,
     ))
-    if not _is_tp or not evidence_refs:
+    if not _is_tp:
         return answer, evidence_refs, confidence, calibration_note
 
     try:
         # TICKET-10b fix (2026-07-25): use the shared default_sqlite_path()
-        # utility from db_util.py — NEVER hand-roll this path. The previous
-        # code used Path(__file__).resolve().parent / "personal.db" which
-        # resolves to routers/personal.db (wrong directory — routers/ is one
-        # level too deep). This silently hit "no such table: signals" on a
-        # fresh DB, causing the filter to return 0 reconciled records and
-        # fall through without filtering — leaking the user's commitment.
+        # utility from db_util.py — NEVER hand-roll this path.
         _db_path = default_sqlite_path()
         _reconciled = reconcile_signals_for_user(
             user_email=user_token,
@@ -216,12 +217,16 @@ def _apply_ticket10_filter(
         # TICKET-10 fix: for third-party queries, exclude signals that are NOT
         # owned by the third party. Only owner="other" signals are the third
         # party's promises. owner="user" is the user's own promise TO them.
-        # owner="unknown" is ambiguous — for third-party queries, exclude it
-        # too (better to abstain than to leak the user's own commitment).
         _third_party_ids = {
             r["signal_id"] for r in _reconciled
             if r.get("owner", "unknown") == "other"
         }
+        _user_commitment_texts = [
+            r.get("text", "") for r in _reconciled
+            if r.get("owner", "unknown") == "user" and r.get("text")
+        ]
+
+        # Filter evidence_refs
         _filtered = [
             ev for ev in evidence_refs
             if ev.get("signal_id", "") in _third_party_ids
@@ -230,15 +235,31 @@ def _apply_ticket10_filter(
         _had_sids = any(ev.get("signal_id", "") for ev in evidence_refs)
         _has_sids = any(ev.get("signal_id", "") for ev in _filtered)
 
-        if _had_sids and not _has_sids:
-            # All signal_id-bearing evidence was user-owned — third party made no promises
+        # AUDITOR FIX: Also check the ANSWER TEXT for the user's own commitments.
+        # The situation-synthesizer path puts the user's commitment in the answer
+        # text (via situation.title), not just in evidence_refs. If the user's
+        # own commitment text appears in the answer, replace the answer with the
+        # abstention message.
+        _answer_leaks = False
+        for _user_text in _user_commitment_texts:
+            # Check if the user's commitment text (or a significant portion of it)
+            # appears in the answer. Use a substring match on the first 40 chars
+            # to catch partial matches (the situation-synthesizer may truncate).
+            _check_text = _user_text[:40].strip()
+            if _check_text and _check_text in answer:
+                _answer_leaks = True
+                break
+
+        if _answer_leaks or (_had_sids and not _has_sids):
+            # Either the answer text contains the user's own commitment, OR
+            # all evidence was user-owned. Replace with abstention message.
             _filtered = [ev for ev in _filtered if not ev.get("signal_id", "")]
             _answer = (
                 "Based on your commitment ledger, there is no record of "
                 "any promise made BY this entity. The commitments you have "
                 "are your own promises TO them, not their promises to you."
             )
-            _cal = "TICKET-10: third-party query — user's own commitments excluded."
+            _cal = "TICKET-10: third-party query — user's own commitments excluded from answer and evidence."
             if calibration_note:
                 _cal = calibration_note + " | " + _cal
             return _answer, _filtered, 0.0, _cal
