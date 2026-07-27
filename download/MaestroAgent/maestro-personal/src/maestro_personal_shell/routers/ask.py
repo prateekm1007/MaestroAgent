@@ -306,8 +306,87 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     response, regardless of which internal code path produced it. The filter
     is applied HERE, at the single exit point, so no future code path inside
     _ask_impl can bypass it by returning early.
+
+    Phase 4b (P75, 2026-07-27): query-level TTL cache. Before calling
+    _ask_impl (which takes 33-45s due to the LLM call), check the query
+    cache. On hit, return the cached response in <10ms — zero LLM calls.
+    The cache key includes the evidence hash from reduce_commitments()
+    so it invalidates when the ledger changes.
+
+    P84 abstention gate (2026-07-27): before the LLM call, check ground_query.
+    If evidence_count == 0, return a calibrated abstention (confidence=0.0)
+    instead of letting the LLM hallucinate. This is the structural fix for
+    the "I promise to buy Twitter again" hallucination found in Audit #2.
     """
+    import time as _cache_time
+    _cache_t0 = _cache_time.monotonic()
+
+    # ---- Phase 4b: query-level cache check (P75) ----
+    # Get the user's current commitments for the cache key. This is fast
+    # (<50ms for SQLite, ~50ms for Postgres) and gives us the evidence hash
+    # that invalidates the cache when the ledger changes.
+    from maestro_personal_shell.query_cache import get_cache
+    from maestro_personal_shell.canonical_ledger import reduce_commitments
+
+    cache = get_cache()
+    try:
+        _cache_evidence = reduce_commitments(token, db_path=default_sqlite_path())
+    except Exception as _cache_ev_err:
+        # P85: cache failures never block the request — proceed without cache
+        logger.warning("ask: reduce_commitments for cache key failed (%s) — skipping cache", _cache_ev_err)
+        _cache_evidence = []
+
+    # Check cache — if hit, return immediately (zero LLM calls)
+    _cached = cache.get(req.query, token, _cache_evidence)
+    if _cached is not None:
+        _cache_elapsed = (_cache_time.monotonic() - _cache_t0) * 1000
+        logger.info(
+            "ask: CACHE HIT (query=%r, user=%s, elapsed=%.1fms, cache_stats=%s)",
+            req.query[:80], token, _cache_elapsed, cache.stats(),
+        )
+        # Reconstruct AskResponse from the cached dict
+        try:
+            return AskResponse(**_cached)
+        except Exception as _reconstruct_err:
+            logger.warning("ask: cache hit but reconstruction failed (%s) — proceeding to _ask_impl", _reconstruct_err)
+
+    # ---- Phase 4b: P84 abstention gate ----
+    # Before calling _ask_impl (which invokes the LLM), check if there's
+    # any evidence for this query. If not, return a calibrated abstention
+    # instead of letting the LLM hallucinate.
+    from maestro_personal_shell.query_grounding import ground_query, format_abstention_response
+    try:
+        _grounded = ground_query(req.query, token, db_path=default_sqlite_path())
+        if _grounded["should_abstain"] and _grounded["evidence_count"] == 0:
+            _abstain = format_abstention_response(
+                req.query,
+                entity=_grounded["entity"],
+                reason=_grounded["abstention_reason"] or "no evidence found",
+            )
+            logger.info(
+                "ask: P84 ABSTENTION (query=%r, entity=%s, reason=%s)",
+                req.query[:80], _grounded["entity"], _grounded["abstention_reason"],
+            )
+            _abstain_response = AskResponse(
+                answer=_abstain["answer"],
+                query=req.query,
+                confidence=0.0,
+                calibration_note=f"P84 abstention: {_abstain['abstention_reason']}",
+                llm_active=False,
+                llm_provider="none",
+                intelligence_source="abstention",
+            )
+            # Cache the abstention too (so repeated zero-evidence queries don't
+            # even hit ground_query on the next call)
+            cache.set(req.query, token, _cache_evidence, _abstain_response.model_dump())
+            return _abstain_response
+    except Exception as _ground_err:
+        # P85: grounding failures never block the request — proceed to _ask_impl
+        logger.warning("ask: ground_query failed (%s) — proceeding to _ask_impl", _ground_err)
+
+    # ---- Cache miss → call _ask_impl (the slow path with LLM) ----
     response = await _ask_impl(request, req, as_of, token)
+
     # Apply the TICKET-10 filter at the single exit point — unbypassable
     filtered_answer, filtered_ev, filtered_conf, filtered_cal = _apply_ticket10_filter(
         req.query, token,
@@ -315,7 +394,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         response.confidence, response.calibration_note or "",
     )
     # Return a new AskResponse with the filtered values
-    return AskResponse(
+    cached_response = AskResponse(
         answer=filtered_answer,
         query=response.query,
         source_sentence=response.source_sentence,
@@ -336,6 +415,20 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         llm_provider=response.llm_provider,
         intelligence_source=response.intelligence_source,
     )
+
+    # ---- Phase 4b: cache the response (P75) ----
+    try:
+        cache.set(req.query, token, _cache_evidence, cached_response.model_dump())
+        _total_elapsed = (_cache_time.monotonic() - _cache_t0) * 1000
+        logger.info(
+            "ask: CACHE SET (query=%r, user=%s, total_elapsed=%.1fms, llm_active=%s)",
+            req.query[:80], token, _total_elapsed, cached_response.llm_active,
+        )
+    except Exception as _cache_set_err:
+        # P85: cache failures never block the response
+        logger.warning("ask: cache.set failed (%s) — response not cached", _cache_set_err)
+
+    return cached_response
 
 
 async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):

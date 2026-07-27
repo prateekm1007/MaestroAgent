@@ -334,6 +334,35 @@ def init_db(db_path: str | None = None) -> None:
     conn.commit()
     conn.close()
 
+    # Phase 1 (P83, 2026-07-27): initialize the canonical commitment ledger.
+    # The commitment_events table is the append-only event store that
+    # reduce_commitments() reads from. Without this, the P84 abstention gate
+    # in the Ask endpoint sees an empty ledger and abstains on every query.
+    try:
+        from maestro_personal_shell.canonical_ledger import LEDGER_DDL
+        import sqlite3 as _sqlite3_init
+        _ledger_conn = get_db_conn(db_path)
+        if hasattr(_ledger_conn, 'executescript'):
+            _ledger_conn.executescript(LEDGER_DDL)
+            _ledger_conn.commit()
+        else:
+            # PostgresConnection — execute each statement separately
+            for stmt in LEDGER_DDL.split(';'):
+                stmt = stmt.strip()
+                if stmt:
+                    _ledger_conn.execute(stmt)
+            _ledger_conn.commit()
+        _ledger_conn.close()
+    except Exception as _ledger_init_err:
+        # P85: ledger init failure is non-fatal — the old commitments_ledger
+        # table still works. Log loudly so the operator knows.
+        import logging as _logging_init
+        _logging_init.getLogger(__name__).warning(
+            "init_db: canonical_ledger init failed (%s) — P84 abstention gate "
+            "will abstain on all queries until this is fixed",
+            _ledger_init_err,
+        )
+
 
 def _parse_signal_row(row) -> dict[str, Any]:
     """Parse a SQLite signal row into a dict with parsed metadata."""
