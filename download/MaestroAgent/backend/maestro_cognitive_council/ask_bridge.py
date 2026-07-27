@@ -290,6 +290,7 @@ class SituationAwareAskBridge:
                         unknowns=situation.unknowns and [u.question for u in situation.unknowns if not u.resolved] or [],
                         urgency="normal",
                         recommended_next_step="",
+                        confidence=0.7,  # P1 fix: was defaulting to 0.0 — perspectives from the routing engine have moderate confidence
                     ))
 
                 # J-01 FIX: Run the synthesizer
