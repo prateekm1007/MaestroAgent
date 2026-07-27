@@ -124,46 +124,80 @@ async def delete_account(token: str = Depends(verify_token_dep)):
 
     deleted_stores: list[str] = []
     conn = get_db_conn(db)
+    # TICKET-5 root cause fix: on Postgres (autocommit=False by default),
+    # a failed statement aborts the transaction. All subsequent statements
+    # fail with "current transaction is aborted" until rollback(). The
+    # prior inner try/excepts caught the exception but didn't rollback,
+    # so every DELETE after the first failure also failed, and conn.commit()
+    # at the end failed too — propagating as 500.
+    #
+    # Fix: set autocommit=True on the connection so each statement is
+    # independent. This is safe for deletion (we don't need atomicity
+    # across tables — partial deletion is acceptable, and the
+    # deleted_accounts table is the GDPR gate, not the data wipe).
+    # Handle both Postgres (psycopg2: conn._conn.autocommit) and SQLite
+    # (sqlite3: conn.isolation_level = None for autocommit mode).
     try:
-        # TICKET-21b/issue #5: catch Exception (not just sqlite3.OperationalError)
-        # so the endpoint works on Postgres too. psycopg2 raises psycopg2.Error,
-        # not sqlite3.OperationalError — the prior code let Postgres errors
-        # propagate as 500.
+        if hasattr(conn, '_conn'):
+            # PostgresConnection wrapper
+            conn._conn.autocommit = True
+        else:
+            # sqlite3.Connection — isolation_level=None enables autocommit
+            conn.isolation_level = None
+    except Exception:
+        pass  # best-effort; if this fails, the try/excepts below handle errors
+    try:
+        # TICKET-5: reorder deletes — children before parents (FK safety).
+        # On Postgres, FOREIGN KEY constraints are enforced. The original
+        # order (signals first) failed if any table referenced signals.
+        # Correct order: outcomes → predictions → commitments_ledger →
+        # calibration_history → signals → graph/devices/tokens.
         try:
-            conn.execute("DELETE FROM signals WHERE user_email = ?", (token,))
-            deleted_stores.append("signals")
-        except Exception as e:
-            logger.debug("failed to delete signals: %s", e)
-        for table in ("commitments_ledger", "calibration_history"):
+            # Outcomes (FK → predictions)
             try:
-                conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
-                deleted_stores.append(table)
+                conn.execute("""
+                    DELETE FROM outcomes WHERE prediction_id IN (
+                        SELECT prediction_id FROM predictions WHERE user_email = ?
+                    )
+                """, (token,))
+                deleted_stores.append("outcomes")
             except Exception as e:
-                logger.debug("failed: %s", e)
-        # Predictions + outcomes (P0 fix: use user_email column)
-        try:
-            conn.execute("""
-                DELETE FROM outcomes WHERE prediction_id IN (
-                    SELECT prediction_id FROM predictions WHERE user_email = ?
-                )
-            """, (token,))
-            conn.execute("DELETE FROM predictions WHERE user_email = ?", (token,))
-            deleted_stores.append("predictions+outcomes")
-        except Exception:
+                logger.debug("failed to delete outcomes: %s", e)
+            # Predictions (parent of outcomes)
+            try:
+                conn.execute("DELETE FROM predictions WHERE user_email = ?", (token,))
+                deleted_stores.append("predictions")
+            except Exception as e:
+                logger.debug("failed to delete predictions: %s", e)
+            # Predictions fallback (metadata LIKE — for older schema)
             try:
                 conn.execute("DELETE FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',))
-                deleted_stores.append("predictions (fallback)")
             except Exception as e:
                 logger.debug("failed: %s", e)
-        # Graph + devices + push_log + tokens
-        for table in ("graph_entities", "graph_edges", "graph_patterns",
-                      "push_log", "devices", "user_tokens"):
+            # Commitments ledger + calibration history
+            for table in ("commitments_ledger", "calibration_history"):
+                try:
+                    conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
+                    deleted_stores.append(table)
+                except Exception as e:
+                    logger.debug("failed: %s", e)
+            # Signals (parent table — delete AFTER children)
             try:
-                conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
-                deleted_stores.append(table)
+                conn.execute("DELETE FROM signals WHERE user_email = ?", (token,))
+                deleted_stores.append("signals")
             except Exception as e:
-                logger.debug("failed: %s", e)
-        conn.commit()
+                logger.debug("failed to delete signals: %s", e)
+            # Graph + devices + push_log + tokens
+            for table in ("graph_entities", "graph_edges", "graph_patterns",
+                          "push_log", "devices", "user_tokens"):
+                try:
+                    conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
+                    deleted_stores.append(table)
+                except Exception as e:
+                    logger.debug("failed: %s", e)
+        except Exception as e:
+            logger.error("delete_account data wipe failed for %s: %s", token, e, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Account deletion failed during data wipe: {str(e)[:200]}")
     finally:
         conn.close()
     # FTS index — rebuild without deleted user's signals
@@ -186,6 +220,14 @@ async def delete_account(token: str = Depends(verify_token_dep)):
     # Deletion is final.
     try:
         _conn2 = get_db_conn(db)
+        # TICKET-5: set autocommit=True so CREATE TABLE + INSERT are independent
+        try:
+            if hasattr(_conn2, '_conn'):
+                _conn2._conn.autocommit = True
+            else:
+                _conn2.isolation_level = None
+        except Exception:
+            pass
         try:
             _conn2.execute("""
                 CREATE TABLE IF NOT EXISTS deleted_accounts (
@@ -209,7 +251,6 @@ async def delete_account(token: str = Depends(verify_token_dep)):
                 )
             except Exception:
                 pass  # user_accounts table may not exist (dev/bootstrap mode)
-            _conn2.commit()
             deleted_stores.append("deleted_accounts")
         finally:
             _conn2.close()
