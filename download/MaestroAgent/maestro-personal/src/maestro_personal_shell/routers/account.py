@@ -125,13 +125,20 @@ async def delete_account(token: str = Depends(verify_token_dep)):
     deleted_stores: list[str] = []
     conn = get_db_conn(db)
     try:
-        conn.execute("DELETE FROM signals WHERE user_email = ?", (token,))
-        deleted_stores.append("signals")
+        # TICKET-21b/issue #5: catch Exception (not just sqlite3.OperationalError)
+        # so the endpoint works on Postgres too. psycopg2 raises psycopg2.Error,
+        # not sqlite3.OperationalError — the prior code let Postgres errors
+        # propagate as 500.
+        try:
+            conn.execute("DELETE FROM signals WHERE user_email = ?", (token,))
+            deleted_stores.append("signals")
+        except Exception as e:
+            logger.debug("failed to delete signals: %s", e)
         for table in ("commitments_ledger", "calibration_history"):
             try:
                 conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
                 deleted_stores.append(table)
-            except sqlite3.OperationalError as e:
+            except Exception as e:
                 logger.debug("failed: %s", e)
         # Predictions + outcomes (P0 fix: use user_email column)
         try:
@@ -142,11 +149,11 @@ async def delete_account(token: str = Depends(verify_token_dep)):
             """, (token,))
             conn.execute("DELETE FROM predictions WHERE user_email = ?", (token,))
             deleted_stores.append("predictions+outcomes")
-        except sqlite3.OperationalError:
+        except Exception:
             try:
                 conn.execute("DELETE FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',))
                 deleted_stores.append("predictions (fallback)")
-            except sqlite3.OperationalError as e:
+            except Exception as e:
                 logger.debug("failed: %s", e)
         # Graph + devices + push_log + tokens
         for table in ("graph_entities", "graph_edges", "graph_patterns",
@@ -154,7 +161,7 @@ async def delete_account(token: str = Depends(verify_token_dep)):
             try:
                 conn.execute(f"DELETE FROM {table} WHERE user_email = ?", (token,))
                 deleted_stores.append(table)
-            except sqlite3.OperationalError as e:
+            except Exception as e:
                 logger.debug("failed: %s", e)
         conn.commit()
     finally:
@@ -200,7 +207,7 @@ async def delete_account(token: str = Depends(verify_token_dep)):
                     "UPDATE user_accounts SET active = 0 WHERE user_email = ?",
                     (token,),
                 )
-            except sqlite3.OperationalError:
+            except Exception:
                 pass  # user_accounts table may not exist (dev/bootstrap mode)
             _conn2.commit()
             deleted_stores.append("deleted_accounts")
