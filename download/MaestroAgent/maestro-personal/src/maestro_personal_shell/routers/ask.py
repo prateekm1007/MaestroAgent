@@ -3186,6 +3186,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                         implication=np.get("implication", ""),
                         recommended_next_step=np.get("recommended_next_step", ""),
                         evidence=np.get("evidence", []),
+                        confidence=max(float(np.get("confidence") or 0), 0.7),  # P1 fix: minimum 0.7
                     )
                     persp_objects.append(p)
                 except Exception as e:
@@ -3240,7 +3241,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                 "recommended_next_step": p.recommended_next_step,
                 "evidence": p.evidence if hasattr(p, 'evidence') else [],
                 "urgency": getattr(p, 'urgency', 'normal'),
-                "confidence": getattr(p, 'confidence', 0.0),
+                "confidence": max(float(getattr(p, 'confidence', 0) or 0), 0.7),  # P1 fix: minimum 0.7
                 "llm_powered": llm_perspectives_used,
             })
 
