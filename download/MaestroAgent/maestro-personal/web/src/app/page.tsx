@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut } from 'lucide-react'
+import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine } from 'lucide-react'
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
+import { DraftApprovalModal, type DraftWithMeta } from '@/components/maestro/DraftApprovalModal'
 import { calculateImportance, getLayoutMode, getConfidenceStyle } from '@/lib/importance'
 import { TheOne } from '@/components/maestro/TheOne'
 import { WhisperView } from '@/components/maestro/WhisperView'
@@ -18,10 +19,46 @@ export default function Home() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [tab, setTab] = useState<Tab>('today')
 
+  // Draft modal state (shared across Today, Whisper, Connectors)
+  const [draftForReview, setDraftForReview] = useState<DraftWithMeta | null>(null)
+  const [draftResolving, setDraftResolving] = useState(false)
+  const [draftBusy, setDraftBusy] = useState(false)
+
   useEffect(() => {
     setAuthed(!!getToken())
     setCheckingAuth(false)
   }, [])
+
+  // Generate a draft for an entity — opens the shared modal
+  const handleGenerateDraft = async (entity: string) => {
+    if (!entity) return
+    setDraftBusy(true)
+    try {
+      const { data, live } = await maestroApi.generateAutoDraft('gmail', entity)
+      if (live && data) {
+        setDraftForReview(data as DraftWithMeta)
+      } else {
+        alert('Could not generate draft. Make sure Gmail is connected.')
+      }
+    } catch {
+      alert('Draft generation failed. Please try again.')
+    } finally {
+      setDraftBusy(false)
+    }
+  }
+
+  // Resolve draft — approve / deny / use_draft
+  const handleResolveDraft = async (draft: DraftWithMeta, resolution: 'approve' | 'deny' | 'use_draft') => {
+    setDraftResolving(true)
+    try {
+      await maestroApi.resolveDraft(draft.draft_id, resolution)
+      setDraftForReview(null)
+    } catch {
+      alert('Failed to resolve draft.')
+    } finally {
+      setDraftResolving(false)
+    }
+  }
 
   if (checkingAuth) {
     return (
@@ -93,11 +130,11 @@ export default function Home() {
         <main className="flex-1 max-w-2xl w-full mx-auto px-6 lg:px-10 py-8 lg:py-10 pb-24 lg:pb-10">
           <AnimatePresence mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2 }} transition={{ duration: 0.2 }}>
-              {tab === 'today' && <TodayView />}
+              {tab === 'today' && <TodayView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
               {tab === 'ask' && <AskView />}
-              {tab === 'commitments' && <CommitmentsViewReal />}
-              {tab === 'whisper' && <WhisperViewReal />}
-              {tab === 'connectors' && <ConnectorsView />}
+              {tab === 'commitments' && <CommitmentsViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+              {tab === 'whisper' && <WhisperViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+              {tab === 'connectors' && <ConnectorsView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -115,12 +152,21 @@ export default function Home() {
           ))}
         </div>
       </nav>
+
+      {/* Shared Draft Approval Modal — proven design from DraftApprovalModal.tsx */}
+      <DraftApprovalModal
+        draft={draftForReview}
+        open={!!draftForReview}
+        onOpenChange={(o) => { if (!o) setDraftForReview(null) }}
+        onResolve={handleResolveDraft}
+        resolving={draftResolving}
+      />
     </div>
   )
 }
 
 // === TODAY — real API ===
-function TodayView() {
+function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
   const [loading, setLoading] = useState(true)
   const [theOne, setTheOne] = useState<any>(null)
   const [changes, setChanges] = useState<any[]>([])
@@ -161,19 +207,29 @@ function TodayView() {
       </div>
 
       {theOne && theOne.commitment && (
-        <TheOne commitment={{
-          id: theOne.commitment.signal_id || 'the-one',
-          entity: theOne.commitment.entity || '',
-          text: theOne.commitment.text || theOne.commitment.action || '',
-          dueDate: theOne.commitment.deadline || new Date().toISOString(),
-          state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
-          confidence: theOne.commitment.confidence || 0.7,
-          importance: theOne.commitment.is_at_risk ? 'high' : 'medium',
-          isBlocking: false,
-          owner: 'user',
-          source: { type: 'email', snippet: theOne.commitment.text || '', timestamp: theOne.commitment.created_at || '', sender: '' },
-          createdAt: theOne.commitment.created_at || '',
-        }} />
+        <div>
+          <TheOne commitment={{
+            id: theOne.commitment.signal_id || 'the-one',
+            entity: theOne.commitment.entity || '',
+            text: theOne.commitment.text || theOne.commitment.action || '',
+            dueDate: theOne.commitment.deadline || new Date().toISOString(),
+            state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
+            confidence: theOne.commitment.confidence || 0.7,
+            importance: theOne.commitment.is_at_risk ? 'high' : 'medium',
+            isBlocking: false,
+            owner: 'user',
+            source: { type: 'email', snippet: theOne.commitment.text || '', timestamp: theOne.commitment.created_at || '', sender: '' },
+            createdAt: theOne.commitment.created_at || '',
+          }} />
+          <button
+            onClick={() => onDraft(theOne.commitment.entity)}
+            disabled={draftBusy}
+            className="mt-3 flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 px-4 py-2 rounded-lg bg-white border border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-50"
+          >
+            {draftBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+            Draft Follow-up Email
+          </button>
+        </div>
       )}
 
       {changes.length > 0 && (
@@ -288,7 +344,7 @@ function AskView() {
 }
 
 // === COMMITMENTS — real API ===
-function CommitmentsViewReal() {
+function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
   const [loading, setLoading] = useState(true)
   const [commitments, setCommitments] = useState<any[]>([])
   const [error, setError] = useState('')
@@ -354,7 +410,7 @@ function CommitmentsViewReal() {
 }
 
 // === WHISPER — real API ===
-function WhisperViewReal() {
+function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
   const [loading, setLoading] = useState(true)
   const [whispers, setWhispers] = useState<any[]>([])
   const [error, setError] = useState('')
@@ -403,7 +459,7 @@ function WhisperViewReal() {
 }
 
 // === CONNECTORS — real API ===
-function ConnectorsView() {
+function ConnectorsView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
   const [connectors, setConnectors] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
@@ -440,7 +496,7 @@ function ConnectorsView() {
     try {
       const { data, live } = await maestroApi.generateAutoDraft('gmail', 'follow_up')
       if (live && data) {
-        alert(`Draft generated!\n\nSubject: ${data.subject || '(no subject)'}\n\n${(data.body || '').slice(0, 200)}...`)
+        setDraftForReview(data)
         load()
       } else alert('Backend not connected.')
     } catch { alert('Draft generation failed. Make sure Gmail is connected.') }
