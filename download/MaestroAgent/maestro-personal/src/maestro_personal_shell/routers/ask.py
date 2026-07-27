@@ -3127,7 +3127,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                     "implication": hp.get("implication", ""),
                     "recommended_next_step": hp.get("recommended_next_step", ""),
                     "urgency": hp.get("urgency", "normal"),
-                    "confidence": hp.get("confidence", 0.7),  # P1 fix: was 0.0 — LLM perspectives have moderate confidence
+                    "confidence": hp.get("confidence", 0.7) or 0.7,  # P1 fix: was 0.0 — LLM perspectives have moderate confidence. Override 0.0 (means "not set")
                     "llm_powered": True,
                 })
             except Exception as e:
