@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut } from 'lucide-react'
-import { maestroApi, getToken, setToken, removeToken } from '@/lib/maestro-api'
+import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
 import { calculateImportance, getLayoutMode, getConfidenceStyle } from '@/lib/importance'
 import { TheOne } from '@/components/maestro/TheOne'
@@ -44,7 +44,7 @@ export default function Home() {
   ]
 
   const handleLogout = () => {
-    removeToken()
+    clearToken()
     setAuthed(false)
   }
 
