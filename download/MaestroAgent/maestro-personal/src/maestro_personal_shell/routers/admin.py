@@ -501,7 +501,7 @@ async def reclassify_ledger(authorization: str = Header(None)):
 # ---------------------------------------------------------------------------
 
 @router.get("/api/admin/purge-real-gmail-from-demo")
-async def purge_real_gmail_from_demo(token: str = ""):
+async def purge_real_gmail_from_demo(token: str = "", dry_run: bool = False):
     """Purge real Gmail-derived signals from the demo account (F-04/P61).
 
     The shared demo (bootstrap@maestro.local) must be synthetic-only. This
@@ -513,12 +513,20 @@ async def purge_real_gmail_from_demo(token: str = ""):
     re-ingestion on next sync.
 
     Auth: requires MAESTRO_PERSONAL_TOKEN (admin-level).
+
+    P85 fix (2026-07-27): previously 500'd on Postgres because the
+    except clauses caught sqlite3.OperationalError specifically (psycopg2
+    raises UndefinedTable instead). Now uses broad Exception with loud
+    logging per P6. Also honors dry_run=true (was previously ignored).
     """
     import sqlite3
     import json
+    import logging
     from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     from fastapi import HTTPException
     import os
+
+    _log = logging.getLogger(__name__)
 
     admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
     if not admin_token or token != admin_token:
@@ -546,7 +554,10 @@ async def purge_real_gmail_from_demo(token: str = ""):
             f"SELECT COUNT(*) FROM signals WHERE user_email IN ({placeholders_emails})", demo_emails
         ).fetchone()[0]
 
-        if gmail_rows:
+        gmail_count = len(gmail_rows)
+        connector_deleted = False
+
+        if not dry_run and gmail_rows:
             signal_ids = [row["signal_id"] for row in gmail_rows]
             placeholders = ",".join("?" * len(signal_ids))
 
@@ -555,33 +566,36 @@ async def purge_real_gmail_from_demo(token: str = ""):
                 f"DELETE FROM signals WHERE signal_id IN ({placeholders})",
                 signal_ids,
             )
-            # Delete from FTS
+            # Delete from FTS — broad except with loud log per P6/P85
             try:
                 db.execute(
                     f"DELETE FROM signals_fts WHERE signal_id IN ({placeholders})",
                     signal_ids,
                 )
-            except Exception:
-                pass
-            # Delete from ledger
+            except Exception as e:
+                _log.warning("purge-real-gmail: signals_fts delete failed (non-fatal): %s", e)
+            # Delete from ledger — broad except with loud log per P6/P85
             try:
                 db.execute(
                     f"DELETE FROM commitments_ledger WHERE signal_id IN ({placeholders})",
                     signal_ids,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                _log.warning("purge-real-gmail: commitments_ledger delete failed (non-fatal): %s", e)
             db.commit()
 
-        # Also delete the Gmail connector token for the demo account(s)
-        try:
-            db.execute(
-                f"DELETE FROM connector_tokens WHERE user_email IN ({placeholders_emails}) AND provider = 'gmail'",
-                demo_emails,
-            )
-            db.commit()
-        except Exception:
-            pass  # table may not exist
+            # Also delete the Gmail connector token for the demo account(s)
+            try:
+                db.execute(
+                    f"DELETE FROM connector_tokens WHERE user_email IN ({placeholders_emails}) AND provider = 'gmail'",
+                    demo_emails,
+                )
+                db.commit()
+                connector_deleted = True
+            except Exception as e:
+                _log.warning("purge-real-gmail: connector_tokens delete failed (non-fatal): %s", e)
+        elif dry_run:
+            _log.info("purge-real-gmail: dry_run=true — no changes made")
 
         total_after = db.execute(
             f"SELECT COUNT(*) FROM signals WHERE user_email IN ({placeholders_emails})", demo_emails
@@ -589,12 +603,13 @@ async def purge_real_gmail_from_demo(token: str = ""):
 
         return {
             "action": "purge_real_gmail_from_demo",
+            "dry_run": bool(dry_run),
             "demo_email": ", ".join(demo_emails),
-            "gmail_signals_found": len(gmail_rows),
-            "gmail_signals_deleted": len(gmail_rows),
+            "gmail_signals_found": gmail_count,
+            "gmail_signals_deleted": 0 if dry_run else gmail_count,
             "total_signals_before": total_before,
             "total_signals_after": total_after,
-            "gmail_connector_disconnected": True,
+            "gmail_connector_disconnected": connector_deleted,
             "governance": "F-04/P61: demo is now synthetic-only — no real Gmail signals",
         }
     finally:
