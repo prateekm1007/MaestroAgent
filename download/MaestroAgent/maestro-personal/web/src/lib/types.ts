@@ -73,4 +73,4 @@ export interface AskAnswer {
 
 export type LayoutMode = 'dominant' | 'prominent' | 'present' | 'quiet' | 'empty'
 
-export type ViewTab = 'today' | 'ask' | 'commitments' | 'whisper'
+export type ViewTab = 'today' | 'ask' | 'commitments' | 'whisper' | 'more'
