@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS commitment_events (
     event_id         TEXT PRIMARY KEY,
     commitment_id    TEXT NOT NULL,
     event_type       TEXT NOT NULL CHECK (event_type IN
-        ('commitment','request','question','quotation','cancellation','tentative','joke')),
+        ('commitment','request','question','quotation','cancellation','completion','tentative','joke')),
     actor            TEXT NOT NULL CHECK (actor IN ('user','entity_name','system')),
     entity           TEXT NOT NULL,
     text             TEXT NOT NULL,
@@ -70,7 +70,7 @@ class CommitmentEvent:
     commitment_id: str
     event_type: Literal[
         "commitment", "request", "question", "quotation",
-        "cancellation", "tentative", "joke",
+        "cancellation", "completion", "tentative", "joke",
     ]
     actor: Literal["user", "entity_name", "system"]
     entity: str
