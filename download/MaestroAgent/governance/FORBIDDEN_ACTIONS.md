@@ -231,3 +231,89 @@ Each forbidden action below is grounded in a specific incident from this audit a
 **Incident:** The web frontend service (`web-production-d5c26.up.railway.app`) was not configured for auto-deploy. Code fixes (removing mock data, adding real API calls, fixing AskView) were merged and pushed to main, but the web service continued serving old code with mock data. The backend auto-deployed correctly, creating a false impression that all fixes were live. The auditor caught this by checking the SSR HTML for mock data strings.
 
 **Rule:** If it runs in production, it auto-deploys from main. No manual deploys. No exceptions except emergency hotfixes (which must be followed by auto-deploy enablement).
+
+### FA29: Connecting Real User Data to a Shared/Demo Environment (P72)
+
+**Forbidden:** Connecting personal Gmail, real banking data, brokerage accounts, or API tokens to any shared or demo environment accessible to external users. Real PII (founder names, client IDs, real email addresses) must never appear in demo fixtures.
+
+**Reason:** The bootstrap tenant was found to have a real connected Gmail with 209+ signals including bank/brokerage PII, readable by anyone with the demo password. The demo corpus contained Prateek's real name ("PRATEEK MISRA") and a real brokerage client ID ("Zerodha Client ID TND670"). Ask "who am I" on the demo account surfaced this PII as the user's identity. A demo that leaks the founder's real brokerage ID is a privacy defect and a trust-killer for any evaluator.
+
+**Remedy:**
+- Demo environment: synthetic data only, regenerated on every deploy
+- Admin endpoint `/api/admin/purge-real-gmail-from-demo` runs on every demo deploy
+- CI check (`scripts/check_p72_data_hygiene.py`) greps demo fixtures for real PII patterns
+- Production environment: tenant-isolated, no shared state
+- Real OAuth tokens never stored against the demo/bootstrap identity
+
+**Enforcement:** Journey gate — login as demo, check `/api/connectors` (assert no real Gmail), check `/api/account/export` (assert no real-person names or account IDs), ask "who am I" (assert no real PII in answer). CI gate fails the build if any PII pattern is found in demo fixtures.
+
+### FA30: Ingesting System-Generated Drafts as External Signals (P73)
+
+**Forbidden:** Treating system-generated drafts (emails Maestro wrote and sent on the user's behalf, Whisper responses, Briefing text, auto-generated summaries) as external commitments when they re-enter the system through Gmail sync or any other ingestion path.
+
+**Reason:** When the user sends a draft email Maestro generated on Tuesday, that email lands in the user's Sent folder. When Gmail sync runs on Wednesday, the email is fetched back into Maestro as if it were a fresh external signal. Maestro then classifies its own draft as a "user commitment," creating a recursive loop where the system's outputs become its inputs. This contaminates the commitment ledger with self-generated noise.
+
+**Remedy:**
+- All system-generated content is tagged with `source_type: "self_generated"` and `generation_id: UUID` at creation time
+- Outbound emails include `X-Maestro-Generated: true` header
+- Gmail connector filters out emails with that header
+- Signal creation endpoint rejects content matching a known `generation_id`
+- Fuzzy-hash match against recent drafts catches drafts that were edited before sending
+
+**Enforcement:** Journey gate — generate a draft email, send it via Maestro's draft system, sync Gmail, verify the email does NOT appear as a new signal. CI check (`scripts/check_p73_recursive_ingestion.py`) ingests a self-generated draft and asserts rejection.
+
+### FA31: Leaking Internal Guard Strings in User-Facing Responses (P86)
+
+**Forbidden:** Returning `[SEMANTIC INJECTION DETECTED AND REMOVED]`, `[REDACTED]`, `[GUARD TRIGGERED]`, raw HTML entities (`&lt;`, `&gt;`, `&amp;`), raw email headers (`From: foo@bar.com`), UUID-labeled credentials (`Token: 550e8400-e29b-41d4-a716-446655440000`), or similar internal markers in user-facing API responses.
+
+**Reason:** Audit #2 found that the Prepare card rendered the literal string `[SEMANTIC INJECTION DETECTED AND REMOVED]` to the user. The guard string is internal defensive machinery — it should never be exposed. Exposing it (a) confuses users who don't know what it means, (b) reveals defensive patterns an attacker could probe, and (c) signals that the system's output sanitization is incomplete. The same audit found UUID-labeled credentials and raw email headers in responses.
+
+**Remedy:**
+- Sanitize at the output layer. Replace internal markers with neutral language ("content redacted for safety") or omit entirely.
+- Maintain `config/sanitization_patterns.yaml` with regex patterns for every known leak shape.
+- Every API response passes through `sanitize_output()` before serialization.
+- CI test feeds 100 known-bad inputs and verifies zero leaks in responses.
+
+**Enforcement:** Journey gate — feed inputs containing `[SEMANTIC INJECTION...]`, UUID tokens, raw headers, HTML entities — assert the API response contains none of these patterns. CI gate (`scripts/check_p86_output_sanitization.py`) fails the build if any leak is detected.
+
+### FA32: Returning HTTP 500 on Authenticated Read Endpoints (P85)
+
+**Forbidden:** Any authenticated GET endpoint returning HTTP 500. 500 on read paths is a release blocker. No exceptions.
+
+**Reason:** Audit #2 found that `/api/account/export` and `/api/observability/traces` returned HTTP 500 on every call. A read endpoint that 500s is a reliability failure that breaks the user's trust — the user cannot tell "the system is broken" from "I am not allowed to see this." Worse, the 500s were unhandled, meaning the stack trace leaked server-side state (file paths, library versions) to the client in some configurations. A system-of-record that 500s on read is not trustworthy.
+
+**Remedy:**
+- Return structured error with diagnostic ID (e.g., `{"error": "internal_error", "diagnostic_id": "abc123", "suggestion": "..."}`).
+- Log full stack trace server-side with the diagnostic ID for correlation.
+- Alert on-call on every 500.
+- Never ship a release that 500s on read — block the release in CI.
+
+**Enforcement:** Journey gate — every authenticated read endpoint tested with: empty state, populated state, malformed auth, revoked token, concurrent load. CI gate fails the build if any read endpoint returns 500 in the test suite. Nightly production probe hits every read endpoint every 5 minutes, 500-rate must be <0.1%.
+
+### FA33: Promoting Non-User Events to Active User Commitments (P82)
+
+**Forbidden:** Promoting a request, question, quotation, joke, tentative statement, or third-party promise to an active user commitment without explicit human review.
+
+**Reason:** The controlled transcript test (Nora fixture) is the smoking gun. When fed a transcript containing seven different event types, the product misclassifies requests and third-party promises as the user's active commitments and silently drops the cancellation. A product that cannot tell "I will send X" from "Can you send X?" from "Nora: I will send X" from "I will not send X" is not a commitment intelligence product. This is a category failure, not a tuning problem.
+
+**Remedy:**
+- Actor attribution and event-type classification (P82) must precede any promotion.
+- Promotions to `commitment_ledger` require `actor=user AND event_type=commitment AND confidence >= 0.7`.
+- Low-confidence promotions go to a review queue, not the active ledger.
+- The Nora controlled transcript test runs on every PR and must pass.
+
+**Enforcement:** Journey gate — `tests/fixtures/controlled_transcript_nora.md` ingested, assert exactly 1 user commitment extracted (sentence #1), exactly 1 cancellation detected (sentence #6, resolves #1), exactly 0 user active commitments in the ledger, exactly 1 Nora active commitment (sentence #5). CI gate (`scripts/check_p82_actor_attribution.py`) fails the build if any non-user event is promoted.
+
+### FA34: Contradicting Canonical State in Generated Answers (P87)
+
+**Forbidden:** An Ask response asserting state (counts, statuses, cancellations, recency) that contradicts the canonical ledger or any state-bearing endpoint.
+
+**Reason:** Audit #2 found that Ask said "0 commitments cancelled" while the `/api/inbox/synthetic/status` endpoint showed 13 cancelled. A system that contradicts itself across endpoints destroys trust. The user cannot tell which surface to believe. The contradiction happens because the LLM generates state claims freely without grounding them in a ledger query.
+
+**Remedy:**
+- All state assertions in generated answers must be grounded in a ledger query executed within the same request.
+- If the LLM generates a state claim ("3 commitments cancelled", "5 active promises to Maria"), the claim is verified against the ledger before the response is sent.
+- Unverifiable claims are redacted or replaced with the actual ledger value.
+- The verification step is logged so auditors can trace which claims were grounded vs. redacted.
+
+**Enforcement:** Journey gate — for every state-bearing endpoint, run the same query via Ask and via the direct endpoint, assert equivalence. CI gate (`scripts/check_p87_state_consistency.py`) covers 20 consistency fixtures: counts, states, recency, entity-specific state. Nightly production check runs 10 random state queries and verifies consistency.

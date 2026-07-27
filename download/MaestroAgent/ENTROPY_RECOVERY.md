@@ -543,3 +543,226 @@ The sixth audit tested paths the fifth did not — mutations, full lifecycle, ex
 **The gap:** Manual deploys create a gap between "code is fixed" and "production is fixed." This gap violates the Finn Loop's assumption that merged code is live in production within minutes. When the loop breaks, verification becomes unreliable — the reviewer verifies against stale production, getting false negatives (fixes not visible) or false positives (bugs appear fixed but aren't live).
 
 > **Rule:** If it runs in production, it auto-deploys from main. No manual deploys. Every Railway service must have "Auto Deploy" enabled (Settings → Deploy → toggle on). The deploy branch must be `main`. Health checks must be configured (`/api/health` for backend, `/` for web). After merging a PR, verify the deploy within 5 minutes by checking the health endpoint commit hash. If the hash doesn't match the latest merge commit, the auto-deploy is broken and must be fixed before any further work.
+
+---
+
+## PART SEVENTEEN — SYSTEMIC QUALITY PRINCIPLES (NEW, FROM CTO DIRECTIVE 2026-07-27)
+
+### The meta-failure this part reveals
+
+The arc has accumulated 71 principles earned from specific bugs. The external auditor still scored execution 2–4/10. The gap is not missing principles — it is the absence of systemic guarantees. Each prior principle catches a specific failure pattern after it ships; P72–P81 below are different: each one is a structural property the system must have by construction, enforced by a CI check that fails the build before the bug can ship. We are not adding more bug-catching principles. We are adding bug-preventing properties.
+
+### 72. Data Hygiene Isolation
+
+**Principle:** Demo, staging, and production environments must never share real user data. No real PII (names, emails, financial codes, API tokens) in any environment accessible to external users.
+
+**Enforcement:**
+- Demo environment: synthetic data only, regenerated on deploy
+- Production environment: tenant-isolated, no shared state
+- Admin endpoint `/api/admin/purge-real-gmail-from-demo` must run on every demo deploy
+- CI check (`scripts/check_p72_data_hygiene.py`): grep for real email domains, financial codes, API token patterns in demo fixtures — fail if found
+
+**Forbidden:** Connecting personal Gmail, real banking data, or API tokens to any shared/demo environment. (See FA29.)
+
+**Metric:** Zero real PII in any demo response. Currently: dozens of instances (Kotak client codes, Zerodha IDs, founder names).
+
+### 73. Recursive Ingestion Guard
+
+**Principle:** The system must recognize its own outputs (drafts, auto-generated emails, Whisper responses, Briefing text) and never ingest them as external signals. A draft email Maestro generated on Tuesday must not become a "user commitment" on Wednesday when the user's Gmail sync pulls it back in.
+
+**Enforcement:**
+- All system-generated content tagged with `source_type: "self_generated"` and `generation_id: UUID`
+- Ingestion pipeline rejects any signal matching a known `generation_id`
+- Gmail connector filters out emails with `X-Maestro-Generated: true` header
+- Signal creation endpoint rejects content matching recent draft signatures (fuzzy hash match)
+- CI check (`scripts/check_p73_recursive_ingestion.py`): ingest a self-generated draft, verify it's rejected
+
+**Forbidden:** Treating system-generated drafts as external commitments. (See FA30.)
+
+### 74. Signal-to-Noise Ratio
+
+**Principle:** The classifier must achieve >90% precision on commitment extraction. Newsletters, billing notices, security alerts, and automated notifications must be rejected at ingestion, not flagged for user dismissal.
+
+**Enforcement:**
+- Source-type awareness: every signal carries `source_type` (personal_email, newsletter, billing, notification, social, self_generated)
+- Domain classification: 200+ known noise domains (mailchimp, substack, aws-billing, producthunt, etc.)
+- Sender pattern matching: `noreply@`, `notifications@`, `billing@`, `no-reply@`
+- Content pattern matching: unsubscribe links, billing amounts, security codes
+- CI check (`scripts/check_p74_signal_to_noise.py`): 50+ noise samples, all must be rejected
+
+**Metric:** Dismissal rate on `not_a_commitment` signals must be <10%. Currently 80%.
+
+### 75. Performance Budget
+
+**Principle:** No user-facing endpoint may exceed 5 seconds p95. Core flows (Ask, The Moment, Briefing) must be sub-second.
+
+**Enforcement:**
+- Performance budget in CI (`scripts/check_p75_performance_budget.py`): every endpoint tested, fails build if >5s p95
+- LLM calls cached aggressively (same query + same evidence = same answer within TTL)
+- Pre-computation: nightly batch job pre-computes The Moment, Briefing, What Changed for all active users
+- Pipeline profiling: every Ask request logs retrieval time, assembly time, LLM time separately
+- Caching layer: Redis or in-memory cache for repeated queries
+
+**Metric:** `/api/ask` p95 latency <3 seconds. Currently 33s. ~10× improvement required.
+
+### 76. Deduplication by Content Hash
+
+**Principle:** Identical signal text from the same source must produce exactly one signal, never duplicates.
+
+**Enforcement:**
+- Signal creation computes `content_hash = sha256(source_id + normalized_text + entity)`
+- Before insert, check for existing signal with same hash
+- If exists: update `last_seen` timestamp, do not create new row
+- Gmail connector: message-id based deduplication before ingestion
+- CI check (`scripts/check_p76_deduplication.py`): ingest same email 10×, verify exactly 1 signal exists
+
+### 77. Confidence Must Vary
+
+**Principle:** Confidence scores must reflect actual certainty. Uniform confidence (e.g., all 0.95) means the confidence system is broken — it is reporting "I am sure" regardless of evidence.
+
+**Enforcement:**
+- Confidence computed from: number of corroborating signals (0.3 base), source reliability (0.2), temporal freshness (0.2), entity match quality (0.15), content clarity (0.15)
+- Confidence must span range 0.3–0.95 in production ledger
+- CI check (`scripts/check_p77_confidence_variance.py`): ledger must have `std_dev(confidence) > 0.15` — if lower, confidence system is broken
+- Low-confidence signals (<0.5) flagged for user review, not surfaced as facts
+
+### 78. Change Detection Requires Baseline
+
+**Principle:** "What Changed" must track the user's last-seen state and compute actual deltas, not list current commitments.
+
+**Enforcement:**
+- Per-user `last_seen_at` timestamp on each entity/situation
+- `/api/what-changed` computes: signals created/modified/resolved since user's `last_seen_at`
+- Returns: `{new: [...], modified: [...], resolved: [...], contradicted: [...]}`
+- Updates `last_seen_at` on read
+- CI check (`scripts/check_p78_change_detection.py`): ingest signal, read what-changed (shows 1 new), read again (shows 0 new)
+
+### 79. Semantic Disambiguation
+
+**Principle:** Queries must disambiguate "my promises TO X" vs "X's promises" vs "signals involving X" at the retrieval layer, not the LLM layer.
+
+**Enforcement:**
+- Query parser extracts: `direction` (my-to-X, X-to-me, X's-promises, involving-X), `entity`, `temporal`
+- Retrieval filters on `owner` field matching direction
+- "What did I promise Maria?" → `owner=user, entity=Maria, direction=outbound`
+- "What did Maria promise?" → `owner=Maria, direction=inbound`
+- "History with Maria" → `entity=Maria, any owner`
+- CI check (`scripts/check_p79_semantic_disambiguation.py`): 10 semantic disambiguation test cases, all must return correct owner
+
+### 80. Deadline Normalization
+
+**Principle:** Every relative deadline ("Friday EOD", "next Tuesday", "in 3 days") must be converted to absolute datetime at ingestion time.
+
+**Enforcement:**
+- `deadline_parser.py` module: converts relative dates using current timestamp as anchor
+- Handles: "Friday", "next week", "EOD", "by 5pm", "in 3 days", "tomorrow"
+- Stores both `deadline_text` (original) and `deadline_datetime` (absolute)
+- Overdue detection: `deadline_datetime < now()` → overdue flag
+- CI check (`scripts/check_p80_deadline_normalization.py`): 20 relative date patterns, all must parse to correct datetime
+
+### 81. Prediction Accountability
+
+**Principle:** Every prediction must have a resolution path and a measurable outcome. 0% accuracy means the prediction system is broken.
+
+**Enforcement:**
+- Every prediction has: `prediction_text`, `resolution_criteria`, `resolution_deadline`, `resolved_at`, `resolved_outcome`
+- Background job: resolves predictions whose deadline has passed
+- Brier score computed on all resolved predictions
+- If Brier score > 0.5 (worse than random) for 30 days: prediction system flagged for review
+- CI check (`scripts/check_p81_prediction_accountability.py`): synthetic prediction dataset with known outcomes, Brier score must be <0.3
+
+---
+
+## PART EIGHTEEN — CORRECTNESS AND COHERENCE PRINCIPLES (NEW, FROM CTO DIRECTIVE v2 2026-07-27)
+
+### The meta-failure this part reveals
+
+Two independent auditors hit production. They did not coordinate. They converged on the same verdict through different methods: 🔴 Not Ready. The smoking gun is the controlled transcript test — when fed a transcript containing one user commitment, one request, one third-party promise, one cancellation, one joke, one quotation, and one tentative — the product misclassifies the request and the third-party promise as the user's active commitments and silently drops the cancellation. This is not noise to be tuned. This is a category failure of the commitment intelligence layer. P82–P87 below are the structural guarantees that make this category of bug impossible.
+
+### 82. Actor Attribution Correctness
+
+**Principle:** Every extracted commitment must correctly attribute its actor (user, third-party, system, organization) and event type (commitment, request, question, quotation, cancellation, tentative, joke). A request, a quotation, or a third-party promise must never be promoted to a user commitment without human review.
+
+**Enforcement:**
+- Ingestion pipeline outputs structured `actor` (user | entity_name | system) and `event_type` (commitment | request | question | quotation | cancellation | tentative | joke) for every extracted item
+- Promotions to `commitment_ledger` require `actor=user AND event_type=commitment AND confidence >= 0.7`
+- Controlled transcript test (Nora fixture, `tests/fixtures/controlled_transcript_nora.md`) runs in CI on every PR — see P82 regression test
+- Nightly production check: sample 100 recent extractions, verify actor/event_type attribution accuracy ≥95% against human-labeled ground truth
+
+**Metric:** Actor attribution accuracy ≥95% on controlled transcripts. Currently ~40%.
+
+**Forbidden:** Promoting a non-user event to an active user commitment. (See FA33.)
+
+### 83. Canonical Ledger Coherence
+
+**Principle:** There is exactly one canonical source of truth for commitment state: the append-only commitment ledger. Every user-facing surface (commitments list, The Moment, Briefing, Ask, What Changed, Whisper) is a projection of the ledger. Projections must never diverge from the ledger.
+
+**Enforcement:**
+- All commitment state mutations go through `ledger.append(event)` — no direct writes to projection tables
+- Projections are rebuilt from ledger on demand or via event subscription
+- Consistency check (`scripts/check_p83_ledger_coherence.py`): `SELECT count(*) FROM commitments_view` must equal `SELECT count(DISTINCT commitment_id) FROM ledger WHERE state='active'` — enforced in CI and nightly
+- HTTP 500 on any read endpoint is a release blocker (see P85)
+- If divergence detected: alert, halt projections, rebuild from ledger
+
+**Metric:** Zero divergence between ledger and any projection. Currently: 3 commitments displayed vs 0 ledger entries.
+
+### 84. Negative Knowledge Abstention
+
+**Principle:** When no evidence exists for a query, the system must return calibrated abstention — confidence 0.0, explicit "no evidence" language, zero speculative content. The system must never hallucinate a commitment, relationship, or fact to fill an evidence gap.
+
+**Enforcement:**
+- Query pipeline computes `evidence_count` before LLM invocation
+- If `evidence_count == 0`: return abstention template, bypass LLM entirely, confidence = 0.0
+- If `evidence_count < 2`: return low-confidence answer with explicit uncertainty language
+- Abstention test suite (20 negative-knowledge queries: "Elon Musk", "Project Titan", "my promise to the moon", etc.) runs in CI
+- Nightly production check: sample 50 negative-knowledge queries, verify 100% abstention rate
+
+**Metric:** 100% abstention rate on negative-knowledge queries. Currently: hallucinates "I promise to buy Twitter again" for Elon Musk.
+
+### 85. Read-Endpoint Reliability
+
+**Principle:** Every authenticated read endpoint must return a valid response or a structured error with actionable detail. HTTP 500 on read paths is a release blocker. No exceptions.
+
+**Enforcement:**
+- Every read endpoint has integration test covering: empty state, populated state, malformed auth, revoked token, concurrent load
+- CI fails if any read endpoint returns 500 in test suite
+- Nightly production probe: every read endpoint hit every 5 minutes, 500-rate must be <0.1%
+- 500s trigger PagerDuty-equivalent alert and automatic rollback
+
+**Metric:** <0.1% 500-rate on read endpoints. Currently: `/api/account/export` and `/api/observability/traces` return 500 on every call.
+
+**Forbidden:** Returning HTTP 500 on an authenticated read endpoint. (See FA32.)
+
+### 86. Output Sanitization
+
+**Principle:** No internal guard strings, debug tokens, HTML entities, raw email headers, UUID-labeled credentials, or placeholder markers appear in user-facing responses. All output passes through a sanitization layer before reaching the client.
+
+**Enforcement:**
+- Sanitization regex list maintained in `config/sanitization_patterns.yaml`:
+  - `\[SEMANTIC INJECTION DETECTED.*?\]` → redact
+  - `Token\s*:\s*[a-f0-9-]{36}` → redact
+  - `&lt;`, `&gt;`, `&amp;` → decode or strip
+  - `From:.*@.*\..*` (raw headers) → redact
+  - Kotak/Zerodha client codes (regex patterns) → redact
+- Every API response passes through `sanitize_output()` before serialization
+- CI test (`scripts/check_p86_output_sanitization.py`): feed 100 known-bad inputs, verify zero leaks in responses
+- Nightly production probe: sample 1000 recent responses, grep for leak patterns
+
+**Metric:** Zero leaked guard strings, tokens, or PII in any user-facing response. Currently: `[SEMANTIC INJECTION DETECTED AND REMOVED]` renders in Prepare cards.
+
+**Forbidden:** Leaking internal guard strings in user-facing responses. (See FA31.)
+
+### 87. State Consistency
+
+**Principle:** Any query about system state (counts, cancellations, status, recency) must return results provably consistent with the canonical state store at the moment of query. The system must never contradict itself across endpoints or within a single response.
+
+**Enforcement:**
+- All state queries read from the canonical ledger (or a strongly-consistent projection)
+- Consistency test (`scripts/check_p87_state_consistency.py`): for every state-bearing endpoint, run same query via Ask and via direct endpoint, assert equivalence
+- "What commitments are cancelled?" via Ask must match `GET /api/inbox/synthetic/status` cancelled count
+- CI: 20 consistency fixtures covering counts, states, recency, entity-specific state
+- Nightly production check: 10 random state queries, verify consistency
+
+**Metric:** 100% state consistency across endpoints. Currently: Ask says 0 cancelled, status endpoint says 13.
+
+**Forbidden:** An Ask response asserting state that contradicts the canonical ledger. (See FA34.)

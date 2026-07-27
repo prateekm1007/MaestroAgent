@@ -1133,6 +1133,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# P86 / FA31 fix (2026-07-27): output sanitization middleware.
+# Audit #2 found [SEMANTIC INJECTION DETECTED AND REMOVED] rendering in the
+# Prepare card, UUID-labeled credentials in /api/observability/traces, and
+# Kotak/Zerodha client codes in demo responses. This middleware applies the
+# regex patterns from config/sanitization_patterns.yaml to every JSON
+# response body before it leaves the server. P85 (read-endpoint reliability)
+# enforced: the middleware NEVER raises — if sanitization fails, the original
+# response is passed through unchanged with a loud log.
+from maestro_personal_shell.sanitization import SanitizationMiddleware  # noqa: E402
+app.add_middleware(SanitizationMiddleware)
+
 # P1-3 fix: 503 Retry-After handler for database-locked errors.
 # When SQLite raises "database is locked" (after the 5s busy_timeout
 # expires), return 503 Service Unavailable with a Retry-After header

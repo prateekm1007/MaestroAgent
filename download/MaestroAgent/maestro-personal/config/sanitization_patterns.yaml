@@ -1,0 +1,181 @@
+# Sanitization Patterns (P86 / FA31)
+#
+# Every API response passes through `sanitize_output()` (in
+# `maestro_personal_shell/sanitization.py`) before serialization. This file
+# defines the regex patterns that get redacted or normalized.
+#
+# Each pattern has:
+#   - name: short identifier (used in logs when a leak is caught)
+#   - pattern: the regex (use raw strings; case-insensitive by default)
+#   - replacement: the string to substitute (defaults to "[redacted]")
+#   - scope: where to apply — "all", "string_fields_only"
+#       (use "string_fields_only" for patterns that could match binary blobs
+#        in non-text fields; "all" is the default and is appropriate for
+#        guard-string leaks which can appear anywhere)
+#
+# Add new patterns here as new leak shapes are discovered. Every addition
+# must be accompanied by a CI test case in scripts/check_p86_output_sanitization.py
+# that feeds a known-bad input through the response pipeline and asserts
+# zero leaks in the output.
+
+patterns:
+  # ---- Internal guard strings (FA31) ----
+  # These come from the LLM safety layer and should NEVER be user-visible.
+  - name: semantic_injection_marker
+    pattern: '\[SEMANTIC INJECTION DETECTED[^\]]*\]'
+    replacement: ''
+    scope: all
+
+  - name: redacted_marker
+    pattern: '\[REDACTED[^\]]*\]'
+    replacement: ''
+    scope: all
+
+  - name: guard_triggered_marker
+    pattern: '\[GUARD TRIGGERED[^\]]*\]'
+    replacement: ''
+    scope: all
+
+  - name: prompt_injection_marker
+    pattern: '\[PROMPT INJECTION[^\]]*\]'
+    replacement: ''
+    scope: all
+
+  - name: content_filter_marker
+    pattern: '\[CONTENT FILTER[^\]]*\]'
+    replacement: ''
+    scope: all
+
+  # ---- UUID-labeled credentials (FA31) ----
+  # "Token: 550e8400-e29b-41d4-a716-446655440000" leaks server-side token
+  # identifiers to the client. Strip the label and the UUID.
+  - name: uuid_labeled_token
+    pattern: '(?i)\b(token|secret|api[_-]?key|password|auth)\s*[:=]\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    replacement: '[redacted]'
+    scope: all
+
+  # ---- Raw email headers (FA31) ----
+  # "From: foo@bar.com" appearing in answer text is a leak of the raw
+  # email structure. The user should see "From Foo Bar" or the entity name,
+  # not the raw RFC822 header. Patterns match both ^From: (start of line)
+  # and inline "From: foo@bar.com" (mid-sentence) so mixed-context leaks
+  # are caught regardless of where they appear.
+  - name: raw_email_header_from
+    pattern: '(?i)\bFrom:\s+[^\s\n]+@[\w.-]+\s*'
+    replacement: ''
+    scope: all
+
+  - name: raw_email_header_to
+    pattern: '(?i)\b(To|Cc|Bcc|Reply-To):\s+[^\s\n]+@[\w.-]+\s*'
+    replacement: ''
+    scope: all
+
+  - name: raw_email_header_subject
+    pattern: '(?i)\bSubject:\s+[^\n]*'
+    replacement: ''
+    scope: all
+
+  # ---- Kotak / Zerodha client codes (P52 / FA29) ----
+  # Real brokerage client IDs leaked into the demo corpus. These patterns
+  # are conservative: they match the formats actually observed in the
+  # audit (TND670, Kotak client codes like CR1234567).
+  - name: zerodha_client_id
+    pattern: '\b(zerodha\s+(client\s+)?id\s*[:=]?\s*)?[A-Z]{3}\d{3,4}\b'
+    replacement: '[redacted]'
+    scope: all
+
+  - name: kotak_client_code
+    pattern: '(?i)\bkotak\s+(client|customer)\s+(id|code)\s*[:=]?\s*[A-Z0-9]{4,12}\b'
+    replacement: '[redacted]'
+    scope: all
+
+  # ---- API key patterns (P74/P86) ----
+  # Strip API keys that may leak via error messages or debug output.
+  - name: openai_key
+    pattern: '\bsk-[A-Za-z0-9]{40,}\b'
+    replacement: '[redacted]'
+    scope: all
+
+  - name: anthropic_key
+    pattern: '\bsk-ant-[A-Za-z0-9-_]{40,}\b'
+    replacement: '[redacted]'
+    scope: all
+
+  - name: github_pat
+    pattern: '\bghp_[A-Za-z0-9]{36,}\b'
+    replacement: '[redacted]'
+    scope: all
+
+  - name: groq_key
+    pattern: '\bgsk_[A-Za-z0-9]{40,}\b'
+    replacement: '[redacted]'
+    scope: all
+
+  - name: openrouter_key
+    pattern: '\bsk-or-[A-Za-z0-9-_]{40,}\b'
+    replacement: '[redacted]'
+    scope: all
+
+  - name: bearer_token
+    pattern: '(?i)\bbearer\s+[A-Za-z0-9-_\.]{20,}'
+    replacement: 'Bearer [redacted]'
+    scope: all
+
+  # ---- HTML entities that should have been decoded (FA31) ----
+  # Raw &lt; &gt; &amp; in answer text indicates a serialization bug
+  # somewhere upstream. Decode to the literal character so the user sees
+  # `<` not `&lt;`.
+  - name: html_entity_lt
+    pattern: '&lt;'
+    replacement: '<'
+    scope: string_fields_only
+
+  - name: html_entity_gt
+    pattern: '&gt;'
+    replacement: '>'
+    scope: string_fields_only
+
+  - name: html_entity_amp
+    pattern: '&amp;'
+    replacement: '&'
+    scope: string_fields_only
+
+  - name: html_entity_quote
+    pattern: '&quot;'
+    replacement: '"'
+    scope: string_fields_only
+
+  - name: html_entity_apos
+    pattern: '&#39;'
+    replacement: "'"
+    scope: string_fields_only
+
+  # ---- Stack trace leakage (P86) ----
+  # Tracebacks in API responses leak file paths, library versions, and
+  # internal structure. Replace with a neutral marker.
+  - name: python_traceback
+    pattern: '(?m)^Traceback \(most recent call last\):[\s\S]*?(?=\n\S|\Z)'
+    replacement: '[internal error — see server logs]'
+    scope: all
+
+  - name: file_path_leak
+    pattern: '/(?:home|Users|root|opt|var|etc)/[^\s"<>]+\.py'
+    replacement: '[redacted path]'
+    scope: all
+
+# ---- Configuration ----
+config:
+  # Apply sanitization to every JSON response before serialization.
+  # When True, the FastAPI middleware wraps every response.
+  enabled: true
+
+  # Log every redaction at WARN level so leaks are visible in production.
+  log_redactions: true
+
+  # When a redaction happens, include the pattern name in the log so the
+  # operator can see WHICH pattern fired (helps diagnose new leak shapes).
+  log_pattern_name: true
+
+  # Maximum recursion depth when walking nested dicts/lists.
+  # Defensive — prevents pathological inputs from causing stack overflow.
+  max_depth: 20

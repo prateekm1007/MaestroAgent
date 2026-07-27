@@ -18,6 +18,36 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["account"])
 
 
+# P85 fix (2026-07-27): production runs on PostgreSQL via MAESTRO_DATABASE_URL.
+# A bare `except sqlite3.OperationalError` does NOT catch psycopg2's
+# `UndefinedTable` / `UndefinedColumn` errors — those bubble up as unhandled
+# HTTP 500s on the read endpoints (Audit #2 found /api/account/export and
+# /api/observability/traces returning 500 on every call). The fix is to
+# catch the broad Exception class for "table/column may not exist" guards
+# where the intent is to fall through to an empty list, and to LOG loudly
+# (P6) so the operator can see what's missing in production.
+#
+# The catch is intentionally narrow in scope: it only wraps the
+# optional-table probes in export_data and the predictions fallback. Every
+# other query in this router is on a table that MUST exist (created in
+# init_db at startup); those still raise loudly if broken.
+def _probe_table(conn, sql: str, params: tuple) -> list[dict]:
+    """Run a SELECT that may target a missing/changed table on Postgres.
+
+    Returns [] on any DB-side error, with a loud log so production
+    drift is visible. Never raises.
+    """
+    try:
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+        return rows
+    except Exception as e:  # noqa: BLE001 — intentional broad catch for table probes
+        logger.warning(
+            "account.export: optional-table probe failed (sql=%r params=%r): %s",
+            sql[:80], params, e,
+        )
+        return []
+
+
 # ---------------------------------------------------------------------------
 # verify_token lazy proxy (see routers/auth.py for rationale)
 # ---------------------------------------------------------------------------
@@ -288,32 +318,38 @@ async def export_data(token: str = Depends(verify_token_dep)):
     export["signals"] = signals
     export["signal_count"] = len(signals)
 
+    # P85 fix: optional-table probes use _probe_table so a missing/changed
+    # table on Postgres (which raises psycopg2.errors.UndefinedTable, NOT
+    # sqlite3.OperationalError) is logged loudly and falls through to []
+    # instead of bubbling up as an unhandled HTTP 500.
     for table in ("commitments_ledger", "audit_log", "calibration_history",
                   "devices", "push_log", "graph_entities", "graph_edges", "graph_patterns"):
-        try:
-            rows = [dict(r) for r in conn.execute(
-                f"SELECT * FROM {table} WHERE user_email = ?", (token,)
-            ).fetchall()]
-            export[table] = rows
-        except sqlite3.OperationalError:
-            export[table] = []
+        rows = _probe_table(
+            conn,
+            f"SELECT * FROM {table} WHERE user_email = ?",
+            (token,),
+        )
+        export[table] = rows
 
     # Predictions (P0 fix: use user_email, not metadata LIKE)
-    try:
-        preds = [dict(r) for r in conn.execute(
-            "SELECT * FROM predictions WHERE user_email = ?", (token,)
-        ).fetchall()]
+    preds = _probe_table(
+        conn,
+        "SELECT * FROM predictions WHERE user_email = ?",
+        (token,),
+    )
+    if preds:
         export["predictions"] = preds
         export["prediction_count"] = len(preds)
-    except sqlite3.OperationalError:
-        try:
-            preds = [dict(r) for r in conn.execute(
-                "SELECT * FROM predictions WHERE metadata LIKE ?", (f'%"{token}"%',)
-            ).fetchall()]
-            export["predictions"] = preds
-            export["prediction_count"] = len(preds)
-        except sqlite3.OperationalError:
-            export["predictions"] = []
+    else:
+        # Fallback: older predictions rows may not have user_email populated
+        # (pre-migration). Use metadata LIKE as a last resort.
+        preds = _probe_table(
+            conn,
+            "SELECT * FROM predictions WHERE metadata LIKE ?",
+            (f'%"{token}"%',),
+        )
+        export["predictions"] = preds
+        export["prediction_count"] = len(preds)
 
     conn.close()
     return export

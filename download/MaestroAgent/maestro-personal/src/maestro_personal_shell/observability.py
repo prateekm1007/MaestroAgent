@@ -228,16 +228,33 @@ def get_trace(trace_id: str, db_path: str | None = None, user_email: str | None 
 
 
 def get_user_traces(user_email: str, limit: int = 50, db_path: str | None = None) -> list[dict[str, Any]]:
-    """Get recent traces for a user."""
+    """Get recent traces for a user.
+
+    P85 fix (2026-07-27): production runs on PostgreSQL via MAESTRO_DATABASE_URL.
+    SQLite uses `GROUP_CONCAT(DISTINCT col)` while Postgres uses
+    `STRING_AGG(col, ', ')` (with DISTINCT inside the arg). The PostgresConnection
+    wrapper translates `?`→`%s` but does NOT translate aggregate function names.
+    Audit #2 found /api/observability/traces returning HTTP 500 on production
+    because `GROUP_CONCAT` is not a Postgres function.
+
+    The fix detects the backend (sqlite vs postgres) and uses the correct
+    aggregate. Both produce the same `surfaces` column shape (comma-joined
+    distinct surface names).
+    """
     import json
+    from maestro_personal_shell.db_util import _is_postgres
     path = db_path or _get_db_path()
     init_observability_tables(path)
     conn = get_db_conn(path)
     conn.row_factory = sqlite3.Row
     try:
+        if _is_postgres():
+            surfaces_expr = "STRING_AGG(DISTINCT surface, ', ')"
+        else:
+            surfaces_expr = "GROUP_CONCAT(DISTINCT surface)"
         rows = conn.execute(
-            """SELECT trace_id, COUNT(*) as event_count, MIN(timestamp) as started_at,
-               MAX(timestamp) as ended_at, GROUP_CONCAT(DISTINCT surface) as surfaces
+            f"""SELECT trace_id, COUNT(*) as event_count, MIN(timestamp) as started_at,
+               MAX(timestamp) as ended_at, {surfaces_expr} as surfaces
                FROM trace_events WHERE user_email = ?
                GROUP BY trace_id ORDER BY started_at DESC LIMIT ?""",
             (user_email, limit),
