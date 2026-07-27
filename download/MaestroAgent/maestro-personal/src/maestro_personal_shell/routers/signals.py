@@ -239,16 +239,23 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     classification = None
     signal_type_override = "needs_review"  # default: NOT a commitment
 
+    # TICKET-6c: extract sender_email from metadata if present, so the
+    # marketing SENDER filter (TICKET-6b) can reject marketing domains
+    # on manually-created signals too. Callers can pass:
+    #   {"metadata": {"sender_email": "noreply@slack.com"}}
+    _sender_email = req.metadata.get("sender_email", "") if req.metadata else ""
+
     try:
         from maestro_personal_shell.commitment_classifier import classify_commitment
         classification = await classify_commitment(
             text=sanitized_text,
             entity=req.entity,
+            sender_email=_sender_email,
         )
     except Exception as e:
         logger.warning("LLM classification failed: %s — falling back to rules", e)
         try:
-            classification = _rule_based_classify(sanitized_text, req.entity)
+            classification = _rule_based_classify(sanitized_text, req.entity, sender_email=_sender_email)
         except Exception as e2:
             logger.error("Rules classifier also failed: %s", e2)
             classification = None
