@@ -55,6 +55,7 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
   const [sending, setSending] = useState(false);
   const [editedBody, setEditedBody] = useState('');
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
 
   const headers = {
     'Authorization': `Bearer ${token}`,
@@ -64,13 +65,14 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
   // Load thread
   useEffect(() => {
     if (activeTab === 'thread') {
+      setError('');
       fetch(`${apiBase}/api/commitments/${commitment.commitment_id}/thread`, { headers })
         .then(r => r.json())
         .then(data => {
           setThread(data.messages || []);
           setLoading(false);
         })
-        .catch(() => setLoading(false));
+        .catch(() => { setError('Failed to load thread.'); setLoading(false); });
     }
   }, [activeTab, commitment.commitment_id]);
 
@@ -85,6 +87,7 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
   // Generate draft
   const generateDraft = async () => {
     setLoading(true);
+    setError('');
     try {
       const resp = await fetch(`${apiBase}/api/commitments/${commitment.commitment_id}/draft`, {
         method: 'POST',
@@ -95,11 +98,18 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
           length: 'medium',
         }),
       });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        if (resp.status === 503) setError('AI drafts are temporarily unavailable. Please try again later.');
+        else if (resp.status === 400) setError('Please connect your Gmail account to generate drafts.');
+        else setError(err.detail || 'Draft generation failed.');
+        return;
+      }
       const data = await resp.json();
       setDraft(data);
       setEditedBody(data.body);
     } catch (e) {
-      console.error('Draft generation failed:', e);
+      setError('Network error. Please check your connection.');
     }
     setLoading(false);
   };
@@ -108,15 +118,23 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
   const sendEmail = async () => {
     if (!draft) return;
     setSending(true);
+    setError('');
     try {
-      await fetch(`${apiBase}/api/drafts/${draft.draft_id}/send`, {
+      const resp = await fetch(`${apiBase}/api/drafts/${draft.draft_id}/send`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ edited_body: editedBody }),
       });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        if (resp.status === 400) setError('Please connect your Gmail account in settings to send emails.');
+        else if (resp.status === 503) setError('Email sending is not yet available. Please copy the draft manually.');
+        else setError(err.detail || 'Failed to send email.');
+        return;
+      }
       setSent(true);
     } catch (e) {
-      console.error('Send failed:', e);
+      setError('Network error. Please check your connection.');
     }
     setSending(false);
   };
@@ -160,6 +178,12 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          
+          {error && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+              {error}
+            </div>
+          )}
           
           {/* THREAD TAB */}
           {activeTab === 'thread' && (

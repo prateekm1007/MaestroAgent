@@ -9,21 +9,22 @@ from typing import Optional
 import logging
 import uuid
 
+from fastapi import HTTPException
 from maestro_personal_shell.email_models import EmailDraft, EmailThread
 from maestro_personal_shell.voice_analyzer import get_user_voice_profile
 
 logger = logging.getLogger(__name__)
 
-# API key from environment variable only (never hardcoded)
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-if not OPENROUTER_API_KEY:
-    logger.warning("OPENROUTER_API_KEY not set - draft generation will fail")
-
 
 async def generate_email_draft(commitment_id: str, user_email: str, tone: str = "professional", length: str = "medium", context: Optional[str] = None) -> EmailDraft:
     """Generate follow-up email draft using user's voice profile."""
-    if not OPENROUTER_API_KEY:
-        raise ValueError("OPENROUTER_API_KEY environment variable not set")
+    # P85: Graceful 503, not 500 crash
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="AI draft generation is currently unavailable (LLM provider not configured)."
+        )
     
     try:
         from maestro_personal_shell.commitment_ledger import get_commitment
@@ -43,7 +44,7 @@ ENTITY: {commitment.get('entity', 'Unknown')}
 
 Write email body only, matching user's voice exactly."""
         
-        draft_body = await _call_openrouter(prompt)
+        draft_body = await _call_openrouter(prompt, api_key)
         
         return EmailDraft(
             draft_id=str(uuid.uuid4()),
@@ -61,10 +62,10 @@ Write email body only, matching user's voice exactly."""
         raise
 
 
-async def _call_openrouter(prompt: str) -> str:
+async def _call_openrouter(prompt: str, api_key: str) -> str:
     """Call OpenRouter API."""
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     
