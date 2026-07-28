@@ -7,7 +7,7 @@ modifying the original 249KB api.py file.
 """
 
 # Import and apply the classifier patch FIRST
-import maestro_personal_shell.commitment_classifier_patch  # noqa: F401
+import maestro_personal_shell.commitment_classifier_patch_v2  # noqa: F401
 
 # Now import the original api module (which will use the patched classifier)
 from maestro_personal_shell.api import app  # noqa: F401
