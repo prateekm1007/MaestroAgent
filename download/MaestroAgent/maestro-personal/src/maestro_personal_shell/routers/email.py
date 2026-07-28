@@ -96,6 +96,8 @@ async def get_commitment_thread(
         
     except HTTPException:
         raise
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching thread for commitment {commitment_id}: {e}")
         raise HTTPException(
@@ -142,6 +144,8 @@ async def generate_draft(
         
         return draft
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error generating draft for commitment {commitment_id}: {e}")
         raise HTTPException(
@@ -185,6 +189,8 @@ async def send_draft(
         
         return result
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error sending draft {draft_id}: {e}")
         raise HTTPException(
@@ -210,6 +216,8 @@ async def get_voice_profile(user_email: str = Depends(verify_token_dep)):
         profile = await get_user_voice_profile(user_email)
         return profile
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching voice profile for {user_email}: {e}")
         raise HTTPException(

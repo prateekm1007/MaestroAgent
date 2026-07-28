@@ -27,11 +27,25 @@ async def generate_email_draft(commitment_id: str, user_email: str, tone: str = 
         )
     
     try:
-        from maestro_personal_shell.commitment_ledger import get_commitment
-        commitment = await get_commitment(commitment_id, user_email)
+        # Use get_ledger_entries to find the commitment
+        from maestro_personal_shell.commitment_ledger import get_ledger_entries
+        from maestro_personal_shell.db_util import default_sqlite_path
+        
+        db_path = default_sqlite_path()
+        entries = get_ledger_entries(user_email=user_email, db_path=db_path)
+        
+        # Find the commitment by signal_id
+        commitment = None
+        for entry in entries:
+            if entry.get("signal_id") == commitment_id:
+                commitment = entry
+                break
         
         if not commitment:
-            raise ValueError(f"Commitment {commitment_id} not found")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Commitment {commitment_id} not found"
+            )
         
         voice_profile = await get_user_voice_profile(user_email)
         
