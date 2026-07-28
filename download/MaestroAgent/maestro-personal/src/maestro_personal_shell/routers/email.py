@@ -13,7 +13,7 @@ from datetime import datetime
 from maestro_personal_shell.email_models import (
     EmailThread, EmailMessage, EmailDraft, DraftRequest, SendRequest
 )
-from maestro_personal_shell.api import verify_token
+from maestro_personal_shell.routers.auth import verify_token_dep
 from maestro_personal_shell.gmail_connector import is_gmail_configured, fetch_real_gmail_messages
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/api", tags=["email"])
 @router.get("/commitments/{commitment_id}/thread", response_model=EmailThread)
 async def get_commitment_thread(
     commitment_id: str,
-    user_email: str = Depends(verify_token)
+    user_email: str = Depends(verify_token_dep)
 ):
     """
     Retrieve the email thread for a commitment.
@@ -104,7 +104,7 @@ async def get_commitment_thread(
 async def generate_draft(
     commitment_id: str,
     request: DraftRequest,
-    user_email: str = Depends(verify_token)
+    user_email: str = Depends(verify_token_dep)
 ):
     """
     Generate a draft follow-up email for this commitment.
@@ -150,7 +150,7 @@ async def generate_draft(
 async def send_draft(
     draft_id: str,
     request: SendRequest,
-    user_email: str = Depends(verify_token)
+    user_email: str = Depends(verify_token_dep)
 ):
     """
     Send a draft email via Gmail.
@@ -190,7 +190,7 @@ async def send_draft(
 
 
 @router.get("/user/voice-profile")
-async def get_voice_profile(user_email: str = Depends(verify_token)):
+async def get_voice_profile(user_email: str = Depends(verify_token_dep)):
     """
     Get the user's voice profile for email generation.
     
