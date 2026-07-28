@@ -175,8 +175,14 @@ def append_event(event: CommitmentEvent, db_path: str | None = None) -> str:
         # permanently empty. This idempotent check prevents that.
         _ensure_table_exists(conn)
 
-        cur = conn.cursor()
-        cur.execute(
+        # P83-Postgres fix: use conn.execute() directly, NOT conn.cursor().
+        # PostgresConnection doesn't have a cursor() method — it mimics
+        # sqlite3.Connection.execute() but not .cursor(). The prior code
+        # called conn.cursor().execute(...) which fails on Postgres with
+        # "'PostgresConnection' object has no attribute 'cursor'" — silently
+        # caught by the P83 block's except Exception, causing EVERY
+        # canonical_ledger write to fail since the P83 block was added.
+        conn.execute(
             "INSERT INTO commitment_events ("
             "event_id, commitment_id, event_type, actor, entity, text, "
             "source_signal_id, confidence, state, user_email, timestamp, metadata"
@@ -216,8 +222,9 @@ def reduce_commitments(user_email: str, db_path: str | None = None) -> list[dict
     try:
         conn = get_db_conn(db_path or default_sqlite_path())
         try:
-            cur = conn.cursor()
-            cur.execute(
+            # P83-Postgres fix: use conn.execute() directly, NOT conn.cursor().
+            # PostgresConnection doesn't have cursor() — see append_event fix.
+            cur = conn.execute(
                 f"SELECT {_EVENT_COLUMNS} FROM commitment_events "
                 "WHERE user_email = ? ORDER BY timestamp ASC",
                 (user_email,),
@@ -302,10 +309,10 @@ def check_ledger_projection_consistency(db_path: str | None = None) -> dict:
     try:
         conn = get_db_conn(db_path or default_sqlite_path())
         try:
-            cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM commitment_events")
+            # P83-Postgres fix: use conn.execute() directly, NOT conn.cursor().
+            cur = conn.execute("SELECT COUNT(*) FROM commitment_events")
             report["total_events"] = cur.fetchone()[0]
-            cur.execute(f"SELECT {_EVENT_COLUMNS} FROM commitment_events ORDER BY timestamp ASC")
+            cur = conn.execute(f"SELECT {_EVENT_COLUMNS} FROM commitment_events ORDER BY timestamp ASC")
             rows = cur.fetchall()
         finally:
             conn.close()

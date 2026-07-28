@@ -909,15 +909,14 @@ async def debug_canonical_ledger(token: str = Depends(verify_token_dep)):
 
         try:
             conn = get_db_conn(db_path)
-            cur = conn.cursor()
             # Check if table exists
             try:
-                cur.execute("SELECT COUNT(*) FROM commitment_events")
+                cur = conn.execute("SELECT COUNT(*) FROM commitment_events")
                 count = cur.fetchone()
                 result["table_exists"] = True
                 result["row_count"] = count[0] if count else 0
                 # Get recent events for this user
-                cur.execute(
+                cur = conn.execute(
                     "SELECT event_id, commitment_id, entity, text, state, timestamp "
                     "FROM commitment_events WHERE user_email = ? "
                     "ORDER BY timestamp DESC LIMIT 5",
