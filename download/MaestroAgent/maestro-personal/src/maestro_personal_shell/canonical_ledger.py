@@ -145,9 +145,14 @@ def _ensure_table_exists(conn) -> None:
                     conn.execute(stmt)
         conn.commit()
     except Exception as e:
-        # If the table already exists, this is a no-op error — safe to ignore.
-        # If it's a different error, the subsequent INSERT will surface it.
-        logger.debug("ensure_table_exists: %s (may be safe if table exists)", e)
+        # If the table already exists, CREATE TABLE IF NOT EXISTS is a no-op
+        # and shouldn't error. If this errors, it's a real problem (permissions,
+        # syntax, connection) — log it loudly so the operator can see why the
+        # canonical ledger is empty. The subsequent INSERT will also fail and
+        # be logged by append_event's exception handler.
+        logger.warning(
+            "P83 _ensure_table_exists FAILED — canonical ledger may be empty: %s", e
+        )
 
 
 def append_event(event: CommitmentEvent, db_path: str | None = None) -> str:

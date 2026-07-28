@@ -883,6 +883,82 @@ async def debug_llm(token: str = Depends(verify_token_dep)):
         }
 
 
+@router.get("/debug-canonical-ledger")
+async def debug_canonical_ledger(token: str = Depends(verify_token_dep)):
+    """P83 diagnostic: check the canonical ledger (commitment_events table) state.
+
+    Returns whether the table exists, row count, and a sample of recent events.
+    Used to diagnose why /api/ask returns 'no records' when /api/commitments
+    shows commitments exist (the two query different tables).
+    """
+    try:
+        from maestro_personal_shell.db_util import default_sqlite_path, get_db_conn
+        from maestro_personal_shell.canonical_ledger import reduce_commitments, _ensure_table_exists
+        import sqlite3
+
+        db_path = default_sqlite_path()
+        result = {
+            "user_email": token,
+            "db_path": db_path,
+            "table_exists": False,
+            "row_count": 0,
+            "recent_events": [],
+            "reduce_commitments_count": 0,
+            "errors": [],
+        }
+
+        try:
+            conn = get_db_conn(db_path)
+            cur = conn.cursor()
+            # Check if table exists
+            try:
+                cur.execute("SELECT COUNT(*) FROM commitment_events")
+                count = cur.fetchone()
+                result["table_exists"] = True
+                result["row_count"] = count[0] if count else 0
+                # Get recent events for this user
+                cur.execute(
+                    "SELECT event_id, commitment_id, entity, text, state, timestamp "
+                    "FROM commitment_events WHERE user_email = ? "
+                    "ORDER BY timestamp DESC LIMIT 5",
+                    (token,),
+                )
+                rows = cur.fetchall()
+                result["recent_events"] = [
+                    {
+                        "event_id": r[0] if not isinstance(r, dict) else r.get("event_id"),
+                        "commitment_id": r[1] if not isinstance(r, dict) else r.get("commitment_id"),
+                        "entity": r[2] if not isinstance(r, dict) else r.get("entity"),
+                        "text": (r[3] if not isinstance(r, dict) else r.get("text")) or "",
+                        "state": r[4] if not isinstance(r, dict) else r.get("state"),
+                        "timestamp": r[5] if not isinstance(r, dict) else r.get("timestamp"),
+                    }
+                    for r in rows
+                ] if rows else []
+            except Exception as table_err:
+                result["errors"].append(f"Table check failed: {table_err}")
+                # Try to create the table
+                try:
+                    _ensure_table_exists(conn)
+                    result["errors"].append("Table creation attempted via _ensure_table_exists")
+                except Exception as create_err:
+                    result["errors"].append(f"Table creation failed: {create_err}")
+            conn.close()
+        except Exception as conn_err:
+            result["errors"].append(f"Connection failed: {conn_err}")
+
+        # Also check reduce_commitments
+        try:
+            reduced = reduce_commitments(token, db_path=db_path)
+            result["reduce_commitments_count"] = len(reduced)
+        except Exception as reduce_err:
+            result["errors"].append(f"reduce_commitments failed: {reduce_err}")
+
+        return result
+    except Exception as e:
+        return {"error": str(e), "note": "debug-canonical-ledger caught an internal error"}
+
+
 @router.get("/depth")
 async def get_depth(token: str = Depends(verify_token_dep)):
     """Show which Core modules are wired to Personal."""
