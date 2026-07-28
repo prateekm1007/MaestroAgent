@@ -125,16 +125,34 @@ def seed_demo_data_if_empty(user_email: str = "bootstrap") -> int:
     # Seed the demo corpus
     now = datetime.now(timezone.utc)
     seeded = 0
+
+    # P-DRAFT-EMAIL-ADDRESS fix: add synthetic sender_email to demo signals
+    # so the draft generator's _get_recipient_email() can find a real email
+    # address for the mailto link. Without this, the mailto 'to' field
+    # falls back to the entity name ("Alex Chen") which doesn't open an
+    # email client properly.
+    # Email addresses are derived from entity name (lowercase, hyphenated).
+    def _entity_to_email(entity: str) -> str:
+        """Convert entity name to a synthetic email address."""
+        parts = entity.lower().replace(".", "").split()
+        if len(parts) >= 2:
+            return f"{parts[0]}.{parts[1]}@example.com"
+        return f"{parts[0]}@example.com" if parts else "unknown@example.com"
+
     for sig in DEMO_SIGNALS:
         timestamp = (now - timedelta(days=sig["days_ago"])).isoformat()
         signal_id = f"demo_{seeded+1}_{int(now.timestamp())}"
+        sender_email = _entity_to_email(sig["entity"])
         signal = {
             "signal_id": signal_id,
             "entity": sig["entity"],
             "text": sig["text"],
             "signal_type": sig["signal_type"],
             "timestamp": timestamp,
-            "metadata": {"source": "demo_seed"},
+            "metadata": {
+                "source": "demo_seed",
+                "sender_email": sender_email,  # P-DRAFT-EMAIL-ADDRESS
+            },
         }
         try:
             save_signal_to_db(signal, db_path=db_path, user_email=user_email)
