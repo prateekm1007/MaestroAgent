@@ -124,6 +124,32 @@ _EVENT_COLUMNS = (
 )
 
 
+def _ensure_table_exists(conn) -> None:
+    """Idempotently create the commitment_events table if it doesn't exist.
+
+    P83-deep fix: init_db() tries to create this table at startup, but if
+    that fails (Postgres syntax issue, connection issue, etc.), every
+    subsequent append_event() call fails with 'no such table' /
+    'relation does not exist' — silently caught by the caller's
+    except Exception. This function ensures the table exists before
+    every INSERT, making the write path robust to init failures.
+    """
+    try:
+        if hasattr(conn, 'executescript'):
+            conn.executescript(LEDGER_DDL)
+        else:
+            # PostgresConnection — execute each statement separately
+            for stmt in LEDGER_DDL.split(';'):
+                stmt = stmt.strip()
+                if stmt:
+                    conn.execute(stmt)
+        conn.commit()
+    except Exception as e:
+        # If the table already exists, this is a no-op error — safe to ignore.
+        # If it's a different error, the subsequent INSERT will surface it.
+        logger.debug("ensure_table_exists: %s (may be safe if table exists)", e)
+
+
 def append_event(event: CommitmentEvent, db_path: str | None = None) -> str:
     """Append an event to the ledger. Returns the event_id.
 
@@ -136,6 +162,14 @@ def append_event(event: CommitmentEvent, db_path: str | None = None) -> str:
         metadata = json.dumps(metadata)
     conn = get_db_conn(db_path or default_sqlite_path())
     try:
+        # P83-deep fix: ensure the table exists before INSERTing.
+        # init_db() may have failed silently at startup (Postgres compat,
+        # connection issue), leaving the table non-existent. Every INSERT
+        # would then fail with 'no such table' — caught silently by the
+        # caller's except Exception, causing the canonical ledger to be
+        # permanently empty. This idempotent check prevents that.
+        _ensure_table_exists(conn)
+
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO commitment_events ("
