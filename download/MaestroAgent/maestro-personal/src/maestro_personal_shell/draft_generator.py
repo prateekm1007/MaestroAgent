@@ -2,38 +2,35 @@
 Email draft generator - uses OpenRouter API with voice profile and thread context.
 
 P-DRAFT-PLACEHOLDERS fix (auditor finding):
-  Previous prompt was too vague ("Write email body only, matching user's voice
-  exactly") and the LLM (gemma-3-12b-it) responded with a generic template
-  containing placeholders like "[Original Email Subject]", "[Your Name]",
-  "[mention the topic of the original email]". Verified live:
-  curl POST /api/commitments/{id}/draft returned body with literal [brackets].
-
-  Root causes:
-    1. Prompt did not explicitly forbid placeholders/brackets.
-    2. Prompt did not give the LLM the actual commitment text as the central
-       topic — it just said "COMMITMENT: ..." in a list format the LLM
-       treated as metadata, not as the email's subject matter.
-    3. Voice profile data was garbage (invisible Unicode chars from HTML
-       email boilerplate parsing) — passing it to the LLM confused it.
-    4. No post-generation validation. If the LLM still returned a
-       placeholder, we shipped it.
+  Previous prompt was too vague and the LLM responded with generic templates
+  containing placeholders like [Original Email Subject], [Your Name], etc.
 
   Fix:
     1. Rewrite prompt to be explicit, imperative, forbid all placeholders.
-    2. Provide commitment text + entity as the central topic, with
-       explicit instructions to reference them.
-    3. Filter voice_profile phrases: drop entries that are empty after
-       stripping zero-width/combining chars or that are clearly HTML
-       boilerplate. Fall back to no phrases if all are garbage.
-    4. Add _has_placeholders() post-gen check. If first attempt has
-       placeholders, retry once with an even stricter prompt. If retry
-       still fails, return a deterministic template-filled body using
-       the actual commitment data (no LLM).
+    2. Provide commitment text + entity as the central topic.
+    3. Filter voice_profile phrases: drop garbage entries.
+    4. Add _has_placeholders() post-gen check with retry logic.
+    
+P-DRAFT-NEWLINE fix (auditor finding 2026-07-28):
+  Bug: Draft body contained literal "\n" (backslash + n) instead of actual newlines.
+  Root cause: Python f-string with "\\n" becomes literal "\n" string, not newline.
+  Fix: Use actual newline characters in prompt, not escaped sequences.
+  
+P-DRAFT-LATENCY fix (auditor finding 2026-07-28):
+  Bug: Draft generation took 7+ seconds.
+  Root cause: max_tokens=800 is too high for email drafts.
+  Fix: Reduce to 400 tokens, add caching.
+
+P-DRAFT-EMAIL-ADDRESS fix (auditor finding 2026-07-28):
+  Bug: mailto link had entity name ("Alex Chen") instead of email address.
+  Root cause: Draft 'to' field was set to entity name, not email.
+  Fix: Look up sender_email from signal, use that for 'to' field.
 """
 
 import os
 import re
 import httpx
+import hashlib
 from datetime import datetime
 from typing import Optional, List
 import logging
@@ -44,6 +41,10 @@ from maestro_personal_shell.email_models import EmailDraft, EmailThread
 from maestro_personal_shell.voice_analyzer import get_user_voice_profile
 
 logger = logging.getLogger(__name__)
+
+# Simple in-memory cache for draft generation (commitment_id + context -> draft)
+_DRAFT_CACHE = {}
+_CACHE_TTL_SECONDS = 300  # 5 minutes
 
 # Regex patterns that indicate placeholder/template output
 _PLACEHOLDER_PATTERNS = [
@@ -78,12 +79,9 @@ def _clean_phrase(phrase: str) -> str:
     """Strip zero-width/combining chars and HTML boilerplate from a voice phrase."""
     if not phrase:
         return ''
-    # Strip zero-width joiners, non-joiners, combining marks, BOM, etc.
     cleaned = re.sub(r'[\u200b-\u200f\u202a-\u202e\u2060-\u206f\u034f\ufeff]', '', phrase)
-    # Strip HTML/CSS boilerplate
     if 'body_style' in cleaned or 'AOL' in cleaned or '<' in cleaned:
         return ''
-    # Strip whitespace-only result
     cleaned = cleaned.strip()
     return cleaned
 
@@ -97,10 +95,9 @@ def _filter_voice_phrases(phrases: List[str]) -> List[str]:
 def _deterministic_fallback_body(commitment: dict, sender_name: str = "Prateek") -> str:
     """
     Deterministic template-filled body (no LLM). Used when the LLM returns
-    placeholders even after retry. Guarantees a usable, specific email.
+    placeholders even after retry.
     """
     entity = commitment.get('entity') or commitment.get('recipient') or 'there'
-    # Ledger entries use 'action' for the commitment text; /api/commitments uses 'text'.
     text = commitment.get('text') or commitment.get('action') or 'our conversation'
     return (
         f"Hi {entity},\n\n"
@@ -109,6 +106,31 @@ def _deterministic_fallback_body(commitment: dict, sender_name: str = "Prateek")
         f"Thanks,\n"
         f"{sender_name}"
     )
+
+
+def _get_recipient_email(commitment: dict, commitment_id: str, user_email: str) -> str:
+    """
+    Look up the actual email address for the recipient.
+    Returns email address or empty string if not found.
+    """
+    try:
+        from maestro_personal_shell.signal_store import get_signal_by_id
+        signal = get_signal_by_id(commitment_id, user_email)
+        if signal:
+            # Try sender_email first (from inbound email)
+            sender_email = signal.get('sender_email') or signal.get('from_email')
+            if sender_email and '@' in sender_email:
+                return sender_email
+            # Try metadata
+            metadata = signal.get('metadata', {})
+            if isinstance(metadata, dict):
+                email = metadata.get('sender_email') or metadata.get('from')
+                if email and '@' in email:
+                    return email
+    except Exception as e:
+        logger.warning(f"Could not look up recipient email for {commitment_id}: {e}")
+    
+    return ""
 
 
 async def generate_email_draft(
@@ -128,8 +150,14 @@ async def generate_email_draft(
             detail="AI draft generation is currently unavailable (LLM provider not configured)."
         )
 
+    # Check cache first
+    cache_key = hashlib.md5(f"{commitment_id}:{user_email}:{tone}:{length}:{context}".encode()).hexdigest()
+    cached = _DRAFT_CACHE.get(cache_key)
+    if cached and (datetime.utcnow() - cached['timestamp']).total_seconds() < _CACHE_TTL_SECONDS:
+        logger.info(f"Returning cached draft for {commitment_id}")
+        return cached['draft']
+
     try:
-        # Find the commitment by signal_id
         from maestro_personal_shell.commitment_ledger import get_ledger_entries
         from maestro_personal_shell.db_util import default_sqlite_path
 
@@ -149,7 +177,6 @@ async def generate_email_draft(
             )
 
         entity = commitment.get('entity') or commitment.get('recipient') or 'there'
-        # Ledger entries use 'action' for the commitment text; /api/commitments uses 'text'.
         commitment_text = commitment.get('text') or commitment.get('action') or ''
         if not commitment_text:
             raise HTTPException(
@@ -157,15 +184,21 @@ async def generate_email_draft(
                 detail="Commitment has no text to follow up on."
             )
 
-        # Fetch thread context (best-effort — don't fail draft if thread fetch fails)
+        # Look up actual email address (P-DRAFT-EMAIL-ADDRESS fix)
+        recipient_email = _get_recipient_email(commitment, commitment_id, user_email)
+        if not recipient_email:
+            logger.warning(f"No email address found for {entity}, using entity name as fallback")
+            recipient_email = entity  # Fallback to name if no email found
+
+        # Fetch thread context
         thread_context = ""
         try:
             from maestro_personal_shell.routers.email import get_commitment_thread
             thread_data = await get_commitment_thread(commitment_id, user_email)
             thread_messages = thread_data.get("messages", []) if thread_data else []
             if thread_messages:
-                recent = thread_messages[-3:]  # last 3 messages
-                thread_context = "\n\nPREVIOUS EMAIL THREAD (for reference only — do NOT quote verbatim):\n"
+                recent = thread_messages[-3:]
+                thread_context = "\n\nPREVIOUS EMAIL THREAD (for reference only):\n"
                 for msg in recent:
                     sender = "You" if msg.get("is_from_user") else (msg.get("from_email") or "Them")
                     body_excerpt = (msg.get("body") or "")[:200]
@@ -182,69 +215,73 @@ async def generate_email_draft(
 
         length_hint = {"short": "2-3 sentences", "medium": "4-6 sentences", "long": "8-12 sentences"}.get(length, "4-6 sentences")
 
-        # Primary prompt — explicit, imperative, forbids placeholders
-        prompt = f"""You are writing a follow-up email for the user. The user has made a commitment and needs to follow up.
+        # P-DRAFT-NEWLINE fix: Use actual newlines in prompt, not \\n
+        prompt = f"""You are writing a follow-up email for the user.
 
-HARD RULES (violating any rule means the output is rejected):
-1. NEVER use placeholders. NO square brackets like [Your Name] or [Original Email Subject].
-2. NO angle brackets like <placeholder>.
-3. Use ONLY the real information provided below. Do not invent names, dates, or topics.
-4. Start directly with "Hi {entity}," — no "Subject:" line, no preamble, no explanation.
-5. Reference the SPECIFIC commitment text provided. Do not say "regarding our conversation" — name the actual commitment.
-6. End with a real sign-off: "Thanks,\\nPrateek" (use the sender name below).
-7. Length: {length_hint}.
-8. Tone: {tone}.
+HARD RULES:
+1. NEVER use placeholders like [Your Name] or [Original Email Subject].
+2. Use ONLY the real information provided below.
+3. Start directly with "Hi {entity}," — no "Subject:" line.
+4. Reference the SPECIFIC commitment: "{commitment_text}"
+5. End with:
+Thanks,
+Prateek
+6. Length: {length_hint}. Tone: {tone}.
 
-REAL INFORMATION (use this and only this):
-- RECIPIENT NAME: {entity}
-- SENDER NAME: Prateek
-- THE COMMITMENT (the user's promise that needs following up): "{commitment_text}"{thread_context}
+REAL INFORMATION:
+- RECIPIENT: {entity}
+- SENDER: Prateek
+- COMMITMENT: "{commitment_text}"{thread_context}
 
-{("USER'S VOICE PROFILE (match this style):" if clean_phrases else "No voice profile available — use a clean, professional default style.")}
-- Formality: {formality:.1f}/1.0 (0=very casual, 1=very formal)
-{chr(10).join(f"- Common phrase (use if natural): \"{p}\"" for p in clean_phrases)}
-- Sign-off style: {signature}
+{"USER VOICE PROFILE:" if clean_phrases else "No voice profile available."}
+- Formality: {formality:.1f}/1.0
+{chr(10).join(f"- Common phrase: \"{p}\"" for p in clean_phrases)}
+- Sign-off: {signature}
 
-Write the email body now. Start with "Hi {entity},". End with "Thanks,\\nPrateek". No other formatting."""
+Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines (press Enter), not \\n."""
 
         draft_body = await _call_openrouter(prompt, api_key)
 
-        # Post-generation validation: reject placeholder output, retry once
+        # Post-generation validation
         if _has_placeholders(draft_body):
-            logger.warning(f"First draft attempt had placeholders. Retrying with stricter prompt. Body was: {draft_body[:200]}")
+            logger.warning(f"First draft attempt had placeholders. Retrying.")
             retry_prompt = (
-                f"Your previous response contained placeholders like [Your Name]. "
-                f"That is forbidden. Write the email again, this time filling in ALL real values:\n"
+                f"Your previous response contained placeholders. "
+                f"Write the email again with ALL real values:\n"
                 f"- Recipient: {entity}\n"
                 f"- Sender: Prateek\n"
                 f"- Commitment: {commitment_text}\n\n"
-                f"Start with 'Hi {entity},' and end with 'Thanks,\\nPrateek'. "
-                f"No brackets, no placeholders, no preamble."
+                f"Start with 'Hi {entity},' and end with:\nThanks,\nPrateek\n"
+                f"No brackets, no placeholders."
             )
             draft_body = await _call_openrouter(retry_prompt, api_key)
 
-        # If still has placeholders after retry, use deterministic fallback
         if _has_placeholders(draft_body):
-            logger.error(f"Draft still had placeholders after retry. Using deterministic fallback. Body was: {draft_body[:200]}")
+            logger.error(f"Draft still had placeholders after retry. Using fallback.")
             draft_body = _deterministic_fallback_body(commitment)
 
-        # Strip any leading "Subject:" line the LLM might add
+        # Strip any leading "Subject:" line
         draft_body = re.sub(r'^\s*subject:\s*[^\n]*\n', '', draft_body, flags=re.IGNORECASE).strip()
 
-        # Build subject from commitment text
+        # Build subject
         subject_text = commitment_text[:60].rstrip()
         subject = f"Re: {subject_text}" if not subject_text.lower().startswith('re:') else subject_text
 
-        return EmailDraft(
+        draft = EmailDraft(
             draft_id=str(uuid.uuid4()),
             commitment_id=commitment_id,
-            to=entity,
+            to=recipient_email,  # Use actual email address, not entity name
             subject=subject,
             body=draft_body,
             voice_confidence=0.85,
             suggested_edits=[],
             created_at=datetime.utcnow()
         )
+
+        # Cache the result
+        _DRAFT_CACHE[cache_key] = {'draft': draft, 'timestamp': datetime.utcnow()}
+
+        return draft
 
     except HTTPException:
         raise
@@ -257,7 +294,7 @@ Write the email body now. Start with "Hi {entity},". End with "Thanks,\\nPrateek
 
 
 async def _call_openrouter(prompt: str, api_key: str) -> str:
-    """Call OpenRouter API. Handles both content-style and reasoning-style models."""
+    """Call OpenRouter API. P-DRAFT-LATENCY: reduced max_tokens to 400."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
@@ -267,10 +304,10 @@ async def _call_openrouter(prompt: str, api_key: str) -> str:
         "model": "google/gemma-3-12b-it",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 800
+        "max_tokens": 400  # P-DRAFT-LATENCY: was 800, reduced to 400
     }
 
-    async with httpx.AsyncClient(timeout=45.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced timeout
         response = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,
@@ -284,18 +321,13 @@ async def _call_openrouter(prompt: str, api_key: str) -> str:
         choice = result.get("choices", [{}])[0]
         message = choice.get("message", {})
 
-        # Prefer content; fall back to reasoning (some models like Kimi K3 put
-        # the answer in reasoning when max_tokens is too low for a final answer)
         content = message.get("content")
         if content:
             return content.strip()
 
         reasoning = message.get("reasoning") or ""
         if reasoning:
-            # Reasoning models often include the answer inline. Extract any
-            # quoted or non-thought portion. As a fallback, return the whole
-            # reasoning stripped of leading "Let me think..." patterns.
-            logger.warning("OpenRouter returned reasoning but no content; using reasoning as fallback")
+            logger.warning("OpenRouter returned reasoning but no content")
             return reasoning.strip()
 
-        raise Exception("OpenRouter returned empty content and empty reasoning")
+        raise Exception("OpenRouter returned empty content")
