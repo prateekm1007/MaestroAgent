@@ -1,13 +1,4 @@
 
-
-def check_gmail_configured():
-    """Check if Gmail OAuth is properly configured."""
-    if not is_gmail_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Gmail OAuth not configured. Contact administrator."
-        )
-
 """
 Email API endpoints.
 
@@ -25,6 +16,14 @@ from maestro_personal_shell.api import verify_token
 from maestro_personal_shell.gmail_connector import is_gmail_configured, fetch_real_gmail_messages
 
 logger = logging.getLogger(__name__)
+
+def check_gmail_configured():
+    """Check if Gmail OAuth is properly configured."""
+    if not is_gmail_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Gmail OAuth not configured. Contact administrator."
+        )
 
 router = APIRouter(prefix="/api", tags=["email"])
 
