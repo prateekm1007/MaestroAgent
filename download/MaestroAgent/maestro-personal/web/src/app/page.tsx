@@ -11,6 +11,7 @@ import { calculateImportance, getLayoutMode, getConfidenceStyle } from '@/lib/im
 import { TheOne } from '@/components/maestro/TheOne'
 import { WhisperView } from '@/components/maestro/WhisperView'
 import { CommitmentsView } from '@/components/maestro/CommitmentsView'
+import { ClickableCard } from '@/components/maestro/ClickableCard'
 
 type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors'
 
@@ -208,19 +209,31 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
 
       {theOne && theOne.commitment && (
         <div>
-          <TheOne commitment={{
-            id: theOne.commitment.signal_id || 'the-one',
-            entity: theOne.commitment.entity || '',
-            text: theOne.commitment.text || theOne.commitment.action || '',
-            dueDate: theOne.commitment.deadline || new Date().toISOString(),
-            state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
-            confidence: theOne.commitment.confidence || 0.7,
-            importance: theOne.commitment.is_at_risk ? 'high' : 'medium',
-            isBlocking: false,
-            owner: 'user',
-            source: { type: 'email', snippet: theOne.commitment.text || '', timestamp: theOne.commitment.created_at || '', sender: '' },
-            createdAt: theOne.commitment.created_at || '',
-          }} />
+          <ClickableCard
+            commitment={{
+              commitment_id: theOne.commitment.signal_id || 'the-one',
+              entity: theOne.commitment.entity || '',
+              text: theOne.commitment.text || theOne.commitment.action || '',
+              state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
+              confidence: theOne.commitment.confidence || 0.7,
+              deadline_text: theOne.commitment.deadline,
+              source_signal_id: theOne.commitment.signal_id
+            }}
+          >
+            <TheOne commitment={{
+              id: theOne.commitment.signal_id || 'the-one',
+              entity: theOne.commitment.entity || '',
+              text: theOne.commitment.text || theOne.commitment.action || '',
+              dueDate: theOne.commitment.deadline || new Date().toISOString(),
+              state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
+              confidence: theOne.commitment.confidence || 0.7,
+              importance: theOne.commitment.is_at_risk ? 'high' : 'medium',
+              isBlocking: false,
+              owner: 'user',
+              source: { type: 'email', snippet: theOne.commitment.text || '', timestamp: theOne.commitment.created_at || '', sender: '' },
+              createdAt: theOne.commitment.created_at || '',
+            }} />
+          </ClickableCard>
           <button
             onClick={() => onDraft(theOne.commitment.entity)}
             disabled={draftBusy}
@@ -380,12 +393,24 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
       {theOne && (
         <div className="mb-8">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">The One</p>
-          <TheOne commitment={{
-            id: theOne.signal_id || 'c1', entity: theOne.entity || '', text: theOne.text || theOne.action || '',
-            dueDate: theOne.deadline || new Date().toISOString(), state: theOne.is_at_risk ? 'at_risk' : 'active',
-            confidence: theOne.confidence || 0.7, importance: theOne.is_at_risk ? 'high' : 'medium', isBlocking: false,
-            owner: 'user', source: { type: 'email', snippet: theOne.text || '', timestamp: '', sender: '' }, createdAt: '',
-          }} />
+          <ClickableCard
+            commitment={{
+              commitment_id: theOne.signal_id || 'c1',
+              entity: theOne.entity || '',
+              text: theOne.text || theOne.action || '',
+              state: theOne.is_at_risk ? 'at_risk' : 'active',
+              confidence: theOne.confidence || 0.7,
+              deadline_text: theOne.deadline,
+              source_signal_id: theOne.signal_id
+            }}
+          >
+            <TheOne commitment={{
+              id: theOne.signal_id || 'c1', entity: theOne.entity || '', text: theOne.text || theOne.action || '',
+              dueDate: theOne.deadline || new Date().toISOString(), state: theOne.is_at_risk ? 'at_risk' : 'active',
+              confidence: theOne.confidence || 0.7, importance: theOne.is_at_risk ? 'high' : 'medium', isBlocking: false,
+              owner: 'user', source: { type: 'email', snippet: theOne.text || '', timestamp: '', sender: '' }, createdAt: '',
+            }} />
+          </ClickableCard>
         </div>
       )}
       {rest.length > 0 && (
@@ -393,14 +418,27 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
           <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">All Active ({rest.length})</p>
           <div className="space-y-2">
             {rest.map((c, i) => (
-              <div key={c.signal_id || i} className="flex items-center gap-3 py-3 px-4 bg-white rounded-lg border border-gray-100">
-                <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: (c.confidence || 0.5) >= 0.7 ? '#059669' : '#D97706' }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700 truncate">{c.text || c.action}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{c.entity}</p>
+              <ClickableCard
+                key={c.signal_id || i}
+                commitment={{
+                  commitment_id: c.signal_id || `c-${i}`,
+                  entity: c.entity || '',
+                  text: c.text || c.action || '',
+                  state: c.is_at_risk ? 'at_risk' : 'active',
+                  confidence: c.confidence || 0.5,
+                  deadline_text: c.deadline,
+                  source_signal_id: c.signal_id
+                }}
+              >
+                <div className="flex items-center gap-3 py-3 px-4 bg-white rounded-lg border border-gray-100">
+                  <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: (c.confidence || 0.5) >= 0.7 ? '#059669' : '#D97706' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700 truncate">{c.text || c.action}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{c.entity}</p>
+                  </div>
+                  {c.is_at_risk && <span className="text-xs text-red-500 font-medium">At risk</span>}
                 </div>
-                {c.is_at_risk && <span className="text-xs text-red-500 font-medium">At risk</span>}
-              </div>
+              </ClickableCard>
             ))}
           </div>
         </div>
