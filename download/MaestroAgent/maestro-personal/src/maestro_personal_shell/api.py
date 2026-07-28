@@ -976,6 +976,7 @@ from maestro_personal_shell.routers import (
     account as _account_router,
     surfaces as _surfaces_router,
     inbox as _inbox_router,
+    email as _email_router,
 )
 app.include_router(_auth_router.router)
 app.include_router(_ask_router.router)
@@ -991,6 +992,7 @@ app.include_router(_connectors_router.router)
 app.include_router(_account_router.router)
 app.include_router(_surfaces_router.router)
 app.include_router(_inbox_router.router)
+app.include_router(_email_router.router)
 
 # P2 (auditor): Publish OpenAPI contract at /api/openapi.json
 # S1 fix (auditor caught): the original version had NO auth, which exposed
