@@ -99,8 +99,9 @@ def _deterministic_fallback_body(commitment: dict, sender_name: str = "Prateek")
     Deterministic template-filled body (no LLM). Used when the LLM returns
     placeholders even after retry. Guarantees a usable, specific email.
     """
-    entity = commitment.get('entity', 'there')
-    text = commitment.get('text', 'our conversation')
+    entity = commitment.get('entity') or commitment.get('recipient') or 'there'
+    # Ledger entries use 'action' for the commitment text; /api/commitments uses 'text'.
+    text = commitment.get('text') or commitment.get('action') or 'our conversation'
     return (
         f"Hi {entity},\n\n"
         f"Just following up on my commitment: \"{text}\"\n\n"
@@ -147,8 +148,9 @@ async def generate_email_draft(
                 detail=f"Commitment {commitment_id} not found"
             )
 
-        entity = commitment.get('entity', 'there')
-        commitment_text = commitment.get('text', '')
+        entity = commitment.get('entity') or commitment.get('recipient') or 'there'
+        # Ledger entries use 'action' for the commitment text; /api/commitments uses 'text'.
+        commitment_text = commitment.get('text') or commitment.get('action') or ''
         if not commitment_text:
             raise HTTPException(
                 status_code=400,
