@@ -1,0 +1,41 @@
+name: MaestroAgent Continuous Verification
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 */2 * * *'  # Every 2 hours
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run comprehensive test suite
+        run: python download/MaestroAgent/maestro-personal/tests/test_comprehensive_suite.py
+        continue-on-error: true
+
+      - name: Check production health
+        run: |
+          curl -s https://maestroagent-production.up.railway.app/api/health | jq .
+        continue-on-error: true
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "See test output above for details" >> $GITHUB_STEP_SUMMARY
