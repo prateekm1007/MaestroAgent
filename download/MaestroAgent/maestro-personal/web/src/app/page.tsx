@@ -215,20 +215,8 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
 
       {theOne && theOne.commitment && (
         <div>
-          <ClickableCard
+          <TheOne
             commitment={{
-              commitment_id: theOne.commitment.signal_id || 'the-one',
-              entity: theOne.commitment.entity || '',
-              text: theOne.commitment.text || theOne.commitment.action || '',
-              state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
-              confidence: theOne.commitment.confidence || 0.7,
-              deadline_text: theOne.commitment.deadline,
-              source_signal_id: theOne.commitment.signal_id
-            }}
-            apiBase={API_BASE}
-            token={getToken() || ''}
-          >
-            <TheOne commitment={{
               id: theOne.commitment.signal_id || 'the-one',
               entity: theOne.commitment.entity || '',
               text: theOne.commitment.text || theOne.commitment.action || '',
@@ -240,8 +228,10 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
               owner: 'user',
               source: { type: 'email', snippet: theOne.commitment.text || '', timestamp: theOne.commitment.created_at || '', sender: '' },
               createdAt: theOne.commitment.created_at || '',
-            }} />
-          </ClickableCard>
+            }}
+            apiBase={API_BASE}
+            token={getToken() || ''}
+          />
           <button
             onClick={() => onDraft(theOne.commitment.entity)}
             disabled={draftBusy}
@@ -401,14 +391,18 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
       {theOne && (
         <div className="mb-8">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">The One</p>
-          
-            <TheOne commitment={{
-              id: theOne.signal_id || 'c1', entity: theOne.entity || '', text: theOne.text || theOne.action || '',
-              dueDate: theOne.deadline || new Date().toISOString(), state: theOne.is_at_risk ? 'at_risk' : 'active',
-              confidence: theOne.confidence || 0.7, importance: theOne.is_at_risk ? 'high' : 'medium', isBlocking: false,
-              owner: 'user', source: { type: 'email', snippet: theOne.text || '', timestamp: '', sender: '' }, createdAt: '',
-            }} />
-          
+
+            <TheOne
+              commitment={{
+                id: theOne.signal_id || 'c1', entity: theOne.entity || '', text: theOne.text || theOne.action || '',
+                dueDate: theOne.deadline || new Date().toISOString(), state: theOne.is_at_risk ? 'at_risk' : 'active',
+                confidence: theOne.confidence || 0.7, importance: theOne.is_at_risk ? 'high' : 'medium', isBlocking: false,
+                owner: 'user', source: { type: 'email', snippet: theOne.text || '', timestamp: '', sender: '' }, createdAt: '',
+              }}
+              apiBase={API_BASE}
+              token={getToken() || ''}
+            />
+
         </div>
       )}
       {rest.length > 0 && (
@@ -479,18 +473,38 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       {whispers.map((w, i) => (
-        <div key={i} className={cn('p-5 rounded-2xl',
-          w.type === 'at_risk' ? 'bg-red-50/80' : w.type === 'preparation' ? 'bg-blue-50/80' : w.type === 'opportunity' ? 'bg-green-50/80' : 'bg-gray-50')}>
-          <h3 className="font-semibold text-sm text-gray-900">{w.title || w.text || w.message || 'Insight'}</h3>
-          {(w.context || w.detail) && <p className="text-sm text-gray-500 mt-1">{w.context || w.detail}</p>}
-          {w.suggested_actions?.length > 0 && (
-            <div className="flex items-center gap-2 mt-3">
-              {w.suggested_actions.map((a: any, j: number) => (
-                <button key={j} className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-gray-300">{a.label || a}</button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ClickableCard
+          key={w.id || w.whisper_id || i}
+          commitment={{
+            commitment_id: w.id || w.whisper_id || w.signal_id || `w-${i}`,
+            entity: w.entity || w.title || 'Insight',
+            text: w.context || w.detail || w.title || 'Insight',
+            state: 'active',
+            confidence: w.probability ? w.probability / 100 : 0.5,
+            source_signal_id: w.id || w.signal_id || '',
+          }}
+          apiBase={API_BASE}
+          token={getToken() || ''}
+        >
+          <div className={cn('p-5 rounded-2xl',
+            w.type === 'at_risk' ? 'bg-red-50/80' : w.type === 'preparation' ? 'bg-blue-50/80' : w.type === 'opportunity' ? 'bg-green-50/80' : 'bg-gray-50')}>
+            <h3 className="font-semibold text-sm text-gray-900">{w.title || w.text || w.message || 'Insight'}</h3>
+            {(w.context || w.detail) && <p className="text-sm text-gray-500 mt-1">{w.context || w.detail}</p>}
+            {w.suggested_actions?.length > 0 && (
+              <div className="flex items-center gap-2 mt-3">
+                {w.suggested_actions.map((a: any, j: number) => (
+                  <button
+                    key={j}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-gray-300"
+                  >
+                    {a.label || a}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </ClickableCard>
       ))}
     </div>
   )

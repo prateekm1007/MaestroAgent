@@ -6,12 +6,15 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, Calendar, Lightbulb, ChevronDown, X } from 'lucide-react'
 import type { Whisper, WhisperType } from '@/lib/types'
+import ClickableCard from './ClickableCard'
 
 interface WhisperViewProps {
   whispers: Whisper[]
+  apiBase?: string
+  token?: string
 }
 
-export function WhisperView({ whispers }: WhisperViewProps) {
+export function WhisperView({ whispers, apiBase, token }: WhisperViewProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -29,22 +32,35 @@ export function WhisperView({ whispers }: WhisperViewProps) {
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       {visible.map((whisper) => (
-        <WhisperCard
+        <ClickableCard
           key={whisper.id}
-          whisper={whisper}
-          expanded={expanded.has(whisper.id)}
-          onToggle={() => {
-            const next = new Set(expanded)
-            if (next.has(whisper.id)) next.delete(whisper.id)
-            else next.add(whisper.id)
-            setExpanded(next)
+          commitment={{
+            commitment_id: whisper.id,
+            entity: whisper.entity || whisper.title,
+            text: whisper.context || whisper.title,
+            state: 'active',
+            confidence: whisper.probability ? whisper.probability / 100 : 0.5,
+            source_signal_id: whisper.id,
           }}
-          onDismiss={() => {
-            const next = new Set(dismissed)
-            next.add(whisper.id)
-            setDismissed(next)
-          }}
-        />
+          apiBase={apiBase || 'https://maestroagent-production.up.railway.app'}
+          token={token || ''}
+        >
+          <WhisperCard
+            whisper={whisper}
+            expanded={expanded.has(whisper.id)}
+            onToggle={() => {
+              const next = new Set(expanded)
+              if (next.has(whisper.id)) next.delete(whisper.id)
+              else next.add(whisper.id)
+              setExpanded(next)
+            }}
+            onDismiss={() => {
+              const next = new Set(dismissed)
+              next.add(whisper.id)
+              setDismissed(next)
+            }}
+          />
+        </ClickableCard>
       ))}
     </div>
   )
@@ -88,7 +104,7 @@ function WhisperCard({
             )}
           </div>
           <button
-            onClick={onDismiss}
+            onClick={(e) => { e.stopPropagation(); onDismiss() }}
             className="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors"
           >
             <X className="h-4 w-4" />
@@ -151,6 +167,7 @@ function WhisperCard({
                 key={i}
                 size="sm"
                 variant={i === 0 ? 'default' : 'ghost'}
+                onClick={(e) => e.stopPropagation()}
                 className={cn(
                   i === 0 && config.actionClass,
                   i > 0 && 'text-gray-500',
@@ -160,7 +177,7 @@ function WhisperCard({
               </Button>
             ))}
             <button
-              onClick={onToggle}
+              onClick={(e) => { e.stopPropagation(); onToggle() }}
               className="ml-auto flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors"
             >
               {expanded ? 'Less' : 'Details'}

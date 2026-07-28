@@ -7,12 +7,15 @@ import { Button } from '@/components/ui/button'
 import { ChevronDown, Clock, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react'
 import type { Commitment, LayoutMode } from '@/lib/types'
 import { calculateImportance, getLayoutMode, formatTimeUntil, getConfidenceStyle } from '@/lib/importance'
+import ClickableCard from './ClickableCard'
 
 interface TheOneProps {
   commitment: Commitment
+  apiBase?: string
+  token?: string
 }
 
-export function TheOne({ commitment }: TheOneProps) {
+export function TheOne({ commitment, apiBase, token }: TheOneProps) {
   const [expanded, setExpanded] = useState(false)
   const score = calculateImportance(commitment)
   const mode = getLayoutMode(score)
@@ -24,23 +27,36 @@ export function TheOne({ commitment }: TheOneProps) {
   const layoutConfig = getLayoutConfig(mode)
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className={cn(
-        'relative w-full overflow-hidden rounded-2xl',
-        mode === 'dominant' && 'min-h-[55vh] bg-gradient-to-b from-white to-gray-50/50',
-        mode === 'prominent' && 'min-h-[38vh] bg-white',
-        mode === 'present' && 'min-h-[26vh] bg-white',
-        mode === 'quiet' && 'min-h-[18vh] bg-gray-50/50',
-      )}
-      style={{
-        boxShadow: mode === 'dominant'
-          ? '0 4px 24px -8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)'
-          : '0 1px 3px rgba(0,0,0,0.04)',
+    <ClickableCard
+      commitment={{
+        commitment_id: commitment.id,
+        entity: commitment.entity,
+        text: commitment.text,
+        state: commitment.state || 'active',
+        confidence: commitment.confidence,
+        deadline_text: commitment.dueDate,
+        source_signal_id: commitment.id,
       }}
+      apiBase={apiBase || 'https://maestroagent-production.up.railway.app'}
+      token={token || ''}
     >
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className={cn(
+          'relative w-full overflow-hidden rounded-2xl',
+          mode === 'dominant' && 'min-h-[55vh] bg-gradient-to-b from-white to-gray-50/50',
+          mode === 'prominent' && 'min-h-[38vh] bg-white',
+          mode === 'present' && 'min-h-[26vh] bg-white',
+          mode === 'quiet' && 'min-h-[18vh] bg-gray-50/50',
+        )}
+        style={{
+          boxShadow: mode === 'dominant'
+            ? '0 4px 24px -8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)'
+            : '0 1px 3px rgba(0,0,0,0.04)',
+        }}
+      >
       {/* Urgency bar — Tufte sparkline-style indicator */}
       <div
         className="absolute top-0 left-0 right-0 h-1"
@@ -153,7 +169,7 @@ export function TheOne({ commitment }: TheOneProps) {
             </Button>
           )}
           <button
-            onClick={() => setExpanded(!expanded)}
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
             className="ml-auto flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
             {expanded ? 'Less' : 'Details'}
@@ -163,7 +179,8 @@ export function TheOne({ commitment }: TheOneProps) {
           </button>
         </div>
       </div>
-    </motion.div>
+      </motion.div>
+    </ClickableCard>
   )
 }
 

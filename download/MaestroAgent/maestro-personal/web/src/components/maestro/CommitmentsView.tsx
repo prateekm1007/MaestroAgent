@@ -6,12 +6,15 @@ import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 import type { Commitment } from '@/lib/types'
 import { calculateImportance, formatTimeUntil, getConfidenceStyle } from '@/lib/importance'
 import { TheOne } from '@/components/maestro/TheOne'
+import ClickableCard from './ClickableCard'
 
 interface CommitmentsViewProps {
   commitments: Commitment[]
+  apiBase?: string
+  token?: string
 }
 
-export function CommitmentsView({ commitments }: CommitmentsViewProps) {
+export function CommitmentsView({ commitments, apiBase, token }: CommitmentsViewProps) {
   if (commitments.length === 0) {
     return (
       <div className="text-center py-16">
@@ -39,7 +42,7 @@ export function CommitmentsView({ commitments }: CommitmentsViewProps) {
         <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
           The One
         </p>
-        <TheOne commitment={theOne} />
+        <TheOne commitment={theOne} apiBase={apiBase} token={token} />
       </div>
 
       {/* All Active — supporting */}
@@ -50,7 +53,22 @@ export function CommitmentsView({ commitments }: CommitmentsViewProps) {
           </p>
           <div className="space-y-2">
             {rest.map((c, i) => (
-              <CommitmentRow key={c.id} commitment={c} index={i} />
+              <ClickableCard
+                key={c.id}
+                commitment={{
+                  commitment_id: c.id,
+                  entity: c.entity,
+                  text: c.text,
+                  state: c.state || 'active',
+                  confidence: c.confidence,
+                  deadline_text: c.dueDate,
+                  source_signal_id: c.id,
+                }}
+                apiBase={apiBase || 'https://maestroagent-production.up.railway.app'}
+                token={token || ''}
+              >
+                <CommitmentRow commitment={c} index={i} />
+              </ClickableCard>
             ))}
           </div>
         </div>
