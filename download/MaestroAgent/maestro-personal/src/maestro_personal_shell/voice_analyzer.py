@@ -12,7 +12,7 @@ from typing import List
 import logging
 
 from maestro_personal_shell.email_models import VoiceProfile, EmailMessage
-from maestro_personal_shell.gmail_client import get_gmail_service
+from maestro_personal_shell.gmail_connector import is_gmail_configured, fetch_real_gmail_messages, GmailOAuthClient
 
 logger = logging.getLogger(__name__)
 
@@ -33,48 +33,24 @@ async def get_user_voice_profile(user_email: str) -> VoiceProfile:
     # For now, always analyze fresh
     
     try:
-        # Get last 100 sent emails from Gmail
-        gmail_service = await get_gmail_service(user_email)
+        # Use signals from the database as proxy for "sent emails"
+        # This avoids needing a live Gmail API connection for the voice profile
+        from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+        from maestro_personal_shell.reconcile import reconcile_signals_for_user
         
-        # Query for sent emails in last 90 days
-        query = "in:sent newer_than:90d"
-        results = gmail_service.users().messages().list(
-            userId="me",
-            q=query,
-            maxResults=100
-        ).execute()
+        db_path = default_sqlite_path()
+        reconciled = reconcile_signals_for_user(
+            user_email=user_email,
+            db_path=db_path,
+            include_non_commitments=True,
+        )
         
-        messages = results.get("messages", [])
-        
-        if not messages:
-            logger.warning(f"No sent emails found for {user_email}")
+        if not reconciled:
+            logger.warning(f"No signals found for {user_email}")
             return _default_voice_profile(user_email)
         
-        # Fetch full message data
-        sent_emails = []
-        for msg_meta in messages:
-            msg = gmail_service.users().messages().get(
-                userId="me",
-                id=msg_meta["id"],
-                format="full"
-            ).execute()
-            
-            headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
-            
-            # Extract body
-            body = ""
-            if "parts" in msg["payload"]:
-                for part in msg["payload"]["parts"]:
-                    if part["mimeType"] == "text/plain":
-                        import base64
-                        body = base64.urlsafe_b64decode(part["body"]["data"]).decode()
-                        break
-            elif "body" in msg["payload"] and "data" in msg["payload"]["body"]:
-                import base64
-                body = base64.urlsafe_b64decode(msg["payload"]["body"]["data"]).decode()
-            
-            if body:
-                sent_emails.append(body)
+        # Use signal texts as proxy for user's writing style
+        sent_emails = [r.get("text", "") for r in reconciled if r.get("text")]
         
         if not sent_emails:
             return _default_voice_profile(user_email)

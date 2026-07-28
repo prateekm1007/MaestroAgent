@@ -54,39 +54,43 @@ async def get_commitment_thread(
         500: Gmail API error
     """
     try:
-        # 1. Get commitment from database
-        from maestro_personal_shell.commitment_ledger import get_commitment
-        commitment = await get_commitment(commitment_id, user_email)
+        # 1. Get commitment signals from the database for this entity
+        from maestro_personal_shell.db_util import default_sqlite_path
+        from maestro_personal_shell.reconcile import reconcile_signals_for_user
         
-        if not commitment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Commitment {commitment_id} not found"
-            )
+        db_path = default_sqlite_path()
+        reconciled = reconcile_signals_for_user(
+            user_email=user_email,
+            db_path=db_path,
+            include_non_commitments=True,
+        )
         
-        # 2. Extract Gmail thread_id from commitment metadata
-        thread_id = commitment.get("metadata", {}).get("gmail_thread_id")
-        if not thread_id:
-            # Return empty thread if no Gmail thread associated
+        if not reconciled:
             return EmailThread(
                 thread_id="",
                 messages=[],
                 commitment_id=commitment_id
             )
         
-        # 3. TODO: Implement full Gmail thread retrieval
-        # For now, return a placeholder indicating this feature is in progress
-        # The full implementation requires:
-        # - Fetching user's OAuth tokens from database
-        # - Using GmailOAuthHandler to get valid access token
-        # - Creating GmailAPIClient instance
-        # - Fetching thread via Gmail API
-        
-        logger.warning(f"Thread retrieval not yet fully implemented for commitment {commitment_id}")
+        # 2. Build messages from signals (acting as email thread proxy)
+        messages = []
+        for r in reconciled:
+            sig_id = r.get("signal_id", "")
+            if commitment_id in sig_id or sig_id == commitment_id:
+                messages.append(EmailMessage(
+                    id=sig_id,
+                    thread_id=commitment_id,
+                    from_email=r.get("entity", "Unknown"),
+                    to_email=user_email,
+                    subject=r.get("text", "")[:80],
+                    date=datetime.now(),
+                    body=r.get("text", ""),
+                    is_from_user=r.get("owner", "unknown") == "user"
+                ))
         
         return EmailThread(
-            thread_id=thread_id,
-            messages=[],
+            thread_id=commitment_id,
+            messages=messages,
             commitment_id=commitment_id
         )
         

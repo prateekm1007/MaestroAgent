@@ -7,12 +7,19 @@ import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, Refr
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
 import { DraftApprovalModal, type DraftWithMeta } from '@/components/maestro/DraftApprovalModal'
+import ClickableCard from '@/components/maestro/ClickableCard'
 import { calculateImportance, getLayoutMode, getConfidenceStyle } from '@/lib/importance'
 import { TheOne } from '@/components/maestro/TheOne'
 import { WhisperView } from '@/components/maestro/WhisperView'
 import { CommitmentsView } from '@/components/maestro/CommitmentsView'
 
 type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors'
+
+const API_BASE = typeof window !== 'undefined'
+  ? (window.location.origin === 'https://web-production-d5c26.up.railway.app'
+    ? 'https://maestroagent-production.up.railway.app'
+    : 'http://localhost:8766')
+  : 'https://maestroagent-production.up.railway.app'
 
 export default function Home() {
   const [authed, setAuthed] = useState(false)
@@ -208,7 +215,19 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
 
       {theOne && theOne.commitment && (
         <div>
-          
+          <ClickableCard
+            commitment={{
+              commitment_id: theOne.commitment.signal_id || 'the-one',
+              entity: theOne.commitment.entity || '',
+              text: theOne.commitment.text || theOne.commitment.action || '',
+              state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
+              confidence: theOne.commitment.confidence || 0.7,
+              deadline_text: theOne.commitment.deadline,
+              source_signal_id: theOne.commitment.signal_id
+            }}
+            apiBase={API_BASE}
+            token={getToken() || ''}
+          >
             <TheOne commitment={{
               id: theOne.commitment.signal_id || 'the-one',
               entity: theOne.commitment.entity || '',
@@ -222,7 +241,7 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
               source: { type: 'email', snippet: theOne.commitment.text || '', timestamp: theOne.commitment.created_at || '', sender: '' },
               createdAt: theOne.commitment.created_at || '',
             }} />
-          
+          </ClickableCard>
           <button
             onClick={() => onDraft(theOne.commitment.entity)}
             disabled={draftBusy}

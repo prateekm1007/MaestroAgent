@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import logging
 
-from maestro_personal_shell.gmail_client import get_gmail_service
+from maestro_personal_shell.gmail_connector import is_gmail_configured
 
 logger = logging.getLogger(__name__)
 
@@ -24,47 +24,42 @@ async def send_email_draft(draft_id: str, user_email: str, edited_body: str = No
         
     Returns:
         {"message_id": "...", "status": "sent", "sent_at": "..."}
+        
+    Note: This is a fail-closed implementation. If Gmail OAuth is not
+    configured or the user hasn't connected Gmail, it returns an error.
+    This follows the same pattern as the existing draft resolution flow
+    in connectors.py (which also fail-closes without OAuth).
     """
     try:
-        # 1. Retrieve the draft from cache/database
-        # TODO: Implement draft storage (Redis/database)
-        # For now, we'll regenerate or use the edited body
+        # Check if Gmail is configured
+        if not is_gmail_configured():
+            raise ValueError("Gmail OAuth not configured — cannot send email")
         
         if not edited_body:
             raise ValueError("Draft not found and no edited_body provided")
         
-        # 2. Get commitment info for threading
-        # TODO: Store draft metadata with commitment_id and thread_id
-        thread_id = None  # Would come from draft metadata
+        # Build the email message
+        message = MIMEText(edited_body)
+        message["to"] = "recipient@example.com"  # Would come from draft metadata
+        message["subject"] = "Follow-up"  # Would come from draft metadata
         
-        # 3. Build Gmail message
-        message = _build_gmail_message(
-            to_email="recipient@example.com",  # Would come from draft
-            subject="Follow-up",  # Would come from draft
-            body=edited_body,
-            thread_id=thread_id
+        # Encode for Gmail API
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        
+        # TODO: When Gmail OAuth tokens are available per-user, use:
+        # from maestro_personal_shell.gmail_connector import GmailOAuthClient
+        # client = GmailOAuthClient()
+        # client.send_email(user_email, raw)
+        
+        # For now, fail closed — no email is sent without proper OAuth
+        raise ValueError(
+            "Gmail send requires per-user OAuth tokens. "
+            "Use the existing draft approval flow (POST /api/drafts/{id}/resolve) "
+            "which handles sending via the connector pipeline."
         )
         
-        # 4. Send via Gmail API
-        gmail_service = await get_gmail_service(user_email)
-        
-        sent_message = gmail_service.users().messages().send(
-            userId="me",
-            body=message
-        ).execute()
-        
-        message_id = sent_message["id"]
-        thread_id = sent_message.get("threadId")
-        
-        logger.info(f"Email sent successfully: message_id={message_id}, thread_id={thread_id}")
-        
-        return {
-            "message_id": message_id,
-            "thread_id": thread_id,
-            "status": "sent",
-            "sent_at": datetime.utcnow().isoformat()
-        }
-        
+    except ValueError:
+        raise
     except Exception as e:
         logger.error(f"Error sending draft {draft_id}: {e}")
         raise
