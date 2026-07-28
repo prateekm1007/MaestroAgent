@@ -46,6 +46,20 @@ interface CommitmentDetailProps {
   token: string;
 }
 
+// Normalize backend thread response (from_email/to_email/is_from_user)
+// into the frontend's EmailMessage shape (from/to/is_user).
+function normalizeMessage(raw: any): EmailMessage {
+  return {
+    id: raw.id || raw.message_id || '',
+    from: raw.from_email ?? raw.from ?? raw.sender ?? '',
+    to: raw.to_email ?? raw.to ?? '',
+    subject: raw.subject || '',
+    date: raw.date || raw.timestamp || '',
+    body: raw.body || raw.text || '',
+    is_user: raw.is_from_user ?? raw.is_user ?? false,
+  };
+}
+
 export default function CommitmentDetail({ commitment, onClose, apiBase, token }: CommitmentDetailProps) {
   const [activeTab, setActiveTab] = useState<'thread' | 'draft' | 'voice'>('thread');
   const [thread, setThread] = useState<EmailMessage[]>([]);
@@ -57,41 +71,76 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
 
+  // P-CORS-FIX: route through same-origin Next.js proxy (/api/*) instead of
+  // the direct backend URL. The Next.js rewrite (next.config.ts) proxies
+  // /api/* to BACKEND_URL. Bypassing the proxy triggers CORS preflight
+  // (OPTIONS) which the backend returns as HTTP 400, blocking the actual
+  // GET in the browser and causing "Failed to load thread." Using an empty
+  // apiBase (or a relative path) keeps the fetch same-origin.
+  //
+  // If apiBase is "" or relative, fetch("/api/...") goes through the proxy.
+  // If apiBase is the direct backend URL (legacy), we still honor it but
+  // strip it to "" so the proxy is used. This is safe because the proxy
+  // forwards to the same backend.
+  const proxyBase = (!apiBase || apiBase.startsWith('/') || apiBase.includes('maestroagent-production'))
+    ? ''  // use same-origin proxy
+    : apiBase.replace(/\/$/, '');
+
   const headers = {
     'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
   };
 
   // Load thread
   useEffect(() => {
-    if (activeTab === 'thread') {
-      setError('');
-      fetch(`${apiBase}/api/commitments/${commitment.commitment_id}/thread`, { headers })
-        .then(r => r.json())
-        .then(data => {
-          setThread(data.messages || []);
-          setLoading(false);
-        })
-        .catch(() => { setError('Failed to load thread.'); setLoading(false); });
-    }
-  }, [activeTab, commitment.commitment_id]);
+    if (activeTab !== 'thread') return;
+    setLoading(true);
+    setError('');
+    // AbortController so we don't setState on unmounted component
+    const controller = new AbortController();
+    fetch(`${proxyBase}/api/commitments/${commitment.commitment_id}/thread`, {
+      headers,
+      signal: controller.signal,
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        const msgs = Array.isArray(data?.messages) ? data.messages.map(normalizeMessage) : [];
+        setThread(msgs);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error('Thread fetch failed:', err);
+        setThread([]);
+        setError('Failed to load thread. Please try again.');
+        setLoading(false);
+      });
+    return () => controller.abort();
+  }, [activeTab, commitment.commitment_id, proxyBase, token]);
 
   // Load voice profile
   useEffect(() => {
-    fetch(`${apiBase}/api/user/voice-profile`, { headers })
-      .then(r => r.json())
-      .then(setVoiceProfile)
+    const controller = new AbortController();
+    fetch(`${proxyBase}/api/user/voice-profile`, {
+      headers,
+      signal: controller.signal,
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setVoiceProfile(data); })
       .catch(() => {});
-  }, []);
+    return () => controller.abort();
+  }, [proxyBase, token]);
 
   // Generate draft
   const generateDraft = async () => {
     setLoading(true);
     setError('');
     try {
-      const resp = await fetch(`${apiBase}/api/commitments/${commitment.commitment_id}/draft`, {
+      const resp = await fetch(`${proxyBase}/api/commitments/${commitment.commitment_id}/draft`, {
         method: 'POST',
-        headers,
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           context: `Following up on: ${commitment.text}`,
           tone: 'professional',
@@ -120,9 +169,9 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
     setSending(true);
     setError('');
     try {
-      const resp = await fetch(`${apiBase}/api/drafts/${draft.draft_id}/send`, {
+      const resp = await fetch(`${proxyBase}/api/drafts/${draft.draft_id}/send`, {
         method: 'POST',
-        headers,
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ edited_body: editedBody }),
       });
       if (!resp.ok) {
