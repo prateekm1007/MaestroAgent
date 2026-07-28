@@ -172,16 +172,31 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
       const resp = await fetch(`${proxyBase}/api/drafts/${draft.draft_id}/send`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ edited_body: editedBody }),
+        // P-SEND-503 fix: send to/subject so the mailto fallback works
+        // even when the draft was not persisted to DB (current behavior).
+        body: JSON.stringify({
+          edited_body: editedBody,
+          to: draft.to,
+          subject: draft.subject,
+        }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        if (resp.status === 400) setError('Please connect your Gmail account in settings to send emails.');
+        if (resp.status === 400) setError(err.detail || 'Missing recipient or body.');
         else if (resp.status === 503) setError('Email sending is not yet available. Please copy the draft manually.');
         else setError(err.detail || 'Failed to send email.');
         return;
       }
-      setSent(true);
+      const data = await resp.json();
+      // If mailto fallback, open the mailto link in a new tab/window
+      if (data.method === 'mailto' && data.mailto_link) {
+        if (typeof window !== 'undefined') {
+          window.location.href = data.mailto_link;
+        }
+        setError('Opening your email client... If nothing happens, copy the draft manually.');
+      } else {
+        setSent(true);
+      }
     } catch (e) {
       setError('Network error. Please check your connection.');
     }
