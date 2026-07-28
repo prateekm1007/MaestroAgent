@@ -823,3 +823,138 @@ When an API returns empty results, verify this is correct behavior, not a bug. A
 **P98 — Multi-Surface Consistency Principle**
 When the same data appears in multiple UI surfaces (Today, Commitments, Whisper), verify all surfaces show the same data. If Today shows 3 commitments and Commitments shows 25, there's a coherence failure. For each demo entity, query all surfaces (Today, Commitments, Whisper, Ask). Assert all surfaces agree on: commitments, state, people, evidence. CI check: compare surface outputs, fail if divergence. Paste cross-surface comparison table in commit message.
 
+
+
+---
+
+## PART NINETEEN — BROWSER AND INTEGRATION VERIFICATION PRINCIPLES (NEW, FROM THE EMAIL FEATURE AUDIT 2026-07-28)
+
+### The meta-failure this part reveals
+
+The Email Composition Feature audit revealed a new category of failures: features that pass backend unit tests and component verification but fail in the browser due to CORS, field name mismatches, or incomplete UI integration. The coder claimed "all cards clickable" but only wrapped 2 of 25. The thread endpoint worked via curl but failed in the browser. The voice profile returned data but with invisible Unicode characters. Each was a browser-specific or integration-specific failure that component-level verification missed.
+
+### 89. Screenshot Evidence Principle
+
+**Principle:** For UI claims, require screenshot evidence with metadata (timestamp, URL, distinct MD5 hash). A claim like "the modal opens" must be accompanied by a screenshot showing the modal open.
+
+**Enforcement:**
+- Every UI verification includes a screenshot with visible timestamp
+- Screenshot filename includes MD5 hash to prove distinctness
+- Screenshots stored in `/audit-evidence/` directory with commit hash in filename
+- CI check: grep commit messages for "screenshot" keyword, verify file exists
+
+**Why needed:** In the Email Composition audit, the coder claimed "modal opens" multiple times without visual evidence. Screenshots would have forced honest verification and revealed that only 2 of 25 cards were actually clickable.
+
+### 90. Cross-Origin Verification Principle
+
+**Principle:** When frontend and backend are separate services, verify CORS configuration and same-origin proxy behavior. A fetch that works via curl may fail in the browser due to CORS preflight.
+
+**Enforcement:**
+- For every frontend→backend fetch, verify: (1) direct backend URL works via curl, (2) same-origin proxy works via curl, (3) browser fetch succeeds (DevTools Network tab)
+- CI check: test both direct and proxy URLs, compare results
+- If direct URL returns 400 on OPTIONS preflight, frontend MUST use proxy
+
+**Why needed:** The thread endpoint worked via curl but failed in the browser due to CORS. The frontend used `apiBase = "https://maestroagent-production.up.railway.app"` (direct cross-origin URL) instead of routing through the Next.js `/api/*` rewrite proxy. This principle would have caught it.
+
+### 91. Error Message Clarity Principle
+
+**Principle:** All error messages must be user-actionable, not technical stack traces. "Failed to load thread" must include a suggested action (e.g., "Check your network connection" or "Contact support").
+
+**Enforcement:**
+- Every error response includes: (1) human-readable message, (2) suggested action, (3) error code for support
+- CI check: grep error messages for stack trace patterns (Traceback, Exception, line N), fail if found
+- Frontend displays error.message, not error.response
+
+**Why needed:** "Failed to load thread" is not actionable. Users don't know what to do. This principle ensures errors are helpful, not just technical.
+
+### 92. Graceful Degradation Principle
+
+**Principle:** When a feature depends on external services (Gmail API, OpenRouter, etc.), verify graceful degradation when those services are unavailable. A missing API key must return 503 with a clear message, not crash with 500.
+
+**Enforcement:**
+- For every external service dependency, test: (1) service available → 200, (2) service unavailable → 503 with clear message
+- CI check: mock external service as unavailable, verify graceful 503
+- Frontend handles 503 by showing "Feature temporarily unavailable" message
+
+**Why needed:** Missing OPENROUTER_API_KEY caused 500 crash instead of 503 graceful degradation. The email send endpoint returned 500 when Gmail OAuth was missing. This principle ensures features degrade gracefully, not catastrophically.
+
+### 93. Component Integration Principle
+
+**Principle:** When a component is wrapped by another component (e.g., ClickableCard wrapping cards), verify the wrapper is applied to ALL instances, not just a subset. "All cards are clickable" requires verifying every card, not just 2 of 25.
+
+**Enforcement:**
+- Count total instances (e.g., 25 commitment rows)
+- Verify wrapper applied to N of N instances
+- CI check: grep for wrapper component, count usages, compare to total instances
+- If N < total, report "N/total wrapped, not all"
+
+**Why needed:** Coder claimed "all cards clickable" but only wrapped 2 of 25. This principle would have forced counting and revealed the incomplete integration.
+
+### 94. Network Request Verification Principle
+
+**Principle:** For browser-based features, verify actual network requests via DevTools Network tab, not just UI appearance. A modal that "opens" may not actually fetch data.
+
+**Enforcement:**
+- For every feature that fetches data, verify: (1) Network tab shows the request, (2) request returns 200, (3) response contains expected data
+- CI check: use headless browser to capture Network tab, verify requests
+- Screenshot of Network tab included in evidence
+
+**Why needed:** Modal opened but thread fetch failed with CORS 400. Network tab would have shown the OPTIONS preflight failure. This principle ensures features work end-to-end, not just visually.
+
+### 95. Field Name Contract Principle
+
+**Principle:** When frontend and backend exchange data, verify field names match on both sides. If backend returns `from_email` and frontend expects `from`, the feature is broken even if both sides work individually.
+
+**Enforcement:**
+- Define data contract in shared schema file (e.g., `email_models.py`)
+- Frontend and backend both import from shared schema
+- CI check: verify frontend TypeScript interface matches backend Pydantic model
+- If field names differ, fail build
+
+**Why needed:** Backend returned `from_email`/`to_email`/`is_from_user`, frontend expected `from`/`to`/`is_user`. Thread loaded but didn't render correctly. This principle ensures data contracts are explicit and verified.
+
+### 96. Proxy vs Direct Verification Principle
+
+**Principle:** When a proxy exists (e.g., Next.js rewrite), verify requests go through the proxy, not direct to backend. A direct fetch bypasses the proxy and may fail due to CORS.
+
+**Enforcement:**
+- For every frontend fetch, verify URL starts with `/api/` (same-origin), not `https://backend-url/api/` (cross-origin)
+- CI check: grep frontend code for backend URL, fail if found
+- If direct URL found, require explicit justification
+
+**Why needed:** CommitmentDetail used direct backend URL instead of same-origin proxy, causing CORS failure. This principle ensures proxies are used correctly.
+
+### 97. Empty State Honesty Principle
+
+**Principle:** When an API returns empty results, verify this is correct behavior, not a bug. An empty thread may mean (1) no emails exist, or (2) thread retrieval is broken.
+
+**Enforcement:**
+- For every empty response, verify: (1) test with known data → non-empty, (2) test with no data → empty
+- CI check: ingest test data, verify non-empty response, delete data, verify empty response
+- If empty response occurs with known data, flag as bug
+
+**Why needed:** Thread endpoint returned empty, unclear if bug or correct behavior. This principle ensures empty states are verified, not assumed.
+
+### 98. Multi-Surface Consistency Principle
+
+**Principle:** When the same data appears in multiple UI surfaces (Today, Commitments, Whisper), verify all surfaces show the same data. If Today shows 3 commitments and Commitments shows 25, there's a coherence failure.
+
+**Enforcement:**
+- For each demo entity, query all surfaces (Today, Commitments, Whisper, Ask)
+- Assert all surfaces agree on: commitments, state, people, evidence
+- CI check: compare surface outputs, fail if divergence
+- Paste cross-surface comparison table in commit message
+
+**Why needed:** Different surfaces showed different commitment counts, indicating coherence failure. This principle ensures all surfaces agree.
+
+---
+
+## HOW TO USE THESE NEW PRINCIPLES
+
+Read P89-P98 before any feature that involves:
+- Frontend-backend integration (P89, P90, P94, P95, P96)
+- External service dependencies (P91, P92)
+- Component wrapping and integration (P93, P97)
+- Multi-surface data display (P98)
+
+These principles close the gap between "component works in isolation" and "feature works in the browser with real users." The Email Composition audit revealed that component-level verification is necessary but not sufficient — browser-level and integration-level verification are equally critical.
