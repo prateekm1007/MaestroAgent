@@ -84,7 +84,7 @@ async def _call_openrouter(prompt: str, api_key: str) -> str:
     }
     
     data = {
-        "model": "anthropic/claude-3.5-sonnet",
+        "model": "google/gemma-3-12b-it",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
         "max_tokens": 500
