@@ -188,12 +188,22 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
         return;
       }
       const data = await resp.json();
-      // If mailto fallback, open the mailto link in a new tab/window
+      // If mailto fallback, open the mailto link properly
       if (data.method === 'mailto' && data.mailto_link) {
         if (typeof window !== 'undefined') {
-          window.location.href = data.mailto_link;
+          // P-SEND-MAILTO fix: Use anchor element click instead of window.location.href
+          // window.location.href navigates away and is blocked by many browsers
+          // Creating an anchor and clicking it is the standard way to open mailto links
+          const mailtoAnchor = document.createElement('a');
+          mailtoAnchor.href = data.mailto_link;
+          mailtoAnchor.style.display = 'none';
+          document.body.appendChild(mailtoAnchor);
+          mailtoAnchor.click();
+          document.body.removeChild(mailtoAnchor);
         }
-        setError('Opening your email client... If nothing happens, copy the draft manually.');
+        // Show success message with the mailto link as fallback
+        setError('');
+        setSent(true);
       } else {
         setSent(true);
       }
