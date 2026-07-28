@@ -787,3 +787,39 @@ A principle written down after finding a bug does not retroactively **blame** co
 ## Resolution 4: Independent Reproduction (Amends FA#27)
 **Revise FA#27 — Closing Tickets Without Live Reproduction**
 Closing a ticket on a verdict without a posted live reproduction is forbidden. **Addendum:** To satisfy Principle 5 (Independence), the live reproduction must be executed and posted by an **independent session or auditor**, not the same session that authored the fix. The fix-author may run tests locally, but the ticket cannot be closed until an independent verifier confirms the live reproduction.
+
+
+---
+
+## Part Nineteen: Visual Evidence & Browser Verification Principles (P89-P98)
+
+**P89 — Screenshot Evidence Principle**
+For UI claims, require screenshot evidence with metadata (timestamp, URL, distinct MD5 hash). A claim like "the modal opens" must be accompanied by a screenshot showing the modal open. Screenshots must be stored in `/audit-evidence/` with commit hash in filename. CI check: grep commit messages for "screenshot" keyword, verify file exists.
+
+**P90 — Cross-Origin Verification Principle**
+When frontend and backend are separate services, verify CORS configuration and same-origin proxy behavior. A fetch that works via curl may fail in the browser due to CORS preflight. For every frontend→backend fetch, verify: (1) direct backend URL works via curl, (2) same-origin proxy works via curl, (3) browser fetch succeeds (DevTools Network tab). If direct URL returns 400 on OPTIONS preflight, frontend MUST use proxy.
+
+**P91 — Error Message Clarity Principle**
+All error messages must be user-actionable, not technical stack traces. "Failed to load thread" must include a suggested action (e.g., "Check your network connection" or "Contact support"). Every error response includes: (1) human-readable message, (2) suggested action, (3) error code for support. CI check: grep error messages for stack trace patterns (Traceback, Exception, line N), fail if found.
+
+**P92 — Graceful Degradation Principle**
+When a feature depends on external services (Gmail API, OpenRouter, etc.), verify graceful degradation when those services are unavailable. A missing API key must return 503 with a clear message, not crash with 500. For every external service dependency, test: (1) service available → 200, (2) service unavailable → 503 with clear message. CI check: mock external service as unavailable, verify graceful 503.
+
+**P93 — Component Integration Principle**
+When a component is wrapped by another component (e.g., ClickableCard wrapping cards), verify the wrapper is applied to ALL instances, not just a subset. "All cards are clickable" requires verifying every card, not just 2 of 25. Count total instances, verify wrapper applied to N of N instances. CI check: grep for wrapper component, count usages, compare to total instances. If N < total, report "N/total wrapped, not all".
+
+**P94 — Network Request Verification Principle**
+For browser-based features, verify actual network requests via DevTools Network tab, not just UI appearance. A modal that "opens" may not actually fetch data. For every feature that fetches data, verify: (1) Network tab shows the request, (2) request returns 200, (3) response contains expected data. CI check: use headless browser to capture Network tab, verify requests. Screenshot of Network tab included in evidence.
+
+**P95 — Field Name Contract Principle**
+When frontend and backend exchange data, verify field names match on both sides. If backend returns `from_email` and frontend expects `from`, the feature is broken even if both sides work individually. Define data contract in shared schema file (e.g., `email_models.py`). Frontend and backend both import from shared schema. CI check: verify frontend TypeScript interface matches backend Pydantic model. If field names differ, fail build.
+
+**P96 — Proxy vs Direct Verification Principle**
+When a proxy exists (e.g., Next.js rewrite), verify requests go through the proxy, not direct to backend. A direct fetch bypasses the proxy and may fail due to CORS. For every frontend fetch, verify URL starts with `/api/` (same-origin), not `https://backend-url/api/` (cross-origin). CI check: grep frontend code for backend URL, fail if found. If direct URL found, require explicit justification.
+
+**P97 — Empty State Honesty Principle**
+When an API returns empty results, verify this is correct behavior, not a bug. An empty thread may mean (1) no emails exist, or (2) thread retrieval is broken. For every empty response, verify: (1) test with known data → non-empty, (2) test with no data → empty. CI check: ingest test data, verify non-empty response, delete data, verify empty response. If empty response occurs with known data, flag as bug.
+
+**P98 — Multi-Surface Consistency Principle**
+When the same data appears in multiple UI surfaces (Today, Commitments, Whisper), verify all surfaces show the same data. If Today shows 3 commitments and Commitments shows 25, there's a coherence failure. For each demo entity, query all surfaces (Today, Commitments, Whisper, Ask). Assert all surfaces agree on: commitments, state, people, evidence. CI check: compare surface outputs, fail if divergence. Paste cross-surface comparison table in commit message.
+
