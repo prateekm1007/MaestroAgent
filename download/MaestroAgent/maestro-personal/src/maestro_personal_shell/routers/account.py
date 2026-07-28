@@ -958,6 +958,129 @@ async def debug_canonical_ledger(token: str = Depends(verify_token_dep)):
         return {"error": str(e), "note": "debug-canonical-ledger caught an internal error"}
 
 
+@router.post("/admin/backfill-canonical-ledger")
+async def backfill_canonical_ledger(token: str = Depends(verify_token_dep)):
+    """TICKET-27: Backfill the canonical ledger (commitment_events table) with
+    historical commitments from the legacy commitments_ledger table.
+
+    Every signal created BEFORE the P83 fix (commit a6f66e0b) silently failed
+    to write to the canonical ledger because of the PostgresConnection.cursor()
+    bug. This endpoint iterates existing ledger entries and calls append_event()
+    for each one that's a genuine commitment (owner != 'other').
+
+    IDEMPOTENT: checks if a commitment_event already exists for each
+    commitment_id before inserting. Re-running this script twice does NOT
+    double-count — it only inserts events that are missing.
+
+    P22: production path — uses the same append_event() the live write path
+    uses, so the same filters and ownership rules apply. No bypass.
+    P67: no silent except — errors are logged and surfaced in the response.
+    P85: never returns 500 — structured response with error details.
+    """
+    try:
+        from maestro_personal_shell.db_util import default_sqlite_path, get_db_conn
+        from maestro_personal_shell.canonical_ledger import append_event, CommitmentEvent
+        from maestro_personal_shell.commitment_ledger import get_ledger_entries
+        import json as _json
+        import logging as _logging
+
+        _logger = _logging.getLogger(__name__)
+        db_path = default_sqlite_path()
+
+        result = {
+            "user_email": token,
+            "scanned": 0,
+            "already_present": 0,
+            "backfilled": 0,
+            "skipped_other_owner": 0,
+            "errors": [],
+            "backfilled_commitment_ids": [],
+        }
+
+        # 1. Get ALL ledger entries for this user (limit 10000 — generous)
+        entries = get_ledger_entries(user_email=token, db_path=db_path, limit=10000)
+        result["scanned"] = len(entries)
+
+        # 2. Get existing commitment_ids from canonical ledger (for idempotency check)
+        existing_commitment_ids = set()
+        try:
+            conn = get_db_conn(db_path)
+            try:
+                cur = conn.execute(
+                    "SELECT DISTINCT commitment_id FROM commitment_events WHERE user_email = ?",
+                    (token,),
+                )
+                rows = cur.fetchall()
+                for row in rows:
+                    cid = row[0] if not isinstance(row, dict) else row.get("commitment_id")
+                    if cid:
+                        existing_commitment_ids.add(cid)
+            finally:
+                conn.close()
+        except Exception as e:
+            # Table might not exist yet — that's fine, we'll create it via append_event
+            _logger.warning("backfill: could not query existing commitment_ids: %s", e)
+
+        # 3. For each ledger entry, backfill if missing
+        for entry in entries:
+            commitment_id = entry.get("signal_id", "")  # ledger uses signal_id as commitment_id
+            if not commitment_id:
+                continue
+
+            # Idempotency check — skip if already in canonical ledger
+            if commitment_id in existing_commitment_ids:
+                result["already_present"] += 1
+                continue
+
+            # P83 condition: only backfill if owner != 'other' (third-party commitments
+            # are never surfaced by reduce_commitments anyway)
+            owner = entry.get("owner", "unknown")
+            if owner == "other":
+                result["skipped_other_owner"] += 1
+                continue
+
+            # Map ledger entry → CommitmentEvent (same mapping as the P83 block)
+            state = entry.get("state", "active")
+            # Canonical ledger only accepts: active, cancelled, completed, superseded
+            if state not in ("active", "cancelled", "completed", "superseded"):
+                state = "active"
+
+            event = CommitmentEvent(
+                commitment_id=commitment_id,
+                event_type="commitment",
+                actor="user" if owner == "user" else "entity_name",
+                entity=entry.get("entity", "Unknown"),
+                text=entry.get("action") or entry.get("evidence_quote") or "",
+                source_signal_id=commitment_id,
+                confidence=entry.get("confidence", 0.5),
+                state=state,
+                user_email=token,
+                metadata=_json.dumps({
+                    "signal_id": commitment_id,
+                    "commitment_type": entry.get("commitment_type", "explicit"),
+                    "state": state,
+                    "backfilled": True,  # marker for audit
+                }),
+            )
+
+            try:
+                append_event(event)
+                result["backfilled"] += 1
+                result["backfilled_commitment_ids"].append(commitment_id)
+                existing_commitment_ids.add(commitment_id)  # prevent dupes within this run
+            except Exception as e:
+                err_msg = f"Failed to backfill {commitment_id}: {e}"
+                result["errors"].append(err_msg)
+                _logger.error("backfill: %s", err_msg)
+
+        return result
+    except Exception as e:
+        return {
+            "error": str(e),
+            "note": "backfill-canonical-ledger caught an internal error. See logs for details.",
+        }
+
+
 @router.get("/depth")
 async def get_depth(token: str = Depends(verify_token_dep)):
     """Show which Core modules are wired to Personal."""
