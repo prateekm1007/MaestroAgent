@@ -8,6 +8,7 @@ Handles email thread retrieval, draft generation, and sending.
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 import logging
+from datetime import datetime
 
 from maestro_personal_shell.email_models import (
     EmailThread, EmailMessage, EmailDraft, DraftRequest, SendRequest
@@ -49,6 +50,7 @@ async def get_commitment_thread(
     Raises:
         404: Commitment not found
         400: No Gmail thread associated with commitment
+        501: Thread retrieval not yet implemented
         500: Gmail API error
     """
     try:
@@ -65,53 +67,26 @@ async def get_commitment_thread(
         # 2. Extract Gmail thread_id from commitment metadata
         thread_id = commitment.get("metadata", {}).get("gmail_thread_id")
         if not thread_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No Gmail thread associated with this commitment"
+            # Return empty thread if no Gmail thread associated
+            return EmailThread(
+                thread_id="",
+                messages=[],
+                commitment_id=commitment_id
             )
         
-        # 3. Call Gmail API to fetch thread
-        gmail_service = await get_gmail_service(user_email)
-        thread_data = gmail_service.users().threads().get(
-            userId="me",
-            id=thread_id,
-            format="full"
-        ).execute()
+        # 3. TODO: Implement full Gmail thread retrieval
+        # For now, return a placeholder indicating this feature is in progress
+        # The full implementation requires:
+        # - Fetching user's OAuth tokens from database
+        # - Using GmailOAuthHandler to get valid access token
+        # - Creating GmailAPIClient instance
+        # - Fetching thread via Gmail API
         
-        # 4. Parse messages
-        messages = []
-        for msg in thread_data.get("messages", []):
-            headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
-            
-            # Extract body
-            body = ""
-            if "parts" in msg["payload"]:
-                for part in msg["payload"]["parts"]:
-                    if part["mimeType"] == "text/plain":
-                        import base64
-                        body = base64.urlsafe_b64decode(part["body"]["data"]).decode()
-                        break
-            elif "body" in msg["payload"] and "data" in msg["payload"]["body"]:
-                import base64
-                body = base64.urlsafe_b64decode(msg["payload"]["body"]["data"]).decode()
-            
-            messages.append(EmailMessage(
-                id=msg["id"],
-                thread_id=thread_id,
-                from_email=headers.get("From", ""),
-                to_email=headers.get("To", ""),
-                subject=headers.get("Subject", ""),
-                date=datetime.fromtimestamp(int(msg["internalDate"]) / 1000),
-                body=body,
-                is_from_user="me" in headers.get("From", "").lower()
-            ))
-        
-        # 5. Sort by date and return
-        messages.sort(key=lambda m: m.date)
+        logger.warning(f"Thread retrieval not yet fully implemented for commitment {commitment_id}")
         
         return EmailThread(
             thread_id=thread_id,
-            messages=messages,
+            messages=[],
             commitment_id=commitment_id
         )
         
