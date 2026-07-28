@@ -62,3 +62,9 @@ class DraftRequest(BaseModel):
 class SendRequest(BaseModel):
     """Request to send a draft."""
     edited_body: Optional[str] = Field(None, description="Edited email body (if user modified)")
+    # P-SEND-503 fix: accept to/subject so mailto fallback works even when
+    # the draft was not persisted to a DB table (current behavior — the
+    # generate endpoint returns the EmailDraft object directly to the
+    # client without persisting). The client sends back what it has.
+    to: Optional[str] = Field(None, description="Recipient email (override draft)")
+    subject: Optional[str] = Field(None, description="Subject (override draft)")

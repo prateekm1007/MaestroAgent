@@ -1,47 +1,218 @@
 """
-Email sender - sends drafts via Gmail API.
+Email sender - sends drafts via Gmail API or mailto fallback.
 
-P85: All failures return structured HTTP errors (400/503), never 500 crashes.
+P-SEND-503 fix (auditor finding):
+  Previous implementation raised HTTP 503 "Email sending is not yet available"
+  on every call. The TODO said "implement when per-user Gmail OAuth tokens
+  are available" — but that blocked ALL users from any form of sending.
+
+  Fix:
+    1. If Gmail OAuth is configured AND user has tokens → send via Gmail API.
+    2. If Gmail not configured OR no tokens → return a mailto: link the
+       frontend can render as a clickable "Open in email client" button.
+       The user's email client (Gmail, Outlook, Apple Mail) opens with
+       To/Subject/Body pre-filled. User reviews and clicks send.
+    3. Never return 503 "not available" — there is always a path (mailto).
+
+  P85 compliance: structured errors only, no 500 crashes on read paths.
 """
 
 import base64
-from email.mime.text import MIMEText
-from datetime import datetime
 import logging
+import urllib.parse
+from email.mime.text import MIMEText
+from typing import Optional
 
 from fastapi import HTTPException
+
 from maestro_personal_shell.gmail_connector import is_gmail_configured
 
 logger = logging.getLogger(__name__)
 
 
-async def send_email_draft(draft_id: str, user_email: str, edited_body: str = None) -> dict:
+async def send_email_draft(
+    draft_id: str,
+    user_email: str,
+    edited_body: Optional[str] = None,
+    to_override: Optional[str] = None,
+    subject_override: Optional[str] = None,
+) -> dict:
     """
-    Send an email draft via Gmail API.
+    Send an email draft.
 
-    P85: Graceful 400, not 500 crash. Returns a structured error
-    when Gmail OAuth is not available, so the frontend can show
-    a helpful message instead of a generic network error.
+    Tries Gmail API first (if user has OAuth tokens). Falls back to mailto:
+    link so the user can send via their own email client.
+
+    Args:
+        draft_id: Draft UUID (may not be persisted — caller provides overrides)
+        user_email: Authenticated user
+        edited_body: User-edited email body (required if no draft in DB)
+        to_override: Recipient email (required if no draft in DB)
+        subject_override: Subject line (optional, falls back to "Follow-up")
+
+    Returns one of:
+      {"status": "sent", "method": "gmail_api", "message_id": "..."}
+      {"status": "ready_to_send", "method": "mailto",
+       "mailto_link": "mailto:...", "to": "...", "subject": "...", "body": "..."}
+
+    P85: Never 500. 400 for client errors, 503 only if a configured service
+    is genuinely down.
     """
-    # P85: Check Gmail config first — return 400 if not configured
-    if not is_gmail_configured():
+    # Look up the draft in DB (best-effort). If not found, use overrides.
+    draft = await _get_draft_by_id(draft_id, user_email)
+
+    body = (edited_body or (draft.get("body") if draft else None) or "").strip()
+    to_email = (to_override or (draft.get("to") if draft else None) or "").strip()
+    subject = (subject_override or (draft.get("subject") if draft else None) or "Follow-up").strip()
+
+    if not to_email:
         raise HTTPException(
             status_code=400,
-            detail="Direct email sending requires Gmail OAuth. Please use the 'Draft Follow-up' flow or connect Gmail in settings."
+            detail="No recipient email address. Provide 'to' in the request body."
         )
-
-    if not edited_body:
+    if not body:
         raise HTTPException(
             status_code=400,
             detail="No email body provided."
         )
 
-    # TODO: When per-user Gmail OAuth tokens are available, implement:
-    # 1. Build MIMEText message from edited_body
-    # 2. Encode as base64
-    # 3. Call Gmail API users().messages().send()
-    # For now, return a structured 503 — the feature is not yet implemented
-    raise HTTPException(
-        status_code=503,
-        detail="Email sending is not yet available. Please use the 'Draft Follow-up' flow to generate and review drafts, then copy them manually."
-    )
+    # Try Gmail API if globally configured AND user has OAuth tokens
+    if is_gmail_configured():
+        oauth_tokens = await _get_user_oauth_tokens(user_email)
+        if oauth_tokens:
+            try:
+                message_id = await _send_via_gmail_api(
+                    to_email=to_email,
+                    subject=subject,
+                    body=body,
+                    tokens=oauth_tokens,
+                )
+                logger.info(f"Email sent via Gmail API for user {user_email}: {message_id}")
+                return {
+                    "status": "sent",
+                    "method": "gmail_api",
+                    "message_id": message_id,
+                    "to": to_email,
+                    "subject": subject,
+                }
+            except Exception as e:
+                # Gmail API failed (token expired, quota, etc.) — fall through
+                # to mailto rather than 500. Log for investigation.
+                logger.warning(f"Gmail API send failed for {user_email}, falling back to mailto: {e}")
+
+    # Fallback: return a mailto: link the frontend can render as a button.
+    # The user's email client opens with To/Subject/Body pre-filled.
+    mailto_link = _build_mailto_link(to_email, subject, body)
+
+    return {
+        "status": "ready_to_send",
+        "method": "mailto",
+        "mailto_link": mailto_link,
+        "to": to_email,
+        "subject": subject,
+        "body": body,
+        "message": "Click the link to open this email in your email client. Review and send from there."
+    }
+
+
+async def _get_draft_by_id(draft_id: str, user_email: str) -> Optional[dict]:
+    """Look up a draft by ID. Returns dict with to/subject/body or None."""
+    try:
+        from maestro_personal_shell.db_util import default_sqlite_path
+        import sqlite3
+        db_path = default_sqlite_path()
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT draft_id, user_email, commitment_id, to_email, subject, body, created_at "
+                "FROM email_drafts WHERE draft_id = ? AND user_email = ?",
+                (draft_id, user_email)
+            ).fetchone()
+            if not row:
+                return None
+            return {
+                "draft_id": row["draft_id"],
+                "to": row["to_email"] or "",
+                "subject": row["subject"] or "",
+                "body": row["body"] or "",
+                "commitment_id": row["commitment_id"],
+            }
+    except Exception as e:
+        # Table might not exist yet, or schema differs. Try in-memory fallback
+        # by re-generating from commitment_id (best-effort).
+        logger.warning(f"_get_draft_by_id DB lookup failed: {e}. Returning minimal draft.")
+        return None
+
+
+async def _get_user_oauth_tokens(user_email: str) -> Optional[dict]:
+    """
+    Look up the user's Gmail OAuth tokens from the database.
+    Returns None if not connected or table doesn't exist.
+    """
+    try:
+        from maestro_personal_shell.db_util import default_sqlite_path
+        import sqlite3
+        db_path = default_sqlite_path()
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT access_token, refresh_token, expires_at "
+                "FROM user_oauth_tokens WHERE user_email = ? AND provider = 'gmail'",
+                (user_email,)
+            ).fetchone()
+            if not row:
+                return None
+            return {
+                "access_token": row["access_token"],
+                "refresh_token": row["refresh_token"],
+                "expires_at": row["expires_at"],
+            }
+    except Exception as e:
+        # Table doesn't exist or schema differs — most users have no OAuth
+        logger.debug(f"OAuth token lookup failed (likely no tokens table): {e}")
+        return None
+
+
+async def _send_via_gmail_api(
+    to_email: str, subject: str, body: str, tokens: dict
+) -> str:
+    """
+    Send via Gmail API using the user's OAuth access token.
+
+    Returns the Gmail message_id. Raises on failure.
+    """
+    # Build RFC 2822 message
+    message = MIMEText(body)
+    message["to"] = to_email
+    message["subject"] = subject
+    # Encode as base64url for Gmail API
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+    # Use httpx to call Gmail API
+    import httpx
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "Content-Type": "application/json",
+    }
+    payload = {"raw": raw}
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers=headers,
+            json=payload,
+        )
+        if resp.status_code not in (200, 201):
+            raise Exception(f"Gmail API returned {resp.status_code}: {resp.text[:200]}")
+        data = resp.json()
+        return data.get("id", "unknown")
+
+
+def _build_mailto_link(to: str, subject: str, body: str) -> str:
+    """Build a mailto: link with proper URL encoding."""
+    # Use quote_plus for query string encoding (spaces become +)
+    params = urllib.parse.urlencode({
+        "subject": subject,
+        "body": body,
+    })
+    return f"mailto:{to}?{params}"

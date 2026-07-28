@@ -177,19 +177,24 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
   const [loading, setLoading] = useState(true)
   const [theOne, setTheOne] = useState<any>(null)
   const [changes, setChanges] = useState<any[]>([])
+  const [commitments, setCommitments] = useState<any[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
     let alive = true
     ;(async () => {
       try {
-        const [moment, shifts] = await Promise.all([
+        // P18 fix: fetch commitments in TodayView too, so "What Changed"
+        // items can be matched to commitment_ids for ClickableCard.
+        const [moment, shifts, commits] = await Promise.all([
           maestroApi.getTheMoment(),
           maestroApi.getTheShifts(),
+          maestroApi.getCommitments(),
         ])
         if (!alive) return
         if (moment.live && moment.data) setTheOne(moment.data)
         if (shifts.live && shifts.data) setChanges(shifts.data.the_shifts || shifts.data.secondary || [])
+        if (commits.live && Array.isArray(commits.data)) setCommitments(commits.data)
         setLoading(false)
       } catch (e) {
         if (alive) { setError('Failed to load. Please try again.'); setLoading(false) }
@@ -247,16 +252,40 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">What Changed</p>
           <div className="space-y-3">
-            {changes.slice(0, 5).map((c, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className={cn('flex-shrink-0 mt-1 h-1.5 w-1.5 rounded-full',
-                  c.type === 'new' ? 'bg-blue-400' : c.is_meaningful ? 'bg-amber-400' : 'bg-gray-300')} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700 leading-relaxed">{c.text || c.action || JSON.stringify(c)}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{c.entity || ''}</p>
-                </div>
-              </div>
-            ))}
+            {changes.slice(0, 5).map((c, i) => {
+              // P18 fix: wrap each "What Changed" item in ClickableCard.
+              // Changes don't have signal_id directly; match by text against
+              // commitments list to find the real commitment_id. If no match,
+              // use a synthetic ID — the modal will show entity/text and
+              // thread fetch will return empty (graceful).
+              const match = commitments.find((cm: any) =>
+                cm.text && c.text && cm.text === c.text
+              );
+              const commitmentId = match?.signal_id || `change-${i}`;
+              return (
+                <ClickableCard
+                  key={i}
+                  commitment={{
+                    commitment_id: commitmentId,
+                    entity: c.entity || 'Unknown',
+                    text: c.text || c.action || 'Change detected',
+                    state: 'active',
+                    confidence: 0.7,
+                  }}
+                  apiBase={API_BASE}
+                  token={getToken() || ''}
+                >
+                  <div className="flex items-start gap-3 hover:bg-gray-50 transition-colors p-2 rounded-lg">
+                    <div className={cn('flex-shrink-0 mt-1 h-1.5 w-1.5 rounded-full',
+                      c.type === 'new' ? 'bg-blue-400' : c.is_meaningful ? 'bg-amber-400' : 'bg-gray-300')} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 leading-relaxed">{c.text || c.action || JSON.stringify(c)}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{c.entity || ''}</p>
+                    </div>
+                  </div>
+                </ClickableCard>
+              );
+            })}
           </div>
         </div>
       )}

@@ -162,33 +162,38 @@ async def send_draft(
 ):
     """
     Send a draft email via Gmail.
-    
-    Optionally accepts an edited body if user modified the draft.
-    
+
+    Tries Gmail API (if OAuth tokens available). Falls back to mailto: link
+    the frontend can render as a "Open in email client" button.
+
     Args:
-        draft_id: The draft to send
-        request: Send parameters (optional edited body)
+        draft_id: The draft to send (may be a synthetic UUID if not persisted)
+        request: Send parameters (edited_body, optional to/subject overrides)
         user_email: Current user (from auth)
-        
+
     Returns:
-        {"message_id": "...", "status": "sent"}
-        
+        {"status": "sent", "method": "gmail_api", "message_id": "..."} OR
+        {"status": "ready_to_send", "method": "mailto", "mailto_link": "...", ...}
+
     Raises:
-        404: Draft not found
-        500: Gmail API error
+        400: Missing recipient or body
+        404: Draft not found (when to/subject not provided in request)
+        500: Unexpected error
     """
     try:
         # Import here to avoid circular imports
         from maestro_personal_shell.email_sender import send_email_draft
-        
+
         result = await send_email_draft(
             draft_id=draft_id,
             user_email=user_email,
-            edited_body=request.edited_body
+            edited_body=request.edited_body,
+            to_override=request.to,
+            subject_override=request.subject,
         )
-        
+
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
