@@ -154,6 +154,27 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     from maestro_personal_shell.llm_bridge import sanitize_for_llm as _regex_sanitize
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
 
+    # Phase 3.2 (roadmap): Machine sender classifier — reject automated
+    # content before the commitment classifier runs. AWS Billing, GitHub
+    # notifications, LinkedIn, etc. must never become commitments.
+    # 66% of ambient alerts were noise across six audits.
+    try:
+        from maestro_personal_shell.sender_classifier import classify_sender
+        _sender_result = classify_sender(req.entity, req.text, None)
+        if _sender_result["should_skip"]:
+            logger.info("Phase 3.2: rejecting machine sender: %s — %s",
+                        req.entity[:50], _sender_result["reason"])
+            return SignalResponse(
+                signal_id=None,
+                entity=req.entity or "",
+                text=req.text or "",
+                signal_type=req.signal_type or "",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                rejected="machine_sender",
+            )
+    except Exception as _sender_err:
+        logger.debug("sender_classifier failed (non-fatal): %s", _sender_err)
+
     sanitized_text = sanitize_email_text(req.text)
     # F-14: do NOT call _regex_sanitize at write time — it mutates text.
     # Instead, check for injection patterns and flag in metadata.
