@@ -650,9 +650,16 @@ async def get_whispers(token: str = Depends(verify_token_dep)):
 
     DEPTH: calls Core's WhisperSituationBridge.from_situation() for each
     situation. Empty list = trusted silence.
+
+    Phase 3.2 fix (v13 auditor): removed signal_limit=500. With 843 signals
+    in production, the 500-signal cap caused stale commitments (6+ days old)
+    to fall outside the window — whisper returned 0 while /api/ambient
+    correctly showed 3 stale commitments. The whisper endpoint already has
+    caching (simple_cache, 5-min TTL) and rule-based early-exit, so loading
+    all signals does not regress latency.
     """
     from maestro_personal_shell.api import build_shell
-    shell = build_shell(user_email=token, signal_limit=500)
+    shell = build_shell(user_email=token)
     core = shell.core
     from maestro_personal_shell.surfaces.whisper import WhisperSurface
     surface = WhisperSurface(shell=shell)
