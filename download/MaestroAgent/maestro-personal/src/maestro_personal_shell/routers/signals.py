@@ -131,15 +131,29 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # P0-Audit fix: HTML entity encoding + secret keyword blocklist +
     # HTML comment blocking. The auditor found <script> tags, SECRET_TOKEN,
     # and <!-- --> comments survived all 3 layers.
+    #
+    # F-14 fix (auditor v12, 2026-07-29): NO-MUTATION injection filter.
+    # The prior code called _regex_sanitize(sanitized_text) at WRITE time,
+    # which spliced "[filtered]" into legitimate phrases like
+    # "Please ignore the previous email" → "[filtered]the previous email".
+    # Partial corruption is more dangerous than full replacement because
+    # the result reads as authentic. Fix: store the text VERBATIM (only
+    # html-escaped for XSS safety), flag suspected injection in metadata,
+    # and neutralize at READ time in ask.py's assemble_llm_context.
+    # This is the P54 principle: fix the data the user sees — the stored
+    # text must always be what the user wrote.
     from maestro_personal_shell.llm_bridge import sanitize_for_llm as _regex_sanitize
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
 
     sanitized_text = sanitize_email_text(req.text)
-    sanitized_text = _regex_sanitize(sanitized_text)
+    # F-14: do NOT call _regex_sanitize at write time — it mutates text.
+    # Instead, check for injection patterns and flag in metadata.
+    _injection_suspected = _regex_sanitize(sanitized_text) != sanitized_text
 
     # P0.1: HTML entity encoding — prevent stored XSS. <script> → &lt;script&gt;
-    # This runs AFTER regex sanitization so injection patterns are already
-    # filtered, but any remaining HTML is escaped for safety.
+    # This is the ONLY transformation applied to stored text. It's reversible
+    # (the original text can be recovered by un-escaping) and doesn't splice
+    # markers into legitimate phrases.
     sanitized_text = _html.escape(sanitized_text, quote=False)
 
     # P0.2: Secret keyword blocklist — prevent token/secret probing.
@@ -458,6 +472,12 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
             metadata["entity_resolved"] = True
     except Exception as e:
         logger.debug("Entity resolution failed (non-fatal): %s", e)
+
+    # F-14 fix: flag suspected injection in metadata (no text mutation).
+    # The text is stored verbatim (html-escaped only). At read time,
+    # ask.py's assemble_llm_context will check this flag and wrap the
+    # text in <untrusted_user_content> tags if True.
+    metadata["injection_suspected"] = _injection_suspected
 
     signal_data = {
         "signal_id": signal_id,
