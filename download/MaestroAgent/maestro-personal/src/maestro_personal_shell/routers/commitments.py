@@ -603,12 +603,24 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
                         break
 
         # BUG 2 fix: compute is_at_risk from the parsed deadline
+        # Phase 2.2 (roadmap): is_at_risk = overdue OR within 48h of deadline
         _deadline_str = (c.get("metadata", {}) or {}).get("deadline", "")
         _is_overdue = False
+        _is_near_deadline = False
         if _deadline_str:
             try:
                 from maestro_personal_shell.deadline_parser import is_overdue as _dl_is_overdue
+                from datetime import datetime, timedelta, timezone
                 _is_overdue = _dl_is_overdue(_deadline_str)
+                
+                # Also check if deadline is within 48 hours (at risk even if not overdue)
+                try:
+                    _dl_dt = datetime.fromisoformat(_deadline_str)
+                    _now = datetime.now(timezone.utc)
+                    _hours_until = (_dl_dt - _now).total_seconds() / 3600
+                    _is_near_deadline = 0 < _hours_until < 48
+                except (ValueError, TypeError):
+                    pass
             except Exception:
                 pass
 
@@ -618,7 +630,7 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
             claim_type=str(c.get("claim_type", "commitment")),
             signal_id=sig_id,
             is_commitment=c.get("is_commitment", True),
-            is_at_risk=(sig_id in stale_map) or has_broken_signal or _is_overdue,
+            is_at_risk=(sig_id in stale_map) or has_broken_signal or _is_overdue or _is_near_deadline,
             days_stale=days_stale,
             deadline=_deadline_str,
             calibration_note=cal_note,
