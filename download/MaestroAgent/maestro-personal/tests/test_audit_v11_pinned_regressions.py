@@ -645,3 +645,98 @@ def test_p59_completion_transitions_prior_active_commitment():
             os.environ.pop("MAESTRO_PERSONAL_DB", None)
         else:
             os.environ["MAESTRO_PERSONAL_DB"] = old_db
+
+
+# ---------------------------------------------------------------------------
+# F-26 — test entity guard (auditor v12: test entities accepted with HTTP 200,
+# polluting 32% of production ledger)
+# ---------------------------------------------------------------------------
+
+
+def test_f26_test_entities_rejected():
+    """Test/audit probe entities MUST be rejected by is_test_entity().
+
+    The v12 auditor found "RaceAnna_1785999999" accepted with HTTP 200
+    in production. The guard must match all probe patterns.
+    """
+    from maestro_personal_shell.test_entity_guard import is_test_entity
+
+    must_reject = [
+        "RaceAnna_1785290872",
+        "AudX_Explicit1_1785999999",
+        "Probe_XYZ",
+        "SeqV7P1_1785999999",
+        "V7Probe_A",
+        "TestEntity",
+        "InjRetest_foo",
+        "XSS_test",
+    ]
+    for name in must_reject:
+        assert is_test_entity(name), (
+            f"F-26: test entity {name!r} was NOT rejected by is_test_entity(). "
+            f"The guard must catch all probe patterns."
+        )
+
+
+def test_f26_real_names_accepted():
+    """Real entity names MUST be accepted (not flagged as test entities).
+
+    The guard is anchored — it must NOT substring-match real names that
+    happen to contain "Race", "Test", "Probe", etc.
+    """
+    from maestro_personal_shell.test_entity_guard import is_test_entity
+
+    must_accept = [
+        "Amber Johnson",
+        "Grace Tan",
+        "Chamberlain Ltd",
+        "Horace Bell",
+        "Injali Sharma",
+        "Cambridge Partners",
+        "Testudo Corp",
+        "Race Car Dynamics LLC",
+        "Maria Garcia",
+        "Sam Rivera",
+        "Alex",
+        "Jamie",
+    ]
+    for name in must_accept:
+        assert not is_test_entity(name), (
+            f"F-26: real name {name!r} was incorrectly rejected as a test entity. "
+            f"The guard is too broad — it must be anchored."
+        )
+
+
+def test_f26_guard_production_env_rejects():
+    """In production env, should_reject_test_entity returns True for probes."""
+    from maestro_personal_shell.test_entity_guard import should_reject_test_entity
+
+    old_env = os.environ.get("MAESTRO_ENV")
+    os.environ["MAESTRO_ENV"] = "production"
+    try:
+        assert should_reject_test_entity("RaceAnna_1785999999") is True
+        assert should_reject_test_entity("Amber Johnson") is False
+    finally:
+        if old_env is None:
+            os.environ.pop("MAESTRO_ENV", None)
+        else:
+            os.environ["MAESTRO_ENV"] = old_env
+
+
+def test_f26_guard_dev_env_allows():
+    """In dev/test/staging env, should_reject_test_entity returns False for all."""
+    from maestro_personal_shell.test_entity_guard import should_reject_test_entity
+
+    old_env = os.environ.get("MAESTRO_ENV")
+    for env in ("dev", "test", "staging", "ci"):
+        os.environ["MAESTRO_ENV"] = env
+        try:
+            assert should_reject_test_entity("RaceAnna_1785999999") is False, (
+                f"F-26: dev/test/staging env ({env!r}) should allow test entities."
+            )
+        finally:
+            pass
+    if old_env is None:
+        os.environ.pop("MAESTRO_ENV", None)
+    else:
+        os.environ["MAESTRO_ENV"] = old_env

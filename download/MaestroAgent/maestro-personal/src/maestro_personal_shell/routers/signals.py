@@ -98,6 +98,30 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
     from maestro_personal_shell.llm_bridge import sanitize_for_llm
 
+    # F-26 fix (auditor v12, 2026-07-29): reject test/audit probe entities
+    # in production with HTTP 422. The v12 auditor found "RaceAnna_1785999999"
+    # accepted with HTTP 200, polluting 32% of the production ledger. The guard
+    # is anchored (never substring-matches "Race Car Dynamics LLC") and only
+    # fires in production env (dev/test/staging can use probe names).
+    # P54: guard at WRITE time so test data never enters the corpus.
+    # P1: verified by execution — see tests/test_audit_v11_pinned_regressions.py.
+    from maestro_personal_shell.test_entity_guard import should_reject_test_entity
+    if should_reject_test_entity(req.entity):
+        logger.warning(
+            "F-26: test entity rejected in production (entity=%r, env=%s)",
+            req.entity, os.environ.get("MAESTRO_ENV", "production"),
+        )
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "test_entity_rejected",
+                "entity": req.entity,
+                "reason": "Entity name matches a test/audit probe pattern. "
+                          "Production rejects test data. Set MAESTRO_ENV=dev "
+                          "to allow test entities.",
+            },
+        )
+
     # F4 + auditor fix: THREE-LAYER sanitization on ingest.
     # Layer 1: gmail.sanitize_email_text (email-specific patterns)
     # Layer 2: sanitize_for_llm (25+ pattern regex injection defense)

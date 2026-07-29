@@ -24,10 +24,53 @@ on:
   workflow_dispatch: {}  # allows the agent to trigger on demand for drift remediation
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # PART B2 — REGRESSION GATE (v12 auditor top recommendation)
+  # This job BLOCKS the deploy. If any test in tests/test_regression_audit.py
+  # fails, the deploy does not ship. Every test maps to a defect that
+  # regressed after being verified fixed. Never delete a passing test.
+  # ─────────────────────────────────────────────────────────────────────
+  regression-gate:
+    name: Regression suite (BLOCKS DEPLOY)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MAESTRO_URL: ${{ secrets.STAGING_URL }}
+      MAESTRO_TOKEN: ${{ secrets.STAGING_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install pytest requests
+      - name: Run regression suite (P22: production-path tests)
+        working-directory: download/MaestroAgent/maestro-personal
+        run: |
+          if [ -z "$MAESTRO_URL" ] || [ -z "$MAESTRO_TOKEN" ]; then
+            echo "⚠ STAGING_URL or STAGING_TOKEN secret not set — regression gate SKIPPED."
+            echo "Set these secrets to enable the deploy-blocking gate."
+            echo "Until then, deploys are NOT regression-gated."
+            exit 0
+          fi
+          pytest tests/test_regression_audit.py -v --tb=short
+      - name: Regression gate result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Regression gate PASSED — deploy may proceed."
+          else
+            echo "❌ Regression gate FAILED — deploy BLOCKED."
+            echo "Every failing test maps to a defect that regressed after verification."
+            echo "Fix the regression before deploying."
+          fi
+
   deploy-backend:
     name: Deploy backend (Docker build + railway up + health verify)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: regression-gate  # ← THE GATE. Without this, the suite is decoration.
     steps:
       - uses: actions/checkout@v4
 
@@ -90,6 +133,7 @@ jobs:
     name: Deploy frontend (Next.js build + railway up)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: regression-gate  # ← THE GATE. Frontend also blocked by regression suite.
     steps:
       - uses: actions/checkout@v4
 
