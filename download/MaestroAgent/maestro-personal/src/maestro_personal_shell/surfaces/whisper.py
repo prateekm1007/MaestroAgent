@@ -66,8 +66,18 @@ class WhisperSurface:
         whispers.extend(self._detect_deadline_whispers())
 
         # Sort by priority: high > medium > low
+        # Phase 2.7 (auditor v12): add secondary sort keys for DETERMINISM.
+        # The prior sort was by priority only, so whispers with the same
+        # priority had non-deterministic order (depended on signal iteration
+        # order, which can vary). Adding entity + type as tiebreakers ensures
+        # the same query returns the same result every time (F-27 fix).
         priority_order = {"high": 0, "medium": 1, "low": 2}
-        whispers.sort(key=lambda w: priority_order.get(w.get("priority", "low"), 2))
+        whispers.sort(key=lambda w: (
+            priority_order.get(w.get("priority", "low"), 2),
+            w.get("entity", ""),   # deterministic tiebreaker 1
+            w.get("type", ""),     # deterministic tiebreaker 2
+            w.get("title", ""),    # deterministic tiebreaker 3
+        ))
 
         return whispers
 
