@@ -1050,6 +1050,10 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                                 "cancelled", "never sent", "didn't send",
                                 "failed to", "missed", "overdue",
                             ]
+                            # Primary evidence signal_ids (the commitments we're citing)
+                            _primary_sig_ids = {ev.get("signal_id") for ev in _ledger_evidence}
+
+                            # Check all signals for counterevidence
                             for sig in _all_sigs:
                                 sig_entity = (sig.get("entity", "") or "").lower()
                                 sig_text = (sig.get("text", "") or "").lower()
@@ -1057,8 +1061,8 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                                 # Match same entity
                                 if not any(e in sig_entity or sig_entity in e for e in _entity_lower):
                                     continue
-                                # Skip the evidence we already cited
-                                if any(sig_id == ev.get("signal_id") for ev in _ledger_evidence):
+                                # Skip if this IS the primary evidence
+                                if sig_id in _primary_sig_ids:
                                     continue
                                 # Check for counterevidence keywords
                                 if any(kw in sig_text for kw in _COUNTER_KEYWORDS):
@@ -1069,6 +1073,21 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                                         "timestamp": sig.get("timestamp", ""),
                                         "reason": "Signal suggests commitment may be fulfilled or contradicted",
                                     })
+
+                            # Also check within ledger evidence for entries that
+                            # suggest completion/contradiction (these are ledger
+                            # entries with completion keywords in their text)
+                            for ev in _ledger_evidence[1:]:  # skip the primary
+                                ev_text = (ev.get("text", "") or "").lower()
+                                if any(kw in ev_text for kw in _COUNTER_KEYWORDS):
+                                    _counterevidence.append({
+                                        "signal_id": ev.get("signal_id", ""),
+                                        "entity": ev.get("entity", ""),
+                                        "text": ev.get("text", "")[:150],
+                                        "timestamp": ev.get("timestamp", ""),
+                                        "reason": "Ledger entry suggests commitment may be fulfilled",
+                                    })
+
                             if _counterevidence:
                                 _reasoning_chain.append(
                                     f"Counterevidence: found {len(_counterevidence)} signal(s) "
