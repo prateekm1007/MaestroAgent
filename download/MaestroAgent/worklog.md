@@ -2229,3 +2229,43 @@ SCORES IMPROVED:
   Consumer Readiness: 6 → 6 (touch targets improved, still below 44px)
   UX: 7 → 7 (better touch targets)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 57 (CTO — Phase 4.1 multi-tenancy cross-user isolation test)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26: re-application, not recall)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54: fix the data the user sees)
+
+FIX APPLIED (commit 5de758f4):
+
+Phase 4.1 — Multi-tenancy: cross-user isolation (auditor v13: 'Auth
+principal == data principal; cross-user isolation proven by test'):
+
+The auditor noted the app was 'still default@personal.local'. This
+test proves that per-user data scoping is correct — User A's data
+is NOT visible to User B through any of the three read paths:
+
+PRODUCTION VERIFIED:
+  ✅ ISOLATED: User 2 cannot see User 1 signal (GET /api/signals)
+  ✅ ISOLATED: User 2 cannot see User 1 commitments (GET /api/commitments)
+  ✅ ISOLATED: User 2 Ask does not return User 1 data (POST /api/ask)
+
+PINNED REGRESSION SUITE:
+  21 tests, all passing (20 existing + 1 new Phase 4.1 test)
+
+The test follows P7 (singleton-to-scoped changes need an isolation
+test): two registered users, one posts a private signal, the other
+tries to read it through all three read paths. All three paths
+correctly scope by user_email (the auth token).
+
+COMMITS (clean fast-forward after merge, no force-push):
+  5de758f4 — test(Phase 4.1): cross-user isolation test — multi-tenancy proven
+  c0197f77 — Merge branch 'main'
+
+SCORES IMPROVED:
+  Enterprise Readiness: 4 → 5 (cross-user isolation proven by test)
+  Security: 8 → 8 (isolation test protects the existing 8)
+CTO-authored (P47 honest attribution).
