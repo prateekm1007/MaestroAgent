@@ -380,21 +380,21 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         # This is the biggest single audit gap (8 points, 12 audits empty).
         if not copilot_talking_points:
             # Try the prepare_engine first (rich, data-driven)
+            # P85: completely non-fatal — any error is caught and falls through
             try:
                 from maestro_personal_shell.prepare_engine import generate_prep
                 prep_data = generate_prep(token, entity)
-                if prep_data.get("prep_points"):
+                if prep_data and prep_data.get("prep_points"):
                     copilot_talking_points = [
                         {"point": pp, "source": "prepare_engine"}
                         for pp in prep_data["prep_points"][:5]
                     ]
-                    # Also populate blocking_unknowns and can_decide
                     if not copilot_blocking_unknowns and prep_data.get("blocking_unknowns"):
                         copilot_blocking_unknowns = prep_data["blocking_unknowns"][:3]
                     if not copilot_can_decide and prep_data.get("decisions_available"):
                         copilot_can_decide = prep_data["decisions_available"][:3]
             except Exception as e:
-                logger.debug("prepare_engine failed (non-fatal): %s", e)
+                logger.warning("prepare_engine failed for %s (non-fatal): %s", entity, e)
 
             # Fallback to rule-based if prepare_engine didn't produce results
             if not copilot_talking_points:
