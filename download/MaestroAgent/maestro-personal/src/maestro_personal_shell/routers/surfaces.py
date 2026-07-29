@@ -285,12 +285,16 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
 @router.get("/prepare", response_model=list[PrepareResponse])
 async def get_prepare(as_of: str | None = None, token: str = Depends(verify_token_dep)):
     """Get preparation for upcoming situations — 3 things that matter."""
-    from maestro_personal_shell.api import build_shell, _filter_corrected_signals
-    shell = build_shell(user_email=token, as_of=as_of)
-    core = shell.core
-    from maestro_personal_shell.surfaces.prepare import PrepareSurface
-    surface = PrepareSurface(shell=shell)
-    situations = surface.get_situations_needing_preparation()
+    try:
+        from maestro_personal_shell.api import build_shell, _filter_corrected_signals
+        shell = build_shell(user_email=token, as_of=as_of)
+        core = shell.core
+        from maestro_personal_shell.surfaces.prepare import PrepareSurface
+        surface = PrepareSurface(shell=shell)
+        situations = surface.get_situations_needing_preparation()
+    except Exception as e:
+        logger.error("prepare: failed to build shell/situations: %s", e)
+        return []
     result = []
     for s in situations:
         sit_id = str(getattr(s, "situation_id", uuid4()))
