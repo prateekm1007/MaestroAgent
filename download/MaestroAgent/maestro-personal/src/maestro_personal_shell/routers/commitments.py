@@ -443,8 +443,25 @@ def _compute_commitment_confidence(
 
     class_conf = meta.get("commitment_confidence")
     if class_conf is None:
-        # S2-2 fix: try the commitment's own confidence field
-        class_conf = commitment.get("confidence") or commitment.get("commitment_confidence")
+        # S2-2 fix: use claim_type as a proxy for classification confidence.
+        # The commitment objects from CommitmentsSurface don't carry signal
+        # metadata, so we can't read the original classification confidence.
+        # Instead, use the claim_type to set a reasonable per-type confidence:
+        #   explicit → 0.85 (strong, direct promise)
+        #   implicit → 0.65 (implied, weaker)
+        #   conditional → 0.45 (depends on condition)
+        #   completed → 0.90 (confirmed done)
+        #   cancelled → 0.30 (no longer active)
+        #   default → 0.50
+        claim_type = commitment.get("claim_type", "")
+        _type_confidence = {
+            "explicit": 0.85,
+            "implicit": 0.65,
+            "conditional": 0.45,
+            "completed": 0.90,
+            "cancelled": 0.30,
+        }
+        class_conf = _type_confidence.get(claim_type, 0.50)
     if class_conf is not None:
         confidence = float(class_conf)
 
