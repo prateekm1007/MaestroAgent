@@ -357,6 +357,66 @@ def normalize_text(text: str) -> str:
     return s
 
 
+# S2-3 fix (auditor v11, 2026-07-29): extract deadline text from commitment
+# statements. The LLM path already extracts this; the rules path didn't, so
+# when LLM was unavailable the deadline never reached /api/commitments.deadline.
+# This helper is called from the explicit/implicit branches below.
+_DEADLINE_PATTERNS = [
+    # "by Friday", "by Monday EOD", "by end of day", "by EOD", "by COB"
+    r"\bby\s+((?:end\s+of\s+day|EOD|COB|close\s+of\s+business|tomorrow|tonight|this\s+(?:afternoon|evening|week|month|quarter|year)|next\s+(?:week|month|quarter|year|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day)?(?:\s+EOD)?|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:January|February|March|April|May|June|July|August|September|October|November|December)))",
+    # "before Friday", "before EOD"
+    r"\bbefore\s+((?:EOD|COB|tomorrow|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day)?))",
+    # "until Friday", "until EOD"
+    r"\buntil\s+((?:EOD|tomorrow|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day)?))",
+    # "on Friday", "on Monday"
+    r"\bon\s+((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day)?)\b",
+    # "next week", "next Monday"
+    r"\b(next\s+(?:week|month|quarter|year|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday))\b",
+    # "end of week", "end of month", "end of quarter"
+    r"\b(end\s+of\s+(?:week|month|quarter|year|day))\b",
+    # "this Friday", "this week"
+    r"\b(this\s+(?:week|month|quarter|year|Friday|Monday|Tuesday|Wednesday|Thursday))\b",
+    # "in 2 days", "in 3 weeks", "in a week"
+    r"\bin\s+(\d+\s+(?:day|week|month)s?|a\s+(?:day|week|month))\b",
+]
+
+
+def _extract_deadline_text(text: str) -> str:
+    """Extract deadline text from a commitment statement.
+
+    Returns the matched deadline phrase (e.g. "Friday EOD", "by tomorrow"),
+    or empty string if no deadline phrase is found. Case-preserving on the
+    original text so the displayed deadline reads naturally.
+
+    S2-3 fix: the LLM path extracts deadline_text via the LLM; the rules
+    path returned deadline_text="" for everything except "deadline moved to"
+    patterns. This meant /api/commitments.deadline was empty whenever the
+    LLM was unavailable, and even with the LLM, the deadline never reached
+    the API because the signals router didn't write it to metadata. The
+    signals-router write-path fix + this extractor together close S2-3.
+    """
+    if not text:
+        return ""
+    import re as _re_dl
+    for pattern in _DEADLINE_PATTERNS:
+        m = _re_dl.search(pattern, text, _re_dl.IGNORECASE)
+        if m:
+            # Group 1 is the deadline phrase (without the leading "by/on/etc.")
+            # for patterns that capture it; for patterns that capture the whole
+            # phrase, group 0 is the match.
+            if m.lastindex and m.lastindex >= 1:
+                # Re-include the leading preposition for natural display
+                # ("by Friday EOD" reads better than just "Friday EOD").
+                lead = text[m.start():m.start(1)].strip()
+                body = m.group(1).strip()
+                # Capitalize first letter for display
+                if body:
+                    body = body[0].upper() + body[1:]
+                return f"{lead} {body}" if lead else body
+            return m.group(0).strip()
+    return ""
+
+
 async def classify_commitment(
     text: str,
     entity: str = "",
@@ -548,12 +608,24 @@ Classify this text. Output ONLY valid JSON."""
     if state not in COMMITMENT_STATES:
         state = "candidate"
 
-    # is_commitment semantics (aligned with the roadmap's Phase 3 schema):
-    # A commitment is any statement that creates, updates, or closes an
-    # obligation — including completed, cancelled, disputed, superseded,
-    # and third-party reports. Only proposal/request/tentative/aspiration/
-    # negation/not_a_commitment are NOT commitments (they're suggestions,
-    # questions, hedges, hopes, refusals, or irrelevant).
+    # is_commitment semantics (auditor v10/v11 verification, 2026-07-29):
+    # `is_commitment` answers: does the USER owe an active obligation?
+    #   - explicit / implicit / conditional / completed / disputed /
+    #     superseded / broken  → True (user owes/owed something, even if
+    #     the obligation has been closed — the signal is still about the
+    #     user's own commitment).
+    #   - cancelled / third_party_report  → False. A cancelled commitment
+    #     no longer imposes an obligation; a third-party report is someone
+    #     ELSE's obligation (not the user's).
+    #   - proposal / request / tentative / aspiration / negation /
+    #     not_a_commitment  → False (suggestion, question, hedge, hope,
+    #     refusal, or irrelevant).
+    #
+    # Both the LLM path (here) and the rules path (_rule_based_classify)
+    # MUST agree on this. The rules path previously returned True for
+    # cancelled and third_party_report — a P65 violation (fix only covers
+    # one of two paths) that survived 10 audit rounds because the LLM-path
+    # override masked it whenever the LLM was available.
     is_commitment = parsed.get("is_commitment", ctype in (
         "explicit", "implicit", "conditional",
         "completed", "disputed", "superseded", "broken",
@@ -885,6 +957,13 @@ def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") ->
             }
 
     # Cancellation signals (WITH the mood/tense gate)
+    # S1-6 fix (auditor v11, 2026-07-29): is_commitment is False for
+    # cancelled — the obligation no longer exists, so the user does not
+    # owe anything. Previously returned True; this contradicted the LLM
+    # path's override (lines 561-564) and was the exact regression the
+    # auditor reproduced live ("Actually, cancel that..." → is_commitment:
+    # True). Aligning the rules path with the LLM path closes the P65
+    # "fix only covers one of two paths" gap that survived rounds v1-v10.
     cancel_keywords = ["cancelled", "cancel ", "never mind", "forget it", "don't need", "won't be able", "can't make"]
     if any(kw in text_lower for kw in cancel_keywords):
         if _is_interrogative(text_lower):
@@ -900,12 +979,12 @@ def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") ->
             }
         return {
             "commitment_type": "cancelled",
-            "is_commitment": True,
+            "is_commitment": False,
             "confidence": 0.7,
             "state": "cancelled",
             "owner": "unknown",
             "deadline_text": "",
-            "reasoning": "rule-based: cancellation keyword detected",
+            "reasoning": "rule-based: cancellation keyword detected (obligation closed — is_commitment=False per S1-6 fix)",
             "llm_powered": False,
         }
 
@@ -1045,14 +1124,26 @@ def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") ->
         # Check if it's the user quoting someone else (not the user's own promise)
         # Patterns like "Maria said: I will..." or 'Alex wrote: "I promise..."'
         if not text_lower.strip().startswith(("i will", "i'll", "i promise", "i commit")):
+            # S1-6 fix (auditor v11, 2026-07-29): is_commitment is False
+            # for third_party_report. The product tracks the USER's
+            # obligations; a third-party report is someone else's promise
+            # — the user owes nothing. The LLM-path override (lines
+            # 561-564) already enforced this; the rules path returned
+            # True, contradicting itself (the inline comment "it IS a
+            # commitment" was wrong) and contradicting the LLM path. This
+            # is the second half of the P65 fix.
+            #
+            # Verified reproductions:
+            #   "John said he will deliver the code by Monday."
+            #     → third_party_report, is_commitment=False ✓
             return {
                 "commitment_type": "third_party_report",
-                "is_commitment": True,  # it IS a commitment, but owned by someone else
+                "is_commitment": False,
                 "confidence": 0.8,
                 "state": "active",
                 "owner": "other",  # key distinction: not the user's commitment
                 "deadline_text": "",
-                "reasoning": "rule-based: third-party report detected (quote/said/wrote)",
+                "reasoning": "rule-based: third-party report detected (someone else's promise — is_commitment=False per S1-6 fix)",
                 "llm_powered": False,
             }
 
@@ -1108,17 +1199,20 @@ def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") ->
     # Explicit commitment
     # P42: text_lower is normalized — "i'll" → "i will", "i'm going to" → "i am going to"
     # One canonical form per concept; no duplicate variants.
+    # S2-3 fix (auditor v11): extract deadline text from the original text
+    # so /api/commitments.deadline is populated even on the rules-only path.
     explicit_keywords = [
         "i will", "i promise", "i commit", "i guarantee", "i am going to",
     ]
     if any(kw in text_lower for kw in explicit_keywords):
+        _explicit_deadline = _extract_deadline_text(text)
         return {
             "commitment_type": "explicit",
             "is_commitment": True,
             "confidence": 0.85,
             "state": "active",
             "owner": "user",
-            "deadline_text": "",
+            "deadline_text": _explicit_deadline,
             "reasoning": "rule-based: explicit commitment keyword",
             "llm_powered": False,
         }
@@ -1129,6 +1223,7 @@ def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") ->
     # "you'll have it" → "you will have it", "we're good for" → "we are good for",
     # "i'll own" → "i will own", "that's on me" → "that is on me".
     # Single canonical forms; no duplicate variants.
+    # S2-3 fix (auditor v11): extract deadline text from the original text.
     implicit_keywords = [
         "let me take that", "consider it done", "that is on me", "i am on it",
         "i own the", "count me in", "you will have it",
@@ -1147,13 +1242,14 @@ def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") ->
         "i plan to", "i intend to", "i am planning to",
     ]
     if any(kw in text_lower for kw in implicit_keywords):
+        _implicit_deadline = _extract_deadline_text(text)
         return {
             "commitment_type": "implicit",
             "is_commitment": True,
             "confidence": 0.75,
             "state": "active",
             "owner": "user",
-            "deadline_text": "",
+            "deadline_text": _implicit_deadline,
             "reasoning": "rule-based: implicit commitment detected",
             "llm_powered": False,
         }

@@ -273,6 +273,17 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         metadata["commitment_owner"] = classification.get("owner", metadata.get("commitment_owner", "unknown"))
         metadata["classification_reasoning"] = classification.get("reasoning", "")
         metadata["llm_powered"] = classification.get("llm_powered", False)
+        # S2-3 fix (auditor v11, 2026-07-29): write the parsed deadline_text
+        # to metadata so /api/commitments.deadline is populated. The prior
+        # code dropped the classifier's deadline_text on the floor — the
+        # classifier parsed it correctly, but the signals router never
+        # propagated it into the persisted metadata. /api/commitments reads
+        # metadata["deadline"], so we set BOTH "deadline" (the read key)
+        # and "deadline_text" (the canonical classifier-output key) for
+        # coherence with the ledger schema.
+        _parsed_deadline = classification.get("deadline_text", "")
+        metadata["deadline_text"] = _parsed_deadline
+        metadata["deadline"] = _parsed_deadline
 
         classified_type = classification.get("commitment_type", "not_a_commitment")
         NON_COMMITMENT_TYPES = {

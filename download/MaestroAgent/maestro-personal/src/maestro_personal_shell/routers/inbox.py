@@ -84,6 +84,12 @@ async def receive_synthetic_email(email_id: str, token: str = Depends(verify_tok
         _pre_metadata["is_commitment"] = _pre_classification.get("is_commitment", False)
         _pre_metadata["commitment_owner"] = _pre_classification.get("owner", "unknown")
         _pre_metadata["commitment_confidence"] = _pre_classification.get("confidence", 0.0)
+        # S2-3 fix (auditor v11, 2026-07-29): propagate deadline_text into
+        # metadata so /api/commitments.deadline is populated for synthetic
+        # inbox signals too. Mirrors the signals.py write-path fix.
+        _pre_deadline = _pre_classification.get("deadline_text", "")
+        _pre_metadata["deadline_text"] = _pre_deadline
+        _pre_metadata["deadline"] = _pre_deadline
 
     signal = {
         "signal_id": f"synthetic_{email_id}_{int(__import__('time').time())}",

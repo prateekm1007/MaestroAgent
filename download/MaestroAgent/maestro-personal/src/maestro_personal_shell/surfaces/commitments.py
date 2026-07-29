@@ -51,6 +51,15 @@ class CommitmentsSurface:
             # Use Core's classifier — do NOT reimplement
             if should_treat_as_commitment(text):
                 claim_type = classify_transcript_chunk(text)
+                # S2-3 fix (auditor v11, 2026-07-29): propagate the signal's
+                # metadata into the commitment dict so /api/commitments can
+                # read deadline (and other classification fields) from
+                # c["metadata"]["deadline"]. The prior code built the dict
+                # from scratch and dropped metadata entirely, so the deadline
+                # field was always empty even when the signal had it stored.
+                _sig_meta = getattr(signal, "metadata", None) or {}
+                if not isinstance(_sig_meta, dict):
+                    _sig_meta = {}
                 commitments.append({
                     "entity": getattr(signal, "entity", ""),
                     "text": text,
@@ -58,6 +67,7 @@ class CommitmentsSurface:
                     "signal_id": sig_id,
                     "timestamp": getattr(signal, "timestamp", None),
                     "is_commitment": True,
+                    "metadata": _sig_meta,
                 })
                 seen_ids.add(sig_id)
 
