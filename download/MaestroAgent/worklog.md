@@ -2137,3 +2137,55 @@ SCORES IMPROVED:
   Trust: 7 → 7 (correction complete state correct)
   Evidence: 7 → 7 (reasoning_chain populated for conflict queries)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 55 (CTO — Phase 3.1 Prepare enrichment + Phase 3.3 temporal diff)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26: re-application, not recall)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54: fix the data the user sees)
+
+FIXES APPLIED (commits 2b2028ee, 6bedee7b, 549ef501, cf4a9fdd):
+
+Phase 3.1 — Prepare enrichment (auditor v13: 'Build Prepare properly'):
+  1. Added WHO section: relationship summary + sentiment + last 3
+     interactions with timestamps
+  2. Added OPEN LOOPS section header
+  3. Fixed blocking_unknowns detection: the prior logic was broken —
+     it checked if ANY other signal existed (not if it was an answer).
+     Now detects questions (contains '?') and checks if any signal
+     contains answer keywords. Unanswered questions are surfaced as
+     '⚠ N unanswered question(s)' with the question text and age.
+
+Phase 3.3 — Temporal diff queries (auditor v13: 'Temporal queries
+must diff, not list'):
+  Root cause: 'What changed since yesterday?' returned abstention —
+  the abstention gate intercepted the query before any temporal logic
+  could run.
+  Fix: added temporal diff detection BEFORE the abstention gate.
+  1. Detects temporal patterns ('what changed since', 'what is new
+     since', 'what changed yesterday/today/this week', etc.)
+  2. Determines the time boundary from the query (yesterday = 24h,
+     last week = 7d, today = 12h)
+  3. Filters signals after the cutoff
+  4. Returns a structured diff or 'Nothing changed' if no signals
+  5. Always returns (even with no signals) — doesn't fall through to
+     the abstention gate
+  PRODUCTION VERIFIED: intelligence_source=temporal_diff ✅
+
+PINNED REGRESSION SUITE:
+  20 tests, all passing
+
+COMMITS (clean fast-forward, no force-push):
+  2b2028ee — fix(Phase 3.1): Prepare — enrich prep_points with WHO + OPEN LOOPS + blocking unknowns
+  6bedee7b — fix(Phase 3.3): temporal diff queries — 'what changed since X' returns diff
+  549ef501 — fix(Phase 3.3): temporal diff — always return, even with no signals
+  cf4a9fdd — chore: trigger redeploy
+
+SCORES IMPROVED:
+  Meeting Preparation: 5 → 6 (WHO section + blocking unknowns fixed)
+  AI Quality: 8 → 8 (temporal diff + conflict detection)
+  Differentiation: 7 → 7 (temporal diff is a differentiator)
+CTO-authored (P47 honest attribution).
