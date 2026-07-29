@@ -1085,7 +1085,7 @@ function SignalsTab({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs text-emerald-300 hover:text-emerald-200"
+                            className="min-h-[44px] px-2 text-xs text-emerald-300 hover:text-emerald-200"
                             disabled={busyId === s.signal_id}
                             onClick={() => onCorrect(s.signal_id, "complete")}
                             title="Mark complete"
@@ -1095,7 +1095,7 @@ function SignalsTab({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            className="min-h-[44px] px-2 text-xs text-muted-foreground hover:text-foreground"
                             disabled={busyId === s.signal_id}
                             onClick={() => onCorrect(s.signal_id, "dismiss")}
                             title="Dismiss"
@@ -1105,7 +1105,7 @@ function SignalsTab({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs text-rose-300 hover:text-rose-200"
+                            className="min-h-[44px] px-2 text-xs text-rose-300 hover:text-rose-200"
                             disabled={busyId === s.signal_id}
                             onClick={() => onCorrect(s.signal_id, "cancel")}
                             title="Cancel"
