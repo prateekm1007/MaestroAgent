@@ -850,6 +850,29 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                     break
 
         if _queried_entities:
+            # Phase 3.3 fix (auditor v13): before reading the ledger (which
+            # may be empty if derivation hasn't run yet), check if signals
+            # exist for the queried entity. If the ledger is empty but
+            # signals exist, return the signal data directly — don't fall
+            # through to the LLM path which causes a timeout.
+            _sig_evidence = []
+            _sig_answer_lines = []
+            for ent in _queried_entities:
+                for sig in _all_signals:
+                    sig_ent = getattr(sig, 'entity', '') or (sig.get('entity', '') if isinstance(sig, dict) else '')
+                    if sig_ent and ent.lower() in sig_ent.lower():
+                        sig_text = getattr(sig, 'text', '') or (sig.get('text', '') if isinstance(sig, dict) else '')
+                        sig_ts = str(getattr(sig, 'timestamp', '') or (sig.get('timestamp', '') if isinstance(sig, dict) else ''))
+                        sig_id = str(getattr(sig, 'signal_id', '') or (sig.get('signal_id', '') if isinstance(sig, dict) else ''))
+                        _sig_answer_lines.append(f"• [{sig_ent}] {sig_text[:80]}")
+                        _sig_evidence.append({
+                            "text": sig_text,
+                            "entity": sig_ent,
+                            "timestamp": sig_ts,
+                            "signal_id": sig_id,
+                            "source_type": "signal",
+                        })
+
             # We have a specific entity query — read the ledger
             try:
                 from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
@@ -912,6 +935,38 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                             for e in _history_entries[:3]:
                                 _action = e.get("action", "") or e.get("evidence_quote", "") or "Unknown"
                                 _answer_lines.append(f"    ○ [{ent}] {_action[:60]} — superseded")
+
+                # Phase 3.3 fix: if ledger is empty but signals exist, return
+                # signal-based answer directly. This prevents the timeout when
+                # the entity exists in signals but not yet in the ledger.
+                if not _has_active and _sig_evidence:
+                    _sig_answer = "Based on your signals:\n" + "\n".join(_sig_answer_lines[:5])
+                    return AskResponse(
+                        answer=_sig_answer,
+                        query=req.query,
+                        source_sentence=_sig_evidence[0].get("text", "") if _sig_evidence else "",
+                        source_entity=_sig_evidence[0].get("entity", "") if _sig_evidence else "",
+                        source_timestamp=_sig_evidence[0].get("timestamp", "") if _sig_evidence else "",
+                        situation_state="",
+                        evidence_refs=_sig_evidence[:5],
+                        confidence=0.7,
+                        counterevidence=[],
+                        unknowns=[],
+                        as_of=str(as_of or ""),
+                        decision_boundary="",
+                        perspectives=[],
+                        reasoning_chain=[
+                            f"Query: {req.query[:80]}",
+                            f"Entity match: {_queried_entities}",
+                            f"Ledger empty — fell back to signal lookup",
+                            f"Found {len(_sig_evidence)} signal(s)",
+                        ],
+                        calibration_note="Answered from signals (ledger derivation pending).",
+                        consequence_paths=[],
+                        llm_active=False,
+                        llm_provider="none",
+                        intelligence_source="signal_fallback",
+                    )
 
                 if _has_active and _ledger_evidence:
                     # TICKET-10 (2026-07-25): THIRD-PARTY PROMISE QUERY EXCLUSION
