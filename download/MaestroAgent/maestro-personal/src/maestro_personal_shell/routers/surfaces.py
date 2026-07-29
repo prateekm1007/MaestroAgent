@@ -585,8 +585,17 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
 # Note: these still go through the materiality gate (the gate learns from
 # dismissals). Only critical_signal bypasses the gate entirely (F6 guard:
 # emergencies never get suppressed).
+#
+# Phase 3.2 fix (auditor v13): stale_commitment and deadline_approaching
+# also bypass the gate when they're high priority. The auditor found
+# Whisper returning 0 while Ambient holds 3 stale commitments — the gate
+# was suppressing the most actionable whispers. These types are inherently
+# user-actionable (an overdue commitment or a deadline in <48h), so the
+# gate's "is this worth interrupting?" question is already answered.
 _ALWAYS_WHISPER_TYPES = frozenset({
     "critical_signal",      # lawsuit, churn, breach, outage — BYPASSES gate (F6)
+    "stale_commitment",     # overdue commitment — inherently actionable
+    "deadline_approaching", # deadline in <48h — inherently time-bounded
 })
 
 # Types that go through the gate but the gate should be lenient with
