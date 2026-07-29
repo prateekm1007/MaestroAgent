@@ -204,7 +204,16 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
   }, [])
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
-  if (error) return <div className="text-sm text-red-500 py-8">{error}</div>
+  if (error) return (
+    <div className="space-y-4">
+      {/* Phase 2.3: Stale/offline honesty — visible banner when backend unreachable */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
+        <span className="text-amber-600 text-sm font-medium">⚠ Backend not connected</span>
+        <span className="text-amber-500 text-xs">Data may be stale. {error}</span>
+      </div>
+      <div className="text-sm text-gray-400 py-8">Retry in a moment.</div>
+    </div>
+  )
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
