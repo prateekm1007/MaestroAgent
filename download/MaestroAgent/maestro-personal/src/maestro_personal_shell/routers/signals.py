@@ -173,7 +173,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
                 rejected="machine_sender",
             )
     except Exception as _sender_err:
-        logger.debug("sender_classifier failed (non-fatal): %s", _sender_err)
+        logger.warning("sender_classifier failed (non-fatal): %s", _sender_err)
 
     sanitized_text = sanitize_email_text(req.text)
     # F-14: do NOT call _regex_sanitize at write time — it mutates text.
