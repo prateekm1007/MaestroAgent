@@ -1324,3 +1324,155 @@ HONEST STATUS:
 - The recurring issues (P66, P69, P67, TICKET-9/10b/11b) are all FIXED and verified.
   The pattern that caused them (fixing one bug introduces another) is named by P70
   and enforced by the CI grep check.
+
+---
+Task ID: 45 (Coder — v11 audit fixes: S1-6 rules-path + S2-3 deadline propagation + pinned regression suite)
+Agent: Coder (GLM) — P47 honest attribution: CTO-authored
+
+TASK:
+The v11 auditor verified three claimed fixes by direct execution against HEAD
+e9fdd16 and found: 1 of 3 holds (F-14), 2 still broken (S1-6, S2-3). The
+auditor provided four specific assertions to pin as regression tests, and a
+process concern about force-pushing.
+
+ROOT CAUSE ANALYSIS (verified by execution, not by reading transcript):
+
+S1-6 — `is_commitment` rollup for cancelled and third_party_report:
+  The LLM-path override (commitment_classifier.py lines 561-564) sets
+  is_commitment=False for both cancelled and third_party_report. BUT
+  _rule_based_classify — the path that fires when the LLM is unavailable
+  (CI, rate-limited, timeout) — returned is_commitment=True for both
+  (cancelled line ~903, third_party_report line ~1050).
+  This is the exact P65 "fix only covers one of two paths" shape that
+  survived audit rounds v1-v10: the LLM path masked the bug whenever
+  the LLM was available, and the rules path silently contradicted it
+  whenever the LLM was unavailable. The auditor's reproduction hit the
+  rules path because the test phrases ("John said he will deliver...",
+  "Actually, cancel that...") match the rules-based keyword lists before
+  any LLM call.
+  The auditor's observation that "the override sits in a branch reachable
+  only from the LLM-response-parsing path, after an earlier return
+  _rule_based_classify(...)" was correct but slightly misframed — the
+  override DOES exist on the LLM path, and the rules path has its OWN
+  is_commitment:False lines for cancelled/third-party at lines 608, 893.
+  The bug was that those lines were in INTERROGATIVE sub-branches, and
+  the main (non-interrogative) return at line 903 (cancelled) and 1048
+  (third_party_report) still returned True.
+
+S2-3 — deadline metadata reaching /api/commitments.deadline:
+  Three-layer drop. (1) The rules path returned deadline_text='' even
+  when the text contained "by Friday EOD" — the only deadline extraction
+  in the rules path was for "deadline moved to" patterns. (2) The signals
+  router wrote metadata['commitment_type'], metadata['commitment_owner'],
+  metadata['commitment_confidence'], metadata['classification_reasoning'],
+  metadata['llm_powered'] — but NEVER wrote metadata['deadline']. The
+  classifier's deadline_text was dropped on the floor at the write
+  boundary. (3) CommitmentsSurface.get_active_commitments() built
+  commitment dicts from scratch (entity, text, claim_type, signal_id,
+  timestamp, is_commitment) and dropped the signal's metadata entirely
+  — so even if metadata['deadline'] had been written, /api/commitments
+  (which reads c['metadata']['deadline']) would still have seen empty.
+  The prior "fix(S2-3): deadline in metadata" commit (ef3a0e0e) added
+  metadata["deadline"] = _parsed_deadline_dt in signals.py but referenced
+  a variable that didn't exist (_parsed_deadline_dt) — silent NameError
+  meant the line never ran. The e9fdd16 commit removed that broken line
+  but didn't replace it with anything that actually writes the deadline.
+
+F-14 — injection filter discrimination:
+  Already fixed at HEAD e9fdd16. The P4 fix disabled
+  semantic_injection_check at write time (it was the path that destroyed
+  "Forget about the roadmap presentation.") and left only the regex
+  sanitize_for_llm at write time. Verified both directions: retraction
+  phrase stored verbatim, injection phrase filtered to "[filtered]".
+
+FIXES APPLIED (commit 045a88e7):
+
+S1-6:
+  - commitment_classifier.py line ~903: cancelled return changed from
+    is_commitment=True to is_commitment=False (rules path aligned with
+    LLM path).
+  - commitment_classifier.py line ~1050: third_party_report return
+    changed from is_commitment=True to is_commitment=False (rules path
+    aligned with LLM path).
+  - Updated the semantic comment at lines 551-576 to explain WHY:
+    is_commitment answers "does the USER owe an active obligation?";
+    cancelled = no longer owed; third_party_report = someone else's.
+
+S2-3:
+  - Added _extract_deadline_text() helper + _DEADLINE_PATTERNS regex
+    list to commitment_classifier.py. Handles "by Friday EOD",
+    "by tomorrow", "by end of day", "by Monday", "next week",
+    "end of month", "in 3 days", etc.
+  - Wired _extract_deadline_text into the explicit and implicit
+    branches of _rule_based_classify (rules path now extracts deadlines
+    even without LLM).
+  - signals.py line 276-286: writes metadata['deadline_text'] AND
+    metadata['deadline'] from classification['deadline_text']. The
+    'deadline' key is what /api/commitments reads.
+  - inbox.py line 87-92: mirrors the same for the synthetic inbox
+    pre-classification path.
+  - surfaces/commitments.py: CommitmentsSurface.get_active_commitments
+    now propagates signal.metadata into the commitment dict (was
+    building the dict from scratch and dropping metadata entirely).
+
+PINNED REGRESSION SUITE:
+  tests/test_audit_v11_pinned_regressions.py — 9 tests, all passing.
+  Maps 1:1 to the auditor's four assertions:
+    - test_s16_third_party_report_is_not_commitment_rules_path
+    - test_s16_cancelled_is_not_commitment_rules_path
+    - test_s16_llm_path_and_rules_path_agree (P65 guard)
+    - test_s23_extract_deadline_by_friday_eod
+    - test_s23_deadline_reaches_commitment_dict_end_to_end
+    - test_f14_retraction_phrase_stored_verbatim (pin)
+    - test_f14_prompt_injection_is_filtered (pin)
+    - test_smoke_explicit_commitment_still_classified_correctly
+    - test_smoke_implicit_commitment_still_classified_correctly
+
+  Local run: 9 passed in 28s.
+  Broader sanity: 140 passed, 1 xfailed across test_ticket6b_classifier,
+  test_f4_riley_negation_completion, test_audit_f4_f10_remaining,
+  test_v2_surfaces, test_cross_surface_coherence.
+
+PRE-EXISTING FAILURES (NOT introduced by this commit):
+  - test_P59_P60_lifecycle_ownership::test_p59_cancellation_signal_cancels_commitment
+  - test_P59_P60_lifecycle_ownership::test_p59_completion_signal_completes_commitment
+  Both fail at HEAD e9fdd16 (before this commit) and continue to fail
+  after. Root cause: upsert_ledger_entry short-circuits at line 131
+  (return None) when is_commitment is False, which blocks the TICKET-1
+  transition logic from running for cancelled signals. This is a
+  separate bug — the lifecycle transition for cancellation should
+  fire regardless of is_commitment, because cancellation is a state
+  transition on an EXISTING commitment, not a new commitment. Tracked
+  separately, not in scope for this commit.
+
+FORCE-PUSH AVOIDANCE:
+  The v11 auditor flagged a force-push to main that rewrote 52/13
+  commits. Per the auditor: "Force-pushing rewrites history that this
+  entire audit methodology depends on being append-only and inspectable."
+  This commit was pushed with `git push origin main` (no --force).
+  Push output: "e9fdd164..045a88e7  main -> main" — clean fast-forward,
+  no history rewrite. All future commits in this arc will follow the
+  same discipline: append-only, no force-push, no history rewrite.
+
+PRODUCTION VERIFICATION (script: scripts/verify_v11_production.py):
+  All 4 auditor assertions pass against live production at commit
+  045a88e706d68e7bcc04b1d3848e50ffe55bd515:
+    ✅ S1-6 (a) third_party_report: "John said he will deliver..."
+       → commitment_type='third_party_report', is_commitment=False
+    ✅ S1-6 (b) cancelled: "Actually, cancel that..."
+       → commitment_type='cancelled', is_commitment=False
+    ✅ S2-3 deadline reaches API: "I will send the quarterly report..."
+       → /api/commitments.deadline = 'Friday EOD'
+    ✅ F-14 retraction phrase verbatim: "Forget about the roadmap..."
+       → stored text = 'Forget about the roadmap presentation.'
+
+COMMITS: 045a88e7 (this commit), pushed to origin/main (no force).
+CTO-authored (P47 honest attribution).
+
+REMAINING:
+  - P59 lifecycle transition for cancelled signals (pre-existing failure,
+    root-caused above, not in scope for this commit).
+  - F-1 count divergence: /api/commitments list still doesn't route to
+    canonical count (auditor finding from prior round, still open).
+  - Test data pollution: production has ~34% test data (auditor finding
+    from prior round, still open).
