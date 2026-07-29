@@ -1055,3 +1055,72 @@ def test_phase33_ask_no_contradictory_negative_for_substring():
             os.environ.pop("MAESTRO_PERSONAL_DB", None)
         else:
             os.environ["MAESTRO_PERSONAL_DB"] = old_db
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.5 — Evidence drill-down: "active commitments" query returns results
+# (auditor v12: "100% of Ask answers traceable to source in ≤2 clicks")
+# ---------------------------------------------------------------------------
+
+
+def test_phase25_active_commitments_query_returns_results():
+    """Phase 2.5: 'What are my active commitments?' must return the user's
+    commitments with evidence, not a false abstention.
+
+    The prior code had 'what are my commitments' in the broad query patterns
+    but NOT 'what are my active commitments' — so the exact phrase returned
+    a false 'No matching signals found' instead of listing commitments.
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db
+    from fastapi.testclient import TestClient
+    from maestro_personal_shell.api import app
+
+    db_path = tempfile.mktemp(suffix="_phase25_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        import uuid as _uuid
+        import time as _time
+        email = f"phase25-{_uuid.uuid4().hex[:8]}@example.com"
+        with TestClient(app) as client:
+            r = client.post("/api/auth/register", json={
+                "user_email": email, "password": "Phase25!Pass", "name": "P25"
+            })
+            token = r.json()["token"]
+
+            # Post a commitment
+            client.post("/api/signals", json={
+                "signal_id": f"p25-{_uuid.uuid4().hex[:8]}",
+                "entity": "Maria Garcia",
+                "text": "I will send the Q3 budget proposal to Maria Garcia by Friday EOD.",
+                "signal_type": "commitment_made",
+                "timestamp": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+                "metadata": {"source": "phase25-test"},
+            }, headers={"Authorization": f"Bearer {token}"})
+
+            _time.sleep(3)
+
+            # Ask "What are my active commitments?" — should return the commitment
+            r = client.post("/api/ask", json={"query": "What are my active commitments?"},
+                            headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code == 200
+            answer = r.json().get("answer", "")
+
+            # The answer should contain the commitment, NOT a false abstention
+            assert "Maria Garcia" in answer or "Q3 budget" in answer, (
+                f"Phase 2.5: 'What are my active commitments?' should return the "
+                f"Maria Garcia commitment. Answer: {answer[:300]}"
+            )
+            assert "No matching signals" not in answer, (
+                f"Phase 2.5: false abstention on 'active commitments' query. "
+                f"Answer: {answer[:300]}"
+            )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db
