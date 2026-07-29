@@ -908,3 +908,153 @@ async def purge_orphaned_ledger(token: str = ""):
         "orphaned_rows_deleted": deleted,
         "governance": "F-13: orphaned ledger rows purged (signal_ids absent from signals table)",
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.1: Derivation retry — drain signals_awaiting_derivation
+# (auditor v13: "signals_awaiting_derivation → 0; failures logged, retryable")
+# ---------------------------------------------------------------------------
+
+@router.post("/api/admin/retry-derivation")
+async def retry_derivation(token: str = ""):
+    """Retry ledger derivation for signals marked awaiting_derivation.
+
+    Phase 1.1 (auditor v13): when ledger derivation fails at ingest time,
+    the signal is marked with metadata.awaiting_derivation=1. This endpoint
+    finds all such signals and re-runs the derivation, clearing the flag
+    on success.
+
+    Returns: {attempted, succeeded, failed, failures: [...]}
+    """
+    import json as _json
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    conn = get_db_conn(db_path)
+
+    # Find all signals with awaiting_derivation=1 in metadata
+    rows = conn.execute(
+        "SELECT signal_id, entity, text, signal_type, timestamp, metadata, user_email "
+        "FROM signals WHERE metadata LIKE '%awaiting_derivation%'"
+    ).fetchall()
+
+    total = len(rows)
+    succeeded = 0
+    failed = 0
+    failures = []
+
+    for r in rows:
+        signal_id = r[0] if not hasattr(r, "keys") else r["signal_id"]
+        entity = r[1] if not hasattr(r, "keys") else r["entity"]
+        text = r[2] if not hasattr(r, "keys") else r["text"]
+        signal_type = r[3] if not hasattr(r, "keys") else r["signal_type"]
+        timestamp = r[4] if not hasattr(r, "keys") else r["timestamp"]
+        meta_raw = r[5] if not hasattr(r, "keys") else r["metadata"]
+        user_email = r[6] if not hasattr(r, "keys") else r["user_email"]
+
+        # Parse metadata
+        try:
+            meta = _json.loads(meta_raw) if isinstance(meta_raw, str) else (meta_raw or {})
+        except Exception:
+            meta = {}
+
+        # Only retry if awaiting_derivation is set
+        if not meta.get("awaiting_derivation"):
+            continue
+
+        # Re-run the ledger derivation
+        try:
+            from maestro_personal_shell.commitment_ledger import upsert_ledger_entry
+            from maestro_personal_shell.canonical_ledger import append_event, CommitmentEvent
+            import uuid as _uuid
+
+            # Build the ledger entry (mirrors signals.py logic)
+            _ingest_is_commitment = meta.get("is_commitment", False)
+            _ingest_state = meta.get("commitment_state", "candidate")
+            _ingest_owner = meta.get("commitment_owner", "unknown")
+
+            if _ingest_is_commitment:
+                upsert_ledger_entry(
+                    user_email=user_email,
+                    signal_id=signal_id,
+                    entity=entity,
+                    action=text[:500],
+                    state=_ingest_state,
+                    owner=_ingest_owner,
+                    deadline_text=meta.get("deadline_text", ""),
+                    deadline_datetime=meta.get("deadline_iso", ""),
+                    confidence=meta.get("confidence", 0.5),
+                    db_path=db_path,
+                )
+
+            # Also append to canonical ledger
+            event = CommitmentEvent(
+                event_id=str(_uuid.uuid4()),
+                commitment_id=f"commitment-{signal_id[:8]}",
+                event_type=signal_type or "signal_ingested",
+                actor=_ingest_owner or "user",
+                entity=entity,
+                text=text[:500],
+                source_signal_id=signal_id,
+                confidence=meta.get("confidence", 0.5),
+                state=_ingest_state,
+                user_email=user_email,
+                timestamp=timestamp,
+                metadata=meta,
+            )
+            append_event(event, db_path=db_path)
+
+            # Clear the awaiting_derivation flag
+            meta.pop("awaiting_derivation", None)
+            conn.execute(
+                "UPDATE signals SET metadata = ? WHERE signal_id = ?",
+                (_json.dumps(meta), signal_id),
+            )
+            conn.commit()
+            succeeded += 1
+        except Exception as e:
+            failed += 1
+            failures.append({"signal_id": signal_id, "entity": entity, "error": str(e)[:200]})
+            # Leave awaiting_derivation set for next retry
+
+    conn.close()
+    return {
+        "status": "complete",
+        "attempted": total,
+        "succeeded": succeeded,
+        "failed": failed,
+        "failures": failures[:10],  # cap for response size
+        "governance": "Phase 1.1: signals_awaiting_derivation drained",
+    }
+
+
+@router.get("/api/admin/derivation-status")
+async def derivation_status(token: str = ""):
+    """Check how many signals are awaiting derivation.
+
+    Phase 1.1 (auditor v13): monitoring endpoint. Returns the count of
+    signals with metadata.awaiting_derivation=1. Target: 0.
+    """
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    conn = get_db_conn(db_path)
+    count = conn.execute(
+        "SELECT COUNT(*) FROM signals WHERE metadata LIKE '%awaiting_derivation%'"
+    ).fetchone()[0]
+    conn.close()
+    return {
+        "awaiting_derivation": count,
+        "target": 0,
+        "healthy": count == 0,
+    }

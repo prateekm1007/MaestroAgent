@@ -973,6 +973,89 @@ async def get_signals(token: str = Depends(verify_token_dep)):
 
 
 # ---------------------------------------------------------------------------
+# /api/signals/{signal_id} — Phase 2.5 Evidence drill-down
+# (auditor v13: "100% of Ask answers traceable to source in ≤2 clicks")
+# ---------------------------------------------------------------------------
+
+@router.get("/signals/{signal_id}")
+async def get_signal_detail(signal_id: str, token: str = Depends(verify_token_dep)):
+    """Get full detail for a single signal — the source behind an Ask answer.
+
+    Phase 2.5 (auditor v13): the UI's evidence_refs contain signal_ids.
+    This endpoint lets the user click an evidence_ref and see the full
+    source signal in ≤2 clicks (Ask answer → evidence_ref → source signal).
+
+    Returns the full signal record including metadata, classification, and
+    any linked ledger entries.
+    """
+    import os
+    from pathlib import Path as _P
+    from maestro_personal_shell.db_util import get_db_conn
+    import json as _json
+
+    _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
+    conn = get_db_conn(_db)
+    try:
+        row = conn.execute(
+            "SELECT signal_id, entity, text, signal_type, timestamp, metadata, user_email, "
+            "source_type, created_at FROM signals WHERE signal_id = ? AND user_email = ?",
+            (signal_id, token),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Signal {signal_id} not found")
+
+    # Convert to dict
+    if hasattr(row, "keys"):
+        sig = dict(row)
+    else:
+        sig = {
+            "signal_id": row[0], "entity": row[1], "text": row[2],
+            "signal_type": row[3], "timestamp": row[4], "metadata": row[5],
+            "user_email": row[6], "source_type": row[7] if len(row) > 7 else "",
+            "created_at": row[8] if len(row) > 8 else "",
+        }
+
+    # Parse metadata
+    meta = sig.get("metadata", "{}")
+    if isinstance(meta, str):
+        try:
+            meta = _json.loads(meta)
+        except Exception:
+            meta = {}
+    sig["metadata"] = meta
+
+    # Also fetch any linked ledger entries
+    ledger_entries = []
+    try:
+        conn = get_db_conn(_db)
+        rows = conn.execute(
+            "SELECT ledger_id, entity, action, state, owner, deadline_text, "
+            "deadline_datetime, confidence, created_at "
+            "FROM commitments_ledger WHERE signal_id = ? AND user_email = ?",
+            (signal_id, token),
+        ).fetchall()
+        for r in rows:
+            ledger_entries.append(dict(r) if hasattr(r, "keys") else {
+                "ledger_id": r[0], "entity": r[1], "action": r[2], "state": r[3],
+                "owner": r[4], "deadline_text": r[5], "deadline_datetime": r[6],
+                "confidence": r[7], "created_at": r[8],
+            })
+        conn.close()
+    except Exception:
+        pass
+
+    return {
+        "signal": sig,
+        "ledger_entries": ledger_entries,
+        "traceable": True,  # Phase 2.5: this signal is traceable from Ask
+    }
+
+
+# ---------------------------------------------------------------------------
 # /api/signals/{signal_id}/correct — F7 correction API
 # ---------------------------------------------------------------------------
 

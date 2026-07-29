@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["surfaces"])
 
+# Phase 2.9: 60-second per-user cache for /api/prepare (was 4.5s, target <2s)
+_PREPARE_CACHE: dict[str, tuple[float, list]] = {}
+
 # R-03 fix (reviewer S2): structural tentativeness filter.
 # Tentative content ("maybe", "I'll let you know", "don't count on it") must
 # be excluded from briefing unknowns, material_changes, cannot_decide_yet,
@@ -324,7 +327,20 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
 
 @router.get("/prepare", response_model=list[PrepareResponse])
 async def get_prepare(as_of: str | None = None, token: str = Depends(verify_token_dep)):
-    """Get preparation for upcoming situations — 3 things that matter."""
+    """Get preparation for upcoming situations — 3 things that matter.
+
+    Phase 2.9 fix (auditor v13): /api/prepare regressed to 4.5s. Root cause:
+    the endpoint iterates ALL situations (102+) and calls generate_prep (DB
+    query) for each. Fix: cap at top 10 situations by priority + add a 60s
+    in-memory cache per user.
+    """
+    # Phase 2.9: 60-second per-user cache
+    import time as _cache_time
+    _cache_key = f"prepare:{token}:{as_of or 'now'}"
+    _cached = _PREPARE_CACHE.get(_cache_key)
+    if _cached and _cached[0] > _cache_time.monotonic():
+        return _cached[1]
+
     try:
         from maestro_personal_shell.api import build_shell, _filter_corrected_signals
         shell = build_shell(user_email=token, as_of=as_of)
@@ -332,6 +348,9 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         from maestro_personal_shell.surfaces.prepare import PrepareSurface
         surface = PrepareSurface(shell=shell)
         situations = surface.get_situations_needing_preparation()
+        # Phase 2.9: cap at top 10 situations (was unbounded — 102+ situations
+        # each requiring a DB query in generate_prep)
+        situations = situations[:10]
     except Exception as e:
         logger.error("prepare: failed to build shell/situations: %s", e)
         return []
@@ -590,6 +609,8 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         except Exception as e:
             logger.debug("S2-3 PREPARE fallback (commitment-ledger) failed: %s", e)
 
+    # Phase 2.9: cache the result for 60 seconds
+    _PREPARE_CACHE[_cache_key] = (_cache_time.monotonic() + 60.0, result)
     return result
 
 

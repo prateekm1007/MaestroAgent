@@ -734,13 +734,30 @@ async def get_commitments_ledger(
     limit: int = 100,
     token: str = Depends(verify_token_dep),
 ):
-    """Read the normalized commitments ledger."""
+    """Read the normalized commitments ledger.
+
+    Phase 1.5 fix (auditor v13): the `count` field must reflect the TRUE
+    total matching the filter, not the capped entry count. The v13 auditor
+    found "3 distinct count values" because this endpoint returned
+    count=len(entries) which was capped at limit=100 while /api/commitments
+    returned 466. Now: count = total matching rows (uncapped), entries =
+    the capped slice for display.
+    """
     import os
     from pathlib import Path as _P
     _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
     from maestro_personal_shell.commitment_ledger import get_ledger_entries
     entries = get_ledger_entries(token, _db, state=state, entity=entity, limit=limit)
-    return {"entries": entries, "count": len(entries)}
+    # Phase 1.5: compute the TRUE total (uncapped) so count surfaces agree.
+    # If entries < limit, we have the full set — count = len(entries).
+    # If entries == limit, there may be more — query the true total.
+    if len(entries) < limit:
+        true_total = len(entries)
+    else:
+        # Query the uncapped total matching the same filter
+        all_entries = get_ledger_entries(token, _db, state=state, entity=entity, limit=100000)
+        true_total = len(all_entries)
+    return {"entries": entries, "count": true_total}
 
 
 @router.post("/{ledger_id}/transition")
