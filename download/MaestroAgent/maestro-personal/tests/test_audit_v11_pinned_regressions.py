@@ -1124,3 +1124,96 @@ def test_phase25_active_commitments_query_returns_results():
             os.environ.pop("MAESTRO_PERSONAL_DB", None)
         else:
             os.environ["MAESTRO_PERSONAL_DB"] = old_db
+
+
+# ---------------------------------------------------------------------------
+# Phase 4.1 — Multi-tenancy: cross-user isolation (auditor v13: "Auth
+# principal == data principal; cross-user isolation proven by test")
+# ---------------------------------------------------------------------------
+
+
+def test_phase41_cross_user_isolation():
+    """Phase 4.1: User A's data MUST NOT be visible to User B.
+
+    The auditor found the app was still using default@personal.local as
+    the auth principal. This test verifies that:
+      1. Two different registered users cannot see each other's signals
+      2. Two different registered users cannot see each other's commitments
+      3. Ask queries from one user do not return the other user's data
+
+    P7 (singleton-to-scoped changes need an isolation test): this is
+    the isolation test for per-user data scoping.
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db
+    from fastapi.testclient import TestClient
+    from maestro_personal_shell.api import app
+    import uuid as _uuid
+    import time as _time
+
+    db_path = tempfile.mktemp(suffix="_phase41_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        with TestClient(app) as client:
+            # Register two users
+            email1 = f"iso1-{_uuid.uuid4().hex[:8]}@example.com"
+            email2 = f"iso2-{_uuid.uuid4().hex[:8]}@example.com"
+            r1 = client.post("/api/auth/register", json={
+                "user_email": email1, "password": "IsoTest1!Pass", "name": "U1"
+            })
+            r2 = client.post("/api/auth/register", json={
+                "user_email": email2, "password": "IsoTest2!Pass", "name": "U2"
+            })
+            token1 = r1.json()["token"]
+            token2 = r2.json()["token"]
+
+            # User 1 posts a private signal
+            sig_id = f"iso-{_uuid.uuid4().hex[:8]}"
+            client.post("/api/signals", json={
+                "signal_id": sig_id,
+                "entity": "Private Contact",
+                "text": "User 1 private commitment.",
+                "signal_type": "commitment_made",
+                "timestamp": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+                "metadata": {"source": "iso-test"},
+            }, headers={"Authorization": f"Bearer {token1}"})
+
+            _time.sleep(2)
+
+            # User 2 tries to read User 1's signals
+            r = client.get("/api/signals",
+                          headers={"Authorization": f"Bearer {token2}"})
+            assert r.status_code == 200
+            user2_signals = [s for s in r.json() if s.get("signal_id") == sig_id]
+            assert len(user2_signals) == 0, (
+                f"Phase 4.1: CROSS-TENANT LEAK — User 2 can see User 1 signal {sig_id}. "
+                f"Signals: {user2_signals}"
+            )
+
+            # User 2 tries to read User 1's commitments
+            r = client.get("/api/commitments",
+                          headers={"Authorization": f"Bearer {token2}"})
+            assert r.status_code == 200
+            user2_commitments = [c for c in r.json() if "Private Contact" in c.get("entity", "")]
+            assert len(user2_commitments) == 0, (
+                f"Phase 4.1: CROSS-TENANT LEAK — User 2 can see User 1 commitments."
+            )
+
+            # User 2 tries to ask about User 1's data
+            r = client.post("/api/ask", json={"query": "What did I promise Private Contact?"},
+                           headers={"Authorization": f"Bearer {token2}"})
+            assert r.status_code == 200
+            answer = r.json().get("answer", "")
+            assert "User 1 private" not in answer, (
+                f"Phase 4.1: CROSS-TENANT LEAK — User 2 Ask returns User 1 data. "
+                f"Answer: {answer[:200]}"
+            )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db
