@@ -998,7 +998,7 @@ async def get_signal_detail(signal_id: str, token: str = Depends(verify_token_de
     try:
         row = conn.execute(
             "SELECT signal_id, entity, text, signal_type, timestamp, metadata, user_email, "
-            "source_type, created_at FROM signals WHERE signal_id = ? AND user_email = ?",
+            "created_at FROM signals WHERE signal_id = ? AND user_email = ?",
             (signal_id, token),
         ).fetchone()
     finally:
@@ -1015,8 +1015,8 @@ async def get_signal_detail(signal_id: str, token: str = Depends(verify_token_de
         sig = {
             "signal_id": row[0], "entity": row[1], "text": row[2],
             "signal_type": row[3], "timestamp": row[4], "metadata": row[5],
-            "user_email": row[6], "source_type": row[7] if len(row) > 7 else "",
-            "created_at": row[8] if len(row) > 8 else "",
+            "user_email": row[6],
+            "created_at": row[7] if len(row) > 7 else "",
         }
 
     # Parse metadata

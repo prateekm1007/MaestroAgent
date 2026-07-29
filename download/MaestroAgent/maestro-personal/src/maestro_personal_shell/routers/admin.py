@@ -1048,11 +1048,19 @@ async def derivation_status(token: str = ""):
         raise HTTPException(status_code=403, detail="Invalid admin token")
 
     db_path = default_sqlite_path()
-    conn = get_db_conn(db_path)
-    count = conn.execute(
-        "SELECT COUNT(*) FROM signals WHERE metadata LIKE '%awaiting_derivation%'"
-    ).fetchone()[0]
-    conn.close()
+    try:
+        conn = get_db_conn(db_path)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE metadata LIKE '%awaiting_derivation%'"
+        ).fetchone()[0]
+        conn.close()
+    except Exception as e:
+        return {
+            "awaiting_derivation": -1,
+            "target": 0,
+            "healthy": False,
+            "error": str(e)[:200],
+        }
     return {
         "awaiting_derivation": count,
         "target": 0,
