@@ -794,7 +794,32 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
                     signal_id, match["ledger_id"], target,
                 )
     except Exception as e:
-        logger.debug("Ledger persistence failed (non-fatal): %s", e)
+        # Phase 1.1 fix (auditor v13): honest derivation — don't silently
+        # swallow ledger persistence failures. The prior code logged at
+        # debug level ("non-fatal"), which hid derivation failures from
+        # monitoring. The auditor wants: failures logged, retryable.
+        # Fix: log at ERROR level with signal_id so it's visible, and
+        # mark the signal's metadata as 'awaiting_derivation' so a
+        # background worker can retry.
+        logger.error(
+            "Phase 1.1: Ledger derivation FAILED for signal %s (entity=%s): %s. "
+            "Signal is persisted but ledger entry is missing — needs retry.",
+            signal_id, canonical_entity, e,
+        )
+        # Mark the signal as awaiting derivation by updating its metadata
+        try:
+            from maestro_personal_shell.db_util import get_db_conn
+            _db2 = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
+            conn = get_db_conn(_db2)
+            conn.execute(
+                "UPDATE signals SET metadata = json_set(COALESCE(metadata, '{}'), '$.awaiting_derivation', 1) "
+                "WHERE signal_id = ?",
+                (signal_id,),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as _meta_err:
+            logger.error("Phase 1.1: failed to mark signal %s as awaiting_derivation: %s", signal_id, _meta_err)
 
     # Directive 2: Auto-register prediction when a commitment is created.
     # The learning loop is now automatic — no manual /api/predictions needed.
