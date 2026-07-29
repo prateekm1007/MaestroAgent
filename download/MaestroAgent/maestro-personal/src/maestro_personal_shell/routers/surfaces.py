@@ -394,9 +394,9 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
                         for pp in prep_data["prep_points"][:5]
                     ]
                     if not copilot_blocking_unknowns and prep_data.get("blocking_unknowns"):
-                        copilot_blocking_unknowns = prep_data["blocking_unknowns"][:3]
+                        copilot_blocking_unknowns = [str(b.get("question", b)) if isinstance(b, dict) else str(b) for b in prep_data["blocking_unknowns"][:3]]
                     if not copilot_can_decide and prep_data.get("decisions_available"):
-                        copilot_can_decide = prep_data["decisions_available"][:3]
+                        copilot_can_decide = [str(d.get("text", d)) if isinstance(d, dict) else str(d) for d in prep_data["decisions_available"][:3]]
             except Exception as e:
                 logger.warning("prepare_engine failed for %s (non-fatal): %s", entity, e)
 
