@@ -354,6 +354,68 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
     # Before calling _ask_impl (which invokes the LLM), check if there's
     # any evidence for this query. If not, return a calibrated abstention
     # instead of letting the LLM hallucinate.
+    #
+    # Phase 3.3 fix (auditor v13): multi-hop conflict detection MUST run
+    # BEFORE the abstention gate. The abstention gate checks for entity-
+    # specific evidence, but "which commitments conflict?" is a multi-hop
+    # query that doesn't name a specific entity — it needs to compare
+    # across ALL commitments. If we don't intercept here, the abstention
+    # gate returns "no matching signals" before the conflict detection runs.
+    _query_lower_early = (req.query or "").lower()
+    _is_conflict_query_early = any(p in _query_lower_early for p in [
+        "conflict", "conflicting", "which commitments conflict",
+        "any conflicts", "schedule conflict",
+    ])
+    if _is_conflict_query_early:
+        try:
+            from maestro_personal_shell.commitment_ledger import get_ledger_entries
+            from pathlib import Path as _P_ce
+            _db_ce = os.environ.get("MAESTRO_PERSONAL_DB", str(_P_ce(__file__).resolve().parents[1] / "personal.db"))
+            _active_ce = get_ledger_entries(token, _db_ce, state="active")
+            if _active_ce:
+                _by_deadline_ce: dict[str, list] = {}
+                for e in _active_ce:
+                    dl = e.get("deadline_text", "") or e.get("deadline_datetime", "") or "no deadline"
+                    _by_deadline_ce.setdefault(dl, []).append(e)
+                _conflicts_ce = []
+                for dl, entries in _by_deadline_ce.items():
+                    if dl != "no deadline" and len(entries) > 1:
+                        _conflicts_ce.append({"deadline": dl, "commitments": [{"entity": e.get("entity",""), "action": e.get("action","")[:80]} for e in entries]})
+                _by_entity_ce: dict[str, list] = {}
+                for e in _active_ce:
+                    _by_entity_ce.setdefault(e.get("entity",""), []).append(e)
+                for ent, entries in _by_entity_ce.items():
+                    if len(entries) > 1:
+                        _conflicts_ce.append({"entity": ent, "commitments": [{"action": e.get("action","")[:80], "deadline": e.get("deadline_text","")} for e in entries], "reason": "Multiple active commitments to the same entity"})
+
+                if _conflicts_ce:
+                    _lines_ce = ["I found the following potential conflicts in your commitments:"]
+                    for c in _conflicts_ce:
+                        if "deadline" in c:
+                            _lines_ce.append(f"\n⚠ Deadline conflict — {c['deadline']}:")
+                            for cm in c["commitments"]:
+                                _lines_ce.append(f"  • {cm['entity']}: {cm['action']}")
+                        elif "entity" in c:
+                            _lines_ce.append(f"\n⚠ Entity overload — {c['entity']} ({c['reason']}):")
+                            for cm in c["commitments"]:
+                                _lines_ce.append(f"  • {cm['action']} (due: {cm['deadline'] or 'no deadline'})")
+                    _conflict_answer_ce = "\n".join(_lines_ce)
+                else:
+                    _conflict_answer_ce = "No conflicts detected. Your active commitments have different deadlines and entities."
+                return AskResponse(
+                    answer=_conflict_answer_ce, query=req.query,
+                    source_sentence="", source_entity="", source_timestamp="",
+                    situation_state="", evidence_refs=[], confidence=0.8,
+                    counterevidence=[], unknowns=[], as_of=str(as_of or ""),
+                    decision_boundary="", perspectives=[],
+                    reasoning_chain=[f"Query: {req.query[:80]}", f"Conflict detection: checked {len(_active_ce)} active commitments", f"Found {len(_conflicts_ce)} potential conflict(s)"],
+                    calibration_note="Conflict detection — rule-based, no LLM needed.",
+                    consequence_paths=[], llm_active=False, llm_provider="none",
+                    intelligence_source="conflict_detection",
+                )
+        except Exception as _ce_err:
+            logger.warning("Phase 3.3 conflict detection (early) failed: %s", _ce_err)
+
     from maestro_personal_shell.query_grounding import ground_query, format_abstention_response
     try:
         _grounded = ground_query(req.query, token, db_path=default_sqlite_path())
