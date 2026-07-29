@@ -377,7 +377,17 @@ def _filter_non_commitments_by_classification(
                     meta = _json.loads(meta)
                 except Exception:
                     meta = {}
-            sig_meta_lookup[str(sig_id)] = meta if isinstance(meta, dict) else {}
+            if not isinstance(meta, dict):
+                meta = {}
+            # S2-2 fix: also copy top-level classification fields into meta
+            # so _compute_commitment_confidence can use them
+            sig_conf = getattr(sig, "commitment_confidence", None)
+            if sig_conf is not None:
+                meta["commitment_confidence"] = sig_conf
+            sig_ctype = getattr(sig, "commitment_type", None)
+            if sig_ctype is not None:
+                meta["commitment_type"] = sig_ctype
+            sig_meta_lookup[str(sig_id)] = meta
 
     filtered = []
     for c in commitments:
