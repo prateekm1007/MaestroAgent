@@ -765,7 +765,7 @@ function AnswerCard({
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-7 text-xs"
+                className="h-9 text-xs"
                 onClick={speaking ? onStopSpeak : onSpeak}
                 title={speaking ? "Stop reading" : "Read answer aloud"}
               >
@@ -859,7 +859,7 @@ function AnswerCard({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-xs"
+                  className="h-9 text-xs"
                   onClick={() => onViewCommitmentsForEntity(response.source_entity)}
                   title={`View commitments for ${response.source_entity}`}
                 >

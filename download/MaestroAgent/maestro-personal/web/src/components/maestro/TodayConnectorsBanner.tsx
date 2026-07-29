@@ -128,7 +128,7 @@ export function TodayConnectorsBanner({
           <Button
             size="sm"
             variant="default"
-            className="h-7 text-xs"
+            className="h-9 text-xs"
             onClick={handleConnect}
             disabled={connecting}
           >
@@ -142,7 +142,7 @@ export function TodayConnectorsBanner({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 text-xs text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200"
+            className="h-9 text-xs text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200"
             onClick={handleGotIt}
           >
             Got it
@@ -150,7 +150,7 @@ export function TodayConnectorsBanner({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 text-xs text-amber-700/80 dark:text-amber-400/80 hover:text-amber-800 dark:hover:text-amber-300"
+            className="h-9 text-xs text-amber-700/80 dark:text-amber-400/80 hover:text-amber-800 dark:hover:text-amber-300"
             onClick={handleSnooze}
           >
             Snooze 3 days

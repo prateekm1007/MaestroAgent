@@ -557,7 +557,7 @@ export function Commitments({
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-xs"
+                          className="h-9 text-xs"
                           onClick={async () => {
                             const newGrade = window.prompt(
                               `Override grade for ${g.entity || g.title || "this meeting"}.\nCurrent: ${g.effective_grade || g.grade}\nEnter new grade (A/B/C/D):`,
@@ -831,7 +831,7 @@ function CommitmentRow({
           <Button
             size="sm"
             variant="default"
-            className="h-7 text-xs"
+            className="h-9 text-xs"
             disabled={busy}
             onClick={() => onCorrect(c.signal_id, "complete")}
           >
@@ -841,7 +841,7 @@ function CommitmentRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 text-xs"
+            className="h-9 text-xs"
             disabled={busy}
             onClick={() => onCorrect(c.signal_id, "dismiss")}
           >
@@ -852,7 +852,7 @@ function CommitmentRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 ml-auto"
+            className="h-9 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 ml-auto"
             disabled={draftBusy}
             onClick={() => onDraft(c.entity)}
             title="Draft a follow-up email"
@@ -864,7 +864,7 @@ function CommitmentRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 text-xs bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+            className="h-9 text-xs bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
             onClick={() => onViewThreads?.(c.entity)}
             title={`View cross-meeting threads for ${c.entity}`}
           >
@@ -892,7 +892,7 @@ function CancelWithConfirm({
         <Button
           size={small ? "sm" : "sm"}
           variant="ghost"
-          className={small ? "h-7 text-xs text-rose-300 hover:text-rose-200" : "h-8 text-rose-300 hover:text-rose-200"}
+          className={small ? "h-9 text-xs text-rose-300 hover:text-rose-200" : "h-8 text-rose-300 hover:text-rose-200"}
           disabled={disabled}
         >
           <XCircle className={small ? "size-3" : "size-3.5"} />
@@ -1131,7 +1131,7 @@ function SignalsTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs"
+                  className="h-9 text-xs"
                   disabled={page === 0}
                   onClick={() => onPageChange(Math.max(0, page - 1))}
                 >
@@ -1143,7 +1143,7 @@ function SignalsTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs"
+                  className="h-9 text-xs"
                   disabled={page >= totalPages - 1}
                   onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
                 >
