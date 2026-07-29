@@ -12,6 +12,7 @@ import { calculateImportance, getLayoutMode, getConfidenceStyle } from '@/lib/im
 import { TheOne } from '@/components/maestro/TheOne'
 import { WhisperView } from '@/components/maestro/WhisperView'
 import { CommitmentsView } from '@/components/maestro/CommitmentsView'
+import { CorrectionButton } from '@/components/maestro/CorrectionButton'
 
 type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors'
 
@@ -284,7 +285,10 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
                     entity: c.entity || 'Unknown',
                     text: c.text || c.action || 'Change detected',
                     state: 'active',
-                    confidence: 0.7,
+                    // Phase 2.1 fix (auditor v13): use the actual confidence from
+                    // the API, not a hardcoded 0.7. The auditor found "UI 70% vs
+                    // API 0.245" — this hardcoded value was the root cause.
+                    confidence: typeof c.confidence === 'number' ? c.confidence : 0.5,
                   }}
                   apiBase={API_BASE}
                   token={getToken() || ''}
@@ -374,8 +378,24 @@ function AskView() {
                           {answer.evidence_refs.map((ev: any, i: number) => (
                             <div key={i} className="pl-4 border-l-2 rounded-r-lg" style={{ borderColor: '#2563EB', background: '#F9FAFB' }}>
                               <div className="p-3">
-                                <span className="text-xs text-gray-400">{ev.source_type || ev.source || 'signal'}</span>
-                                <p className="text-sm italic text-gray-700 leading-relaxed mt-1">"{ev.text || ev.evidence_quote || ''}"</p>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <span className="text-xs text-gray-400">{ev.source_type || ev.source || 'signal'}</span>
+                                    <p className="text-sm italic text-gray-700 leading-relaxed mt-1">"{ev.text || ev.evidence_quote || ''}"</p>
+                                  </div>
+                                  {/* Phase 2.6: Correction UI — user can correct a wrong commitment */}
+                                  {ev.signal_id && (
+                                    <CorrectionButton
+                                      signalId={ev.signal_id}
+                                      apiBase={API_BASE}
+                                      token={getToken() || ''}
+                                      onCorrected={() => {
+                                        // Refresh the answer after correction
+                                        handleAsk(query)
+                                      }}
+                                    />
+                                  )}
+                                </div>
                               </div>
                             </div>
                           ))}
