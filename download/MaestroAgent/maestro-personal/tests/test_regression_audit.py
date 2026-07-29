@@ -39,9 +39,17 @@ import uuid
 import pytest
 import requests
 
-BASE = os.environ["MAESTRO_URL"]
-TOKEN = os.environ["MAESTRO_TOKEN"]
+BASE = os.environ.get("MAESTRO_URL", "")
+TOKEN = os.environ.get("MAESTRO_TOKEN", "")
 H = {"Authorization": f"Bearer {TOKEN}"}
+
+
+def _skip_if_no_endpoint():
+    """Skip tests that require a live Maestro endpoint (production-path tests).
+    Unit tests (F-28, F-29) don't need it and run anywhere.
+    """
+    if not BASE or not TOKEN:
+        pytest.skip("MAESTRO_URL/MAESTRO_TOKEN not set — production-path test skipped")
 
 
 def _post_signal(entity: str, text: str, **extra) -> dict:
@@ -85,6 +93,7 @@ LEGIT_PHRASES = [
 
 @pytest.mark.parametrize("text", LEGIT_PHRASES)
 def test_f14_retraction_language_verbatim(text):
+    _skip_if_no_endpoint()
     """F-14: legitimate business phrases must round-trip byte-identical.
 
     The v10/v11/v12 auditor found the injection filter splices legitimate
@@ -104,6 +113,7 @@ def test_f14_retraction_language_verbatim(text):
 
 
 def test_f14_hostile_payload_neutralised_at_read():
+    _skip_if_no_endpoint()
     """F-14 (other direction): hostile payload must be neutralised at inference.
 
     The injection "IGNORE ALL PREVIOUS INSTRUCTIONS" must be filtered
@@ -134,6 +144,7 @@ def test_f14_hostile_payload_neutralised_at_read():
 
 
 def test_f12_f13_concurrent_writes_exact_arrival_no_dupes():
+    _skip_if_no_endpoint()
     """F-12/F-13: 8 concurrent writes → exactly 8 ledger rows, 0 misattributed.
 
     The v12 auditor found 0/8 → 0/8 → 3/8 arrival under concurrent load
@@ -183,6 +194,7 @@ def test_f12_f13_concurrent_writes_exact_arrival_no_dupes():
 
 
 def test_f13_no_orphaned_ledger_rows():
+    _skip_if_no_endpoint()
     """F-13: every ledger row's signal_id must exist in /api/signals.
 
     The derivation job was minting new signal_ids on each pass, creating
@@ -207,6 +219,7 @@ def test_f13_no_orphaned_ledger_rows():
 
 
 def test_f1_all_count_surfaces_agree():
+    _skip_if_no_endpoint()
     """F-1: the-moment, briefing, the-shifts, /commitments, /ledger must
     return the same active count.
 
@@ -252,6 +265,7 @@ def test_f1_all_count_surfaces_agree():
 
 
 def test_f2_flagship_maria_query():
+    _skip_if_no_endpoint()
     """F-2: "What did I promise Maria?" must return real records, not
     false-negative "no record" and not synthetic test data.
     """
@@ -280,6 +294,7 @@ def test_f2_flagship_maria_query():
 
 
 def test_f7_no_api_paths_in_user_copy():
+    _skip_if_no_endpoint()
     """F-7: Ask answers must never leak raw API paths like /api/..."""
     r = requests.post(
         f"{BASE}/api/ask",
@@ -312,6 +327,7 @@ REAL_NAMES = [
 
 @pytest.mark.parametrize("name", REAL_NAMES)
 def test_f25_real_names_accepted(name):
+    _skip_if_no_endpoint()
     """F-25: real entity names must be accepted (HTTP 200), not rejected
     by an over-broad test-entity filter."""
     r = requests.post(
@@ -342,6 +358,7 @@ TEST_ENTITIES = [
 
 @pytest.mark.parametrize("name", TEST_ENTITIES)
 def test_f26_test_entities_rejected_loudly(name):
+    _skip_if_no_endpoint()
     """F-26: test/audit probe entities must be rejected with HTTP 422,
     not silently accepted with HTTP 200.
 
@@ -374,6 +391,7 @@ def test_f26_test_entities_rejected_loudly(name):
 
 
 def test_f27_whisper_deterministic():
+    _skip_if_no_endpoint()
     """F-27: /api/whisper must return the same count on repeated calls
     within the same second. Non-determinism means a user refreshing the
     tab watches content appear and vanish."""
@@ -390,4 +408,76 @@ def test_f27_whisper_deterministic():
     assert len(set(results)) == 1, (
         f"F-27: non-deterministic whisper counts: {results}. "
         f"Same query, same second, different results."
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# F-28 — Multi-word entity extraction (Phase 3.3)
+# (NEW at v13, 2026-07-29)
+# Auditor found: "Project Atlas" was extracted as "Project". "Barack Obama"
+# was extracted as "Barack". This test ensures multi-word entity capture.
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_f28_multi_word_entity_extraction():
+    """F-28: detect_intent must capture multi-word entity names, not just
+    the first token. This is a unit test (no HTTP) — runs locally without
+    production access.
+    """
+    from maestro_personal_shell.query_grounding import detect_intent
+
+    cases = [
+        # (query, expected_entity_substring, expected_intent)
+        ("What's the status of Project Atlas?", "Project Atlas", "involving"),
+        ("What did Barack Obama promise?", "Barack Obama", "their_commitments"),
+        ("What's new with Sarah Chen?", "Sarah Chen", "involving"),
+        ("What is Project Apollo about?", "Project Apollo", "involving"),
+        ("Tell me about Acme Corp", "Acme Corp", "involving"),
+        # Regressions — single-word entities must still work
+        ("What did I promise Alex?", "Alex", "my_commitments"),
+        ("What did Maria promise?", "Maria", "their_commitments"),
+    ]
+    failures = []
+    for query, exp_sub, exp_intent in cases:
+        r = detect_intent(query)
+        if r["intent"] != exp_intent:
+            failures.append(f"  {query!r}: intent={r['intent']!r}, expected {exp_intent!r}")
+            continue
+        ent = r.get("entity") or ""
+        if exp_sub.lower() not in ent.lower():
+            failures.append(f"  {query!r}: entity={ent!r}, expected substring {exp_sub!r}")
+    assert not failures, (
+        "F-28: multi-word entity extraction failures:\n" + "\n".join(failures)
+    )
+
+
+def test_f29_temporal_and_conflict_intents():
+    """F-29: detect_intent must recognize temporal_change and conflict_check
+    intents (Phase 3.3). These were missing at v12 — 'what changed since X'
+    and 'which commitments conflict?' both fell through to 'general'.
+    """
+    from maestro_personal_shell.query_grounding import detect_intent
+
+    temporal_cases = [
+        "What changed since Monday?",
+        "Anything new since yesterday?",
+        "What's new since 3 days ago?",
+        "Updates since last week?",
+    ]
+    conflict_cases = [
+        "Which commitments conflict?",
+        "Are there any clashes next week?",
+        "Do any deadlines overlap?",
+    ]
+    failures = []
+    for q in temporal_cases:
+        r = detect_intent(q)
+        if r["intent"] != "temporal_change":
+            failures.append(f"  temporal: {q!r} → {r['intent']!r} (expected temporal_change)")
+    for q in conflict_cases:
+        r = detect_intent(q)
+        if r["intent"] != "conflict_check":
+            failures.append(f"  conflict: {q!r} → {r['intent']!r} (expected conflict_check)")
+    assert not failures, (
+        "F-29: temporal/conflict intent detection failures:\n" + "\n".join(failures)
     )

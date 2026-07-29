@@ -2,10 +2,31 @@
 
 from __future__ import annotations
 
+import hashlib
+import json as _json
 import logging
+import time as _time
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_MATERIALITY_CACHE: dict[str, tuple[float, dict]] = {}
+_MATERIALITY_CACHE_TTL = 30.0  # seconds — covers same-second refreshes
+
+
+def _materiality_fingerprint(commitment: dict[str, Any], context: dict[str, Any] | None) -> str:
+    """Stable hash of the materiality inputs for cache keying (F-27 fix)."""
+    try:
+        ctx_str = _json.dumps(context or {}, sort_keys=True, default=str)
+    except Exception:
+        ctx_str = repr(context)
+    key = "|".join([
+        str(commitment.get("entity", ""))[:200],
+        str(commitment.get("text", ""))[:500],
+        str(commitment.get("claim_type", ""))[:80],
+        ctx_str[:1000],
+    ])
+    return hashlib.sha256(key.encode("utf-8", errors="replace")).hexdigest()
 
 
 async def evaluate_materiality(
@@ -18,6 +39,14 @@ async def evaluate_materiality(
     # Fallback: rule-based materiality (when no LLM)
     if not is_llm_available():
         return _rule_based_materiality(commitment, context)
+
+    # F-27 fix: 30s in-memory cache — repeated same-second refreshes return identical results.
+    fp = _materiality_fingerprint(commitment, context)
+    now = _time.monotonic()
+    cached = _MATERIALITY_CACHE.get(fp)
+    if cached and cached[0] > now:
+        logger.debug("Materiality cache HIT (fp=%s...)", fp[:12])
+        return cached[1]
 
     entity = sanitize_for_llm(str(commitment.get("entity", "")), max_length=100)
     text = sanitize_for_llm(str(commitment.get("text", "")), max_length=300)
@@ -73,7 +102,7 @@ Context:
 Should Maestro surface this to the user right now? Output ONLY valid JSON."""
 
     try:
-        result = await llm_complete(system_prompt, user_prompt, temperature=0.1, max_tokens=200)
+        result = await llm_complete(system_prompt, user_prompt, temperature=0.0, max_tokens=200)
     except Exception as e:
         logger.debug("Materiality LLM call failed, using rules: %s", e)
         return _rule_based_materiality(commitment, context)
@@ -87,13 +116,15 @@ Should Maestro surface this to the user right now? Output ONLY valid JSON."""
     if not parsed or not isinstance(parsed, dict):
         return _rule_based_materiality(commitment, context)
 
-    return {
+    result = {
         "should_speak": bool(parsed.get("should_speak", True)),
         "materiality_score": float(parsed.get("materiality_score", 0.5)),
         "urgency": str(parsed.get("urgency", "medium")),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "llm_powered": True,
     }
+    _MATERIALITY_CACHE[fp] = (now + _MATERIALITY_CACHE_TTL, result)
+    return result
 
 
 def _rule_based_materiality(
