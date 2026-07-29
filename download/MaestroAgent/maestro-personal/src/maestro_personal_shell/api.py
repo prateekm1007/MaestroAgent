@@ -757,13 +757,18 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
         except Exception:
             timestamp = datetime.now(timezone.utc)
 
-        meta = json.loads(row["metadata"]) if row["metadata"] else {}
-        # Fix: metadata might be a string instead of a dict (demo_seeder stores it as JSON string)
-        if isinstance(meta, str):
+        # S2-2 fix: robust metadata parsing for both SQLite (JSON string)
+        # and Postgres (may return dict directly from JSON column)
+        meta_raw = row["metadata"]
+        if isinstance(meta_raw, dict):
+            meta = meta_raw
+        elif isinstance(meta_raw, str) and meta_raw:
             try:
-                meta = json.loads(meta)
-            except Exception:
+                meta = json.loads(meta_raw)
+            except (json.JSONDecodeError, TypeError):
                 meta = {}
+        else:
+            meta = {}
         if not isinstance(meta, dict):
             meta = {}
 
@@ -772,12 +777,12 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
         if status in ("dismissed", "cancelled", "completed"):
             continue
 
-        # S2-2 fix: store classification fields in metadata so
-        # _compute_commitment_confidence can read them
-        if row.get("commitment_confidence") is not None:
-            meta["commitment_confidence"] = row["commitment_confidence"]
-        if row.get("commitment_type"):
-            meta["commitment_type"] = row["commitment_type"]
+        # S2-2 fix: commitment_confidence and commitment_type are stored
+        # inside the metadata JSON column, not as separate DB columns.
+        # They're already in `meta` (parsed from row["metadata"] above).
+        # No additional action needed — meta already has them if they exist.
+        # The previous fix tried to read row.get("commitment_confidence")
+        # which doesn't exist as a DB column.
 
         sig = PersonalSignal(
             entity=row["entity"],
