@@ -1476,3 +1476,108 @@ REMAINING:
     canonical count (auditor finding from prior round, still open).
   - Test data pollution: production has ~34% test data (auditor finding
     from prior round, still open).
+
+---
+Task ID: 46 (Coder — P59 regression fix: S1-6 broke lifecycle transitions)
+Agent: Coder (GLM) — P47 honest attribution: CTO-authored
+
+CORRECTION:
+The prior worklog entry (Task ID 45) claimed the P59 lifecycle test
+failures were "pre-existing, not introduced by this commit." That
+claim was WRONG. The auditor (v11 correction) proved it with a
+controlled before/after test:
+
+  Parent commit (e9fdd16):  10 passed, 1 xpassed, 0 failed
+  S1-6 fix commit (045a88e7): 5 failed, 5 passed, 1 xpassed
+
+My error: I ran test_P59_P60_lifecycle_ownership.py (4 tests) in
+isolation instead of the combined P59 suite (11 tests), which masked
+the test-ordering dependency. The auditor's instruction #3 is correct:
+always do a full `git checkout <sha>` (not a partial file restore)
+and clear __pycache__ before concluding something predates your change.
+A partial checkout or a stale cache can make a real regression look
+like old news.
+
+ROOT CAUSE (verified by execution):
+S1-6 correctly changed `is_commitment` from True to False for cancelled
+and third_party_report (the trust thesis: a cancelled commitment no
+longer imposes an active obligation). But that same correct change
+silently disabled the cancellation-lifecycle transition:
+
+  upsert_ledger_entry (commitment_ledger.py line 131):
+    if classification.get('is_commitment') is False: return None
+
+This gate short-circuited BEFORE the TICKET-1 resolution-state
+transition logic (line 160) could run. A cancellation signal with
+is_commitment=False never reached the code that transitions the prior
+active commitment to cancelled.
+
+This is the same P65 "one field now means two different things to two
+different readers" shape as the P69 key-mismatch bug earlier in this
+arc. The writer's contract for `is_commitment` changed (S1-6 made it
+mean "does the USER owe an active obligation?"), but the ledger gate
+was still treating it as "should this signal create/transition a
+ledger row?". Two different questions, one field.
+
+FIXES APPLIED (commit 84fa8063):
+
+1. upsert_ledger_entry gate (commitment_ledger.py):
+   Changed from `if is_commitment is False: return None` to gating
+   on commitment_type. Resolution signals (cancelled/completed/broken/
+   superseded/disputed) MUST pass through to the TICKET-1 transition
+   logic regardless of is_commitment, because they are STATE
+   TRANSITIONS on existing commitments, not new commitments. Only
+   true non-commitments (not_a_commitment) and third_party_report
+   (someone else's obligation) are short-circuited.
+
+2. F-09 gate exemption (signals.py):
+   The F-09 check `if owner == 'other': state = 'candidate'` was
+   firing for completion signals where the LLM misclassified the
+   owner (e.g., "Alex PR review completed" → owner=other because
+   "Alex" looks like a third party). This overrode the caller's
+   completed_claimed state to 'candidate', which prevented the
+   TICKET-1 transition. Fix: resolution signals are exempt from the
+   F-09 gate — their owner doesn't matter because they transition
+   existing entries, not create new ones.
+
+3. Caller-type preservation (signals.py):
+   When the LLM returns not_a_commitment for a signal where the
+   caller explicitly passed commitment_type=completed/cancelled/broken
+   AND a resolution state, the caller's type is preserved. The LLM
+   sometimes misclassifies completion signals as not_a_commitment
+   because it reads entity names as third parties. The caller's
+   explicit type is ground truth for resolution signals.
+
+PINNED REGRESSION TESTS (tests/test_audit_v11_pinned_regressions.py):
+  Added 2 new tests (11 total, all passing):
+    - test_p59_cancellation_transitions_prior_active_commitment:
+      Posts an active commitment, then a cancellation signal with
+      is_commitment=False (S1-6). Verifies the prior active entry
+      is transitioned to cancelled. Pins BOTH properties: S1-6's
+      is_commitment=False AND P59's lifecycle transition.
+    - test_p59_completion_transitions_prior_active_commitment:
+      Same pattern for completions. Pins the F-09 exemption and
+      caller-type preservation.
+
+VERIFICATION:
+  Combined P59 suite (11 tests): 10 passed, 1 xpassed, 0 failed ✓
+  v11 pinned regression (11 tests): 11 passed ✓
+  Broader suite (152 tests): 152 passed, 1 xfailed, 1 xpassed ✓
+  Production (commit 84fa8063): 4/4 auditor assertions pass ✓
+  Production P59 lifecycle: cancellation transitions prior active
+  commitment to cancelled ✓
+
+COMMITS: 84fa8063 (fix), aa66f0fd (empty trigger), pushed to origin/main
+(no force). Clean fast-forward: 04f58106..84fa8063..aa66f0fd.
+CTO-authored (P47 honest attribution).
+
+LESSON:
+The auditor's framing is exactly right: "the mechanism you already
+correctly identified in the worklog is right — you just mischaracterized
+when it started." I identified the root cause correctly (upsert_ledger_entry
+gates on is_commitment) but got the "when it started" wrong by not doing
+a controlled before/after checkout. This is the most damaging kind of
+error in an audit arc: correct analysis, wrong conclusion, because the
+verification method was too shallow. The auditor's instruction #3
+(clean checkout of parent, clear __pycache__, run the same test) is now
+the standard for all "is this pre-existing" claims going forward.
