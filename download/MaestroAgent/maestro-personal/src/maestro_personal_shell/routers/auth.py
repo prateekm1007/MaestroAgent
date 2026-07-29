@@ -551,3 +551,109 @@ async def register_push_token(req: PushTokenRequest, token: str = Depends(verify
         db.close()
 
     return {"registered": True, "user_email": token}
+class SCIMName(BaseModel):
+    givenName: str
+    familyName: str
+class SCIMUserRequest(BaseModel):
+    schemas: List[str] = ["urn:ietf:params:scim:schemas:core:2.0:User"]
+    userName: str
+    name: SCIMName
+    emails: List[dict]
+    active: bool = True
+    externalId: Optional[str] = None
+class SCIMUserResponse(BaseModel):
+    schemas: List[str] = ["urn:ietf:params:scim:schemas:core:2.0:User"]
+    id: str
+    userName: str
+    name: SCIMName
+    emails: List[dict]
+    active: bool
+    meta: dict
+@router.post("/scim/v2/Users", response_model=SCIMUserResponse, status_code=201)
+async def scim_create_user(request: Request, user: SCIMUserRequest):
+    """
+    SCIM 2.0 endpoint for automated user provisioning.
+    Used by Okta, Entra ID, and other IdPs to provision/deprovision users.
+    """
+    config = get_sso_config()
+    if not config.enabled:
+        raise HTTPException(
+            status_code=501,
+            detail="SSO/SCIM is not configured. Set SSO_PROVIDER, SSO_URL, and SSO_ISSUER environment variables.",
+        )
+    # In production, this would:
+    # 1. Validate the SCIM bearer token
+    # 2. Create or update the user in the database
+    # 3. Return the created user with an ID
+    logger.warning("SCIM provisioning is a stub — returning mock response")
+    logger.info(f"SCIM create user request: userName={user.userName}, externalId={user.externalId}")
+    return SCIMUserResponse(
+        id="scim-stub-001",
+        userName=user.userName,
+        name=user.name,
+        emails=user.emails,
+        active=user.active,
+        meta={
+            "resourceType": "User",
+            "created": "2025-01-01T00:00:00Z",
+            "lastModified": "2025-01-01T00:00:00Z",
+            "location": f"{request.base_url}scim/v2/Users/scim-stub-001",
+        },
+    )
+class SSOCallbackRequest(BaseModel):
+    SAMLResponse: Optional[str] = None
+    id_token: Optional[str] = None
+    code: Optional[str] = None
+    state: Optional[str] = None
+class SSOCallbackResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
+@router.post("/api/auth/sso/callback", response_model=SSOCallbackResponse)
+@router.get("/api/auth/sso/callback", response_model=SSOCallbackResponse)
+async def sso_callback(
+    request: Request,
+    SAMLResponse: Optional[str] = None,
+    id_token: Optional[str] = None,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+):
+    """
+    SSO callback endpoint.
+    Accepts SAML assertions (POST) or OIDC tokens/codes (GET/POST).
+    Returns a MaestroAgent access token on successful authentication.
+    """
+    config = get_sso_config()
+    if not config.enabled:
+        raise HTTPException(
+            status_code=501,
+            detail="SSO is not configured. Set SSO_PROVIDER, SSO_URL, and SSO_ISSUER environment variables.",
+        )
+    try:
+        if config.provider == "saml" and SAMLResponse:
+            user_attrs = validate_saml_assertion(SAMLResponse)
+        elif config.provider == "oidc" and (id_token or code):
+            token_to_validate = id_token or code
+            user_attrs = validate_oidc_token(token_to_validate)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No valid SSO credentials provided for provider '{config.provider}'",
+            )
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        logger.error(f"SSO callback error: {e}")
+        raise HTTPException(status_code=401, detail="SSO authentication failed")
+    # In production, this would:
+    # 1. Look up or create the user in the database
+    # 2. Generate a real JWT access token
+    logger.warning("SSO callback is a stub — returning mock token")
+    return SSOCallbackResponse(
+        access_token="sso-mock-access-token",
+        user={
+            "email": user_attrs["email"],
+            "name": user_attrs["name"],
+            "groups": user_attrs.get("groups", []),
+        },
+    )
