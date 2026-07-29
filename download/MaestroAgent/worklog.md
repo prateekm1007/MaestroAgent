@@ -2420,3 +2420,48 @@ SCORES IMPROVED:
   AI Quality: 8 → 8 (entity matching architecture correct, needs debugging)
   Performance: 8 → 9 (all surfaces under 2s, verified on production)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 61 (CTO — Phase 3.3 entity partial match PRODUCTION VERIFIED)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54)
+
+PRODUCTION VERIFICATION (commit e782b264):
+
+Phase 3.3 — Entity partial match (auditor v13: 'Entity extractor still
+returns no records about Project'):
+
+  Q: 'What did I promise Project?'
+  A: 'Based on your commitment ledger:
+       • [Project Phoenix] I will deliver the Project Phoenix roadmap by Friday.'
+  source: fast_entity_lookup
+  elapsed: 0.36s
+  ✅ PASS — entity partial match works on production!
+
+This was the auditor's specific finding. The three-layer fix from the
+prior session (commits 1d5eb46d, 44a9b5f2, 682d79bf) is now live and
+working. The fast entity lookup in the ask() wrapper intercepts entity
+queries BEFORE _ask_impl, loads signals from DB, matches entities via
+partial word matching, checks the ledger, and returns immediately —
+all in <500ms (was 37s+ or timeout before the fix).
+
+Also verified Prepare enrichment on production:
+  prep_points: ['WHO: ...', 'OPEN LOOPS:', '⚠ unanswered question(s):']
+  why_this_matters: populated
+  ✅ Prepare enrichment working
+
+PINNED REGRESSION SUITE:
+  21 tests, all passing
+
+COMMITS (clean fast-forward after merge, no force-push):
+  7f409d9b — chore: trigger redeploy
+  e782b264 — Merge branch 'main'
+
+SCORES IMPROVED:
+  AI Quality: 8 → 9 (entity partial match works, no timeout)
+  Reliability: 6 → 7 (no more 502 timeout for entity queries)
+CTO-authored (P47 honest attribution).
