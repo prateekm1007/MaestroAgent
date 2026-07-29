@@ -390,47 +390,65 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         # because the copilot bridge isn't wired. Generate fallback points
         # from the commitment + contradiction data we already have.
         #
-        # Phase 3.1 fix (roadmap): use the prepare_engine to generate
+        # Phase 3.1 fix (roadmap v13): use the prepare_engine to generate
         # rich, data-driven prep points from signals + commitments.
-        # This is the biggest single audit gap (8 points, 12 audits empty).
-        #
-        # Phase 3.1 fix: also run prepare_engine if the existing talking
-        # points are template/empty (e.g. "No active situation found for Me.")
+        # This is the biggest single audit gap (7 points, 13 audits empty).
+        # The prepare_engine produces: who, open_loops, forgotten,
+        # blocking_unknowns, decisions_available, why_it_matters, prep_points.
+        # We now map ALL of these into the PrepareResponse, not just
+        # copilot_talking_points.
         _has_real_points = False
         for tp in copilot_talking_points:
             text = tp.get("point", "") if isinstance(tp, dict) else str(tp)
             if text.strip() and "No active situation" not in text:
                 _has_real_points = True
                 break
-        if not _has_real_points:
-            # Try the prepare_engine first (rich, data-driven)
-            # P85: completely non-fatal — any error is caught and falls through
-            try:
-                from maestro_personal_shell.prepare_engine import generate_prep
-                prep_data = generate_prep(token, entity)
-                if prep_data and prep_data.get("prep_points"):
-                    copilot_talking_points = [
-                        {"point": pp, "source": "prepare_engine"}
-                        for pp in prep_data["prep_points"][:5]
-                    ]
-                    if not copilot_blocking_unknowns and prep_data.get("blocking_unknowns"):
-                        copilot_blocking_unknowns = [str(b.get("question", b)) if isinstance(b, dict) else str(b) for b in prep_data["blocking_unknowns"][:3]]
-                    if not copilot_can_decide and prep_data.get("decisions_available"):
-                        copilot_can_decide = [str(d.get("text", d)) if isinstance(d, dict) else str(d) for d in prep_data["decisions_available"][:3]]
-            except Exception as e:
-                logger.warning("prepare_engine failed for %s (non-fatal): %s", entity, e)
 
-            # Fallback to rule-based if prepare_engine didn't produce results
-            if not copilot_talking_points:
-                fallback_points = []
-                if the_forgotten:
-                    fallback_points.append({"point": f"Forgotten: {the_forgotten}", "source": "rule-based"})
-                if the_open_question:
-                    fallback_points.append({"point": f"Open question: {the_open_question}", "source": "rule-based"})
-                if the_contradiction:
-                    fallback_points.append({"point": f"Contradiction: {the_contradiction}", "source": "rule-based"})
-                fallback_points.append({"point": f"Current state: {meeting_context}", "source": "rule-based"})
-                copilot_talking_points = fallback_points[:5]
+        # Phase 3.1: always run prepare_engine to get rich data, even if
+        # copilot produced points. The prepare_engine data populates
+        # prep_points, why_this_matters, and enriches blocking_unknowns.
+        _prep_engine_data = None
+        try:
+            from maestro_personal_shell.prepare_engine import generate_prep
+            _prep_engine_data = generate_prep(token, entity)
+        except Exception as e:
+            logger.warning("prepare_engine failed for %s (non-fatal): %s", entity, e)
+
+        if not _has_real_points and _prep_engine_data and _prep_engine_data.get("prep_points"):
+            copilot_talking_points = [
+                {"point": pp, "source": "prepare_engine"}
+                for pp in _prep_engine_data["prep_points"][:5]
+            ]
+            if not copilot_blocking_unknowns and _prep_engine_data.get("blocking_unknowns"):
+                copilot_blocking_unknowns = [str(b.get("question", b)) if isinstance(b, dict) else str(b) for b in _prep_engine_data["blocking_unknowns"][:3]]
+            if not copilot_can_decide and _prep_engine_data.get("decisions_available"):
+                copilot_can_decide = [str(d.get("text", d)) if isinstance(d, dict) else str(d) for d in _prep_engine_data["decisions_available"][:3]]
+
+        # Phase 3.1: populate prep_points from the prepare_engine (the
+        # auditor found these were always empty — the endpoint never
+        # mapped them, only mapped to copilot_talking_points).
+        _prep_points = []
+        if _prep_engine_data and _prep_engine_data.get("prep_points"):
+            _prep_points = _prep_engine_data["prep_points"][:5]
+
+        # Phase 3.1: populate why_this_matters from the prepare_engine
+        _why_this_matters = ""
+        if _prep_engine_data and _prep_engine_data.get("why_it_matters"):
+            _why_this_matters = _prep_engine_data["why_it_matters"]
+
+        # Fallback to rule-based if prepare_engine didn't produce results
+        if not copilot_talking_points:
+            fallback_points = []
+            if the_forgotten:
+                fallback_points.append({"point": f"Forgotten: {the_forgotten}", "source": "rule-based"})
+            if the_open_question:
+                fallback_points.append({"point": f"Open question: {the_open_question}", "source": "rule-based"})
+            if the_contradiction:
+                fallback_points.append({"point": f"Contradiction: {the_contradiction}", "source": "rule-based"})
+            fallback_points.append({"point": f"Current state: {meeting_context}", "source": "rule-based"})
+            copilot_talking_points = fallback_points[:5]
+            if not _prep_points:
+                _prep_points = [tp.get("point", str(tp)) for tp in fallback_points[:5]]
 
         if not copilot_timeline:
             # Generate a simple timeline from the situation's signals
@@ -442,6 +460,8 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
             situation_id=sit_id, entity=entity, meeting_context=meeting_context,
             is_stale=is_stale, the_forgotten=the_forgotten,
             the_open_question=the_open_question, the_contradiction=the_contradiction,
+            prep_points=_prep_points,
+            why_this_matters=_why_this_matters,
             copilot_talking_points=copilot_talking_points,
             copilot_blocking_unknowns=copilot_blocking_unknowns,
             copilot_can_decide=copilot_can_decide,

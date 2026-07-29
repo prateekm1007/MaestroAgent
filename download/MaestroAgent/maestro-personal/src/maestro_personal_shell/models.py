@@ -413,7 +413,8 @@ class PrepareResponse(BaseModel):
     the_forgotten: str = ""
     the_open_question: str = ""
     the_contradiction: str = ""
-    prep_points: list[str] = []  # kept for backward compat, but the 3 above are the point
+    prep_points: list[str] = []  # Phase 3.1: populated from prepare_engine
+    why_this_matters: str = ""   # Phase 3.1: one-line summary from prepare_engine
     # DEPTH FIELDS (wired from Core's CopilotSituationBridge)
     copilot_talking_points: list[dict[str, Any]] = []  # from pre_call_briefing — each cites evidence_refs
     copilot_blocking_unknowns: list[str] = []           # what you DON'T know going into this meeting
