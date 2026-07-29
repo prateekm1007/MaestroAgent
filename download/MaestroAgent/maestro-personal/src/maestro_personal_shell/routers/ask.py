@@ -489,34 +489,47 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             )
         except Exception as _temporal_err:
             logger.warning("Phase 3.3 temporal diff failed: %s", _temporal_err)
-    try:
-        _grounded = ground_query(req.query, token, db_path=default_sqlite_path())
-        if _grounded["should_abstain"] and _grounded["evidence_count"] == 0:
-            _abstain = format_abstention_response(
-                req.query,
-                entity=_grounded["entity"],
-                reason=_grounded["abstention_reason"] or "no evidence found",
-            )
-            logger.info(
-                "ask: P84 ABSTENTION (query=%r, entity=%s, reason=%s)",
-                req.query[:80], _grounded["entity"], _grounded["abstention_reason"],
-            )
-            _abstain_response = AskResponse(
-                answer=_abstain["answer"],
-                query=req.query,
-                confidence=0.0,
-                calibration_note=f"P84 abstention: {_abstain['abstention_reason']}",
-                llm_active=False,
-                llm_provider="none",
-                intelligence_source="abstention",
-            )
-            # Cache the abstention too (so repeated zero-evidence queries don't
-            # even hit ground_query on the next call)
-            cache.set(req.query, token, _cache_evidence, _abstain_response.model_dump())
-            return _abstain_response
-    except Exception as _ground_err:
-        # P85: grounding failures never block the request — proceed to _ask_impl
-        logger.warning("ask: ground_query failed (%s) — proceeding to _ask_impl", _ground_err)
+
+    # Phase 3.3 fix (auditor v13): entity queries like "What did I promise
+    # Project?" must bypass the abstention gate. The gate checks ground_query
+    # which may return 0 evidence for partial entity matches. Skip the gate
+    # for entity-specific queries and go directly to _ask_impl which has
+    # the RC2 ledger fast path + signal fallback.
+    _ENTITY_PATTERNS_SKIP_GATE = [
+        "what did i promise", "what do i owe", "what about",
+        "tell me about", "what did i commit", "what did i say to",
+    ]
+    _skip_abstention_gate = any(p in _query_lower_early for p in _ENTITY_PATTERNS_SKIP_GATE)
+
+    if not _skip_abstention_gate:
+        try:
+            _grounded = ground_query(req.query, token, db_path=default_sqlite_path())
+            if _grounded["should_abstain"] and _grounded["evidence_count"] == 0:
+                _abstain = format_abstention_response(
+                    req.query,
+                    entity=_grounded["entity"],
+                    reason=_grounded["abstention_reason"] or "no evidence found",
+                )
+                logger.info(
+                    "ask: P84 ABSTENTION (query=%r, entity=%s, reason=%s)",
+                    req.query[:80], _grounded["entity"], _grounded["abstention_reason"],
+                )
+                _abstain_response = AskResponse(
+                    answer=_abstain["answer"],
+                    query=req.query,
+                    confidence=0.0,
+                    calibration_note=f"P84 abstention: {_abstain['abstention_reason']}",
+                    llm_active=False,
+                    llm_provider="none",
+                    intelligence_source="abstention",
+                )
+                # Cache the abstention too (so repeated zero-evidence queries don't
+                # even hit ground_query on the next call)
+                cache.set(req.query, token, _cache_evidence, _abstain_response.model_dump())
+                return _abstain_response
+        except Exception as _ground_err:
+            # P85: grounding failures never block the request — proceed to _ask_impl
+            logger.warning("ask: ground_query failed (%s) — proceeding to _ask_impl", _ground_err)
 
     # ---- Cache miss → call _ask_impl (the slow path with LLM) ----
     response = await _ask_impl(request, req, as_of, token)
