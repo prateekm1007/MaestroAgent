@@ -612,12 +612,14 @@ def propagate_correction(
 ) -> dict[str, Any]:
     """Propagate a signal correction to the ledger + downstream artifacts.
 
-    correction is one of: 'dismiss', 'cancel', 'supersede', 'dispute'.
+    correction is one of: 'dismiss', 'cancel', 'complete', 'supersede', 'dispute'.
 
     Actions:
       - dismiss/cancel: transition the ledger entry to 'cancelled' (or
         'tombstoned' if already cancelled), remove from FTS so it stops
         surfacing in retrieval.
+      - complete: transition to 'completed_claimed' (Phase 2.6 fix —
+        was incorrectly falling through to 'cancelled').
       - supersede: mark 'superseded' (the caller should also create the
         new entry).
       - dispute: mark 'disputed'.
@@ -648,6 +650,7 @@ def propagate_correction(
         target_state = {
             "dismiss": "cancelled",
             "cancel": "cancelled",
+            "complete": "completed_claimed",  # Phase 2.6 fix: complete → completed_claimed, not cancelled
             "supersede": "superseded",
             "dispute": "disputed",
         }.get(correction, "cancelled")

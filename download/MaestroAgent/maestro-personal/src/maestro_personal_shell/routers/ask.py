@@ -1144,6 +1144,10 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         "what are my active commitments", "active commitments",
         "my active commitments", "show my commitments",
         "anything urgent", "what's at risk",
+        # Phase 3.3 fix: multi-hop conflict detection
+        "which commitments conflict", "commitments conflict",
+        "conflicting commitments", "what conflicts",
+        "any conflicts", "schedule conflict",
         # F-S1b-a-2 fix (auditor): "list all" / "every" / "all of them"
         # are the most natural commitment-tracker queries. Without these
         # patterns, "Give me every commitment I have" returns a bare
@@ -1184,6 +1188,95 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         "work life", "my commitments to everyone",
     ]
     _is_broad_query = any(p in query_lower for p in _BROAD_QUERY_PATTERNS)
+
+    # Phase 3.3 fix (auditor v13): multi-hop conflict detection.
+    # "Which commitments conflict?" should detect commitments with the
+    # same deadline or same entity that could conflict, not return
+    # "no matching signals". This is a multi-hop query — it requires
+    # comparing commitments across entities.
+    _is_conflict_query = any(p in query_lower for p in [
+        "conflict", "conflicting", "which commitments conflict",
+        "any conflicts", "schedule conflict",
+    ])
+    if _is_conflict_query:
+        try:
+            from maestro_personal_shell.commitment_ledger import get_ledger_entries
+            from pathlib import Path as _P_conflict
+            _db_conflict = os.environ.get("MAESTRO_PERSONAL_DB", str(_P_conflict(__file__).resolve().parents[1] / "personal.db"))
+            _active = get_ledger_entries(token, _db_conflict, state="active")
+            if _active:
+                # Group by deadline_text — commitments with the same deadline conflict
+                _by_deadline: dict[str, list] = {}
+                for e in _active:
+                    dl = e.get("deadline_text", "") or e.get("deadline_datetime", "") or "no deadline"
+                    _by_deadline.setdefault(dl, []).append(e)
+                _conflicts = []
+                for dl, entries in _by_deadline.items():
+                    if dl != "no deadline" and len(entries) > 1:
+                        _conflicts.append({
+                            "deadline": dl,
+                            "commitments": [
+                                {"entity": e.get("entity", ""), "action": e.get("action", "")[:80]}
+                                for e in entries
+                            ],
+                        })
+                # Also check same-entity conflicts (multiple active commitments to same entity)
+                _by_entity: dict[str, list] = {}
+                for e in _active:
+                    ent = e.get("entity", "")
+                    _by_entity.setdefault(ent, []).append(e)
+                for ent, entries in _by_entity.items():
+                    if len(entries) > 1:
+                        _conflicts.append({
+                            "entity": ent,
+                            "commitments": [
+                                {"action": e.get("action", "")[:80], "deadline": e.get("deadline_text", "")}
+                                for e in entries
+                            ],
+                            "reason": "Multiple active commitments to the same entity",
+                        })
+
+                if _conflicts:
+                    _conflict_lines = ["I found the following potential conflicts in your commitments:"]
+                    for c in _conflicts:
+                        if "deadline" in c:
+                            _conflict_lines.append(f"\n⚠ Deadline conflict — {c['deadline']}:")
+                            for cm in c["commitments"]:
+                                _conflict_lines.append(f"  • {cm['entity']}: {cm['action']}")
+                        elif "entity" in c:
+                            _conflict_lines.append(f"\n⚠ Entity overload — {c['entity']} ({c['reason']}):")
+                            for cm in c["commitments"]:
+                                _conflict_lines.append(f"  • {cm['action']} (due: {cm['deadline'] or 'no deadline'})")
+                    _conflict_answer = "\n".join(_conflict_lines)
+                else:
+                    _conflict_answer = "No conflicts detected. Your active commitments have different deadlines and entities."
+                return AskResponse(
+                    answer=_conflict_answer,
+                    query=req.query,
+                    source_sentence="",
+                    source_entity="",
+                    source_timestamp="",
+                    situation_state="",
+                    evidence_refs=[],
+                    confidence=0.8,
+                    counterevidence=[],
+                    unknowns=[],
+                    as_of=str(as_of or ""),
+                    decision_boundary="",
+                    perspectives=[],
+                    reasoning_chain=[
+                        f"Query: {req.query[:80]}",
+                        f"Conflict detection: checked {len(_active)} active commitments",
+                        f"Found {len(_conflicts)} potential conflict(s)",
+                    ],
+                    calibration_note="Conflict detection — rule-based, no LLM needed.",
+                    consequence_paths=[],
+                    llm_active=False,
+                    llm_provider="none",
+                    intelligence_source="conflict_detection",
+                )
+        except Exception as _conflict_err:
+            logger.warning("Phase 3.3 conflict detection failed: %s", _conflict_err)
 
     # F-IntentGate fix (auditor Phase 1-5): intent-based queries like
     # "What did I fail to deliver?" / "Which promises are overdue?" /
