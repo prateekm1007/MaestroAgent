@@ -1040,32 +1040,32 @@ async def derivation_status(token: str = ""):
     Phase 1.1 (auditor v13): monitoring endpoint. Returns the count of
     signals with metadata.awaiting_derivation=1. Target: 0.
     """
-    from fastapi import HTTPException
-    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
-
-    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
-    if not admin_token or token != admin_token:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
-
-    db_path = default_sqlite_path()
     try:
+        from fastapi import HTTPException
+        from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+
+        admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+        if not admin_token or token != admin_token:
+            raise HTTPException(status_code=403, detail="Invalid admin token")
+
+        db_path = default_sqlite_path()
         conn = get_db_conn(db_path)
-        # Use fetchall() and len() instead of COUNT(*) — more robust across
-        # all DB wrapper types (sqlite3.Row, DictRow, tuple, etc.)
         rows = conn.execute(
             "SELECT signal_id FROM signals WHERE metadata LIKE '%awaiting_derivation%' LIMIT 10000"
         ).fetchall()
-        count = len(rows)
+        count = len(rows) if rows else 0
         conn.close()
+        return {
+            "awaiting_derivation": count,
+            "target": 0,
+            "healthy": count == 0,
+        }
     except Exception as e:
+        import traceback
         return {
             "awaiting_derivation": -1,
             "target": 0,
             "healthy": False,
             "error": str(e)[:200],
+            "traceback": traceback.format_exc()[-500:],
         }
-    return {
-        "awaiting_derivation": count,
-        "target": 0,
-        "healthy": count == 0,
-    }
