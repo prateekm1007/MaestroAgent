@@ -546,13 +546,34 @@ async def resolve_outcome_endpoint(req: OutcomeRequest, token: str = Depends(ver
 
 @router.get("/calibration")
 async def get_calibration(token: str = Depends(verify_token_dep)):
-    """Get the Brier score + calibration report."""
+    """Get the Brier score + calibration report.
+
+    Phase 2.4 fix (auditor v13): suppress Brier score when insufficient
+    data. The auditor found 'Brier 0.6193 / 0-of-13 not shown as authority'
+    — showing a Brier score from 0 resolved predictions is misleading.
+    Now: if resolved_predictions < 5, return brier_score=null and
+    calibration_note='Insufficient data for calibration'.
+    """
     from maestro_personal_shell.outcome_tracker import (
         get_calibration_report, get_prediction_count, init_outcome_db,
     )
     init_outcome_db()
     report = get_calibration_report(user_email=token)
     counts = get_prediction_count(user_email=token)
+
+    # Phase 2.4: suppress Brier when insufficient data
+    resolved = counts.get("resolved", 0) if isinstance(counts, dict) else 0
+    total = counts.get("total", 0) if isinstance(counts, dict) else 0
+    if resolved < 5 or total < 10:
+        report["brier_score"] = None
+        report["calibration_note"] = (
+            f"Insufficient data for calibration ({resolved} resolved / {total} total predictions). "
+            f"Need at least 5 resolved predictions to compute a meaningful Brier score."
+        )
+        report["calibration_suppressed"] = True
+    else:
+        report["calibration_suppressed"] = False
+
     return {**report, "counts": counts}
 
 

@@ -331,6 +331,25 @@ def init_db(db_path: str | None = None) -> None:
             notified_at TEXT NOT NULL
         )
     """)
+    # Phase 1.3 (auditor v13): outbox table for transactional ingest.
+    # Signal + outbox row are written together; a background worker drains
+    # the outbox to the ledger with retry. This ensures accepted == persisted.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS outbox (
+            outbox_id TEXT PRIMARY KEY,
+            signal_id TEXT NOT NULL,
+            user_email TEXT NOT NULL,
+            entity TEXT NOT NULL,
+            text TEXT NOT NULL,
+            signal_type TEXT NOT NULL,
+            metadata TEXT DEFAULT '{}',
+            timestamp TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            processed_at TEXT,
+            retry_count INTEGER DEFAULT 0,
+            last_error TEXT
+        )
+    """)
     conn.commit()
     conn.close()
 

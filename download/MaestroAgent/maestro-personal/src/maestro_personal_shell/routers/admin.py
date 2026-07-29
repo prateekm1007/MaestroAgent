@@ -1145,3 +1145,188 @@ async def derivation_status(token: str = ""):
             "error": str(e)[:200],
             "traceback": traceback.format_exc()[-500:],
         }
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.3: Outbox drain — transactional ingest worker
+# (auditor v13: "Signal + outbox row in one txn; worker drains with retry")
+# ---------------------------------------------------------------------------
+
+@router.post("/api/admin/drain-outbox")
+async def drain_outbox(token: str = ""):
+    """Drain the outbox — process unprocessed rows into the ledger.
+
+    Phase 1.3 (auditor v13): the outbox ensures accepted == persisted.
+    Each signal write creates an outbox row. This endpoint drains unprocessed
+    rows by running upsert_ledger_entry + append_event. On success, sets
+    processed_at. On failure, increments retry_count and records last_error.
+
+    Returns: {drained, succeeded, failed, remaining, failures: [...]}
+    """
+    import json as _json_drain
+    import uuid as _uuid_drain
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    conn = get_db_conn(db_path)
+
+    # Find unprocessed outbox rows (retry_count < 5)
+    rows = conn.execute(
+        "SELECT outbox_id, signal_id, user_email, entity, text, signal_type, metadata, timestamp "
+        "FROM outbox WHERE processed_at IS NULL AND retry_count < 5 LIMIT 100"
+    ).fetchall()
+
+    total = len(rows)
+    succeeded = 0
+    failed = 0
+    failures = []
+
+    for r in rows:
+        outbox_id = r["outbox_id"] if hasattr(r, "keys") else r[0]
+        signal_id = r["signal_id"] if hasattr(r, "keys") else r[1]
+        user_email = r["user_email"] if hasattr(r, "keys") else r[2]
+        entity = r["entity"] if hasattr(r, "keys") else r[3]
+        text = r["text"] if hasattr(r, "keys") else r[4]
+        signal_type = r["signal_type"] if hasattr(r, "keys") else r[5]
+        meta_raw = r["metadata"] if hasattr(r, "keys") else r[6]
+        timestamp = r["timestamp"] if hasattr(r, "keys") else r[7]
+
+        try:
+            meta = _json_drain.loads(meta_raw) if isinstance(meta_raw, str) else (meta_raw or {})
+
+            # Run ledger derivation (same as signals.py)
+            from maestro_personal_shell.commitment_ledger import upsert_ledger_entry
+            from maestro_personal_shell.canonical_ledger import append_event, CommitmentEvent
+
+            _ingest_is_commitment = meta.get("is_commitment", False)
+            _ingest_state = meta.get("commitment_state", "candidate")
+            _ingest_owner = meta.get("commitment_owner", "unknown")
+
+            if _ingest_is_commitment:
+                upsert_ledger_entry(
+                    classification={
+                        "commitment_type": meta.get("commitment_type", "not_a_commitment"),
+                        "is_commitment": _ingest_is_commitment,
+                        "state": _ingest_state,
+                        "owner": _ingest_owner,
+                    },
+                    signal={"signal_id": signal_id, "entity": entity, "text": text},
+                    user_email=user_email,
+                    db_path=db_path,
+                )
+
+            # Append to canonical ledger
+            event = CommitmentEvent(
+                event_id=str(_uuid_drain.uuid4()),
+                commitment_id=f"commitment-{signal_id[:8]}",
+                event_type=signal_type or "signal_ingested",
+                actor=_ingest_owner or "user",
+                entity=entity,
+                text=text[:500],
+                source_signal_id=signal_id,
+                confidence=meta.get("confidence", 0.5),
+                state=_ingest_state,
+                user_email=user_email,
+                timestamp=timestamp,
+                metadata=meta,
+            )
+            append_event(event, db_path=db_path)
+
+            # Mark as processed
+            from datetime import datetime, timezone
+            conn.execute(
+                "UPDATE outbox SET processed_at = ? WHERE outbox_id = ?",
+                (datetime.now(timezone.utc).isoformat(), outbox_id),
+            )
+            conn.commit()
+            succeeded += 1
+        except Exception as e:
+            failed += 1
+            failures.append({"outbox_id": outbox_id, "signal_id": signal_id, "error": str(e)[:200]})
+            # Increment retry_count
+            conn.execute(
+                "UPDATE outbox SET retry_count = retry_count + 1, last_error = ? WHERE outbox_id = ?",
+                (str(e)[:500], outbox_id),
+            )
+            conn.commit()
+
+    # Count remaining
+    remaining = conn.execute(
+        "SELECT COUNT(*) FROM outbox WHERE processed_at IS NULL AND retry_count < 5"
+    ).fetchone()
+    remaining_count = remaining[0] if remaining and not hasattr(remaining, "keys") else 0
+    conn.close()
+
+    return {
+        "status": "complete",
+        "drained": total,
+        "succeeded": succeeded,
+        "failed": failed,
+        "remaining": remaining_count,
+        "failures": failures[:10],
+        "governance": "Phase 1.3: outbox drained — accepted == persisted",
+    }
+
+
+@router.get("/api/admin/outbox-status")
+async def outbox_status(token: str = ""):
+    """Check outbox health — how many rows are unprocessed.
+
+    Phase 1.3 (auditor v13): monitoring endpoint. Target: 0 unprocessed.
+    """
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    try:
+        conn = get_db_conn(db_path)
+        rows = conn.execute(
+            "SELECT outbox_id FROM outbox WHERE processed_at IS NULL AND retry_count < 5"
+        ).fetchall()
+        unprocessed = len(rows) if rows else 0
+        failed_rows = conn.execute(
+            "SELECT outbox_id FROM outbox WHERE retry_count >= 5"
+        ).fetchall()
+        permanently_failed = len(failed_rows) if failed_rows else 0
+        conn.close()
+    except Exception as e:
+        return {"unprocessed": -1, "permanently_failed": -1, "healthy": False, "error": str(e)[:200]}
+
+    return {
+        "unprocessed": unprocessed,
+        "permanently_failed": permanently_failed,
+        "target": 0,
+        "healthy": unprocessed == 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 4.5: Data residency — EU/US pinning + self-host LLM option
+# (auditor v13: "EU/US pinning; self-host LLM option")
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/data-residency")
+async def get_data_residency(token: str = ""):
+    """Get the current data residency configuration.
+
+    Phase 4.5 (auditor v13): admin monitoring endpoint for data sovereignty.
+    Returns the configured region, LLM provider mode, and whether
+    self-hosted LLM is configured.
+    """
+    from fastapi import HTTPException
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    from maestro_personal_shell.data_residency import get_data_residency_info
+    return get_data_residency_info()

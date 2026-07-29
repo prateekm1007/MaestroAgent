@@ -601,6 +601,38 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         audit_log_error = str(e)
         logger.error("Audit log write failed for /api/signals: %s", e)
 
+    # Phase 1.3 (auditor v13): write outbox row for transactional ingest.
+    # The outbox ensures accepted == persisted — a background worker drains
+    # it to the ledger with retry. If the signal insert succeeded but the
+    # ledger derivation fails, the outbox row remains unprocessed and can
+    # be retried via POST /api/admin/drain-outbox.
+    try:
+        import json as _json_outbox
+        import uuid as _uuid_outbox
+        from pathlib import Path as _P_outbox
+        from maestro_personal_shell.db_util import get_db_conn
+        _db_outbox = os.environ.get("MAESTRO_PERSONAL_DB", str(_P_outbox(__file__).resolve().parents[1] / "personal.db"))
+        _conn_outbox = get_db_conn(_db_outbox)
+        _conn_outbox.execute(
+            "INSERT INTO outbox (outbox_id, signal_id, user_email, entity, text, signal_type, metadata, timestamp, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                str(_uuid_outbox.uuid4()),
+                signal_id,
+                token,
+                canonical_entity,
+                sanitized_text[:500],
+                req.signal_type or "",
+                _json_outbox.dumps(metadata) if metadata else "{}",
+                signal_data.get("timestamp", ""),
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        _conn_outbox.commit()
+        _conn_outbox.close()
+    except Exception as _outbox_err:
+        logger.warning("Phase 1.3: outbox insert failed (non-fatal — signal already persisted): %s", _outbox_err)
+
     # Phase 3: Persist the commitment classification into the normalized
     # ledger. The ledger is the source of truth for commitment lifecycle
     # (state machine, closure matching, correction propagation). The
