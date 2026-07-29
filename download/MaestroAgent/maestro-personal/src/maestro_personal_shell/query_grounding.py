@@ -200,11 +200,14 @@ def ground_query(question: str, user_email: str, db_path: str | None = None) -> 
                 # Only user's commitments (actor=user is already enforced by reduce_commitments)
                 filtered = [c for c in filtered if c.get("actor") == "user"]
             elif direction == "X's-promises":
-                # Third-party commitments — but reduce_commitments only returns user-active.
-                # For their_commitments, we'd need to query the ledger directly for actor=entity_name.
-                # For now, return empty (the user's active list doesn't include third-party).
-                # Phase 3+: add a separate query for third-party commitments.
-                filtered = []  # TODO: query ledger for actor=entity_name events
+                # S2-9 fix: "What are Garcia's commitments?" is ambiguous — could mean
+                # "what did Garcia promise?" (third-party) OR "what commitments involve
+                # Garcia?" (user's promises TO Garcia). Previously returned empty list
+                # with a TODO. Now falls back to showing all commitments involving this
+                # entity (same as involving-X). This ensures surname queries like
+                # "Garcia's commitments" return the user's commitments to Maria Garcia.
+                # No filter — show all matching commitments (user + third-party).
+                pass
             # involving-X and any: no further filter
 
             result["evidence"] = filtered[:20]

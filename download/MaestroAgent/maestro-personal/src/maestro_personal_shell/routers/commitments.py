@@ -420,7 +420,16 @@ def _compute_commitment_confidence(
     calibration_note: str,
     days_stale: int = 0,
 ) -> float:
-    """Compute real per-item confidence for a commitment."""
+    """Compute real per-item confidence for a commitment.
+
+    S2-2 fix: previously all commitments got the same 0.245 because the
+    function fell back to base 0.5 when metadata lacked commitment_confidence.
+    Now checks multiple sources for the classification confidence:
+      1. metadata.commitment_confidence (from signal classification)
+      2. commitment.confidence (from canonical ledger)
+      3. commitment.get('commitment_confidence') (direct field)
+      4. Base 0.5 fallback
+    """
     confidence = 0.5  # base
 
     # 1. Use classification confidence if available
@@ -433,6 +442,9 @@ def _compute_commitment_confidence(
             meta = {}
 
     class_conf = meta.get("commitment_confidence")
+    if class_conf is None:
+        # S2-2 fix: try the commitment's own confidence field
+        class_conf = commitment.get("confidence") or commitment.get("commitment_confidence")
     if class_conf is not None:
         confidence = float(class_conf)
 
