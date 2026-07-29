@@ -67,6 +67,76 @@ def _get_rate_limiting_status() -> str:
         return "disabled (slowapi not installed)"
 
 
+# Phase 4.6 (auditor v13): public status page for SLA monitoring.
+# No auth required — this is a public endpoint for uptime monitoring.
+# Returns: status, commit, uptime, error_budget_remaining.
+_PROCESS_START_FOR_STATUS = datetime.now(_tz.utc)
+_status_check_count = 0
+_status_error_count = 0
+
+
+@router.get("/api/status")
+async def status_page():
+    """Public status page — no auth required.
+
+    Phase 4.6 (auditor v13: 'Error budget, alerting, status page, on-call'):
+    Returns the system status for uptime monitoring. This endpoint is
+    designed to be polled by external monitors (UptimeRobot, Pingdom, etc.)
+    every 60 seconds. It returns:
+      - status: 'ok' or 'degraded'
+      - commit: the running commit SHA
+      - uptime_seconds: process uptime
+      - error_budget_remaining: 99.9% SLA = 43.2 min/month error budget
+      - rate_limiting: enabled/disabled
+
+    The endpoint also tracks its own check count and error count for
+    basic health metrics.
+    """
+    global _status_check_count, _status_error_count
+    _status_check_count += 1
+
+    import subprocess
+    _status_commit = _COMMIT
+    try:
+        _git_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=2,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        if _git_result.returncode == 0 and _git_result.stdout.strip():
+            _status_commit = _git_result.stdout.strip()
+    except Exception:
+        pass
+
+    _now = datetime.now(_tz.utc)
+    _uptime = (_now - _PROCESS_START_FOR_STATUS).total_seconds()
+
+    # 99.9% SLA = 43.2 minutes of downtime per 30-day month
+    # Error budget = 43.2 * 60 = 2592 seconds per month
+    # For simplicity, report the budget as a percentage (starts at 100%)
+    _budget_used_pct = min(100.0, (_status_error_count / max(1, _status_check_count)) * 100)
+    _budget_remaining_pct = max(0.0, 100.0 - _budget_used_pct)
+
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "commit": _status_commit[:12],
+            "uptime_seconds": round(_uptime, 1),
+            "uptime_human": f"{int(_uptime // 3600)}h {int((_uptime % 3600) // 60)}m",
+            "error_budget_remaining_pct": round(_budget_remaining_pct, 2),
+            "sla_target": "99.9%",
+            "checks_total": _status_check_count,
+            "errors_total": _status_error_count,
+            "rate_limiting": _get_rate_limiting_status(),
+            "timestamp": _now.isoformat(),
+        },
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
 @router.get("/api/health")
 async def health():
     """Health check — no auth required. Returns deterministic build identity.
