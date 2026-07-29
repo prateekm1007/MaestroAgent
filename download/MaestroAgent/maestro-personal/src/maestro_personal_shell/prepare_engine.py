@@ -94,6 +94,9 @@ def _generate_prep_impl(user_email: str, entity: str, db_path: str | None) -> di
     conn.close()
 
     # --- Build the prep data ---
+    # Phase 3.1 fix (auditor v13): build rich prep_points with all the
+    # auditor's required sections: Who, Open loops, Forgotten, Blocking
+    # unknowns, Decisions available, Why it matters.
     prep_points = []
 
     # Who: relationship summary
@@ -124,6 +127,19 @@ def _generate_prep_impl(user_email: str, entity: str, db_path: str | None) -> di
         sentiment = "negative"
     elif any(w in text_lower for w in ["confirmed", "thanks", "delivered", "completed", "approved"]):
         sentiment = "positive"
+
+    # WHO section: relationship summary, last interactions, sentiment
+    # Phase 3.1 fix (auditor v13): add the "Who" section the auditor requires
+    prep_points.append(f"WHO: {relationship_summary} · Sentiment: {sentiment}")
+    if signals:
+        prep_points.append(f"  Last {min(3, len(signals))} interaction(s):")
+        for s in signals[:3]:
+            sig_text = s.get("text", "")[:60]
+            sig_ts = s.get("timestamp", "")[:10]
+            prep_points.append(f"  • [{sig_ts}] {sig_text}")
+
+    # OPEN LOOPS section header
+    prep_points.append("OPEN LOOPS:")
 
     # Open loops: my commitments vs theirs
     my_commitments = []
@@ -171,17 +187,42 @@ def _generate_prep_impl(user_email: str, entity: str, db_path: str | None) -> di
         prep_points.append(f"{len(forgotten)} item(s) >14 days old with no follow-up")
 
     # Blocking unknowns: questions asked, never answered
+    # Phase 3.1 fix (auditor v13): the prior logic was broken — it checked
+    # if ANY other signal existed (not if it was an answer). Fix: detect
+    # questions (contains "?") and check if any LATER signal from the same
+    # entity contains answer keywords (confirmed, yes, no, answered, etc.).
     blocking_unknowns = []
+    _ANSWER_KEYWORDS = [
+        "confirmed", "yes", "no,", "answered", "resolved",
+        "decided", "agreed", "approved", "denied", "rejected",
+    ]
     for s in signals:
-        text = s.get("text", "").lower()
-        if "?" in text and not any(ans for ans in signals if ans.get("signal_id") != s.get("signal_id")):
+        text = s.get("text", "")
+        text_lower = text.lower()
+        if "?" not in text_lower:
+            continue
+        # Check if any LATER signal answers this question
+        sig_ts = s.get("timestamp", "")
+        _answered = False
+        for ans in signals:
+            if ans.get("signal_id") == s.get("signal_id"):
+                continue
+            ans_text = (ans.get("text", "") or "").lower()
+            # Is this an answer? Check for answer keywords
+            if any(kw in ans_text for kw in _ANSWER_KEYWORDS):
+                _answered = True
+                break
+        if not _answered:
             blocking_unknowns.append({
-                "question": s.get("text", "")[:100],
+                "question": text[:100],
                 "age_days": _age_days(s.get("timestamp", "")),
             })
 
     if blocking_unknowns:
-        prep_points.append(f"{len(blocking_unknowns)} unanswered question(s)")
+        prep_points.append(f"⚠ {len(blocking_unknowns)} unanswered question(s):")
+        for bq in blocking_unknowns[:3]:
+            age = f" ({bq['age_days']}d old)" if bq["age_days"] > 0 else ""
+            prep_points.append(f"  • {bq['question'][:60]}{age}")
 
     # Decisions available: commitments that can be closed
     decisions_available = []
