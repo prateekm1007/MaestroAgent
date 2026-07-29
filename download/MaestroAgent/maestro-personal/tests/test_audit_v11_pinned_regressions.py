@@ -974,3 +974,84 @@ def test_phase14_honest_write_status_rejects_duplicate():
             os.environ.pop("MAESTRO_PERSONAL_DB", None)
         else:
             os.environ["MAESTRO_PERSONAL_DB"] = old_db
+
+
+# ---------------------------------------------------------------------------
+# Phase 3.3 — Ask: no contradictory "No record" for entity substrings
+# (auditor v12: "close the reasoning gap" — entity extraction must not
+# contradict itself)
+# ---------------------------------------------------------------------------
+
+
+def test_phase33_ask_no_contradictory_negative_for_substring():
+    """Phase 3.3: if the query asks "What did I promise Maria?" and the
+    ledger finds "Maria Garcia", the answer must NOT append "No record
+    of any promise to Maria" — that's a contradiction.
+
+    The compound entity extraction regex extracts both "Maria" AND
+    "Maria Garcia" from the query. The ledger finds "Maria Garcia" and
+    returns the record. But the negative-appending logic saw "Maria" as
+    "unaddressed" and appended the contradictory negative.
+
+    Fix: check substring overlap before appending negatives. If "Maria"
+    is a substring of "Maria Garcia" (which was found), don't append.
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db, save_signal_to_db
+    from maestro_personal_shell.commitment_ledger import init_ledger_table, upsert_ledger_entry
+    from fastapi.testclient import TestClient
+    from maestro_personal_shell.api import app
+
+    db_path = tempfile.mktemp(suffix="_phase33_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        init_ledger_table(db_path)
+        import uuid as _uuid
+        email = f"phase33-{_uuid.uuid4().hex[:8]}@example.com"
+        with TestClient(app) as client:
+            r = client.post("/api/auth/register", json={
+                "user_email": email, "password": "Phase33!Pass", "name": "P33"
+            })
+            token = r.json()["token"]
+
+            # Post a signal with a multi-word entity
+            client.post("/api/signals", json={
+                "signal_id": f"p33-{_uuid.uuid4().hex[:8]}",
+                "entity": "Maria Garcia",
+                "text": "I will send the Q3 budget proposal to Maria Garcia by Friday EOD.",
+                "signal_type": "commitment_made",
+                "timestamp": "2026-07-29T12:00:00Z",
+                "metadata": {"source": "phase33-test"},
+            }, headers={"Authorization": f"Bearer {token}"})
+
+            import time
+            time.sleep(3)
+
+            # Ask "What did I promise Maria?" — should find Maria Garcia
+            # and NOT append "No record of any promise to Maria"
+            r = client.post("/api/ask", json={"query": "What did I promise Maria?"},
+                            headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code == 200
+            answer = r.json().get("answer", "")
+
+            # The answer should contain "Maria Garcia" (the found record)
+            assert "Maria Garcia" in answer or "Q3 budget" in answer, (
+                f"Phase 3.3: answer should contain the Maria Garcia record. "
+                f"Answer: {answer[:300]}"
+            )
+
+            # The answer should NOT contain "No record of any promise to Maria"
+            # (the contradictory negative)
+            assert "No record of any promise to Maria" not in answer, (
+                f"Phase 3.3: answer contains contradictory 'No record of any "
+                f"promise to Maria' after finding Maria Garcia. Answer: {answer[:300]}"
+            )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db
