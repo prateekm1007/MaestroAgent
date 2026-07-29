@@ -50,6 +50,14 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 # Copy source
 COPY --from=builder /build/ ./
 
+# P-S2-2 fix: Delete all .pyc files to prevent stale bytecode from
+# overriding source code fixes. The build step (pip install) creates
+# .pyc files that can become stale when source files change between
+# builds but the .pyc timestamp isn't invalidated. This caused the
+# S1-6 classifier rollup fix to not take effect despite being in the source.
+RUN find /app -name "*.pyc" -delete && find /app -name "__pycache__" -exec rm -rf {} + 2>/dev/null; true
+ENV PYTHONDONTWRITEBYTECODE=1
+
 # P9 fix: force the version layer to rebuild on every deploy by echoing
 # CACHEBUST right before the ENV. Without this, Railway's Docker builder
 # caches the ENV layer and serves the old version label even when the
