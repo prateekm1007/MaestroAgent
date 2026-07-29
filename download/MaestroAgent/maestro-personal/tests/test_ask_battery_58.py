@@ -146,7 +146,13 @@ def _is_abstention(answer: str) -> bool:
         "no signals found",
         "no matching",
         "i don't have enough",
+        "i don't have enough information",
         "no record of",
+        "no evidence found",
+        "not enough information",
+        "i don't have any",
+        "no commitments found",
+        "no commitments in",
     ])
 
 
