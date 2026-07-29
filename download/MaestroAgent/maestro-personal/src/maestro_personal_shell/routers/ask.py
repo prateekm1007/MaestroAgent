@@ -958,11 +958,30 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                             and e.lower() not in ("i", "me", "my", "we", "us", "our", "you", "your", "the", "a", "an")
                         ]
                         if _unaddressed:
-                            _negatives = []
+                            # Phase 3.3 fix (auditor v12): don't append "No record
+                            # of any promise to X" if X is a substring of an entity
+                            # that WAS found. "What did I promise Maria?" finds
+                            # "Maria Garcia" in the ledger, but the regex also
+                            # extracts "Maria" as a separate entity — leading to
+                            # the contradictory "No record of any promise to Maria"
+                            # appearing right after the Maria Garcia record.
+                            # Fix: check substring overlap before appending negatives.
+                            _queried_lower_list = list(_queried_lower)
+                            _filtered_unaddressed = []
                             for _ent in _unaddressed:
-                                _negatives.append(f"• No record of any promise to {_ent}.")
-                            _ledger_answer += "\n\n" + "\n".join(_negatives)
-                            _calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
+                                _ent_lower = _ent.lower()
+                                _is_substring_of_found = any(
+                                    _ent_lower in _found or _found in _ent_lower
+                                    for _found in _queried_lower_list
+                                )
+                                if not _is_substring_of_found:
+                                    _filtered_unaddressed.append(_ent)
+                            if _filtered_unaddressed:
+                                _negatives = []
+                                for _ent in _filtered_unaddressed:
+                                    _negatives.append(f"• No record of any promise to {_ent}.")
+                                _ledger_answer += "\n\n" + "\n".join(_negatives)
+                                _calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
 
                         # TICKET-10 (2026-07-25): THIRD-PARTY PROMISE QUERY EXCLUSION
                         # on the RC2 fast path. "What did Maria promise?" must NOT return
@@ -4384,10 +4403,24 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         and e.lower() not in ("i", "me", "my", "we", "us", "our", "you", "your", "the", "a", "an")
     ]
     if _final_unaddressed:
-        _final_negatives = [f"No record of any promise to {_ent}." for _ent in _final_unaddressed]
-        verified_answer = str(verified_answer) + "\n\n" + "\n".join(_final_negatives)
-        if calibration_note:
-            calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
+        # Phase 3.3 fix (auditor v12): same substring-overlap check as the
+        # RC2 path above. Don't append "No record of any promise to X" if
+        # X is a substring of an entity that WAS found in the evidence.
+        _final_addressed_list = list(_final_addressed)
+        _final_filtered = []
+        for _ent in _final_unaddressed:
+            _ent_lower = _ent.lower()
+            _is_substring_of_found = any(
+                _ent_lower in _found or _found in _ent_lower
+                for _found in _final_addressed_list
+            )
+            if not _is_substring_of_found:
+                _final_filtered.append(_ent)
+        if _final_filtered:
+            _final_negatives = [f"No record of any promise to {_ent}." for _ent in _final_filtered]
+            verified_answer = str(verified_answer) + "\n\n" + "\n".join(_final_negatives)
+            if calibration_note:
+                calibration_note += " Compound question: some entities had no matching records — grounded negatives appended."
         else:
             calibration_note = "Compound question: some entities had no matching records — grounded negatives appended."
 
