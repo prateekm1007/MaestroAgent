@@ -1027,6 +1027,62 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                             "RC2 ledger-read fast path: query=%r → %d current entries for %d entities, conf=%.1f (no LLM needed)",
                             req.query[:60], len(_ledger_evidence), len(_queried_entities), _confidence,
                         )
+
+                        # Phase 3.3 fix (auditor v13): populate counterevidence
+                        # and reasoning_chain. The auditor found these were
+                        # always empty (0/58 at v1). Counterevidence = signals
+                        # from the same entity that suggest the commitment is
+                        # already fulfilled, contradicted, or disputed.
+                        # Reasoning_chain = the steps Maestro took to answer.
+                        _counterevidence = []
+                        _reasoning_chain = [
+                            f"Query: {req.query[:80]}",
+                            f"Extracted entities: {', '.join(_queried_entities[:3])}",
+                            f"Ledger lookup: found {len(_ledger_evidence)} active entries",
+                        ]
+                        try:
+                            from maestro_personal_shell.api import load_signals_from_db
+                            _all_sigs = load_signals_from_db(user_email=token, limit=500)
+                            _entity_lower = {e.lower() for e in _queried_entities}
+                            _COUNTER_KEYWORDS = [
+                                "received", "delivered", "completed", "sent",
+                                "approved", "confirmed", "done", "finished",
+                                "cancelled", "never sent", "didn't send",
+                                "failed to", "missed", "overdue",
+                            ]
+                            for sig in _all_sigs:
+                                sig_entity = (sig.get("entity", "") or "").lower()
+                                sig_text = (sig.get("text", "") or "").lower()
+                                sig_id = sig.get("signal_id", "")
+                                # Match same entity
+                                if not any(e in sig_entity or sig_entity in e for e in _entity_lower):
+                                    continue
+                                # Skip the evidence we already cited
+                                if any(sig_id == ev.get("signal_id") for ev in _ledger_evidence):
+                                    continue
+                                # Check for counterevidence keywords
+                                if any(kw in sig_text for kw in _COUNTER_KEYWORDS):
+                                    _counterevidence.append({
+                                        "signal_id": sig_id,
+                                        "entity": sig.get("entity", ""),
+                                        "text": sig.get("text", "")[:150],
+                                        "timestamp": sig.get("timestamp", ""),
+                                        "reason": "Signal suggests commitment may be fulfilled or contradicted",
+                                    })
+                            if _counterevidence:
+                                _reasoning_chain.append(
+                                    f"Counterevidence: found {len(_counterevidence)} signal(s) "
+                                    f"suggesting the commitment may be fulfilled or contradicted"
+                                )
+                                _reasoning_chain.append(
+                                    "Answer cites the active commitment; counterevidence "
+                                    "is provided for the user to assess"
+                                )
+                            else:
+                                _reasoning_chain.append("No counterevidence found — answer is well-grounded")
+                        except Exception as _ce_err:
+                            logger.debug("Phase 3.3 counterevidence detection failed: %s", _ce_err)
+
                         return AskResponse(
                             answer=_ledger_answer,
                             query=req.query,
@@ -1036,12 +1092,12 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                             situation_state="",
                             evidence_refs=_ledger_evidence[:5],
                             confidence=_confidence,
-                            counterevidence=[],
+                            counterevidence=_counterevidence[:5],
                             unknowns=[],
                             as_of=str(as_of or ""),
                             decision_boundary="",
                             perspectives=[],
-                            reasoning_chain=[],
+                            reasoning_chain=_reasoning_chain,
                             calibration_note=_calibration_note,
                             consequence_paths=[],
                             llm_active=False,
