@@ -772,6 +772,13 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
         if status in ("dismissed", "cancelled", "completed"):
             continue
 
+        # S2-2 fix: store classification fields in metadata so
+        # _compute_commitment_confidence can read them
+        if row.get("commitment_confidence") is not None:
+            meta["commitment_confidence"] = row["commitment_confidence"]
+        if row.get("commitment_type"):
+            meta["commitment_type"] = row["commitment_type"]
+
         sig = PersonalSignal(
             entity=row["entity"],
             text=row["text"],
