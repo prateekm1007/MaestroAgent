@@ -397,6 +397,7 @@ def _filter_non_commitments_by_classification(
         meta = c.get("metadata", {})
         if not meta and sig_id and sig_id in sig_meta_lookup:
             meta = sig_meta_lookup[sig_id]
+            c["metadata"] = meta  # S2-2 fix: assign back so _compute_commitment_confidence can read it
 
         if isinstance(meta, str):
             try:
