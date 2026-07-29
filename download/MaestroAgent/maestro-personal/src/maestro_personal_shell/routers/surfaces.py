@@ -1038,8 +1038,15 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
         return TheMomentResponse(has_moment=False, reconciliation=recon)
 
     # Phase 3.1: LLM-powered Trusted Silence (Materiality Gate)
+    # Phase 2.9 fix (auditor v13): skip the LLM gate when the commitment
+    # is clearly high-priority (stale or has a deadline). The LLM gate
+    # adds 1-3s latency per call, pushing /api/the-moment over the 2s
+    # target. For stale commitments (days_stale > 2) or commitments with
+    # deadlines, the materiality question is already answered — surface
+    # them. The gate only runs for the borderline case (not stale, no
+    # deadline, not old) where 'should we surface this?' is genuinely
+    # ambiguous.
     try:
-        from maestro_personal_shell.dynamic_agents import materiality_gate_v2
         mat_context = {
             "days_stale": 0,
             "has_deadline": bool(best_commitment.get("metadata", {}).get("deadline")),
@@ -1059,7 +1066,21 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
                 mat_context["age_days"] = (now - ct).days
             except Exception as e:
                 logger.debug("= failed: %s", e)
-        materiality = await materiality_gate_v2(best_commitment, mat_context, user_email=token)
+
+        _skip_gate = (
+            best_commitment.get("signal_id") in stale_ids  # stale → always surface
+            or bool(best_commitment.get("metadata", {}).get("deadline"))  # has deadline → always surface
+            or mat_context.get("age_days", 0) > 7  # old → always surface
+        )
+        if _skip_gate:
+            materiality = {"should_speak": True, "reasoning": "rule-based: stale/deadline/old", "materiality_score": 0.8, "llm_powered": False}
+        else:
+            try:
+                from maestro_personal_shell.dynamic_agents import materiality_gate_v2
+                materiality = await materiality_gate_v2(best_commitment, mat_context, user_email=token)
+            except Exception as e:
+                logger.debug("Materiality gate failed, using rule-based: %s", e)
+                materiality = {"should_speak": True, "reasoning": "gate failed — surfacing", "materiality_score": 0.5, "llm_powered": False}
 
         try:
             from maestro_personal_shell.observability import log_whisper_decision
